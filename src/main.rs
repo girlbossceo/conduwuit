@@ -2,16 +2,19 @@
 mod ruma_wrapper;
 
 use {
-    rocket::{get, post, put, routes},
+    directories::ProjectDirs,
+    rocket::{get, post, put, routes, State},
     ruma_client_api::{
         error::{Error, ErrorKind},
         r0::{
             account::register, alias::get_alias, membership::join_room_by_id,
-            message::create_message_event,
+            message::create_message_event, session::login,
         },
         unversioned::get_supported_versions,
     },
+    ruma_identifiers::UserId,
     ruma_wrapper::{MatrixResult, Ruma},
+    sled::Db,
     std::convert::TryInto,
 };
 
@@ -23,8 +26,13 @@ fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Respon
 }
 
 #[post("/_matrix/client/r0/register", data = "<body>")]
-fn register_route(body: Ruma<register::Request>) -> MatrixResult<register::Response> {
-    let user_id = match (*format!(
+fn register_route(
+    db: State<Db>,
+    body: Ruma<register::Request>,
+) -> MatrixResult<register::Response> {
+    let users = db.open_tree("users").unwrap();
+
+    let user_id: UserId = match (*format!(
         "@{}:localhost",
         body.username.clone().unwrap_or("randomname".to_owned())
     ))
@@ -33,12 +41,27 @@ fn register_route(body: Ruma<register::Request>) -> MatrixResult<register::Respo
         Err(_) => {
             return MatrixResult(Err(Error {
                 kind: ErrorKind::InvalidUsername,
-                message: "Username was invalid. ".to_owned(),
+                message: "Username was invalid.".to_owned(),
                 status_code: http::StatusCode::BAD_REQUEST,
             }))
         }
         Ok(user_id) => user_id,
     };
+
+    if users.contains_key(user_id.to_string()).unwrap() {
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::UserInUse,
+            message: "Desired user ID is already taken.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }));
+    }
+
+    users
+        .insert(
+            user_id.to_string(),
+            &*body.password.clone().unwrap_or_default(),
+        )
+        .unwrap();
 
     MatrixResult(Ok(register::Response {
         access_token: "randomtoken".to_owned(),
@@ -46,6 +69,38 @@ fn register_route(body: Ruma<register::Request>) -> MatrixResult<register::Respo
         user_id,
         device_id: body.device_id.clone().unwrap_or("randomid".to_owned()),
     }))
+}
+
+#[post("/_matrix/client/r0/login", data = "<body>")]
+fn login_route(db: State<Db>, body: Ruma<login::Request>) -> MatrixResult<login::Response> {
+    let user_id = if let login::UserInfo::MatrixId(username) = &body.user {
+        let user_id = format!("@{}:localhost", username);
+        let users = db.open_tree("users").unwrap();
+        if !users.contains_key(user_id.clone()).unwrap() {
+            dbg!();
+            return MatrixResult(Err(Error {
+                kind: ErrorKind::Forbidden,
+                message: "UserId not found.".to_owned(),
+                status_code: http::StatusCode::BAD_REQUEST,
+            }));
+        }
+        user_id
+    } else {
+        dbg!();
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::Unknown,
+            message: "Bad login type.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }));
+    };
+
+    return MatrixResult(Ok(login::Response {
+        user_id: (*user_id).try_into().unwrap(), // User id is correct because the user is already registered
+        access_token: "randomtoken".to_owned(),
+        home_server: Some("localhost".to_owned()),
+        device_id: body.device_id.clone().unwrap_or("randomid".to_owned()),
+        well_known: None,
+    }));
 }
 
 #[get("/_matrix/client/r0/directory/room/<room_alias>")]
@@ -97,16 +152,25 @@ fn create_message_event_route(
 
 fn main() {
     pretty_env_logger::init();
+    let db = sled::open(
+        ProjectDirs::from("xyz", "koesters", "matrixserver")
+            .unwrap()
+            .data_dir(),
+    )
+    .unwrap();
+
     rocket::ignite()
         .mount(
             "/",
             routes![
                 get_supported_versions_route,
                 register_route,
+                login_route,
                 get_alias_route,
                 join_room_by_id_route,
                 create_message_event_route,
             ],
         )
+        .manage(db)
         .launch();
 }
