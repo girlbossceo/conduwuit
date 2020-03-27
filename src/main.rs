@@ -15,13 +15,14 @@ use {
     ruma_identifiers::UserId,
     ruma_wrapper::{MatrixResult, Ruma},
     sled::Db,
-    std::convert::TryInto,
+    std::{collections::HashMap, convert::TryInto},
 };
 
 #[get("/_matrix/client/versions")]
 fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
     MatrixResult(Ok(get_supported_versions::Response {
         versions: vec!["r0.6.0".to_owned()],
+        unstable_features: HashMap::new(),
     }))
 }
 
@@ -151,7 +152,12 @@ fn create_message_event_route(
 }
 
 fn main() {
+    // Log info by default
+    if let Err(_) = std::env::var("RUST_LOG") {
+        std::env::set_var("RUST_LOG", "info");
+    }
     pretty_env_logger::init();
+
     let db = sled::open(
         ProjectDirs::from("xyz", "koesters", "matrixserver")
             .unwrap()
