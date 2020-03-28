@@ -1,32 +1,35 @@
-use rocket::{
-    data::{FromDataSimple, Outcome},
-    http::Status,
-    response::Responder,
-    Data,
-    Outcome::*,
-    Request,
-};
-use ruma_client_api::error::Error;
-use std::{
-    convert::{TryFrom, TryInto},
-    fmt,
-    io::{Cursor, Read},
-    ops::Deref,
+use {
+    rocket::data::{FromDataSimple, Outcome},
+    rocket::http::Status,
+    rocket::response::Responder,
+    rocket::Outcome::*,
+    rocket::Request,
+    rocket::State,
+    ruma_client_api::error::Error,
+    std::ops::Deref,
+    std::{
+        convert::{TryFrom, TryInto},
+        fmt,
+        io::{Cursor, Read},
+    },
 };
 
 const MESSAGE_LIMIT: u64 = 65535;
 
+/// This struct converts rocket requests into ruma structs by converting them into http requests
+/// first.
 pub struct Ruma<T> {
     body: T,
     headers: http::HeaderMap<http::header::HeaderValue>,
 }
+
 impl<T: TryFrom<http::Request<Vec<u8>>>> FromDataSimple for Ruma<T>
 where
     T::Error: fmt::Debug,
 {
     type Error = ();
 
-    fn from_data(request: &Request, data: Data) -> Outcome<Self, Self::Error> {
+    fn from_data(request: &Request, data: rocket::Data) -> Outcome<Self, Self::Error> {
         let mut http_request = http::Request::builder()
             .uri(request.uri().to_string())
             .method(&*request.method().to_string());
@@ -43,7 +46,13 @@ where
 
         log::info!("{:?}", http_request);
         match T::try_from(http_request) {
-            Ok(t) => Success(Ruma { body: t, headers }),
+            Ok(t) => {
+                //if T::METADATA.requires_authentication {
+                //let data = request.guard::<State<crate::Data>>();
+                // TODO: auth
+                //}
+                Success(Ruma { body: t, headers })
+            }
             Err(e) => {
                 log::error!("{:?}", e);
                 Failure((Status::InternalServerError, ()))
@@ -69,6 +78,7 @@ impl<T: fmt::Debug> fmt::Debug for Ruma<T> {
     }
 }
 
+/// This struct converts ruma responses into rocket http responses.
 pub struct MatrixResult<T>(pub std::result::Result<T, Error>);
 impl<T: TryInto<http::Response<Vec<u8>>>> TryInto<http::Response<Vec<u8>>> for MatrixResult<T> {
     type Error = T::Error;

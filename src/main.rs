@@ -2,7 +2,7 @@
 mod data;
 mod ruma_wrapper;
 
-use data::Data;
+pub use data::Data;
 use log::debug;
 use rocket::{get, post, put, routes, State};
 use ruma_client_api::{
