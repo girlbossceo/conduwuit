@@ -3,6 +3,7 @@ mod ruma_wrapper;
 
 use {
     directories::ProjectDirs,
+    log::debug,
     rocket::{get, post, put, routes, State},
     ruma_client_api::{
         error::{Error, ErrorKind},
@@ -40,16 +41,18 @@ fn register_route(
     .try_into()
     {
         Err(_) => {
+            debug!("Username invalid");
             return MatrixResult(Err(Error {
                 kind: ErrorKind::InvalidUsername,
                 message: "Username was invalid.".to_owned(),
                 status_code: http::StatusCode::BAD_REQUEST,
-            }))
+            }));
         }
         Ok(user_id) => user_id,
     };
 
     if users.contains_key(user_id.to_string()).unwrap() {
+        debug!("ID already taken");
         return MatrixResult(Err(Error {
             kind: ErrorKind::UserInUse,
             message: "Desired user ID is already taken.".to_owned(),
