@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rocket = { git = "https://github.com/SergioBenitez/Rocket.git" }
+rocket = { git = "https://github.com/SergioBenitez/Rocket.git", features = ["tls"] }
 http = "0.2.1"
 ruma-client-api = { git = "https://github.com/ruma/ruma-client-api" }
 pretty_env_logger = "0.4.0"

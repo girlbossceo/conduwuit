@@ -1,42 +1,47 @@
 #![feature(proc_macro_hygiene, decl_macro)]
+mod data;
 mod ruma_wrapper;
 
-use {
-    directories::ProjectDirs,
-    log::debug,
-    rocket::{get, post, put, routes, State},
-    ruma_client_api::{
-        error::{Error, ErrorKind},
-        r0::{
-            account::register, alias::get_alias, membership::join_room_by_id,
-            message::create_message_event, session::login,
-        },
-        unversioned::get_supported_versions,
+use data::Data;
+use log::debug;
+use rocket::{get, post, put, routes, State};
+use ruma_client_api::{
+    error::{Error, ErrorKind},
+    r0::{
+        account::register, alias::get_alias, membership::join_room_by_id,
+        message::create_message_event, session::login,
     },
-    ruma_identifiers::UserId,
-    ruma_wrapper::{MatrixResult, Ruma},
-    sled::Db,
-    std::{collections::HashMap, convert::TryInto},
+    unversioned::get_supported_versions,
 };
+use ruma_identifiers::UserId;
+use ruma_wrapper::{MatrixResult, Ruma};
+use std::{collections::HashMap, convert::TryInto};
 
 #[get("/_matrix/client/versions")]
 fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
     MatrixResult(Ok(get_supported_versions::Response {
-        versions: vec!["r0.6.0".to_owned()],
+        versions: vec![
+            "r0.0.1".to_owned(),
+            "r0.1.0".to_owned(),
+            "r0.2.0".to_owned(),
+            "r0.3.0".to_owned(),
+            "r0.4.0".to_owned(),
+            "r0.5.0".to_owned(),
+            "r0.6.0".to_owned(),
+        ],
         unstable_features: HashMap::new(),
     }))
 }
 
 #[post("/_matrix/client/r0/register", data = "<body>")]
 fn register_route(
-    db: State<Db>,
+    data: State<Data>,
     body: Ruma<register::Request>,
 ) -> MatrixResult<register::Response> {
-    let users = db.open_tree("users").unwrap();
-
     let user_id: UserId = match (*format!(
-        "@{}:localhost",
-        body.username.clone().unwrap_or("randomname".to_owned())
+        "@{}:{}",
+        body.username.clone().unwrap_or("randomname".to_owned()),
+        data.hostname()
     ))
     .try_into()
     {
@@ -51,7 +56,7 @@ fn register_route(
         Ok(user_id) => user_id,
     };
 
-    if users.contains_key(user_id.to_string()).unwrap() {
+    if data.user_exists(&user_id) {
         debug!("ID already taken");
         return MatrixResult(Err(Error {
             kind: ErrorKind::UserInUse,
@@ -60,37 +65,42 @@ fn register_route(
         }));
     }
 
-    users
-        .insert(
-            user_id.to_string(),
-            &*body.password.clone().unwrap_or_default(),
-        )
-        .unwrap();
+    data.user_add(user_id.clone(), body.password.clone());
 
     MatrixResult(Ok(register::Response {
         access_token: "randomtoken".to_owned(),
-        home_server: "localhost".to_owned(),
+        home_server: data.hostname(),
         user_id,
         device_id: body.device_id.clone().unwrap_or("randomid".to_owned()),
     }))
 }
 
 #[post("/_matrix/client/r0/login", data = "<body>")]
-fn login_route(db: State<Db>, body: Ruma<login::Request>) -> MatrixResult<login::Response> {
-    let user_id = if let login::UserInfo::MatrixId(username) = &body.user {
-        let user_id = format!("@{}:localhost", username);
-        let users = db.open_tree("users").unwrap();
-        if !users.contains_key(user_id.clone()).unwrap() {
-            dbg!();
+fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<login::Response> {
+    let username = if let login::UserInfo::MatrixId(mut username) = body.user.clone() {
+        if !username.contains(':') {
+            username = format!("@{}:{}", username, data.hostname());
+        }
+        if let Ok(user_id) = (*username).try_into() {
+            if !data.user_exists(&user_id) {
+                debug!("Userid does not exist. Can't log in.");
+                return MatrixResult(Err(Error {
+                    kind: ErrorKind::Forbidden,
+                    message: "UserId not found.".to_owned(),
+                    status_code: http::StatusCode::BAD_REQUEST,
+                }));
+            }
+            user_id
+        } else {
+            debug!("Invalid UserId.");
             return MatrixResult(Err(Error {
-                kind: ErrorKind::Forbidden,
-                message: "UserId not found.".to_owned(),
+                kind: ErrorKind::Unknown,
+                message: "Bad login type.".to_owned(),
                 status_code: http::StatusCode::BAD_REQUEST,
             }));
         }
-        user_id
     } else {
-        dbg!();
+        debug!("Bad login type");
         return MatrixResult(Err(Error {
             kind: ErrorKind::Unknown,
             message: "Bad login type.".to_owned(),
@@ -99,7 +109,7 @@ fn login_route(db: State<Db>, body: Ruma<login::Request>) -> MatrixResult<login:
     };
 
     return MatrixResult(Ok(login::Response {
-        user_id: (*user_id).try_into().unwrap(), // User id is correct because the user is already registered
+        user_id: username.try_into().unwrap(), // Unwrap is okay because the user is already registered
         access_token: "randomtoken".to_owned(),
         home_server: Some("localhost".to_owned()),
         device_id: body.device_id.clone().unwrap_or("randomid".to_owned()),
@@ -148,7 +158,7 @@ fn create_message_event_route(
     _txn_id: String,
     body: Ruma<create_message_event::IncomingRequest>,
 ) -> MatrixResult<create_message_event::Response> {
-    dbg!(body.0);
+    dbg!(body);
     MatrixResult(Ok(create_message_event::Response {
         event_id: "$randomeventid".try_into().unwrap(),
     }))
@@ -161,12 +171,8 @@ fn main() {
     }
     pretty_env_logger::init();
 
-    let db = sled::open(
-        ProjectDirs::from("xyz", "koesters", "matrixserver")
-            .unwrap()
-            .data_dir(),
-    )
-    .unwrap();
+    let data = Data::load_or_create();
+    data.set_hostname("localhost");
 
     rocket::ignite()
         .mount(
@@ -180,6 +186,6 @@ fn main() {
                 create_message_event_route,
             ],
         )
-        .manage(db)
+        .manage(data)
         .launch();
 }

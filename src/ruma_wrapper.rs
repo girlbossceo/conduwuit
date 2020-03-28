@@ -1,24 +1,28 @@
-use {
-    rocket::data::{FromDataSimple, Outcome},
-    rocket::http::Status,
-    rocket::response::Responder,
-    rocket::Request,
-    rocket::{Data, Outcome::*},
-    ruma_client_api::error::Error,
-    std::fmt::Debug,
-    std::ops::Deref,
-    std::{
-        convert::{TryFrom, TryInto},
-        io::{Cursor, Read},
-    },
+use rocket::{
+    data::{FromDataSimple, Outcome},
+    http::Status,
+    response::Responder,
+    Data,
+    Outcome::*,
+    Request,
+};
+use ruma_client_api::error::Error;
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+    io::{Cursor, Read},
+    ops::Deref,
 };
 
 const MESSAGE_LIMIT: u64 = 65535;
 
-pub struct Ruma<T>(pub T);
+pub struct Ruma<T> {
+    body: T,
+    headers: http::HeaderMap<http::header::HeaderValue>,
+}
 impl<T: TryFrom<http::Request<Vec<u8>>>> FromDataSimple for Ruma<T>
 where
-    T::Error: Debug,
+    T::Error: fmt::Debug,
 {
     type Error = ();
 
@@ -35,10 +39,11 @@ where
         handle.read_to_end(&mut body).unwrap();
 
         let http_request = http_request.body(body).unwrap();
+        let headers = http_request.headers().clone();
 
         log::info!("{:?}", http_request);
         match T::try_from(http_request) {
-            Ok(r) => Success(Ruma(r)),
+            Ok(t) => Success(Ruma { body: t, headers }),
             Err(e) => {
                 log::error!("{:?}", e);
                 Failure((Status::InternalServerError, ()))
@@ -51,7 +56,16 @@ impl<T> Deref for Ruma<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.body
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for Ruma<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Ruma")
+            .field("body", &self.body)
+            .field("headers", &self.headers)
+            .finish()
     }
 }
 
@@ -79,6 +93,16 @@ impl<'r, T: TryInto<http::Response<Vec<u8>>>> Responder<'r> for MatrixResult<T> 
                     response
                         .raw_header(header.0.to_string(), header.1.to_str().unwrap().to_owned());
                 }
+
+                response.raw_header("Access-Control-Allow-Origin", "*");
+                response.raw_header(
+                    "Access-Control-Allow-Methods",
+                    "GET, POST, PUT, DELETE, OPTIONS",
+                );
+                response.raw_header(
+                    "Access-Control-Allow-Headers",
+                    "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+                );
                 response.ok()
             }
             Err(_) => Err(Status::InternalServerError),

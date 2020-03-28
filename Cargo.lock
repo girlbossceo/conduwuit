@@ -56,6 +56,15 @@ dependencies = [
 
 [[package]]
 name = "base64"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b25d992356d2eb0ed82172f5248873db5560c4721f564b13cb5193bda5e668e"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
+name = "base64"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
@@ -354,6 +363,18 @@ dependencies = [
  "typeable",
  "unicase",
  "url 1.7.2",
+]
+
+[[package]]
+name = "hyper-sync-rustls"
+version = "0.3.0-rc.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53be239c980459955c0f0af3f13190ead511d7d4bdaeab8127c011b94d8558de"
+dependencies = [
+ "hyper",
+ "rustls",
+ "webpki",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -770,9 +791,11 @@ source = "git+https://github.com/SergioBenitez/Rocket.git#06e146e7d18d7c4aab423d
 dependencies = [
  "cookie",
  "hyper",
+ "hyper-sync-rustls",
  "indexmap",
  "pear",
  "percent-encoding 1.0.1",
+ "rustls",
  "smallvec",
  "state",
  "time 0.2.9",
@@ -880,6 +903,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b25a18b1bf7387f0145e7f8324e700805aade3842dd3db2e74e4cdeb4677c09e"
+dependencies = [
+ "base64 0.10.1",
+ "log 0.4.8",
+ "ring",
+ "sct",
+ "webpki",
+]
+
+[[package]]
 name = "rustversion"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -907,6 +943,16 @@ name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
+
+[[package]]
+name = "sct"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3042af939fca8c3453b7af0f1c66e533a15a86169e39de2657310ade8f98d3c"
+dependencies = [
+ "ring",
+ "untrusted",
+]
 
 [[package]]
 name = "semver"
@@ -945,9 +991,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.48"
+version = "1.0.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9371ade75d4c2d6cb154141b9752cf3781ec9c05e0e5cf35060e1e70ee7b9c25"
+checksum = "02044a6a92866fd61624b3db4d2c9dccc2feabbc6be490b87611bf285edbac55"
 dependencies = [
  "itoa",
  "ryu",
@@ -1345,6 +1391,25 @@ checksum = "2d6f51648d8c56c366144378a33290049eafdd784071077f6fe37dae64c1c4cb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "webpki"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1f50e1972865d6b1adb54167d1c8ed48606004c2c9d0ea5f1eeb34d95e863ef"
+dependencies = [
+ "ring",
+ "untrusted",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91cd5736df7f12a964a5067a12c62fa38e1bd8080aff1f80bc29be7c80d19ab4"
+dependencies = [
+ "webpki",
 ]
 
 [[package]]
