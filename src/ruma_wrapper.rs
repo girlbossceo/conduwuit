@@ -5,6 +5,10 @@ use {
     rocket::Outcome::*,
     rocket::Request,
     rocket::State,
+    ruma_api::{
+        error::{FromHttpRequestError, FromHttpResponseError},
+        Endpoint, Outgoing,
+    },
     ruma_client_api::error::Error,
     std::ops::Deref,
     std::{
@@ -18,14 +22,20 @@ const MESSAGE_LIMIT: u64 = 65535;
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
 /// first.
-pub struct Ruma<T> {
-    body: T,
+pub struct Ruma<T: Outgoing> {
+    body: T::Incoming,
     headers: http::HeaderMap<http::header::HeaderValue>,
 }
 
-impl<T: TryFrom<http::Request<Vec<u8>>>> FromDataSimple for Ruma<T>
+impl<T: Endpoint> FromDataSimple for Ruma<T>
 where
-    T::Error: fmt::Debug,
+    // We need to duplicate Endpoint's where clauses because the compiler is not smart enough yet.
+    // See https://github.com/rust-lang/rust/issues/54149
+    <T as Outgoing>::Incoming: TryFrom<http::Request<Vec<u8>>, Error = FromHttpRequestError>,
+    <T::Response as Outgoing>::Incoming: TryFrom<
+        http::Response<Vec<u8>>,
+        Error = FromHttpResponseError<<T as Endpoint>::ResponseError>,
+    >,
 {
     type Error = ();
 
@@ -45,12 +55,12 @@ where
         let headers = http_request.headers().clone();
 
         log::info!("{:?}", http_request);
-        match T::try_from(http_request) {
+        match T::Incoming::try_from(http_request) {
             Ok(t) => {
-                //if T::METADATA.requires_authentication {
-                //let data = request.guard::<State<crate::Data>>();
-                // TODO: auth
-                //}
+                if T::METADATA.requires_authentication {
+                    let data = request.guard::<State<crate::Data>>();
+                    // TODO: auth
+                }
                 Success(Ruma { body: t, headers })
             }
             Err(e) => {
@@ -61,15 +71,18 @@ where
     }
 }
 
-impl<T> Deref for Ruma<T> {
-    type Target = T;
+impl<T: Outgoing> Deref for Ruma<T> {
+    type Target = T::Incoming;
 
     fn deref(&self) -> &Self::Target {
         &self.body
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Ruma<T> {
+impl<T: Outgoing> fmt::Debug for Ruma<T>
+where
+    T::Incoming: fmt::Debug,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Ruma")
             .field("body", &self.body)
