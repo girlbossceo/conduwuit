@@ -160,7 +160,7 @@ fn create_message_event_route(
     _room_id: String,
     _event_type: String,
     _txn_id: String,
-    body: Ruma<create_message_event::IncomingRequest>,
+    body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
     dbg!(&body);
     if let Ok(content) = body.data.clone().into_result() {
