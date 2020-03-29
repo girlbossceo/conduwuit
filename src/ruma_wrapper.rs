@@ -26,6 +26,7 @@ const MESSAGE_LIMIT: u64 = 65535;
 pub struct Ruma<T: Outgoing> {
     body: T::Incoming,
     pub user_id: Option<UserId>,
+    pub json_body: serde_json::Value,
 }
 
 impl<T: Endpoint> FromDataSimple for Ruma<T>
@@ -77,11 +78,17 @@ where
         let mut body = Vec::new();
         handle.read_to_end(&mut body).unwrap();
 
-        let http_request = http_request.body(body).unwrap();
-
+        let http_request = http_request.body(body.clone()).unwrap();
         log::info!("{:?}", http_request);
+
         match T::Incoming::try_from(http_request) {
-            Ok(t) => Success(Ruma { body: t, user_id }),
+            Ok(t) => Success(Ruma {
+                body: t,
+                user_id,
+                // TODO: Can we avoid parsing it again?
+                json_body: serde_json::from_slice(&body)
+                    .expect("Ruma already parsed it successfuly"),
+            }),
             Err(e) => {
                 log::error!("{:?}", e);
                 Failure((Status::InternalServerError, ()))

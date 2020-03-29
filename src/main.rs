@@ -14,7 +14,8 @@ use ruma_client_api::{
     },
     unversioned::get_supported_versions,
 };
-use ruma_events::{room::message::MessageEvent, EventResult};
+use ruma_events::collections::all::Event;
+use ruma_events::room::message::MessageEvent;
 use ruma_identifiers::{EventId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
 use serde_json::map::Map;
@@ -213,31 +214,19 @@ fn create_message_event_route(
     _txn_id: String,
     body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
-    // Check if content is valid
-    let content = match body.data.clone() {
-        EventResult::Ok(content) => content,
-        EventResult::Err(_) => {
-            debug!("No content.");
-            return MatrixResult(Err(Error {
-                kind: ErrorKind::NotFound,
-                message: "No content.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }));
-        }
-    };
-
+    // Generate event id
     let event_id = EventId::try_from("$TODOrandomeventid:localhost").unwrap();
-
-    data.room_event_add(
-        &MessageEvent {
-            content,
+    data.event_add(
+        &Event::RoomMessage(MessageEvent {
+            content: body.data.clone().into_result().unwrap(),
             event_id: event_id.clone(),
             origin_server_ts: utils::millis_since_unix_epoch(),
             room_id: Some(body.room_id.clone()),
-            sender: body.user_id.expect("user is authenticated"),
+            sender: body.user_id.clone().expect("user is authenticated"),
             unsigned: Map::default(),
-        }
-        .into(),
+        }),
+        &body.room_id,
+        &event_id,
     );
 
     MatrixResult(Ok(create_message_event::Response { event_id }))

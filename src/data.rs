@@ -1,7 +1,8 @@
 use crate::utils;
 use directories::ProjectDirs;
-use ruma_events::collections::all::RoomEvent;
-use ruma_identifiers::UserId;
+use log::debug;
+use ruma_events::collections::all::Event;
+use ruma_identifiers::{EventId, RoomId, UserId};
 use std::convert::TryInto;
 
 const USERID_PASSWORD: &str = "userid_password";
@@ -126,7 +127,8 @@ impl Data {
     }
 
     /// Create a new room event.
-    pub fn room_event_add(&self, _room_event: &RoomEvent) {
+    pub fn event_add(&self, event: &Event, room_id: &RoomId, event_id: &EventId) {
+        debug!("{}", serde_json::to_string(event).unwrap());
         todo!();
     }
 }
