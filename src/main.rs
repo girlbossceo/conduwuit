@@ -1,6 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 mod data;
 mod ruma_wrapper;
+mod utils;
 
 pub use data::Data;
 use log::debug;
@@ -13,8 +14,10 @@ use ruma_client_api::{
     },
     unversioned::get_supported_versions,
 };
-use ruma_identifiers::UserId;
+use ruma_events::room::message::MessageEvent;
+use ruma_identifiers::{EventId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
+use std::convert::TryFrom;
 use std::{collections::HashMap, convert::TryInto};
 
 #[get("/_matrix/client/versions")]
@@ -153,14 +156,28 @@ fn join_room_by_id_route(
     data = "<body>"
 )]
 fn create_message_event_route(
+    data: State<Data>,
     _room_id: String,
     _event_type: String,
     _txn_id: String,
     body: Ruma<create_message_event::IncomingRequest>,
 ) -> MatrixResult<create_message_event::Response> {
-    dbg!(body);
+    dbg!(&body);
+    if let Ok(content) = body.data.clone().into_result() {
+        data.room_event_add(
+            &MessageEvent {
+                content,
+                event_id: EventId::try_from("$randomeventid:localhost").unwrap(),
+                origin_server_ts: utils::millis_since_unix_epoch(),
+                room_id: Some(body.room_id.clone()),
+                sender: UserId::try_from("@TODO:localhost").unwrap(),
+                unsigned: None,
+            }
+            .into(),
+        );
+    }
     MatrixResult(Ok(create_message_event::Response {
-        event_id: "$randomeventid".try_into().unwrap(),
+        event_id: "$randomeventid:localhost".try_into().unwrap(),
     }))
 }
 

@@ -489,11 +489,13 @@ version = "0.1.0"
 dependencies = [
  "directories",
  "http",
+ "js_int",
  "log 0.4.8",
  "pretty_env_logger",
  "rocket",
  "ruma-api",
  "ruma-client-api",
+ "ruma-events",
  "ruma-identifiers",
  "sled",
 ]

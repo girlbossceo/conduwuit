@@ -1,4 +1,5 @@
 use directories::ProjectDirs;
+use ruma_events::collections::all::RoomEvent;
 use ruma_identifiers::UserId;
 
 pub struct Data(sled::Db);
@@ -36,4 +37,6 @@ impl Data {
             .insert(user_id.to_string(), &*password.unwrap_or_default())
             .unwrap();
     }
+
+    pub fn room_event_add(&self, room_event: &RoomEvent) {}
 }
