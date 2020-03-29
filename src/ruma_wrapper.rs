@@ -10,10 +10,10 @@ use {
         Endpoint, Outgoing,
     },
     ruma_client_api::error::Error,
+    ruma_identifiers::UserId,
     std::ops::Deref,
     std::{
         convert::{TryFrom, TryInto},
-        fmt,
         io::{Cursor, Read},
     },
 };
@@ -22,9 +22,10 @@ const MESSAGE_LIMIT: u64 = 65535;
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
 /// first.
+#[derive(Debug)]
 pub struct Ruma<T: Outgoing> {
     body: T::Incoming,
-    headers: http::HeaderMap<http::header::HeaderValue>,
+    pub user_id: Option<UserId>,
 }
 
 impl<T: Endpoint> FromDataSimple for Ruma<T>
@@ -37,9 +38,34 @@ where
         Error = FromHttpResponseError<<T as Endpoint>::ResponseError>,
     >,
 {
-    type Error = ();
+    type Error = (); // TODO: Better error handling
 
     fn from_data(request: &Request, data: rocket::Data) -> Outcome<Self, Self::Error> {
+        let user_id = if T::METADATA.requires_authentication {
+            let data = request.guard::<State<crate::Data>>().unwrap();
+
+            // Get token from header or query value
+            let token = match request
+                .headers()
+                .get_one("Authorization")
+                .map(|s| s.to_owned())
+                .or_else(|| request.get_query_value("access_token").and_then(|r| r.ok()))
+            {
+                // TODO: M_MISSING_TOKEN
+                None => return Failure((Status::Unauthorized, ())),
+                Some(token) => token,
+            };
+
+            // Check if token is valid
+            match data.user_from_token(&token) {
+                // TODO: M_UNKNOWN_TOKEN
+                None => return Failure((Status::Unauthorized, ())),
+                Some(user_id) => Some(user_id),
+            }
+        } else {
+            None
+        };
+
         let mut http_request = http::Request::builder()
             .uri(request.uri().to_string())
             .method(&*request.method().to_string());
@@ -52,17 +78,10 @@ where
         handle.read_to_end(&mut body).unwrap();
 
         let http_request = http_request.body(body).unwrap();
-        let headers = http_request.headers().clone();
 
         log::info!("{:?}", http_request);
         match T::Incoming::try_from(http_request) {
-            Ok(t) => {
-                if T::METADATA.requires_authentication {
-                    let data = request.guard::<State<crate::Data>>();
-                    // TODO: auth
-                }
-                Success(Ruma { body: t, headers })
-            }
+            Ok(t) => Success(Ruma { body: t, user_id }),
             Err(e) => {
                 log::error!("{:?}", e);
                 Failure((Status::InternalServerError, ()))
@@ -76,18 +95,6 @@ impl<T: Outgoing> Deref for Ruma<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.body
-    }
-}
-
-impl<T: Outgoing> fmt::Debug for Ruma<T>
-where
-    T::Incoming: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Ruma")
-            .field("body", &self.body)
-            .field("headers", &self.headers)
-            .finish()
     }
 }
 

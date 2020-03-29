@@ -14,9 +14,10 @@ use ruma_client_api::{
     },
     unversioned::get_supported_versions,
 };
-use ruma_events::room::message::MessageEvent;
+use ruma_events::{room::message::MessageEvent, EventResult};
 use ruma_identifiers::{EventId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
+use serde_json::map::Map;
 use std::convert::TryFrom;
 use std::{collections::HashMap, convert::TryInto};
 
@@ -41,6 +42,7 @@ fn register_route(
     data: State<Data>,
     body: Ruma<register::Request>,
 ) -> MatrixResult<register::Response> {
+    // Validate user id
     let user_id: UserId = match (*format!(
         "@{}:{}",
         body.username.clone().unwrap_or("randomname".to_owned()),
@@ -59,6 +61,7 @@ fn register_route(
         Ok(user_id) => user_id,
     };
 
+    // Check if username is creative enough
     if data.user_exists(&user_id) {
         debug!("ID already taken");
         return MatrixResult(Err(Error {
@@ -68,68 +71,115 @@ fn register_route(
         }));
     }
 
-    data.user_add(user_id.clone(), body.password.clone());
+    // Create user
+    data.user_add(&user_id, body.password.clone());
+
+    // Generate new device id if the user didn't specify one
+    let device_id = body
+        .device_id
+        .clone()
+        .unwrap_or_else(|| "TODO:randomdeviceid".to_owned());
+
+    // Add device
+    data.device_add(&user_id, &device_id);
+
+    // Generate new token for the device
+    let token = "TODO:randomtoken".to_owned();
+    data.token_replace(&user_id, &device_id, token.clone());
 
     MatrixResult(Ok(register::Response {
-        access_token: "randomtoken".to_owned(),
+        access_token: token,
         home_server: data.hostname(),
         user_id,
-        device_id: body.device_id.clone().unwrap_or("randomid".to_owned()),
+        device_id,
     }))
 }
 
 #[post("/_matrix/client/r0/login", data = "<body>")]
 fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<login::Response> {
-    let username = if let login::UserInfo::MatrixId(mut username) = body.user.clone() {
-        if !username.contains(':') {
-            username = format!("@{}:{}", username, data.hostname());
-        }
-        if let Ok(user_id) = (*username).try_into() {
-            if !data.user_exists(&user_id) {
-                debug!("Userid does not exist. Can't log in.");
+    // Validate login method
+    let user_id =
+        if let (login::UserInfo::MatrixId(mut username), login::LoginInfo::Password { password }) =
+            (body.user.clone(), body.login_info.clone())
+        {
+            if !username.contains(':') {
+                username = format!("@{}:{}", username, data.hostname());
+            }
+            if let Ok(user_id) = (*username).try_into() {
+                if !data.user_exists(&user_id) {}
+
+                // Check password
+                if let Some(correct_password) = data.password_get(&user_id) {
+                    if password == correct_password {
+                        // Success!
+                        user_id
+                    } else {
+                        debug!("Invalid password.");
+                        return MatrixResult(Err(Error {
+                            kind: ErrorKind::Unknown,
+                            message: "".to_owned(),
+                            status_code: http::StatusCode::FORBIDDEN,
+                        }));
+                    }
+                } else {
+                    debug!("UserId does not exist (has no assigned password). Can't log in.");
+                    return MatrixResult(Err(Error {
+                        kind: ErrorKind::Forbidden,
+                        message: "".to_owned(),
+                        status_code: http::StatusCode::FORBIDDEN,
+                    }));
+                }
+            } else {
+                debug!("Invalid UserId.");
                 return MatrixResult(Err(Error {
-                    kind: ErrorKind::Forbidden,
-                    message: "UserId not found.".to_owned(),
+                    kind: ErrorKind::Unknown,
+                    message: "Bad login type.".to_owned(),
                     status_code: http::StatusCode::BAD_REQUEST,
                 }));
             }
-            user_id
         } else {
-            debug!("Invalid UserId.");
+            debug!("Bad login type");
             return MatrixResult(Err(Error {
                 kind: ErrorKind::Unknown,
                 message: "Bad login type.".to_owned(),
                 status_code: http::StatusCode::BAD_REQUEST,
             }));
-        }
-    } else {
-        debug!("Bad login type");
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::Unknown,
-            message: "Bad login type.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }));
-    };
+        };
+
+    // Generate new device id if the user didn't specify one
+    let device_id = body
+        .device_id
+        .clone()
+        .unwrap_or("TODO:randomdeviceid".to_owned());
+
+    // Add device (TODO: We might not want to call it when using an existing device)
+    data.device_add(&user_id, &device_id);
+
+    // Generate a new token for the device
+    let token = "TODO:randomtoken".to_owned();
+    data.token_replace(&user_id, &device_id, token.clone());
 
     return MatrixResult(Ok(login::Response {
-        user_id: username.try_into().unwrap(), // Unwrap is okay because the user is already registered
-        access_token: "randomtoken".to_owned(),
-        home_server: Some("localhost".to_owned()),
-        device_id: body.device_id.clone().unwrap_or("randomid".to_owned()),
+        user_id,
+        access_token: token,
+        home_server: Some(data.hostname()),
+        device_id,
         well_known: None,
     }));
 }
 
 #[get("/_matrix/client/r0/directory/room/<room_alias>")]
 fn get_alias_route(room_alias: String) -> MatrixResult<get_alias::Response> {
+    // TODO
     let room_id = match &*room_alias {
         "#room:localhost" => "!xclkjvdlfj:localhost",
         _ => {
+            debug!("Room not found.");
             return MatrixResult(Err(Error {
                 kind: ErrorKind::NotFound,
                 message: "Room not found.".to_owned(),
                 status_code: http::StatusCode::NOT_FOUND,
-            }))
+            }));
         }
     }
     .try_into()
@@ -146,6 +196,7 @@ fn join_room_by_id_route(
     _room_id: String,
     body: Ruma<join_room_by_id::Request>,
 ) -> MatrixResult<join_room_by_id::Response> {
+    // TODO
     MatrixResult(Ok(join_room_by_id::Response {
         room_id: body.room_id.clone(),
     }))
@@ -162,23 +213,34 @@ fn create_message_event_route(
     _txn_id: String,
     body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
-    dbg!(&body);
-    if let Ok(content) = body.data.clone().into_result() {
-        data.room_event_add(
-            &MessageEvent {
-                content,
-                event_id: EventId::try_from("$randomeventid:localhost").unwrap(),
-                origin_server_ts: utils::millis_since_unix_epoch(),
-                room_id: Some(body.room_id.clone()),
-                sender: UserId::try_from("@TODO:localhost").unwrap(),
-                unsigned: None,
-            }
-            .into(),
-        );
-    }
-    MatrixResult(Ok(create_message_event::Response {
-        event_id: "$randomeventid:localhost".try_into().unwrap(),
-    }))
+    // Check if content is valid
+    let content = match body.data.clone() {
+        EventResult::Ok(content) => content,
+        EventResult::Err(_) => {
+            debug!("No content.");
+            return MatrixResult(Err(Error {
+                kind: ErrorKind::NotFound,
+                message: "No content.".to_owned(),
+                status_code: http::StatusCode::BAD_REQUEST,
+            }));
+        }
+    };
+
+    let event_id = EventId::try_from("$TODOrandomeventid:localhost").unwrap();
+
+    data.room_event_add(
+        &MessageEvent {
+            content,
+            event_id: event_id.clone(),
+            origin_server_ts: utils::millis_since_unix_epoch(),
+            room_id: Some(body.room_id.clone()),
+            sender: body.user_id.expect("user is authenticated"),
+            unsigned: Map::default(),
+        }
+        .into(),
+    );
+
+    MatrixResult(Ok(create_message_event::Response { event_id }))
 }
 
 fn main() {
