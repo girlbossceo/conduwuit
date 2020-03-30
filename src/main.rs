@@ -218,20 +218,21 @@ fn create_message_event_route(
     _txn_id: String,
     body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
+    // Construct event
+    let event = Event::RoomMessage(MessageEvent {
+        content: body.data.clone().into_result().unwrap(),
+        event_id: event_id.clone(),
+        origin_server_ts: utils::millis_since_unix_epoch(),
+        room_id: Some(body.room_id.clone()),
+        sender: body.user_id.clone().expect("user is authenticated"),
+        unsigned: Map::default(),
+    });
+
     // Generate event id
+    dbg!(ruma_signatures::reference_hash(event));
+
     let event_id = EventId::try_from("$TODOrandomeventid:localhost").unwrap();
-    data.event_add(
-        &body.room_id,
-        &event_id,
-        &Event::RoomMessage(MessageEvent {
-            content: body.data.clone().into_result().unwrap(),
-            event_id: event_id.clone(),
-            origin_server_ts: utils::millis_since_unix_epoch(),
-            room_id: Some(body.room_id.clone()),
-            sender: body.user_id.clone().expect("user is authenticated"),
-            unsigned: Map::default(),
-        }),
-    );
+    data.event_add(&body.room_id, &event_id, &event);
 
     MatrixResult(Ok(create_message_event::Response { event_id }))
 }
