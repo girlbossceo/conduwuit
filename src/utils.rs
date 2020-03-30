@@ -1,4 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    convert::TryInto,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 pub fn millis_since_unix_epoch() -> js_int::UInt {
     (SystemTime::now()
@@ -8,20 +11,19 @@ pub fn millis_since_unix_epoch() -> js_int::UInt {
         .into()
 }
 
-pub fn bytes_to_string(bytes: &[u8]) -> String {
-    String::from_utf8(bytes.to_vec()).expect("convert bytes to string")
+pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
+    let number = match old {
+        Some(bytes) => {
+            let array: [u8; 8] = bytes.try_into().unwrap();
+            let number = u64::from_be_bytes(array);
+            number + 1
+        }
+        None => 0,
+    };
+
+    Some(number.to_be_bytes().to_vec())
 }
 
-pub fn vec_to_bytes(vec: Vec<String>) -> Vec<u8> {
-    vec.into_iter()
-        .map(|string| string.into_bytes())
-        .collect::<Vec<Vec<u8>>>()
-        .join(&0)
-}
-
-pub fn bytes_to_vec(bytes: &[u8]) -> Vec<String> {
-    bytes
-        .split(|&b| b == 0)
-        .map(|bytes_string| bytes_to_string(bytes_string))
-        .collect::<Vec<String>>()
+pub fn string_from_bytes(bytes: &[u8]) -> String {
+    String::from_utf8(bytes.to_vec()).expect("bytes are valid utf8")
 }

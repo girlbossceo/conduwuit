@@ -1,9 +1,12 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 mod data;
+mod database;
 mod ruma_wrapper;
 mod utils;
 
 pub use data::Data;
+pub use database::Database;
+
 use log::debug;
 use rocket::{get, post, put, routes, State};
 use ruma_client_api::{
@@ -14,13 +17,14 @@ use ruma_client_api::{
     },
     unversioned::get_supported_versions,
 };
-use ruma_events::collections::all::Event;
-use ruma_events::room::message::MessageEvent;
+use ruma_events::{collections::all::Event, room::message::MessageEvent};
 use ruma_identifiers::{EventId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
 use serde_json::map::Map;
-use std::convert::TryFrom;
-use std::{collections::HashMap, convert::TryInto};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+};
 
 #[get("/_matrix/client/versions")]
 fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
@@ -90,7 +94,7 @@ fn register_route(
 
     MatrixResult(Ok(register::Response {
         access_token: token,
-        home_server: data.hostname(),
+        home_server: data.hostname().to_owned(),
         user_id,
         device_id,
     }))
@@ -153,7 +157,7 @@ fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<lo
         .clone()
         .unwrap_or("TODO:randomdeviceid".to_owned());
 
-    // Add device (TODO: We might not want to call it when using an existing device)
+    // Add device
     data.device_add(&user_id, &device_id);
 
     // Generate a new token for the device
@@ -163,7 +167,7 @@ fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<lo
     return MatrixResult(Ok(login::Response {
         user_id,
         access_token: token,
-        home_server: Some(data.hostname()),
+        home_server: Some(data.hostname().to_owned()),
         device_id,
         well_known: None,
     }));
@@ -217,6 +221,8 @@ fn create_message_event_route(
     // Generate event id
     let event_id = EventId::try_from("$TODOrandomeventid:localhost").unwrap();
     data.event_add(
+        &body.room_id,
+        &event_id,
         &Event::RoomMessage(MessageEvent {
             content: body.data.clone().into_result().unwrap(),
             event_id: event_id.clone(),
@@ -225,8 +231,6 @@ fn create_message_event_route(
             sender: body.user_id.clone().expect("user is authenticated"),
             unsigned: Map::default(),
         }),
-        &body.room_id,
-        &event_id,
     );
 
     MatrixResult(Ok(create_message_event::Response { event_id }))
@@ -239,8 +243,8 @@ fn main() {
     }
     pretty_env_logger::init();
 
-    let data = Data::load_or_create();
-    data.set_hostname("localhost");
+    let data = Data::load_or_create("localhost");
+    data.debug();
 
     rocket::ignite()
         .mount(
