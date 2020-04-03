@@ -15,9 +15,15 @@ impl MultiValue {
         // Data keys start with d
         let mut key = vec![b'd'];
         key.extend_from_slice(id.as_ref());
-        key.push(0xff); // Add delimiter so we don't find usernames starting with the same id
+        key.push(0xff); // Add delimiter so we don't find keys starting with the same id
 
         self.0.scan_prefix(key)
+    }
+
+    pub fn clear(&self, id: &[u8]) {
+        for key in self.get_iter(id).keys() {
+            self.0.remove(key.unwrap()).unwrap();
+        }
     }
 
     /// Add another value to the id.
@@ -48,7 +54,9 @@ pub struct Database {
     pub userid_deviceids: MultiValue,
     pub deviceid_token: sled::Tree,
     pub token_userid: sled::Tree,
-    pub roomid_eventid_event: sled::Tree,
+    pub pduid_pdus: sled::Tree,
+    pub roomid_pduleaves: MultiValue,
+    pub eventid_pduid: sled::Tree,
     _db: sled::Db,
 }
 
@@ -67,7 +75,9 @@ impl Database {
             userid_deviceids: MultiValue(db.open_tree("userid_deviceids").unwrap()),
             deviceid_token: db.open_tree("deviceid_token").unwrap(),
             token_userid: db.open_tree("token_userid").unwrap(),
-            roomid_eventid_event: db.open_tree("roomid_eventid_event").unwrap(),
+            pduid_pdus: db.open_tree("pduid_pdus").unwrap(),
+            roomid_pduleaves: MultiValue(db.open_tree("roomid_pduleaves").unwrap()),
+            eventid_pduid: db.open_tree("eventid_pduid").unwrap(),
             _db: db,
         }
     }
@@ -81,7 +91,7 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("# UserId -> DeviceIds:");
+        println!("\n# UserId -> DeviceIds:");
         for (k, v) in self.userid_deviceids.iter_all().map(|r| r.unwrap()) {
             println!(
                 "{} -> {}",
@@ -89,7 +99,7 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("# DeviceId -> Token:");
+        println!("\n# DeviceId -> Token:");
         for (k, v) in self.deviceid_token.iter().map(|r| r.unwrap()) {
             println!(
                 "{} -> {}",
@@ -97,7 +107,7 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("# Token -> UserId:");
+        println!("\n# Token -> UserId:");
         for (k, v) in self.token_userid.iter().map(|r| r.unwrap()) {
             println!(
                 "{} -> {}",
@@ -105,8 +115,24 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("# RoomId + EventId -> Event:");
-        for (k, v) in self.roomid_eventid_event.iter().map(|r| r.unwrap()) {
+        println!("\n# RoomId -> PDU leaves:");
+        for (k, v) in self.roomid_pduleaves.iter_all().map(|r| r.unwrap()) {
+            println!(
+                "{} -> {}",
+                String::from_utf8_lossy(&k),
+                String::from_utf8_lossy(&v),
+            );
+        }
+        println!("\n# PDU Id -> PDUs:");
+        for (k, v) in self.pduid_pdus.iter().map(|r| r.unwrap()) {
+            println!(
+                "{} -> {}",
+                String::from_utf8_lossy(&k),
+                String::from_utf8_lossy(&v),
+            );
+        }
+        println!("\n# EventId -> PDU Id:");
+        for (k, v) in self.eventid_pduid.iter().map(|r| r.unwrap()) {
             println!(
                 "{} -> {}",
                 String::from_utf8_lossy(&k),

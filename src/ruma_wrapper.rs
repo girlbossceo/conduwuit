@@ -1,28 +1,26 @@
-use {
-    rocket::data::{FromDataSimple, Outcome},
-    rocket::http::Status,
-    rocket::response::Responder,
-    rocket::Outcome::*,
-    rocket::Request,
-    rocket::State,
-    ruma_api::{
-        error::{FromHttpRequestError, FromHttpResponseError},
-        Endpoint, Outgoing,
-    },
-    ruma_client_api::error::Error,
-    ruma_identifiers::UserId,
-    std::ops::Deref,
-    std::{
-        convert::{TryFrom, TryInto},
-        io::{Cursor, Read},
-    },
+use rocket::{
+    data::{FromDataSimple, Outcome},
+    http::Status,
+    response::Responder,
+    Outcome::*,
+    Request, State,
+};
+use ruma_api::{
+    error::{FromHttpRequestError, FromHttpResponseError},
+    Endpoint, Outgoing,
+};
+use ruma_client_api::error::Error;
+use ruma_identifiers::UserId;
+use std::{
+    convert::{TryFrom, TryInto},
+    io::{Cursor, Read},
+    ops::Deref,
 };
 
 const MESSAGE_LIMIT: u64 = 65535;
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
 /// first.
-#[derive(Debug)]
 pub struct Ruma<T: Outgoing> {
     body: T::Incoming,
     pub user_id: Option<UserId>,

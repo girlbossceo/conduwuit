@@ -496,7 +496,9 @@ dependencies = [
  "ruma-api",
  "ruma-client-api",
  "ruma-events",
+ "ruma-federation-api",
  "ruma-identifiers",
+ "ruma-signatures",
  "serde_json",
  "sled",
 ]
@@ -876,6 +878,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ruma-federation-api"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2a73a23c4d9243be91e101e1942f4d9cd913ef5156d756bafdfe2409ee23d72"
+dependencies = [
+ "js_int",
+ "ruma-events",
+ "ruma-identifiers",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ruma-identifiers"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -884,6 +899,17 @@ dependencies = [
  "rand",
  "serde",
  "url 2.1.1",
+]
+
+[[package]]
+name = "ruma-signatures"
+version = "0.5.0"
+source = "git+https://github.com/ruma/ruma-signatures.git#a08fc01c0bce63f913e1b4b1a673169d59738b63"
+dependencies = [
+ "base64 0.11.0",
+ "ring",
+ "serde_json",
+ "untrusted",
 ]
 
 [[package]]

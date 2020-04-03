@@ -1,7 +1,9 @@
 use crate::{utils, Database};
+use log::debug;
 use ruma_events::collections::all::Event;
+use ruma_federation_api::RoomV3Pdu;
 use ruma_identifiers::{EventId, RoomId, UserId};
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 pub struct Data {
     hostname: String,
@@ -99,14 +101,152 @@ impl Data {
             .unwrap();
     }
 
-    /// Create a new room event.
-    pub fn event_add(&self, room_id: &RoomId, event_id: &EventId, event: &Event) {
-        let mut key = room_id.to_string().as_bytes().to_vec();
-        key.extend_from_slice(event_id.to_string().as_bytes());
+    pub fn pdu_get(&self, event_id: &EventId) -> Option<RoomV3Pdu> {
         self.db
-            .roomid_eventid_event
-            .insert(&key, &*serde_json::to_string(event).unwrap())
+            .eventid_pduid
+            .get(event_id.to_string().as_bytes())
+            .unwrap()
+            .map(|pdu_id| {
+                serde_json::from_slice(
+                    &self
+                        .db
+                        .pduid_pdus
+                        .get(pdu_id)
+                        .unwrap()
+                        .expect("eventid_pduid in db is valid"),
+                )
+                .expect("pdu is valid")
+            })
+    }
+
+    // TODO: Make sure this isn't called twice in parallel
+    pub fn pdu_leaves_replace(&self, room_id: &RoomId, event_id: &EventId) -> Vec<EventId> {
+        let event_ids = self
+            .db
+            .roomid_pduleaves
+            .get_iter(room_id.to_string().as_bytes())
+            .values()
+            .map(|pdu_id| {
+                EventId::try_from(&*utils::string_from_bytes(&pdu_id.unwrap()))
+                    .expect("pdu leaves are valid event ids")
+            })
+            .collect();
+
+        self.db
+            .roomid_pduleaves
+            .clear(room_id.to_string().as_bytes());
+
+        self.db.roomid_pduleaves.add(
+            &room_id.to_string().as_bytes(),
+            (*event_id.to_string()).into(),
+        );
+
+        event_ids
+    }
+
+    /// Add a persisted data unit from this homeserver
+    pub fn pdu_append(&self, event_id: &EventId, room_id: &RoomId, event: Event) {
+        // prev_events are the leaves of the current graph. This method removes all leaves from the
+        // room and replaces them with our event
+        let prev_events = self.pdu_leaves_replace(room_id, event_id);
+
+        // Our depth is the maximum depth of prev_events + 1
+        let depth = prev_events
+            .iter()
+            .map(|event_id| {
+                self.pdu_get(event_id)
+                    .expect("pdu in prev_events is valid")
+                    .depth
+                    .into()
+            })
+            .max()
+            .unwrap_or(0_u64)
+            + 1;
+
+        let mut pdu_value = serde_json::to_value(&event).expect("message event can be serialized");
+        let pdu = pdu_value.as_object_mut().unwrap();
+
+        pdu.insert(
+            "prev_events".to_owned(),
+            prev_events
+                .iter()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
+                .into(),
+        );
+        pdu.insert("origin".to_owned(), self.hostname().into());
+        pdu.insert("depth".to_owned(), depth.into());
+        pdu.insert("auth_events".to_owned(), vec!["$auth_eventid"].into()); // TODO
+        pdu.insert(
+            "hashes".to_owned(),
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".into(),
+        ); // TODO
+        pdu.insert("signatures".to_owned(), "signature".into()); // TODO
+
+        // The new value will need a new index. We store the last used index in 'n' + id
+        let mut count_key: Vec<u8> = vec![b'n'];
+        count_key.extend_from_slice(&room_id.to_string().as_bytes());
+
+        // Increment the last index and use that
+        let index = utils::u64_from_bytes(
+            &self
+                .db
+                .pduid_pdus
+                .update_and_fetch(&count_key, utils::increment)
+                .unwrap()
+                .unwrap(),
+        );
+
+        let mut pdu_id = vec![b'd'];
+        pdu_id.extend_from_slice(room_id.to_string().as_bytes());
+
+        pdu_id.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
+        pdu_id.extend_from_slice(index.to_string().as_bytes());
+
+        self.db
+            .pduid_pdus
+            .insert(&pdu_id, dbg!(&*serde_json::to_string(&pdu).unwrap()))
             .unwrap();
+
+        self.db
+            .eventid_pduid
+            .insert(event_id.to_string(), pdu_id.clone())
+            .unwrap();
+    }
+
+    /// Returns a vector of all PDUs.
+    pub fn pdus_all(&self) -> Vec<RoomV3Pdu> {
+        self.pdus_since(
+            self.db
+                .eventid_pduid
+                .iter()
+                .values()
+                .next()
+                .unwrap()
+                .map(|key| utils::string_from_bytes(&key))
+                .expect("there should be at least one pdu"),
+        )
+    }
+
+    /// Returns a vector of all events that happened after the event with id `since`.
+    pub fn pdus_since(&self, since: String) -> Vec<RoomV3Pdu> {
+        let mut pdus = Vec::new();
+
+        if let Some(room_id) = since.rsplitn(2, '#').nth(1) {
+            let mut current = since.clone();
+
+            while let Some((key, value)) = self.db.pduid_pdus.get_gt(current).unwrap() {
+                if key.starts_with(&room_id.to_string().as_bytes()) {
+                    current = utils::string_from_bytes(&key);
+                } else {
+                    break;
+                }
+                pdus.push(serde_json::from_slice(&value).expect("pdu is valid"));
+            }
+        } else {
+            debug!("event at `since` not found");
+        }
+        pdus
     }
 
     pub fn debug(&self) {

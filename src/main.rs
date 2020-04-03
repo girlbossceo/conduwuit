@@ -8,12 +8,12 @@ pub use data::Data;
 pub use database::Database;
 
 use log::debug;
-use rocket::{get, post, put, routes, State};
+use rocket::{get, options, post, put, routes, State};
 use ruma_client_api::{
     error::{Error, ErrorKind},
     r0::{
         account::register, alias::get_alias, membership::join_room_by_id,
-        message::create_message_event, session::login,
+        message::create_message_event, session::login, sync::sync_events,
     },
     unversioned::get_supported_versions,
 };
@@ -24,20 +24,13 @@ use serde_json::map::Map;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
+    path::PathBuf,
 };
 
 #[get("/_matrix/client/versions")]
 fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
     MatrixResult(Ok(get_supported_versions::Response {
-        versions: vec![
-            "r0.0.1".to_owned(),
-            "r0.1.0".to_owned(),
-            "r0.2.0".to_owned(),
-            "r0.3.0".to_owned(),
-            "r0.4.0".to_owned(),
-            "r0.5.0".to_owned(),
-            "r0.6.0".to_owned(),
-        ],
+        versions: vec!["r0.6.0".to_owned()],
         unstable_features: HashMap::new(),
     }))
 }
@@ -219,9 +212,9 @@ fn create_message_event_route(
     body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
     // Construct event
-    let event = Event::RoomMessage(MessageEvent {
+    let mut event = Event::RoomMessage(MessageEvent {
         content: body.data.clone().into_result().unwrap(),
-        event_id: event_id.clone(),
+        event_id: EventId::try_from("$thiswillbefilledinlater").unwrap(),
         origin_server_ts: utils::millis_since_unix_epoch(),
         room_id: Some(body.room_id.clone()),
         sender: body.user_id.clone().expect("user is authenticated"),
@@ -229,18 +222,78 @@ fn create_message_event_route(
     });
 
     // Generate event id
-    dbg!(ruma_signatures::reference_hash(event));
+    let event_id = EventId::try_from(&*format!(
+        "${}",
+        ruma_signatures::reference_hash(&serde_json::to_value(&event).unwrap())
+            .expect("ruma can calculate reference hashes")
+    ))
+    .expect("ruma's reference hashes are correct");
 
-    let event_id = EventId::try_from("$TODOrandomeventid:localhost").unwrap();
-    data.event_add(&body.room_id, &event_id, &event);
+    // Insert event id
+    if let Event::RoomMessage(message) = &mut event {
+        message.event_id = event_id.clone();
+    }
+
+    // Add PDU to the graph
+    data.pdu_append(&event_id, &body.room_id, event);
 
     MatrixResult(Ok(create_message_event::Response { event_id }))
+}
+
+#[get("/_matrix/client/r0/sync")]
+fn sync_route(data: State<Data>) -> MatrixResult<sync_events::Response> {
+    let pdus = data.pdus_all();
+    let mut joined_rooms = HashMap::new();
+    joined_rooms.insert(
+        "!roomid:localhost".try_into().unwrap(),
+        sync_events::JoinedRoom {
+            account_data: sync_events::AccountData { events: Vec::new() },
+            summary: sync_events::RoomSummary {
+                heroes: Vec::new(),
+                joined_member_count: None,
+                invited_member_count: None,
+            },
+            unread_notifications: sync_events::UnreadNotificationsCount {
+                highlight_count: None,
+                notification_count: None,
+            },
+            timeline: sync_events::Timeline {
+                limited: None,
+                prev_batch: None,
+                events: todo!(),
+            },
+            state: sync_events::State { events: Vec::new() },
+            ephemeral: sync_events::Ephemeral { events: Vec::new() },
+        },
+    );
+
+    MatrixResult(Ok(sync_events::Response {
+        next_batch: String::new(),
+        rooms: sync_events::Rooms {
+            leave: Default::default(),
+            join: joined_rooms,
+            invite: Default::default(),
+        },
+        presence: sync_events::Presence { events: Vec::new() },
+        device_lists: Default::default(),
+        device_one_time_keys_count: Default::default(),
+        to_device: sync_events::ToDevice { events: Vec::new() },
+    }))
+}
+
+#[options("/<_segments..>")]
+fn options_route(_segments: PathBuf) -> MatrixResult<create_message_event::Response> {
+    MatrixResult(Err(Error {
+        kind: ErrorKind::NotFound,
+        message: "Room not found.".to_owned(),
+        status_code: http::StatusCode::NOT_FOUND,
+    }))
 }
 
 fn main() {
     // Log info by default
     if let Err(_) = std::env::var("RUST_LOG") {
-        std::env::set_var("RUST_LOG", "info");
+        std::env::set_var("RUST_LOG", "matrixserver=debug,info");
     }
     pretty_env_logger::init();
 
@@ -257,6 +310,8 @@ fn main() {
                 get_alias_route,
                 join_room_by_id_route,
                 create_message_event_route,
+                sync_route,
+                options_route,
             ],
         )
         .manage(data)

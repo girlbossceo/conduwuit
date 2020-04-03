@@ -1,3 +1,7 @@
+[global]
+address = "0.0.0.0"
+port = 14004
+
 #[global.tls]
-#certs = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
-#key = "/etc/ssl/private/ssl-cert-snakeoil.key"
+#certs = "/etc/letsencrypt/live/matrixtesting.koesters.xyz/fullchain.pem"
+#key = "/etc/letsencrypt/live/matrixtesting.koesters.xyz/privkey.pem"

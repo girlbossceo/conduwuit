@@ -24,6 +24,11 @@ pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
     Some(number.to_be_bytes().to_vec())
 }
 
+pub fn u64_from_bytes(bytes: &[u8]) -> u64 {
+    let array: [u8; 8] = bytes.try_into().expect("bytes are valid u64");
+    u64::from_be_bytes(array)
+}
+
 pub fn string_from_bytes(bytes: &[u8]) -> String {
     String::from_utf8(bytes.to_vec()).expect("bytes are valid utf8")
 }
