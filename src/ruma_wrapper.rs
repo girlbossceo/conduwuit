@@ -84,8 +84,11 @@ where
                 body: t,
                 user_id,
                 // TODO: Can we avoid parsing it again?
-                json_body: serde_json::from_slice(&body)
-                    .expect("Ruma already parsed it successfuly"),
+                json_body: if !body.is_empty() {
+                    serde_json::from_slice(&body).expect("Ruma already parsed it successfully")
+                } else {
+                    serde_json::Value::default()
+                },
             }),
             Err(e) => {
                 log::error!("{:?}", e);

@@ -240,8 +240,11 @@ fn create_message_event_route(
     MatrixResult(Ok(create_message_event::Response { event_id }))
 }
 
-#[get("/_matrix/client/r0/sync")]
-fn sync_route(data: State<Data>) -> MatrixResult<sync_events::Response> {
+#[get("/_matrix/client/r0/sync", data = "<body>")]
+fn sync_route(
+    data: State<Data>,
+    body: Ruma<sync_events::Request>,
+) -> MatrixResult<sync_events::Response> {
     let pdus = data.pdus_all();
     let mut joined_rooms = HashMap::new();
     joined_rooms.insert(
