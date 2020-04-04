@@ -505,6 +505,7 @@ dependencies = [
  "ruma-federation-api",
  "ruma-identifiers",
  "ruma-signatures",
+ "serde",
  "serde_json",
  "sled",
 ]

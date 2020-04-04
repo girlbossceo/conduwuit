@@ -1,13 +1,15 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 mod data;
 mod database;
+mod pdu;
 mod ruma_wrapper;
 mod utils;
 
 pub use data::Data;
 pub use database::Database;
+pub use pdu::PduEvent;
 
-use log::debug;
+use log::{debug, error};
 use rocket::{get, options, post, put, routes, State};
 use ruma_client_api::{
     error::{Error, ErrorKind},
@@ -17,7 +19,7 @@ use ruma_client_api::{
     },
     unversioned::get_supported_versions,
 };
-use ruma_events::{collections::all::Event, room::message::MessageEvent};
+use ruma_events::{collections::all::RoomEvent, room::message::MessageEvent, EventResult};
 use ruma_identifiers::{EventId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
 use serde_json::map::Map;
@@ -212,7 +214,7 @@ fn create_message_event_route(
     body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
     // Construct event
-    let mut event = Event::RoomMessage(MessageEvent {
+    let mut event = RoomEvent::RoomMessage(MessageEvent {
         content: body.data.clone().into_result().unwrap(),
         event_id: EventId::try_from("$thiswillbefilledinlater").unwrap(),
         origin_server_ts: utils::millis_since_unix_epoch(),
@@ -230,12 +232,12 @@ fn create_message_event_route(
     .expect("ruma's reference hashes are correct");
 
     // Insert event id
-    if let Event::RoomMessage(message) = &mut event {
+    if let RoomEvent::RoomMessage(message) = &mut event {
         message.event_id = event_id.clone();
+        data.pdu_append_message(&event_id, &body.room_id, message.clone());
+    } else {
+        error!("only roommessages are handled currently");
     }
-
-    // Add PDU to the graph
-    data.pdu_append(&event_id, &body.room_id, event);
 
     MatrixResult(Ok(create_message_event::Response { event_id }))
 }
@@ -245,30 +247,38 @@ fn sync_route(
     data: State<Data>,
     body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
-    let pdus = data.pdus_all();
     let mut joined_rooms = HashMap::new();
-    joined_rooms.insert(
-        "!roomid:localhost".try_into().unwrap(),
-        sync_events::JoinedRoom {
-            account_data: sync_events::AccountData { events: Vec::new() },
-            summary: sync_events::RoomSummary {
-                heroes: Vec::new(),
-                joined_member_count: None,
-                invited_member_count: None,
+    {
+        let pdus = data.pdus_all();
+        let mut room_events = Vec::new();
+
+        for pdu in pdus {
+            room_events.push(pdu.to_room_event());
+        }
+
+        joined_rooms.insert(
+            "!roomid:localhost".try_into().unwrap(),
+            sync_events::JoinedRoom {
+                account_data: sync_events::AccountData { events: Vec::new() },
+                summary: sync_events::RoomSummary {
+                    heroes: Vec::new(),
+                    joined_member_count: None,
+                    invited_member_count: None,
+                },
+                unread_notifications: sync_events::UnreadNotificationsCount {
+                    highlight_count: None,
+                    notification_count: None,
+                },
+                timeline: sync_events::Timeline {
+                    limited: None,
+                    prev_batch: None,
+                    events: room_events,
+                },
+                state: sync_events::State { events: Vec::new() },
+                ephemeral: sync_events::Ephemeral { events: Vec::new() },
             },
-            unread_notifications: sync_events::UnreadNotificationsCount {
-                highlight_count: None,
-                notification_count: None,
-            },
-            timeline: sync_events::Timeline {
-                limited: None,
-                prev_batch: None,
-                events: todo!(),
-            },
-            state: sync_events::State { events: Vec::new() },
-            ephemeral: sync_events::Ephemeral { events: Vec::new() },
-        },
-    );
+        );
+    }
 
     MatrixResult(Ok(sync_events::Response {
         next_batch: String::new(),

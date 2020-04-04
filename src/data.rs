@@ -1,9 +1,12 @@
-use crate::{utils, Database};
+use crate::{utils, Database, PduEvent};
 use log::debug;
-use ruma_events::collections::all::Event;
+use ruma_events::{room::message::MessageEvent, EventType};
 use ruma_federation_api::RoomV3Pdu;
 use ruma_identifiers::{EventId, RoomId, UserId};
-use std::convert::{TryFrom, TryInto};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+};
 
 pub struct Data {
     hostname: String,
@@ -145,7 +148,7 @@ impl Data {
     }
 
     /// Add a persisted data unit from this homeserver
-    pub fn pdu_append(&self, event_id: &EventId, room_id: &RoomId, event: Event) {
+    pub fn pdu_append_message(&self, event_id: &EventId, room_id: &RoomId, event: MessageEvent) {
         // prev_events are the leaves of the current graph. This method removes all leaves from the
         // room and replaces them with our event
         let prev_events = self.pdu_leaves_replace(room_id, event_id);
@@ -163,25 +166,25 @@ impl Data {
             .unwrap_or(0_u64)
             + 1;
 
-        let mut pdu_value = serde_json::to_value(&event).expect("message event can be serialized");
-        let pdu = pdu_value.as_object_mut().unwrap();
-
-        pdu.insert(
-            "prev_events".to_owned(),
-            prev_events
-                .iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<_>>()
-                .into(),
-        );
-        pdu.insert("origin".to_owned(), self.hostname().into());
-        pdu.insert("depth".to_owned(), depth.into());
-        pdu.insert("auth_events".to_owned(), vec!["$auth_eventid"].into()); // TODO
-        pdu.insert(
-            "hashes".to_owned(),
-            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".into(),
-        ); // TODO
-        pdu.insert("signatures".to_owned(), "signature".into()); // TODO
+        let pdu = PduEvent {
+            event_id: event_id.clone(),
+            room_id: room_id.clone(),
+            sender: event.sender,
+            origin: self.hostname.clone(),
+            origin_server_ts: event.origin_server_ts,
+            kind: EventType::RoomMessage,
+            content: serde_json::to_value(event.content).unwrap(),
+            state_key: None,
+            prev_events,
+            depth: depth.try_into().unwrap(),
+            auth_events: Vec::new(),
+            redacts: None,
+            unsigned: Default::default(),
+            hashes: ruma_federation_api::EventHash {
+                sha256: "aaa".to_owned(),
+            },
+            signatures: HashMap::new(),
+        };
 
         // The new value will need a new index. We store the last used index in 'n' + id
         let mut count_key: Vec<u8> = vec![b'n'];
@@ -205,7 +208,7 @@ impl Data {
 
         self.db
             .pduid_pdus
-            .insert(&pdu_id, dbg!(&*serde_json::to_string(&pdu).unwrap()))
+            .insert(&pdu_id, &*serde_json::to_string(&pdu).unwrap())
             .unwrap();
 
         self.db
@@ -215,7 +218,7 @@ impl Data {
     }
 
     /// Returns a vector of all PDUs.
-    pub fn pdus_all(&self) -> Vec<RoomV3Pdu> {
+    pub fn pdus_all(&self) -> Vec<PduEvent> {
         self.pdus_since(
             self.db
                 .eventid_pduid
@@ -229,7 +232,7 @@ impl Data {
     }
 
     /// Returns a vector of all events that happened after the event with id `since`.
-    pub fn pdus_since(&self, since: String) -> Vec<RoomV3Pdu> {
+    pub fn pdus_since(&self, since: String) -> Vec<PduEvent> {
         let mut pdus = Vec::new();
 
         if let Some(room_id) = since.rsplitn(2, '#').nth(1) {

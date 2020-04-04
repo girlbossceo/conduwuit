@@ -21,3 +21,4 @@ js_int = "0.1.4"
 serde_json = "1.0.50"
 ruma-signatures = { git = "https://github.com/ruma/ruma-signatures.git" }
 ruma-federation-api = "0.0.1"
+serde = "1.0.105"
