@@ -270,8 +270,8 @@ fn sync_route(
                     notification_count: None,
                 },
                 timeline: sync_events::Timeline {
-                    limited: None,
-                    prev_batch: None,
+                    limited: Some(false),
+                    prev_batch: Some("".to_owned()),
                     events: room_events,
                 },
                 state: sync_events::State { events: Vec::new() },
@@ -328,5 +328,6 @@ fn main() {
             ],
         )
         .manage(data)
-        .launch();
+        .launch()
+        .unwrap();
 }
