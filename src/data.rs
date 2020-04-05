@@ -1,6 +1,9 @@
 use crate::{utils, Database, PduEvent};
 use log::debug;
-use ruma_events::{room::message::MessageEvent, EventType};
+use ruma_events::{
+    room::message::{MessageEvent, MessageEventContent},
+    EventType,
+};
 use ruma_federation_api::RoomV3Pdu;
 use ruma_identifiers::{EventId, RoomId, UserId};
 use std::{
@@ -122,8 +125,7 @@ impl Data {
             })
     }
 
-    // TODO: Make sure this isn't called twice in parallel
-    pub fn pdu_leaves_replace(&self, room_id: &RoomId, event_id: &EventId) -> Vec<EventId> {
+    pub fn pdu_leaves_get(&self, room_id: &RoomId) -> Vec<EventId> {
         let event_ids = self
             .db
             .roomid_pduleaves
@@ -135,6 +137,10 @@ impl Data {
             })
             .collect();
 
+        event_ids
+    }
+
+    pub fn pdu_leaves_replace(&self, room_id: &RoomId, event_id: &EventId) {
         self.db
             .roomid_pduleaves
             .clear(room_id.to_string().as_bytes());
@@ -143,15 +149,20 @@ impl Data {
             &room_id.to_string().as_bytes(),
             (*event_id.to_string()).into(),
         );
-
-        event_ids
     }
 
     /// Add a persisted data unit from this homeserver
-    pub fn pdu_append_message(&self, event_id: &EventId, room_id: &RoomId, event: MessageEvent) {
+    pub fn pdu_append(
+        &self,
+        room_id: RoomId,
+        sender: UserId,
+        event_type: EventType,
+        content: MessageEventContent,
+    ) -> EventId {
         // prev_events are the leaves of the current graph. This method removes all leaves from the
         // room and replaces them with our event
-        let prev_events = self.pdu_leaves_replace(room_id, event_id);
+        // TODO: Make sure this isn't called twice in parallel
+        let prev_events = self.pdu_leaves_get(&room_id);
 
         // Our depth is the maximum depth of prev_events + 1
         let depth = prev_events
@@ -166,25 +177,35 @@ impl Data {
             .unwrap_or(0_u64)
             + 1;
 
-        let pdu = PduEvent {
-            event_id: event_id.clone(),
+        let mut pdu = PduEvent {
+            event_id: EventId::try_from("$thiswillbefilledinlater").unwrap(),
             room_id: room_id.clone(),
-            sender: event.sender,
+            sender: sender.clone(),
             origin: self.hostname.clone(),
-            origin_server_ts: event.origin_server_ts,
-            kind: EventType::RoomMessage,
-            content: serde_json::to_value(event.content).unwrap(),
+            origin_server_ts: utils::millis_since_unix_epoch(),
+            kind: event_type,
+            content: serde_json::to_value(content).expect("message content is valid json"),
             state_key: None,
             prev_events,
             depth: depth.try_into().unwrap(),
             auth_events: Vec::new(),
             redacts: None,
-            unsigned: Default::default(),
+            unsigned: Default::default(), // TODO
             hashes: ruma_federation_api::EventHash {
                 sha256: "aaa".to_owned(),
             },
             signatures: HashMap::new(),
         };
+
+        // Generate event id
+        pdu.event_id = EventId::try_from(&*format!(
+            "${}",
+            ruma_signatures::reference_hash(&serde_json::to_value(&pdu).unwrap())
+                .expect("ruma can calculate reference hashes")
+        ))
+        .expect("ruma's reference hashes are correct");
+
+        self.pdu_leaves_replace(&room_id, &pdu.event_id);
 
         // The new value will need a new index. We store the last used index in 'n' + id
         let mut count_key: Vec<u8> = vec![b'n'];
@@ -213,8 +234,10 @@ impl Data {
 
         self.db
             .eventid_pduid
-            .insert(event_id.to_string(), pdu_id.clone())
+            .insert(pdu.event_id.to_string(), pdu_id.clone())
             .unwrap();
+
+        pdu.event_id
     }
 
     /// Returns a vector of all PDUs.

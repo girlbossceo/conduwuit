@@ -213,39 +213,28 @@ fn create_message_event_route(
     _txn_id: String,
     body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
-    // Construct event
-    let mut event = RoomEvent::RoomMessage(MessageEvent {
-        content: body.data.clone().into_result().unwrap(),
-        event_id: EventId::try_from("$thiswillbefilledinlater").unwrap(),
-        origin_server_ts: utils::millis_since_unix_epoch(),
-        room_id: Some(body.room_id.clone()),
-        sender: body.user_id.clone().expect("user is authenticated"),
-        unsigned: Map::default(),
-    });
-
-    // Generate event id
-    let event_id = EventId::try_from(&*format!(
-        "${}",
-        ruma_signatures::reference_hash(&serde_json::to_value(&event).unwrap())
-            .expect("ruma can calculate reference hashes")
-    ))
-    .expect("ruma's reference hashes are correct");
-
-    // Insert event id
-    if let RoomEvent::RoomMessage(message) = &mut event {
-        message.event_id = event_id.clone();
-        data.pdu_append_message(&event_id, &body.room_id, message.clone());
+    if let Ok(content) = body.data.clone().into_result() {
+        let event_id = data.pdu_append(
+            body.room_id.clone(),
+            body.user_id.clone().expect("user is authenticated"),
+            body.event_type.clone(),
+            content,
+        );
+        MatrixResult(Ok(create_message_event::Response { event_id }))
     } else {
-        error!("only roommessages are handled currently");
+        error!("No data found");
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Room not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }))
     }
-
-    MatrixResult(Ok(create_message_event::Response { event_id }))
 }
 
-#[get("/_matrix/client/r0/sync", data = "<body>")]
+#[get("/_matrix/client/r0/sync", data = "<_body>")]
 fn sync_route(
     data: State<Data>,
-    body: Ruma<sync_events::Request>,
+    _body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
     let mut joined_rooms = HashMap::new();
     {
@@ -298,7 +287,7 @@ fn sync_route(
 fn options_route(_segments: PathBuf) -> MatrixResult<create_message_event::Response> {
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
-        message: "Room not found.".to_owned(),
+        message: "This is the options route.".to_owned(),
         status_code: http::StatusCode::NOT_FOUND,
     }))
 }
