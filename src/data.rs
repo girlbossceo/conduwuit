@@ -457,6 +457,9 @@ impl Data {
         ))
         .expect("ruma's reference hashes are correct");
 
+        let mut pdu_json = serde_json::to_value(pdu).unwrap();
+        ruma_signatures::hash_and_sign_event(self.hostname(), self.keypair(), &mut pdu_json);
+
         self.pdu_leaves_replace(&room_id, &pdu.event_id);
 
         // The new value will need a new index. We store the last used index in 'n'
@@ -478,9 +481,10 @@ impl Data {
         pdu_id.push(0xff); // Add delimiter so we don't find rooms starting with the same id
         pdu_id.extend_from_slice(&index.to_be_bytes());
 
-        let pdu_json = serde_json::to_string(&pdu).unwrap();
-
-        self.db.pduid_pdu.insert(&pdu_id, &*pdu_json).unwrap();
+        self.db
+            .pduid_pdu
+            .insert(&pdu_id, &*serde_json::to_string(&pdu_json).unwrap())
+            .unwrap();
 
         self.db
             .eventid_pduid
