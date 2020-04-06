@@ -1,3 +1,4 @@
+use rand::prelude::*;
 use std::{
     convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
@@ -31,4 +32,11 @@ pub fn u64_from_bytes(bytes: &[u8]) -> u64 {
 
 pub fn string_from_bytes(bytes: &[u8]) -> String {
     String::from_utf8(bytes.to_vec()).expect("bytes are valid utf8")
+}
+
+pub fn random_string(length: usize) -> String {
+    thread_rng()
+        .sample_iter(&rand::distributions::Alphanumeric)
+        .take(length)
+        .collect()
 }

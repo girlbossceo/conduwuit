@@ -607,6 +607,7 @@ dependencies = [
  "js_int",
  "log",
  "pretty_env_logger",
+ "rand",
  "rocket",
  "ruma-api",
  "ruma-client-api",
@@ -1051,7 +1052,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.7.2"
-source = "git+https://github.com/ruma/ruma-client-api.git#fe92c2940a2db80509e9a9f162c0f68f3ec3d0a4"
+source = "git+https://github.com/ruma/ruma-client-api.git#dc582758e4f846b3751d84d21eb321e8eb4faf51"
 dependencies = [
  "http",
  "js_int",

@@ -19,7 +19,7 @@ use ruma_client_api::{
         membership::join_room_by_id,
         message::create_message_event,
         room::create_room,
-        session::login,
+        session::{get_login_types, login},
         state::{create_state_event_for_empty_key, create_state_event_for_key},
         sync::sync_events,
     },
@@ -30,6 +30,11 @@ use ruma_identifiers::{RoomId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
 use serde_json::json;
 use std::{collections::HashMap, convert::TryInto, path::PathBuf};
+
+const DEVICE_ID_LENGTH: usize = 16;
+const SESSION_ID_LENGTH: usize = 16;
+const TOKEN_LENGTH: usize = 16;
+const GUEST_NAME_LENGTH: usize = 16;
 
 #[get("/_matrix/client/versions")]
 fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
@@ -47,14 +52,14 @@ fn register_route(
     if body.auth.is_none() {
         return MatrixResult(Err(Error {
             kind: ErrorKind::InvalidUsername,
-            message: serde_json::to_string(&json!({
+            message: json!({
                 "flows": [
                     { "stages": [ "m.login.dummy" ] },
                 ],
                 "params": {},
-                "session": "TODO:randomsessionid",
-            }))
-            .unwrap(),
+                "session": utils::random_string(SESSION_ID_LENGTH),
+            })
+            .to_string(),
             status_code: http::StatusCode::UNAUTHORIZED,
         }));
     }
@@ -62,7 +67,9 @@ fn register_route(
     // Validate user id
     let user_id: UserId = match (*format!(
         "@{}:{}",
-        body.username.clone().unwrap_or("randomname".to_owned()),
+        body.username
+            .clone()
+            .unwrap_or_else(|| utils::random_string(GUEST_NAME_LENGTH)),
         data.hostname()
     ))
     .try_into()
@@ -95,13 +102,13 @@ fn register_route(
     let device_id = body
         .device_id
         .clone()
-        .unwrap_or_else(|| "TODO:randomdeviceid".to_owned());
+        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
 
     // Add device
     data.device_add(&user_id, &device_id);
 
     // Generate new token for the device
-    let token = "TODO:randomtoken".to_owned();
+    let token = utils::random_string(TOKEN_LENGTH);
     data.token_replace(&user_id, &device_id, token.clone());
 
     MatrixResult(Ok(register::Response {
@@ -109,6 +116,13 @@ fn register_route(
         home_server: data.hostname().to_owned(),
         user_id,
         device_id,
+    }))
+}
+
+#[get("/_matrix/client/r0/login", data = "<_body>")]
+fn get_login_route(_body: Ruma<login::Request>) -> MatrixResult<get_login_types::Response> {
+    MatrixResult(Ok(get_login_types::Response {
+        flows: vec![get_login_types::LoginType::Password],
     }))
 }
 
@@ -167,22 +181,22 @@ fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<lo
     let device_id = body
         .device_id
         .clone()
-        .unwrap_or("TODO:randomdeviceid".to_owned());
+        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
 
     // Add device
     data.device_add(&user_id, &device_id);
 
     // Generate a new token for the device
-    let token = "TODO:randomtoken".to_owned();
+    let token = utils::random_string(TOKEN_LENGTH);
     data.token_replace(&user_id, &device_id, token.clone());
 
-    return MatrixResult(Ok(login::Response {
+    MatrixResult(Ok(login::Response {
         user_id,
         access_token: token,
         home_server: Some(data.hostname().to_owned()),
         device_id,
         well_known: None,
-    }));
+    }))
 }
 
 #[post("/_matrix/client/r0/createRoom", data = "<body>")]
@@ -388,6 +402,7 @@ fn main() {
             routes![
                 get_supported_versions_route,
                 register_route,
+                get_login_route,
                 login_route,
                 create_room_route,
                 get_alias_route,
