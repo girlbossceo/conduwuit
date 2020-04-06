@@ -107,6 +107,29 @@ impl Data {
             .unwrap();
     }
 
+    pub fn room_join(&self, room_id: &RoomId, user_id: &UserId) {
+        self.db.userid_roomids.add(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+        self.db.roomid_userids.add(
+            room_id.to_string().as_bytes(),
+            user_id.to_string().as_bytes().into(),
+        );
+    }
+
+    pub fn rooms_joined(&self, user_id: &UserId) -> Vec<RoomId> {
+        self.db
+            .userid_roomids
+            .get_iter(user_id.to_string().as_bytes())
+            .values()
+            .map(|room_id| {
+                RoomId::try_from(&*utils::string_from_bytes(&room_id.unwrap()))
+                    .expect("user joined valid room ids")
+            })
+            .collect()
+    }
+
     pub fn pdu_get(&self, event_id: &EventId) -> Option<RoomV3Pdu> {
         self.db
             .eventid_pduid
@@ -157,7 +180,7 @@ impl Data {
         room_id: RoomId,
         sender: UserId,
         event_type: EventType,
-        content: MessageEventContent,
+        content: serde_json::Value,
     ) -> EventId {
         // prev_events are the leaves of the current graph. This method removes all leaves from the
         // room and replaces them with our event
@@ -184,7 +207,7 @@ impl Data {
             origin: self.hostname.clone(),
             origin_server_ts: utils::millis_since_unix_epoch(),
             kind: event_type,
-            content: serde_json::to_value(content).expect("message content is valid json"),
+            content,
             state_key: None,
             prev_events,
             depth: depth.try_into().unwrap(),
@@ -207,9 +230,10 @@ impl Data {
 
         self.pdu_leaves_replace(&room_id, &pdu.event_id);
 
-        // The new value will need a new index. We store the last used index in 'n' + id
-        let mut count_key: Vec<u8> = vec![b'n'];
-        count_key.extend_from_slice(&room_id.to_string().as_bytes());
+        // The new value will need a new index. We store the last used index in 'n'
+        // The count will go up regardless of the room_id
+        // This is also the next_batch/since value
+        let count_key: Vec<u8> = vec![b'n'];
 
         // Increment the last index and use that
         let index = utils::u64_from_bytes(
@@ -225,7 +249,7 @@ impl Data {
         pdu_id.extend_from_slice(room_id.to_string().as_bytes());
 
         pdu_id.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
-        pdu_id.extend_from_slice(index.to_string().as_bytes());
+        pdu_id.extend_from_slice(&index.to_be_bytes());
 
         self.db
             .pduid_pdus
@@ -240,37 +264,30 @@ impl Data {
         pdu.event_id
     }
 
-    /// Returns a vector of all PDUs.
-    pub fn pdus_all(&self) -> Vec<PduEvent> {
-        self.pdus_since(
-            self.db
-                .eventid_pduid
-                .iter()
-                .values()
-                .next()
-                .unwrap()
-                .map(|key| utils::string_from_bytes(&key))
-                .expect("there should be at least one pdu"),
-        )
+    /// Returns a vector of all PDUs in a room.
+    pub fn pdus_all(&self, room_id: &RoomId) -> Vec<PduEvent> {
+        self.pdus_since(room_id, "".to_owned())
     }
 
-    /// Returns a vector of all events that happened after the event with id `since`.
-    pub fn pdus_since(&self, since: String) -> Vec<PduEvent> {
+    /// Returns a vector of all events in a room that happened after the event with id `since`.
+    pub fn pdus_since(&self, room_id: &RoomId, since: String) -> Vec<PduEvent> {
         let mut pdus = Vec::new();
 
-        if let Some(room_id) = since.rsplitn(2, '#').nth(1) {
-            let mut current = since.clone();
+        // Create the first part of the full pdu id
+        let mut pdu_id = vec![b'd'];
+        pdu_id.extend_from_slice(room_id.to_string().as_bytes());
+        pdu_id.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
 
-            while let Some((key, value)) = self.db.pduid_pdus.get_gt(current).unwrap() {
-                if key.starts_with(&room_id.to_string().as_bytes()) {
-                    current = utils::string_from_bytes(&key);
-                } else {
-                    break;
-                }
-                pdus.push(serde_json::from_slice(&value).expect("pdu is valid"));
+        let mut current = pdu_id.clone();
+        current.extend_from_slice(since.as_bytes());
+
+        while let Some((key, value)) = self.db.pduid_pdus.get_gt(&current).unwrap() {
+            if key.starts_with(&pdu_id) {
+                current = key.to_vec();
+                pdus.push(serde_json::from_slice(&value).expect("pdu in db is valid"));
+            } else {
+                break;
             }
-        } else {
-            debug!("event at `since` not found");
         }
         pdus
     }

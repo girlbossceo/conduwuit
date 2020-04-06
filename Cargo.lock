@@ -1050,9 +1050,8 @@ dependencies = [
 
 [[package]]
 name = "ruma-client-api"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b390a86d36e87cc56111802bfd281eed1095f5097a89677101d0271d8e6b1306"
+version = "0.7.2"
+source = "git+https://github.com/ruma/ruma-client-api.git#fe92c2940a2db80509e9a9f162c0f68f3ec3d0a4"
 dependencies = [
  "http",
  "js_int",
@@ -1193,9 +1192,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.50"
+version = "1.0.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78a7a12c167809363ec3bd7329fc0a3369056996de43c4b37ef3cd54a6ce4867"
+checksum = "da07b57ee2623368351e9a0488bb0b261322a15a6e0ae53e243cbdc0f4208da9"
 dependencies = [
  "itoa",
  "ryu",
