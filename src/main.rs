@@ -44,6 +44,21 @@ fn register_route(
     data: State<Data>,
     body: Ruma<register::Request>,
 ) -> MatrixResult<register::Response> {
+    if body.auth.is_none() {
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::InvalidUsername,
+            message: serde_json::to_string(&json!({
+                "flows": [
+                    { "stages": [ "m.login.dummy" ] },
+                ],
+                "params": {},
+                "session": "TODO:randomsessionid",
+            }))
+            .unwrap(),
+            status_code: http::StatusCode::UNAUTHORIZED,
+        }));
+    }
+
     // Validate user id
     let user_id: UserId = match (*format!(
         "@{}:{}",
@@ -353,7 +368,7 @@ fn options_route(_segments: PathBuf) -> MatrixResult<create_message_event::Respo
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "This is the options route.".to_owned(),
-        status_code: http::StatusCode::NOT_FOUND,
+        status_code: http::StatusCode::OK,
     }))
 }
 

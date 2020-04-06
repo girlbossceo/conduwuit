@@ -1,5 +1,5 @@
 use rocket::{
-    data::{Data, FromData, FromDataFuture, Transform, Transformed, TransformFuture},
+    data::{Data, FromData, FromDataFuture, Transform, TransformFuture, Transformed},
     http::Status,
     response::{self, Responder},
     Outcome::*,
@@ -42,7 +42,10 @@ where
     type Owned = Data;
     type Borrowed = Self::Owned;
 
-    fn transform<'r>(_req: &'r Request, data: Data) -> TransformFuture<'r, Self::Owned, Self::Error> {
+    fn transform<'r>(
+        _req: &'r Request,
+        data: Data,
+    ) -> TransformFuture<'r, Self::Owned, Self::Error> {
         Box::pin(async move { Transform::Owned(Success(data)) })
     }
 
@@ -123,8 +126,7 @@ impl<T: Outgoing> Deref for Ruma<T> {
 /// This struct converts ruma responses into rocket http responses.
 pub struct MatrixResult<T>(pub std::result::Result<T, Error>);
 
-impl<T: TryInto<http::Response<Vec<u8>>>> TryInto<http::Response<Vec<u8>>> for MatrixResult<T>
-{
+impl<T: TryInto<http::Response<Vec<u8>>>> TryInto<http::Response<Vec<u8>>> for MatrixResult<T> {
     type Error = T::Error;
 
     fn try_into(self) -> Result<http::Response<Vec<u8>>, T::Error> {
@@ -136,13 +138,18 @@ impl<T: TryInto<http::Response<Vec<u8>>>> TryInto<http::Response<Vec<u8>>> for M
 }
 
 #[rocket::async_trait]
-impl<'r, T: Send + TryInto<http::Response<Vec<u8>>>> Responder<'r> for MatrixResult<T> where T::Error: Send{
+impl<'r, T: Send + TryInto<http::Response<Vec<u8>>>> Responder<'r> for MatrixResult<T>
+where
+    T::Error: Send,
+{
     async fn respond_to(self, _: &'r Request<'_>) -> response::Result<'r> {
         let http_response: Result<http::Response<_>, _> = self.try_into();
         match http_response {
             Ok(http_response) => {
                 let mut response = rocket::response::Response::build();
-                response.sized_body(Cursor::new(http_response.body().clone())).await;
+                response
+                    .sized_body(Cursor::new(http_response.body().clone()))
+                    .await;
 
                 for header in http_response.headers() {
                     response
