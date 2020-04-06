@@ -1,9 +1,5 @@
 use crate::{utils, Database, PduEvent};
-use log::debug;
-use ruma_events::{
-    room::message::{MessageEvent, MessageEventContent},
-    EventType,
-};
+use ruma_events::EventType;
 use ruma_federation_api::RoomV3Pdu;
 use ruma_identifiers::{EventId, RoomId, UserId};
 use std::{
@@ -181,6 +177,7 @@ impl Data {
         sender: UserId,
         event_type: EventType,
         content: serde_json::Value,
+        state_key: Option<String>,
     ) -> EventId {
         // prev_events are the leaves of the current graph. This method removes all leaves from the
         // room and replaces them with our event
@@ -208,7 +205,7 @@ impl Data {
             origin_server_ts: utils::millis_since_unix_epoch(),
             kind: event_type,
             content,
-            state_key: None,
+            state_key,
             prev_events,
             depth: depth.try_into().unwrap(),
             auth_events: Vec::new(),

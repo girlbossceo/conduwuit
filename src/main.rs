@@ -9,27 +9,27 @@ pub use data::Data;
 pub use database::Database;
 pub use pdu::PduEvent;
 
-use log::{debug, error};
+use log::debug;
 use rocket::{get, options, post, put, routes, State};
 use ruma_client_api::{
     error::{Error, ErrorKind},
     r0::{
-        account::register, alias::get_alias, membership::join_room_by_id,
-        message::create_message_event, room::create_room, session::login, sync::sync_events,
+        account::register,
+        alias::get_alias,
+        membership::join_room_by_id,
+        message::create_message_event,
+        room::create_room,
+        session::login,
+        state::{create_state_event_for_empty_key, create_state_event_for_key},
+        sync::sync_events,
     },
     unversioned::get_supported_versions,
 };
-use ruma_events::{
-    collections::all::RoomEvent, room::message::MessageEvent, EventResult, EventType,
-};
-use ruma_identifiers::{EventId, RoomId, UserId};
+use ruma_events::EventType;
+use ruma_identifiers::{RoomId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
-use serde_json::{json, map::Map};
-use std::{
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    path::PathBuf,
-};
+use serde_json::json;
+use std::{collections::HashMap, convert::TryInto, path::PathBuf};
 
 #[get("/_matrix/client/versions")]
 fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
@@ -188,6 +188,7 @@ fn create_room_route(
         body.user_id.clone().expect("user is authenticated"),
         EventType::RoomMessage,
         json!({"msgtype": "m.text", "body": "Hello"}),
+        None,
     );
 
     MatrixResult(Ok(create_room::Response { room_id }))
@@ -247,8 +248,52 @@ fn create_message_event_route(
         body.user_id.clone().expect("user is authenticated"),
         body.event_type.clone(),
         body.json_body,
+        None,
     );
     MatrixResult(Ok(create_message_event::Response { event_id }))
+}
+
+#[put(
+    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
+    data = "<body>"
+)]
+fn create_state_event_for_key_route(
+    data: State<Data>,
+    _room_id: String,
+    _event_type: String,
+    _state_key: String,
+    body: Ruma<create_state_event_for_key::Request>,
+) -> MatrixResult<create_state_event_for_key::Response> {
+    // Reponse of with/without key is the same
+    let event_id = data.pdu_append(
+        body.room_id.clone(),
+        body.user_id.clone().expect("user is authenticated"),
+        body.event_type.clone(),
+        body.json_body.clone(),
+        Some(body.state_key.clone()),
+    );
+    MatrixResult(Ok(create_state_event_for_key::Response { event_id }))
+}
+
+#[put(
+    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
+    data = "<body>"
+)]
+fn create_state_event_for_empty_key_route(
+    data: State<Data>,
+    _room_id: String,
+    _event_type: String,
+    body: Ruma<create_state_event_for_empty_key::Request>,
+) -> MatrixResult<create_state_event_for_empty_key::Response> {
+    // Reponse of with/without key is the same
+    let event_id = data.pdu_append(
+        body.room_id.clone(),
+        body.user_id.clone().expect("user is authenticated"),
+        body.event_type.clone(),
+        body.json_body,
+        Some("".to_owned()),
+    );
+    MatrixResult(Ok(create_state_event_for_empty_key::Response { event_id }))
 }
 
 #[get("/_matrix/client/r0/sync", data = "<body>")]
@@ -333,6 +378,8 @@ fn main() {
                 get_alias_route,
                 join_room_by_id_route,
                 create_message_event_route,
+                create_state_event_for_key_route,
+                create_state_event_for_empty_key_route,
                 sync_route,
                 options_route,
             ],
