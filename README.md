@@ -13,6 +13,7 @@ A Matrix Homeserver that's faster than others.
 #### Roadmap
 
 - [x] Register, login, authentication tokens
-- [ ] Create room messages
-- [ ] Sync room messages
+- [x] Create room messages
+- [x] Sync room messages
 - [ ] Join rooms, lookup room ids
+- [ ] Riot web support
