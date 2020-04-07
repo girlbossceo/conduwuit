@@ -16,9 +16,9 @@ use ruma_client_api::{
     r0::{
         account::register,
         alias::get_alias,
-        filter::create_filter,
+        filter::{self, create_filter, get_filter},
         keys::get_keys,
-        membership::join_room_by_id,
+        membership::{join_room_by_id, join_room_by_id_or_alias},
         message::create_message_event,
         presence::set_presence,
         push::get_pushrules_all,
@@ -30,7 +30,7 @@ use ruma_client_api::{
     unversioned::get_supported_versions,
 };
 use ruma_events::EventType;
-use ruma_identifiers::{RoomId, UserId};
+use ruma_identifiers::{RoomId, RoomIdOrAliasId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
 use serde_json::json;
 use std::{collections::HashMap, convert::TryInto, path::PathBuf};
@@ -214,6 +214,27 @@ fn get_pushrules_all_route() -> MatrixResult<get_pushrules_all::Response> {
     }))
 }
 
+#[get(
+    "/_matrix/client/r0/user/<_user_id>/filter/<_filter_id>",
+    data = "<body>"
+)]
+fn get_filter_route(
+    body: Ruma<get_filter::Request>,
+    _user_id: String,
+    _filter_id: String,
+) -> MatrixResult<get_filter::Response> {
+    // TODO
+    MatrixResult(Ok(get_filter::Response {
+        filter: filter::FilterDefinition {
+            event_fields: None,
+            event_format: None,
+            account_data: None,
+            room: None,
+            presence: None,
+        },
+    }))
+}
+
 #[post("/_matrix/client/r0/user/<_user_id>/filter", data = "<body>")]
 fn create_filter_route(
     body: Ruma<create_filter::Request>,
@@ -302,6 +323,37 @@ fn join_room_by_id_route(
     );
     MatrixResult(Ok(join_room_by_id::Response {
         room_id: body.room_id.clone(),
+    }))
+}
+
+#[post("/_matrix/client/r0/join/<_room_id_or_alias>", data = "<body>")]
+fn join_room_by_id_or_alias_route(
+    data: State<Data>,
+    body: Ruma<join_room_by_id_or_alias::Request>,
+    _room_id_or_alias: String,
+) -> MatrixResult<join_room_by_id_or_alias::Response> {
+    let room_id = match &body.room_id_or_alias {
+        RoomIdOrAliasId::RoomAliasId(alias) => match alias.alias() {
+            "#room:localhost" => "!xclkjvdlfj:localhost".try_into().unwrap(),
+            _ => {
+                debug!("Room not found.");
+                return MatrixResult(Err(Error {
+                    kind: ErrorKind::NotFound,
+                    message: "Room not found.".to_owned(),
+                    status_code: http::StatusCode::NOT_FOUND,
+                }));
+            }
+        },
+
+        RoomIdOrAliasId::RoomId(id) => id.clone(),
+    };
+
+    data.room_join(
+        &room_id,
+        body.user_id.as_ref().expect("user is authenticated"),
+    );
+    MatrixResult(Ok(join_room_by_id_or_alias::Response {
+        room_id: room_id.clone(),
     }))
 }
 
@@ -449,12 +501,14 @@ fn main() {
                 get_login_route,
                 login_route,
                 get_pushrules_all_route,
+                get_filter_route,
                 create_filter_route,
                 set_presence_route,
                 get_keys_route,
                 create_room_route,
                 get_alias_route,
                 join_room_by_id_route,
+                join_room_by_id_or_alias_route,
                 create_message_event_route,
                 create_state_event_for_key_route,
                 create_state_event_for_empty_key_route,
