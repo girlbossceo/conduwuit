@@ -63,7 +63,7 @@ where
                 let token = match request
                     .headers()
                     .get_one("Authorization")
-                    .map(|s| s.to_owned())
+                    .map(|s| s[7..].to_owned()) // Split off "Bearer "
                     .or_else(|| request.get_query_value("access_token").and_then(|r| r.ok()))
                 {
                     // TODO: M_MISSING_TOKEN
@@ -95,7 +95,7 @@ where
             let http_request = http_request.body(body.clone()).unwrap();
             log::info!("{:?}", http_request);
 
-            match T::Incoming::try_from(http_request) {
+            match T::Incoming::try_from(dbg!(http_request)) {
                 Ok(t) => Success(Ruma {
                     body: t,
                     user_id,
@@ -150,6 +150,9 @@ where
                 response
                     .sized_body(Cursor::new(http_response.body().clone()))
                     .await;
+
+                let status = http_response.status();
+                response.raw_status(status.into(), "");
 
                 for header in http_response.headers() {
                     response

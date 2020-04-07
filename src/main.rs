@@ -16,8 +16,12 @@ use ruma_client_api::{
     r0::{
         account::register,
         alias::get_alias,
+        filter::create_filter,
+        keys::get_keys,
         membership::join_room_by_id,
         message::create_message_event,
+        presence::set_presence,
+        push::get_pushrules_all,
         room::create_room,
         session::{get_login_types, login},
         state::{create_state_event_for_empty_key, create_state_event_for_key},
@@ -31,10 +35,10 @@ use ruma_wrapper::{MatrixResult, Ruma};
 use serde_json::json;
 use std::{collections::HashMap, convert::TryInto, path::PathBuf};
 
-const DEVICE_ID_LENGTH: usize = 16;
-const SESSION_ID_LENGTH: usize = 16;
-const TOKEN_LENGTH: usize = 16;
-const GUEST_NAME_LENGTH: usize = 16;
+const GUEST_NAME_LENGTH: usize = 10;
+const DEVICE_ID_LENGTH: usize = 10;
+const SESSION_ID_LENGTH: usize = 256;
+const TOKEN_LENGTH: usize = 256;
 
 #[get("/_matrix/client/versions")]
 fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
@@ -49,9 +53,10 @@ fn register_route(
     data: State<Data>,
     body: Ruma<register::Request>,
 ) -> MatrixResult<register::Response> {
+    /*
     if body.auth.is_none() {
         return MatrixResult(Err(Error {
-            kind: ErrorKind::InvalidUsername,
+            kind: ErrorKind::Unknown,
             message: json!({
                 "flows": [
                     { "stages": [ "m.login.dummy" ] },
@@ -62,7 +67,7 @@ fn register_route(
             .to_string(),
             status_code: http::StatusCode::UNAUTHORIZED,
         }));
-    }
+    }*/
 
     // Validate user id
     let user_id: UserId = match (*format!(
@@ -120,7 +125,9 @@ fn register_route(
 }
 
 #[get("/_matrix/client/r0/login", data = "<_body>")]
-fn get_login_route(_body: Ruma<login::Request>) -> MatrixResult<get_login_types::Response> {
+fn get_login_route(
+    _body: Ruma<get_login_types::Request>,
+) -> MatrixResult<get_login_types::Response> {
     MatrixResult(Ok(get_login_types::Response {
         flows: vec![get_login_types::LoginType::Password],
     }))
@@ -147,7 +154,7 @@ fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<lo
                     } else {
                         debug!("Invalid password.");
                         return MatrixResult(Err(Error {
-                            kind: ErrorKind::Unknown,
+                            kind: ErrorKind::Forbidden,
                             message: "".to_owned(),
                             status_code: http::StatusCode::FORBIDDEN,
                         }));
@@ -163,8 +170,8 @@ fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<lo
             } else {
                 debug!("Invalid UserId.");
                 return MatrixResult(Err(Error {
-                    kind: ErrorKind::Unknown,
-                    message: "Bad login type.".to_owned(),
+                    kind: ErrorKind::InvalidUsername,
+                    message: "Bad user id.".to_owned(),
                     status_code: http::StatusCode::BAD_REQUEST,
                 }));
             }
@@ -196,6 +203,43 @@ fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<lo
         home_server: Some(data.hostname().to_owned()),
         device_id,
         well_known: None,
+    }))
+}
+
+#[get("/_matrix/client/r0/pushrules")]
+fn get_pushrules_all_route() -> MatrixResult<get_pushrules_all::Response> {
+    // TODO
+    MatrixResult(Ok(get_pushrules_all::Response {
+        global: HashMap::new(),
+    }))
+}
+
+#[post("/_matrix/client/r0/user/<_user_id>/filter", data = "<body>")]
+fn create_filter_route(
+    body: Ruma<create_filter::Request>,
+    _user_id: String,
+) -> MatrixResult<create_filter::Response> {
+    // TODO
+    MatrixResult(Ok(create_filter::Response {
+        filter_id: utils::random_string(10),
+    }))
+}
+
+#[put("/_matrix/client/r0/presence/<_user_id>/status", data = "<body>")]
+fn set_presence_route(
+    body: Ruma<set_presence::Request>,
+    _user_id: String,
+) -> MatrixResult<set_presence::Response> {
+    // TODO
+    MatrixResult(Ok(set_presence::Response))
+}
+
+#[post("/_matrix/client/r0/keys/query", data = "<body>")]
+fn get_keys_route(body: Ruma<get_keys::Request>) -> MatrixResult<get_keys::Response> {
+    // TODO
+    MatrixResult(Ok(get_keys::Response {
+        failures: HashMap::new(),
+        device_keys: HashMap::new(),
     }))
 }
 
@@ -404,6 +448,10 @@ fn main() {
                 register_route,
                 get_login_route,
                 login_route,
+                get_pushrules_all_route,
+                create_filter_route,
+                set_presence_route,
+                get_keys_route,
                 create_room_route,
                 get_alias_route,
                 join_room_by_id_route,
