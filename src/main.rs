@@ -118,10 +118,9 @@ fn register_route(
     data.token_replace(&user_id, &device_id, token.clone());
 
     MatrixResult(Ok(register::Response {
-        access_token: token,
-        home_server: data.hostname().to_owned(),
+        access_token: Some(token),
         user_id,
-        device_id,
+        device_id: Some(device_id),
     }))
 }
 
