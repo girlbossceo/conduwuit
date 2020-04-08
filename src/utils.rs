@@ -8,8 +8,9 @@ pub fn millis_since_unix_epoch() -> js_int::UInt {
     (SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_millis() as u32)
-        .into()
+        .as_millis() as u64)
+        .try_into()
+        .expect("time millis are <= MAX_SAFE_UINT")
 }
 
 pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {

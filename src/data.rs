@@ -103,7 +103,11 @@ impl Data {
             .unwrap();
     }
 
-    pub fn room_join(&self, room_id: &RoomId, user_id: &UserId) {
+    pub fn room_join(&self, room_id: &RoomId, user_id: &UserId) -> bool {
+        if !self.room_exists(room_id) {
+            return false;
+        }
+
         self.db.userid_roomids.add(
             user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes().into(),
@@ -112,6 +116,8 @@ impl Data {
             room_id.to_string().as_bytes(),
             user_id.to_string().as_bytes().into(),
         );
+
+        true
     }
 
     pub fn rooms_joined(&self, user_id: &UserId) -> Vec<RoomId> {
@@ -124,6 +130,24 @@ impl Data {
                     .expect("user joined valid room ids")
             })
             .collect()
+    }
+
+    /// Check if a room exists by looking for PDUs in that room.
+    pub fn room_exists(&self, room_id: &RoomId) -> bool {
+        // Create the first part of the full pdu id
+        let mut prefix = vec![b'd'];
+        prefix.extend_from_slice(room_id.to_string().as_bytes());
+        prefix.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
+
+        if let Some((key, _)) = self.db.pduid_pdus.get_gt(&prefix).unwrap() {
+            if key.starts_with(&prefix) {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     pub fn pdu_get(&self, event_id: &EventId) -> Option<RoomV3Pdu> {
@@ -177,6 +201,7 @@ impl Data {
         sender: UserId,
         event_type: EventType,
         content: serde_json::Value,
+        unsigned: Option<serde_json::Map<String, serde_json::Value>>,
         state_key: Option<String>,
     ) -> EventId {
         // prev_events are the leaves of the current graph. This method removes all leaves from the
@@ -210,7 +235,7 @@ impl Data {
             depth: depth.try_into().unwrap(),
             auth_events: Vec::new(),
             redacts: None,
-            unsigned: Default::default(), // TODO
+            unsigned: unsigned.unwrap_or_default(),
             hashes: ruma_federation_api::EventHash {
                 sha256: "aaa".to_owned(),
             },
@@ -263,29 +288,42 @@ impl Data {
 
     /// Returns a vector of all PDUs in a room.
     pub fn pdus_all(&self, room_id: &RoomId) -> Vec<PduEvent> {
-        self.pdus_since(room_id, "".to_owned())
+        self.pdus_since(room_id, 0)
+    }
+
+    pub fn last_pdu_index(&self) -> u64 {
+        let count_key: Vec<u8> = vec![b'n'];
+        utils::u64_from_bytes(
+            &self
+                .db
+                .pduid_pdus
+                .get(&count_key)
+                .unwrap()
+                .unwrap_or_else(|| (&0_u64.to_be_bytes()).into()),
+        )
     }
 
     /// Returns a vector of all events in a room that happened after the event with id `since`.
-    pub fn pdus_since(&self, room_id: &RoomId, since: String) -> Vec<PduEvent> {
+    pub fn pdus_since(&self, room_id: &RoomId, since: u64) -> Vec<PduEvent> {
         let mut pdus = Vec::new();
 
         // Create the first part of the full pdu id
-        let mut pdu_id = vec![b'd'];
-        pdu_id.extend_from_slice(room_id.to_string().as_bytes());
-        pdu_id.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
+        let mut prefix = vec![b'd'];
+        prefix.extend_from_slice(room_id.to_string().as_bytes());
+        prefix.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
 
-        let mut current = pdu_id.clone();
-        current.extend_from_slice(since.as_bytes());
+        let mut current = prefix.clone();
+        current.extend_from_slice(&since.to_be_bytes());
 
         while let Some((key, value)) = self.db.pduid_pdus.get_gt(&current).unwrap() {
-            if key.starts_with(&pdu_id) {
+            if key.starts_with(&prefix) {
                 current = key.to_vec();
                 pdus.push(serde_json::from_slice(&value).expect("pdu in db is valid"));
             } else {
                 break;
             }
         }
+
         pdus
     }
 

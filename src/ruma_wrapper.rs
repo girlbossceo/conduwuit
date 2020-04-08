@@ -95,7 +95,7 @@ where
             let http_request = http_request.body(body.clone()).unwrap();
             log::info!("{:?}", http_request);
 
-            match T::Incoming::try_from(dbg!(http_request)) {
+            match T::Incoming::try_from(http_request) {
                 Ok(t) => Success(Ruma {
                     body: t,
                     user_id,

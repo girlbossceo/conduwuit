@@ -15,5 +15,12 @@ A Matrix Homeserver that's faster than others.
 - [x] Register, login, authentication tokens
 - [x] Create room messages
 - [x] Sync room messages
-- [ ] Join rooms, lookup room ids
-- [ ] Riot web support
+- [x] Join rooms, lookup room ids
+- [x] Basic Riot web support
+- [ ] Riot room discovery
+- [ ] Riot read receipts
+- [ ] Riot presence
+- [ ] Proper room creation
+- [ ] Riot E2EE
+- [ ] Basic federation
+- [ ] State resolution

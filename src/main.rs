@@ -33,7 +33,7 @@ use ruma_events::EventType;
 use ruma_identifiers::{RoomId, RoomIdOrAliasId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
 use serde_json::json;
-use std::{collections::HashMap, convert::TryInto, path::PathBuf};
+use std::{collections::HashMap, convert::TryInto, path::PathBuf, time::Duration};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
@@ -67,7 +67,8 @@ fn register_route(
             .to_string(),
             status_code: http::StatusCode::UNAUTHORIZED,
         }));
-    }*/
+    }
+    */
 
     // Validate user id
     let user_id: UserId = match (*format!(
@@ -272,17 +273,18 @@ fn create_room_route(
     // TODO: check if room is unique
     let room_id = RoomId::new(data.hostname()).expect("host is valid");
 
-    data.room_join(
-        &room_id,
-        body.user_id.as_ref().expect("user is authenticated"),
-    );
-
     data.pdu_append(
         room_id.clone(),
         body.user_id.clone().expect("user is authenticated"),
         EventType::RoomMessage,
         json!({"msgtype": "m.text", "body": "Hello"}),
         None,
+        None,
+    );
+
+    data.room_join(
+        &room_id,
+        body.user_id.as_ref().expect("user is authenticated"),
     );
 
     MatrixResult(Ok(create_room::Response { room_id }))
@@ -317,13 +319,20 @@ fn join_room_by_id_route(
     body: Ruma<join_room_by_id::Request>,
     _room_id: String,
 ) -> MatrixResult<join_room_by_id::Response> {
-    data.room_join(
+    if data.room_join(
         &body.room_id,
         body.user_id.as_ref().expect("user is authenticated"),
-    );
-    MatrixResult(Ok(join_room_by_id::Response {
-        room_id: body.room_id.clone(),
-    }))
+    ) {
+        MatrixResult(Ok(join_room_by_id::Response {
+            room_id: body.room_id.clone(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Room not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }))
+    }
 }
 
 #[post("/_matrix/client/r0/join/<_room_id_or_alias>", data = "<body>")]
@@ -348,13 +357,18 @@ fn join_room_by_id_or_alias_route(
         RoomIdOrAliasId::RoomId(id) => id.clone(),
     };
 
-    data.room_join(
+    if data.room_join(
         &room_id,
         body.user_id.as_ref().expect("user is authenticated"),
-    );
-    MatrixResult(Ok(join_room_by_id_or_alias::Response {
-        room_id: room_id.clone(),
-    }))
+    ) {
+        MatrixResult(Ok(join_room_by_id_or_alias::Response { room_id }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Room not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }))
+    }
 }
 
 #[put(
@@ -368,11 +382,15 @@ fn create_message_event_route(
     _txn_id: String,
     body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
+    let mut unsigned = serde_json::Map::new();
+    unsigned.insert("transaction_id".to_owned(), body.txn_id.clone().into());
+
     let event_id = data.pdu_append(
         body.room_id.clone(),
         body.user_id.clone().expect("user is authenticated"),
         body.event_type.clone(),
-        body.json_body,
+        body.json_body.clone(),
+        Some(unsigned),
         None,
     );
     MatrixResult(Ok(create_message_event::Response { event_id }))
@@ -395,6 +413,7 @@ fn create_state_event_for_key_route(
         body.user_id.clone().expect("user is authenticated"),
         body.event_type.clone(),
         body.json_body.clone(),
+        None,
         Some(body.state_key.clone()),
     );
     MatrixResult(Ok(create_state_event_for_key::Response { event_id }))
@@ -416,6 +435,7 @@ fn create_state_event_for_empty_key_route(
         body.user_id.clone().expect("user is authenticated"),
         body.event_type.clone(),
         body.json_body,
+        None,
         Some("".to_owned()),
     );
     MatrixResult(Ok(create_state_event_for_empty_key::Response { event_id }))
@@ -426,17 +446,21 @@ fn sync_route(
     data: State<Data>,
     body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
+    std::thread::sleep(Duration::from_millis(200));
+    let next_batch = data.last_pdu_index().to_string();
+
     let mut joined_rooms = HashMap::new();
     let joined_roomids = data.rooms_joined(body.user_id.as_ref().expect("user is authenticated"));
     for room_id in joined_roomids {
-        let room_events = data
-            .pdus_all(&room_id)
-            .into_iter()
-            .map(|pdu| pdu.to_room_event())
-            .collect();
+        let pdus = if let Some(since) = body.since.clone().and_then(|string| string.parse().ok()) {
+            data.pdus_since(&room_id, since)
+        } else {
+            data.pdus_all(&room_id)
+        };
+        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
 
         joined_rooms.insert(
-            "!roomid:localhost".try_into().unwrap(),
+            room_id.try_into().unwrap(),
             sync_events::JoinedRoom {
                 account_data: sync_events::AccountData { events: Vec::new() },
                 summary: sync_events::RoomSummary {
@@ -460,7 +484,7 @@ fn sync_route(
     }
 
     MatrixResult(Ok(sync_events::Response {
-        next_batch: String::new(),
+        next_batch,
         rooms: sync_events::Rooms {
             leave: Default::default(),
             join: joined_rooms,
