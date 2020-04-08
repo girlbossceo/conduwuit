@@ -1,1 +1,1 @@
-[ ] I agree to release my code and all other changes of this PR under the AGPL-3.0 license
+- [ ] I agree to release my code and all other changes of this PR under the AGPL-3.0 license

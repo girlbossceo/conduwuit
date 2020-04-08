@@ -1,5 +1,7 @@
 # Matrix Homeserver in Rust
 
+![Liberapay](http://img.shields.io/liberapay/receives/timokoesters.svg?logo=liberapay)
+
 #### Goals
 
 A Matrix Homeserver that's faster than others.
@@ -24,3 +26,7 @@ A Matrix Homeserver that's faster than others.
 - [ ] Riot E2EE
 - [ ] Basic federation
 - [ ] State resolution
+
+#### Donate
+
+Liberapay: <https://liberapay.com/timokoesters/>
