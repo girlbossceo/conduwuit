@@ -9,7 +9,6 @@ use ruma_api::{
     error::{FromHttpRequestError, FromHttpResponseError},
     Endpoint, Outgoing,
 };
-use ruma_client_api::error::Error;
 use ruma_identifiers::UserId;
 use std::{
     convert::{TryFrom, TryInto},
@@ -124,9 +123,13 @@ impl<T: Outgoing> Deref for Ruma<T> {
 }
 
 /// This struct converts ruma responses into rocket http responses.
-pub struct MatrixResult<T>(pub std::result::Result<T, Error>);
+pub struct MatrixResult<T, E = ruma_client_api::Error>(pub std::result::Result<T, E>);
 
-impl<T: TryInto<http::Response<Vec<u8>>>> TryInto<http::Response<Vec<u8>>> for MatrixResult<T> {
+impl<T, E> TryInto<http::Response<Vec<u8>>> for MatrixResult<T, E>
+where
+    T: TryInto<http::Response<Vec<u8>>>,
+    E: Into<http::Response<Vec<u8>>>,
+{
     type Error = T::Error;
 
     fn try_into(self) -> Result<http::Response<Vec<u8>>, T::Error> {
@@ -138,9 +141,11 @@ impl<T: TryInto<http::Response<Vec<u8>>>> TryInto<http::Response<Vec<u8>>> for M
 }
 
 #[rocket::async_trait]
-impl<'r, T: Send + TryInto<http::Response<Vec<u8>>>> Responder<'r> for MatrixResult<T>
+impl<'r, T, E> Responder<'r> for MatrixResult<T, E>
 where
+    T: Send + TryInto<http::Response<Vec<u8>>>,
     T::Error: Send,
+    E: Into<http::Response<Vec<u8>>> + Send,
 {
     async fn respond_to(self, _: &'r Request<'_>) -> response::Result<'r> {
         let http_response: Result<http::Response<_>, _> = self.try_into();

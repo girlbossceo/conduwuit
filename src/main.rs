@@ -14,7 +14,10 @@ use rocket::{get, options, post, put, routes, State};
 use ruma_client_api::{
     error::{Error, ErrorKind},
     r0::{
-        account::register,
+        account::{
+            register, AuthenticationFlow, UserInteractiveAuthenticationInfo,
+            UserInteractiveAuthenticationResponse,
+        },
         alias::get_alias,
         filter::{self, create_filter, get_filter},
         keys::get_keys,
@@ -52,23 +55,19 @@ fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Respon
 fn register_route(
     data: State<Data>,
     body: Ruma<register::Request>,
-) -> MatrixResult<register::Response> {
-    /*
+) -> MatrixResult<register::Response, UserInteractiveAuthenticationResponse> {
     if body.auth.is_none() {
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::Unknown,
-            message: json!({
-                "flows": [
-                    { "stages": [ "m.login.dummy" ] },
-                ],
-                "params": {},
-                "session": utils::random_string(SESSION_ID_LENGTH),
-            })
-            .to_string(),
-            status_code: http::StatusCode::UNAUTHORIZED,
-        }));
+        return MatrixResult(Err(UserInteractiveAuthenticationResponse::AuthResponse(
+            UserInteractiveAuthenticationInfo {
+                flows: vec![AuthenticationFlow {
+                    stages: vec!["m.login.dummy".to_owned()],
+                }],
+                completed: vec![],
+                params: json!({}),
+                session: Some(utils::random_string(SESSION_ID_LENGTH)),
+            },
+        )));
     }
-    */
 
     // Validate user id
     let user_id: UserId = match (*format!(
@@ -82,11 +81,13 @@ fn register_route(
     {
         Err(_) => {
             debug!("Username invalid");
-            return MatrixResult(Err(Error {
-                kind: ErrorKind::InvalidUsername,
-                message: "Username was invalid.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }));
+            return MatrixResult(Err(UserInteractiveAuthenticationResponse::MatrixError(
+                Error {
+                    kind: ErrorKind::InvalidUsername,
+                    message: "Username was invalid.".to_owned(),
+                    status_code: http::StatusCode::BAD_REQUEST,
+                },
+            )));
         }
         Ok(user_id) => user_id,
     };
@@ -94,11 +95,13 @@ fn register_route(
     // Check if username is creative enough
     if data.user_exists(&user_id) {
         debug!("ID already taken");
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::UserInUse,
-            message: "Desired user ID is already taken.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }));
+        return MatrixResult(Err(UserInteractiveAuthenticationResponse::MatrixError(
+            Error {
+                kind: ErrorKind::UserInUse,
+                message: "Desired user ID is already taken.".to_owned(),
+                status_code: http::StatusCode::BAD_REQUEST,
+            },
+        )));
     }
 
     // Create user
@@ -118,10 +121,9 @@ fn register_route(
     data.token_replace(&user_id, &device_id, token.clone());
 
     MatrixResult(Ok(register::Response {
-        access_token: token,
-        home_server: data.hostname().to_owned(),
+        access_token: Some(token),
         user_id,
-        device_id,
+        device_id: Some(device_id),
     }))
 }
 

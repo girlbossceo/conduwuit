@@ -1052,7 +1052,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.7.2"
-source = "git+https://github.com/ruma/ruma-client-api.git#dc582758e4f846b3751d84d21eb321e8eb4faf51"
+source = "git+https://github.com/ruma/ruma-client-api.git?branch=uiaa-error-type#a7136c06285864dadcc0b0c6371d181002727c55"
 dependencies = [
  "http",
  "js_int",
