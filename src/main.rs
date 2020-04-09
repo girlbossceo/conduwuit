@@ -274,20 +274,34 @@ fn create_room_route(
 ) -> MatrixResult<create_room::Response> {
     // TODO: check if room is unique
     let room_id = RoomId::new(data.hostname()).expect("host is valid");
+    let user_id = body.user_id.clone().expect("user is authenticated");
 
     data.pdu_append(
         room_id.clone(),
-        body.user_id.clone().expect("user is authenticated"),
-        EventType::RoomMessage,
-        json!({"msgtype": "m.text", "body": "Hello"}),
+        user_id.clone(),
+        EventType::RoomCreate,
+        json!({ "creator": user_id }),
         None,
+        Some("".to_owned()),
+    );
+    data.pdu_append(
+        room_id.clone(),
+        user_id.clone(),
+        EventType::RoomName,
+        json!({"name": body.name}),
         None,
+        Some("".to_owned()),
+    );
+    data.pdu_append(
+        room_id.clone(),
+        user_id.clone(),
+        EventType::RoomTopic,
+        json!({"topic": body.topic}),
+        None,
+        Some("".to_owned()),
     );
 
-    data.room_join(
-        &room_id,
-        body.user_id.as_ref().expect("user is authenticated"),
-    );
+    data.room_join(&room_id, &user_id);
 
     MatrixResult(Ok(create_room::Response { room_id }))
 }
