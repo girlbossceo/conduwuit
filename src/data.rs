@@ -157,13 +157,14 @@ impl Data {
             .iter_all()
             .keys()
             .map(|key| {
-                serde_json::from_slice(
+                RoomId::try_from(&*utils::string_from_bytes(
                     &key.unwrap()
                         .iter()
+                        .skip(1) // skip "d"
                         .copied()
-                        .take_while(|&x| x != 0xff)
+                        .take_while(|&x| x != 0xff) // until delimiter
                         .collect::<Vec<_>>(),
-                )
+                ))
                 .unwrap()
             })
             .collect::<Vec<_>>();

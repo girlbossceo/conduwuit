@@ -19,9 +19,10 @@ use ruma_client_api::{
             UserInteractiveAuthenticationResponse,
         },
         alias::get_alias,
-        directory::{self, get_public_rooms},
+        config::{get_global_account_data, set_global_account_data},
+        directory::{self, get_public_rooms_filtered},
         filter::{self, create_filter, get_filter},
-        keys::get_keys,
+        keys::{get_keys, upload_keys},
         membership::{join_room_by_id, join_room_by_id_or_alias},
         message::create_message_event,
         presence::set_presence,
@@ -30,10 +31,11 @@ use ruma_client_api::{
         session::{get_login_types, login},
         state::{create_state_event_for_empty_key, create_state_event_for_key},
         sync::sync_events,
+        thirdparty::get_protocols,
     },
     unversioned::get_supported_versions,
 };
-use ruma_events::EventType;
+use ruma_events::{collections::only::Event, EventType};
 use ruma_identifiers::{RoomId, RoomIdOrAliasId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
 use serde_json::json;
@@ -250,6 +252,36 @@ fn create_filter_route(
     }))
 }
 
+#[put(
+    "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+    data = "<body>"
+)]
+fn set_global_account_data_route(
+    body: Ruma<set_global_account_data::Request>,
+    _user_id: String,
+    _type: String,
+) -> MatrixResult<set_global_account_data::Response> {
+    // TODO
+    MatrixResult(Ok(set_global_account_data::Response))
+}
+
+#[get(
+    "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+    data = "<body>"
+)]
+fn get_global_account_data_route(
+    body: Ruma<get_global_account_data::Request>,
+    _user_id: String,
+    _type: String,
+) -> MatrixResult<get_global_account_data::Response> {
+    // TODO
+    MatrixResult(Err(Error {
+        kind: ErrorKind::NotFound,
+        message: "Data not found.".to_owned(),
+        status_code: http::StatusCode::NOT_FOUND,
+    }))
+}
+
 #[put("/_matrix/client/r0/presence/<_user_id>/status", data = "<body>")]
 fn set_presence_route(
     body: Ruma<set_presence::Request>,
@@ -265,6 +297,16 @@ fn get_keys_route(body: Ruma<get_keys::Request>) -> MatrixResult<get_keys::Respo
     MatrixResult(Ok(get_keys::Response {
         failures: HashMap::new(),
         device_keys: HashMap::new(),
+    }))
+}
+
+#[post("/_matrix/client/r0/keys/upload", data = "<body>")]
+fn upload_keys_route(
+    data: State<Data>,
+    body: Ruma<upload_keys::Request>,
+) -> MatrixResult<upload_keys::Response> {
+    MatrixResult(Ok(upload_keys::Response {
+        one_time_key_counts: HashMap::new(),
     }))
 }
 
@@ -285,22 +327,28 @@ fn create_room_route(
         None,
         Some("".to_owned()),
     );
-    data.pdu_append(
-        room_id.clone(),
-        user_id.clone(),
-        EventType::RoomName,
-        json!({"name": body.name}),
-        None,
-        Some("".to_owned()),
-    );
-    data.pdu_append(
-        room_id.clone(),
-        user_id.clone(),
-        EventType::RoomTopic,
-        json!({"topic": body.topic}),
-        None,
-        Some("".to_owned()),
-    );
+
+    if let Some(name) = &body.name {
+        data.pdu_append(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomName,
+            json!({ "name": name }),
+            None,
+            Some("".to_owned()),
+        );
+    }
+
+    if let Some(topic) = &body.topic {
+        data.pdu_append(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomTopic,
+            json!({ "topic": topic }),
+            None,
+            Some("".to_owned()),
+        );
+    }
 
     data.room_join(&room_id, &user_id);
 
@@ -388,11 +436,11 @@ fn join_room_by_id_or_alias_route(
     }
 }
 
-#[get("/_matrix/client/r0/publicRooms", data = "<body>")]
-fn get_public_rooms_route(
+#[post("/_matrix/client/r0/publicRooms", data = "<body>")]
+fn get_public_rooms_filtered_route(
     data: State<Data>,
-    body: Ruma<get_public_rooms::Request>,
-) -> MatrixResult<get_public_rooms::Response> {
+    body: Ruma<get_public_rooms_filtered::Request>,
+) -> MatrixResult<get_public_rooms_filtered::Response> {
     let chunk = data
         .rooms_all()
         .into_iter()
@@ -411,12 +459,21 @@ fn get_public_rooms_route(
 
     let total_room_count_estimate = (chunk.len() as u32).into();
 
-    MatrixResult(Ok(get_public_rooms::Response {
-        chunk: chunk,
+    MatrixResult(Ok(get_public_rooms_filtered::Response {
+        chunk,
         prev_batch: None,
         next_batch: None,
         total_room_count_estimate: Some(total_room_count_estimate),
     }))
+}
+
+#[get("/_matrix/client/r0/thirdparty/protocols", data = "<body>")]
+fn get_protocols_route(
+    body: Ruma<get_protocols::Request>,
+) -> MatrixResult<get_protocols::Response> {
+    MatrixResult(Ok(dbg!(get_protocols::Response {
+        protocols: HashMap::new(),
+    })))
 }
 
 #[put(
@@ -575,13 +632,17 @@ fn main() {
                 get_pushrules_all_route,
                 get_filter_route,
                 create_filter_route,
+                set_global_account_data_route,
+                get_global_account_data_route,
                 set_presence_route,
                 get_keys_route,
+                upload_keys_route,
                 create_room_route,
                 get_alias_route,
                 join_room_by_id_route,
                 join_room_by_id_or_alias_route,
-                get_public_rooms_route,
+                get_public_rooms_filtered_route,
+                get_protocols_route,
                 create_message_event_route,
                 create_state_event_for_key_route,
                 create_state_event_for_empty_key_route,
