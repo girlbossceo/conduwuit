@@ -1,4 +1,5 @@
 #![feature(proc_macro_hygiene, decl_macro)]
+
 mod data;
 mod database;
 mod pdu;
@@ -88,7 +89,7 @@ fn register_route(
             .unwrap_or_else(|| utils::random_string(GUEST_NAME_LENGTH)),
         data.hostname()
     ))
-    .try_into()
+        .try_into()
     {
         Err(_) => {
             debug!("Username invalid");
@@ -152,7 +153,7 @@ fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<lo
     // Validate login method
     let user_id =
         if let (login::UserInfo::MatrixId(mut username), login::LoginInfo::Password { password }) =
-            (body.user.clone(), body.login_info.clone())
+        (body.user.clone(), body.login_info.clone())
         {
             if !username.contains(':') {
                 username = format!("@{}:{}", username, data.hostname());
@@ -229,8 +230,8 @@ fn get_pushrules_all_route() -> MatrixResult<get_pushrules_all::Response> {
 }
 
 #[get(
-    "/_matrix/client/r0/user/<_user_id>/filter/<_filter_id>",
-    data = "<body>"
+"/_matrix/client/r0/user/<_user_id>/filter/<_filter_id>",
+data = "<body>"
 )]
 fn get_filter_route(
     body: Ruma<get_filter::Request>,
@@ -261,8 +262,8 @@ fn create_filter_route(
 }
 
 #[put(
-    "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
-    data = "<body>"
+"/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+data = "<body>"
 )]
 fn set_global_account_data_route(
     body: Ruma<set_global_account_data::Request>,
@@ -274,8 +275,8 @@ fn set_global_account_data_route(
 }
 
 #[get(
-    "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
-    data = "<body>"
+"/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+data = "<body>"
 )]
 fn get_global_account_data_route(
     body: Ruma<get_global_account_data::Request>,
@@ -297,25 +298,35 @@ fn set_displayname_route(
     _user_id: String,
 ) -> MatrixResult<set_display_name::Response> {
     let user_id = body.user_id.clone().expect("user is authenticated");
+
+    // Send error on None and accept Some("") as valid username
+    // Synapse returns a parsing error but the spec doesn't require this
     if body.displayname.is_none() {
         debug!("Request was missing the displayname payload.");
         return MatrixResult(Err(Error {
             kind: ErrorKind::MissingParam,
-            message: "Missing displayname".to_owned(),
+            message: "Missing displayname.".to_owned(),
             status_code: http::StatusCode::BAD_REQUEST,
         }));
     }
 
-    data.displayname_set(&user_id, body.displayname.clone());
-    // TODO send a new m.room.member join event with the updated displayname
-    // TODO send a new m.presence event with the updated displayname
+    if let Some(displayname) = body.displayname {
+        if displayname == "" {
+            data.displayname_remove(&user_id);
+        } else {
+            data.displayname_set(&user_id, body.displayname.clone());
+            // TODO send a new m.room.member join event with the updated displayname
+            // TODO send a new m.presence event with the updated displayname
+
+        }
+    }
 
     MatrixResult(Ok(set_display_name::Response))
 }
 
 #[get(
-    "/_matrix/client/r0/profile/<user_id_raw>/displayname",
-    data = "<body>"
+"/_matrix/client/r0/profile/<user_id_raw>/displayname",
+data = "<body>"
 )]
 fn get_displayname_route(
     data: State<Data>,
@@ -323,20 +334,26 @@ fn get_displayname_route(
     user_id_raw: String,
 ) -> MatrixResult<get_display_name::Response> {
     let user_id = (*body).user_id.clone();
+    if !data.user_exists(&user_id) {
+        // Return 404 if we don't have a profile for this id
+        debug!("Profile was not found.");
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Profile was not found".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }))
+    }
     if let Some(displayname) = data.displayname_get(&user_id) {
         return MatrixResult(Ok(get_display_name::Response {
             displayname: Some(displayname),
         }));
     }
 
-    // Return 404 if we don't have any
-    debug!("Profile was not found.");
-    MatrixResult(Err(Error {
-        kind: ErrorKind::NotFound,
-        message: "Profile was not found".to_owned(),
-        status_code: http::StatusCode::NOT_FOUND,
+    MatrixResult(Ok(get_display_name::Response {
+        displayname: None,
     }))
 }
+
 #[put("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")]
 fn set_avatar_url_route(
     data: State<Data>,
@@ -344,21 +361,28 @@ fn set_avatar_url_route(
     _user_id: String,
 ) -> MatrixResult<set_avatar_url::Response> {
     let user_id = body.user_id.clone().expect("user is authenticated");
-    if body.avatar_url == "" {
-        debug!("Request was missing the avatar_url payload.");
+
+    if !body.avatar_url.starts_with("mxc://") {
+        debug!("Request contains an invalid avatar_url.");
         return MatrixResult(Err(Error {
-            kind: ErrorKind::MissingParam,
+            kind: ErrorKind::InvalidParam,
             message: "Missing avatar_url".to_owned(),
             status_code: http::StatusCode::BAD_REQUEST,
         }));
     }
 
     // TODO in the future when we can handle media uploads make sure that this url is our own server
-    // TODO also make sure this is mxc:// format
+    // TODO also make sure this is valid mxc:// format (not only starting with it)
 
-    data.avatar_url_set(&user_id, body.avatar_url.clone());
-    // TODO send a new m.room.member join event with the updated avatar_url
-    // TODO send a new m.presence event with the updated avatar_url
+
+    if body.avatar_url == "" {
+        data.avatar_url_remove(&user_id);
+    } else {
+        data.avatar_url_set(&user_id, body.displayname.clone());
+        // TODO send a new m.room.member join event with the updated avatar_url
+        // TODO send a new m.presence event with the updated avatar_url
+
+    }
 
     MatrixResult(Ok(set_avatar_url::Response))
 }
@@ -370,18 +394,23 @@ fn get_avatar_url_route(
     user_id_raw: String,
 ) -> MatrixResult<get_avatar_url::Response> {
     let user_id = (*body).user_id.clone();
+    if !data.user_exists(&user_id) {
+        // Return 404 if we don't have a profile for this id
+        debug!("Profile was not found.");
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Profile was not found".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }))
+    }
     if let Some(avatar_url) = data.avatar_url_get(&user_id) {
         return MatrixResult(Ok(get_avatar_url::Response {
             avatar_url: Some(avatar_url),
         }));
     }
 
-    // Return 404 if we don't have a profile for this id
-    debug!("Profile was not found.");
-    MatrixResult(Err(Error {
-        kind: ErrorKind::NotFound,
-        message: "Profile was not found".to_owned(),
-        status_code: http::StatusCode::NOT_FOUND,
+    MatrixResult(Ok(get_avatar_url::Response {
+        avatar_url: None,
     }))
 }
 
@@ -395,7 +424,7 @@ fn get_profile_route(
     let avatar_url = data.avatar_url_get(&user_id);
     let displayname = data.displayname_get(&user_id);
 
-    if avatar_url.is_some() && displayname.is_some() {
+    if avatar_url.is_some() || displayname.is_some() {
         return MatrixResult(Ok(get_profile::Response {
             avatar_url,
             displayname,
@@ -498,8 +527,8 @@ fn get_alias_route(room_alias: String) -> MatrixResult<get_alias::Response> {
             }));
         }
     }
-    .try_into()
-    .unwrap();
+        .try_into()
+        .unwrap();
 
     MatrixResult(Ok(get_alias::Response {
         room_id,
@@ -606,8 +635,8 @@ fn get_protocols_route(
 }
 
 #[put(
-    "/_matrix/client/r0/rooms/<_room_id>/send/<_event_type>/<_txn_id>",
-    data = "<body>"
+"/_matrix/client/r0/rooms/<_room_id>/send/<_event_type>/<_txn_id>",
+data = "<body>"
 )]
 fn create_message_event_route(
     data: State<Data>,
@@ -631,8 +660,8 @@ fn create_message_event_route(
 }
 
 #[put(
-    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
-    data = "<body>"
+"/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
+data = "<body>"
 )]
 fn create_state_event_for_key_route(
     data: State<Data>,
@@ -654,8 +683,8 @@ fn create_state_event_for_key_route(
 }
 
 #[put(
-    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
-    data = "<body>"
+"/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
+data = "<body>"
 )]
 fn create_state_event_for_empty_key_route(
     data: State<Data>,

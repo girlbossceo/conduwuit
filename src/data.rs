@@ -60,10 +60,15 @@ impl Data {
             .map(|bytes| utils::string_from_bytes(&bytes))
     }
 
+    /// Removes a displayname.
+    pub fn displayname_remove(&self, user_id: &UserId) {
+        self.db.userid_displayname.remove(user_id).unwrap();
+    }
+
     /// Set a new displayname.
     pub fn displayname_set(&self, user_id: &UserId, displayname: Option<String>) {
         self.db
-            .profile_displayname
+            .userid_displayname
             .insert(user_id.to_string(), &*displayname.unwrap_or_default())
             .unwrap();
     }
@@ -71,16 +76,21 @@ impl Data {
     /// Get a the displayname of a user.
     pub fn displayname_get(&self, user_id: &UserId) -> Option<String> {
         self.db
-            .profile_displayname
+            .userid_displayname
             .get(user_id.to_string())
             .unwrap()
             .map(|bytes| utils::string_from_bytes(&bytes))
     }
 
+    /// Removes a avatar_url.
+    pub fn avatar_url_remove(&self, user_id: &UserId) {
+        self.db.userid_avatar_url.remove(user_id).unwrap();
+    }
+
     /// Set a new avatar_url.
     pub fn avatar_url_set(&self, user_id: &UserId, avatar_url: String) {
         self.db
-            .profile_avatar_url
+            .userid_avatar_url
             .insert(user_id.to_string(), &*avatar_url)
             .unwrap();
     }
@@ -88,7 +98,7 @@ impl Data {
     /// Get a the avatar_url of a user.
     pub fn avatar_url_get(&self, user_id: &UserId) -> Option<String> {
         self.db
-            .profile_avatar_url
+            .userid_avatar_url
             .get(user_id.to_string())
             .unwrap()
             .map(|bytes| utils::string_from_bytes(&bytes))
