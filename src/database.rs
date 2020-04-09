@@ -53,7 +53,7 @@ pub struct Database {
     pub userid_password: sled::Tree,
     pub userid_deviceids: MultiValue,
     pub userid_displayname: sled::Tree,
-    pub userid_avatar_url: sled::Tree,
+    pub userid_avatarurl: sled::Tree,
     pub deviceid_token: sled::Tree,
     pub token_userid: sled::Tree,
     pub pduid_pdus: sled::Tree,
@@ -78,7 +78,7 @@ impl Database {
             userid_password: db.open_tree("userid_password").unwrap(),
             userid_deviceids: MultiValue(db.open_tree("userid_deviceids").unwrap()),
             userid_displayname: db.open_tree("userid_displayname").unwrap(),
-            userid_avatar_url: db.open_tree("userid_avatar_url").unwrap(),
+            userid_avatarurl: db.open_tree("userid_avatarurl").unwrap(),
             deviceid_token: db.open_tree("deviceid_token").unwrap(),
             token_userid: db.open_tree("token_userid").unwrap(),
             pduid_pdus: db.open_tree("pduid_pdus").unwrap(),
@@ -107,7 +107,7 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("# AccountData -> Displayname:");
+        println!("# UserId -> Displayname:");
         for (k, v) in self.userid_displayname.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
@@ -115,8 +115,8 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("# AccountData -> AvatarURL:");
-        for (k, v) in self.userid_avatar_url.iter().map(|r| r.unwrap()) {
+        println!("# UserId -> AvatarURL:");
+        for (k, v) in self.userid_avatarurl.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
                 String::from_utf8_lossy(&k),

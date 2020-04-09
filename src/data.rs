@@ -84,13 +84,13 @@ impl Data {
 
     /// Removes a avatar_url.
     pub fn avatar_url_remove(&self, user_id: &UserId) {
-        self.db.userid_avatar_url.remove(user_id).unwrap();
+        self.db.userid_avatarurl.remove(user_id).unwrap();
     }
 
     /// Set a new avatar_url.
     pub fn avatar_url_set(&self, user_id: &UserId, avatar_url: String) {
         self.db
-            .userid_avatar_url
+            .userid_avatarurl
             .insert(user_id.to_string(), &*avatar_url)
             .unwrap();
     }
@@ -98,7 +98,7 @@ impl Data {
     /// Get a the avatar_url of a user.
     pub fn avatar_url_get(&self, user_id: &UserId) -> Option<String> {
         self.db
-            .userid_avatar_url
+            .userid_avatarurl
             .get(user_id.to_string())
             .unwrap()
             .map(|bytes| utils::string_from_bytes(&bytes))
