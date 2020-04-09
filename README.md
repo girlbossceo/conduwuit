@@ -2,6 +2,7 @@
 ### A Matrix homeserver written in Rust
 
 [![Liberapay](http://img.shields.io/liberapay/receives/timokoesters.svg?logo=liberapay)](https://liberapay.com/timokoesters)
+[![Matrix](https://img.shields.io/matrix/conduit:koesters.xyz?server_fqdn=matrix.koesters.xyz)](https://matrix.to/#/#conduit:koesters.xyz)
 
 #### Goals
 
