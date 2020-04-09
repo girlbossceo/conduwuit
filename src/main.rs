@@ -299,7 +299,7 @@ fn set_displayname_route(
 ) -> MatrixResult<set_display_name::Response> {
     let user_id = body.user_id.clone().expect("user is authenticated");
 
-    // Send error on None and accept Some("") as valid username
+    // Send error on None
     // Synapse returns a parsing error but the spec doesn't require this
     if body.displayname.is_none() {
         debug!("Request was missing the displayname payload.");
@@ -311,6 +311,7 @@ fn set_displayname_route(
     }
 
     if let Some(displayname) = body.displayname {
+        // Some("") will clear the displayname
         if displayname == "" {
             data.displayname_remove(&user_id);
         } else {
@@ -338,7 +339,7 @@ fn get_displayname_route(
         debug!("Profile was not found.");
         MatrixResult(Err(Error {
             kind: ErrorKind::NotFound,
-            message: "Profile was not found".to_owned(),
+            message: "Profile was not found.".to_owned(),
             status_code: http::StatusCode::NOT_FOUND,
         }))
     }
@@ -348,6 +349,7 @@ fn get_displayname_route(
         }));
     }
 
+    // The user has no displayname
     MatrixResult(Ok(get_display_name::Response { displayname: None }))
 }
 
@@ -394,7 +396,7 @@ fn get_avatar_url_route(
         debug!("Profile was not found.");
         MatrixResult(Err(Error {
             kind: ErrorKind::NotFound,
-            message: "Profile was not found".to_owned(),
+            message: "Profile was not found.".to_owned(),
             status_code: http::StatusCode::NOT_FOUND,
         }))
     }
@@ -404,6 +406,7 @@ fn get_avatar_url_route(
         }));
     }
 
+    // The user has no avatar
     MatrixResult(Ok(get_avatar_url::Response { avatar_url: None }))
 }
 
@@ -428,7 +431,7 @@ fn get_profile_route(
     debug!("Profile was not found.");
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
-        message: "Profile was not found".to_owned(),
+        message: "Profile was not found.".to_owned(),
         status_code: http::StatusCode::NOT_FOUND,
     }))
 }
