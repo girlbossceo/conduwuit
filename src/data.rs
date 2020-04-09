@@ -150,6 +150,34 @@ impl Data {
         }
     }
 
+    pub fn rooms_all(&self) -> Vec<RoomId> {
+        let mut room_ids = self
+            .db
+            .roomid_pduleaves
+            .iter_all()
+            .keys()
+            .map(|key| {
+                serde_json::from_slice(
+                    &key.unwrap()
+                        .iter()
+                        .copied()
+                        .take_while(|&x| x != 0xff)
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        room_ids.dedup();
+        room_ids
+    }
+
+    pub fn room_users(&self, room_id: &RoomId) -> u32 {
+        self.db
+            .roomid_userids
+            .get_iter(room_id.to_string().as_bytes())
+            .count() as u32
+    }
+
     pub fn pdu_get(&self, event_id: &EventId) -> Option<RoomV3Pdu> {
         self.db
             .eventid_pduid

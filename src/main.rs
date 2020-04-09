@@ -19,6 +19,7 @@ use ruma_client_api::{
             UserInteractiveAuthenticationResponse,
         },
         alias::get_alias,
+        directory::{self, get_public_rooms},
         filter::{self, create_filter, get_filter},
         keys::get_keys,
         membership::{join_room_by_id, join_room_by_id_or_alias},
@@ -387,6 +388,37 @@ fn join_room_by_id_or_alias_route(
     }
 }
 
+#[get("/_matrix/client/r0/publicRooms", data = "<body>")]
+fn get_public_rooms_route(
+    data: State<Data>,
+    body: Ruma<get_public_rooms::Request>,
+) -> MatrixResult<get_public_rooms::Response> {
+    let chunk = data
+        .rooms_all()
+        .into_iter()
+        .map(|room_id| directory::PublicRoomsChunk {
+            aliases: None,
+            canonical_alias: None,
+            name: None,
+            num_joined_members: data.room_users(&room_id).into(),
+            room_id,
+            topic: None,
+            world_readable: false,
+            guest_can_join: true,
+            avatar_url: None,
+        })
+        .collect::<Vec<_>>();
+
+    let total_room_count_estimate = (chunk.len() as u32).into();
+
+    MatrixResult(Ok(get_public_rooms::Response {
+        chunk: chunk,
+        prev_batch: None,
+        next_batch: None,
+        total_room_count_estimate: Some(total_room_count_estimate),
+    }))
+}
+
 #[put(
     "/_matrix/client/r0/rooms/<_room_id>/send/<_event_type>/<_txn_id>",
     data = "<body>"
@@ -549,6 +581,7 @@ fn main() {
                 get_alias_route,
                 join_room_by_id_route,
                 join_room_by_id_or_alias_route,
+                get_public_rooms_route,
                 create_message_event_route,
                 create_state_event_for_key_route,
                 create_state_event_for_empty_key_route,
