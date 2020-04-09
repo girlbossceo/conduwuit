@@ -365,7 +365,7 @@ fn set_avatar_url_route(
         debug!("Request contains an invalid avatar_url.");
         return MatrixResult(Err(Error {
             kind: ErrorKind::InvalidParam,
-            message: "Missing avatar_url".to_owned(),
+            message: "avatar_url has to start with mxc://.".to_owned(),
             status_code: http::StatusCode::BAD_REQUEST,
         }));
     }
