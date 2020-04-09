@@ -1,4 +1,5 @@
 #![feature(proc_macro_hygiene, decl_macro)]
+
 mod data;
 mod database;
 mod pdu;
@@ -26,6 +27,9 @@ use ruma_client_api::{
         membership::{join_room_by_id, join_room_by_id_or_alias},
         message::create_message_event,
         presence::set_presence,
+        profile::{
+            get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
+        },
         push::get_pushrules_all,
         room::create_room,
         session::{get_login_types, login},
@@ -39,7 +43,12 @@ use ruma_events::{collections::only::Event, EventType};
 use ruma_identifiers::{RoomId, RoomIdOrAliasId, UserId};
 use ruma_wrapper::{MatrixResult, Ruma};
 use serde_json::json;
-use std::{collections::HashMap, convert::TryInto, path::PathBuf, time::Duration};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+    path::PathBuf,
+    time::Duration,
+};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
@@ -278,6 +287,151 @@ fn get_global_account_data_route(
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "Data not found.".to_owned(),
+        status_code: http::StatusCode::NOT_FOUND,
+    }))
+}
+
+#[put("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")]
+fn set_displayname_route(
+    data: State<Data>,
+    body: Ruma<set_display_name::Request>,
+    _user_id: String,
+) -> MatrixResult<set_display_name::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+
+    // Send error on None
+    // Synapse returns a parsing error but the spec doesn't require this
+    if body.displayname.is_none() {
+        debug!("Request was missing the displayname payload.");
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::MissingParam,
+            message: "Missing displayname.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }));
+    }
+
+    if let Some(displayname) = &body.displayname {
+        // Some("") will clear the displayname
+        if displayname == "" {
+            data.displayname_remove(&user_id);
+        } else {
+            data.displayname_set(&user_id, body.displayname.clone());
+            // TODO send a new m.room.member join event with the updated displayname
+            // TODO send a new m.presence event with the updated displayname
+        }
+    }
+
+    MatrixResult(Ok(set_display_name::Response))
+}
+
+#[get(
+    "/_matrix/client/r0/profile/<user_id_raw>/displayname",
+    data = "<body>"
+)]
+fn get_displayname_route(
+    data: State<Data>,
+    body: Ruma<get_display_name::Request>,
+    user_id_raw: String,
+) -> MatrixResult<get_display_name::Response> {
+    let user_id = (*body).user_id.clone();
+    if !data.user_exists(&user_id) {
+        // Return 404 if we don't have a profile for this id
+        debug!("Profile was not found.");
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Profile was not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }));
+    }
+    if let Some(displayname) = data.displayname_get(&user_id) {
+        return MatrixResult(Ok(get_display_name::Response {
+            displayname: Some(displayname),
+        }));
+    }
+
+    // The user has no displayname
+    MatrixResult(Ok(get_display_name::Response { displayname: None }))
+}
+
+#[put("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")]
+fn set_avatar_url_route(
+    data: State<Data>,
+    body: Ruma<set_avatar_url::Request>,
+    _user_id: String,
+) -> MatrixResult<set_avatar_url::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+
+    if !body.avatar_url.starts_with("mxc://") {
+        debug!("Request contains an invalid avatar_url.");
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::InvalidParam,
+            message: "avatar_url has to start with mxc://.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }));
+    }
+
+    // TODO in the future when we can handle media uploads make sure that this url is our own server
+    // TODO also make sure this is valid mxc:// format (not only starting with it)
+
+    if body.avatar_url == "" {
+        data.avatar_url_remove(&user_id);
+    } else {
+        data.avatar_url_set(&user_id, body.avatar_url.clone());
+        // TODO send a new m.room.member join event with the updated avatar_url
+        // TODO send a new m.presence event with the updated avatar_url
+    }
+
+    MatrixResult(Ok(set_avatar_url::Response))
+}
+
+#[get("/_matrix/client/r0/profile/<user_id_raw>/avatar_url", data = "<body>")]
+fn get_avatar_url_route(
+    data: State<Data>,
+    body: Ruma<get_avatar_url::Request>,
+    user_id_raw: String,
+) -> MatrixResult<get_avatar_url::Response> {
+    let user_id = (*body).user_id.clone();
+    if !data.user_exists(&user_id) {
+        // Return 404 if we don't have a profile for this id
+        debug!("Profile was not found.");
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Profile was not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }));
+    }
+    if let Some(avatar_url) = data.avatar_url_get(&user_id) {
+        return MatrixResult(Ok(get_avatar_url::Response {
+            avatar_url: Some(avatar_url),
+        }));
+    }
+
+    // The user has no avatar
+    MatrixResult(Ok(get_avatar_url::Response { avatar_url: None }))
+}
+
+#[get("/_matrix/client/r0/profile/<user_id_raw>", data = "<body>")]
+fn get_profile_route(
+    data: State<Data>,
+    body: Ruma<get_profile::Request>,
+    user_id_raw: String,
+) -> MatrixResult<get_profile::Response> {
+    let user_id = (*body).user_id.clone();
+    let avatar_url = data.avatar_url_get(&user_id);
+    let displayname = data.displayname_get(&user_id);
+
+    if avatar_url.is_some() || displayname.is_some() {
+        return MatrixResult(Ok(get_profile::Response {
+            avatar_url,
+            displayname,
+        }));
+    }
+
+    // Return 404 if we don't have a profile for this id
+    debug!("Profile was not found.");
+    MatrixResult(Err(Error {
+        kind: ErrorKind::NotFound,
+        message: "Profile was not found.".to_owned(),
         status_code: http::StatusCode::NOT_FOUND,
     }))
 }
@@ -634,6 +788,11 @@ fn main() {
                 create_filter_route,
                 set_global_account_data_route,
                 get_global_account_data_route,
+                set_displayname_route,
+                get_displayname_route,
+                set_avatar_url_route,
+                get_avatar_url_route,
+                get_profile_route,
                 set_presence_route,
                 get_keys_route,
                 upload_keys_route,
