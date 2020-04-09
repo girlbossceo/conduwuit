@@ -7,7 +7,7 @@ pub struct MultiValue(sled::Tree);
 impl MultiValue {
     /// Get an iterator over all values.
     pub fn iter_all(&self) -> sled::Iter {
-        self.0.iter()
+        self.0.scan_prefix(b"d")
     }
 
     /// Get an iterator over all values of this id.

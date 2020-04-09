@@ -471,9 +471,9 @@ fn get_public_rooms_filtered_route(
 fn get_protocols_route(
     body: Ruma<get_protocols::Request>,
 ) -> MatrixResult<get_protocols::Response> {
-    MatrixResult(Ok(dbg!(get_protocols::Response {
+    MatrixResult(Ok(get_protocols::Response {
         protocols: HashMap::new(),
-    })))
+    }))
 }
 
 #[put(
@@ -618,7 +618,7 @@ fn main() {
     }
     pretty_env_logger::init();
 
-    let data = Data::load_or_create("localhost");
+    let data = Data::load_or_create("matrixtesting.koesters.xyz");
     data.debug();
 
     rocket::ignite()
