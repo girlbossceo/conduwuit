@@ -60,6 +60,40 @@ impl Data {
             .map(|bytes| utils::string_from_bytes(&bytes))
     }
 
+    /// Set a new displayname.
+    pub fn displayname_set(&self, user_id: &UserId, displayname: Option<String>) {
+        self.db
+            .profile_displayname
+            .insert(user_id.to_string(), &*displayname.unwrap_or_default())
+            .unwrap();
+    }
+
+    /// Get a the displayname of a user.
+    pub fn displayname_get(&self, user_id: &UserId) -> Option<String> {
+        self.db
+            .profile_displayname
+            .get(user_id.to_string())
+            .unwrap()
+            .map(|bytes| utils::string_from_bytes(&bytes))
+    }
+
+    /// Set a new avatar_url.
+    pub fn avatar_url_set(&self, user_id: &UserId, avatar_url: String) {
+        self.db
+            .profile_avatar_url
+            .insert(user_id.to_string(), &*avatar_url)
+            .unwrap();
+    }
+
+    /// Get a the avatar_url of a user.
+    pub fn avatar_url_get(&self, user_id: &UserId) -> Option<String> {
+        self.db
+            .profile_avatar_url
+            .get(user_id.to_string())
+            .unwrap()
+            .map(|bytes| utils::string_from_bytes(&bytes))
+    }
+
     /// Add a new device to a user.
     pub fn device_add(&self, user_id: &UserId, device_id: &str) {
         if self
