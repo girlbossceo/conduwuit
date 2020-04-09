@@ -1,7 +1,7 @@
 # Conduit
 ### A Matrix homeserver written in Rust
 
-![Liberapay](http://img.shields.io/liberapay/receives/timokoesters.svg?logo=liberapay)
+[![Liberapay](http://img.shields.io/liberapay/receives/timokoesters.svg?logo=liberapay)](https://liberapay.com/timokoesters)
 
 #### Goals
 
