@@ -1,6 +1,7 @@
 use crate::utils;
 use directories::ProjectDirs;
 use sled::IVec;
+use std::fs::remove_dir_all;
 
 pub struct MultiValue(sled::Tree);
 
@@ -65,6 +66,16 @@ pub struct Database {
 }
 
 impl Database {
+    /// Tries to remove the old database but ignores all errors.
+    pub fn try_remove(hostname: &str) {
+        let mut path = ProjectDirs::from("xyz", "koesters", "matrixserver")
+            .unwrap()
+            .data_dir()
+            .to_path_buf();
+        path.push(hostname);
+        let _ = remove_dir_all(path);
+    }
+
     /// Load an existing database or create a new one.
     pub fn load_or_create(hostname: &str) -> Self {
         let mut path = ProjectDirs::from("xyz", "koesters", "matrixserver")

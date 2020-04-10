@@ -6,6 +6,9 @@ mod pdu;
 mod ruma_wrapper;
 mod utils;
 
+#[cfg(test)]
+mod test;
+
 pub use data::Data;
 pub use database::Database;
 pub use pdu::PduEvent;
@@ -31,6 +34,7 @@ use ruma_client_api::{
             get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
         },
         push::get_pushrules_all,
+        read_marker::set_read_marker,
         room::create_room,
         session::{get_login_types, login},
         state::{create_state_event_for_empty_key, create_state_event_for_key},
@@ -159,9 +163,7 @@ fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResult<lo
                 username = format!("@{}:{}", username, data.hostname());
             }
             if let Ok(user_id) = (*username).try_into() {
-                if !data.user_exists(&user_id) {}
-
-                // Check password
+                // Check password (this also checks if the user exists
                 if let Some(correct_password) = data.password_get(&user_id) {
                     if password == correct_password {
                         // Success!
@@ -462,6 +464,15 @@ fn upload_keys_route(
     MatrixResult(Ok(upload_keys::Response {
         one_time_key_counts: HashMap::new(),
     }))
+}
+
+#[post("/_matrix/client/r0/rooms/<_room_id>/read_markers", data = "<body>")]
+fn set_read_marker_route(
+    data: State<Data>,
+    body: Ruma<set_read_marker::Request>,
+    _room_id: String,
+) -> MatrixResult<set_read_marker::Response> {
+    MatrixResult(Ok(set_read_marker::Response))
 }
 
 #[post("/_matrix/client/r0/createRoom", data = "<body>")]
@@ -765,16 +776,7 @@ fn options_route(_segments: PathBuf) -> MatrixResult<create_message_event::Respo
     }))
 }
 
-fn main() {
-    // Log info by default
-    if let Err(_) = std::env::var("RUST_LOG") {
-        std::env::set_var("RUST_LOG", "matrixserver=debug,info");
-    }
-    pretty_env_logger::init();
-
-    let data = Data::load_or_create("matrixtesting.koesters.xyz");
-    data.debug();
-
+fn setup_rocket(data: Data) -> rocket::Rocket {
     rocket::ignite()
         .mount(
             "/",
@@ -796,6 +798,7 @@ fn main() {
                 set_presence_route,
                 get_keys_route,
                 upload_keys_route,
+                set_read_marker_route,
                 create_room_route,
                 get_alias_route,
                 join_room_by_id_route,
@@ -810,6 +813,17 @@ fn main() {
             ],
         )
         .manage(data)
-        .launch()
-        .unwrap();
+}
+
+fn main() {
+    // Log info by default
+    if let Err(_) = std::env::var("RUST_LOG") {
+        std::env::set_var("RUST_LOG", "matrixserver=debug,info");
+    }
+    pretty_env_logger::init();
+
+    let data = Data::load_or_create("matrixtesting.koesters.xyz");
+    data.debug();
+
+    setup_rocket(data).launch().unwrap();
 }
