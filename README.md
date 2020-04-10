@@ -1,8 +1,8 @@
 # Conduit
 ### A Matrix homeserver written in Rust
 
-[![Liberapay](http://img.shields.io/liberapay/receives/timokoesters.svg?logo=liberapay)](https://liberapay.com/timokoesters)
-[![Matrix](https://img.shields.io/matrix/conduit:koesters.xyz?server_fqdn=matrix.koesters.xyz)](https://matrix.to/#/#conduit:koesters.xyz)
+[![Liberapay](https://img.shields.io/liberapay/receives/timokoesters?logo=liberapay)](https://liberapay.com/timokoesters)
+[![Matrix](https://img.shields.io/matrix/conduit:koesters.xyz?server_fqdn=matrix.koesters.xyz&logo=matrix)](https://matrix.to/#/#conduit:koesters.xyz)
 
 #### Goals
 
@@ -21,9 +21,10 @@ A Matrix Homeserver that's faster than others.
 - [x] Sync room messages
 - [x] Join rooms, lookup room ids
 - [x] Basic Riot web support
-- [ ] Riot room discovery
+- [x] Riot room discovery
 - [ ] Riot read receipts
 - [ ] Riot presence
+- [ ] Password hashing
 - [ ] Proper room creation
 - [ ] Riot E2EE
 - [ ] Basic federation
