@@ -1,7 +1,8 @@
 use crate::{utils, Database, PduEvent};
-use ruma_events::EventType;
+use ruma_events::{collections::only::Event as EduEvent, EventResult, EventType};
 use ruma_federation_api::RoomV3Pdu;
 use ruma_identifiers::{EventId, RoomId, UserId};
+use serde_json::json;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -167,6 +168,15 @@ impl Data {
             user_id.to_string().as_bytes().into(),
         );
 
+        self.pdu_append(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomMember,
+            json!({"membership": "join"}),
+            None,
+            Some(user_id.to_string()),
+        );
+
         true
     }
 
@@ -187,7 +197,7 @@ impl Data {
         // Create the first part of the full pdu id
         let mut prefix = vec![b'd'];
         prefix.extend_from_slice(room_id.to_string().as_bytes());
-        prefix.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
+        prefix.push(0xff); // Add delimiter so we don't find rooms starting with the same id
 
         if let Some((key, _)) = self.db.pduid_pdu.get_gt(&prefix).unwrap() {
             if key.starts_with(&prefix) {
@@ -334,14 +344,12 @@ impl Data {
         // The new value will need a new index. We store the last used index in 'n'
         // The count will go up regardless of the room_id
         // This is also the next_batch/since value
-        let count_key: Vec<u8> = vec![b'n'];
-
         // Increment the last index and use that
         let index = utils::u64_from_bytes(
             &self
                 .db
                 .pduid_pdu
-                .update_and_fetch(&count_key, utils::increment)
+                .update_and_fetch(b"n", utils::increment)
                 .unwrap()
                 .unwrap(),
         );
@@ -349,7 +357,7 @@ impl Data {
         let mut pdu_id = vec![b'd'];
         pdu_id.extend_from_slice(room_id.to_string().as_bytes());
 
-        pdu_id.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
+        pdu_id.push(0xff); // Add delimiter so we don't find rooms starting with the same id
         pdu_id.extend_from_slice(&index.to_be_bytes());
 
         self.db
@@ -389,7 +397,7 @@ impl Data {
         // Create the first part of the full pdu id
         let mut prefix = vec![b'd'];
         prefix.extend_from_slice(room_id.to_string().as_bytes());
-        prefix.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
+        prefix.push(0xff); // Add delimiter so we don't find rooms starting with the same id
 
         let mut current = prefix.clone();
         current.extend_from_slice(&since.to_be_bytes());
@@ -404,6 +412,91 @@ impl Data {
         }
 
         pdus
+    }
+
+    pub fn roomlatest_update(&self, user_id: &UserId, room_id: &RoomId, event: EduEvent) {
+        let mut prefix = vec![b'd'];
+        prefix.extend_from_slice(room_id.to_string().as_bytes());
+        prefix.push(0xff);
+
+        // Start with last
+        if let Some(mut current) = self
+            .db
+            .roomlatestid_roomlatest
+            .scan_prefix(&prefix)
+            .keys()
+            .next_back()
+            .map(|c| c.unwrap())
+        {
+            // Remove old marker (There should at most one)
+            loop {
+                if !current.starts_with(&prefix) {
+                    // We're in another room
+                    break;
+                }
+                if current.rsplitn(2, |&b| b == 0xff).next().unwrap()
+                    == user_id.to_string().as_bytes()
+                {
+                    // This is the old room_latest
+                    self.db.roomlatestid_roomlatest.remove(current).unwrap();
+                    break;
+                }
+                // Else, try the event before that
+                if let Some((k, _)) = self.db.roomlatestid_roomlatest.get_lt(current).unwrap() {
+                    current = k;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Increment the last index and use that
+        let index = utils::u64_from_bytes(
+            &self
+                .db
+                .pduid_pdu
+                .update_and_fetch(b"n", utils::increment)
+                .unwrap()
+                .unwrap(),
+        );
+
+        let mut room_latest_id = prefix;
+        room_latest_id.extend_from_slice(&index.to_be_bytes());
+        room_latest_id.push(0xff);
+        room_latest_id.extend_from_slice(&user_id.to_string().as_bytes());
+
+        self.db
+            .roomlatestid_roomlatest
+            .insert(room_latest_id, &*serde_json::to_string(&event).unwrap())
+            .unwrap();
+    }
+
+    /// Returns a vector of the most recent read_receipts in a room that happened after the event with id `since`.
+    pub fn roomlatests_since(&self, room_id: &RoomId, since: u64) -> Vec<EduEvent> {
+        let mut room_latests = Vec::new();
+
+        let mut prefix = vec![b'd'];
+        prefix.extend_from_slice(room_id.to_string().as_bytes());
+        prefix.push(0xff);
+
+        let mut current = prefix.clone();
+        current.extend_from_slice(&since.to_be_bytes());
+
+        while let Some((key, value)) = self.db.roomlatestid_roomlatest.get_gt(&current).unwrap() {
+            if key.starts_with(&prefix) {
+                current = key.to_vec();
+                room_latests.push(
+                    serde_json::from_slice::<EventResult<_>>(&value)
+                        .expect("room_latest in db is valid")
+                        .into_result()
+                        .expect("room_latest in db is valid"),
+                );
+            } else {
+                break;
+            }
+        }
+
+        room_latests
     }
 
     pub fn debug(&self) {

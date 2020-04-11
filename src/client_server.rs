@@ -30,7 +30,10 @@ use ruma_client_api::{
     },
     unversioned::get_supported_versions,
 };
-use ruma_events::{collections::only::Event, EventType};
+use ruma_events::{
+    collections::only::{Event as EduEvent, Event},
+    EventType,
+};
 use ruma_identifiers::{RoomId, RoomIdOrAliasId, UserId};
 use serde_json::json;
 use std::{
@@ -458,6 +461,33 @@ pub fn set_read_marker_route(
     body: Ruma<set_read_marker::Request>,
     _room_id: String,
 ) -> MatrixResult<set_read_marker::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+    // TODO: Fully read
+    if let Some(event) = &body.read_receipt {
+        let mut user_receipts = HashMap::new();
+        user_receipts.insert(
+            user_id.clone(),
+            ruma_events::receipt::Receipt {
+                ts: Some(utils::millis_since_unix_epoch()),
+            },
+        );
+        let mut receipt_content = HashMap::new();
+        receipt_content.insert(
+            event.clone(),
+            ruma_events::receipt::Receipts {
+                read: Some(user_receipts),
+            },
+        );
+
+        data.roomlatest_update(
+            &user_id,
+            &body.room_id,
+            EduEvent::Receipt(ruma_events::receipt::ReceiptEvent {
+                content: receipt_content,
+                room_id: None, // None because it can be inferred
+            }),
+        );
+    }
     MatrixResult(Ok(set_read_marker::Response))
 }
 
@@ -707,16 +737,17 @@ pub fn sync_route(
 
     let mut joined_rooms = HashMap::new();
     let joined_roomids = data.rooms_joined(body.user_id.as_ref().expect("user is authenticated"));
+    let since = body
+        .since
+        .clone()
+        .and_then(|string| string.parse().ok())
+        .unwrap_or(0);
     for room_id in joined_roomids {
-        let pdus = if let Some(since) = body.since.clone().and_then(|string| string.parse().ok()) {
-            data.pdus_since(&room_id, since)
-        } else {
-            data.pdus_all(&room_id)
-        };
+        let pdus = { data.pdus_since(&room_id, since) };
         let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
 
         joined_rooms.insert(
-            room_id.try_into().unwrap(),
+            room_id.clone().try_into().unwrap(),
             sync_events::JoinedRoom {
                 account_data: sync_events::AccountData { events: Vec::new() },
                 summary: sync_events::RoomSummary {
@@ -734,7 +765,9 @@ pub fn sync_route(
                     events: room_events,
                 },
                 state: sync_events::State { events: Vec::new() },
-                ephemeral: sync_events::Ephemeral { events: Vec::new() },
+                ephemeral: sync_events::Ephemeral {
+                    events: data.roomlatests_since(&room_id, since),
+                },
             },
         );
     }

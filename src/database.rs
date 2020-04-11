@@ -57,18 +57,23 @@ pub struct Database {
     pub userid_avatarurl: sled::Tree,
     pub deviceid_token: sled::Tree,
     pub token_userid: sled::Tree,
-    pub pduid_pdu: sled::Tree, // PduId = RoomId + Since
+    pub pduid_pdu: sled::Tree, // PduId = 'd' + RoomId + Since (global since counter is at 'n')
     pub eventid_pduid: sled::Tree,
     pub roomid_pduleaves: MultiValue,
     pub roomid_userids: MultiValue,
     pub userid_roomids: MultiValue,
+    // EDUs:
+    pub roomlatestid_roomlatest: sled::Tree, // Read Receipts, RoomLatestId = RoomId + Since + UserId TODO: Types
+    pub timeofremoval_roomrelevants: MultiValue, // Typing
+    pub globalallid_globalall: sled::Tree,   // ToDevice, GlobalAllId = UserId + Since
+    pub globallatestid_globallatest: sled::Tree, // Presence, GlobalLatestId = Since + Type + UserId
     _db: sled::Db,
 }
 
 impl Database {
     /// Tries to remove the old database but ignores all errors.
     pub fn try_remove(hostname: &str) {
-        let mut path = ProjectDirs::from("xyz", "koesters", "matrixserver")
+        let mut path = ProjectDirs::from("xyz", "koesters", "conduit")
             .unwrap()
             .data_dir()
             .to_path_buf();
@@ -78,7 +83,7 @@ impl Database {
 
     /// Load an existing database or create a new one.
     pub fn load_or_create(hostname: &str) -> Self {
-        let mut path = ProjectDirs::from("xyz", "koesters", "matrixserver")
+        let mut path = ProjectDirs::from("xyz", "koesters", "conduit")
             .unwrap()
             .data_dir()
             .to_path_buf();
@@ -97,6 +102,12 @@ impl Database {
             roomid_pduleaves: MultiValue(db.open_tree("roomid_pduleaves").unwrap()),
             roomid_userids: MultiValue(db.open_tree("roomid_userids").unwrap()),
             userid_roomids: MultiValue(db.open_tree("userid_roomids").unwrap()),
+            roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest").unwrap(),
+            timeofremoval_roomrelevants: MultiValue(
+                db.open_tree("timeofremoval_roomrelevants").unwrap(),
+            ),
+            globalallid_globalall: db.open_tree("globalallid_globalall").unwrap(),
+            globallatestid_globallatest: db.open_tree("globallatestid_globallatest").unwrap(),
             _db: db,
         }
     }
@@ -118,7 +129,7 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("# UserId -> Displayname:");
+        println!("\n# UserId -> Displayname:");
         for (k, v) in self.userid_displayname.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
@@ -126,7 +137,7 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("# UserId -> AvatarURL:");
+        println!("\n# UserId -> AvatarURL:");
         for (k, v) in self.userid_avatarurl.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
@@ -184,6 +195,42 @@ impl Database {
         }
         println!("\n# EventId -> PDU Id:");
         for (k, v) in self.eventid_pduid.iter().map(|r| r.unwrap()) {
+            println!(
+                "{:?} -> {:?}",
+                String::from_utf8_lossy(&k),
+                String::from_utf8_lossy(&v),
+            );
+        }
+        println!("\n# RoomLatestId -> RoomLatest");
+        for (k, v) in self.roomlatestid_roomlatest.iter().map(|r| r.unwrap()) {
+            println!(
+                "{:?} -> {:?}",
+                String::from_utf8_lossy(&k),
+                String::from_utf8_lossy(&v),
+            );
+        }
+        println!("\n# TimeOfRemoval -> RoomRelevants Id:");
+        for (k, v) in self
+            .timeofremoval_roomrelevants
+            .iter_all()
+            .map(|r| r.unwrap())
+        {
+            println!(
+                "{:?} -> {:?}",
+                String::from_utf8_lossy(&k),
+                String::from_utf8_lossy(&v),
+            );
+        }
+        println!("\n# GlobalAllId -> GlobalAll:");
+        for (k, v) in self.globalallid_globalall.iter().map(|r| r.unwrap()) {
+            println!(
+                "{:?} -> {:?}",
+                String::from_utf8_lossy(&k),
+                String::from_utf8_lossy(&v),
+            );
+        }
+        println!("\n# GlobalLatestId -> GlobalLatest:");
+        for (k, v) in self.globallatestid_globallatest.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
                 String::from_utf8_lossy(&k),

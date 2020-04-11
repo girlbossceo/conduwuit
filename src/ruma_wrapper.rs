@@ -1,3 +1,4 @@
+use log::warn;
 use rocket::{
     data::{Data, FromData, FromDataFuture, Transform, TransformFuture, Transformed},
     http::Status,
@@ -106,7 +107,7 @@ where
                     },
                 }),
                 Err(e) => {
-                    log::error!("{:?}", e);
+                    warn!("{:?}", e);
                     Failure((Status::InternalServerError, ()))
                 }
             }
