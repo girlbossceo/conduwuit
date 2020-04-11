@@ -57,7 +57,7 @@ pub struct Database {
     pub userid_avatarurl: sled::Tree,
     pub deviceid_token: sled::Tree,
     pub token_userid: sled::Tree,
-    pub pduid_pdus: sled::Tree,
+    pub pduid_pdu: sled::Tree, // PduId = RoomId + Since
     pub eventid_pduid: sled::Tree,
     pub roomid_pduleaves: MultiValue,
     pub roomid_userids: MultiValue,
@@ -92,7 +92,7 @@ impl Database {
             userid_avatarurl: db.open_tree("userid_avatarurl").unwrap(),
             deviceid_token: db.open_tree("deviceid_token").unwrap(),
             token_userid: db.open_tree("token_userid").unwrap(),
-            pduid_pdus: db.open_tree("pduid_pdus").unwrap(),
+            pduid_pdu: db.open_tree("pduid_pdu").unwrap(),
             eventid_pduid: db.open_tree("eventid_pduid").unwrap(),
             roomid_pduleaves: MultiValue(db.open_tree("roomid_pduleaves").unwrap()),
             roomid_userids: MultiValue(db.open_tree("roomid_userids").unwrap()),
@@ -174,8 +174,8 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("\n# PDU Id -> PDUs:");
-        for (k, v) in self.pduid_pdus.iter().map(|r| r.unwrap()) {
+        println!("\n# PDU Id -> PDU:");
+        for (k, v) in self.pduid_pdu.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
                 String::from_utf8_lossy(&k),

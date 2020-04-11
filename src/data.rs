@@ -189,7 +189,7 @@ impl Data {
         prefix.extend_from_slice(room_id.to_string().as_bytes());
         prefix.push(b'#'); // Add delimiter so we don't find rooms starting with the same id
 
-        if let Some((key, _)) = self.db.pduid_pdus.get_gt(&prefix).unwrap() {
+        if let Some((key, _)) = self.db.pduid_pdu.get_gt(&prefix).unwrap() {
             if key.starts_with(&prefix) {
                 true
             } else {
@@ -238,7 +238,7 @@ impl Data {
                 serde_json::from_slice(
                     &self
                         .db
-                        .pduid_pdus
+                        .pduid_pdu
                         .get(pdu_id)
                         .unwrap()
                         .expect("eventid_pduid in db is valid"),
@@ -340,7 +340,7 @@ impl Data {
         let index = utils::u64_from_bytes(
             &self
                 .db
-                .pduid_pdus
+                .pduid_pdu
                 .update_and_fetch(&count_key, utils::increment)
                 .unwrap()
                 .unwrap(),
@@ -353,7 +353,7 @@ impl Data {
         pdu_id.extend_from_slice(&index.to_be_bytes());
 
         self.db
-            .pduid_pdus
+            .pduid_pdu
             .insert(&pdu_id, &*serde_json::to_string(&pdu).unwrap())
             .unwrap();
 
@@ -375,7 +375,7 @@ impl Data {
         utils::u64_from_bytes(
             &self
                 .db
-                .pduid_pdus
+                .pduid_pdu
                 .get(&count_key)
                 .unwrap()
                 .unwrap_or_else(|| (&0_u64.to_be_bytes()).into()),
@@ -394,7 +394,7 @@ impl Data {
         let mut current = prefix.clone();
         current.extend_from_slice(&since.to_be_bytes());
 
-        while let Some((key, value)) = self.db.pduid_pdus.get_gt(&current).unwrap() {
+        while let Some((key, value)) = self.db.pduid_pdu.get_gt(&current).unwrap() {
             if key.starts_with(&prefix) {
                 current = key.to_vec();
                 pdus.push(serde_json::from_slice(&value).expect("pdu in db is valid"));
