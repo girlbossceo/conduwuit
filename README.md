@@ -4,9 +4,9 @@
 [![Liberapay](https://img.shields.io/liberapay/receives/timokoesters?logo=liberapay)](https://liberapay.com/timokoesters)
 [![Matrix](https://img.shields.io/matrix/conduit:koesters.xyz?server_fqdn=matrix.koesters.xyz&logo=matrix)](https://matrix.to/#/#conduit:koesters.xyz)
 
-#### Goals
+#### What is the goal
 
-A Matrix Homeserver that's faster than others.
+A fast Matrix homeserver that's optimized for smaller, personal servers, instead of one server that has high scalability.
 
 #### What is it build on?
 
@@ -14,7 +14,7 @@ A Matrix Homeserver that's faster than others.
 - [Sled](https://github.com/spacejam/sled): A simple (key, value) database with good performance
 - [Rocket](https://rocket.rs): A flexible web framework
 
-#### Roadmap
+#### What are the next steps?
 
 - [x] Register, login, authentication tokens
 - [x] Create room messages
@@ -30,6 +30,10 @@ A Matrix Homeserver that's faster than others.
 - [ ] Riot E2EE
 - [ ] Basic federation
 - [ ] State resolution
+
+#### How can I contribute?
+
+The best way to find something to work on is by joining the #conduit:koesters.xyz Matrix room and asking.
 
 #### Donate
 
