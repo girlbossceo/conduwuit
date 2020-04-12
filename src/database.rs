@@ -64,7 +64,7 @@ pub struct Database {
     pub userid_roomids: MultiValue,
     // EDUs:
     pub roomlatestid_roomlatest: sled::Tree, // Read Receipts, RoomLatestId = RoomId + Since + UserId TODO: Types
-    pub timeofremoval_roomrelevants: MultiValue, // Typing
+    pub roomactiveid_roomactive: sled::Tree, // Typing, RoomActiveId = TimeoutTime + Since
     pub globalallid_globalall: sled::Tree,   // ToDevice, GlobalAllId = UserId + Since
     pub globallatestid_globallatest: sled::Tree, // Presence, GlobalLatestId = Since + Type + UserId
     _db: sled::Db,
@@ -103,9 +103,7 @@ impl Database {
             roomid_userids: MultiValue(db.open_tree("roomid_userids").unwrap()),
             userid_roomids: MultiValue(db.open_tree("userid_roomids").unwrap()),
             roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest").unwrap(),
-            timeofremoval_roomrelevants: MultiValue(
-                db.open_tree("timeofremoval_roomrelevants").unwrap(),
-            ),
+            roomactiveid_roomactive: db.open_tree("roomactiveid_roomactive").unwrap(),
             globalallid_globalall: db.open_tree("globalallid_globalall").unwrap(),
             globallatestid_globallatest: db.open_tree("globallatestid_globallatest").unwrap(),
             _db: db,
@@ -201,7 +199,7 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("\n# RoomLatestId -> RoomLatest");
+        println!("\n# RoomLatestId -> RoomLatest:");
         for (k, v) in self.roomlatestid_roomlatest.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
@@ -209,12 +207,8 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("\n# TimeOfRemoval -> RoomRelevants Id:");
-        for (k, v) in self
-            .timeofremoval_roomrelevants
-            .iter_all()
-            .map(|r| r.unwrap())
-        {
+        println!("\n# RoomActiveId -> RoomActives:");
+        for (k, v) in self.roomactiveid_roomactive.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
                 String::from_utf8_lossy(&k),

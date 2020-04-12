@@ -2,6 +2,6 @@
 address = "0.0.0.0"
 port = 14004
 
-#[global.tls]
-#certs = "/etc/letsencrypt/live/matrixtesting.koesters.xyz/fullchain.pem"
-#key = "/etc/letsencrypt/live/matrixtesting.koesters.xyz/privkey.pem"
+[global.tls]
+certs = "/etc/letsencrypt/live/matrixtesting.koesters.xyz/fullchain.pem"
+key = "/etc/letsencrypt/live/matrixtesting.koesters.xyz/privkey.pem"

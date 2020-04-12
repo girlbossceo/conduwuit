@@ -27,6 +27,7 @@ use ruma_client_api::{
         state::{create_state_event_for_empty_key, create_state_event_for_key},
         sync::sync_events,
         thirdparty::get_protocols,
+        typing::create_typing_event,
     },
     unversioned::get_supported_versions,
 };
@@ -468,7 +469,7 @@ pub fn set_read_marker_route(
         user_receipts.insert(
             user_id.clone(),
             ruma_events::receipt::Receipt {
-                ts: Some(utils::millis_since_unix_epoch()),
+                ts: Some(utils::millis_since_unix_epoch().try_into().unwrap()),
             },
         );
         let mut receipt_content = HashMap::new();
@@ -489,6 +490,38 @@ pub fn set_read_marker_route(
         );
     }
     MatrixResult(Ok(set_read_marker::Response))
+}
+
+#[put(
+    "/_matrix/client/r0/rooms/<_room_id>/typing/<_user_id>",
+    data = "<body>"
+)]
+pub fn create_typing_event_route(
+    data: State<Data>,
+    body: Ruma<create_typing_event::Request>,
+    _room_id: String,
+    _user_id: String,
+) -> MatrixResult<create_typing_event::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+    let edu = EduEvent::Typing(ruma_events::typing::TypingEvent {
+        content: ruma_events::typing::TypingEventContent {
+            user_ids: vec![user_id.clone()],
+        },
+        room_id: None, // None because it can be inferred
+    });
+
+    if body.typing {
+        data.roomactive_add(
+            edu,
+            &body.room_id,
+            body.timeout.map(|d| d.as_millis() as u64).unwrap_or(30000)
+                + utils::millis_since_unix_epoch().try_into().unwrap_or(0),
+        );
+    } else {
+        data.roomactive_remove(edu, &body.room_id);
+    }
+
+    MatrixResult(Ok(create_typing_event::Response))
 }
 
 #[post("/_matrix/client/r0/createRoom", data = "<body>")]
@@ -745,6 +778,8 @@ pub fn sync_route(
     for room_id in joined_roomids {
         let pdus = { data.pdus_since(&room_id, since) };
         let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
+        let mut edus = data.roomlatests_since(&room_id, since);
+        edus.extend_from_slice(&data.roomactives_in(&room_id));
 
         joined_rooms.insert(
             room_id.clone().try_into().unwrap(),
@@ -765,9 +800,7 @@ pub fn sync_route(
                     events: room_events,
                 },
                 state: sync_events::State { events: Vec::new() },
-                ephemeral: sync_events::Ephemeral {
-                    events: data.roomlatests_since(&room_id, since),
-                },
+                ephemeral: sync_events::Ephemeral { events: edus },
             },
         );
     }

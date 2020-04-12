@@ -40,6 +40,7 @@ fn setup_rocket(data: Data) -> rocket::Rocket {
                 client_server::get_keys_route,
                 client_server::upload_keys_route,
                 client_server::set_read_marker_route,
+                client_server::create_typing_event_route,
                 client_server::create_room_route,
                 client_server::get_alias_route,
                 client_server::join_room_by_id_route,

@@ -4,13 +4,11 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub fn millis_since_unix_epoch() -> js_int::UInt {
-    (SystemTime::now()
+pub fn millis_since_unix_epoch() -> u64 {
+    SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_millis() as u64)
-        .try_into()
-        .expect("time millis are <= MAX_SAFE_UINT")
+        .as_millis() as u64
 }
 
 pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {

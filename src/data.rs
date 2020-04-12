@@ -316,7 +316,7 @@ impl Data {
             room_id: room_id.clone(),
             sender: sender.clone(),
             origin: self.hostname.clone(),
-            origin_server_ts: utils::millis_since_unix_epoch(),
+            origin_server_ts: utils::millis_since_unix_epoch().try_into().unwrap(),
             kind: event_type,
             content,
             state_key,
@@ -415,8 +415,7 @@ impl Data {
     }
 
     pub fn roomlatest_update(&self, user_id: &UserId, room_id: &RoomId, event: EduEvent) {
-        let mut prefix = vec![b'd'];
-        prefix.extend_from_slice(room_id.to_string().as_bytes());
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 
         // Start with last
@@ -475,8 +474,7 @@ impl Data {
     pub fn roomlatests_since(&self, room_id: &RoomId, since: u64) -> Vec<EduEvent> {
         let mut room_latests = Vec::new();
 
-        let mut prefix = vec![b'd'];
-        prefix.extend_from_slice(room_id.to_string().as_bytes());
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 
         let mut current = prefix.clone();
@@ -497,6 +495,102 @@ impl Data {
         }
 
         room_latests
+    }
+
+    pub fn roomactive_add(&self, event: EduEvent, room_id: &RoomId, timeout: u64) {
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+
+        let mut current = prefix.clone();
+
+        while let Some((key, _)) = self.db.roomactiveid_roomactive.get_gt(&current).unwrap() {
+            if key.starts_with(&prefix)
+                && utils::u64_from_bytes(key.split(|&c| c == 0xff).nth(1).unwrap())
+                    > utils::millis_since_unix_epoch().try_into().unwrap()
+            {
+                current = key.to_vec();
+                self.db.roomactiveid_roomactive.remove(&current).unwrap();
+            } else {
+                break;
+            }
+        }
+
+        // Increment the last index and use that
+        let index = utils::u64_from_bytes(
+            &self
+                .db
+                .pduid_pdu
+                .update_and_fetch(b"n", utils::increment)
+                .unwrap()
+                .unwrap(),
+        );
+
+        let mut room_active_id = prefix;
+        room_active_id.extend_from_slice(&timeout.to_be_bytes());
+        room_active_id.push(0xff);
+        room_active_id.extend_from_slice(&index.to_be_bytes());
+
+        self.db
+            .roomactiveid_roomactive
+            .insert(room_active_id, &*serde_json::to_string(&event).unwrap())
+            .unwrap();
+    }
+
+    pub fn roomactive_remove(&self, event: EduEvent, room_id: &RoomId) {
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+
+        let mut current = prefix.clone();
+
+        let json = serde_json::to_string(&event).unwrap();
+
+        while let Some((key, value)) = self.db.roomactiveid_roomactive.get_gt(&current).unwrap() {
+            if key.starts_with(&prefix) {
+                current = key.to_vec();
+                if value == json.as_bytes() {
+                    self.db.roomactiveid_roomactive.remove(&current).unwrap();
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    /// Returns a vector of the most recent read_receipts in a room that happened after the event with id `since`.
+    pub fn roomactives_in(&self, room_id: &RoomId) -> Vec<EduEvent> {
+        let mut room_actives = Vec::new();
+
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+
+        let mut current = prefix.clone();
+        current.extend_from_slice(&utils::millis_since_unix_epoch().to_be_bytes());
+
+        while let Some((key, value)) = self.db.roomactiveid_roomactive.get_gt(&current).unwrap() {
+            if key.starts_with(&prefix) {
+                current = key.to_vec();
+                room_actives.push(
+                    serde_json::from_slice::<EventResult<_>>(&value)
+                        .expect("room_active in db is valid")
+                        .into_result()
+                        .expect("room_active in db is valid"),
+                );
+            } else {
+                break;
+            }
+        }
+
+        if room_actives.is_empty() {
+            return vec![EduEvent::Typing(ruma_events::typing::TypingEvent {
+                content: ruma_events::typing::TypingEventContent {
+                    user_ids: Vec::new(),
+                },
+                room_id: None, // None because it can be inferred
+            })];
+        } else {
+            room_actives
+        }
     }
 
     pub fn debug(&self) {

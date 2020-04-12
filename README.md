@@ -22,7 +22,8 @@ A Matrix Homeserver that's faster than others.
 - [x] Join rooms, lookup room ids
 - [x] Basic Riot web support
 - [x] Riot room discovery
-- [ ] Riot read receipts
+- [x] Riot read receipts
+- [x] Typing indications
 - [ ] Riot presence
 - [ ] Password hashing
 - [ ] Proper room creation
