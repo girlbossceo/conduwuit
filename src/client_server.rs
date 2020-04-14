@@ -36,6 +36,7 @@ use ruma_events::{collections::only::Event as EduEvent, EventType};
 use ruma_identifiers::{RoomId, RoomIdOrAliasId, UserId};
 use serde_json::json;
 use std::{collections::HashMap, convert::TryInto, path::PathBuf, time::Duration};
+use argon2::{Config, Variant};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
@@ -103,8 +104,20 @@ pub fn register_route(
         )));
     }
 
-    // Create user
-    data.user_add(&user_id, body.password.clone());
+    let password = body.password.clone().unwrap_or_default();
+
+    if let Ok(hash) = utils::calculate_hash(&password) {
+        // Create user
+        data.user_add(&user_id, &hash);
+    } else {
+        return MatrixResult(Err(UserInteractiveAuthenticationResponse::MatrixError(
+            Error {
+                kind: ErrorKind::InvalidParam,
+                message: "Password did not met requirements".to_owned(),
+                status_code: http::StatusCode::BAD_REQUEST,
+            },
+        )));
+    }
 
     // Generate new device id if the user didn't specify one
     let device_id = body
@@ -144,9 +157,11 @@ pub fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResul
                 username = format!("@{}:{}", username, data.hostname());
             }
             if let Ok(user_id) = (*username).try_into() {
-                // Check password (this also checks if the user exists
-                if let Some(correct_password) = data.password_get(&user_id) {
-                    if password == correct_password {
+                if let Some(hash) = data.password_hash_get(&user_id) {
+                    let hash_matches = argon2::verify_encoded(&hash, password.as_bytes())
+                        .unwrap_or(false);
+
+                    if hash_matches {
                         // Success!
                         user_id
                     } else {

@@ -36,10 +36,10 @@ impl Data {
     }
 
     /// Create a new user account by assigning them a password.
-    pub fn user_add(&self, user_id: &UserId, password: Option<String>) {
+    pub fn user_add(&self, user_id: &UserId, hash: &str) {
         self.db
             .userid_password
-            .insert(user_id.to_string(), &*password.unwrap_or_default())
+            .insert(user_id.to_string(), hash)
             .unwrap();
     }
 
@@ -61,8 +61,8 @@ impl Data {
             .collect()
     }
 
-    /// Checks if the given password is equal to the one in the database.
-    pub fn password_get(&self, user_id: &UserId) -> Option<String> {
+    /// Gets password hash for given user id.
+    pub fn password_hash_get(&self, user_id: &UserId) -> Option<String> {
         self.db
             .userid_password
             .get(user_id.to_string())

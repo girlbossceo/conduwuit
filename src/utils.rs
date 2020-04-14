@@ -3,6 +3,7 @@ use std::{
     convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
+use argon2::{Config, Variant};
 
 pub fn millis_since_unix_epoch() -> u64 {
     SystemTime::now()
@@ -38,4 +39,19 @@ pub fn random_string(length: usize) -> String {
         .sample_iter(&rand::distributions::Alphanumeric)
         .take(length)
         .collect()
+}
+
+/// Calculate a new hash for the given password
+pub fn calculate_hash(password: &str) -> Result<String, argon2::Error> {
+    let hashing_config = Config {
+        variant: Variant::Argon2id,
+        ..Default::default()
+    };
+
+    let salt = random_string(32);
+    argon2::hash_encoded(
+        password.as_bytes(),
+        salt.as_bytes(),
+        &hashing_config,
+    )
 }

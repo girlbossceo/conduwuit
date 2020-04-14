@@ -28,3 +28,4 @@ ruma-federation-api = "0.0.1"
 serde = "1.0.106"
 tokio = { version = "0.2.16", features = ["macros"] } #rt-threaded
 rand = "0.7.3"
+rust-argon2 = "0.8.2"
