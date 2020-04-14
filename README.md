@@ -24,6 +24,7 @@ A fast Matrix homeserver that's optimized for smaller, personal servers, instead
 - [x] Riot room discovery
 - [x] Riot read receipts
 - [x] Typing indications
+- [x] Invites, user search
 - [ ] Riot presence
 - [ ] Password hashing
 - [ ] Proper room creation

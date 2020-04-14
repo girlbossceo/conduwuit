@@ -52,6 +52,15 @@ impl Data {
             .and_then(|bytes| (*utils::string_from_bytes(&bytes)).try_into().ok())
     }
 
+    pub fn users_all(&self) -> Vec<UserId> {
+        self.db
+            .userid_password
+            .iter()
+            .keys()
+            .map(|k| UserId::try_from(&*utils::string_from_bytes(&k.unwrap())).unwrap())
+            .collect()
+    }
+
     /// Checks if the given password is equal to the one in the database.
     pub fn password_get(&self, user_id: &UserId) -> Option<String> {
         self.db
@@ -139,13 +148,16 @@ impl Data {
             .any(|device| device == device_id.as_bytes())); // Does the user have that device?
 
         // Remove old token
-        if let Some(old_token) = self.db.deviceid_token.get(device_id).unwrap() {
+        let mut key = user_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(device_id.as_bytes());
+        if let Some(old_token) = self.db.userdeviceid_token.get(&key).unwrap() {
             self.db.token_userid.remove(old_token).unwrap();
             // It will be removed from deviceid_token by the insert later
         }
 
         // Assign token to device_id
-        self.db.deviceid_token.insert(device_id, &*token).unwrap();
+        self.db.userdeviceid_token.insert(key, &*token).unwrap();
 
         // Assign token to user
         self.db
@@ -166,6 +178,10 @@ impl Data {
         self.db.roomid_userids.add(
             room_id.to_string().as_bytes(),
             user_id.to_string().as_bytes().into(),
+        );
+        self.db.userid_inviteroomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes(),
         );
 
         self.pdu_append(
@@ -237,6 +253,52 @@ impl Data {
             .roomid_userids
             .get_iter(room_id.to_string().as_bytes())
             .count() as u32
+    }
+
+    pub fn room_state(&self, room_id: &RoomId) -> HashMap<(EventType, String), PduEvent> {
+        let mut hashmap = HashMap::new();
+        for pdu in self
+            .db
+            .roomstateid_pdu
+            .scan_prefix(&room_id.to_string().as_bytes())
+            .values()
+            .map(|value| serde_json::from_slice::<PduEvent>(&value.unwrap()).unwrap())
+        {
+            hashmap.insert(
+                (
+                    pdu.kind.clone(),
+                    pdu.state_key
+                        .clone()
+                        .expect("state events have a state key"),
+                ),
+                pdu,
+            );
+        }
+        hashmap
+    }
+
+    pub fn room_invite(&self, sender: &UserId, room_id: &RoomId, user_id: &UserId) {
+        self.pdu_append(
+            room_id.clone(),
+            sender.clone(),
+            EventType::RoomMember,
+            json!({"membership": "invite"}),
+            None,
+            Some(user_id.to_string()),
+        );
+        self.db.userid_inviteroomids.add(
+            &user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+    }
+
+    pub fn rooms_invited(&self, user_id: &UserId) -> Vec<RoomId> {
+        self.db
+            .userid_inviteroomids
+            .get_iter(&user_id.to_string().as_bytes())
+            .values()
+            .map(|key| RoomId::try_from(&*utils::string_from_bytes(&key.unwrap())).unwrap())
+            .collect()
     }
 
     pub fn pdu_get(&self, event_id: &EventId) -> Option<RoomV3Pdu> {
@@ -360,15 +422,23 @@ impl Data {
         pdu_id.push(0xff); // Add delimiter so we don't find rooms starting with the same id
         pdu_id.extend_from_slice(&index.to_be_bytes());
 
-        self.db
-            .pduid_pdu
-            .insert(&pdu_id, &*serde_json::to_string(&pdu).unwrap())
-            .unwrap();
+        let pdu_json = serde_json::to_string(&pdu).unwrap();
+
+        self.db.pduid_pdu.insert(&pdu_id, &*pdu_json).unwrap();
 
         self.db
             .eventid_pduid
             .insert(pdu.event_id.to_string(), pdu_id.clone())
             .unwrap();
+
+        if let Some(state_key) = pdu.state_key {
+            let mut key = room_id.to_string().as_bytes().to_vec();
+            key.push(0xff);
+            key.extend_from_slice(dbg!(pdu.kind.to_string().as_bytes()));
+            key.push(0xff);
+            key.extend_from_slice(state_key.to_string().as_bytes());
+            self.db.roomstateid_pdu.insert(key, &*pdu_json).unwrap();
+        }
 
         pdu.event_id
     }

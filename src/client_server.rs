@@ -1,7 +1,7 @@
-use crate::{utils, Data, Database, MatrixResult, PduEvent, Ruma};
+use crate::{utils, Data, MatrixResult, Ruma};
 
 use log::debug;
-use rocket::{get, options, post, put, routes, State};
+use rocket::{get, options, post, put, State};
 use ruma_client_api::{
     error::{Error, ErrorKind},
     r0::{
@@ -14,7 +14,7 @@ use ruma_client_api::{
         directory::{self, get_public_rooms_filtered},
         filter::{self, create_filter, get_filter},
         keys::{get_keys, upload_keys},
-        membership::{join_room_by_id, join_room_by_id_or_alias},
+        membership::{invite_user, join_room_by_id, join_room_by_id_or_alias},
         message::create_message_event,
         presence::set_presence,
         profile::{
@@ -28,21 +28,14 @@ use ruma_client_api::{
         sync::sync_events,
         thirdparty::get_protocols,
         typing::create_typing_event,
+        user_directory::search_users,
     },
     unversioned::get_supported_versions,
 };
-use ruma_events::{
-    collections::only::{Event as EduEvent, Event},
-    EventType,
-};
+use ruma_events::{collections::only::Event as EduEvent, EventType};
 use ruma_identifiers::{RoomId, RoomIdOrAliasId, UserId};
 use serde_json::json;
-use std::{
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    path::PathBuf,
-    time::Duration,
-};
+use std::{collections::HashMap, convert::TryInto, path::PathBuf, time::Duration};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
@@ -133,10 +126,8 @@ pub fn register_route(
     }))
 }
 
-#[get("/_matrix/client/r0/login", data = "<_body>")]
-pub fn get_login_route(
-    _body: Ruma<get_login_types::Request>,
-) -> MatrixResult<get_login_types::Response> {
+#[get("/_matrix/client/r0/login")]
+pub fn get_login_route() -> MatrixResult<get_login_types::Response> {
     MatrixResult(Ok(get_login_types::Response {
         flows: vec![get_login_types::LoginType::Password],
     }))
@@ -451,6 +442,7 @@ pub fn upload_keys_route(
     data: State<Data>,
     body: Ruma<upload_keys::Request>,
 ) -> MatrixResult<upload_keys::Response> {
+    // TODO
     MatrixResult(Ok(upload_keys::Response {
         one_time_key_counts: HashMap::new(),
     }))
@@ -542,6 +534,24 @@ pub fn create_room_route(
         Some("".to_owned()),
     );
 
+    data.pdu_append(
+        room_id.clone(),
+        user_id.clone(),
+        EventType::RoomPowerLevels,
+        json!({
+            "ban": 50,
+            "events_default": 0,
+            "invite": 50,
+            "kick": 50,
+            "redact": 50,
+            "state_default": 50,
+            "users": { user_id.to_string(): 100 },
+            "users_default": 0
+        }),
+        None,
+        Some("".to_owned()),
+    );
+
     if let Some(name) = &body.name {
         data.pdu_append(
             room_id.clone(),
@@ -564,7 +574,13 @@ pub fn create_room_route(
         );
     }
 
+    dbg!(&*body);
+
     data.room_join(&room_id, &user_id);
+
+    for user in &body.invite {
+        data.room_invite(&user_id, &room_id, user);
+    }
 
     MatrixResult(Ok(create_room::Response { room_id }))
 }
@@ -650,26 +666,57 @@ pub fn join_room_by_id_or_alias_route(
     }
 }
 
+#[post("/_matrix/client/r0/rooms/<_room_id>/invite", data = "<body>")]
+pub fn invite_user_route(
+    data: State<Data>,
+    body: Ruma<invite_user::Request>,
+    _room_id: String,
+) -> MatrixResult<invite_user::Response> {
+    if let invite_user::InvitationRecipient::UserId { user_id } = &body.recipient {
+        data.room_invite(
+            &body.user_id.as_ref().expect("user is authenticated"),
+            &body.room_id,
+            &user_id,
+        );
+        MatrixResult(Ok(invite_user::Response))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "User not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }))
+    }
+}
+
 #[post("/_matrix/client/r0/publicRooms", data = "<body>")]
 pub fn get_public_rooms_filtered_route(
     data: State<Data>,
     body: Ruma<get_public_rooms_filtered::Request>,
 ) -> MatrixResult<get_public_rooms_filtered::Response> {
-    let chunk = data
+    let mut chunk = data
         .rooms_all()
         .into_iter()
-        .map(|room_id| directory::PublicRoomsChunk {
-            aliases: None,
-            canonical_alias: None,
-            name: None,
-            num_joined_members: data.room_users(&room_id).into(),
-            room_id,
-            topic: None,
-            world_readable: false,
-            guest_can_join: true,
-            avatar_url: None,
+        .map(|room_id| {
+            let state = data.room_state(&room_id);
+            directory::PublicRoomsChunk {
+                aliases: None,
+                canonical_alias: None,
+                name: state
+                    .get(&(EventType::RoomName, "".to_owned()))
+                    .and_then(|s| s.content.get("name"))
+                    .and_then(|n| n.as_str())
+                    .map(|n| n.to_owned()),
+                num_joined_members: data.room_users(&room_id).into(),
+                room_id,
+                topic: None,
+                world_readable: false,
+                guest_can_join: true,
+                avatar_url: None,
+            }
         })
         .collect::<Vec<_>>();
+
+    chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 
     let total_room_count_estimate = (chunk.len() as u32).into();
 
@@ -681,10 +728,31 @@ pub fn get_public_rooms_filtered_route(
     }))
 }
 
+#[post("/_matrix/client/r0/user_directory/search", data = "<body>")]
+pub fn search_users_route(
+    data: State<Data>,
+    body: Ruma<search_users::Request>,
+) -> MatrixResult<search_users::Response> {
+    MatrixResult(Ok(search_users::Response {
+        results: data
+            .users_all()
+            .into_iter()
+            .filter(|user_id| user_id.to_string().contains(&body.search_term))
+            .map(|user_id| search_users::User {
+                user_id,
+                display_name: None,
+                avatar_url: None,
+            })
+            .collect(),
+        limited: false,
+    }))
+}
+
 #[get("/_matrix/client/r0/thirdparty/protocols", data = "<body>")]
 pub fn get_protocols_route(
     body: Ruma<get_protocols::Request>,
 ) -> MatrixResult<get_protocols::Response> {
+    // TODO
     MatrixResult(Ok(get_protocols::Response {
         protocols: HashMap::new(),
     }))
@@ -776,7 +844,7 @@ pub fn sync_route(
         .and_then(|string| string.parse().ok())
         .unwrap_or(0);
     for room_id in joined_roomids {
-        let pdus = { data.pdus_since(&room_id, since) };
+        let pdus = data.pdus_since(&room_id, since);
         let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
         let mut edus = data.roomlatests_since(&room_id, since);
         edus.extend_from_slice(&data.roomactives_in(&room_id));
@@ -805,17 +873,53 @@ pub fn sync_route(
         );
     }
 
+    let mut invited_rooms = HashMap::new();
+    for room_id in data.rooms_invited(body.user_id.as_ref().expect("user is authenticated")) {
+        let events = data
+            .pdus_since(&room_id, since)
+            .into_iter()
+            .filter_map(|pdu| pdu.to_stripped_state_event())
+            .collect();
+
+        invited_rooms.insert(
+            room_id,
+            sync_events::InvitedRoom {
+                invite_state: sync_events::InviteState { events },
+            },
+        );
+    }
+
     MatrixResult(Ok(sync_events::Response {
         next_batch,
         rooms: sync_events::Rooms {
             leave: Default::default(),
             join: joined_rooms,
-            invite: Default::default(),
+            invite: invited_rooms,
         },
         presence: sync_events::Presence { events: Vec::new() },
         device_lists: Default::default(),
         device_one_time_keys_count: Default::default(),
         to_device: sync_events::ToDevice { events: Vec::new() },
+    }))
+}
+
+#[get("/_matrix/client/r0/voip/turnServer")]
+pub fn turn_server_route() -> MatrixResult<create_message_event::Response> {
+    // TODO
+    MatrixResult(Err(Error {
+        kind: ErrorKind::NotFound,
+        message: "There is no turn server yet.".to_owned(),
+        status_code: http::StatusCode::NOT_FOUND,
+    }))
+}
+
+#[post("/_matrix/client/r0/publicised_groups")]
+pub fn publicised_groups_route() -> MatrixResult<create_message_event::Response> {
+    // TODO
+    MatrixResult(Err(Error {
+        kind: ErrorKind::NotFound,
+        message: "There are no publicised groups yet.".to_owned(),
+        status_code: http::StatusCode::NOT_FOUND,
     }))
 }
 

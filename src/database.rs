@@ -27,6 +27,16 @@ impl MultiValue {
         }
     }
 
+    pub fn remove_value(&self, id: &[u8], value: &[u8]) {
+        if let Some(key) = self
+            .get_iter(id)
+            .find(|t| t.as_ref().unwrap().1 == value)
+            .map(|t| t.unwrap().0)
+        {
+            self.0.remove(key).unwrap();
+        }
+    }
+
     /// Add another value to the id.
     pub fn add(&self, id: &[u8], value: IVec) {
         // The new value will need a new index. We store the last used index in 'n' + id
@@ -52,16 +62,18 @@ impl MultiValue {
 
 pub struct Database {
     pub userid_password: sled::Tree,
-    pub userid_deviceids: MultiValue,
     pub userid_displayname: sled::Tree,
     pub userid_avatarurl: sled::Tree,
-    pub deviceid_token: sled::Tree,
+    pub userid_deviceids: MultiValue,
+    pub userdeviceid_token: sled::Tree,
     pub token_userid: sled::Tree,
     pub pduid_pdu: sled::Tree, // PduId = 'd' + RoomId + Since (global since counter is at 'n')
     pub eventid_pduid: sled::Tree,
     pub roomid_pduleaves: MultiValue,
+    pub roomstateid_pdu: sled::Tree, // Room + StateType + StateKey
     pub roomid_userids: MultiValue,
     pub userid_roomids: MultiValue,
+    pub userid_inviteroomids: MultiValue,
     // EDUs:
     pub roomlatestid_roomlatest: sled::Tree, // Read Receipts, RoomLatestId = RoomId + Since + UserId TODO: Types
     pub roomactiveid_roomactive: sled::Tree, // Typing, RoomActiveId = TimeoutTime + Since
@@ -95,13 +107,15 @@ impl Database {
             userid_deviceids: MultiValue(db.open_tree("userid_deviceids").unwrap()),
             userid_displayname: db.open_tree("userid_displayname").unwrap(),
             userid_avatarurl: db.open_tree("userid_avatarurl").unwrap(),
-            deviceid_token: db.open_tree("deviceid_token").unwrap(),
+            userdeviceid_token: db.open_tree("userdeviceid_token").unwrap(),
             token_userid: db.open_tree("token_userid").unwrap(),
             pduid_pdu: db.open_tree("pduid_pdu").unwrap(),
             eventid_pduid: db.open_tree("eventid_pduid").unwrap(),
             roomid_pduleaves: MultiValue(db.open_tree("roomid_pduleaves").unwrap()),
+            roomstateid_pdu: db.open_tree("roomstateid_pdu").unwrap(),
             roomid_userids: MultiValue(db.open_tree("roomid_userids").unwrap()),
             userid_roomids: MultiValue(db.open_tree("userid_roomids").unwrap()),
+            userid_inviteroomids: MultiValue(db.open_tree("userid_inviteroomids").unwrap()),
             roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest").unwrap(),
             roomactiveid_roomactive: db.open_tree("roomactiveid_roomactive").unwrap(),
             globalallid_globalall: db.open_tree("globalallid_globalall").unwrap(),
@@ -143,8 +157,8 @@ impl Database {
                 String::from_utf8_lossy(&v),
             );
         }
-        println!("\n# DeviceId -> Token:");
-        for (k, v) in self.deviceid_token.iter().map(|r| r.unwrap()) {
+        println!("\n# UserId+DeviceId -> Token:");
+        for (k, v) in self.userdeviceid_token.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
                 String::from_utf8_lossy(&k),
@@ -161,6 +175,14 @@ impl Database {
         }
         println!("\n# RoomId -> PDU leaves:");
         for (k, v) in self.roomid_pduleaves.iter_all().map(|r| r.unwrap()) {
+            println!(
+                "{:?} -> {:?}",
+                String::from_utf8_lossy(&k),
+                String::from_utf8_lossy(&v),
+            );
+        }
+        println!("\n# RoomStateId -> PDU:");
+        for (k, v) in self.roomstateid_pdu.iter().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
                 String::from_utf8_lossy(&k),
