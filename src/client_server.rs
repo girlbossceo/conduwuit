@@ -113,7 +113,7 @@ pub fn register_route(
         return MatrixResult(Err(UserInteractiveAuthenticationResponse::MatrixError(
             Error {
                 kind: ErrorKind::InvalidParam,
-                message: "Password did not met requirements".to_owned(),
+                message: "Password did not meet requirements".to_owned(),
                 status_code: http::StatusCode::BAD_REQUEST,
             },
         )));
