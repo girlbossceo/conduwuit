@@ -30,7 +30,7 @@ impl MultiValue {
     pub fn remove_value(&self, id: &[u8], value: &[u8]) {
         if let Some(key) = self
             .get_iter(id)
-            .find(|t| t.as_ref().unwrap().1 == value)
+            .find(|t| &t.as_ref().unwrap().1 == value)
             .map(|t| t.unwrap().0)
         {
             self.0.remove(key).unwrap();
@@ -74,11 +74,13 @@ pub struct Database {
     pub roomid_userids: MultiValue,
     pub userid_roomids: MultiValue,
     pub userid_inviteroomids: MultiValue,
+    pub userid_leftroomids: MultiValue,
     // EDUs:
     pub roomlatestid_roomlatest: sled::Tree, // Read Receipts, RoomLatestId = RoomId + Since + UserId TODO: Types
     pub roomactiveid_roomactive: sled::Tree, // Typing, RoomActiveId = TimeoutTime + Since
     pub globalallid_globalall: sled::Tree,   // ToDevice, GlobalAllId = UserId + Since
     pub globallatestid_globallatest: sled::Tree, // Presence, GlobalLatestId = Since + Type + UserId
+    pub keypair: ruma_signatures::Ed25519KeyPair,
     _db: sled::Db,
 }
 
@@ -116,10 +118,18 @@ impl Database {
             roomid_userids: MultiValue(db.open_tree("roomid_userids").unwrap()),
             userid_roomids: MultiValue(db.open_tree("userid_roomids").unwrap()),
             userid_inviteroomids: MultiValue(db.open_tree("userid_inviteroomids").unwrap()),
+            userid_leftroomids: MultiValue(db.open_tree("userid_leftroomids").unwrap()),
             roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest").unwrap(),
             roomactiveid_roomactive: db.open_tree("roomactiveid_roomactive").unwrap(),
             globalallid_globalall: db.open_tree("globalallid_globalall").unwrap(),
             globallatestid_globallatest: db.open_tree("globallatestid_globallatest").unwrap(),
+            keypair: ruma_signatures::Ed25519KeyPair::new(
+                &*db.update_and_fetch("keypair", utils::generate_keypair)
+                    .unwrap()
+                    .unwrap(),
+                "0.0.0".to_owned(),
+            )
+            .unwrap(),
             _db: db,
         }
     }

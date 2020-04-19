@@ -10,21 +10,33 @@ use std::{
 
 pub struct Data {
     hostname: String,
+    reqwest_client: reqwest::Client,
     db: Database,
 }
 
 impl Data {
     /// Load an existing database or create a new one.
     pub fn load_or_create(hostname: &str) -> Self {
+        let db = Database::load_or_create(hostname);
         Self {
             hostname: hostname.to_owned(),
-            db: Database::load_or_create(hostname),
+            reqwest_client: reqwest::Client::new(),
+            db,
         }
     }
 
     /// Get the hostname of the server.
     pub fn hostname(&self) -> &str {
         &self.hostname
+    }
+
+    /// Get the hostname of the server.
+    pub fn reqwest_client(&self) -> &reqwest::Client {
+        &self.reqwest_client
+    }
+
+    pub fn keypair(&self) -> &ruma_signatures::Ed25519KeyPair {
+        &self.db.keypair
     }
 
     /// Check if a user has an account by looking for an assigned password.
@@ -183,6 +195,10 @@ impl Data {
             user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes(),
         );
+        self.db.userid_leftroomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
 
         self.pdu_append(
             room_id.clone(),
@@ -277,6 +293,33 @@ impl Data {
         hashmap
     }
 
+    pub fn room_leave(&self, sender: &UserId, room_id: &RoomId, user_id: &UserId) {
+        self.pdu_append(
+            room_id.clone(),
+            sender.clone(),
+            EventType::RoomMember,
+            json!({"membership": "leave"}),
+            None,
+            Some(user_id.to_string()),
+        );
+        self.db.userid_inviteroomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+        self.db.userid_roomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+        self.db.roomid_userids.remove_value(
+            room_id.to_string().as_bytes(),
+            user_id.to_string().as_bytes().into(),
+        );
+        self.db.userid_leftroomids.add(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+    }
+
     pub fn room_invite(&self, sender: &UserId, room_id: &RoomId, user_id: &UserId) {
         self.pdu_append(
             room_id.clone(),
@@ -287,14 +330,27 @@ impl Data {
             Some(user_id.to_string()),
         );
         self.db.userid_inviteroomids.add(
-            &user_id.to_string().as_bytes(),
+            user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes().into(),
+        );
+        self.db.roomid_userids.add(
+            room_id.to_string().as_bytes(),
+            user_id.to_string().as_bytes().into(),
         );
     }
 
     pub fn rooms_invited(&self, user_id: &UserId) -> Vec<RoomId> {
         self.db
             .userid_inviteroomids
+            .get_iter(&user_id.to_string().as_bytes())
+            .values()
+            .map(|key| RoomId::try_from(&*utils::string_from_bytes(&key.unwrap())).unwrap())
+            .collect()
+    }
+
+    pub fn rooms_left(&self, user_id: &UserId) -> Vec<RoomId> {
+        self.db
+            .userid_leftroomids
             .get_iter(&user_id.to_string().as_bytes())
             .values()
             .map(|key| RoomId::try_from(&*utils::string_from_bytes(&key.unwrap())).unwrap())
@@ -434,7 +490,7 @@ impl Data {
         if let Some(state_key) = pdu.state_key {
             let mut key = room_id.to_string().as_bytes().to_vec();
             key.push(0xff);
-            key.extend_from_slice(dbg!(pdu.kind.to_string().as_bytes()));
+            key.extend_from_slice(pdu.kind.to_string().as_bytes());
             key.push(0xff);
             key.extend_from_slice(state_key.to_string().as_bytes());
             self.db.roomstateid_pdu.insert(key, &*pdu_json).unwrap();

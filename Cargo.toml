@@ -13,19 +13,20 @@ edition = "2018"
 [dependencies]
 rocket = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "async", features = ["tls"] }
 http = "0.2.1"
-ruma-client-api = { git = "https://github.com/ruma/ruma-client-api.git", branch = "uiaa-error-type" }
+ruma-client-api = { git = "https://github.com/ruma/ruma-client-api.git" }
+ruma-identifiers = "0.15.1"
+ruma-api = "0.16.0-rc.1"
+ruma-events = "0.19.0"
+ruma-signatures = { git = "https://github.com/ruma/ruma-signatures.git" }
+ruma-federation-api = { git = "https://github.com/ruma/ruma-federation-api.git" }
 pretty_env_logger = "0.4.0"
 log = "0.4.8"
 sled = "0.31.0"
 directories = "2.0.2"
-ruma-identifiers = "0.14.1"
-ruma-api = "0.15.0"
-ruma-events = "0.18.0"
 js_int = "0.1.4"
-serde_json = "1.0.50"
-ruma-signatures = { git = "https://github.com/ruma/ruma-signatures.git" }
-ruma-federation-api = "0.0.1"
+serde_json = "1.0.51"
 serde = "1.0.106"
-tokio = { version = "0.2.16", features = ["macros"] } #rt-threaded
+tokio = { version = "0.2.18", features = ["macros"] }
 rand = "0.7.3"
 rust-argon2 = "0.8.2"
+reqwest = "0.10.4"

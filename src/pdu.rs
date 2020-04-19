@@ -31,15 +31,18 @@ pub struct PduEvent {
 }
 
 impl PduEvent {
-    pub fn to_room_event(&self) -> RoomEvent {
+    // TODO: This shouldn't be an option
+    pub fn to_room_event(&self) -> Option<RoomEvent> {
         // Can only fail in rare circumstances that won't ever happen here, see
         // https://docs.rs/serde_json/1.0.50/serde_json/fn.to_string.html
         let json = serde_json::to_string(&self).unwrap();
         // EventResult's deserialize implementation always returns `Ok(...)`
-        serde_json::from_str::<EventResult<RoomEvent>>(&json)
-            .unwrap()
-            .into_result()
-            .unwrap()
+        Some(
+            serde_json::from_str::<EventResult<RoomEvent>>(&json)
+                .unwrap()
+                .into_result()
+                .ok()?,
+        )
     }
 
     pub fn to_stripped_state_event(&self) -> Option<AnyStrippedStateEvent> {

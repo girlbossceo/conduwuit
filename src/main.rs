@@ -5,6 +5,7 @@ mod data;
 mod database;
 mod pdu;
 mod ruma_wrapper;
+mod server_server;
 mod utils;
 
 #[cfg(test)]
@@ -26,6 +27,7 @@ fn setup_rocket(data: Data) -> rocket::Rocket {
                 client_server::register_route,
                 client_server::get_login_route,
                 client_server::login_route,
+                client_server::get_capabilities_route,
                 client_server::get_pushrules_all_route,
                 client_server::get_filter_route,
                 client_server::create_filter_route,
@@ -45,9 +47,11 @@ fn setup_rocket(data: Data) -> rocket::Rocket {
                 client_server::get_alias_route,
                 client_server::join_room_by_id_route,
                 client_server::join_room_by_id_or_alias_route,
+                client_server::leave_room_route,
                 client_server::invite_user_route,
                 client_server::get_public_rooms_filtered_route,
                 client_server::search_users_route,
+                client_server::get_member_events_route,
                 client_server::get_protocols_route,
                 client_server::create_message_event_route,
                 client_server::create_state_event_for_key_route,
@@ -64,12 +68,12 @@ fn setup_rocket(data: Data) -> rocket::Rocket {
 fn main() {
     // Log info by default
     if let Err(_) = std::env::var("RUST_LOG") {
-        std::env::set_var("RUST_LOG", "matrixserver=debug,info");
+        std::env::set_var("RUST_LOG", "warn");
     }
     pretty_env_logger::init();
 
     let data = Data::load_or_create("matrixtesting.koesters.xyz");
-    data.debug();
+    //data.debug();
 
     setup_rocket(data).launch().unwrap();
 }
