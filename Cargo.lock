@@ -142,6 +142,7 @@ dependencies = [
 name = "conduit"
 version = "0.1.0"
 dependencies = [
+ "base64 0.12.0",
  "directories",
  "http",
  "js_int",
@@ -1265,6 +1266,7 @@ dependencies = [
  "ruma-api",
  "ruma-events",
  "ruma-identifiers",
+ "ruma-serde",
  "serde",
  "serde_json",
 ]
@@ -1292,7 +1294,6 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.6.0-dev.1"
-source = "git+https://github.com/ruma/ruma-signatures.git#c3f8399c268695464730afd6077c7ce50155b8d5"
 dependencies = [
  "base64 0.12.0",
  "ring",

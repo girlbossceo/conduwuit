@@ -60,6 +60,10 @@ fn setup_rocket(data: Data) -> rocket::Rocket {
                 client_server::turn_server_route,
                 client_server::publicised_groups_route,
                 client_server::options_route,
+                server_server::well_known_server,
+                server_server::get_server_version,
+                server_server::get_server_keys,
+                server_server::get_server_keys_deprecated,
             ],
         )
         .manage(data)
@@ -72,7 +76,7 @@ fn main() {
     }
     pretty_env_logger::init();
 
-    let data = Data::load_or_create("matrixtesting.koesters.xyz");
+    let data = Data::load_or_create("matrixtesting.koesters.xyz:14004");
     //data.debug();
 
     setup_rocket(data).launch().unwrap();

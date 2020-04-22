@@ -756,7 +756,7 @@ pub async fn get_public_rooms_filtered_route(
     chunk.extend_from_slice(
         &server_server::send_request(
             &data,
-            "https://matrix.org".to_owned(),
+            "https://matrix.koesters.xyz".to_owned(),
             ruma_federation_api::v1::get_public_rooms::Request {
                 limit: None,
                 since: None,
