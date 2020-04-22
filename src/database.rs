@@ -127,7 +127,7 @@ impl Database {
                 &*db.update_and_fetch("keypair", utils::generate_keypair)
                     .unwrap()
                     .unwrap(),
-                "0.0.0".to_owned(),
+                "key1".to_owned(),
             )
             .unwrap(),
             _db: db,

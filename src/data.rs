@@ -457,7 +457,7 @@ impl Data {
         ))
         .expect("ruma's reference hashes are correct");
 
-        let mut pdu_json = serde_json::to_value(pdu).unwrap();
+        let mut pdu_json = serde_json::to_value(&pdu).unwrap();
         ruma_signatures::hash_and_sign_event(self.hostname(), self.keypair(), &mut pdu_json);
 
         self.pdu_leaves_replace(&room_id, &pdu.event_id);
@@ -483,7 +483,7 @@ impl Data {
 
         self.db
             .pduid_pdu
-            .insert(&pdu_id, &*serde_json::to_string(&pdu_json).unwrap())
+            .insert(&pdu_id, &*pdu_json.to_string())
             .unwrap();
 
         self.db
@@ -497,7 +497,10 @@ impl Data {
             key.extend_from_slice(pdu.kind.to_string().as_bytes());
             key.push(0xff);
             key.extend_from_slice(state_key.to_string().as_bytes());
-            self.db.roomstateid_pdu.insert(key, &*pdu_json).unwrap();
+            self.db
+                .roomstateid_pdu
+                .insert(key, &*pdu_json.to_string())
+                .unwrap();
         }
 
         pdu.event_id

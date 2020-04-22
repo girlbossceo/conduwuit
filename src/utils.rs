@@ -27,8 +27,10 @@ pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
 
 pub fn generate_keypair(old: Option<&[u8]>) -> Option<Vec<u8>> {
     Some(
+        /*
         old.map(|s| s.to_vec())
-            .unwrap_or_else(|| ruma_signatures::Ed25519KeyPair::generate().unwrap()),
+            .unwrap_or_else(|| */
+        ruma_signatures::Ed25519KeyPair::generate().unwrap(),
     )
 }
 

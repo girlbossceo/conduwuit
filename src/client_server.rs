@@ -1,4 +1,4 @@
-use crate::{utils, Data, MatrixResult, Ruma};
+use crate::{server_server, utils, Data, MatrixResult, Ruma};
 
 use log::debug;
 use rocket::{get, options, post, put, State};
@@ -674,7 +674,8 @@ pub fn join_room_by_id_or_alias_route(
             }
         }
     } else {
-        body.room_id_or_alias.try_into().unwrap()
+        todo!();
+        //body.room_id_or_alias.try_into().unwrap()
     };
 
     if data.room_join(
@@ -725,8 +726,8 @@ pub fn invite_user_route(
 }
 
 #[post("/_matrix/client/r0/publicRooms", data = "<body>")]
-pub fn get_public_rooms_filtered_route(
-    data: State<Data>,
+pub async fn get_public_rooms_filtered_route(
+    data: State<'_, Data>,
     body: Ruma<get_public_rooms_filtered::Request>,
 ) -> MatrixResult<get_public_rooms_filtered::Response> {
     let mut chunk = data
@@ -751,6 +752,25 @@ pub fn get_public_rooms_filtered_route(
             }
         })
         .collect::<Vec<_>>();
+
+    chunk.extend_from_slice(
+        &server_server::send_request(
+            &data,
+            "https://matrix.org".to_owned(),
+            ruma_federation_api::v1::get_public_rooms::Request {
+                limit: None,
+                since: None,
+                include_all_networks: None,
+                third_party_instance_id: None,
+            },
+        )
+        .await
+        .unwrap()
+        .chunk
+        .into_iter()
+        .map(|c| serde_json::from_str(&serde_json::to_string(dbg!(&c)).unwrap()).unwrap())
+        .collect::<Vec<_>>(),
+    );
 
     chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 

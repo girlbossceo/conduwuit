@@ -18,7 +18,7 @@ ruma-identifiers = "0.15.1"
 ruma-api = "0.16.0-rc.1"
 ruma-events = "0.19.0"
 ruma-signatures = { git = "https://github.com/ruma/ruma-signatures.git" }
-ruma-federation-api = { git = "https://github.com/ruma/ruma-federation-api.git" }
+ruma-federation-api = { path = "../ruma-federation-api" }
 pretty_env_logger = "0.4.0"
 log = "0.4.8"
 sled = "0.31.0"

@@ -1260,7 +1260,6 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.0.1"
-source = "git+https://github.com/ruma/ruma-federation-api.git#5448c650f0a583382152d0f43f2dcf720d495390"
 dependencies = [
  "js_int",
  "ruma-api",
