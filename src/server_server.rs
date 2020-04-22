@@ -32,24 +32,26 @@ where
     T::Error: std::fmt::Debug,
 {
     let mut http_request: http::Request<_> = request.try_into().unwrap();
-    let uri = destination.clone() + T::METADATA.path;
-    *http_request.uri_mut() = uri.parse().unwrap();
+    
+    *http_request.uri_mut() = ("https://".to_owned() + &destination.clone() + T::METADATA.path).parse().unwrap();
 
-    let body = http_request.body();
-    let mut request_json = if !body.is_empty() {
-        serde_json::to_value(http_request.body()).unwrap()
-    } else {
-        serde_json::Map::new().into()
+    let mut request_map = serde_json::Map::new();
+
+    if !http_request.body().is_empty() {
+        request_map.insert("content".to_owned(), 
+        serde_json::to_value(http_request.body()).unwrap());
     };
 
-    let request_map = request_json.as_object_mut().unwrap();
-
     request_map.insert("method".to_owned(), T::METADATA.method.to_string().into());
-    request_map.insert("uri".to_owned(), uri.into());
+    request_map.insert("uri".to_owned(), T::METADATA.path.into());
     request_map.insert("origin".to_owned(), data.hostname().into());
     request_map.insert("destination".to_owned(), destination.to_string().into());
+    //request_map.insert("signatures".to_owned(), json!({}));
 
-    ruma_signatures::sign_json(data.hostname(), data.keypair(), &mut request_json).unwrap();
+    let mut request_json = request_map.into();
+    ruma_signatures::sign_json(data.hostname(), data.keypair(), dbg!(&mut request_json)).unwrap();
+    dbg!(&request_json);
+
     let signatures = request_json["signatures"]
         .as_object()
         .unwrap()
