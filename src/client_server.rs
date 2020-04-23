@@ -549,7 +549,7 @@ pub fn create_room_route(
     body: Ruma<create_room::Request>,
 ) -> MatrixResult<create_room::Response> {
     // TODO: check if room is unique
-    let room_id = RoomId::try_from(data.hostname()).expect("host is valid");
+    let room_id = RoomId::new(data.hostname()).expect("host is valid");
     let user_id = body.user_id.clone().expect("user is authenticated");
 
     data.pdu_append(
@@ -756,7 +756,7 @@ pub async fn get_public_rooms_filtered_route(
     chunk.extend_from_slice(
         &server_server::send_request(
             &data,
-            "matrix.koesters.xyz".to_owned(),
+            "koesters.xyz".to_owned(),
             ruma_federation_api::v1::get_public_rooms::Request {
                 limit: None,
                 since: None,
@@ -913,7 +913,6 @@ pub fn sync_route(
         let room_events = pdus
             .into_iter()
             .map(|pdu| pdu.to_room_event())
-            .filter_map(|e| e)
             .collect();
         let mut edus = data.roomlatests_since(&room_id, since);
         edus.extend_from_slice(&data.roomactives_in(&room_id));
@@ -949,7 +948,6 @@ pub fn sync_route(
         let room_events = pdus
             .into_iter()
             .map(|pdu| pdu.to_room_event())
-            .filter_map(|e| e)
             .collect();
         let mut edus = data.roomlatests_since(&room_id, since);
         edus.extend_from_slice(&data.roomactives_in(&room_id));
@@ -973,7 +971,7 @@ pub fn sync_route(
         let events = data
             .pdus_since(&room_id, since)
             .into_iter()
-            .filter_map(|pdu| pdu.to_stripped_state_event())
+            .map(|pdu| pdu.to_stripped_state_event())
             .collect();
 
         invited_rooms.insert(

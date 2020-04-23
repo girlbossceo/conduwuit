@@ -1,6 +1,6 @@
 use js_int::UInt;
 use ruma_events::{
-    collections::all::RoomEvent, stripped::AnyStrippedStateEvent, EventResult, EventType,
+    collections::all::RoomEvent, stripped::AnyStrippedStateEvent, EventJson, EventType,
 };
 use ruma_federation_api::EventHash;
 use ruma_identifiers::{EventId, RoomId, UserId};
@@ -31,29 +31,20 @@ pub struct PduEvent {
 }
 
 impl PduEvent {
-    // TODO: This shouldn't be an option
-    pub fn to_room_event(&self) -> Option<RoomEvent> {
+    pub fn to_room_event(&self) -> EventJson<RoomEvent> {
         // Can only fail in rare circumstances that won't ever happen here, see
         // https://docs.rs/serde_json/1.0.50/serde_json/fn.to_string.html
         let json = serde_json::to_string(&self).unwrap();
-        // EventResult's deserialize implementation always returns `Ok(...)`
-        Some(
-            serde_json::from_str::<EventResult<RoomEvent>>(&json)
-                .unwrap()
-                .into_result()
-                .ok()?,
-        )
+        // EventJson's deserialize implementation always returns `Ok(...)`
+        serde_json::from_str::<EventJson<RoomEvent>>(&json).unwrap()
     }
 
-    pub fn to_stripped_state_event(&self) -> Option<AnyStrippedStateEvent> {
+    pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEvent> {
         // Can only fail in rare circumstances that won't ever happen here, see
         // https://docs.rs/serde_json/1.0.50/serde_json/fn.to_string.html
         let json = serde_json::to_string(&self).unwrap();
 
-        // EventResult's deserialize implementation always returns `Ok(...)`
-        serde_json::from_str::<EventResult<AnyStrippedStateEvent>>(&json)
-            .unwrap()
-            .into_result()
-            .ok()
+        // EventJson's deserialize implementation always returns `Ok(...)`
+        serde_json::from_str::<EventJson<AnyStrippedStateEvent>>(&json).unwrap()
     }
 }

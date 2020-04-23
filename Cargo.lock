@@ -11,9 +11,9 @@ dependencies = [
 
 [[package]]
 name = "arc-swap"
-version = "0.4.5"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d663a8e9a99154b5fb793032533f6328da35e23aac63d5c152279aa8ba356825"
+checksum = "b585a98a234c46fc563103e9278c9391fde1f4e6850334da895d27edb9580f62"
 
 [[package]]
 name = "arrayref"
@@ -119,9 +119,9 @@ checksum = "130aac562c0dd69c56b3b1cc8ffd2e17be31d0b6c25b61c96b76231aa23e39e1"
 
 [[package]]
 name = "cc"
-version = "1.0.50"
+version = "1.0.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95e28fa049fda1c330bcf9d723be7663a899c4679724b34c81e9f5a326aab8cd"
+checksum = "c3d87b23d6a92cd03af510a5ade527033f6aa6fa92161e2d5863a907d4c5e31d"
 
 [[package]]
 name = "cfg-if"
@@ -841,9 +841,9 @@ dependencies = [
 
 [[package]]
 name = "parking_lot_core"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e136c1904604defe99ce5fd71a28d473fa60a12255d511aa78a9ddf11237aeb"
+checksum = "d58c7c768d4ba344e3e8d72518ac13e259d7c7ade24167003b8488e10b6740a3"
 dependencies = [
  "cfg-if",
  "cloudabi",
@@ -915,9 +915,9 @@ checksum = "237844750cfbb86f67afe27eee600dfbbcb6188d734139b534cbfbf4f96792ae"
 
 [[package]]
 name = "pin-utils"
-version = "0.1.0-alpha.4"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5894c618ce612a3fa23881b152b608bafb8c56cfc22f434a3ba3120b40f7b587"
+checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pkg-config"
@@ -1191,9 +1191,9 @@ dependencies = [
 
 [[package]]
 name = "ruma-api"
-version = "0.16.0-rc.1"
+version = "0.16.0-rc.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7769e934360383f91d68a2b9132610d02436ef3272cbdd46de239c9025198a36"
+checksum = "c296a951625ccc8c04d5188f1791d1628503c8614073a05833af9fed18b029c1"
 dependencies = [
  "http",
  "percent-encoding 2.1.0",
@@ -1207,9 +1207,9 @@ dependencies = [
 
 [[package]]
 name = "ruma-api-macros"
-version = "0.16.0-rc.1"
+version = "0.16.0-rc.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f8dad3311d0bee6d43da684ba03f9a84cddd39f9b3e7e88cab5d726419ec22e"
+checksum = "0f6b02a6a860a96e3c2081c8aea88b37b2918b53e539856b73aadde1908b65ad"
 dependencies = [
  "proc-macro2 1.0.10",
  "quote 1.0.3",
@@ -1218,8 +1218,8 @@ dependencies = [
 
 [[package]]
 name = "ruma-client-api"
-version = "0.8.0-rc.2"
-source = "git+https://github.com/ruma/ruma-client-api.git#1b7863dc36e6e043ae365791cc719dc190abd660"
+version = "0.8.0-rc.5"
+source = "git+https://github.com/ruma/ruma-client-api.git#473cf2386178781688f12c538ee6419869d14a46"
 dependencies = [
  "http",
  "js_int",
@@ -1235,9 +1235,9 @@ dependencies = [
 
 [[package]]
 name = "ruma-events"
-version = "0.19.0"
+version = "0.21.0-beta.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "844b5d38397c945395c7a1eaf89d55714c3d22983b870085a1a67d51fb6611cf"
+checksum = "d4802476bbe517f2ac6cb7b1cf4869d54586c10e86e2ddc00806cafa32a96553"
 dependencies = [
  "js_int",
  "ruma-events-macros",
@@ -1249,9 +1249,9 @@ dependencies = [
 
 [[package]]
 name = "ruma-events-macros"
-version = "0.19.0-final"
+version = "0.21.0-beta.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5477046b734fde45dd7913dbc8d7b260af3b1c31ea2bc329bd2f0b44e37368be"
+checksum = "abd3cfe96c9887fe2eebfa2e5e7d3a4afff02c374874d4e718f46dab5fd3320d"
 dependencies = [
  "proc-macro2 1.0.10",
  "quote 1.0.3",
@@ -1261,6 +1261,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.0.1"
+source = "git+https://git.koesters.xyz/timo/ruma-federation-api.git#6f1c5a6a714d6be2f420f3832d31e214fe4fb229"
 dependencies = [
  "js_int",
  "ruma-api",
@@ -1273,10 +1274,11 @@ dependencies = [
 
 [[package]]
 name = "ruma-identifiers"
-version = "0.15.1"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63db5545f38077ea141fb112df070773e6ab9b7025174d732f56c6b37525ccc0"
+checksum = "6ee548c5dbb5a92a93bb435fd3b66484cd19b0f37450c9b93677338cbe9550d2"
 dependencies = [
+ "rand",
  "serde",
 ]
 
@@ -1294,6 +1296,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.6.0-dev.1"
+source = "git+https://git.koesters.xyz/timo/ruma-signatures.git#e2cd0927c14133b8d49a8cd9fbd96f8af5c60f07"
 dependencies = [
  "base64 0.12.0",
  "ring",
@@ -1340,9 +1343,9 @@ dependencies = [
 
 [[package]]
 name = "ryu"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "535622e6be132bccd223f4bb2b8ac8d53cda3c7a6394944d3b2b33fb974f9d76"
+checksum = "ed3d612bc64430efeb3f7ee6ef26d590dce0c43249217bddc62112540c7941e1"
 
 [[package]]
 name = "schannel"
@@ -1877,9 +1880,9 @@ checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
 
 [[package]]
 name = "winapi-util"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa515c5163a99cc82bab70fd3bfdd36d827be85de63737b40fcef2ce084a436e"
+checksum = "70ec6ce85bb158151cae5e5c87f95a8e97d2c0c4b001223f33a334e3ce5de178"
 dependencies = [
  "winapi 0.3.8",
 ]

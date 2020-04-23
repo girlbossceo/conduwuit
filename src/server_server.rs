@@ -4,7 +4,7 @@ use log::error;
 use rocket::{get, options, post, put, response::content::Json, State};
 use ruma_api::{
     error::{FromHttpRequestError, FromHttpResponseError},
-    Endpoint, Outgoing,
+    Endpoint,
 };
 use ruma_client_api::error::{Error, ErrorKind};
 use ruma_federation_api::{v1::get_server_version, v2::get_server_keys};
@@ -20,20 +20,11 @@ pub async fn send_request<T: Endpoint>(
     data: &crate::Data,
     destination: String,
     request: T,
-) -> Option<<T::Response as Outgoing>::Incoming>
-where
-    // We need to duplicate Endpoint's where clauses because the compiler is not smart enough yet.
-    // See https://github.com/rust-lang/rust/issues/54149
-    <T as Outgoing>::Incoming: TryFrom<http::Request<Vec<u8>>, Error = FromHttpRequestError>,
-    <T::Response as Outgoing>::Incoming: TryFrom<
-        http::Response<Vec<u8>>,
-        Error = FromHttpResponseError<<T as Endpoint>::ResponseError>,
-    >,
-    T::Error: std::fmt::Debug,
+) -> Option<T::Response>
 {
     let mut http_request: http::Request<_> = request.try_into().unwrap();
     
-    *http_request.uri_mut() = ("https://".to_owned() + &destination.clone() + T::METADATA.path).parse().unwrap();
+    *http_request.uri_mut() = format!("https://{}:8448{}", &destination.clone(), T::METADATA.path).parse().unwrap();
 
     let mut request_map = serde_json::Map::new();
 
@@ -50,7 +41,7 @@ where
 
     let mut request_json = request_map.into();
     ruma_signatures::sign_json(data.hostname(), data.keypair(), dbg!(&mut request_json)).unwrap();
-    dbg!(&request_json);
+    println!("{}", &request_json);
 
     let signatures = request_json["signatures"]
         .as_object()
@@ -101,7 +92,7 @@ where
                 .into_iter()
                 .collect();
             Some(
-                <T::Response as Outgoing>::Incoming::try_from(
+                <T::Response>::try_from(
                     dbg!(http_response.body(body)).unwrap(),
                 )
                 .ok()

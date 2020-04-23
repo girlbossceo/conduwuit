@@ -1,5 +1,5 @@
 use crate::{utils, Database, PduEvent};
-use ruma_events::{collections::only::Event as EduEvent, EventResult, EventType};
+use ruma_events::{collections::only::Event as EduEvent, EventJson, EventType};
 use ruma_federation_api::RoomV3Pdu;
 use ruma_identifiers::{EventId, RoomId, UserId};
 use serde_json::json;
@@ -604,7 +604,7 @@ impl Data {
     }
 
     /// Returns a vector of the most recent read_receipts in a room that happened after the event with id `since`.
-    pub fn roomlatests_since(&self, room_id: &RoomId, since: u64) -> Vec<EduEvent> {
+    pub fn roomlatests_since(&self, room_id: &RoomId, since: u64) -> Vec<EventJson<EduEvent>> {
         let mut room_latests = Vec::new();
 
         let mut prefix = room_id.to_string().as_bytes().to_vec();
@@ -617,10 +617,11 @@ impl Data {
             if key.starts_with(&prefix) {
                 current = key.to_vec();
                 room_latests.push(
-                    serde_json::from_slice::<EventResult<_>>(&value)
+                    serde_json::from_slice::<EventJson<EduEvent>>(&value)
                         .expect("room_latest in db is valid")
-                        .into_result()
-                        .expect("room_latest in db is valid"),
+                        .deserialize()
+                        .expect("room_latest in db is valid")
+                        .into(),
                 );
             } else {
                 break;
@@ -691,7 +692,7 @@ impl Data {
     }
 
     /// Returns a vector of the most recent read_receipts in a room that happened after the event with id `since`.
-    pub fn roomactives_in(&self, room_id: &RoomId) -> Vec<EduEvent> {
+    pub fn roomactives_in(&self, room_id: &RoomId) -> Vec<EventJson<EduEvent>> {
         let mut room_actives = Vec::new();
 
         let mut prefix = room_id.to_string().as_bytes().to_vec();
@@ -704,10 +705,11 @@ impl Data {
             if key.starts_with(&prefix) {
                 current = key.to_vec();
                 room_actives.push(
-                    serde_json::from_slice::<EventResult<_>>(&value)
+                    serde_json::from_slice::<EventJson<EduEvent>>(&value)
                         .expect("room_active in db is valid")
-                        .into_result()
-                        .expect("room_active in db is valid"),
+                        .deserialize()
+                        .expect("room_active in db is valid")
+                        .into(),
                 );
             } else {
                 break;
@@ -720,7 +722,8 @@ impl Data {
                     user_ids: Vec::new(),
                 },
                 room_id: None, // None because it can be inferred
-            })];
+            })
+            .into()];
         } else {
             room_actives
         }

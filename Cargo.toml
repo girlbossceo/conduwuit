@@ -14,11 +14,11 @@ edition = "2018"
 rocket = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "async", features = ["tls"] }
 http = "0.2.1"
 ruma-client-api = { git = "https://github.com/ruma/ruma-client-api.git" }
-ruma-identifiers = "0.15.1"
-ruma-api = "0.16.0-rc.1"
-ruma-events = "0.19.0"
-ruma-signatures = { path = "../ruma-signatures" }
-ruma-federation-api = { path = "../ruma-federation-api" }
+ruma-identifiers = { version = "0.16.0", features = ["rand"] }
+ruma-api = "0.16.0-rc.3"
+ruma-events = "0.21.0-beta.1"
+ruma-signatures = { git = "https://git.koesters.xyz/timo/ruma-signatures.git" }
+ruma-federation-api = { git = "https://git.koesters.xyz/timo/ruma-federation-api.git" }
 pretty_env_logger = "0.4.0"
 log = "0.4.8"
 sled = "0.31.0"
