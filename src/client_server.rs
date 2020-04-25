@@ -37,8 +37,8 @@ use ruma_events::{collections::only::Event as EduEvent, EventType};
 use ruma_identifiers::{RoomId, UserId};
 use serde_json::json;
 use std::{
-    collections::{BTreeMap, HashMap},
-    convert::{TryFrom, TryInto},
+    collections::BTreeMap,
+    convert::TryInto,
     path::PathBuf,
     time::{Duration, SystemTime},
 };
@@ -753,10 +753,12 @@ pub async fn get_public_rooms_filtered_route(
         })
         .collect::<Vec<_>>();
 
+    chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
+
     chunk.extend_from_slice(
         &server_server::send_request(
             &data,
-            "koesters.xyz".to_owned(),
+            "chat.privacytools.io".to_owned(),
             ruma_federation_api::v1::get_public_rooms::Request {
                 limit: None,
                 since: None,
@@ -768,11 +770,9 @@ pub async fn get_public_rooms_filtered_route(
         .unwrap()
         .chunk
         .into_iter()
-        .map(|c| serde_json::from_str(&serde_json::to_string(dbg!(&c)).unwrap()).unwrap())
+        .map(|c| serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap())
         .collect::<Vec<_>>(),
     );
-
-    chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 
     let total_room_count_estimate = (chunk.len() as u32).into();
 
@@ -910,10 +910,7 @@ pub fn sync_route(
         .unwrap_or(0);
     for room_id in joined_roomids {
         let pdus = data.pdus_since(&room_id, since);
-        let room_events = pdus
-            .into_iter()
-            .map(|pdu| pdu.to_room_event())
-            .collect();
+        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
         let mut edus = data.roomlatests_since(&room_id, since);
         edus.extend_from_slice(&data.roomactives_in(&room_id));
 
@@ -945,10 +942,7 @@ pub fn sync_route(
     let left_roomids = data.rooms_left(body.user_id.as_ref().expect("user is authenticated"));
     for room_id in left_roomids {
         let pdus = data.pdus_since(&room_id, since);
-        let room_events = pdus
-            .into_iter()
-            .map(|pdu| pdu.to_room_event())
-            .collect();
+        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
         let mut edus = data.roomlatests_since(&room_id, since);
         edus.extend_from_slice(&data.roomactives_in(&room_id));
 

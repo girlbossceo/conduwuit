@@ -6,15 +6,9 @@ use rocket::{
     Outcome::*,
     Request, State,
 };
-use ruma_api::{
-    Endpoint
-};
+use ruma_api::Endpoint;
 use ruma_identifiers::UserId;
-use std::{
-    convert::{TryInto},
-    io::Cursor,
-    ops::Deref,
-};
+use std::{convert::TryInto, io::Cursor, ops::Deref};
 use tokio::io::AsyncReadExt;
 
 const MESSAGE_LIMIT: u64 = 65535;
@@ -27,8 +21,7 @@ pub struct Ruma<T> {
     pub json_body: serde_json::Value,
 }
 
-impl<'a, T: Endpoint> FromData<'a> for Ruma<T>
-{
+impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
     type Error = (); // TODO: Better error handling
     type Owned = Data;
     type Borrowed = Self::Owned;

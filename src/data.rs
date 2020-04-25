@@ -458,7 +458,8 @@ impl Data {
         .expect("ruma's reference hashes are correct");
 
         let mut pdu_json = serde_json::to_value(&pdu).unwrap();
-        ruma_signatures::hash_and_sign_event(self.hostname(), self.keypair(), &mut pdu_json);
+        ruma_signatures::hash_and_sign_event(self.hostname(), self.keypair(), &mut pdu_json)
+            .unwrap();
 
         self.pdu_leaves_replace(&room_id, &pdu.event_id);
 
