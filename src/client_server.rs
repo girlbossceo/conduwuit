@@ -38,7 +38,7 @@ use ruma_identifiers::{RoomId, UserId};
 use serde_json::json;
 use std::{
     collections::BTreeMap,
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     path::PathBuf,
     time::{Duration, SystemTime},
 };
@@ -325,8 +325,7 @@ pub fn set_displayname_route(
         if displayname == "" {
             data.displayname_remove(&user_id);
         } else {
-            data.displayname_set(&user_id, body.displayname.clone());
-            // TODO send a new m.room.member join event with the updated displayname
+            data.displayname_set(&user_id, displayname.clone());
             // TODO send a new m.presence event with the updated displayname
         }
     }
@@ -610,26 +609,34 @@ pub fn create_room_route(
     MatrixResult(Ok(create_room::Response { room_id }))
 }
 
-#[get("/_matrix/client/r0/directory/room/<room_alias>")]
-pub fn get_alias_route(room_alias: String) -> MatrixResult<get_alias::Response> {
+#[get("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
+pub fn get_alias_route(
+    data: State<Data>,
+    body: Ruma<get_alias::Request>,
+    _room_alias: String,
+) -> MatrixResult<get_alias::Response> {
     // TODO
-    let room_id = match &*room_alias {
-        "#room:localhost" => "!xclkjvdlfj:localhost",
-        _ => {
-            debug!("Room not found.");
-            return MatrixResult(Err(Error {
-                kind: ErrorKind::NotFound,
-                message: "Room not found.".to_owned(),
-                status_code: http::StatusCode::NOT_FOUND,
-            }));
+    let room_id = if body.room_alias.server_name() == data.hostname() {
+        match body.room_alias.alias() {
+            "conduit" => "!lgOCCXQKtXOAPlAlG5:conduit.rs",
+            _ => {
+                debug!("Room alias not found.");
+                return MatrixResult(Err(Error {
+                    kind: ErrorKind::NotFound,
+                    message: "Room not found.".to_owned(),
+                    status_code: http::StatusCode::NOT_FOUND,
+                }));
+            }
         }
+    } else {
+        todo!("ask remote server");
     }
     .try_into()
     .unwrap();
 
     MatrixResult(Ok(get_alias::Response {
         room_id,
-        servers: vec!["localhost".to_owned()],
+        servers: vec!["conduit.rs".to_owned()],
     }))
 }
 
@@ -661,21 +668,19 @@ pub fn join_room_by_id_or_alias_route(
     body: Ruma<join_room_by_id_or_alias::Request>,
     _room_id_or_alias: String,
 ) -> MatrixResult<join_room_by_id_or_alias::Response> {
-    let room_id = if body.room_id_or_alias.is_room_alias_id() {
-        match body.room_id_or_alias.as_ref() {
-            "#room:localhost" => "!xclkjvdlfj:localhost".try_into().unwrap(),
-            _ => {
-                debug!("Room not found.");
-                return MatrixResult(Err(Error {
-                    kind: ErrorKind::NotFound,
-                    message: "Room not found.".to_owned(),
-                    status_code: http::StatusCode::NOT_FOUND,
-                }));
-            }
+    let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
+        Ok(room_id) => room_id,
+        Err(room_alias) => if room_alias.server_name() == data.hostname() {
+            return MatrixResult(Err(Error {
+                kind: ErrorKind::NotFound,
+                message: "Room alias not found.".to_owned(),
+                status_code: http::StatusCode::NOT_FOUND,
+            }));
+        } else {
+            // Ask creator server of the room to join TODO ask someone else when not available
+            //server_server::send_request(data, destination, request)
+            todo!();
         }
-    } else {
-        todo!();
-        //body.room_id_or_alias.try_into().unwrap()
     };
 
     if data.room_join(
@@ -758,9 +763,9 @@ pub async fn get_public_rooms_filtered_route(
     chunk.extend_from_slice(
         &server_server::send_request(
             &data,
-            "chat.privacytools.io".to_owned(),
+            "privacytools.io".to_owned(),
             ruma_federation_api::v1::get_public_rooms::Request {
-                limit: None,
+                limit: Some(20_u32.into()),
                 since: None,
                 include_all_networks: None,
                 third_party_instance_id: None,

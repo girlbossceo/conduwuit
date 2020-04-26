@@ -91,11 +91,21 @@ impl Data {
     }
 
     /// Set a new displayname.
-    pub fn displayname_set(&self, user_id: &UserId, displayname: Option<String>) {
+    pub fn displayname_set(&self, user_id: &UserId, displayname: String) {
         self.db
             .userid_displayname
-            .insert(user_id.to_string(), &*displayname.unwrap_or_default())
+            .insert(user_id.to_string(), &*displayname)
             .unwrap();
+        for room_id in self.rooms_joined(user_id) {
+            self.pdu_append(
+                room_id.clone(),
+                user_id.clone(),
+                EventType::RoomMember,
+                json!({"membership": "join", "displayname": displayname}),
+                None,
+                Some(user_id.to_string()),
+            );
+        }
     }
 
     /// Get a the displayname of a user.
@@ -200,11 +210,19 @@ impl Data {
             room_id.to_string().as_bytes().into(),
         );
 
+        let mut content = json!({"membership": "join"});
+        if let Some(displayname) = self.displayname_get(user_id) {
+            content
+                .as_object_mut()
+                .unwrap()
+                .insert("displayname".to_owned(), displayname.into());
+        }
+
         self.pdu_append(
             room_id.clone(),
             user_id.clone(),
             EventType::RoomMember,
-            json!({"membership": "join"}),
+            content,
             None,
             Some(user_id.to_string()),
         );
@@ -429,6 +447,17 @@ impl Data {
             .unwrap_or(0_u64)
             + 1;
 
+        let mut unsigned = unsigned.unwrap_or_default();
+        // TODO: Optimize this to not load the whole room state?
+        if let Some(state_key) = &state_key {
+            if let Some(prev_pdu) = self
+                .room_state(&room_id)
+                .get(&(event_type.clone(), state_key.clone()))
+            {
+                unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
+            }
+        }
+
         let mut pdu = PduEvent {
             event_id: EventId::try_from("$thiswillbefilledinlater").unwrap(),
             room_id: room_id.clone(),
@@ -442,7 +471,7 @@ impl Data {
             depth: depth.try_into().unwrap(),
             auth_events: Vec::new(),
             redacts: None,
-            unsigned: unsigned.unwrap_or_default(),
+            unsigned,
             hashes: ruma_federation_api::EventHash {
                 sha256: "aaa".to_owned(),
             },

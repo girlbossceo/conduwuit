@@ -164,3 +164,11 @@ where
         }
     }
 }
+
+impl<T, E> Deref for MatrixResult<T, E> {
+    type Target = Result<T, E>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}

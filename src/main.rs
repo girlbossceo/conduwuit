@@ -76,7 +76,7 @@ fn main() {
     }
     pretty_env_logger::init();
 
-    let data = Data::load_or_create("matrixtesting.koesters.xyz:14004");
+    let data = Data::load_or_create("conduit.rs");
     //data.debug();
 
     setup_rocket(data).launch().unwrap();

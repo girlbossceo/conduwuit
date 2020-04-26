@@ -12,6 +12,22 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+pub async fn request_well_known(data: &crate::Data, destination: &str) -> Option<String> {
+    let body: serde_json::Value = serde_json::from_str(&data
+        .reqwest_client()
+        .get(&format!(
+            "https://{}/.well-known/matrix/server",
+            destination
+        ))
+        .send()
+        .await
+        .ok()?
+        .text()
+        .await
+        .ok()?).ok()?;
+    Some(body.get("m.server")?.as_str()?.to_owned())
+}
+
 pub async fn send_request<T: Endpoint>(
     data: &crate::Data,
     destination: String,
@@ -19,7 +35,8 @@ pub async fn send_request<T: Endpoint>(
 ) -> Option<T::Response> {
     let mut http_request: http::Request<_> = request.try_into().unwrap();
 
-    *http_request.uri_mut() = format!("https://{}:8448{}", &destination.clone(), T::METADATA.path)
+    let actual_destination = "https://".to_owned() + &request_well_known(data, &destination).await.unwrap_or(destination.clone() + ":8448");
+    *http_request.uri_mut() = (actual_destination + T::METADATA.path)
         .parse()
         .unwrap();
 
@@ -35,7 +52,7 @@ pub async fn send_request<T: Endpoint>(
     request_map.insert("method".to_owned(), T::METADATA.method.to_string().into());
     request_map.insert("uri".to_owned(), T::METADATA.path.into());
     request_map.insert("origin".to_owned(), data.hostname().into());
-    request_map.insert("destination".to_owned(), "privacytools.io".into());
+    request_map.insert("destination".to_owned(), destination.into());
 
     let mut request_json = request_map.into();
     ruma_signatures::sign_json(data.hostname(), data.keypair(), &mut request_json).unwrap();
@@ -141,9 +158,6 @@ pub fn get_server_keys(data: State<Data>) -> Json<String> {
 }
 
 #[get("/_matrix/key/v2/server/<_key_id>")]
-pub fn get_server_keys_deprecated(
-    data: State<Data>,
-    _key_id: String,
-) -> Json<String> {
+pub fn get_server_keys_deprecated(data: State<Data>, _key_id: String) -> Json<String> {
     get_server_keys(data)
 }
