@@ -338,6 +338,13 @@ impl Data {
         );
     }
 
+    pub fn room_forget(&self, room_id: &RoomId, user_id: &UserId) {
+        self.db.userid_leftroomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+    }
+
     pub fn room_invite(&self, sender: &UserId, room_id: &RoomId, user_id: &UserId) {
         self.pdu_append(
             room_id.clone(),
@@ -373,6 +380,15 @@ impl Data {
             .values()
             .map(|key| RoomId::try_from(&*utils::string_from_bytes(&key.unwrap())).unwrap())
             .collect()
+    }
+
+    pub fn room_pdu_first(&self, room_id: &RoomId, pdu_index: u64) -> bool {
+        let mut pdu_id = vec![b'd'];
+        pdu_id.extend_from_slice(room_id.to_string().as_bytes());
+        pdu_id.push(0xff);
+        pdu_id.extend_from_slice(&pdu_index.to_be_bytes());
+
+        self.db.pduid_pdu.get_lt(&pdu_id).unwrap().is_none()
     }
 
     pub fn pdu_get(&self, event_id: &EventId) -> Option<RoomV3Pdu> {
@@ -566,6 +582,29 @@ impl Data {
         current.extend_from_slice(&since.to_be_bytes());
 
         while let Some((key, value)) = self.db.pduid_pdu.get_gt(&current).unwrap() {
+            if key.starts_with(&prefix) {
+                current = key.to_vec();
+                pdus.push(serde_json::from_slice(&value).expect("pdu in db is valid"));
+            } else {
+                break;
+            }
+        }
+
+        pdus
+    }
+
+    pub fn pdus_until(&self, room_id: &RoomId, until: u64) -> Vec<PduEvent> {
+        let mut pdus = Vec::new();
+
+        // Create the first part of the full pdu id
+        let mut prefix = vec![b'd'];
+        prefix.extend_from_slice(room_id.to_string().as_bytes());
+        prefix.push(0xff); // Add delimiter so we don't find rooms starting with the same id
+
+        let mut current = prefix.clone();
+        current.extend_from_slice(&until.to_be_bytes());
+
+        while let Some((key, value)) = self.db.pduid_pdu.get_lt(&current).unwrap() {
             if key.starts_with(&prefix) {
                 current = key.to_vec();
                 pdus.push(serde_json::from_slice(&value).expect("pdu in db is valid"));

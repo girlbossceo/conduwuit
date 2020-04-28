@@ -13,9 +13,9 @@ use ruma_client_api::{
         filter::{self, create_filter, get_filter},
         keys::{get_keys, upload_keys},
         membership::{
-            get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias, leave_room,
+            get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias, forget_room, leave_room,
         },
-        message::create_message_event,
+        message::{get_message_events, create_message_event},
         presence::set_presence,
         profile::{
             get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
@@ -222,10 +222,13 @@ pub fn get_capabilities_route(
     body: Ruma<get_capabilities::Request>,
 ) -> MatrixResult<get_capabilities::Response> {
     // TODO
+    //let mut available = BTreeMap::new();
+    //available.insert("5".to_owned(), get_capabilities::RoomVersionStability::Unstable);
+
     MatrixResult(Ok(get_capabilities::Response {
         capabilities: get_capabilities::Capabilities {
             change_password: None,
-            room_versions: None,
+            room_versions: None, //Some(get_capabilities::RoomVersionsCapability { default: "5".to_owned(), available }),
             custom_capabilities: BTreeMap::new(),
         },
     }))
@@ -708,6 +711,17 @@ pub fn leave_room_route(
     MatrixResult(Ok(leave_room::Response))
 }
 
+#[post("/_matrix/client/r0/rooms/<_room_id>/forget", data = "<body>")]
+pub fn forget_room_route(
+    data: State<Data>,
+    body: Ruma<forget_room::Request>,
+    _room_id: String,
+) -> MatrixResult<forget_room::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+    data.room_forget(&body.room_id, &user_id);
+    MatrixResult(Ok(forget_room::Response))
+}
+
 #[post("/_matrix/client/r0/rooms/<_room_id>/invite", data = "<body>")]
 pub fn invite_user_route(
     data: State<Data>,
@@ -903,7 +917,7 @@ pub fn sync_route(
     data: State<Data>,
     body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
-    std::thread::sleep(Duration::from_millis(200));
+    std::thread::sleep(Duration::from_millis(300));
     let next_batch = data.last_pdu_index().to_string();
 
     let mut joined_rooms = BTreeMap::new();
@@ -915,7 +929,8 @@ pub fn sync_route(
         .unwrap_or(0);
     for room_id in joined_roomids {
         let pdus = data.pdus_since(&room_id, since);
-        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
+        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect::<Vec<_>>();
+        let is_first_pdu = data.room_pdu_first(&room_id, since);
         let mut edus = data.roomlatests_since(&room_id, since);
         edus.extend_from_slice(&data.roomactives_in(&room_id));
 
@@ -933,8 +948,8 @@ pub fn sync_route(
                     notification_count: None,
                 },
                 timeline: sync_events::Timeline {
-                    limited: Some(false),
-                    prev_batch: Some("".to_owned()),
+                    limited: None,
+                    prev_batch: Some(since.to_string()),
                     events: room_events,
                 },
                 state: sync_events::State { events: Vec::new() },
@@ -957,7 +972,7 @@ pub fn sync_route(
                 account_data: sync_events::AccountData { events: Vec::new() },
                 timeline: sync_events::Timeline {
                     limited: Some(false),
-                    prev_batch: Some("".to_owned()),
+                    prev_batch: Some(next_batch.clone()),
                     events: room_events,
                 },
                 state: sync_events::State { events: Vec::new() },
@@ -993,6 +1008,34 @@ pub fn sync_route(
         device_one_time_keys_count: Default::default(),
         to_device: sync_events::ToDevice { events: Vec::new() },
     }))
+}
+
+#[get("/_matrix/client/r0/rooms/<_room_id>/messages", data = "<body>")]
+pub fn get_message_events_route(
+    data: State<Data>,
+    body: Ruma<get_message_events::Request>,
+    _room_id: String) -> MatrixResult<get_message_events::Response> {
+    if let get_message_events::Direction::Forward = body.dir {todo!();}
+
+    if let Ok(from) = body
+        .from
+        .clone()
+        .parse() {
+        let pdus = data.pdus_until(&body.room_id, from);
+        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect::<Vec<_>>();
+        MatrixResult(Ok(get_message_events::Response {
+            start: body.from.clone(),
+            end: "".to_owned(),
+            chunk: room_events,
+
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Invalid from.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }))
+    }
 }
 
 #[get("/_matrix/client/r0/voip/turnServer")]
