@@ -125,10 +125,10 @@ pub fn well_known_server(data: State<Data>) -> Json<String> {
 #[get("/_matrix/federation/v1/version")]
 pub fn get_server_version() -> MatrixResult<get_server_version::Response, Error> {
     MatrixResult(Ok(get_server_version::Response {
-        server: get_server_version::Server {
+        server: Some(get_server_version::Server {
             name: Some("Conduit".to_owned()),
             version: Some(env!("CARGO_PKG_VERSION").to_owned()),
-        },
+        }),
     }))
 }
 

@@ -781,8 +781,7 @@ pub async fn get_public_rooms_filtered_route(
             ruma_federation_api::v1::get_public_rooms::Request {
                 limit: Some(20_u32.into()),
                 since: None,
-                include_all_networks: None,
-                third_party_instance_id: None,
+                room_network: ruma_federation_api::v1::get_public_rooms::RoomNetwork::Matrix,
             },
         )
         .await
@@ -1024,10 +1023,10 @@ pub fn get_message_events_route(
         let pdus = data.pdus_until(&body.room_id, from);
         let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect::<Vec<_>>();
         MatrixResult(Ok(get_message_events::Response {
-            start: body.from.clone(),
-            end: "".to_owned(),
+            start: Some(body.from.clone()),
+            end: None,
             chunk: room_events,
-
+            state: Vec::new(),
         }))
     } else {
         MatrixResult(Err(Error {
