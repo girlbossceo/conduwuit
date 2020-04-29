@@ -71,8 +71,9 @@ pub struct Database {
     pub eventid_pduid: sled::Tree,
     pub roomid_pduleaves: MultiValue,
     pub roomstateid_pdu: sled::Tree, // Room + StateType + StateKey
-    pub roomid_userids: MultiValue,
-    pub userid_roomids: MultiValue,
+    pub roomid_joinuserids: MultiValue,
+    pub roomid_inviteuserids: MultiValue,
+    pub userid_joinroomids: MultiValue,
     pub userid_inviteroomids: MultiValue,
     pub userid_leftroomids: MultiValue,
     // EDUs:
@@ -115,8 +116,9 @@ impl Database {
             eventid_pduid: db.open_tree("eventid_pduid").unwrap(),
             roomid_pduleaves: MultiValue(db.open_tree("roomid_pduleaves").unwrap()),
             roomstateid_pdu: db.open_tree("roomstateid_pdu").unwrap(),
-            roomid_userids: MultiValue(db.open_tree("roomid_userids").unwrap()),
-            userid_roomids: MultiValue(db.open_tree("userid_roomids").unwrap()),
+            roomid_joinuserids: MultiValue(db.open_tree("roomid_joinuserids").unwrap()),
+            roomid_inviteuserids: MultiValue(db.open_tree("roomid_inviteuserids").unwrap()),
+            userid_joinroomids: MultiValue(db.open_tree("userid_joinroomids").unwrap()),
             userid_inviteroomids: MultiValue(db.open_tree("userid_inviteroomids").unwrap()),
             userid_leftroomids: MultiValue(db.open_tree("userid_leftroomids").unwrap()),
             roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest").unwrap(),
@@ -200,7 +202,7 @@ impl Database {
             );
         }
         println!("\n# RoomId -> UserIds:");
-        for (k, v) in self.roomid_userids.iter_all().map(|r| r.unwrap()) {
+        for (k, v) in self.roomid_joinuserids.iter_all().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
                 String::from_utf8_lossy(&k),
@@ -208,7 +210,7 @@ impl Database {
             );
         }
         println!("\n# UserId -> RoomIds:");
-        for (k, v) in self.userid_roomids.iter_all().map(|r| r.unwrap()) {
+        for (k, v) in self.userid_joinroomids.iter_all().map(|r| r.unwrap()) {
             println!(
                 "{:?} -> {:?}",
                 String::from_utf8_lossy(&k),

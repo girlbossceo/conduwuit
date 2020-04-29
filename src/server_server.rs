@@ -13,18 +13,21 @@ use std::{
 };
 
 pub async fn request_well_known(data: &crate::Data, destination: &str) -> Option<String> {
-    let body: serde_json::Value = serde_json::from_str(&data
-        .reqwest_client()
-        .get(&format!(
-            "https://{}/.well-known/matrix/server",
-            destination
-        ))
-        .send()
-        .await
-        .ok()?
-        .text()
-        .await
-        .ok()?).ok()?;
+    let body: serde_json::Value = serde_json::from_str(
+        &data
+            .reqwest_client()
+            .get(&format!(
+                "https://{}/.well-known/matrix/server",
+                destination
+            ))
+            .send()
+            .await
+            .ok()?
+            .text()
+            .await
+            .ok()?,
+    )
+    .ok()?;
     Some(body.get("m.server")?.as_str()?.to_owned())
 }
 
@@ -35,10 +38,11 @@ pub async fn send_request<T: Endpoint>(
 ) -> Option<T::Response> {
     let mut http_request: http::Request<_> = request.try_into().unwrap();
 
-    let actual_destination = "https://".to_owned() + &request_well_known(data, &destination).await.unwrap_or(destination.clone() + ":8448");
-    *http_request.uri_mut() = (actual_destination + T::METADATA.path)
-        .parse()
-        .unwrap();
+    let actual_destination = "https://".to_owned()
+        + &request_well_known(data, &destination)
+            .await
+            .unwrap_or(destination.clone() + ":8448");
+    *http_request.uri_mut() = (actual_destination + T::METADATA.path).parse().unwrap();
 
     let mut request_map = serde_json::Map::new();
 

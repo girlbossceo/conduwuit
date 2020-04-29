@@ -193,15 +193,19 @@ impl Data {
             return false;
         }
 
-        self.db.userid_roomids.add(
+        self.db.userid_joinroomids.add(
             user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes().into(),
         );
-        self.db.roomid_userids.add(
+        self.db.roomid_joinuserids.add(
             room_id.to_string().as_bytes(),
             user_id.to_string().as_bytes().into(),
         );
         self.db.userid_inviteroomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes(),
+        );
+        self.db.roomid_inviteuserids.remove_value(
             user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes(),
         );
@@ -232,7 +236,7 @@ impl Data {
 
     pub fn rooms_joined(&self, user_id: &UserId) -> Vec<RoomId> {
         self.db
-            .userid_roomids
+            .userid_joinroomids
             .get_iter(user_id.to_string().as_bytes())
             .values()
             .map(|room_id| {
@@ -282,9 +286,16 @@ impl Data {
         room_ids
     }
 
-    pub fn room_users(&self, room_id: &RoomId) -> u32 {
+    pub fn room_users_joined(&self, room_id: &RoomId) -> u32 {
         self.db
-            .roomid_userids
+            .roomid_joinuserids
+            .get_iter(room_id.to_string().as_bytes())
+            .count() as u32
+    }
+
+    pub fn room_users_invited(&self, room_id: &RoomId) -> u32 {
+        self.db
+            .roomid_inviteuserids
             .get_iter(room_id.to_string().as_bytes())
             .count() as u32
     }
@@ -324,11 +335,15 @@ impl Data {
             user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes().into(),
         );
-        self.db.userid_roomids.remove_value(
+        self.db.roomid_inviteuserids.remove_value(
             user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes().into(),
         );
-        self.db.roomid_userids.remove_value(
+        self.db.userid_joinroomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+        self.db.roomid_joinuserids.remove_value(
             room_id.to_string().as_bytes(),
             user_id.to_string().as_bytes().into(),
         );
@@ -358,7 +373,7 @@ impl Data {
             user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes().into(),
         );
-        self.db.roomid_userids.add(
+        self.db.roomid_inviteuserids.add(
             room_id.to_string().as_bytes(),
             user_id.to_string().as_bytes().into(),
         );

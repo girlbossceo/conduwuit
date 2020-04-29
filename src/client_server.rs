@@ -13,9 +13,10 @@ use ruma_client_api::{
         filter::{self, create_filter, get_filter},
         keys::{get_keys, upload_keys},
         membership::{
-            get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias, forget_room, leave_room,
+            forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
+            leave_room,
         },
-        message::{get_message_events, create_message_event},
+        message::{create_message_event, get_message_events},
         presence::set_presence,
         profile::{
             get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
@@ -673,16 +674,18 @@ pub fn join_room_by_id_or_alias_route(
 ) -> MatrixResult<join_room_by_id_or_alias::Response> {
     let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
         Ok(room_id) => room_id,
-        Err(room_alias) => if room_alias.server_name() == data.hostname() {
-            return MatrixResult(Err(Error {
-                kind: ErrorKind::NotFound,
-                message: "Room alias not found.".to_owned(),
-                status_code: http::StatusCode::NOT_FOUND,
-            }));
-        } else {
-            // Ask creator server of the room to join TODO ask someone else when not available
-            //server_server::send_request(data, destination, request)
-            todo!();
+        Err(room_alias) => {
+            if room_alias.server_name() == data.hostname() {
+                return MatrixResult(Err(Error {
+                    kind: ErrorKind::NotFound,
+                    message: "Room alias not found.".to_owned(),
+                    status_code: http::StatusCode::NOT_FOUND,
+                }));
+            } else {
+                // Ask creator server of the room to join TODO ask someone else when not available
+                //server_server::send_request(data, destination, request)
+                todo!();
+            }
         }
     };
 
@@ -762,7 +765,7 @@ pub async fn get_public_rooms_filtered_route(
                     .and_then(|s| s.content.get("name"))
                     .and_then(|n| n.as_str())
                     .map(|n| n.to_owned()),
-                num_joined_members: data.room_users(&room_id).into(),
+                num_joined_members: data.room_users_joined(&room_id).into(),
                 room_id,
                 topic: None,
                 world_readable: false,
@@ -917,19 +920,37 @@ pub fn sync_route(
     body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
     std::thread::sleep(Duration::from_millis(300));
+    let user_id = body.user_id.clone().expect("user is authenticated");
     let next_batch = data.last_pdu_index().to_string();
 
     let mut joined_rooms = BTreeMap::new();
-    let joined_roomids = data.rooms_joined(body.user_id.as_ref().expect("user is authenticated"));
+    let joined_roomids = data.rooms_joined(&user_id);
     let since = body
         .since
         .clone()
         .and_then(|string| string.parse().ok())
         .unwrap_or(0);
+
     for room_id in joined_roomids {
         let pdus = data.pdus_since(&room_id, since);
-        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect::<Vec<_>>();
-        let is_first_pdu = data.room_pdu_first(&room_id, since);
+
+        let mut send_member_count = false;
+        let mut send_full_state = false;
+        for pdu in &pdus {
+            if pdu.kind == EventType::RoomMember {
+                if pdu.state_key == Some(user_id.to_string()) && pdu.content["membership"] == "join"
+                {
+                    send_full_state = true;
+                }
+                send_member_count = true;
+            }
+        }
+
+        let room_events = pdus
+            .into_iter()
+            .map(|pdu| pdu.to_room_event())
+            .collect::<Vec<_>>();
+
         let mut edus = data.roomlatests_since(&room_id, since);
         edus.extend_from_slice(&data.roomactives_in(&room_id));
 
@@ -939,8 +960,16 @@ pub fn sync_route(
                 account_data: sync_events::AccountData { events: Vec::new() },
                 summary: sync_events::RoomSummary {
                     heroes: Vec::new(),
-                    joined_member_count: None,
-                    invited_member_count: None,
+                    joined_member_count: if send_member_count {
+                        Some(data.room_users_joined(&room_id).into())
+                    } else {
+                        None
+                    },
+                    invited_member_count: if send_member_count {
+                        Some(data.room_users_invited(&room_id).into())
+                    } else {
+                        None
+                    },
                 },
                 unread_notifications: sync_events::UnreadNotificationsCount {
                     highlight_count: None,
@@ -951,14 +980,24 @@ pub fn sync_route(
                     prev_batch: Some(since.to_string()),
                     events: room_events,
                 },
-                state: sync_events::State { events: Vec::new() },
+                // TODO: state before timeline
+                state: sync_events::State {
+                    events: if send_full_state {
+                        data.room_state(&room_id)
+                            .into_iter()
+                            .map(|(_, pdu)| pdu.to_state_event())
+                            .collect()
+                    } else {
+                        Vec::new()
+                    },
+                },
                 ephemeral: sync_events::Ephemeral { events: edus },
             },
         );
     }
 
     let mut left_rooms = BTreeMap::new();
-    let left_roomids = data.rooms_left(body.user_id.as_ref().expect("user is authenticated"));
+    let left_roomids = data.rooms_left(&user_id);
     for room_id in left_roomids {
         let pdus = data.pdus_since(&room_id, since);
         let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
@@ -980,7 +1019,7 @@ pub fn sync_route(
     }
 
     let mut invited_rooms = BTreeMap::new();
-    for room_id in data.rooms_invited(body.user_id.as_ref().expect("user is authenticated")) {
+    for room_id in data.rooms_invited(&user_id) {
         let events = data
             .pdus_since(&room_id, since)
             .into_iter()
@@ -1013,15 +1052,18 @@ pub fn sync_route(
 pub fn get_message_events_route(
     data: State<Data>,
     body: Ruma<get_message_events::Request>,
-    _room_id: String) -> MatrixResult<get_message_events::Response> {
-    if let get_message_events::Direction::Forward = body.dir {todo!();}
+    _room_id: String,
+) -> MatrixResult<get_message_events::Response> {
+    if let get_message_events::Direction::Forward = body.dir {
+        todo!();
+    }
 
-    if let Ok(from) = body
-        .from
-        .clone()
-        .parse() {
+    if let Ok(from) = body.from.clone().parse() {
         let pdus = data.pdus_until(&body.room_id, from);
-        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect::<Vec<_>>();
+        let room_events = pdus
+            .into_iter()
+            .map(|pdu| pdu.to_room_event())
+            .collect::<Vec<_>>();
         MatrixResult(Ok(get_message_events::Response {
             start: Some(body.from.clone()),
             end: None,
@@ -1058,7 +1100,9 @@ pub fn publicised_groups_route() -> MatrixResult<create_message_event::Response>
 }
 
 #[options("/<_segments..>")]
-pub fn options_route(_segments: rocket::http::uri::Segments) -> MatrixResult<create_message_event::Response> {
+pub fn options_route(
+    _segments: rocket::http::uri::Segments,
+) -> MatrixResult<create_message_event::Response> {
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "This is the options route.".to_owned(),

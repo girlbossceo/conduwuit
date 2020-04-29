@@ -5,10 +5,8 @@ use serde_json::{json, Value};
 use std::time::Duration;
 
 fn setup_client() -> Client {
-    Database::try_remove("temp");
-    let data = Data::load_or_create("temp");
-
-    let rocket = setup_rocket(data);
+    Database::try_remove("localhost");
+    let rocket = setup_rocket();
     Client::new(rocket).expect("valid rocket instance")
 }
 

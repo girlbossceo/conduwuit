@@ -1,6 +1,8 @@
 use js_int::UInt;
 use ruma_events::{
-    collections::all::RoomEvent, stripped::AnyStrippedStateEvent, EventJson, EventType,
+    collections::all::{RoomEvent, StateEvent},
+    stripped::AnyStrippedStateEvent,
+    EventJson, EventType,
 };
 use ruma_federation_api::EventHash;
 use ruma_identifiers::{EventId, RoomId, UserId};
@@ -39,12 +41,12 @@ impl PduEvent {
         serde_json::from_str::<EventJson<RoomEvent>>(&json).unwrap()
     }
 
-    pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEvent> {
-        // Can only fail in rare circumstances that won't ever happen here, see
-        // https://docs.rs/serde_json/1.0.50/serde_json/fn.to_string.html
+    pub fn to_state_event(&self) -> EventJson<StateEvent> {
         let json = serde_json::to_string(&self).unwrap();
-
-        // EventJson's deserialize implementation always returns `Ok(...)`
+        serde_json::from_str::<EventJson<StateEvent>>(&json).unwrap()
+    }
+    pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEvent> {
+        let json = serde_json::to_string(&self).unwrap();
         serde_json::from_str::<EventJson<AnyStrippedStateEvent>>(&json).unwrap()
     }
 }
