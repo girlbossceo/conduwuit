@@ -1058,7 +1058,7 @@ pub fn publicised_groups_route() -> MatrixResult<create_message_event::Response>
 }
 
 #[options("/<_segments..>")]
-pub fn options_route(_segments: PathBuf) -> MatrixResult<create_message_event::Response> {
+pub fn options_route(_segments: rocket::http::uri::Segments) -> MatrixResult<create_message_event::Response> {
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "This is the options route.".to_owned(),
