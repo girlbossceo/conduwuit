@@ -16,9 +16,9 @@ pub use database::Database;
 pub use pdu::PduEvent;
 pub use ruma_wrapper::{MatrixResult, Ruma};
 
-use rocket::routes;
+use rocket::{fairing::AdHoc, routes};
 
-fn setup_rocket(data: Data) -> rocket::Rocket {
+fn setup_rocket() -> rocket::Rocket {
     rocket::ignite()
         .mount(
             "/",
@@ -68,7 +68,12 @@ fn setup_rocket(data: Data) -> rocket::Rocket {
                 server_server::get_server_keys_deprecated,
             ],
         )
-        .manage(data)
+        .attach(AdHoc::on_attach("Config", |rocket| {
+            let hostname = rocket.config().get_str("hostname").unwrap_or("localhost");
+            let data = Data::load_or_create(&hostname);
+
+            Ok(rocket.manage(data))
+        }))
 }
 
 fn main() {
@@ -78,8 +83,5 @@ fn main() {
     }
     pretty_env_logger::init();
 
-    let data = Data::load_or_create("conduit.rs");
-    //data.debug();
-
-    setup_rocket(data).launch().unwrap();
+    setup_rocket().launch().unwrap();
 }

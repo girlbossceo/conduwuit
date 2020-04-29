@@ -1,6 +1,7 @@
 [global]
-address = "0.0.0.0"
+hostname = "conduit.rs"
 port = 14004
+address = "0.0.0.0"
 
 [global.tls]
 certs = "/etc/letsencrypt/live/matrixtesting.koesters.xyz/fullchain.pem"
