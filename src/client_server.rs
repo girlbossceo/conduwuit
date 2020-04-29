@@ -1,21 +1,21 @@
-use crate::{utils, Data, MatrixResult, Ruma};
+use crate::{server_server, utils, Data, MatrixResult, Ruma};
 
 use log::debug;
 use rocket::{get, options, post, put, State};
 use ruma_client_api::{
     error::{Error, ErrorKind},
     r0::{
-        account::{
-            register, AuthenticationFlow, UserInteractiveAuthenticationInfo,
-            UserInteractiveAuthenticationResponse,
-        },
+        account::register,
         alias::get_alias,
+        capabilities::get_capabilities,
         config::{get_global_account_data, set_global_account_data},
         directory::{self, get_public_rooms_filtered},
         filter::{self, create_filter, get_filter},
         keys::{get_keys, upload_keys},
-        membership::{invite_user, join_room_by_id, join_room_by_id_or_alias},
-        message::create_message_event,
+        membership::{
+            get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias, forget_room, leave_room,
+        },
+        message::{get_message_events, create_message_event},
         presence::set_presence,
         profile::{
             get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
@@ -28,15 +28,20 @@ use ruma_client_api::{
         sync::sync_events,
         thirdparty::get_protocols,
         typing::create_typing_event,
+        uiaa::{AuthFlow, UiaaInfo, UiaaResponse},
         user_directory::search_users,
     },
     unversioned::get_supported_versions,
 };
 use ruma_events::{collections::only::Event as EduEvent, EventType};
-use ruma_identifiers::{RoomId, RoomIdOrAliasId, UserId};
+use ruma_identifiers::{RoomId, UserId};
 use serde_json::json;
-use std::{collections::HashMap, convert::TryInto, path::PathBuf, time::Duration};
-use argon2::{Config, Variant};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    path::PathBuf,
+    time::{Duration, SystemTime},
+};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
@@ -46,8 +51,8 @@ const TOKEN_LENGTH: usize = 256;
 #[get("/_matrix/client/versions")]
 pub fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
     MatrixResult(Ok(get_supported_versions::Response {
-        versions: vec!["r0.6.0".to_owned()],
-        unstable_features: HashMap::new(),
+        versions: vec!["r0.5.0".to_owned(), "r0.6.0".to_owned()],
+        unstable_features: BTreeMap::new(),
     }))
 }
 
@@ -55,18 +60,17 @@ pub fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Re
 pub fn register_route(
     data: State<Data>,
     body: Ruma<register::Request>,
-) -> MatrixResult<register::Response, UserInteractiveAuthenticationResponse> {
+) -> MatrixResult<register::Response, UiaaResponse> {
     if body.auth.is_none() {
-        return MatrixResult(Err(UserInteractiveAuthenticationResponse::AuthResponse(
-            UserInteractiveAuthenticationInfo {
-                flows: vec![AuthenticationFlow {
-                    stages: vec!["m.login.dummy".to_owned()],
-                }],
-                completed: vec![],
-                params: json!({}),
-                session: Some(utils::random_string(SESSION_ID_LENGTH)),
-            },
-        )));
+        return MatrixResult(Err(UiaaResponse::AuthResponse(UiaaInfo {
+            flows: vec![AuthFlow {
+                stages: vec!["m.login.dummy".to_owned()],
+            }],
+            completed: vec![],
+            params: json!({}),
+            session: Some(utils::random_string(SESSION_ID_LENGTH)),
+            auth_error: None,
+        })));
     }
 
     // Validate user id
@@ -81,13 +85,11 @@ pub fn register_route(
     {
         Err(_) => {
             debug!("Username invalid");
-            return MatrixResult(Err(UserInteractiveAuthenticationResponse::MatrixError(
-                Error {
-                    kind: ErrorKind::InvalidUsername,
-                    message: "Username was invalid.".to_owned(),
-                    status_code: http::StatusCode::BAD_REQUEST,
-                },
-            )));
+            return MatrixResult(Err(UiaaResponse::MatrixError(Error {
+                kind: ErrorKind::InvalidUsername,
+                message: "Username was invalid.".to_owned(),
+                status_code: http::StatusCode::BAD_REQUEST,
+            })));
         }
         Ok(user_id) => user_id,
     };
@@ -95,13 +97,11 @@ pub fn register_route(
     // Check if username is creative enough
     if data.user_exists(&user_id) {
         debug!("ID already taken");
-        return MatrixResult(Err(UserInteractiveAuthenticationResponse::MatrixError(
-            Error {
-                kind: ErrorKind::UserInUse,
-                message: "Desired user ID is already taken.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            },
-        )));
+        return MatrixResult(Err(UiaaResponse::MatrixError(Error {
+            kind: ErrorKind::UserInUse,
+            message: "Desired user ID is already taken.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        })));
     }
 
     let password = body.password.clone().unwrap_or_default();
@@ -110,13 +110,11 @@ pub fn register_route(
         // Create user
         data.user_add(&user_id, &hash);
     } else {
-        return MatrixResult(Err(UserInteractiveAuthenticationResponse::MatrixError(
-            Error {
-                kind: ErrorKind::InvalidParam,
-                message: "Password did not meet requirements".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            },
-        )));
+        return MatrixResult(Err(UiaaResponse::MatrixError(Error {
+            kind: ErrorKind::InvalidParam,
+            message: "Password did not met requirements".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        })));
     }
 
     // Generate new device id if the user didn't specify one
@@ -158,8 +156,8 @@ pub fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResul
             }
             if let Ok(user_id) = (*username).try_into() {
                 if let Some(hash) = data.password_hash_get(&user_id) {
-                    let hash_matches = argon2::verify_encoded(&hash, password.as_bytes())
-                        .unwrap_or(false);
+                    let hash_matches =
+                        argon2::verify_encoded(&hash, password.as_bytes()).unwrap_or(false);
 
                     if hash_matches {
                         // Success!
@@ -219,11 +217,28 @@ pub fn login_route(data: State<Data>, body: Ruma<login::Request>) -> MatrixResul
     }))
 }
 
+#[get("/_matrix/client/r0/capabilities", data = "<body>")]
+pub fn get_capabilities_route(
+    body: Ruma<get_capabilities::Request>,
+) -> MatrixResult<get_capabilities::Response> {
+    // TODO
+    //let mut available = BTreeMap::new();
+    //available.insert("5".to_owned(), get_capabilities::RoomVersionStability::Unstable);
+
+    MatrixResult(Ok(get_capabilities::Response {
+        capabilities: get_capabilities::Capabilities {
+            change_password: None,
+            room_versions: None, //Some(get_capabilities::RoomVersionsCapability { default: "5".to_owned(), available }),
+            custom_capabilities: BTreeMap::new(),
+        },
+    }))
+}
+
 #[get("/_matrix/client/r0/pushrules")]
 pub fn get_pushrules_all_route() -> MatrixResult<get_pushrules_all::Response> {
     // TODO
     MatrixResult(Ok(get_pushrules_all::Response {
-        global: HashMap::new(),
+        global: BTreeMap::new(),
     }))
 }
 
@@ -313,8 +328,7 @@ pub fn set_displayname_route(
         if displayname == "" {
             data.displayname_remove(&user_id);
         } else {
-            data.displayname_set(&user_id, body.displayname.clone());
-            // TODO send a new m.room.member join event with the updated displayname
+            data.displayname_set(&user_id, displayname.clone());
             // TODO send a new m.presence event with the updated displayname
         }
     }
@@ -447,8 +461,8 @@ pub fn set_presence_route(
 pub fn get_keys_route(body: Ruma<get_keys::Request>) -> MatrixResult<get_keys::Response> {
     // TODO
     MatrixResult(Ok(get_keys::Response {
-        failures: HashMap::new(),
-        device_keys: HashMap::new(),
+        failures: BTreeMap::new(),
+        device_keys: BTreeMap::new(),
     }))
 }
 
@@ -459,7 +473,7 @@ pub fn upload_keys_route(
 ) -> MatrixResult<upload_keys::Response> {
     // TODO
     MatrixResult(Ok(upload_keys::Response {
-        one_time_key_counts: HashMap::new(),
+        one_time_key_counts: BTreeMap::new(),
     }))
 }
 
@@ -472,14 +486,14 @@ pub fn set_read_marker_route(
     let user_id = body.user_id.clone().expect("user is authenticated");
     // TODO: Fully read
     if let Some(event) = &body.read_receipt {
-        let mut user_receipts = HashMap::new();
+        let mut user_receipts = BTreeMap::new();
         user_receipts.insert(
             user_id.clone(),
             ruma_events::receipt::Receipt {
-                ts: Some(utils::millis_since_unix_epoch().try_into().unwrap()),
+                ts: Some(SystemTime::now()),
             },
         );
-        let mut receipt_content = HashMap::new();
+        let mut receipt_content = BTreeMap::new();
         receipt_content.insert(
             event.clone(),
             ruma_events::receipt::Receipts {
@@ -589,8 +603,6 @@ pub fn create_room_route(
         );
     }
 
-    dbg!(&*body);
-
     data.room_join(&room_id, &user_id);
 
     for user in &body.invite {
@@ -600,26 +612,34 @@ pub fn create_room_route(
     MatrixResult(Ok(create_room::Response { room_id }))
 }
 
-#[get("/_matrix/client/r0/directory/room/<room_alias>")]
-pub fn get_alias_route(room_alias: String) -> MatrixResult<get_alias::Response> {
+#[get("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
+pub fn get_alias_route(
+    data: State<Data>,
+    body: Ruma<get_alias::Request>,
+    _room_alias: String,
+) -> MatrixResult<get_alias::Response> {
     // TODO
-    let room_id = match &*room_alias {
-        "#room:localhost" => "!xclkjvdlfj:localhost",
-        _ => {
-            debug!("Room not found.");
-            return MatrixResult(Err(Error {
-                kind: ErrorKind::NotFound,
-                message: "Room not found.".to_owned(),
-                status_code: http::StatusCode::NOT_FOUND,
-            }));
+    let room_id = if body.room_alias.server_name() == data.hostname() {
+        match body.room_alias.alias() {
+            "conduit" => "!lgOCCXQKtXOAPlAlG5:conduit.rs",
+            _ => {
+                debug!("Room alias not found.");
+                return MatrixResult(Err(Error {
+                    kind: ErrorKind::NotFound,
+                    message: "Room not found.".to_owned(),
+                    status_code: http::StatusCode::NOT_FOUND,
+                }));
+            }
         }
+    } else {
+        todo!("ask remote server");
     }
     .try_into()
     .unwrap();
 
     MatrixResult(Ok(get_alias::Response {
         room_id,
-        servers: vec!["localhost".to_owned()],
+        servers: vec!["conduit.rs".to_owned()],
     }))
 }
 
@@ -651,20 +671,19 @@ pub fn join_room_by_id_or_alias_route(
     body: Ruma<join_room_by_id_or_alias::Request>,
     _room_id_or_alias: String,
 ) -> MatrixResult<join_room_by_id_or_alias::Response> {
-    let room_id = match &body.room_id_or_alias {
-        RoomIdOrAliasId::RoomAliasId(alias) => match alias.alias() {
-            "#room:localhost" => "!xclkjvdlfj:localhost".try_into().unwrap(),
-            _ => {
-                debug!("Room not found.");
-                return MatrixResult(Err(Error {
-                    kind: ErrorKind::NotFound,
-                    message: "Room not found.".to_owned(),
-                    status_code: http::StatusCode::NOT_FOUND,
-                }));
-            }
-        },
-
-        RoomIdOrAliasId::RoomId(id) => id.clone(),
+    let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
+        Ok(room_id) => room_id,
+        Err(room_alias) => if room_alias.server_name() == data.hostname() {
+            return MatrixResult(Err(Error {
+                kind: ErrorKind::NotFound,
+                message: "Room alias not found.".to_owned(),
+                status_code: http::StatusCode::NOT_FOUND,
+            }));
+        } else {
+            // Ask creator server of the room to join TODO ask someone else when not available
+            //server_server::send_request(data, destination, request)
+            todo!();
+        }
     };
 
     if data.room_join(
@@ -679,6 +698,28 @@ pub fn join_room_by_id_or_alias_route(
             status_code: http::StatusCode::NOT_FOUND,
         }))
     }
+}
+
+#[post("/_matrix/client/r0/rooms/<_room_id>/leave", data = "<body>")]
+pub fn leave_room_route(
+    data: State<Data>,
+    body: Ruma<leave_room::Request>,
+    _room_id: String,
+) -> MatrixResult<leave_room::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+    data.room_leave(&user_id, &body.room_id, &user_id);
+    MatrixResult(Ok(leave_room::Response))
+}
+
+#[post("/_matrix/client/r0/rooms/<_room_id>/forget", data = "<body>")]
+pub fn forget_room_route(
+    data: State<Data>,
+    body: Ruma<forget_room::Request>,
+    _room_id: String,
+) -> MatrixResult<forget_room::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+    data.room_forget(&body.room_id, &user_id);
+    MatrixResult(Ok(forget_room::Response))
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/invite", data = "<body>")]
@@ -704,8 +745,8 @@ pub fn invite_user_route(
 }
 
 #[post("/_matrix/client/r0/publicRooms", data = "<body>")]
-pub fn get_public_rooms_filtered_route(
-    data: State<Data>,
+pub async fn get_public_rooms_filtered_route(
+    data: State<'_, Data>,
     body: Ruma<get_public_rooms_filtered::Request>,
 ) -> MatrixResult<get_public_rooms_filtered::Response> {
     let mut chunk = data
@@ -714,7 +755,7 @@ pub fn get_public_rooms_filtered_route(
         .map(|room_id| {
             let state = data.room_state(&room_id);
             directory::PublicRoomsChunk {
-                aliases: None,
+                aliases: Vec::new(),
                 canonical_alias: None,
                 name: state
                     .get(&(EventType::RoomName, "".to_owned()))
@@ -732,6 +773,24 @@ pub fn get_public_rooms_filtered_route(
         .collect::<Vec<_>>();
 
     chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
+
+    chunk.extend_from_slice(
+        &server_server::send_request(
+            &data,
+            "privacytools.io".to_owned(),
+            ruma_federation_api::v1::get_public_rooms::Request {
+                limit: Some(20_u32.into()),
+                since: None,
+                room_network: ruma_federation_api::v1::get_public_rooms::RoomNetwork::Matrix,
+            },
+        )
+        .await
+        .unwrap()
+        .chunk
+        .into_iter()
+        .map(|c| serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap())
+        .collect::<Vec<_>>(),
+    );
 
     let total_room_count_estimate = (chunk.len() as u32).into();
 
@@ -763,13 +822,22 @@ pub fn search_users_route(
     }))
 }
 
+#[get("/_matrix/client/r0/rooms/<_room_id>/members", data = "<body>")]
+pub fn get_member_events_route(
+    body: Ruma<get_member_events::Request>,
+    _room_id: String,
+) -> MatrixResult<get_member_events::Response> {
+    // TODO
+    MatrixResult(Ok(get_member_events::Response { chunk: Vec::new() }))
+}
+
 #[get("/_matrix/client/r0/thirdparty/protocols", data = "<body>")]
 pub fn get_protocols_route(
     body: Ruma<get_protocols::Request>,
 ) -> MatrixResult<get_protocols::Response> {
     // TODO
     MatrixResult(Ok(get_protocols::Response {
-        protocols: HashMap::new(),
+        protocols: BTreeMap::new(),
     }))
 }
 
@@ -848,10 +916,10 @@ pub fn sync_route(
     data: State<Data>,
     body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
-    std::thread::sleep(Duration::from_millis(200));
+    std::thread::sleep(Duration::from_millis(300));
     let next_batch = data.last_pdu_index().to_string();
 
-    let mut joined_rooms = HashMap::new();
+    let mut joined_rooms = BTreeMap::new();
     let joined_roomids = data.rooms_joined(body.user_id.as_ref().expect("user is authenticated"));
     let since = body
         .since
@@ -860,7 +928,8 @@ pub fn sync_route(
         .unwrap_or(0);
     for room_id in joined_roomids {
         let pdus = data.pdus_since(&room_id, since);
-        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
+        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect::<Vec<_>>();
+        let is_first_pdu = data.room_pdu_first(&room_id, since);
         let mut edus = data.roomlatests_since(&room_id, since);
         edus.extend_from_slice(&data.roomactives_in(&room_id));
 
@@ -878,8 +947,8 @@ pub fn sync_route(
                     notification_count: None,
                 },
                 timeline: sync_events::Timeline {
-                    limited: Some(false),
-                    prev_batch: Some("".to_owned()),
+                    limited: None,
+                    prev_batch: Some(since.to_string()),
                     events: room_events,
                 },
                 state: sync_events::State { events: Vec::new() },
@@ -888,12 +957,34 @@ pub fn sync_route(
         );
     }
 
-    let mut invited_rooms = HashMap::new();
+    let mut left_rooms = BTreeMap::new();
+    let left_roomids = data.rooms_left(body.user_id.as_ref().expect("user is authenticated"));
+    for room_id in left_roomids {
+        let pdus = data.pdus_since(&room_id, since);
+        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect();
+        let mut edus = data.roomlatests_since(&room_id, since);
+        edus.extend_from_slice(&data.roomactives_in(&room_id));
+
+        left_rooms.insert(
+            room_id.clone().try_into().unwrap(),
+            sync_events::LeftRoom {
+                account_data: sync_events::AccountData { events: Vec::new() },
+                timeline: sync_events::Timeline {
+                    limited: Some(false),
+                    prev_batch: Some(next_batch.clone()),
+                    events: room_events,
+                },
+                state: sync_events::State { events: Vec::new() },
+            },
+        );
+    }
+
+    let mut invited_rooms = BTreeMap::new();
     for room_id in data.rooms_invited(body.user_id.as_ref().expect("user is authenticated")) {
         let events = data
             .pdus_since(&room_id, since)
             .into_iter()
-            .filter_map(|pdu| pdu.to_stripped_state_event())
+            .map(|pdu| pdu.to_stripped_state_event())
             .collect();
 
         invited_rooms.insert(
@@ -907,7 +998,7 @@ pub fn sync_route(
     MatrixResult(Ok(sync_events::Response {
         next_batch,
         rooms: sync_events::Rooms {
-            leave: Default::default(),
+            leave: left_rooms,
             join: joined_rooms,
             invite: invited_rooms,
         },
@@ -916,6 +1007,34 @@ pub fn sync_route(
         device_one_time_keys_count: Default::default(),
         to_device: sync_events::ToDevice { events: Vec::new() },
     }))
+}
+
+#[get("/_matrix/client/r0/rooms/<_room_id>/messages", data = "<body>")]
+pub fn get_message_events_route(
+    data: State<Data>,
+    body: Ruma<get_message_events::Request>,
+    _room_id: String) -> MatrixResult<get_message_events::Response> {
+    if let get_message_events::Direction::Forward = body.dir {todo!();}
+
+    if let Ok(from) = body
+        .from
+        .clone()
+        .parse() {
+        let pdus = data.pdus_until(&body.room_id, from);
+        let room_events = pdus.into_iter().map(|pdu| pdu.to_room_event()).collect::<Vec<_>>();
+        MatrixResult(Ok(get_message_events::Response {
+            start: Some(body.from.clone()),
+            end: None,
+            chunk: room_events,
+            state: Vec::new(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Invalid from.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }))
+    }
 }
 
 #[get("/_matrix/client/r0/voip/turnServer")]
@@ -939,7 +1058,7 @@ pub fn publicised_groups_route() -> MatrixResult<create_message_event::Response>
 }
 
 #[options("/<_segments..>")]
-pub fn options_route(_segments: PathBuf) -> MatrixResult<create_message_event::Response> {
+pub fn options_route(_segments: rocket::http::uri::Segments) -> MatrixResult<create_message_event::Response> {
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "This is the options route.".to_owned(),

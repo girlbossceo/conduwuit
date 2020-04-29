@@ -6,38 +6,22 @@ use rocket::{
     Outcome::*,
     Request, State,
 };
-use ruma_api::{
-    error::{FromHttpRequestError, FromHttpResponseError},
-    Endpoint, Outgoing,
-};
+use ruma_api::Endpoint;
 use ruma_identifiers::UserId;
-use std::{
-    convert::{TryFrom, TryInto},
-    io::Cursor,
-    ops::Deref,
-};
+use std::{convert::TryInto, io::Cursor, ops::Deref};
 use tokio::io::AsyncReadExt;
 
 const MESSAGE_LIMIT: u64 = 65535;
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
 /// first.
-pub struct Ruma<T: Outgoing> {
-    body: T::Incoming,
+pub struct Ruma<T> {
+    body: T,
     pub user_id: Option<UserId>,
     pub json_body: serde_json::Value,
 }
 
-impl<'a, T: Endpoint> FromData<'a> for Ruma<T>
-where
-    // We need to duplicate Endpoint's where clauses because the compiler is not smart enough yet.
-    // See https://github.com/rust-lang/rust/issues/54149
-    <T as Outgoing>::Incoming: TryFrom<http::Request<Vec<u8>>, Error = FromHttpRequestError>,
-    <T::Response as Outgoing>::Incoming: TryFrom<
-        http::Response<Vec<u8>>,
-        Error = FromHttpResponseError<<T as Endpoint>::ResponseError>,
-    >,
-{
+impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
     type Error = (); // TODO: Better error handling
     type Owned = Data;
     type Borrowed = Self::Owned;
@@ -95,7 +79,7 @@ where
             let http_request = http_request.body(body.clone()).unwrap();
             log::info!("{:?}", http_request);
 
-            match T::Incoming::try_from(http_request) {
+            match T::try_from(http_request) {
                 Ok(t) => Success(Ruma {
                     body: t,
                     user_id,
@@ -115,8 +99,8 @@ where
     }
 }
 
-impl<T: Outgoing> Deref for Ruma<T> {
-    type Target = T::Incoming;
+impl<T> Deref for Ruma<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         &self.body
@@ -178,5 +162,13 @@ where
             }
             Err(_) => Err(Status::InternalServerError),
         }
+    }
+}
+
+impl<T, E> Deref for MatrixResult<T, E> {
+    type Target = Result<T, E>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

@@ -20,17 +20,19 @@ A fast Matrix homeserver that's optimized for smaller, personal servers, instead
 - [x] Create room messages
 - [x] Sync room messages
 - [x] Join rooms, lookup room ids
-- [x] Basic Riot web support
-- [x] Riot room discovery
-- [x] Riot read receipts
+- [x] Riot web support
+- [x] Room discovery
+- [x] Read receipts
 - [x] Typing indications
 - [x] Invites, user search
 - [x] Password hashing
+- [ ] Basic federation
+- [ ] State resolution
+- [ ] Permission system
+- [ ] Notifications (push rules)
 - [ ] Riot presence
 - [ ] Proper room creation
 - [ ] Riot E2EE
-- [ ] Basic federation
-- [ ] State resolution
 
 #### How can I contribute?
 

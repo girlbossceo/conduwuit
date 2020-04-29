@@ -1,8 +1,7 @@
 use super::*;
-use rocket::{local::Client, http::Status};
-use serde_json::Value;
-use serde_json::json;
+use rocket::{http::Status, local::Client};
 use ruma_client_api::error::ErrorKind;
+use serde_json::{json, Value};
 use std::time::Duration;
 
 fn setup_client() -> Client {
@@ -19,7 +18,8 @@ async fn register_login() {
     let mut response = client
         .post("/_matrix/client/r0/register?kind=user")
         .body(registration_init())
-        .dispatch().await;
+        .dispatch()
+        .await;
     let body = serde_json::from_str::<Value>(&response.body_string().await.unwrap()).unwrap();
 
     assert_eq!(response.status().code, 401);
@@ -33,14 +33,16 @@ async fn login_after_register_correct_password() {
     let mut response = client
         .post("/_matrix/client/r0/register?kind=user")
         .body(registration_init())
-        .dispatch().await;
+        .dispatch()
+        .await;
     let body = serde_json::from_str::<Value>(&response.body_string().await.unwrap()).unwrap();
     let session = body["session"].clone();
 
     let response = client
         .post("/_matrix/client/r0/register?kind=user")
         .body(registration(session.as_str().unwrap()))
-        .dispatch().await;
+        .dispatch()
+        .await;
     assert_eq!(response.status().code, 200);
 
     let login_response = client
@@ -57,14 +59,16 @@ async fn login_after_register_incorrect_password() {
     let mut response = client
         .post("/_matrix/client/r0/register?kind=user")
         .body(registration_init())
-        .dispatch().await;
+        .dispatch()
+        .await;
     let body = serde_json::from_str::<Value>(&response.body_string().await.unwrap()).unwrap();
     let session = body["session"].clone();
 
     let response = client
         .post("/_matrix/client/r0/register?kind=user")
         .body(registration(session.as_str().unwrap()))
-        .dispatch().await;
+        .dispatch()
+        .await;
     assert_eq!(response.status().code, 200);
 
     let mut login_response = client
@@ -73,7 +77,15 @@ async fn login_after_register_incorrect_password() {
         .dispatch()
         .await;
     let body = serde_json::from_str::<Value>(&login_response.body_string().await.unwrap()).unwrap();
-    assert_eq!(body.as_object().unwrap().get("errcode").unwrap().as_str().unwrap(), "M_FORBIDDEN");
+    assert_eq!(
+        body.as_object()
+            .unwrap()
+            .get("errcode")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "M_FORBIDDEN"
+    );
     assert_eq!(login_response.status().code, 403);
 }
 
@@ -98,7 +110,8 @@ fn registration(session: &str) -> String {
         "device_id": "GHTYAJCE",
         "initial_device_display_name": "Jungle Phone",
         "inhibit_login": false
-    }).to_string()
+    })
+    .to_string()
 }
 
 fn login_with_password(password: &str) -> String {
@@ -110,5 +123,6 @@ fn login_with_password(password: &str) -> String {
         },
         "password": password,
         "initial_device_display_name": "Jungle Phone"
-    }).to_string()
+    })
+    .to_string()
 }

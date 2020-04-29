@@ -1,5 +1,5 @@
 use crate::{utils, Database, PduEvent};
-use ruma_events::{collections::only::Event as EduEvent, EventResult, EventType};
+use ruma_events::{collections::only::Event as EduEvent, EventJson, EventType};
 use ruma_federation_api::RoomV3Pdu;
 use ruma_identifiers::{EventId, RoomId, UserId};
 use serde_json::json;
@@ -10,21 +10,33 @@ use std::{
 
 pub struct Data {
     hostname: String,
+    reqwest_client: reqwest::Client,
     db: Database,
 }
 
 impl Data {
     /// Load an existing database or create a new one.
     pub fn load_or_create(hostname: &str) -> Self {
+        let db = Database::load_or_create(hostname);
         Self {
             hostname: hostname.to_owned(),
-            db: Database::load_or_create(hostname),
+            reqwest_client: reqwest::Client::new(),
+            db,
         }
     }
 
     /// Get the hostname of the server.
     pub fn hostname(&self) -> &str {
         &self.hostname
+    }
+
+    /// Get the hostname of the server.
+    pub fn reqwest_client(&self) -> &reqwest::Client {
+        &self.reqwest_client
+    }
+
+    pub fn keypair(&self) -> &ruma_signatures::Ed25519KeyPair {
+        &self.db.keypair
     }
 
     /// Check if a user has an account by looking for an assigned password.
@@ -79,11 +91,21 @@ impl Data {
     }
 
     /// Set a new displayname.
-    pub fn displayname_set(&self, user_id: &UserId, displayname: Option<String>) {
+    pub fn displayname_set(&self, user_id: &UserId, displayname: String) {
         self.db
             .userid_displayname
-            .insert(user_id.to_string(), &*displayname.unwrap_or_default())
+            .insert(user_id.to_string(), &*displayname)
             .unwrap();
+        for room_id in self.rooms_joined(user_id) {
+            self.pdu_append(
+                room_id.clone(),
+                user_id.clone(),
+                EventType::RoomMember,
+                json!({"membership": "join", "displayname": displayname}),
+                None,
+                Some(user_id.to_string()),
+            );
+        }
     }
 
     /// Get a the displayname of a user.
@@ -183,12 +205,24 @@ impl Data {
             user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes(),
         );
+        self.db.userid_leftroomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+
+        let mut content = json!({"membership": "join"});
+        if let Some(displayname) = self.displayname_get(user_id) {
+            content
+                .as_object_mut()
+                .unwrap()
+                .insert("displayname".to_owned(), displayname.into());
+        }
 
         self.pdu_append(
             room_id.clone(),
             user_id.clone(),
             EventType::RoomMember,
-            json!({"membership": "join"}),
+            content,
             None,
             Some(user_id.to_string()),
         );
@@ -277,6 +311,40 @@ impl Data {
         hashmap
     }
 
+    pub fn room_leave(&self, sender: &UserId, room_id: &RoomId, user_id: &UserId) {
+        self.pdu_append(
+            room_id.clone(),
+            sender.clone(),
+            EventType::RoomMember,
+            json!({"membership": "leave"}),
+            None,
+            Some(user_id.to_string()),
+        );
+        self.db.userid_inviteroomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+        self.db.userid_roomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+        self.db.roomid_userids.remove_value(
+            room_id.to_string().as_bytes(),
+            user_id.to_string().as_bytes().into(),
+        );
+        self.db.userid_leftroomids.add(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+    }
+
+    pub fn room_forget(&self, room_id: &RoomId, user_id: &UserId) {
+        self.db.userid_leftroomids.remove_value(
+            user_id.to_string().as_bytes(),
+            room_id.to_string().as_bytes().into(),
+        );
+    }
+
     pub fn room_invite(&self, sender: &UserId, room_id: &RoomId, user_id: &UserId) {
         self.pdu_append(
             room_id.clone(),
@@ -287,8 +355,12 @@ impl Data {
             Some(user_id.to_string()),
         );
         self.db.userid_inviteroomids.add(
-            &user_id.to_string().as_bytes(),
+            user_id.to_string().as_bytes(),
             room_id.to_string().as_bytes().into(),
+        );
+        self.db.roomid_userids.add(
+            room_id.to_string().as_bytes(),
+            user_id.to_string().as_bytes().into(),
         );
     }
 
@@ -299,6 +371,24 @@ impl Data {
             .values()
             .map(|key| RoomId::try_from(&*utils::string_from_bytes(&key.unwrap())).unwrap())
             .collect()
+    }
+
+    pub fn rooms_left(&self, user_id: &UserId) -> Vec<RoomId> {
+        self.db
+            .userid_leftroomids
+            .get_iter(&user_id.to_string().as_bytes())
+            .values()
+            .map(|key| RoomId::try_from(&*utils::string_from_bytes(&key.unwrap())).unwrap())
+            .collect()
+    }
+
+    pub fn room_pdu_first(&self, room_id: &RoomId, pdu_index: u64) -> bool {
+        let mut pdu_id = vec![b'd'];
+        pdu_id.extend_from_slice(room_id.to_string().as_bytes());
+        pdu_id.push(0xff);
+        pdu_id.extend_from_slice(&pdu_index.to_be_bytes());
+
+        self.db.pduid_pdu.get_lt(&pdu_id).unwrap().is_none()
     }
 
     pub fn pdu_get(&self, event_id: &EventId) -> Option<RoomV3Pdu> {
@@ -373,6 +463,17 @@ impl Data {
             .unwrap_or(0_u64)
             + 1;
 
+        let mut unsigned = unsigned.unwrap_or_default();
+        // TODO: Optimize this to not load the whole room state?
+        if let Some(state_key) = &state_key {
+            if let Some(prev_pdu) = self
+                .room_state(&room_id)
+                .get(&(event_type.clone(), state_key.clone()))
+            {
+                unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
+            }
+        }
+
         let mut pdu = PduEvent {
             event_id: EventId::try_from("$thiswillbefilledinlater").unwrap(),
             room_id: room_id.clone(),
@@ -386,7 +487,7 @@ impl Data {
             depth: depth.try_into().unwrap(),
             auth_events: Vec::new(),
             redacts: None,
-            unsigned: unsigned.unwrap_or_default(),
+            unsigned,
             hashes: ruma_federation_api::EventHash {
                 sha256: "aaa".to_owned(),
             },
@@ -400,6 +501,10 @@ impl Data {
                 .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are correct");
+
+        let mut pdu_json = serde_json::to_value(&pdu).unwrap();
+        ruma_signatures::hash_and_sign_event(self.hostname(), self.keypair(), &mut pdu_json)
+            .unwrap();
 
         self.pdu_leaves_replace(&room_id, &pdu.event_id);
 
@@ -422,9 +527,10 @@ impl Data {
         pdu_id.push(0xff); // Add delimiter so we don't find rooms starting with the same id
         pdu_id.extend_from_slice(&index.to_be_bytes());
 
-        let pdu_json = serde_json::to_string(&pdu).unwrap();
-
-        self.db.pduid_pdu.insert(&pdu_id, &*pdu_json).unwrap();
+        self.db
+            .pduid_pdu
+            .insert(&pdu_id, &*pdu_json.to_string())
+            .unwrap();
 
         self.db
             .eventid_pduid
@@ -434,10 +540,13 @@ impl Data {
         if let Some(state_key) = pdu.state_key {
             let mut key = room_id.to_string().as_bytes().to_vec();
             key.push(0xff);
-            key.extend_from_slice(dbg!(pdu.kind.to_string().as_bytes()));
+            key.extend_from_slice(pdu.kind.to_string().as_bytes());
             key.push(0xff);
             key.extend_from_slice(state_key.to_string().as_bytes());
-            self.db.roomstateid_pdu.insert(key, &*pdu_json).unwrap();
+            self.db
+                .roomstateid_pdu
+                .insert(key, &*pdu_json.to_string())
+                .unwrap();
         }
 
         pdu.event_id
@@ -473,6 +582,29 @@ impl Data {
         current.extend_from_slice(&since.to_be_bytes());
 
         while let Some((key, value)) = self.db.pduid_pdu.get_gt(&current).unwrap() {
+            if key.starts_with(&prefix) {
+                current = key.to_vec();
+                pdus.push(serde_json::from_slice(&value).expect("pdu in db is valid"));
+            } else {
+                break;
+            }
+        }
+
+        pdus
+    }
+
+    pub fn pdus_until(&self, room_id: &RoomId, until: u64) -> Vec<PduEvent> {
+        let mut pdus = Vec::new();
+
+        // Create the first part of the full pdu id
+        let mut prefix = vec![b'd'];
+        prefix.extend_from_slice(room_id.to_string().as_bytes());
+        prefix.push(0xff); // Add delimiter so we don't find rooms starting with the same id
+
+        let mut current = prefix.clone();
+        current.extend_from_slice(&until.to_be_bytes());
+
+        while let Some((key, value)) = self.db.pduid_pdu.get_lt(&current).unwrap() {
             if key.starts_with(&prefix) {
                 current = key.to_vec();
                 pdus.push(serde_json::from_slice(&value).expect("pdu in db is valid"));
@@ -541,7 +673,7 @@ impl Data {
     }
 
     /// Returns a vector of the most recent read_receipts in a room that happened after the event with id `since`.
-    pub fn roomlatests_since(&self, room_id: &RoomId, since: u64) -> Vec<EduEvent> {
+    pub fn roomlatests_since(&self, room_id: &RoomId, since: u64) -> Vec<EventJson<EduEvent>> {
         let mut room_latests = Vec::new();
 
         let mut prefix = room_id.to_string().as_bytes().to_vec();
@@ -554,10 +686,11 @@ impl Data {
             if key.starts_with(&prefix) {
                 current = key.to_vec();
                 room_latests.push(
-                    serde_json::from_slice::<EventResult<_>>(&value)
+                    serde_json::from_slice::<EventJson<EduEvent>>(&value)
                         .expect("room_latest in db is valid")
-                        .into_result()
-                        .expect("room_latest in db is valid"),
+                        .deserialize()
+                        .expect("room_latest in db is valid")
+                        .into(),
                 );
             } else {
                 break;
@@ -628,7 +761,7 @@ impl Data {
     }
 
     /// Returns a vector of the most recent read_receipts in a room that happened after the event with id `since`.
-    pub fn roomactives_in(&self, room_id: &RoomId) -> Vec<EduEvent> {
+    pub fn roomactives_in(&self, room_id: &RoomId) -> Vec<EventJson<EduEvent>> {
         let mut room_actives = Vec::new();
 
         let mut prefix = room_id.to_string().as_bytes().to_vec();
@@ -641,10 +774,11 @@ impl Data {
             if key.starts_with(&prefix) {
                 current = key.to_vec();
                 room_actives.push(
-                    serde_json::from_slice::<EventResult<_>>(&value)
+                    serde_json::from_slice::<EventJson<EduEvent>>(&value)
                         .expect("room_active in db is valid")
-                        .into_result()
-                        .expect("room_active in db is valid"),
+                        .deserialize()
+                        .expect("room_active in db is valid")
+                        .into(),
                 );
             } else {
                 break;
@@ -657,7 +791,8 @@ impl Data {
                     user_ids: Vec::new(),
                 },
                 room_id: None, // None because it can be inferred
-            })];
+            })
+            .into()];
         } else {
             room_actives
         }

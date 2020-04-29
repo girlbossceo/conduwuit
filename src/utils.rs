@@ -1,9 +1,9 @@
+use argon2::{Config, Variant};
 use rand::prelude::*;
 use std::{
     convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
-use argon2::{Config, Variant};
 
 pub fn millis_since_unix_epoch() -> u64 {
     SystemTime::now()
@@ -23,6 +23,13 @@ pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
     };
 
     Some(number.to_be_bytes().to_vec())
+}
+
+pub fn generate_keypair(old: Option<&[u8]>) -> Option<Vec<u8>> {
+    Some(
+        old.map(|s| s.to_vec())
+            .unwrap_or_else(|| ruma_signatures::Ed25519KeyPair::generate().unwrap()),
+    )
 }
 
 pub fn u64_from_bytes(bytes: &[u8]) -> u64 {
@@ -49,9 +56,5 @@ pub fn calculate_hash(password: &str) -> Result<String, argon2::Error> {
     };
 
     let salt = random_string(32);
-    argon2::hash_encoded(
-        password.as_bytes(),
-        salt.as_bytes(),
-        &hashing_config,
-    )
+    argon2::hash_encoded(password.as_bytes(), salt.as_bytes(), &hashing_config)
 }
