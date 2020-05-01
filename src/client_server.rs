@@ -8,10 +8,12 @@ use ruma_client_api::{
         account::register,
         alias::get_alias,
         capabilities::get_capabilities,
+        client_exchange::send_event_to_device,
         config::{get_global_account_data, set_global_account_data},
         directory::{self, get_public_rooms_filtered},
         filter::{self, create_filter, get_filter},
         keys::{get_keys, upload_keys},
+        media::get_media_config,
         membership::{
             forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
             leave_room,
@@ -21,7 +23,7 @@ use ruma_client_api::{
         profile::{
             get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
         },
-        push::get_pushrules_all,
+        push::{self, get_pushrules_all, set_pushrule, set_pushrule_enabled},
         read_marker::set_read_marker,
         room::create_room,
         session::{get_login_types, login},
@@ -40,7 +42,6 @@ use serde_json::json;
 use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
-    path::PathBuf,
     time::{Duration, SystemTime},
 };
 
@@ -238,9 +239,86 @@ pub fn get_capabilities_route(
 #[get("/_matrix/client/r0/pushrules")]
 pub fn get_pushrules_all_route() -> MatrixResult<get_pushrules_all::Response> {
     // TODO
-    MatrixResult(Ok(get_pushrules_all::Response {
-        global: BTreeMap::new(),
-    }))
+    let mut global = BTreeMap::new();
+    global.insert(
+        push::RuleKind::Underride,
+        vec![push::PushRule {
+            actions: vec![
+                push::Action::Notify,
+                push::Action::SetTweak {
+                    kind: push::TweakKind::Highlight,
+                    value: Some(false.into()),
+                },
+            ],
+            default: true,
+            enabled: true,
+            rule_id: ".m.rule.message".to_owned(),
+            conditions: Some(vec![push::PushCondition::EventMatch {
+                key: "type".to_owned(),
+                pattern: "m.room.message".to_owned(),
+            }]),
+            pattern: None,
+        }],
+    );
+    MatrixResult(Ok(get_pushrules_all::Response { global }))
+}
+
+#[put(
+    "/_matrix/client/r0/pushrules/<_scope>/<_kind>/<_rule_id>",
+    data = "<body>"
+)]
+pub fn set_pushrule_route(
+    data: State<Data>,
+    body: Ruma<set_pushrule::Request>,
+    _scope: String,
+    _kind: String,
+    _rule_id: String,
+) -> MatrixResult<set_pushrule::Response> {
+    // TODO
+    let user_id = body.user_id.clone().expect("user is authenticated");
+    data.room_userdata_update(
+        None,
+        &user_id,
+        EduEvent::PushRules(ruma_events::push_rules::PushRulesEvent {
+            content: ruma_events::push_rules::PushRulesEventContent {
+                global: ruma_events::push_rules::Ruleset {
+                    content: vec![],
+                    override_rules: vec![],
+                    room: vec![],
+                    sender: vec![],
+                    underride: vec![ruma_events::push_rules::ConditionalPushRule {
+                        actions: vec![
+                            ruma_events::push_rules::Action::Notify,
+                            ruma_events::push_rules::Action::SetTweak(
+                                ruma_events::push_rules::Tweak::Highlight { value: false },
+                            ),
+                        ],
+                        default: true,
+                        enabled: true,
+                        rule_id: ".m.rule.message".to_owned(),
+                        conditions: vec![ruma_events::push_rules::PushCondition::EventMatch(
+                            ruma_events::push_rules::EventMatchCondition {
+                                key: "type".to_owned(),
+                                pattern: "m.room.message".to_owned(),
+                            },
+                        )],
+                    }],
+                },
+            },
+        }),
+    );
+
+    MatrixResult(Ok(set_pushrule::Response))
+}
+
+#[put("/_matrix/client/r0/pushrules/<_scope>/<_kind>/<_rule_id>/enabled")]
+pub fn set_pushrule_enabled_route(
+    _scope: String,
+    _kind: String,
+    _rule_id: String,
+) -> MatrixResult<set_pushrule_enabled::Response> {
+    // TODO
+    MatrixResult(Ok(set_pushrule_enabled::Response))
 }
 
 #[get(
@@ -284,7 +362,6 @@ pub fn set_global_account_data_route(
     _user_id: String,
     _type: String,
 ) -> MatrixResult<set_global_account_data::Response> {
-    // TODO
     MatrixResult(Ok(set_global_account_data::Response))
 }
 
@@ -485,8 +562,20 @@ pub fn set_read_marker_route(
     _room_id: String,
 ) -> MatrixResult<set_read_marker::Response> {
     let user_id = body.user_id.clone().expect("user is authenticated");
-    // TODO: Fully read
+    data.room_userdata_update(
+        Some(&body.room_id),
+        &user_id,
+        EduEvent::FullyRead(ruma_events::fully_read::FullyReadEvent {
+            content: ruma_events::fully_read::FullyReadEventContent {
+                event_id: body.fully_read.clone(),
+            },
+            room_id: Some(body.room_id.clone()),
+        }),
+    );
+
     if let Some(event) = &body.read_receipt {
+        data.room_read_set(&body.room_id, &user_id, event);
+
         let mut user_receipts = BTreeMap::new();
         user_receipts.insert(
             user_id.clone(),
@@ -564,6 +653,8 @@ pub fn create_room_route(
         Some("".to_owned()),
     );
 
+    data.room_join(&room_id, &user_id);
+
     data.pdu_append(
         room_id.clone(),
         user_id.clone(),
@@ -603,8 +694,6 @@ pub fn create_room_route(
             Some("".to_owned()),
         );
     }
-
-    data.room_join(&room_id, &user_id);
 
     for user in &body.invite {
         data.room_invite(&user_id, &room_id, user);
@@ -855,17 +944,22 @@ pub fn create_message_event_route(
     _txn_id: String,
     body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+
     let mut unsigned = serde_json::Map::new();
     unsigned.insert("transaction_id".to_owned(), body.txn_id.clone().into());
 
-    let event_id = data.pdu_append(
-        body.room_id.clone(),
-        body.user_id.clone().expect("user is authenticated"),
-        body.event_type.clone(),
-        body.json_body.clone(),
-        Some(unsigned),
-        None,
-    );
+    let event_id = data
+        .pdu_append(
+            body.room_id.clone(),
+            user_id.clone(),
+            body.event_type.clone(),
+            body.json_body.clone(),
+            Some(unsigned),
+            None,
+        )
+        .expect("message events are always okay");
+
     MatrixResult(Ok(create_message_event::Response { event_id }))
 }
 
@@ -880,16 +974,21 @@ pub fn create_state_event_for_key_route(
     _state_key: String,
     body: Ruma<create_state_event_for_key::Request>,
 ) -> MatrixResult<create_state_event_for_key::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+
     // Reponse of with/without key is the same
-    let event_id = data.pdu_append(
+    if let Some(event_id) = data.pdu_append(
         body.room_id.clone(),
         body.user_id.clone().expect("user is authenticated"),
         body.event_type.clone(),
         body.json_body.clone(),
         None,
         Some(body.state_key.clone()),
-    );
-    MatrixResult(Ok(create_state_event_for_key::Response { event_id }))
+    ) {
+        MatrixResult(Ok(create_state_event_for_key::Response { event_id }))
+    } else {
+        panic!("TODO: error missing permissions");
+    }
 }
 
 #[put(
@@ -902,16 +1001,21 @@ pub fn create_state_event_for_empty_key_route(
     _event_type: String,
     body: Ruma<create_state_event_for_empty_key::Request>,
 ) -> MatrixResult<create_state_event_for_empty_key::Response> {
+    let user_id = body.user_id.clone().expect("user is authenticated");
+
     // Reponse of with/without key is the same
-    let event_id = data.pdu_append(
+    if let Some(event_id) = data.pdu_append(
         body.room_id.clone(),
         body.user_id.clone().expect("user is authenticated"),
         body.event_type.clone(),
-        body.json_body,
+        body.json_body.clone(),
         None,
         Some("".to_owned()),
-    );
-    MatrixResult(Ok(create_state_event_for_empty_key::Response { event_id }))
+    ) {
+        MatrixResult(Ok(create_state_event_for_empty_key::Response { event_id }))
+    } else {
+        panic!("TODO: error missing permissions");
+    }
 }
 
 #[get("/_matrix/client/r0/sync", data = "<body>")]
@@ -919,7 +1023,7 @@ pub fn sync_route(
     data: State<Data>,
     body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
-    std::thread::sleep(Duration::from_millis(300));
+    std::thread::sleep(Duration::from_millis(1500));
     let user_id = body.user_id.clone().expect("user is authenticated");
     let next_batch = data.last_pdu_index().to_string();
 
@@ -932,7 +1036,7 @@ pub fn sync_route(
         .unwrap_or(0);
 
     for room_id in joined_roomids {
-        let pdus = data.pdus_since(&room_id, since);
+        let mut pdus = data.pdus_since(&room_id, since);
 
         let mut send_member_count = false;
         let mut send_full_state = false;
@@ -946,6 +1050,25 @@ pub fn sync_route(
             }
         }
 
+        let notification_count = if let Some(last_read) = data.room_read_get(&room_id, &user_id) {
+            Some((data.pdus_since(&room_id, last_read).len() as u32).into())
+        } else {
+            None
+        };
+
+        // They /sync response doesn't always return all messages, so we say the output is
+        // limited unless there are enough events
+        let mut limited = true;
+        pdus = pdus.split_off(pdus.len().checked_sub(10).unwrap_or_else(|| {
+            limited = false;
+            0
+        }));
+
+        let prev_batch = pdus
+            .first()
+            .and_then(|e| data.pdu_get_count(&e.event_id))
+            .map(|c| c.to_string());
+
         let room_events = pdus
             .into_iter()
             .map(|pdu| pdu.to_room_event())
@@ -957,7 +1080,13 @@ pub fn sync_route(
         joined_rooms.insert(
             room_id.clone().try_into().unwrap(),
             sync_events::JoinedRoom {
-                account_data: sync_events::AccountData { events: Vec::new() },
+                account_data: sync_events::AccountData {
+                    events: data
+                        .room_userdata_since(Some(&room_id), &user_id, since)
+                        .into_iter()
+                        .map(|(_, v)| v)
+                        .collect(),
+                },
                 summary: sync_events::RoomSummary {
                     heroes: Vec::new(),
                     joined_member_count: if send_member_count {
@@ -973,11 +1102,11 @@ pub fn sync_route(
                 },
                 unread_notifications: sync_events::UnreadNotificationsCount {
                     highlight_count: None,
-                    notification_count: None,
+                    notification_count,
                 },
                 timeline: sync_events::Timeline {
-                    limited: None,
-                    prev_batch: Some(since.to_string()),
+                    limited: if limited { Some(limited) } else { None },
+                    prev_batch,
                     events: room_events,
                 },
                 // TODO: state before timeline
@@ -1042,6 +1171,13 @@ pub fn sync_route(
             invite: invited_rooms,
         },
         presence: sync_events::Presence { events: Vec::new() },
+        account_data: sync_events::AccountData {
+            events: data
+                .room_userdata_since(None, &user_id, since)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect(),
+        },
         device_lists: Default::default(),
         device_one_time_keys_count: Default::default(),
         to_device: sync_events::ToDevice { events: Vec::new() },
@@ -1059,14 +1195,23 @@ pub fn get_message_events_route(
     }
 
     if let Ok(from) = body.from.clone().parse() {
-        let pdus = data.pdus_until(&body.room_id, from);
+        let pdus = data.pdus_until(
+            &body.room_id,
+            from,
+            body.limit.map(|l| l.try_into().unwrap()).unwrap_or(10),
+        );
+        let prev_batch = pdus
+            .last()
+            .and_then(|e| data.pdu_get_count(&e.event_id))
+            .map(|c| c.to_string());
         let room_events = pdus
             .into_iter()
             .map(|pdu| pdu.to_room_event())
             .collect::<Vec<_>>();
+
         MatrixResult(Ok(get_message_events::Response {
             start: Some(body.from.clone()),
-            end: None,
+            end: prev_batch,
             chunk: room_events,
             state: Vec::new(),
         }))
@@ -1096,6 +1241,23 @@ pub fn publicised_groups_route() -> MatrixResult<create_message_event::Response>
         kind: ErrorKind::NotFound,
         message: "There are no publicised groups yet.".to_owned(),
         status_code: http::StatusCode::NOT_FOUND,
+    }))
+}
+
+#[put("/_matrix/client/r0/sendToDevice/<_event_type>/<_txn_id>")]
+pub fn send_event_to_device_route(
+    _event_type: String,
+    _txn_id: String,
+) -> MatrixResult<send_event_to_device::Response> {
+    // TODO
+    MatrixResult(Ok(send_event_to_device::Response))
+}
+
+#[get("/_matrix/media/r0/config")]
+pub fn get_media_config_route() -> MatrixResult<get_media_config::Response> {
+    // TODO
+    MatrixResult(Ok(get_media_config::Response {
+        upload_size: 0_u32.into(),
     }))
 }
 

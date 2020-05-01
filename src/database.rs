@@ -5,6 +5,8 @@ use std::fs::remove_dir_all;
 
 pub struct MultiValue(sled::Tree);
 
+pub const COUNTER: &str = "c";
+
 impl MultiValue {
     /// Get an iterator over all values.
     pub fn iter_all(&self) -> sled::Iter {
@@ -67,22 +69,24 @@ pub struct Database {
     pub userid_deviceids: MultiValue,
     pub userdeviceid_token: sled::Tree,
     pub token_userid: sled::Tree,
-    pub pduid_pdu: sled::Tree, // PduId = 'd' + RoomId + Since (global since counter is at 'n')
+    pub pduid_pdu: sled::Tree, // PduId = RoomId + Count
     pub eventid_pduid: sled::Tree,
     pub roomid_pduleaves: MultiValue,
     pub roomstateid_pdu: sled::Tree, // Room + StateType + StateKey
+    pub roomuserdataid_accountdata: sled::Tree, // RoomUserDataId = Room + User + Count + Type
+    pub roomuserid_lastread: sled::Tree, // RoomUserId = Room + User
     pub roomid_joinuserids: MultiValue,
     pub roomid_inviteuserids: MultiValue,
     pub userid_joinroomids: MultiValue,
     pub userid_inviteroomids: MultiValue,
     pub userid_leftroomids: MultiValue,
     // EDUs:
-    pub roomlatestid_roomlatest: sled::Tree, // Read Receipts, RoomLatestId = RoomId + Since + UserId TODO: Types
-    pub roomactiveid_roomactive: sled::Tree, // Typing, RoomActiveId = TimeoutTime + Since
-    pub globalallid_globalall: sled::Tree,   // ToDevice, GlobalAllId = UserId + Since
-    pub globallatestid_globallatest: sled::Tree, // Presence, GlobalLatestId = Since + Type + UserId
+    pub roomlatestid_roomlatest: sled::Tree, // Read Receipts, RoomLatestId = RoomId + Count + UserId TODO: Types
+    pub roomactiveid_roomactive: sled::Tree, // Typing, RoomActiveId = TimeoutTime + Count
+    pub globalallid_globalall: sled::Tree,   // ToDevice, GlobalAllId = UserId + Count
+    pub globallatestid_globallatest: sled::Tree, // Presence, GlobalLatestId = Count + Type + UserId
     pub keypair: ruma_signatures::Ed25519KeyPair,
-    _db: sled::Db,
+    pub global: sled::Db,
 }
 
 impl Database {
@@ -116,6 +120,8 @@ impl Database {
             eventid_pduid: db.open_tree("eventid_pduid").unwrap(),
             roomid_pduleaves: MultiValue(db.open_tree("roomid_pduleaves").unwrap()),
             roomstateid_pdu: db.open_tree("roomstateid_pdu").unwrap(),
+            roomuserdataid_accountdata: db.open_tree("roomuserdataid_accountdata").unwrap(),
+            roomuserid_lastread: db.open_tree("roomuserid_lastread").unwrap(),
             roomid_joinuserids: MultiValue(db.open_tree("roomid_joinuserids").unwrap()),
             roomid_inviteuserids: MultiValue(db.open_tree("roomid_inviteuserids").unwrap()),
             userid_joinroomids: MultiValue(db.open_tree("userid_joinroomids").unwrap()),
@@ -132,7 +138,7 @@ impl Database {
                 "key1".to_owned(),
             )
             .unwrap(),
-            _db: db,
+            global: db,
         }
     }
 
