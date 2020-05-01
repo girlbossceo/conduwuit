@@ -1080,13 +1080,13 @@ pub fn sync_route(
         joined_rooms.insert(
             room_id.clone().try_into().unwrap(),
             sync_events::JoinedRoom {
-                account_data: sync_events::AccountData {
+                account_data: Some(sync_events::AccountData {
                     events: data
                         .room_userdata_since(Some(&room_id), &user_id, since)
                         .into_iter()
                         .map(|(_, v)| v)
                         .collect(),
-                },
+                }),
                 summary: sync_events::RoomSummary {
                     heroes: Vec::new(),
                     joined_member_count: if send_member_count {
@@ -1136,7 +1136,7 @@ pub fn sync_route(
         left_rooms.insert(
             room_id.clone().try_into().unwrap(),
             sync_events::LeftRoom {
-                account_data: sync_events::AccountData { events: Vec::new() },
+                account_data: Some(sync_events::AccountData { events: Vec::new() }),
                 timeline: sync_events::Timeline {
                     limited: Some(false),
                     prev_batch: Some(next_batch.clone()),
