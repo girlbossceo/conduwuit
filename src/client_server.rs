@@ -1,11 +1,15 @@
-use crate::{server_server, utils, Data, MatrixResult, Ruma};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    time::{Duration, SystemTime},
+};
 
 use log::debug;
 use rocket::{get, options, post, put, State};
 use ruma_client_api::{
     error::{Error, ErrorKind},
     r0::{
-        account::register,
+        account::{get_username_availability, register},
         alias::get_alias,
         capabilities::get_capabilities,
         client_exchange::send_event_to_device,
@@ -39,11 +43,8 @@ use ruma_client_api::{
 use ruma_events::{collections::only::Event as EduEvent, EventType};
 use ruma_identifiers::{RoomId, UserId};
 use serde_json::json;
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-    time::{Duration, SystemTime},
-};
+
+use crate::{server_server, utils, Data, MatrixResult, Ruma};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
@@ -56,6 +57,41 @@ pub fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Re
         versions: vec!["r0.5.0".to_owned(), "r0.6.0".to_owned()],
         unstable_features: BTreeMap::new(),
     }))
+}
+
+#[get("/_matrix/client/r0/register/available", data = "<body>")]
+pub fn get_register_available_route(
+    data: State<Data>,
+    body: Ruma<get_username_availability::Request>,
+) -> MatrixResult<get_username_availability::Response> {
+    // Validate user id
+    let user_id: UserId =
+        match (*format!("@{}:{}", body.username.clone(), data.hostname())).try_into() {
+            Err(_) => {
+                debug!("Username invalid");
+                return MatrixResult(Err(Error {
+                    kind: ErrorKind::InvalidUsername,
+                    message: "Username was invalid.".to_owned(),
+                    status_code: http::StatusCode::BAD_REQUEST,
+                }));
+            }
+            Ok(user_id) => user_id,
+        };
+
+    // Check if username is creative enough
+    if data.user_exists(&user_id) {
+        debug!("ID already taken");
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::UserInUse,
+            message: "Desired user ID is already taken.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }));
+    }
+
+    // TODO add check for appservice namespaces
+
+    // If no if check is true we have an username that's available to be used.
+    MatrixResult(Ok(get_username_availability::Response { available: true }))
 }
 
 #[post("/_matrix/client/r0/register", data = "<body>")]

@@ -24,6 +24,7 @@ fn setup_rocket() -> rocket::Rocket {
             "/",
             routes![
                 client_server::get_supported_versions_route,
+                client_server::get_register_available_route,
                 client_server::register_route,
                 client_server::get_login_route,
                 client_server::login_route,
