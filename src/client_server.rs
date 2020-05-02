@@ -168,6 +168,39 @@ pub fn register_route(
     let token = utils::random_string(TOKEN_LENGTH);
     data.token_replace(&user_id, &device_id, token.clone());
 
+    // Initial data
+    data.room_userdata_update(
+        None,
+        &user_id,
+        EduEvent::PushRules(ruma_events::push_rules::PushRulesEvent {
+            content: ruma_events::push_rules::PushRulesEventContent {
+                global: ruma_events::push_rules::Ruleset {
+                    content: vec![],
+                    override_rules: vec![],
+                    room: vec![],
+                    sender: vec![],
+                    underride: vec![ruma_events::push_rules::ConditionalPushRule {
+                        actions: vec![
+                            ruma_events::push_rules::Action::Notify,
+                            ruma_events::push_rules::Action::SetTweak(
+                                ruma_events::push_rules::Tweak::Highlight { value: false },
+                            ),
+                        ],
+                        default: true,
+                        enabled: true,
+                        rule_id: ".m.rule.message".to_owned(),
+                        conditions: vec![ruma_events::push_rules::PushCondition::EventMatch(
+                            ruma_events::push_rules::EventMatchCondition {
+                                key: "type".to_owned(),
+                                pattern: "m.room.message".to_owned(),
+                            },
+                        )],
+                    }],
+                },
+            },
+        }),
+    );
+
     MatrixResult(Ok(register::Response {
         access_token: Some(token),
         user_id,

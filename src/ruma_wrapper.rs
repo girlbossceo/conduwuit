@@ -92,7 +92,7 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
                 }),
                 Err(e) => {
                     warn!("{:?}", e);
-                    Failure((Status::InternalServerError, ()))
+                    Failure((Status::BadRequest, ()))
                 }
             }
         })
