@@ -27,21 +27,21 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
     type Borrowed = Self::Owned;
 
     fn transform<'r>(
-        _req: &'r Request,
+        _req: &'r Request<'_>,
         data: Data,
     ) -> TransformFuture<'r, Self::Owned, Self::Error> {
         Box::pin(async move { Transform::Owned(Success(data)) })
     }
 
     fn from_data(
-        request: &'a Request,
+        request: &'a Request<'_>,
         outcome: Transformed<'a, Self>,
     ) -> FromDataFuture<'a, Self, Self::Error> {
         Box::pin(async move {
             let data = rocket::try_outcome!(outcome.owned());
 
             let user_id = if T::METADATA.requires_authentication {
-                let data = request.guard::<State<crate::Data>>().await.unwrap();
+                let db = request.guard::<State<'_, crate::Database>>().await.unwrap();
 
                 // Get token from header or query value
                 let token = match request
@@ -56,7 +56,7 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
                 };
 
                 // Check if token is valid
-                match data.user_from_token(&token) {
+                match db.users.find_from_token(&token).unwrap() {
                     // TODO: M_UNKNOWN_TOKEN
                     None => return Failure((Status::Unauthorized, ())),
                     Some(user_id) => Some(user_id),

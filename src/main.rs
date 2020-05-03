@@ -1,8 +1,9 @@
 #![feature(proc_macro_hygiene, decl_macro)]
+#![warn(rust_2018_idioms)]
 
 mod client_server;
-mod data;
 mod database;
+mod error;
 mod pdu;
 mod ruma_wrapper;
 mod server_server;
@@ -11,8 +12,8 @@ mod utils;
 #[cfg(test)]
 mod test;
 
-pub use data::Data;
 pub use database::Database;
+pub use error::{Error, Result};
 pub use pdu::PduEvent;
 pub use ruma_wrapper::{MatrixResult, Ruma};
 
@@ -75,7 +76,7 @@ fn setup_rocket() -> rocket::Rocket {
         )
         .attach(AdHoc::on_attach("Config", |rocket| {
             let hostname = rocket.config().get_str("hostname").unwrap_or("localhost");
-            let data = Data::load_or_create(&hostname);
+            let data = Database::load_or_create(&hostname);
 
             Ok(rocket.manage(data))
         }))
@@ -86,7 +87,6 @@ fn main() {
     if let Err(_) = std::env::var("RUST_LOG") {
         std::env::set_var("RUST_LOG", "warn");
     }
-    pretty_env_logger::init();
 
     setup_rocket().launch().unwrap();
 }

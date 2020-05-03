@@ -1,3 +1,4 @@
+use crate::Result;
 use argon2::{Config, Variant};
 use rand::prelude::*;
 use std::{
@@ -32,13 +33,15 @@ pub fn generate_keypair(old: Option<&[u8]>) -> Option<Vec<u8>> {
     )
 }
 
+/// Parses the bytes into an u64.
 pub fn u64_from_bytes(bytes: &[u8]) -> u64 {
     let array: [u8; 8] = bytes.try_into().expect("bytes are valid u64");
     u64::from_be_bytes(array)
 }
 
-pub fn string_from_bytes(bytes: &[u8]) -> String {
-    String::from_utf8(bytes.to_vec()).expect("bytes are valid utf8")
+/// Parses the bytes into a string.
+pub fn string_from_bytes(bytes: &[u8]) -> Result<String> {
+    Ok(String::from_utf8(bytes.to_vec())?)
 }
 
 pub fn random_string(length: usize) -> String {
@@ -49,7 +52,7 @@ pub fn random_string(length: usize) -> String {
 }
 
 /// Calculate a new hash for the given password
-pub fn calculate_hash(password: &str) -> Result<String, argon2::Error> {
+pub fn calculate_hash(password: &str) -> std::result::Result<String, argon2::Error> {
     let hashing_config = Config {
         variant: Variant::Argon2id,
         ..Default::default()

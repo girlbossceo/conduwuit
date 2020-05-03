@@ -1,8 +1,6 @@
 use super::*;
-use rocket::{http::Status, local::Client};
-use ruma_client_api::error::ErrorKind;
+use rocket::local::Client;
 use serde_json::{json, Value};
-use std::time::Duration;
 
 fn setup_client() -> Client {
     Database::try_remove("localhost");

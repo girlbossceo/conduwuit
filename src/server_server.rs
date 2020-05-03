@@ -1,7 +1,7 @@
-use crate::{Data, MatrixResult};
+use crate::{Database, MatrixResult};
 use http::header::{HeaderValue, AUTHORIZATION};
 use log::error;
-use rocket::{get, post, put, response::content::Json, State};
+use rocket::{get, response::content::Json, State};
 use ruma_api::Endpoint;
 use ruma_client_api::error::Error;
 use ruma_federation_api::{v1::get_server_version, v2::get_server_keys};
@@ -12,9 +12,9 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-pub async fn request_well_known(data: &crate::Data, destination: &str) -> Option<String> {
+pub async fn request_well_known(db: &crate::Database, destination: &str) -> Option<String> {
     let body: serde_json::Value = serde_json::from_str(
-        &data
+        &db.globals
             .reqwest_client()
             .get(&format!(
                 "https://{}/.well-known/matrix/server",
@@ -32,14 +32,14 @@ pub async fn request_well_known(data: &crate::Data, destination: &str) -> Option
 }
 
 pub async fn send_request<T: Endpoint>(
-    data: &crate::Data,
+    db: &crate::Database,
     destination: String,
     request: T,
 ) -> Option<T::Response> {
     let mut http_request: http::Request<_> = request.try_into().unwrap();
 
     let actual_destination = "https://".to_owned()
-        + &request_well_known(data, &destination)
+        + &request_well_known(db, &destination)
             .await
             .unwrap_or(destination.clone() + ":8448");
     *http_request.uri_mut() = (actual_destination + T::METADATA.path).parse().unwrap();
@@ -55,11 +55,11 @@ pub async fn send_request<T: Endpoint>(
 
     request_map.insert("method".to_owned(), T::METADATA.method.to_string().into());
     request_map.insert("uri".to_owned(), T::METADATA.path.into());
-    request_map.insert("origin".to_owned(), data.hostname().into());
+    request_map.insert("origin".to_owned(), db.globals.hostname().into());
     request_map.insert("destination".to_owned(), destination.into());
 
     let mut request_json = request_map.into();
-    ruma_signatures::sign_json(data.hostname(), data.keypair(), &mut request_json).unwrap();
+    ruma_signatures::sign_json(db.globals.hostname(), db.globals.keypair(), &mut request_json).unwrap();
 
     let signatures = request_json["signatures"]
         .as_object()
@@ -77,7 +77,7 @@ pub async fn send_request<T: Endpoint>(
             AUTHORIZATION,
             HeaderValue::from_str(&format!(
                 "X-Matrix origin={},key=\"{}\",sig=\"{}\"",
-                data.hostname(),
+                db.globals.hostname(),
                 s.0,
                 s.1
             ))
@@ -85,7 +85,7 @@ pub async fn send_request<T: Endpoint>(
         );
     }
 
-    let reqwest_response = data.reqwest_client().execute(http_request.into()).await;
+    let reqwest_response = db.globals.reqwest_client().execute(http_request.into()).await;
 
     // Because reqwest::Response -> http::Response is complicated:
     match reqwest_response {
@@ -120,7 +120,7 @@ pub async fn send_request<T: Endpoint>(
 }
 
 #[get("/.well-known/matrix/server")]
-pub fn well_known_server(data: State<Data>) -> Json<String> {
+pub fn well_known_server() -> Json<String> {
     rocket::response::content::Json(
         json!({ "m.server": "matrixtesting.koesters.xyz:14004"}).to_string(),
     )
@@ -137,17 +137,17 @@ pub fn get_server_version() -> MatrixResult<get_server_version::Response, Error>
 }
 
 #[get("/_matrix/key/v2/server")]
-pub fn get_server_keys(data: State<Data>) -> Json<String> {
+pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
     let mut verify_keys = BTreeMap::new();
     verify_keys.insert(
-        format!("ed25519:{}", data.keypair().version()),
+        format!("ed25519:{}", db.globals.keypair().version()),
         get_server_keys::VerifyKey {
-            key: base64::encode_config(data.keypair().public_key(), base64::STANDARD_NO_PAD),
+            key: base64::encode_config(db.globals.keypair().public_key(), base64::STANDARD_NO_PAD),
         },
     );
     let mut response = serde_json::from_slice(
         http::Response::try_from(get_server_keys::Response {
-            server_name: data.hostname().to_owned(),
+            server_name: db.globals.hostname().to_owned(),
             verify_keys,
             old_verify_keys: BTreeMap::new(),
             signatures: BTreeMap::new(),
@@ -157,11 +157,11 @@ pub fn get_server_keys(data: State<Data>) -> Json<String> {
         .body(),
     )
     .unwrap();
-    ruma_signatures::sign_json(data.hostname(), data.keypair(), &mut response).unwrap();
+    ruma_signatures::sign_json(db.globals.hostname(), db.globals.keypair(), &mut response).unwrap();
     Json(response.to_string())
 }
 
 #[get("/_matrix/key/v2/server/<_key_id>")]
-pub fn get_server_keys_deprecated(data: State<Data>, _key_id: String) -> Json<String> {
-    get_server_keys(data)
+pub fn get_server_keys_deprecated(db: State<'_, Database>, _key_id: String) -> Json<String> {
+    get_server_keys(db)
 }

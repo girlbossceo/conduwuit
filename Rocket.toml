@@ -1,6 +1,6 @@
 [global]
-hostname = "conduit.rs"
-port = 14004
+hostname = "matrixtesting.koesters.xyz:59003"
+port = 59003
 address = "0.0.0.0"
 
 [global.tls]
