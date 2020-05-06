@@ -1216,7 +1216,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.0.1"
-source = "git+https://github.com/ruma/ruma-federation-api.git#ccbf216f39bbbaa59131cc200eae5bd18aa1947c"
+source = "git+https://github.com/ruma/ruma-federation-api.git?rev=ccbf216f39bbbaa59131cc200eae5bd18aa1947c#ccbf216f39bbbaa59131cc200eae5bd18aa1947c"
 dependencies = [
  "js_int",
  "ruma-api",
@@ -1253,7 +1253,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.6.0-dev.1"
-source = "git+https://github.com/ruma/ruma-signatures.git#1ca545cba8dfd43e0fc8e3c18e1311fb73390a97"
+source = "git+https://github.com/ruma/ruma-signatures.git?rev=1ca545cba8dfd43e0fc8e3c18e1311fb73390a97#1ca545cba8dfd43e0fc8e3c18e1311fb73390a97"
 dependencies = [
  "base64 0.12.1",
  "ring",

@@ -66,7 +66,7 @@ pub fn get_register_available_route(
 ) -> MatrixResult<get_username_availability::Response> {
     // Validate user id
     let user_id: UserId =
-        match (*format!("@{}:{}", body.username.clone(), db.globals.hostname())).try_into() {
+        match (*format!("@{}:{}", body.username.clone(), db.globals.server_name())).try_into() {
             Err(_) => {
                 debug!("Username invalid");
                 return MatrixResult(Err(Error {
@@ -117,7 +117,7 @@ pub fn register_route(
         body.username
             .clone()
             .unwrap_or_else(|| utils::random_string(GUEST_NAME_LENGTH)),
-        db.globals.hostname()
+        db.globals.server_name()
     ))
     .try_into()
     {
@@ -229,7 +229,7 @@ pub fn login_route(
             (body.user.clone(), body.login_info.clone())
         {
             if !username.contains(':') {
-                username = format!("@{}:{}", username, db.globals.hostname());
+                username = format!("@{}:{}", username, db.globals.server_name());
             }
             if let Ok(user_id) = (*username).try_into() {
                 if let Some(hash) = db.users.password_hash(&user_id).unwrap() {
@@ -288,7 +288,7 @@ pub fn login_route(
     MatrixResult(Ok(login::Response {
         user_id,
         access_token: token,
-        home_server: Some(db.globals.hostname().to_owned()),
+        home_server: Some(db.globals.server_name().to_owned()),
         device_id,
         well_known: None,
     }))
@@ -769,7 +769,7 @@ pub fn create_room_route(
     body: Ruma<create_room::Request>,
 ) -> MatrixResult<create_room::Response> {
     // TODO: check if room is unique
-    let room_id = RoomId::try_from(db.globals.hostname()).expect("host is valid");
+    let room_id = RoomId::try_from(db.globals.server_name()).expect("host is valid");
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     db.rooms
@@ -858,7 +858,7 @@ pub fn get_alias_route(
     _room_alias: String,
 ) -> MatrixResult<get_alias::Response> {
     // TODO
-    let room_id = if body.room_alias.server_name() == db.globals.hostname() {
+    let room_id = if body.room_alias.server_name() == db.globals.server_name() {
         match body.room_alias.alias() {
             "conduit" => "!lgOCCXQKtXOAPlAlG5:conduit.rs",
             _ => {
@@ -923,7 +923,7 @@ pub fn join_room_by_id_or_alias_route(
     let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
         Ok(room_id) => room_id,
         Err(room_alias) => {
-            if room_alias.server_name() == db.globals.hostname() {
+            if room_alias.server_name() == db.globals.server_name() {
                 return MatrixResult(Err(Error {
                     kind: ErrorKind::NotFound,
                     message: "Room alias not found.".to_owned(),

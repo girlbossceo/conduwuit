@@ -55,12 +55,12 @@ pub async fn send_request<T: Endpoint>(
 
     request_map.insert("method".to_owned(), T::METADATA.method.to_string().into());
     request_map.insert("uri".to_owned(), T::METADATA.path.into());
-    request_map.insert("origin".to_owned(), db.globals.hostname().into());
+    request_map.insert("origin".to_owned(), db.globals.server_name().into());
     request_map.insert("destination".to_owned(), destination.into());
 
     let mut request_json = request_map.into();
     ruma_signatures::sign_json(
-        db.globals.hostname(),
+        db.globals.server_name(),
         db.globals.keypair(),
         &mut request_json,
     )
@@ -82,7 +82,7 @@ pub async fn send_request<T: Endpoint>(
             AUTHORIZATION,
             HeaderValue::from_str(&format!(
                 "X-Matrix origin={},key=\"{}\",sig=\"{}\"",
-                db.globals.hostname(),
+                db.globals.server_name(),
                 s.0,
                 s.1
             ))
@@ -156,7 +156,7 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
     );
     let mut response = serde_json::from_slice(
         http::Response::try_from(get_server_keys::Response {
-            server_name: db.globals.hostname().to_owned(),
+            server_name: db.globals.server_name().to_owned(),
             verify_keys,
             old_verify_keys: BTreeMap::new(),
             signatures: BTreeMap::new(),
@@ -166,7 +166,7 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
         .body(),
     )
     .unwrap();
-    ruma_signatures::sign_json(db.globals.hostname(), db.globals.keypair(), &mut response).unwrap();
+    ruma_signatures::sign_json(db.globals.server_name(), db.globals.keypair(), &mut response).unwrap();
     Json(response.to_string())
 }
 

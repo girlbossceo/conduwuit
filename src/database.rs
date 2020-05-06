@@ -7,6 +7,8 @@ pub(self) mod users;
 use directories::ProjectDirs;
 use std::fs::remove_dir_all;
 
+use rocket::Config;
+
 pub struct Database {
     pub globals: globals::Globals,
     pub users: users::Users,
@@ -18,26 +20,38 @@ pub struct Database {
 
 impl Database {
     /// Tries to remove the old database but ignores all errors.
-    pub fn try_remove(hostname: &str) {
+    pub fn try_remove(server_name: &str) {
         let mut path = ProjectDirs::from("xyz", "koesters", "conduit")
             .unwrap()
             .data_dir()
             .to_path_buf();
-        path.push(hostname);
+        path.push(server_name);
         let _ = remove_dir_all(path);
     }
 
     /// Load an existing database or create a new one.
-    pub fn load_or_create(hostname: &str) -> Self {
-        let mut path = ProjectDirs::from("xyz", "koesters", "conduit")
-            .unwrap()
-            .data_dir()
-            .to_path_buf();
-        path.push(hostname);
+    pub fn load_or_create(config: &Config) -> Self {
+        let server_name = config.get_str("server_name").unwrap_or("localhost");
+
+        let path = config
+            .get_str("database_path")
+            .map(|x| x.to_owned())
+            .unwrap_or_else(|_| {
+                let path = ProjectDirs::from("xyz", "koesters", "conduit")
+                    .unwrap()
+                    .data_dir()
+                    .join(server_name);
+                path.to_str().unwrap().to_owned()
+            });
+
         let db = sled::open(&path).unwrap();
+        log::info!("Opened sled database at {}", path);
 
         Self {
-            globals: globals::Globals::load(db.open_tree("global").unwrap(), hostname.to_owned()),
+            globals: globals::Globals::load(
+                db.open_tree("global").unwrap(),
+                server_name.to_owned(),
+            ),
             users: users::Users {
                 userid_password: db.open_tree("userid_password").unwrap(),
                 userdeviceids: db.open_tree("userdeviceids").unwrap(),

@@ -75,8 +75,7 @@ fn setup_rocket() -> rocket::Rocket {
             ],
         )
         .attach(AdHoc::on_attach("Config", |rocket| {
-            let hostname = rocket.config().get_str("hostname").unwrap_or("localhost");
-            let data = Database::load_or_create(&hostname);
+            let data = Database::load_or_create(&rocket.config());
 
             Ok(rocket.manage(data))
         }))

@@ -216,7 +216,7 @@ impl Rooms {
             event_id: EventId::try_from("$thiswillbefilledinlater").expect("we know this is valid"),
             room_id: room_id.clone(),
             sender: sender.clone(),
-            origin: globals.hostname().to_owned(),
+            origin: globals.server_name().to_owned(),
             origin_server_ts: utils::millis_since_unix_epoch()
                 .try_into()
                 .expect("this only fails many years in the future"),
@@ -245,8 +245,12 @@ impl Rooms {
         .expect("ruma's reference hashes are correct");
 
         let mut pdu_json = serde_json::to_value(&pdu)?;
-        ruma_signatures::hash_and_sign_event(globals.hostname(), globals.keypair(), &mut pdu_json)
-            .expect("our new event can be hashed and signed");
+        ruma_signatures::hash_and_sign_event(
+            globals.server_name(),
+            globals.keypair(),
+            &mut pdu_json,
+        )
+        .expect("our new event can be hashed and signed");
 
         self.replace_pdu_leaves(&room_id, &pdu.event_id)?;
 

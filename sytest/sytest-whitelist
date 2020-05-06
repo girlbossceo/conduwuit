@@ -1,0 +1,85 @@
+# Register endpoints implemented
+GET /register yields a set of flows
+POST /register can create a user
+POST /register downcases capitals in usernames
+POST /register rejects registration of usernames with '!'
+POST /register rejects registration of usernames with '"'
+POST /register rejects registration of usernames with ':'
+POST /register rejects registration of usernames with '?'
+POST /register rejects registration of usernames with '\'
+POST /register rejects registration of usernames with '@'
+POST /register rejects registration of usernames with '['
+POST /register rejects registration of usernames with ']'
+POST /register rejects registration of usernames with '{'
+POST /register rejects registration of usernames with '|'
+POST /register rejects registration of usernames with '}'
+POST /register rejects registration of usernames with '£'
+POST /register rejects registration of usernames with 'é'
+POST /register rejects registration of usernames with '\n'
+POST /register rejects registration of usernames with '''
+# Login endpoints implemented
+GET /login yields a set of flows
+POST /login can log in as a user
+POST /login returns the same device_id as that in the request
+POST /login can log in as a user with just the local part of the id
+POST /login as non-existing user is rejected
+POST /login wrong password is rejected
+# Room creation endpoints implemented
+POST /createRoom makes a public room
+POST /createRoom makes a private room
+POST /createRoom makes a private room with invites
+POST /createRoom makes a room with a name
+POST /createRoom makes a room with a topic
+Can /sync newly created room
+GET /rooms/:room_id/state/m.room.member/:user_id fetches my membership
+GET /rooms/:room_id/state/m.room.power_levels fetches powerlevels
+POST /join/:room_alias can join a room
+POST /join/:room_id can join a room
+POST /join/:room_id can join a room with custom content
+POST /join/:room_alias can join a room with custom content
+POST /rooms/:room_id/join can join a room
+POST /rooms/:room_id/leave can leave a room
+POST /rooms/:room_id/invite can send an invite
+POST /rooms/:room_id/ban can ban a user
+POST /rooms/:room_id/send/:event_type sends a message
+PUT /rooms/:room_id/send/:event_type/:txn_id sends a message
+PUT /rooms/:room_id/send/:event_type/:txn_id deduplicates the same txn id
+GET /rooms/:room_id/state/m.room.power_levels can fetch levels
+PUT /rooms/:room_id/state/m.room.power_levels can set levels
+PUT power_levels should not explode if the old power levels were empty
+Both GET and PUT work
+POST /rooms/:room_id/read_markers can create read marker
+User signups are forbidden from starting with '_'
+Request to logout with invalid an access token is rejected
+Request to logout without an access token is rejected
+Room creation reports m.room.create to myself
+Room creation reports m.room.member to myself
+Version responds 200 OK with valid structure
+PUT /profile/:user_id/displayname sets my name
+GET /profile/:user_id/displayname publicly accessible
+GET /device/{deviceId} gives a 404 for unknown devices
+PUT /device/{deviceId} gives a 404 for unknown devices
+After deactivating account, can't log in with an email
+Can create filter
+Should reject keys claiming to belong to a different user
+Can add account data
+Checking local federation server
+Alternative server names do not cause a routing loop
+Can read configuration endpoint
+AS cannot create users outside its own namespace
+Changing the actions of an unknown default rule fails with 404
+Changing the actions of an unknown rule fails with 404
+Trying to add push rule with invalid scope fails with 400
+Trying to add push rule with invalid template fails with 400
+Trying to add push rule with rule_id with slashes fails with 400
+Trying to add push rule with override rule without conditions fails with 400
+Trying to add push rule with underride rule without conditions fails with 400
+Trying to add push rule with condition without kind fails with 400
+Trying to add push rule with content rule without pattern fails with 400
+Trying to add push rule with no actions fails with 400
+Trying to add push rule with invalid action fails with 400
+Trying to get push rules with unknown rule_id fails with 404
+GET /events with non-numeric 'limit'
+GET /events with negative 'limit'
+GET /events with non-numeric 'timeout'
+Getting push rules doesn't corrupt the cache SYN-390

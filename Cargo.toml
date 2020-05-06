@@ -18,8 +18,8 @@ ruma-client-api = "0.8.0"
 ruma-identifiers = "0.16.1"
 ruma-api = "0.16.0"
 ruma-events = "0.21.0"
-ruma-signatures = { git = "https://github.com/ruma/ruma-signatures.git" }
-ruma-federation-api = { git = "https://github.com/ruma/ruma-federation-api.git" }
+ruma-signatures = { git = "https://github.com/ruma/ruma-signatures.git", rev = "1ca545cba8dfd43e0fc8e3c18e1311fb73390a97" }
+ruma-federation-api = { git = "https://github.com/ruma/ruma-federation-api.git", rev = "ccbf216f39bbbaa59131cc200eae5bd18aa1947c" }
 log = "0.4.8"
 sled = "0.31.0"
 directories = "2.0.2"
