@@ -6,7 +6,7 @@ pub struct Users {
     pub(super) userid_password: sled::Tree,
     pub(super) userid_displayname: sled::Tree,
     pub(super) userid_avatarurl: sled::Tree,
-    pub(super) userdeviceid: sled::Tree,
+    pub(super) userdeviceids: sled::Tree,
     pub(super) userdeviceid_token: sled::Tree,
     pub(super) token_userid: sled::Tree,
 }
@@ -63,18 +63,6 @@ impl Users {
         }
 
         Ok(())
-        /* TODO:
-        for room_id in self.rooms_joined(user_id) {
-            self.pdu_append(
-                room_id.clone(),
-                user_id.clone(),
-                EventType::RoomMember,
-                json!({"membership": "join", "displayname": displayname}),
-                None,
-                Some(user_id.to_string()),
-            );
-        }
-        */
     }
 
     /// Get a the avatar_url of a user.
@@ -108,7 +96,7 @@ impl Users {
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());
 
-        self.userdeviceid.insert(key, &[])?;
+        self.userdeviceids.insert(key, &[])?;
 
         self.set_token(user_id, device_id, token)?;
 
@@ -121,7 +109,7 @@ impl Users {
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());
 
-        if self.userdeviceid.get(&key)?.is_none() {
+        if self.userdeviceids.get(&key)?.is_none() {
             return Err(Error::BadRequest(
                 "Tried to set token for nonexistent device",
             ));

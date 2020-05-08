@@ -4,6 +4,7 @@ description = "A Matrix homeserver written in Rust"
 license = "AGPL-3.0"
 authors = ["timokoesters <timo@koesters.xyz>"]
 homepage = "https://conduit.rs"
+repository = "https://git.koesters.xyz/timo/conduit"
 readme = "README.md"
 version = "0.1.0"
 edition = "2018"
@@ -13,10 +14,10 @@ edition = "2018"
 [dependencies]
 rocket = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "async", features = ["tls"] }
 http = "0.2.1"
-ruma-client-api = { git = "https://github.com/ruma/ruma-client-api.git" }
-ruma-identifiers = { version = "0.16.0", features = ["rand"] }
-ruma-api = "0.16.0-rc.3"
-ruma-events = "0.21.0-beta.1"
+ruma-client-api = "0.8.0"
+ruma-identifiers = "0.16.1"
+ruma-api = "0.16.0"
+ruma-events = "0.21.0"
 ruma-signatures = { git = "https://github.com/ruma/ruma-signatures.git" }
 ruma-federation-api = { git = "https://github.com/ruma/ruma-federation-api.git" }
 log = "0.4.8"
@@ -29,5 +30,6 @@ tokio = { version = "0.2.20", features = ["macros"] }
 rand = "0.7.3"
 rust-argon2 = "0.8.2"
 reqwest = "0.10.4"
-base64 = "0.12.0"
+base64 = "0.12.1"
 thiserror = "1.0.16"
+ruma-common = "0.1.1"

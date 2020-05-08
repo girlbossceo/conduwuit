@@ -40,7 +40,7 @@ impl Database {
             globals: globals::Globals::load(db.open_tree("global").unwrap(), hostname.to_owned()),
             users: users::Users {
                 userid_password: db.open_tree("userid_password").unwrap(),
-                userdeviceid: db.open_tree("userdeviceid").unwrap(),
+                userdeviceids: db.open_tree("userdeviceids").unwrap(),
                 userid_displayname: db.open_tree("userid_displayname").unwrap(),
                 userid_avatarurl: db.open_tree("userid_avatarurl").unwrap(),
                 userdeviceid_token: db.open_tree("userdeviceid_token").unwrap(),
@@ -49,8 +49,8 @@ impl Database {
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {
                     roomuserid_lastread: db.open_tree("roomuserid_lastread").unwrap(),
-                    roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest").unwrap(),
-                    roomactiveid_roomactive: db.open_tree("roomactiveid_roomactive").unwrap(),
+                    roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest").unwrap(), // Read receipts
+                    roomactiveid_roomactive: db.open_tree("roomactiveid_roomactive").unwrap(), // Typing notifs
                 },
                 pduid_pdu: db.open_tree("pduid_pdu").unwrap(),
                 eventid_pduid: db.open_tree("eventid_pduid").unwrap(),

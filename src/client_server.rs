@@ -12,7 +12,7 @@ use ruma_client_api::{
         account::{get_username_availability, register},
         alias::get_alias,
         capabilities::get_capabilities,
-        client_exchange::send_event_to_device,
+        to_device::send_event_to_device,
         config::{get_global_account_data, set_global_account_data},
         directory::{self, get_public_rooms_filtered},
         filter::{self, create_filter, get_filter},
@@ -42,7 +42,7 @@ use ruma_client_api::{
 };
 use ruma_events::{collections::only::Event as EduEvent, EventType};
 use ruma_identifiers::{RoomId, UserId};
-use serde_json::json;
+use serde_json::{json, value::RawValue};
 
 use crate::{server_server, utils, Database, MatrixResult, Ruma};
 
@@ -105,7 +105,7 @@ pub fn register_route(
                 stages: vec!["m.login.dummy".to_owned()],
             }],
             completed: vec![],
-            params: json!({}),
+            params: RawValue::from_string("".to_owned()).unwrap(),
             session: Some(utils::random_string(SESSION_ID_LENGTH)),
             auth_error: None,
         })));
@@ -185,7 +185,7 @@ pub fn register_route(
                         actions: vec![
                             ruma_events::push_rules::Action::Notify,
                             ruma_events::push_rules::Action::SetTweak(
-                                ruma_events::push_rules::Tweak::Highlight { value: false },
+                                ruma_common::push::Tweak::Highlight(false),
                             ),
                         ],
                         default: true,
@@ -318,10 +318,7 @@ pub fn get_pushrules_all_route() -> MatrixResult<get_pushrules_all::Response> {
         vec![push::PushRule {
             actions: vec![
                 push::Action::Notify,
-                push::Action::SetTweak {
-                    kind: push::TweakKind::Highlight,
-                    value: Some(false.into()),
-                },
+                push::Action::SetTweak(ruma_common::push::Tweak::Highlight(false))
             ],
             default: true,
             enabled: true,
@@ -363,7 +360,7 @@ pub fn set_pushrule_route(
                         actions: vec![
                             ruma_events::push_rules::Action::Notify,
                             ruma_events::push_rules::Action::SetTweak(
-                                ruma_events::push_rules::Tweak::Highlight { value: false },
+                                ruma_common::push::Tweak::Highlight(false),
                             ),
                         ],
                         default: true,
@@ -467,8 +464,21 @@ pub fn set_displayname_route(
                 .users
                 .set_displayname(&user_id, Some(displayname.clone()))
                 .unwrap();
-            // TODO: send a new m.presence event with the updated displayname
         }
+
+        // Send a new membership event into all joined rooms
+        for room_id in db.rooms.rooms_joined(&user_id) {
+            db.rooms.append_pdu(
+                room_id.unwrap(),
+                user_id.clone(),
+                EventType::RoomMember,
+                json!({"membership": "join", "displayname": displayname}),
+                None,
+                Some(user_id.to_string()),
+                &db.globals
+            ).unwrap();
+        }
+        // TODO: send a new m.presence event
     } else {
         // Send error on None
         // Synapse returns a parsing error but the spec doesn't require this
@@ -734,7 +744,7 @@ pub fn create_room_route(
     body: Ruma<create_room::Request>,
 ) -> MatrixResult<create_room::Response> {
     // TODO: check if room is unique
-    let room_id = RoomId::new(db.globals.hostname()).expect("host is valid");
+    let room_id = RoomId::try_from(db.globals.hostname()).expect("host is valid");
     let user_id = body.user_id.clone().expect("user is authenticated");
 
     db
@@ -1104,7 +1114,7 @@ pub fn create_message_event_route(
         )
         .expect("message events are always okay");
 
-    MatrixResult(Ok(create_message_event::Response { event_id }))
+    MatrixResult(Ok(create_message_event::Response { event_id: Some(event_id) }))
 }
 
 #[put(
@@ -1134,7 +1144,7 @@ pub fn create_state_event_for_key_route(
         )
         .unwrap();
 
-    MatrixResult(Ok(create_state_event_for_key::Response { event_id }))
+    MatrixResult(Ok(create_state_event_for_key::Response { event_id: Some(event_id) }))
 }
 
 #[put(
@@ -1163,7 +1173,7 @@ pub fn create_state_event_for_empty_key_route(
         )
         .unwrap();
 
-    MatrixResult(Ok(create_state_event_for_empty_key::Response { event_id }))
+    MatrixResult(Ok(create_state_event_for_empty_key::Response { event_id: Some(event_id) }))
 }
 
 #[get("/_matrix/client/r0/sync", data = "<body>")]
@@ -1171,7 +1181,7 @@ pub fn sync_route(
     db: State<'_, Database>,
     body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
-    std::thread::sleep(Duration::from_millis(100));
+    std::thread::sleep(Duration::from_millis(1500));
     let user_id = body.user_id.clone().expect("user is authenticated");
     let next_batch = db.globals.current_count().unwrap().to_string();
 

@@ -17,7 +17,7 @@ pub struct Rooms {
     pub(super) pduid_pdu: sled::Tree, // PduId = RoomId + Count
     pub(super) eventid_pduid: sled::Tree,
     pub(super) roomid_pduleaves: sled::Tree,
-    pub(super) roomstateid_pdu: sled::Tree, // Room + StateType + StateKey
+    pub(super) roomstateid_pdu: sled::Tree, // RoomStateId = Room + StateType + StateKey
 
     pub(super) userroomid_joined: sled::Tree,
     pub(super) roomuserid_joined: sled::Tree,
@@ -29,11 +29,10 @@ pub struct Rooms {
 impl Rooms {
     /// Checks if a room exists.
     pub fn exists(&self, room_id: &RoomId) -> Result<bool> {
-        // Look for PDUs in that room.
-
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 
+        // Look for PDUs in that room.
         Ok(self
             .pduid_pdu
             .get_gt(&prefix)?
