@@ -59,7 +59,12 @@ pub async fn send_request<T: Endpoint>(
     request_map.insert("destination".to_owned(), destination.into());
 
     let mut request_json = request_map.into();
-    ruma_signatures::sign_json(db.globals.hostname(), db.globals.keypair(), &mut request_json).unwrap();
+    ruma_signatures::sign_json(
+        db.globals.hostname(),
+        db.globals.keypair(),
+        &mut request_json,
+    )
+    .unwrap();
 
     let signatures = request_json["signatures"]
         .as_object()
@@ -85,7 +90,11 @@ pub async fn send_request<T: Endpoint>(
         );
     }
 
-    let reqwest_response = db.globals.reqwest_client().execute(http_request.into()).await;
+    let reqwest_response = db
+        .globals
+        .reqwest_client()
+        .execute(http_request.into())
+        .await;
 
     // Because reqwest::Response -> http::Response is complicated:
     match reqwest_response {

@@ -1,4 +1,5 @@
 pub(self) mod account_data;
+pub(self) mod global_edus;
 pub(self) mod globals;
 pub(self) mod rooms;
 pub(self) mod users;
@@ -11,8 +12,7 @@ pub struct Database {
     pub users: users::Users,
     pub rooms: rooms::Rooms,
     pub account_data: account_data::AccountData,
-    //pub globalallid_globalall: sled::Tree, // ToDevice, GlobalAllId = UserId + Count
-    //pub globallatestid_globallatest: sled::Tree, // Presence, GlobalLatestId = Count + Type + UserId
+    pub global_edus: global_edus::GlobalEdus,
     pub _db: sled::Db,
 }
 
@@ -66,8 +66,10 @@ impl Database {
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: db.open_tree("roomuserdataid_accountdata").unwrap(),
             },
-            //globalallid_globalall: db.open_tree("globalallid_globalall").unwrap(),
-            //globallatestid_globallatest: db.open_tree("globallatestid_globallatest").unwrap(),
+            global_edus: global_edus::GlobalEdus {
+                //globalallid_globalall: db.open_tree("globalallid_globalall").unwrap(),
+                globallatestid_globallatest: db.open_tree("globallatestid_globallatest").unwrap(), // Presence
+            },
             _db: db,
         }
     }

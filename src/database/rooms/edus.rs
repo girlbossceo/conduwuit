@@ -79,14 +79,6 @@ impl RoomEdus {
             .map(|(_, v)| Ok(serde_json::from_slice(&v)?)))
     }
 
-    /// Returns a vector of the most recent read_receipts in a room that happened after the event with id `since`.
-    pub fn roomlatests_all(
-        &self,
-        room_id: &RoomId,
-    ) -> Result<impl Iterator<Item = Result<EventJson<EduEvent>>>> {
-        self.roomlatests_since(room_id, 0)
-    }
-
     /// Adds an event that will be saved until the `timeout` timestamp (e.g. typing notifications).
     pub fn roomactive_add(
         &self,
