@@ -105,7 +105,7 @@ pub fn register_route(
                 stages: vec!["m.login.dummy".to_owned()],
             }],
             completed: vec![],
-            params: RawValue::from_string("".to_owned()).unwrap(),
+            params: RawValue::from_string("{}".to_owned()).unwrap(),
             session: Some(utils::random_string(SESSION_ID_LENGTH)),
             auth_error: None,
         })));

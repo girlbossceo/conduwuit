@@ -44,11 +44,11 @@ impl Database {
                 userid_displayname: db.open_tree("userid_displayname").unwrap(),
                 userid_avatarurl: db.open_tree("userid_avatarurl").unwrap(),
                 userdeviceid_token: db.open_tree("userdeviceid_token").unwrap(),
-                token_userid: db.open_tree("token_userid").unwrap(),
+                token_userdeviceid: db.open_tree("token_userdeviceid").unwrap(),
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {
-                    roomuserid_lastread: db.open_tree("roomuserid_lastread").unwrap(),
+                    roomuserid_lastread: db.open_tree("roomuserid_lastread").unwrap(), // "Private" read receipt
                     roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest").unwrap(), // Read receipts
                     roomactiveid_roomactive: db.open_tree("roomactiveid_roomactive").unwrap(), // Typing notifs
                 },

@@ -8,7 +8,7 @@ pub struct Users {
     pub(super) userid_avatarurl: sled::Tree,
     pub(super) userdeviceids: sled::Tree,
     pub(super) userdeviceid_token: sled::Tree,
-    pub(super) token_userid: sled::Tree,
+    pub(super) token_userdeviceid: sled::Tree,
 }
 
 impl Users {
@@ -24,12 +24,23 @@ impl Users {
     }
 
     /// Find out which user an access token belongs to.
-    pub fn find_from_token(&self, token: &str) -> Result<Option<UserId>> {
-        self.token_userid.get(token)?.map_or(Ok(None), |bytes| {
-            utils::string_from_bytes(&bytes)
-                .and_then(|string| Ok(UserId::try_from(string)?))
-                .map(Some)
-        })
+    pub fn find_from_token(&self, token: &str) -> Result<Option<(UserId, String)>> {
+        self.token_userdeviceid
+            .get(token)?
+            .map_or(Ok(None), |bytes| {
+                let mut parts = bytes.split(|&b| b == 0xff);
+                let user_bytes = parts
+                    .next()
+                    .ok_or(Error::BadDatabase("token_userdeviceid value invalid"))?;
+                let device_bytes = parts
+                    .next()
+                    .ok_or(Error::BadDatabase("token_userdeviceid value invalid"))?;
+
+                Ok(Some((
+                    UserId::try_from(utils::string_from_bytes(&user_bytes)?)?,
+                    utils::string_from_bytes(&device_bytes)?,
+                )))
+            })
     }
 
     /// Returns an iterator over all users on this homeserver.
@@ -105,27 +116,25 @@ impl Users {
 
     /// Replaces the access token of one device.
     pub fn set_token(&self, user_id: &UserId, device_id: &str, token: &str) -> Result<()> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
-        key.push(0xff);
-        key.extend_from_slice(device_id.as_bytes());
+        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        userdeviceid.push(0xff);
+        userdeviceid.extend_from_slice(device_id.as_bytes());
 
-        if self.userdeviceids.get(&key)?.is_none() {
+        if self.userdeviceids.get(&userdeviceid)?.is_none() {
             return Err(Error::BadRequest(
                 "Tried to set token for nonexistent device",
             ));
         }
 
         // Remove old token
-        if let Some(old_token) = self.userdeviceid_token.get(&key)? {
-            self.token_userid.remove(old_token)?;
+        if let Some(old_token) = self.userdeviceid_token.get(&userdeviceid)? {
+            self.token_userdeviceid.remove(old_token)?;
             // It will be removed from userdeviceid_token by the insert later
         }
 
-        // Assign token to device_id
-        self.userdeviceid_token.insert(key, &*token)?;
-
-        // Assign token to user
-        self.token_userid.insert(token, &*user_id.to_string())?;
+        // Assign token to user device combination
+        self.userdeviceid_token.insert(&userdeviceid, &*token)?;
+        self.token_userdeviceid.insert(token, userdeviceid)?;
 
         Ok(())
     }

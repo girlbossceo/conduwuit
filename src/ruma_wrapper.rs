@@ -18,6 +18,7 @@ const MESSAGE_LIMIT: u64 = 65535;
 pub struct Ruma<T> {
     body: T,
     pub user_id: Option<UserId>,
+    pub device_id: Option<String>,
     pub json_body: serde_json::Value,
 }
 
@@ -40,7 +41,7 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
         Box::pin(async move {
             let data = rocket::try_outcome!(outcome.owned());
 
-            let user_id = if T::METADATA.requires_authentication {
+            let (user_id, device_id) = if T::METADATA.requires_authentication {
                 let db = request.guard::<State<'_, crate::Database>>().await.unwrap();
 
                 // Get token from header or query value
@@ -59,10 +60,11 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
                 match db.users.find_from_token(&token).unwrap() {
                     // TODO: M_UNKNOWN_TOKEN
                     None => return Failure((Status::Unauthorized, ())),
-                    Some(user_id) => Some(user_id),
+                    Some((user_id, device_id)) => (Some(user_id), Some(device_id)),
                 }
+
             } else {
-                None
+                (None, None)
             };
 
             let mut http_request = http::Request::builder()
@@ -83,6 +85,7 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
                 Ok(t) => Success(Ruma {
                     body: t,
                     user_id,
+                    device_id,
                     // TODO: Can we avoid parsing it again?
                     json_body: if !body.is_empty() {
                         serde_json::from_slice(&body).expect("Ruma already parsed it successfully")
