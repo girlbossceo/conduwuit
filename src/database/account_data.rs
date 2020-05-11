@@ -33,13 +33,12 @@ impl AccountData {
             .rev()
             .filter_map(|r| r.ok())
             .take_while(|key| key.starts_with(&prefix))
-            .filter(|key| {
+            .find(|key| {
                 key.split(|&b| b == 0xff)
                     .nth(1)
                     .filter(|&user| user == user_id.to_string().as_bytes())
                     .is_some()
             })
-            .next()
         {
             // This is the old room_latest
             self.roomuserdataid_accountdata.remove(old)?;

@@ -158,7 +158,6 @@ pub fn register_route(
     // Generate new device id if the user didn't specify one
     let device_id = body
         .device_id
-        .clone()
         .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
 
     // Generate new token for the device
@@ -276,7 +275,6 @@ pub fn login_route(
     // Generate new device id if the user didn't specify one
     let device_id = body
         .device_id
-        .clone()
         .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
 
     // Generate a new token for the device
@@ -347,7 +345,7 @@ pub fn set_pushrule_route(
     _rule_id: String,
 ) -> MatrixResult<set_pushrule::Response> {
     // TODO
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
     db.account_data
         .update(
             None,
@@ -448,7 +446,7 @@ pub fn set_displayname_route(
     body: Ruma<set_display_name::Request>,
     _user_id: String,
 ) -> MatrixResult<set_display_name::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     if let Some(displayname) = &body.displayname {
         // Some("") will clear the displayname
@@ -539,7 +537,7 @@ pub fn set_avatar_url_route(
     body: Ruma<set_avatar_url::Request>,
     _user_id: String,
 ) -> MatrixResult<set_avatar_url::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     if !body.avatar_url.starts_with("mxc://") {
         debug!("Request contains an invalid avatar_url.");
@@ -624,7 +622,7 @@ pub fn set_presence_route(
     body: Ruma<set_presence::Request>,
     _user_id: String,
 ) -> MatrixResult<set_presence::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     db.global_edus
         .update_globallatest(
@@ -670,7 +668,7 @@ pub fn set_read_marker_route(
     body: Ruma<set_read_marker::Request>,
     _room_id: String,
 ) -> MatrixResult<set_read_marker::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
     db.account_data
         .update(
             Some(&body.room_id),
@@ -739,7 +737,7 @@ pub fn create_typing_event_route(
     _room_id: String,
     _user_id: String,
 ) -> MatrixResult<create_typing_event::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
     let edu = EduEvent::Typing(ruma_events::typing::TypingEvent {
         content: ruma_events::typing::TypingEventContent {
             user_ids: vec![user_id.clone()],
@@ -772,7 +770,7 @@ pub fn create_room_route(
 ) -> MatrixResult<create_room::Response> {
     // TODO: check if room is unique
     let room_id = RoomId::try_from(db.globals.hostname()).expect("host is valid");
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     db.rooms
         .append_pdu(
@@ -890,7 +888,7 @@ pub fn join_room_by_id_route(
     body: Ruma<join_room_by_id::Request>,
     _room_id: String,
 ) -> MatrixResult<join_room_by_id::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     if db
         .rooms
@@ -920,7 +918,7 @@ pub fn join_room_by_id_or_alias_route(
     body: Ruma<join_room_by_id_or_alias::Request>,
     _room_id_or_alias: String,
 ) -> MatrixResult<join_room_by_id_or_alias::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
         Ok(room_id) => room_id,
@@ -965,7 +963,7 @@ pub fn leave_room_route(
     body: Ruma<leave_room::Request>,
     _room_id: String,
 ) -> MatrixResult<leave_room::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
     db.rooms
         .leave(&user_id, &body.room_id, &user_id, &db.globals)
         .unwrap();
@@ -978,7 +976,7 @@ pub fn forget_room_route(
     body: Ruma<forget_room::Request>,
     _room_id: String,
 ) -> MatrixResult<forget_room::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
     db.rooms.forget(&body.room_id, &user_id).unwrap();
     MatrixResult(Ok(forget_room::Response))
 }
@@ -1112,7 +1110,7 @@ pub fn create_message_event_route(
     _txn_id: String,
     body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     let mut unsigned = serde_json::Map::new();
     unsigned.insert("transaction_id".to_owned(), body.txn_id.clone().into());
@@ -1146,14 +1144,14 @@ pub fn create_state_event_for_key_route(
     _state_key: String,
     body: Ruma<create_state_event_for_key::Request>,
 ) -> MatrixResult<create_state_event_for_key::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     // Reponse of with/without key is the same
     let event_id = db
         .rooms
         .append_pdu(
             body.room_id.clone(),
-            user_id,
+            user_id.clone(),
             body.event_type.clone(),
             body.json_body.clone(),
             None,
@@ -1177,14 +1175,14 @@ pub fn create_state_event_for_empty_key_route(
     _event_type: String,
     body: Ruma<create_state_event_for_empty_key::Request>,
 ) -> MatrixResult<create_state_event_for_empty_key::Response> {
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     // Reponse of with/without key is the same
     let event_id = db
         .rooms
         .append_pdu(
             body.room_id.clone(),
-            user_id,
+            user_id.clone(),
             body.event_type.clone(),
             body.json_body.clone(),
             None,
@@ -1204,7 +1202,7 @@ pub fn sync_route(
     body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
     std::thread::sleep(Duration::from_millis(1500));
-    let user_id = body.user_id.clone().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
     let next_batch = db.globals.current_count().unwrap().to_string();
 
     let mut joined_rooms = BTreeMap::new();
@@ -1344,10 +1342,7 @@ pub fn sync_route(
     for room_id in db.rooms.rooms_left(&user_id) {
         let room_id = room_id.unwrap();
         let pdus = db.rooms.pdus_since(&room_id, since).unwrap();
-        let room_events = pdus
-            .into_iter()
-            .map(|pdu| pdu.unwrap().to_room_event())
-            .collect();
+        let room_events = pdus.map(|pdu| pdu.unwrap().to_room_event()).collect();
 
         let mut edus = db
             .rooms
@@ -1380,7 +1375,6 @@ pub fn sync_route(
             .rooms
             .pdus_since(&room_id, since)
             .unwrap()
-            .into_iter()
             .map(|pdu| pdu.unwrap().to_stripped_state_event())
             .collect();
 

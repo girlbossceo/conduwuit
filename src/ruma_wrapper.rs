@@ -62,7 +62,6 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
                     None => return Failure((Status::Unauthorized, ())),
                     Some((user_id, device_id)) => (Some(user_id), Some(device_id)),
                 }
-
             } else {
                 (None, None)
             };

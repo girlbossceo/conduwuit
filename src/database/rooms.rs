@@ -261,14 +261,14 @@ impl Rooms {
         self.pduid_pdu.insert(&pdu_id, &*pdu_json.to_string())?;
 
         self.eventid_pduid
-            .insert(pdu.event_id.to_string(), pdu_id.clone())?;
+            .insert(pdu.event_id.to_string(), pdu_id)?;
 
         if let Some(state_key) = pdu.state_key {
             let mut key = room_id.to_string().as_bytes().to_vec();
             key.push(0xff);
             key.extend_from_slice(pdu.kind.to_string().as_bytes());
             key.push(0xff);
-            key.extend_from_slice(state_key.to_string().as_bytes());
+            key.extend_from_slice(state_key.as_bytes());
             self.roomstateid_pdu.insert(key, &*pdu_json.to_string())?;
         }
 
