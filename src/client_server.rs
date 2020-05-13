@@ -65,9 +65,12 @@ pub fn get_register_available_route(
     body: Ruma<get_username_availability::Request>,
 ) -> MatrixResult<get_username_availability::Response> {
     // Validate user id
-    let user_id: UserId =
-        match (*format!("@{}:{}", body.username.clone(), db.globals.server_name())).try_into() {
-            Err(_) => {
+    let user_id =
+        match UserId::parse_with_server_name(body.username.clone(), db.globals.server_name())
+            .ok()
+            .filter(|user_id| !user_id.is_historical())
+        {
+            None => {
                 debug!("Username invalid");
                 return MatrixResult(Err(Error {
                     kind: ErrorKind::InvalidUsername,
@@ -75,7 +78,7 @@ pub fn get_register_available_route(
                     status_code: http::StatusCode::BAD_REQUEST,
                 }));
             }
-            Ok(user_id) => user_id,
+            Some(user_id) => user_id,
         };
 
     // Check if username is creative enough
@@ -112,16 +115,16 @@ pub fn register_route(
     }
 
     // Validate user id
-    let user_id: UserId = match (*format!(
-        "@{}:{}",
+    let user_id = match UserId::parse_with_server_name(
         body.username
             .clone()
             .unwrap_or_else(|| utils::random_string(GUEST_NAME_LENGTH)),
-        db.globals.server_name()
-    ))
-    .try_into()
+        db.globals.server_name(),
+    )
+    .ok()
+    .filter(|user_id| !user_id.is_historical())
     {
-        Err(_) => {
+        None => {
             debug!("Username invalid");
             return MatrixResult(Err(UiaaResponse::MatrixError(Error {
                 kind: ErrorKind::InvalidUsername,
@@ -129,7 +132,7 @@ pub fn register_route(
                 status_code: http::StatusCode::BAD_REQUEST,
             })));
         }
-        Ok(user_id) => user_id,
+        Some(user_id) => user_id,
     };
 
     // Check if username is creative enough
