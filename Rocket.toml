@@ -1,8 +1,8 @@
 [global]
-hostname = "matrixtesting.koesters.xyz:59003"
-port = 59003
+server_name = "your.server.name"
+port = 8448
 address = "0.0.0.0"
 
-[global.tls]
-certs = "/etc/letsencrypt/live/matrixtesting.koesters.xyz/fullchain.pem"
-key = "/etc/letsencrypt/live/matrixtesting.koesters.xyz/privkey.pem"
+#[global.tls]
+#certs = "/etc/letsencrypt/live/your.server.name/fullchain.pem"
+#key = "/etc/letsencrypt/live/your.server.name/privkey.pem"
