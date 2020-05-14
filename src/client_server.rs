@@ -772,7 +772,7 @@ pub fn create_room_route(
     body: Ruma<create_room::Request>,
 ) -> MatrixResult<create_room::Response> {
     // TODO: check if room is unique
-    let room_id = RoomId::try_from(db.globals.server_name()).expect("host is valid");
+    let room_id = RoomId::new(db.globals.server_name()).expect("host is valid");
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     db.rooms
@@ -1039,6 +1039,7 @@ pub async fn get_public_rooms_filtered_route(
 
     chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 
+    /*
     chunk.extend_from_slice(
         &server_server::send_request(
             &db,
@@ -1056,6 +1057,7 @@ pub async fn get_public_rooms_filtered_route(
         .map(|c| serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap())
         .collect::<Vec<_>>(),
     );
+    */
 
     let total_room_count_estimate = (chunk.len() as u32).into();
 

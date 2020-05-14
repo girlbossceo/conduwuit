@@ -83,8 +83,8 @@ fn setup_rocket() -> rocket::Rocket {
 
 fn main() {
     // Log info by default
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "warn");
+    if std::env::var("ROCKET_LOG").is_err() {
+        std::env::set_var("ROCKET_LOG", "critical");
     }
 
     setup_rocket().launch().unwrap();
