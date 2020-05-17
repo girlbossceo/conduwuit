@@ -14,9 +14,14 @@ impl AccountData {
         room_id: Option<&RoomId>,
         user_id: &UserId,
         kind: &EventType,
-        data: serde_json::Value,
+        json: &mut serde_json::Map<String, serde_json::Value>,
         globals: &super::globals::Globals,
     ) -> Result<()> {
+        if json.get("content").is_none() {
+            return Err(Error::BadRequest("json needs to have a content field"));
+        }
+        json.insert("type".to_owned(), kind.to_string().into());
+
         let mut prefix = room_id
             .map(|r| r.to_string())
             .unwrap_or_default()
@@ -43,7 +48,6 @@ impl AccountData {
         {
             // This is the old room_latest
             self.roomuserdataid_accountdata.remove(old)?;
-            println!("removed old account data");
         }
 
         let mut key = prefix;
@@ -52,7 +56,7 @@ impl AccountData {
         key.extend_from_slice(kind.to_string().as_bytes());
 
         self.roomuserdataid_accountdata
-            .insert(key, &*data.to_string())
+            .insert(key, &*serde_json::to_string(&json)?)
             .unwrap();
 
         Ok(())
@@ -104,18 +108,13 @@ impl AccountData {
                             .ok_or(Error::BadDatabase("roomuserdataid is invalid"))?,
                     )?)
                     .map_err(|_| Error::BadDatabase("roomuserdataid is invalid"))?,
-                    serde_json::from_slice::<serde_json::Value>(&v).unwrap(),
+                    serde_json::from_slice::<EventJson<EduEvent>>(&v).unwrap(),
                 ))
             })
         {
-            let (kind, content) = r.unwrap();
-            let mut json = serde_json::Map::new();
-            json.insert("content".to_owned(), content);
-            json.insert("type".to_owned(), kind.to_string().into());
-            userdata.insert(
-                kind,
-                serde_json::from_value::<EventJson<EduEvent>>(json.into())?,
-            );
+            let (kind, data) = r.unwrap();
+            &data.deserialize();
+            userdata.insert(kind, data);
         }
 
         Ok(userdata)

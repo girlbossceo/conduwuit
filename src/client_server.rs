@@ -204,6 +204,8 @@ pub fn register_route(
                     },
                 },
             })
+            .unwrap()
+            .as_object_mut()
             .unwrap(),
             &db.globals,
         )
@@ -383,6 +385,8 @@ pub fn set_pushrule_route(
                     },
                 },
             })
+            .unwrap()
+            .as_object_mut()
             .unwrap(),
             &db.globals,
         )
@@ -443,7 +447,9 @@ pub fn set_global_account_data_route(
             None,
             user_id,
             &EventType::try_from(&body.event_type).unwrap(),
-            serde_json::from_str(body.data.get()).unwrap(),
+            json!({"content": serde_json::from_str::<serde_json::Value>(body.data.get()).unwrap()})
+                .as_object_mut()
+                .unwrap(),
             &db.globals,
         )
         .unwrap();
@@ -465,7 +471,11 @@ pub fn get_global_account_data_route(
 
     if let Some(data) = db
         .account_data
-        .get(None, user_id, &EventType::try_from(&body.event_type).unwrap())
+        .get(
+            None,
+            user_id,
+            &EventType::try_from(&body.event_type).unwrap(),
+        )
         .unwrap()
     {
         MatrixResult(Ok(get_global_account_data::Response { account_data: data }))
@@ -792,6 +802,8 @@ pub fn set_read_marker_route(
                 },
                 room_id: Some(body.room_id.clone()),
             })
+            .unwrap()
+            .as_object_mut()
             .unwrap(),
             &db.globals,
         )
@@ -1317,7 +1329,7 @@ pub fn sync_route(
     db: State<'_, Database>,
     body: Ruma<sync_events::Request>,
 ) -> MatrixResult<sync_events::Response> {
-    std::thread::sleep(Duration::from_millis(1500));
+    std::thread::sleep(Duration::from_millis(1000));
     let user_id = body.user_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
@@ -1526,7 +1538,7 @@ pub fn sync_route(
                         let timestamp = edu.content.last_active_ago.unwrap();
                         edu.content.last_active_ago = Some(
                             js_int::UInt::try_from(utils::millis_since_unix_epoch()).unwrap()
-                                - timestamp
+                                - timestamp,
                         );
                         Some(edu.into())
                     } else {
