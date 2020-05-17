@@ -59,6 +59,9 @@ impl Database {
                 userid_avatarurl: db.open_tree("userid_avatarurl").unwrap(),
                 userdeviceid_token: db.open_tree("userdeviceid_token").unwrap(),
                 token_userdeviceid: db.open_tree("token_userdeviceid").unwrap(),
+                onetimekeyid_onetimekeys: db.open_tree("onetimekeyid_onetimekeys").unwrap(),
+                userdeviceid_devicekeys: db.open_tree("userdeviceid_devicekeys").unwrap(),
+                todeviceid_events: db.open_tree("todeviceid_events").unwrap(),
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {

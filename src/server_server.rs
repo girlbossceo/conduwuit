@@ -166,7 +166,12 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
         .body(),
     )
     .unwrap();
-    ruma_signatures::sign_json(db.globals.server_name(), db.globals.keypair(), &mut response).unwrap();
+    ruma_signatures::sign_json(
+        db.globals.server_name(),
+        db.globals.keypair(),
+        &mut response,
+    )
+    .unwrap();
     Json(response.to_string())
 }
 

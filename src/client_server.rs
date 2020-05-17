@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use log::debug;
+use log::{debug, warn};
 use rocket::{get, options, post, put, State};
 use ruma_client_api::{
     error::{Error, ErrorKind},
@@ -15,7 +15,7 @@ use ruma_client_api::{
         config::{get_global_account_data, set_global_account_data},
         directory::{self, get_public_rooms_filtered},
         filter::{self, create_filter, get_filter},
-        keys::{get_keys, upload_keys},
+        keys::{claim_keys, get_keys, upload_keys},
         media::get_media_config,
         membership::{
             forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
@@ -33,7 +33,7 @@ use ruma_client_api::{
         state::{create_state_event_for_empty_key, create_state_event_for_key},
         sync::sync_events,
         thirdparty::get_protocols,
-        to_device::send_event_to_device,
+        to_device::{self, send_event_to_device},
         typing::create_typing_event,
         uiaa::{AuthFlow, UiaaInfo, UiaaResponse},
         user_directory::search_users,
@@ -176,7 +176,8 @@ pub fn register_route(
         .update(
             None,
             &user_id,
-            EduEvent::PushRules(ruma_events::push_rules::PushRulesEvent {
+            &EventType::PushRules,
+            serde_json::to_value(ruma_events::push_rules::PushRulesEvent {
                 content: ruma_events::push_rules::PushRulesEventContent {
                     global: ruma_events::push_rules::Ruleset {
                         content: vec![],
@@ -202,7 +203,8 @@ pub fn register_route(
                         }],
                     },
                 },
-            }),
+            })
+            .unwrap(),
             &db.globals,
         )
         .unwrap();
@@ -353,7 +355,8 @@ pub fn set_pushrule_route(
         .update(
             None,
             &user_id,
-            EduEvent::PushRules(ruma_events::push_rules::PushRulesEvent {
+            &EventType::PushRules,
+            serde_json::to_value(ruma_events::push_rules::PushRulesEvent {
                 content: ruma_events::push_rules::PushRulesEventContent {
                     global: ruma_events::push_rules::Ruleset {
                         content: vec![],
@@ -379,7 +382,8 @@ pub fn set_pushrule_route(
                         }],
                     },
                 },
-            }),
+            })
+            .unwrap(),
             &db.globals,
         )
         .unwrap();
@@ -422,25 +426,56 @@ pub fn create_filter_route(_user_id: String) -> MatrixResult<create_filter::Resp
     }))
 }
 
-#[put("/_matrix/client/r0/user/<_user_id>/account_data/<_type>")]
+#[put(
+    "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+    data = "<body>"
+)]
 pub fn set_global_account_data_route(
+    db: State<'_, Database>,
+    body: Ruma<set_global_account_data::Request>,
     _user_id: String,
     _type: String,
 ) -> MatrixResult<set_global_account_data::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    db.account_data
+        .update(
+            None,
+            user_id,
+            &EventType::try_from(&body.event_type).unwrap(),
+            serde_json::from_str(body.data.get()).unwrap(),
+            &db.globals,
+        )
+        .unwrap();
+
     MatrixResult(Ok(set_global_account_data::Response))
 }
 
-#[get("/_matrix/client/r0/user/<_user_id>/account_data/<_type>")]
+#[get(
+    "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+    data = "<body>"
+)]
 pub fn get_global_account_data_route(
+    db: State<'_, Database>,
+    body: Ruma<get_global_account_data::Request>,
     _user_id: String,
     _type: String,
 ) -> MatrixResult<get_global_account_data::Response> {
-    // TODO
-    MatrixResult(Err(Error {
-        kind: ErrorKind::NotFound,
-        message: "Data not found.".to_owned(),
-        status_code: http::StatusCode::NOT_FOUND,
-    }))
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    if let Some(data) = db
+        .account_data
+        .get(None, user_id, &EventType::try_from(&body.event_type).unwrap())
+        .unwrap()
+    {
+        MatrixResult(Ok(get_global_account_data::Response { account_data: data }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Data not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }))
+    }
 }
 
 #[put("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")]
@@ -648,20 +683,93 @@ pub fn set_presence_route(
     MatrixResult(Ok(set_presence::Response))
 }
 
-#[post("/_matrix/client/r0/keys/query")]
-pub fn get_keys_route() -> MatrixResult<get_keys::Response> {
-    // TODO
-    MatrixResult(Ok(get_keys::Response {
-        failures: BTreeMap::new(),
-        device_keys: BTreeMap::new(),
+#[post("/_matrix/client/r0/keys/upload", data = "<body>")]
+pub fn upload_keys_route(
+    db: State<'_, Database>,
+    body: Ruma<upload_keys::Request>,
+) -> MatrixResult<upload_keys::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
+    if let Some(one_time_keys) = &body.one_time_keys {
+        for (key_key, key_value) in one_time_keys {
+            db.users
+                .add_one_time_key(user_id, device_id, key_key, key_value)
+                .unwrap();
+        }
+    }
+
+    if let Some(device_keys) = &body.device_keys {
+        db.users
+            .add_device_keys(user_id, device_id, device_keys)
+            .unwrap();
+    }
+
+    MatrixResult(Ok(upload_keys::Response {
+        one_time_key_counts: db.users.count_one_time_keys(user_id, device_id).unwrap(),
     }))
 }
 
-#[post("/_matrix/client/r0/keys/upload")]
-pub fn upload_keys_route() -> MatrixResult<upload_keys::Response> {
-    // TODO
-    MatrixResult(Ok(upload_keys::Response {
-        one_time_key_counts: BTreeMap::new(),
+#[post("/_matrix/client/r0/keys/query", data = "<body>")]
+pub fn get_keys_route(
+    db: State<'_, Database>,
+    body: Ruma<get_keys::Request>,
+) -> MatrixResult<get_keys::Response> {
+    let mut device_keys = BTreeMap::new();
+
+    for (user_id, device_ids) in &body.device_keys {
+        if device_ids.is_empty() {
+            let mut container = BTreeMap::new();
+            for (device_id, keys) in db
+                .users
+                .all_device_keys(&user_id.clone())
+                .map(|r| r.unwrap())
+            {
+                container.insert(device_id, keys);
+            }
+            device_keys.insert(user_id.clone(), container);
+        } else {
+            for device_id in device_ids {
+                let mut container = BTreeMap::new();
+                for keys in db.users.get_device_keys(&user_id.clone(), &device_id) {
+                    container.insert(device_id.clone(), keys.unwrap());
+                }
+                device_keys.insert(user_id.clone(), container);
+            }
+        }
+    }
+
+    MatrixResult(Ok(get_keys::Response {
+        failures: BTreeMap::new(),
+        device_keys,
+    }))
+}
+
+#[post("/_matrix/client/r0/keys/claim", data = "<body>")]
+pub fn claim_keys_route(
+    db: State<'_, Database>,
+    body: Ruma<claim_keys::Request>,
+) -> MatrixResult<claim_keys::Response> {
+    let mut one_time_keys = BTreeMap::new();
+    for (user_id, map) in &body.one_time_keys {
+        let mut container = BTreeMap::new();
+        for (device_id, key_algorithm) in map {
+            if let Some(one_time_keys) = db
+                .users
+                .take_one_time_key(user_id, device_id, key_algorithm)
+                .unwrap()
+            {
+                let mut c = BTreeMap::new();
+                c.insert(one_time_keys.0, one_time_keys.1);
+                container.insert(device_id.clone(), c);
+            }
+        }
+        one_time_keys.insert(user_id.clone(), container);
+    }
+
+    MatrixResult(Ok(claim_keys::Response {
+        failures: BTreeMap::new(),
+        one_time_keys,
     }))
 }
 
@@ -672,16 +780,19 @@ pub fn set_read_marker_route(
     _room_id: String,
 ) -> MatrixResult<set_read_marker::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+
     db.account_data
         .update(
             Some(&body.room_id),
             &user_id,
-            EduEvent::FullyRead(ruma_events::fully_read::FullyReadEvent {
+            &EventType::FullyRead,
+            serde_json::to_value(ruma_events::fully_read::FullyReadEvent {
                 content: ruma_events::fully_read::FullyReadEventContent {
                     event_id: body.fully_read.clone(),
                 },
                 room_id: Some(body.room_id.clone()),
-            }),
+            })
+            .unwrap(),
             &db.globals,
         )
         .unwrap();
@@ -745,7 +856,7 @@ pub fn create_typing_event_route(
         content: ruma_events::typing::TypingEventContent {
             user_ids: vec![user_id.clone()],
         },
-        room_id: None, // None because it can be inferred
+        room_id: Some(body.room_id.clone()), // TODO: Can be None because it can be inferred
     });
 
     if body.typing {
@@ -860,7 +971,7 @@ pub fn get_alias_route(
     body: Ruma<get_alias::Request>,
     _room_alias: String,
 ) -> MatrixResult<get_alias::Response> {
-    // TODO
+    warn!("TODO: get_alias_route");
     let room_id = if body.room_alias.server_name() == db.globals.server_name() {
         match body.room_alias.alias() {
             "conduit" => "!lgOCCXQKtXOAPlAlG5:conduit.rs",
@@ -1092,13 +1203,13 @@ pub fn search_users_route(
 
 #[get("/_matrix/client/r0/rooms/<_room_id>/members")]
 pub fn get_member_events_route(_room_id: String) -> MatrixResult<get_member_events::Response> {
-    // TODO
+    warn!("TODO: get_member_events_route");
     MatrixResult(Ok(get_member_events::Response { chunk: Vec::new() }))
 }
 
 #[get("/_matrix/client/r0/thirdparty/protocols")]
 pub fn get_protocols_route() -> MatrixResult<get_protocols::Response> {
-    // TODO
+    warn!("TODO: get_protocols_route");
     MatrixResult(Ok(get_protocols::Response {
         protocols: BTreeMap::new(),
     }))
@@ -1208,6 +1319,8 @@ pub fn sync_route(
 ) -> MatrixResult<sync_events::Response> {
     std::thread::sleep(Duration::from_millis(1500));
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
     let next_batch = db.globals.current_count().unwrap().to_string();
 
     let mut joined_rooms = BTreeMap::new();
@@ -1277,7 +1390,7 @@ pub fn sync_route(
                     content: ruma_events::typing::TypingEventContent {
                         user_ids: Vec::new(),
                     },
-                    room_id: None, // None because it can be inferred
+                    room_id: Some(room_id.clone()), // None because it can be inferred
                 })
                 .into(),
             );
@@ -1403,10 +1516,22 @@ pub fn sync_route(
                 .global_edus
                 .globallatests_since(since)
                 .unwrap()
-                .map(|edu| {
-                    EventJson::<ruma_events::presence::PresenceEvent>::from(
-                        edu.unwrap().json().to_owned(),
+                .filter_map(|edu| {
+                    // Only look for presence events
+                    if let Ok(mut edu) = EventJson::<ruma_events::presence::PresenceEvent>::from(
+                        edu.unwrap().into_json(),
                     )
+                    .deserialize()
+                    {
+                        let timestamp = edu.content.last_active_ago.unwrap();
+                        edu.content.last_active_ago = Some(
+                            js_int::UInt::try_from(utils::millis_since_unix_epoch()).unwrap()
+                                - timestamp
+                        );
+                        Some(edu.into())
+                    } else {
+                        None
+                    }
                 })
                 .collect(),
         },
@@ -1421,7 +1546,12 @@ pub fn sync_route(
         },
         device_lists: Default::default(),
         device_one_time_keys_count: Default::default(),
-        to_device: sync_events::ToDevice { events: Vec::new() },
+        to_device: sync_events::ToDevice {
+            events: db
+                .users
+                .take_to_device_events(user_id, device_id, 100)
+                .unwrap(),
+        },
     }))
 }
 
@@ -1468,7 +1598,7 @@ pub fn get_message_events_route(
 
 #[get("/_matrix/client/r0/voip/turnServer")]
 pub fn turn_server_route() -> MatrixResult<create_message_event::Response> {
-    // TODO
+    warn!("TODO: turn_server_route");
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "There is no turn server yet.".to_owned(),
@@ -1478,7 +1608,7 @@ pub fn turn_server_route() -> MatrixResult<create_message_event::Response> {
 
 #[post("/_matrix/client/r0/publicised_groups")]
 pub fn publicised_groups_route() -> MatrixResult<create_message_event::Response> {
-    // TODO
+    warn!("TODO: publicised_groups_route");
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "There are no publicised groups yet.".to_owned(),
@@ -1486,18 +1616,48 @@ pub fn publicised_groups_route() -> MatrixResult<create_message_event::Response>
     }))
 }
 
-#[put("/_matrix/client/r0/sendToDevice/<_event_type>/<_txn_id>")]
+#[put(
+    "/_matrix/client/r0/sendToDevice/<_event_type>/<_txn_id>",
+    data = "<body>"
+)]
 pub fn send_event_to_device_route(
+    db: State<'_, Database>,
+    body: Ruma<send_event_to_device::Request>,
     _event_type: String,
     _txn_id: String,
 ) -> MatrixResult<send_event_to_device::Response> {
-    // TODO
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    for (target_user_id, map) in &body.messages {
+        for (target_device_id_maybe, event) in map {
+            match target_device_id_maybe {
+                to_device::DeviceIdOrAllDevices::DeviceId(target_device_id) => db
+                    .users
+                    .add_to_device_event(
+                        user_id,
+                        &target_user_id,
+                        &target_device_id,
+                        &body.event_type,
+                        serde_json::from_str(event.get()).unwrap(),
+                        &db.globals,
+                    )
+                    .unwrap(),
+
+                to_device::DeviceIdOrAllDevices::AllDevices => {
+                    for target_device_id in db.users.all_device_ids(&target_user_id) {
+                        target_device_id.unwrap();
+                    }
+                }
+            }
+        }
+    }
+
     MatrixResult(Ok(send_event_to_device::Response))
 }
 
 #[get("/_matrix/media/r0/config")]
 pub fn get_media_config_route() -> MatrixResult<get_media_config::Response> {
-    // TODO
+    warn!("TODO: get_media_config_route");
     MatrixResult(Ok(get_media_config::Response {
         upload_size: 0_u32.into(),
     }))
@@ -1509,7 +1669,7 @@ pub fn options_route(
 ) -> MatrixResult<create_message_event::Response> {
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
-        message: "This is the options route.".to_owned(),
+        message: "".to_owned(),
         status_code: http::StatusCode::OK,
     }))
 }

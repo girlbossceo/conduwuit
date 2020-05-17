@@ -3,8 +3,8 @@ use ruma_events::{collections::only::Event as EduEvent, EventJson};
 use ruma_identifiers::UserId;
 
 pub struct GlobalEdus {
+    //pub globalallid_globalall: sled::Tree, // ToDevice, GlobalAllId = UserId + Count
     pub(super) globallatestid_globallatest: sled::Tree, // Presence, GlobalLatestId = Count + UserId
-                                                        //pub globalallid_globalall: sled::Tree, // ToDevice, GlobalAllId = UserId + Count
 }
 
 impl GlobalEdus {
