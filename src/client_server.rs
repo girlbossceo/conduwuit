@@ -30,7 +30,10 @@ use ruma_client_api::{
         read_marker::set_read_marker,
         room::create_room,
         session::{get_login_types, login},
-        state::{create_state_event_for_empty_key, create_state_event_for_key},
+        state::{
+            create_state_event_for_empty_key, create_state_event_for_key, get_state_events,
+            get_state_events_for_empty_key, get_state_events_for_key,
+        },
         sync::sync_events,
         thirdparty::get_protocols,
         to_device::{self, send_event_to_device},
@@ -1233,10 +1236,10 @@ pub fn get_protocols_route() -> MatrixResult<get_protocols::Response> {
 )]
 pub fn create_message_event_route(
     db: State<'_, Database>,
+    body: Ruma<create_message_event::Request>,
     _room_id: String,
     _event_type: String,
     _txn_id: String,
-    body: Ruma<create_message_event::Request>,
 ) -> MatrixResult<create_message_event::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
@@ -1267,10 +1270,10 @@ pub fn create_message_event_route(
 )]
 pub fn create_state_event_for_key_route(
     db: State<'_, Database>,
+    body: Ruma<create_state_event_for_key::Request>,
     _room_id: String,
     _event_type: String,
     _state_key: String,
-    body: Ruma<create_state_event_for_key::Request>,
 ) -> MatrixResult<create_state_event_for_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
@@ -1299,9 +1302,9 @@ pub fn create_state_event_for_key_route(
 )]
 pub fn create_state_event_for_empty_key_route(
     db: State<'_, Database>,
+    body: Ruma<create_state_event_for_empty_key::Request>,
     _room_id: String,
     _event_type: String,
-    body: Ruma<create_state_event_for_empty_key::Request>,
 ) -> MatrixResult<create_state_event_for_empty_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
@@ -1322,6 +1325,80 @@ pub fn create_state_event_for_empty_key_route(
     MatrixResult(Ok(create_state_event_for_empty_key::Response {
         event_id: Some(event_id),
     }))
+}
+
+#[get("/_matrix/client/r0/rooms/<_room_id>/state", data = "<body>")]
+pub fn get_state_events_route(
+    db: State<'_, Database>,
+    body: Ruma<get_state_events::Request>,
+    _room_id: String,
+) -> MatrixResult<get_state_events::Response> {
+    MatrixResult(Ok(get_state_events::Response {
+        room_state: db
+            .rooms
+            .room_state(&body.room_id)
+            .unwrap()
+            .values()
+            .map(|pdu| pdu.to_state_event())
+            .collect(),
+    }))
+}
+
+#[get(
+    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
+    data = "<body>"
+)]
+pub fn get_state_events_for_key_route(
+    db: State<'_, Database>,
+    body: Ruma<get_state_events_for_key::Request>,
+    _room_id: String,
+    _event_type: String,
+    _state_key: String,
+) -> MatrixResult<get_state_events_for_key::Response> {
+    if let Some(event) = db
+        .rooms
+        .room_state(&body.room_id)
+        .unwrap()
+        .get(&(body.event_type.clone(), body.state_key.clone()))
+    {
+        MatrixResult(Ok(get_state_events_for_key::Response {
+            content: serde_json::value::to_raw_value(event).unwrap(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "State event not found.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }))
+    }
+}
+
+#[get(
+    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
+    data = "<body>"
+)]
+pub fn get_state_events_for_empty_key_route(
+    db: State<'_, Database>,
+    body: Ruma<get_state_events_for_empty_key::Request>,
+    _room_id: String,
+    _event_type: String,
+) -> MatrixResult<get_state_events_for_key::Response> {
+    if let Some(event) = db
+        .rooms
+        .room_state(&body.room_id)
+        .unwrap()
+        .get(&(body.event_type.clone(), "".to_owned()))
+    {
+        MatrixResult(Ok(get_state_events_for_key::Response {
+            content: serde_json::value::to_raw_value(event).unwrap(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "State event not found.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }))
+    }
 }
 
 #[get("/_matrix/client/r0/sync", data = "<body>")]
