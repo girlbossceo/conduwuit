@@ -1205,11 +1205,18 @@ pub fn search_users_route(
             .users
             .iter()
             .map(Result::unwrap)
-            .filter(|user_id| user_id.to_string().contains(&body.search_term))
             .map(|user_id| search_users::User {
-                user_id,
-                display_name: None,
-                avatar_url: None,
+                user_id: user_id.clone(),
+                display_name: db.users.displayname(&user_id).unwrap(),
+                avatar_url: db.users.avatar_url(&user_id).unwrap(),
+            })
+            .filter(|user| {
+                user.user_id.to_string().contains(&body.search_term)
+                    || user
+                        .display_name
+                        .as_ref()
+                        .filter(|name| name.contains(&body.search_term))
+                        .is_some()
             })
             .collect(),
         limited: false,

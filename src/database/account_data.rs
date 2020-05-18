@@ -113,7 +113,6 @@ impl AccountData {
             })
         {
             let (kind, data) = r.unwrap();
-            &data.deserialize();
             userdata.insert(kind, data);
         }
 
