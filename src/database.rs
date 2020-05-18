@@ -1,6 +1,7 @@
 pub(self) mod account_data;
 pub(self) mod global_edus;
 pub(self) mod globals;
+pub(self) mod media;
 pub(self) mod rooms;
 pub(self) mod users;
 
@@ -15,6 +16,7 @@ pub struct Database {
     pub rooms: rooms::Rooms,
     pub account_data: account_data::AccountData,
     pub global_edus: global_edus::GlobalEdus,
+    pub media: media::Media,
     pub _db: sled::Db,
 }
 
@@ -87,6 +89,9 @@ impl Database {
             global_edus: global_edus::GlobalEdus {
                 //globalallid_globalall: db.open_tree("globalallid_globalall").unwrap(),
                 globallatestid_globallatest: db.open_tree("globallatestid_globallatest").unwrap(), // Presence
+            },
+            media: media::Media {
+                mediaid_file: db.open_tree("mediaid_file").unwrap(),
             },
             _db: db,
         }

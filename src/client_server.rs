@@ -16,7 +16,7 @@ use ruma_client_api::{
         directory::{self, get_public_rooms_filtered},
         filter::{self, create_filter, get_filter},
         keys::{claim_keys, get_keys, upload_keys},
-        media::get_media_config,
+        media::{create_content, get_content_thumbnail, get_content, get_media_config},
         membership::{
             forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
             leave_room,
@@ -53,6 +53,7 @@ const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
 const SESSION_ID_LENGTH: usize = 256;
 const TOKEN_LENGTH: usize = 256;
+const MXC_LENGTH: usize = 256;
 
 #[get("/_matrix/client/versions")]
 pub fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
@@ -1259,7 +1260,7 @@ pub fn create_message_event_route(
             body.room_id.clone(),
             user_id.clone(),
             body.event_type.clone(),
-            body.json_body.clone(),
+            body.json_body.clone().unwrap(),
             Some(unsigned),
             None,
             &db.globals,
@@ -1291,7 +1292,7 @@ pub fn create_state_event_for_key_route(
             body.room_id.clone(),
             user_id.clone(),
             body.event_type.clone(),
-            body.json_body.clone(),
+            body.json_body.clone().unwrap(),
             None,
             Some(body.state_key.clone()),
             &db.globals,
@@ -1322,7 +1323,7 @@ pub fn create_state_event_for_empty_key_route(
             body.room_id.clone(),
             user_id.clone(),
             body.event_type.clone(),
-            body.json_body.clone(),
+            body.json_body.clone().unwrap(),
             None,
             Some("".to_owned()),
             &db.globals,
@@ -1766,8 +1767,66 @@ pub fn send_event_to_device_route(
 pub fn get_media_config_route() -> MatrixResult<get_media_config::Response> {
     warn!("TODO: get_media_config_route");
     MatrixResult(Ok(get_media_config::Response {
-        upload_size: 0_u32.into(),
+        upload_size: (20_u32 * 1024 * 1024).into(), // 20 MB
     }))
+}
+
+#[post("/_matrix/media/r0/upload", data = "<body>")]
+pub fn create_content_route(
+    db: State<'_, Database>,
+    body: Ruma<create_content::Request>,
+) -> MatrixResult<create_content::Response> {
+    let mxc = format!("mxc://{}/{}", db.globals.server_name(), utils::random_string(MXC_LENGTH));
+    db.media
+        .create(mxc.clone(), body.filename.as_ref(), &body.content_type, &body.file)
+        .unwrap();
+
+    MatrixResult(Ok(create_content::Response {
+        content_uri: mxc,
+    }))
+}
+
+#[get("/_matrix/media/r0/download/<_server_name>/<_media_id>", data = "<body>")]
+pub fn get_content_route(
+    db: State<'_, Database>,
+    body: Ruma<get_content::Request>,
+    _server_name: String,
+    _media_id: String,
+) -> MatrixResult<get_content::Response> {
+    if let Some((filename, content_type, file)) = db.media.get(format!("mxc://{}/{}", body.server_name, body.media_id)).unwrap() {
+        MatrixResult(Ok(get_content::Response {
+            file,
+            content_type,
+            content_disposition: filename.unwrap_or_default(), // TODO: Spec says this should be optional
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Media not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }))
+    }
+}
+
+#[get("/_matrix/media/r0/thumbnail/<_server_name>/<_media_id>", data = "<body>")]
+pub fn get_content_thumbnail_route(
+    db: State<'_, Database>,
+    body: Ruma<get_content_thumbnail::Request>,
+    _server_name: String,
+    _media_id: String,
+) -> MatrixResult<get_content_thumbnail::Response> {
+    if let Some((_, content_type, file)) = db.media.get(format!("mxc://{}/{}", body.server_name, body.media_id)).unwrap() {
+        MatrixResult(Ok(get_content_thumbnail::Response {
+            file,
+            content_type,
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Media not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
+        }))
+    }
 }
 
 #[options("/<_segments..>")]
