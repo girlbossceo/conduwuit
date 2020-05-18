@@ -714,7 +714,7 @@ pub fn upload_keys_route(
 
     if let Some(device_keys) = &body.device_keys {
         db.users
-            .add_device_keys(user_id, device_id, device_keys)
+            .add_device_keys(user_id, device_id, device_keys, &db.globals)
             .unwrap();
     }
 
@@ -1640,7 +1640,18 @@ pub fn sync_route(
                 .map(|(_, v)| v)
                 .collect(),
         },
-        device_lists: Default::default(),
+        device_lists: if since != 0 {
+            Some(sync_events::DeviceLists {
+                changed: db
+                    .users
+                    .device_keys_changed(since)
+                    .map(|u| u.unwrap().to_string())
+                    .collect(), // TODO: use userids when ruma changes
+                left: Vec::new(), // TODO
+            })
+        } else {
+            None // TODO: left
+        },
         device_one_time_keys_count: Default::default(),
         to_device: sync_events::ToDevice {
             events: db
@@ -1762,10 +1773,6 @@ pub fn get_media_config_route() -> MatrixResult<get_media_config::Response> {
 #[options("/<_segments..>")]
 pub fn options_route(
     _segments: rocket::http::uri::Segments<'_>,
-) -> MatrixResult<create_message_event::Response> {
-    MatrixResult(Err(Error {
-        kind: ErrorKind::NotFound,
-        message: "".to_owned(),
-        status_code: http::StatusCode::OK,
-    }))
+) -> MatrixResult<send_event_to_device::Response> {
+    MatrixResult(Ok(send_event_to_device::Response))
 }

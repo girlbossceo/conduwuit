@@ -15,6 +15,7 @@ pub struct Users {
 
     pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + AlgorithmAndDeviceId
     pub(super) userdeviceid_devicekeys: sled::Tree,
+    pub(super) devicekeychangeid_userid: sled::Tree, // DeviceKeyChangeId = Count
 
     pub(super) todeviceid_events: sled::Tree, // ToDeviceId = UserId + DeviceId + Count
 }
@@ -259,6 +260,7 @@ impl Users {
         user_id: &UserId,
         device_id: &DeviceId,
         device_keys: &DeviceKeys,
+        globals: &super::globals::Globals,
     ) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
@@ -266,6 +268,9 @@ impl Users {
 
         self.userdeviceid_devicekeys
             .insert(&userdeviceid, &*serde_json::to_string(&device_keys)?)?;
+
+        self.devicekeychangeid_userid
+            .insert(globals.next_count()?.to_be_bytes(), &*user_id.to_string())?;
 
         Ok(())
     }
@@ -283,6 +288,13 @@ impl Users {
             .scan_prefix(key)
             .values()
             .map(|bytes| Ok(serde_json::from_slice(&bytes?)?))
+    }
+
+    pub fn device_keys_changed(&self, since: u64) -> impl Iterator<Item = Result<UserId>> {
+        self.devicekeychangeid_userid
+            .range(since.to_be_bytes()..)
+            .values()
+            .map(|bytes| Ok(UserId::try_from(utils::string_from_bytes(&bytes?)?)?))
     }
 
     pub fn all_device_keys(

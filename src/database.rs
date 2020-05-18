@@ -61,6 +61,7 @@ impl Database {
                 token_userdeviceid: db.open_tree("token_userdeviceid").unwrap(),
                 onetimekeyid_onetimekeys: db.open_tree("onetimekeyid_onetimekeys").unwrap(),
                 userdeviceid_devicekeys: db.open_tree("userdeviceid_devicekeys").unwrap(),
+                devicekeychangeid_userid: db.open_tree("devicekeychangeid_userid").unwrap(),
                 todeviceid_events: db.open_tree("todeviceid_events").unwrap(),
             },
             rooms: rooms::Rooms {
