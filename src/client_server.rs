@@ -16,7 +16,7 @@ use ruma_client_api::{
         directory::{self, get_public_rooms, get_public_rooms_filtered},
         filter::{self, create_filter, get_filter},
         keys::{claim_keys, get_keys, upload_keys},
-        media::{create_content, get_content_thumbnail, get_content, get_media_config},
+        media::{create_content, get_content, get_content_thumbnail, get_media_config},
         membership::{
             forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
             leave_room,
@@ -1307,9 +1307,7 @@ pub fn create_message_event_route(
         )
         .expect("message events are always okay");
 
-    MatrixResult(Ok(create_message_event::Response {
-        event_id: Some(event_id),
-    }))
+    MatrixResult(Ok(create_message_event::Response { event_id }))
 }
 
 #[put(
@@ -1339,9 +1337,7 @@ pub fn create_state_event_for_key_route(
         )
         .unwrap();
 
-    MatrixResult(Ok(create_state_event_for_key::Response {
-        event_id: Some(event_id),
-    }))
+    MatrixResult(Ok(create_state_event_for_key::Response { event_id }))
 }
 
 #[put(
@@ -1370,9 +1366,7 @@ pub fn create_state_event_for_empty_key_route(
         )
         .unwrap();
 
-    MatrixResult(Ok(create_state_event_for_empty_key::Response {
-        event_id: Some(event_id),
-    }))
+    MatrixResult(Ok(create_state_event_for_empty_key::Response { event_id }))
 }
 
 #[get("/_matrix/client/r0/rooms/<_room_id>/state", data = "<body>")]
@@ -1805,7 +1799,6 @@ pub fn send_event_to_device_route(
 
 #[get("/_matrix/media/r0/config")]
 pub fn get_media_config_route() -> MatrixResult<get_media_config::Response> {
-    warn!("TODO: get_media_config_route");
     MatrixResult(Ok(get_media_config::Response {
         upload_size: (20_u32 * 1024 * 1024).into(), // 20 MB
     }))
@@ -1816,24 +1809,38 @@ pub fn create_content_route(
     db: State<'_, Database>,
     body: Ruma<create_content::Request>,
 ) -> MatrixResult<create_content::Response> {
-    let mxc = format!("mxc://{}/{}", db.globals.server_name(), utils::random_string(MXC_LENGTH));
+    let mxc = format!(
+        "mxc://{}/{}",
+        db.globals.server_name(),
+        utils::random_string(MXC_LENGTH)
+    );
     db.media
-        .create(mxc.clone(), body.filename.as_ref(), &body.content_type, &body.file)
+        .create(
+            mxc.clone(),
+            body.filename.as_ref(),
+            &body.content_type,
+            &body.file,
+        )
         .unwrap();
 
-    MatrixResult(Ok(create_content::Response {
-        content_uri: mxc,
-    }))
+    MatrixResult(Ok(create_content::Response { content_uri: mxc }))
 }
 
-#[get("/_matrix/media/r0/download/<_server_name>/<_media_id>", data = "<body>")]
+#[get(
+    "/_matrix/media/r0/download/<_server_name>/<_media_id>",
+    data = "<body>"
+)]
 pub fn get_content_route(
     db: State<'_, Database>,
     body: Ruma<get_content::Request>,
     _server_name: String,
     _media_id: String,
 ) -> MatrixResult<get_content::Response> {
-    if let Some((filename, content_type, file)) = db.media.get(format!("mxc://{}/{}", body.server_name, body.media_id)).unwrap() {
+    if let Some((filename, content_type, file)) = db
+        .media
+        .get(format!("mxc://{}/{}", body.server_name, body.media_id))
+        .unwrap()
+    {
         MatrixResult(Ok(get_content::Response {
             file,
             content_type,
@@ -1848,18 +1855,26 @@ pub fn get_content_route(
     }
 }
 
-#[get("/_matrix/media/r0/thumbnail/<_server_name>/<_media_id>", data = "<body>")]
+#[get(
+    "/_matrix/media/r0/thumbnail/<_server_name>/<_media_id>",
+    data = "<body>"
+)]
 pub fn get_content_thumbnail_route(
     db: State<'_, Database>,
     body: Ruma<get_content_thumbnail::Request>,
     _server_name: String,
     _media_id: String,
 ) -> MatrixResult<get_content_thumbnail::Response> {
-    if let Some((_, content_type, file)) = db.media.get(format!("mxc://{}/{}", body.server_name, body.media_id)).unwrap() {
-        MatrixResult(Ok(get_content_thumbnail::Response {
-            file,
-            content_type,
-        }))
+    if let Some((_, content_type, file)) = db
+        .media
+        .get_thumbnail(
+            format!("mxc://{}/{}", body.server_name, body.media_id),
+            body.width.try_into().unwrap(),
+            body.height.try_into().unwrap(),
+        )
+        .unwrap()
+    {
+        MatrixResult(Ok(get_content_thumbnail::Response { file, content_type }))
     } else {
         MatrixResult(Err(Error {
             kind: ErrorKind::NotFound,

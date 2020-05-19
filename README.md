@@ -26,13 +26,14 @@ A fast Matrix homeserver that's optimized for smaller, personal servers, instead
 - [x] Typing indications
 - [x] Invites, user search
 - [x] Password hashing
+- [x] Riot E2EE
+- [x] Media
 - [ ] Basic federation
 - [ ] State resolution
 - [ ] Permission system
 - [ ] Notifications (push rules)
 - [ ] Riot presence
 - [ ] Proper room creation
-- [ ] Riot E2EE
 
 #### How can I contribute?
 
