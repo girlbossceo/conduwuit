@@ -135,9 +135,6 @@ where
         match http_response {
             Ok(http_response) => {
                 let mut response = rocket::response::Response::build();
-                response
-                    .sized_body(Cursor::new(http_response.body().clone()))
-                    .await;
 
                 let status = http_response.status();
                 response.raw_status(status.into(), "");
@@ -146,6 +143,10 @@ where
                     response
                         .raw_header(header.0.to_string(), header.1.to_str().unwrap().to_owned());
                 }
+
+                response
+                    .sized_body(Cursor::new(http_response.into_body()))
+                    .await;
 
                 response.raw_header("Access-Control-Allow-Origin", "*");
                 response.raw_header(

@@ -22,13 +22,16 @@ impl AccountData {
         }
         json.insert("type".to_owned(), kind.to_string().into());
 
+        let user_id_string = user_id.to_string();
+        let kind_string = kind.to_string();
+
         let mut prefix = room_id
             .map(|r| r.to_string())
             .unwrap_or_default()
             .as_bytes()
             .to_vec();
         prefix.push(0xff);
-        prefix.extend_from_slice(&user_id.to_string().as_bytes());
+        prefix.extend_from_slice(&user_id_string.as_bytes());
         prefix.push(0xff);
 
         // Remove old entry
@@ -40,10 +43,12 @@ impl AccountData {
             .filter_map(|r| r.ok())
             .take_while(|key| key.starts_with(&prefix))
             .find(|key| {
-                key.split(|&b| b == 0xff)
-                    .nth(1)
-                    .filter(|&user| user == user_id.to_string().as_bytes())
+                let user = key.split(|&b| b == 0xff).nth(1);
+                let k = key.rsplit(|&b| b == 0xff).next();
+
+                user.filter(|&user| user == user_id_string.as_bytes())
                     .is_some()
+                    && k.filter(|&k| k == kind_string.as_bytes()).is_some()
             })
         {
             // This is the old room_latest
