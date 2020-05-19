@@ -1203,7 +1203,11 @@ pub async fn get_public_rooms_route(
                     .map(|n| n.to_owned()),
                 num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
                 room_id,
-                topic: None,
+                topic: state
+                    .get(&(EventType::RoomTopic, "".to_owned()))
+                    .and_then(|s| s.content.get("topic"))
+                    .and_then(|n| n.as_str())
+                    .map(|n| n.to_owned()),
                 world_readable: false,
                 guest_can_join: true,
                 avatar_url: None,
@@ -1243,7 +1247,11 @@ pub async fn get_public_rooms_filtered_route(
                     .map(|n| n.to_owned()),
                 num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
                 room_id,
-                topic: None,
+                topic: state
+                    .get(&(EventType::RoomTopic, "".to_owned()))
+                    .and_then(|s| s.content.get("topic"))
+                    .and_then(|n| n.as_str())
+                    .map(|n| n.to_owned()),
                 world_readable: false,
                 guest_can_join: true,
                 avatar_url: None,
