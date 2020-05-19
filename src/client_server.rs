@@ -510,6 +510,13 @@ pub fn set_displayname_route(
                 .unwrap();
         }
 
+        let mut json = serde_json::Map::new();
+        json.insert("membership".to_owned(), "join".into());
+        json.insert("displayname".to_owned(), (**displayname).into());
+        if let Some(avatar_url) = db.users.avatar_url(&user_id).unwrap() {
+            json.insert("avatar_url".to_owned(), avatar_url.into());
+        }
+
         // Send a new membership event into all joined rooms
         for room_id in db.rooms.rooms_joined(&user_id) {
             db.rooms
@@ -517,7 +524,7 @@ pub fn set_displayname_route(
                     room_id.unwrap(),
                     user_id.clone(),
                     EventType::RoomMember,
-                    json!({"membership": "join", "displayname": displayname}),
+                    json.clone().into(),
                     None,
                     Some(user_id.to_string()),
                     &db.globals,
@@ -609,8 +616,48 @@ pub fn set_avatar_url_route(
         db.users
             .set_avatar_url(&user_id, Some(body.avatar_url.clone()))
             .unwrap();
-        // TODO send a new m.room.member join event with the updated avatar_url
-        // TODO send a new m.presence event with the updated avatar_url
+
+
+        let mut json = serde_json::Map::new();
+        json.insert("membership".to_owned(), "join".into());
+        json.insert("avatar_url".to_owned(), (*body.avatar_url).into());
+        if let Some(displayname) = db.users.displayname(&user_id).unwrap() {
+            json.insert("displayname".to_owned(), displayname.into());
+        }
+
+        // Send a new membership event into all joined rooms
+        for room_id in db.rooms.rooms_joined(&user_id) {
+            db.rooms
+                .append_pdu(
+                    room_id.unwrap(),
+                    user_id.clone(),
+                    EventType::RoomMember,
+                    json.clone().into(),
+                    None,
+                    Some(user_id.to_string()),
+                    &db.globals,
+                )
+                .unwrap();
+        }
+
+        // Presence update
+        db.global_edus
+            .update_globallatest(
+                &user_id,
+                EduEvent::Presence(ruma_events::presence::PresenceEvent {
+                    content: ruma_events::presence::PresenceEventContent {
+                        avatar_url: db.users.avatar_url(&user_id).unwrap(),
+                        currently_active: None,
+                        displayname: db.users.displayname(&user_id).unwrap(),
+                        last_active_ago: Some(utils::millis_since_unix_epoch().try_into().unwrap()),
+                        presence: ruma_events::presence::PresenceState::Online,
+                        status_msg: None,
+                    },
+                    sender: user_id.clone(),
+                }),
+                &db.globals,
+            )
+            .unwrap();
     }
 
     MatrixResult(Ok(set_avatar_url::Response))
