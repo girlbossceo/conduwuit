@@ -29,6 +29,11 @@ pub enum Error {
         #[from]
         source: ruma_events::InvalidEvent,
     },
+    #[error("could not generate image")]
+    ImageError {
+        #[from]
+        source: image::error::ImageError,
+    },
     #[error("bad request")]
     BadRequest(&'static str),
     #[error("problem in that database")]
