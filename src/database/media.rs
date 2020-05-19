@@ -125,7 +125,7 @@ impl Media {
             if let Ok(image) = image::load_from_memory(&file) {
                 let thumbnail = image.thumbnail(width, height);
                 let mut thumbnail_bytes = Vec::new();
-                thumbnail.write_to(&mut thumbnail_bytes, image::ImageOutputFormat::Jpeg(75))?;
+                thumbnail.write_to(&mut thumbnail_bytes, image::ImageOutputFormat::Png)?;
 
                 // Save thumbnail in database so we don't have to generate it again next time
                 let mut thumbnail_key = key.to_vec();
