@@ -13,7 +13,7 @@ use ruma_client_api::{
         alias::get_alias,
         capabilities::get_capabilities,
         config::{get_global_account_data, set_global_account_data},
-        directory::{self, get_public_rooms_filtered},
+        directory::{self, get_public_rooms, get_public_rooms_filtered},
         filter::{self, create_filter, get_filter},
         keys::{claim_keys, get_keys, upload_keys},
         media::{create_content, get_content_thumbnail, get_content, get_media_config},
@@ -1134,6 +1134,46 @@ pub fn invite_user_route(
             status_code: http::StatusCode::NOT_FOUND,
         }))
     }
+}
+
+#[get("/_matrix/client/r0/publicRooms")]
+pub async fn get_public_rooms_route(
+    db: State<'_, Database>,
+) -> MatrixResult<get_public_rooms::Response> {
+    let mut chunk = db
+        .rooms
+        .all_rooms()
+        .into_iter()
+        .map(|room_id| {
+            let state = db.rooms.room_state(&room_id).unwrap();
+            directory::PublicRoomsChunk {
+                aliases: Vec::new(),
+                canonical_alias: None,
+                name: state
+                    .get(&(EventType::RoomName, "".to_owned()))
+                    .and_then(|s| s.content.get("name"))
+                    .and_then(|n| n.as_str())
+                    .map(|n| n.to_owned()),
+                num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
+                room_id,
+                topic: None,
+                world_readable: false,
+                guest_can_join: true,
+                avatar_url: None,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
+
+    let total_room_count_estimate = (chunk.len() as u32).into();
+
+    MatrixResult(Ok(get_public_rooms::Response {
+        chunk,
+        prev_batch: None,
+        next_batch: None,
+        total_room_count_estimate: Some(total_room_count_estimate),
+    }))
 }
 
 #[post("/_matrix/client/r0/publicRooms")]

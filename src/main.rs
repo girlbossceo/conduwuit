@@ -55,6 +55,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::leave_room_route,
                 client_server::forget_room_route,
                 client_server::invite_user_route,
+                client_server::get_public_rooms_route,
                 client_server::get_public_rooms_filtered_route,
                 client_server::search_users_route,
                 client_server::get_member_events_route,
