@@ -353,7 +353,7 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         user_id: &UserId,
-        displayname: Option<String>,
+        users: &super::users::Users,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         if !self.exists(room_id)? {
@@ -374,19 +374,22 @@ impl Rooms {
         self.roomuserid_invited.remove(&roomuser_id)?;
         self.userroomid_left.remove(&userroom_id)?;
 
-        let mut content = json!({"membership": "join"});
-        if let Some(displayname) = displayname {
-            content
-                .as_object_mut()
-                .unwrap()
-                .insert("displayname".to_owned(), displayname.into());
+        let mut json = serde_json::Map::new();
+        json.insert("membership".to_owned(), "join".into());
+
+        if let Some(displayname) = users.displayname(&user_id).unwrap() {
+            json.insert("displayname".to_owned(), displayname.into());
+        }
+
+        if let Some(avatar_url) = users.avatar_url(&user_id).unwrap() {
+            json.insert("avatar_url".to_owned(), avatar_url.into());
         }
 
         self.append_pdu(
             room_id.clone(),
             user_id.clone(),
             EventType::RoomMember,
-            content,
+            json.into(),
             None,
             Some(user_id.to_string()),
             globals,

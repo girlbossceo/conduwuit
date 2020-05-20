@@ -965,7 +965,7 @@ pub fn create_room_route(
         .join(
             &room_id,
             &user_id,
-            db.users.displayname(&user_id).unwrap(),
+            &db.users,
             &db.globals,
         )
         .unwrap();
@@ -1072,7 +1072,7 @@ pub fn join_room_by_id_route(
         .join(
             &body.room_id,
             &user_id,
-            db.users.displayname(&user_id).unwrap(),
+            &db.users,
             &db.globals,
         )
         .is_ok()
@@ -1119,7 +1119,7 @@ pub fn join_room_by_id_or_alias_route(
         .join(
             &room_id,
             &user_id,
-            db.users.displayname(&user_id).unwrap(),
+            &db.users,
             &db.globals,
         )
         .is_ok()
