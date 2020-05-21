@@ -919,7 +919,7 @@ pub fn create_typing_event_route(
         content: ruma_events::typing::TypingEventContent {
             user_ids: vec![user_id.clone()],
         },
-        room_id: Some(body.room_id.clone()), // TODO: Can be None because it can be inferred
+        room_id: None, // None because it can be inferred
     });
 
     if body.typing {
@@ -1545,6 +1545,7 @@ pub fn sync_route(
                 None
             };
 
+
         // They /sync response doesn't always return all messages, so we say the output is
         // limited unless there are enough events
         let mut limited = true;
@@ -1576,7 +1577,7 @@ pub fn sync_route(
                     content: ruma_events::typing::TypingEventContent {
                         user_ids: Vec::new(),
                     },
-                    room_id: Some(room_id.clone()), // None because it can be inferred
+                    room_id: None, // None because it can be inferred
                 })
                 .into(),
             );
@@ -1842,7 +1843,17 @@ pub fn send_event_to_device_route(
 
                 to_device::DeviceIdOrAllDevices::AllDevices => {
                     for target_device_id in db.users.all_device_ids(&target_user_id) {
-                        target_device_id.unwrap();
+                       db
+                    .users
+                    .add_to_device_event(
+                        user_id,
+                        &target_user_id,
+                        &target_device_id.unwrap(),
+                        &body.event_type,
+                        serde_json::from_str(event.get()).unwrap(),
+                        &db.globals,
+                    )
+                        .unwrap();
                     }
                 }
             }

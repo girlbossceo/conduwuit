@@ -32,7 +32,7 @@ checksum = "26c4f3195085c36ea8d24d32b2f828d23296a9370a28aa39d111f6f16bef9f3b"
 dependencies = [
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -122,9 +122,9 @@ checksum = "130aac562c0dd69c56b3b1cc8ffd2e17be31d0b6c25b61c96b76231aa23e39e1"
 
 [[package]]
 name = "cc"
-version = "1.0.53"
+version = "1.0.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "404b1fe4f65288577753b17e3b36a04596ee784493ec249bf81c7f2d2acd751c"
+checksum = "7bbb73db36c1246e9034e307d0fba23f9a2e251faa47ade70c1bd252220c8311"
 
 [[package]]
 name = "cfg-if"
@@ -279,7 +279,7 @@ dependencies = [
  "bitflags",
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -423,7 +423,7 @@ dependencies = [
  "proc-macro-hack",
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -1004,7 +1004,7 @@ checksum = "e58db2081ba5b4c93bd6be09c40fd36cb9193a8336c384f3b40012e531aa7e40"
 dependencies = [
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -1291,7 +1291,7 @@ checksum = "52b82b4567b9af9b40a86f7778821c016ea961f55e4fee255f8f24bb28ee7452"
 dependencies = [
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -1346,7 +1346,7 @@ checksum = "fc706c4a53cc54c3a198cfbcd7dfff20448599d84f90e636d96034d0df5a9ac9"
 dependencies = [
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -1521,7 +1521,7 @@ checksum = "818fbf6bfa9a42d3bfcaca148547aa00c7b915bec71d1757aa2d44ca68771984"
 dependencies = [
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -1615,7 +1615,7 @@ dependencies = [
  "heck",
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -1631,9 +1631,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.22"
+version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1425de3c33b0941002740a420b1a906a350b88d08b82b2c8a01035a3f9447bac"
+checksum = "95b5f192649e48a5302a13f2feb224df883b98933222369e4b3b0fe2a5447269"
 dependencies = [
  "proc-macro2 1.0.13",
  "quote 1.0.6",
@@ -1671,7 +1671,7 @@ checksum = "ab81dbd1cd69cd2ce22ecfbdd3bdb73334ba25350649408cc6c085f46d89573d"
 dependencies = [
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -1715,7 +1715,7 @@ checksum = "f0c3acc6aa564495a0f2e1d59fab677cd7f81a19994cfc7f3ad0e64301560389"
 dependencies = [
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
 ]
 
 [[package]]
@@ -1894,7 +1894,7 @@ dependencies = [
  "log",
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
  "wasm-bindgen-shared",
 ]
 
@@ -1928,7 +1928,7 @@ checksum = "8eb197bd3a47553334907ffd2f16507b4f4f01bbec3ac921a7719e0decdfe72a"
 dependencies = [
  "proc-macro2 1.0.13",
  "quote 1.0.6",
- "syn 1.0.22",
+ "syn 1.0.23",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
