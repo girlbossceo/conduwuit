@@ -4,6 +4,10 @@
 [![Liberapay](https://img.shields.io/liberapay/receives/timokoesters?logo=liberapay)](https://liberapay.com/timokoesters)
 [![Matrix](https://img.shields.io/matrix/conduit:koesters.xyz?server_fqdn=matrix.koesters.xyz&logo=matrix)](https://matrix.to/#/#conduit:koesters.xyz)
 
+#### Is it fast?
+
+See it in action: <https://www.youtube.com/watch?v=HoBslDtqC1k>
+
 #### What is the goal
 
 A fast Matrix homeserver that's optimized for smaller, personal servers, instead of one server that has high scalability.
