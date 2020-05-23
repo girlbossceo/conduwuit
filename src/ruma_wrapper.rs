@@ -1,3 +1,4 @@
+use crate::utils;
 use log::warn;
 use rocket::{
     data::{Data, FromData, FromDataFuture, Transform, TransformFuture, Transformed},
@@ -16,10 +17,10 @@ const MESSAGE_LIMIT: u64 = 20 * 1024 * 1024; // 20 MB
 /// This struct converts rocket requests into ruma structs by converting them into http requests
 /// first.
 pub struct Ruma<T> {
-    body: T,
+    pub body: T,
     pub user_id: Option<UserId>,
     pub device_id: Option<String>,
-    pub json_body: Option<serde_json::Value>, // This is None if parsing failed (for raw byte bodies)
+    pub json_body: Option<Box<serde_json::value::RawValue>>, // This is None when body is not a valid string
 }
 
 impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
@@ -86,7 +87,9 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
                     user_id,
                     device_id,
                     // TODO: Can we avoid parsing it again? (We only need this for append_pdu)
-                    json_body: serde_json::from_slice(&body).ok()
+                    json_body: utils::string_from_bytes(&body)
+                        .ok()
+                        .and_then(|s| serde_json::value::RawValue::from_string(s).ok()),
                 }),
                 Err(e) => {
                     warn!("{:?}", e);

@@ -26,9 +26,9 @@ use ruma_client_api::{
         profile::{
             get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
         },
-        push::{self, get_pushrules_all, set_pushrule, set_pushrule_enabled},
+        push::{get_pushrules_all, set_pushrule, set_pushrule_enabled},
         read_marker::set_read_marker,
-        room::create_room,
+        room::{self, create_room},
         session::{get_login_types, login, logout},
         state::{
             create_state_event_for_empty_key, create_state_event_for_key, get_state_events,
@@ -43,8 +43,12 @@ use ruma_client_api::{
     },
     unversioned::get_supported_versions,
 };
-use ruma_events::{collections::only::Event as EduEvent, EventJson, EventType};
-use ruma_identifiers::{RoomId, UserId};
+use ruma_events::{
+    collections::only::Event as EduEvent,
+    room::{guest_access, history_visibility, join_rules},
+    EventJson, EventType,
+};
+use ruma_identifiers::{RoomId, RoomVersionId, UserId};
 use serde_json::{json, value::RawValue};
 
 use crate::{server_server, utils, Database, MatrixResult, Ruma};
@@ -348,7 +352,8 @@ pub fn get_pushrules_all_route(
     if let Some(EduEvent::PushRules(pushrules)) = db
         .account_data
         .get(None, &user_id, &EventType::PushRules)
-        .unwrap().map(|edu| edu.deserialize().expect("PushRules event in db is valid"))
+        .unwrap()
+        .map(|edu| edu.deserialize().expect("PushRules event in db is valid"))
     {
         MatrixResult(Ok(get_pushrules_all::Response {
             global: BTreeMap::new(),
@@ -490,21 +495,30 @@ pub fn set_displayname_route(
                 .unwrap();
         }
 
-        let mut json = serde_json::Map::new();
-        json.insert("membership".to_owned(), "join".into());
-        json.insert("displayname".to_owned(), (**displayname).into());
-        if let Some(avatar_url) = db.users.avatar_url(&user_id).unwrap() {
-            json.insert("avatar_url".to_owned(), avatar_url.into());
-        }
-
         // Send a new membership event into all joined rooms
         for room_id in db.rooms.rooms_joined(&user_id) {
+            let room_id = room_id.unwrap();
             db.rooms
                 .append_pdu(
-                    room_id.unwrap(),
+                    room_id.clone(),
                     user_id.clone(),
                     EventType::RoomMember,
-                    json.clone().into(),
+                    serde_json::to_value(ruma_events::room::member::MemberEventContent {
+                        displayname: Some(displayname.clone()),
+                        ..serde_json::from_value::<EventJson<_>>(
+                            db.rooms
+                                .room_state(&room_id)
+                                .unwrap()
+                                .get(&(EventType::RoomMember, user_id.to_string()))
+                                .expect("user should be part of the room")
+                                .content
+                                .clone(),
+                        )
+                        .unwrap()
+                        .deserialize()
+                        .unwrap()
+                    })
+                    .unwrap(),
                     None,
                     Some(user_id.to_string()),
                     &db.globals,
@@ -597,21 +611,30 @@ pub fn set_avatar_url_route(
             .set_avatar_url(&user_id, Some(body.avatar_url.clone()))
             .unwrap();
 
-        let mut json = serde_json::Map::new();
-        json.insert("membership".to_owned(), "join".into());
-        json.insert("avatar_url".to_owned(), (*body.avatar_url).into());
-        if let Some(displayname) = db.users.displayname(&user_id).unwrap() {
-            json.insert("displayname".to_owned(), displayname.into());
-        }
-
         // Send a new membership event into all joined rooms
         for room_id in db.rooms.rooms_joined(&user_id) {
+            let room_id = room_id.unwrap();
             db.rooms
                 .append_pdu(
-                    room_id.unwrap(),
+                    room_id.clone(),
                     user_id.clone(),
                     EventType::RoomMember,
-                    json.clone().into(),
+                    serde_json::to_value(ruma_events::room::member::MemberEventContent {
+                        avatar_url: Some(body.avatar_url.clone()),
+                        ..serde_json::from_value::<EventJson<_>>(
+                            db.rooms
+                                .room_state(&room_id)
+                                .unwrap()
+                                .get(&(EventType::RoomMember, user_id.to_string()))
+                                .expect("user should be part of the room")
+                                .content
+                                .clone(),
+                        )
+                        .unwrap()
+                        .deserialize()
+                        .unwrap()
+                    })
+                    .unwrap(),
                     None,
                     Some(user_id.to_string()),
                     &db.globals,
@@ -933,7 +956,16 @@ pub fn create_room_route(
             room_id.clone(),
             user_id.clone(),
             EventType::RoomCreate,
-            json!({ "creator": user_id }),
+            serde_json::to_value(ruma_events::room::create::CreateEventContent {
+                creator: user_id.clone(),
+                federate: body
+                    .creation_content
+                    .and_then(|c| c.federate)
+                    .unwrap_or(true),
+                predecessor: None, // TODO: Check creation_content.predecessor once ruma has that
+                room_version: RoomVersionId::version_5(),
+            })
+            .unwrap(),
             None,
             Some("".to_owned()),
             &db.globals,
@@ -944,34 +976,148 @@ pub fn create_room_route(
         .join(&room_id, &user_id, &db.users, &db.globals)
         .unwrap();
 
+    // Figure out preset. We need it for power levels and preset specific events
+    let visibility = body.visibility.unwrap_or(room::Visibility::Private);
+    let preset = body.preset.unwrap_or_else(|| match visibility {
+        room::Visibility::Private => create_room::RoomPreset::PrivateChat,
+        room::Visibility::Public => create_room::RoomPreset::PublicChat,
+    });
+
+    // 0. Power levels
+    let mut users = BTreeMap::new();
+    users.insert(user_id.clone(), 100.into());
+    for invite_user_id in &body.invite {
+        users.insert(invite_user_id.clone(), 100.into());
+    }
+
+    let power_levels_content = if let Some(power_levels) = &body.power_level_content_override {
+        serde_json::from_str(power_levels.json().get())
+            .expect("TODO: handle. we hope the client sends a valid power levels json")
+    } else {
+        serde_json::to_value(ruma_events::room::power_levels::PowerLevelsEventContent {
+            ban: 50.into(),
+            events: BTreeMap::new(),
+            events_default: 0.into(),
+            invite: 50.into(),
+            kick: 50.into(),
+            redact: 50.into(),
+            state_default: 50.into(),
+            users,
+            users_default: 0.into(),
+            notifications: ruma_events::room::power_levels::NotificationPowerLevels {
+                room: 50.into(),
+            },
+        })
+        .unwrap()
+    };
     db.rooms
         .append_pdu(
             room_id.clone(),
             user_id.clone(),
             EventType::RoomPowerLevels,
-            json!({
-                "ban": 50,
-                "events_default": 0,
-                "invite": 50,
-                "kick": 50,
-                "redact": 50,
-                "state_default": 50,
-                "users": { user_id.to_string(): 100 },
-                "users_default": 0
-            }),
+            power_levels_content,
             None,
             Some("".to_owned()),
             &db.globals,
         )
         .unwrap();
 
+    // 1. Events set by preset
+    // 1.1 Join Rules
+    db.rooms
+        .append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomJoinRules,
+            match preset {
+                create_room::RoomPreset::PublicChat => {
+                    serde_json::to_value(join_rules::JoinRulesEventContent {
+                        join_rule: join_rules::JoinRule::Public,
+                    })
+                    .unwrap()
+                }
+                _ => serde_json::to_value(join_rules::JoinRulesEventContent {
+                    join_rule: join_rules::JoinRule::Invite,
+                })
+                .unwrap(),
+            },
+            None,
+            Some("".to_owned()),
+            &db.globals,
+        )
+        .unwrap();
+
+    // 1.2 History Visibility
+    db.rooms
+        .append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomHistoryVisibility,
+            serde_json::to_value(history_visibility::HistoryVisibilityEventContent {
+                history_visibility: history_visibility::HistoryVisibility::Shared,
+            })
+            .unwrap(),
+            None,
+            Some("".to_owned()),
+            &db.globals,
+        )
+        .unwrap();
+
+    // 1.3 Guest Access
+    db.rooms
+        .append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomGuestAccess,
+            match preset {
+                create_room::RoomPreset::PublicChat => {
+                    serde_json::to_value(guest_access::GuestAccessEventContent {
+                        guest_access: guest_access::GuestAccess::Forbidden,
+                    })
+                    .unwrap()
+                }
+                _ => serde_json::to_value(guest_access::GuestAccessEventContent {
+                    guest_access: guest_access::GuestAccess::CanJoin,
+                })
+                .unwrap(),
+            },
+            None,
+            Some("".to_owned()),
+            &db.globals,
+        )
+        .unwrap();
+
+    // 2. Events listed in initial_state
+    for create_room::InitialStateEvent {
+        event_type,
+        state_key,
+        content,
+    } in &body.initial_state
+    {
+        db.rooms
+            .append_pdu(
+                room_id.clone(),
+                user_id.clone(),
+                EventType::from(event_type),
+                serde_json::from_str(content.get()).unwrap(),
+                None,
+                state_key.clone(),
+                &db.globals,
+            )
+            .unwrap();
+    }
+
+    // 3. Events implied by name and topic
     if let Some(name) = &body.name {
         db.rooms
             .append_pdu(
                 room_id.clone(),
                 user_id.clone(),
                 EventType::RoomName,
-                json!({ "name": name }),
+                serde_json::to_value(
+                    ruma_events::room::name::NameEventContent::new(name.clone()).unwrap(),
+                )
+                .unwrap(),
                 None,
                 Some("".to_owned()),
                 &db.globals,
@@ -985,7 +1131,10 @@ pub fn create_room_route(
                 room_id.clone(),
                 user_id.clone(),
                 EventType::RoomTopic,
-                json!({ "topic": topic }),
+                serde_json::to_value(ruma_events::room::topic::TopicEventContent {
+                    topic: topic.clone(),
+                })
+                .unwrap(),
                 None,
                 Some("".to_owned()),
                 &db.globals,
@@ -993,6 +1142,7 @@ pub fn create_room_route(
             .unwrap();
     }
 
+    // 4. Events implied by invite (and TODO: invite_3pid)
     for user in &body.invite {
         db.rooms
             .invite(&user_id, &room_id, user, &db.globals)
@@ -1050,6 +1200,8 @@ pub fn join_room_by_id_route(
             room_id: body.room_id.clone(),
         }))
     } else {
+        // We don't have this room. Let's ask a remote server
+        // TODO
         MatrixResult(Err(Error {
             kind: ErrorKind::NotFound,
             message: "Room not found.".to_owned(),
@@ -1064,8 +1216,6 @@ pub fn join_room_by_id_or_alias_route(
     body: Ruma<join_room_by_id_or_alias::Request>,
     _room_id_or_alias: String,
 ) -> MatrixResult<join_room_by_id_or_alias::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
-
     let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
         Ok(room_id) => room_id,
         Err(room_alias) => {
@@ -1083,19 +1233,21 @@ pub fn join_room_by_id_or_alias_route(
         }
     };
 
-    if db
-        .rooms
-        .join(&room_id, &user_id, &db.users, &db.globals)
-        .is_ok()
-    {
-        MatrixResult(Ok(join_room_by_id_or_alias::Response { room_id }))
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "Room not found.".to_owned(),
-            status_code: http::StatusCode::NOT_FOUND,
-        }))
-    }
+    let body = Ruma {
+        user_id: body.user_id.clone(),
+        device_id: body.device_id.clone(),
+        json_body: None,
+        body: join_room_by_id::Request {
+            room_id,
+            third_party_signed: body.third_party_signed.clone(),
+        },
+    };
+    MatrixResult(match join_room_by_id_route(db, body, "".to_owned()).0 {
+        Ok(response) => Ok(join_room_by_id_or_alias::Response {
+            room_id: response.room_id,
+        }),
+        Err(e) => Err(e),
+    })
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/leave", data = "<body>")]
@@ -1147,53 +1299,60 @@ pub fn invite_user_route(
     }
 }
 
-#[get("/_matrix/client/r0/publicRooms")]
+#[get("/_matrix/client/r0/publicRooms", data = "<body>")]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
+    body: Ruma<get_public_rooms::Request>,
 ) -> MatrixResult<get_public_rooms::Response> {
-    let mut chunk = db
-        .rooms
-        .all_rooms()
-        .into_iter()
-        .map(|room_id| {
-            let state = db.rooms.room_state(&room_id).unwrap();
-            directory::PublicRoomsChunk {
-                aliases: Vec::new(),
-                canonical_alias: None,
-                name: state
-                    .get(&(EventType::RoomName, "".to_owned()))
-                    .and_then(|s| s.content.get("name"))
-                    .and_then(|n| n.as_str())
-                    .map(|n| n.to_owned()),
-                num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
-                room_id,
-                topic: state
-                    .get(&(EventType::RoomTopic, "".to_owned()))
-                    .and_then(|s| s.content.get("topic"))
-                    .and_then(|n| n.as_str())
-                    .map(|n| n.to_owned()),
-                world_readable: false,
-                guest_can_join: true,
-                avatar_url: None,
-            }
-        })
-        .collect::<Vec<_>>();
+    let Ruma {
+        body:
+            get_public_rooms::Request {
+                limit,
+                server,
+                since,
+            },
+        user_id,
+        device_id,
+        json_body,
+    } = body;
 
-    chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
+    let response = get_public_rooms_filtered_route(
+        db,
+        Ruma {
+            body: get_public_rooms_filtered::Request {
+                filter: None,
+                limit,
+                room_network: get_public_rooms_filtered::RoomNetwork::Matrix,
+                server,
+                since,
+            },
+            user_id,
+            device_id,
+            json_body,
+        },
+    )
+    .await;
 
-    let total_room_count_estimate = (chunk.len() as u32).into();
-
-    MatrixResult(Ok(get_public_rooms::Response {
-        chunk,
-        prev_batch: None,
-        next_batch: None,
-        total_room_count_estimate: Some(total_room_count_estimate),
-    }))
+    MatrixResult(match response.0 {
+        Ok(get_public_rooms_filtered::Response {
+            chunk,
+            prev_batch,
+            next_batch,
+            total_room_count_estimate,
+        }) => Ok(get_public_rooms::Response {
+            chunk,
+            prev_batch,
+            next_batch,
+            total_room_count_estimate,
+        }),
+        Err(e) => Err(e),
+    })
 }
 
-#[post("/_matrix/client/r0/publicRooms")]
+#[post("/_matrix/client/r0/publicRooms", data = "<body>")]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
+    body: Ruma<get_public_rooms_filtered::Request>,
 ) -> MatrixResult<get_public_rooms_filtered::Response> {
     let mut chunk = db
         .rooms
@@ -1201,21 +1360,32 @@ pub async fn get_public_rooms_filtered_route(
         .into_iter()
         .map(|room_id| {
             let state = db.rooms.room_state(&room_id).unwrap();
+
             directory::PublicRoomsChunk {
                 aliases: Vec::new(),
                 canonical_alias: None,
-                name: state
-                    .get(&(EventType::RoomName, "".to_owned()))
-                    .and_then(|s| s.content.get("name"))
-                    .and_then(|n| n.as_str())
-                    .map(|n| n.to_owned()),
+                name: state.get(&(EventType::RoomName, "".to_owned())).map(|s| {
+                    serde_json::from_value::<EventJson<ruma_events::room::name::NameEventContent>>(
+                        s.content.clone(),
+                    )
+                    .unwrap()
+                    .deserialize()
+                    .unwrap()
+                    .name()
+                    .unwrap()
+                    .to_owned()
+                }),
                 num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
                 room_id,
-                topic: state
-                    .get(&(EventType::RoomTopic, "".to_owned()))
-                    .and_then(|s| s.content.get("topic"))
-                    .and_then(|n| n.as_str())
-                    .map(|n| n.to_owned()),
+                topic: state.get(&(EventType::RoomTopic, "".to_owned())).map(|s| {
+                    serde_json::from_value::<
+                            EventJson<ruma_events::room::topic::TopicEventContent>,
+                        >(s.content.clone())
+                        .unwrap()
+                        .deserialize()
+                        .unwrap()
+                        .topic
+                }),
                 world_readable: false,
                 guest_can_join: true,
                 avatar_url: None,
@@ -1319,7 +1489,7 @@ pub fn create_message_event_route(
             body.room_id.clone(),
             user_id.clone(),
             body.event_type.clone(),
-            body.json_body.clone().unwrap(),
+            serde_json::from_str(body.json_body.unwrap().get()).unwrap(),
             Some(unsigned),
             None,
             &db.globals,
@@ -1349,7 +1519,7 @@ pub fn create_state_event_for_key_route(
             body.room_id.clone(),
             user_id.clone(),
             body.event_type.clone(),
-            body.json_body.clone().unwrap(),
+            serde_json::from_str(body.json_body.clone().unwrap().get()).unwrap(),
             None,
             Some(body.state_key.clone()),
             &db.globals,
@@ -1378,7 +1548,7 @@ pub fn create_state_event_for_empty_key_route(
             body.room_id.clone(),
             user_id.clone(),
             body.event_type.clone(),
-            body.json_body.clone().unwrap(),
+            serde_json::from_str(body.json_body.unwrap().get()).unwrap(),
             None,
             Some("".to_owned()),
             &db.globals,
@@ -1494,11 +1664,21 @@ pub fn sync_route(
         let mut send_full_state = false;
         for pdu in &pdus {
             if pdu.kind == EventType::RoomMember {
-                if pdu.state_key == Some(user_id.to_string()) && pdu.content["membership"] == "join"
-                {
-                    send_full_state = true;
-                }
                 send_member_count = true;
+                if !send_full_state && pdu.state_key == Some(user_id.to_string()) {
+                    let content = serde_json::from_value::<
+                        EventJson<ruma_events::room::member::MemberEventContent>,
+                    >(pdu.content.clone())
+                    .unwrap()
+                    .deserialize()
+                    .unwrap();
+                    if content.membership == ruma_events::room::member::MembershipState::Join {
+                        send_full_state = true;
+                        // Both send_member_count and send_full_state are set. There's nothing more
+                        // to do
+                        break;
+                    }
+                }
             }
         }
 
