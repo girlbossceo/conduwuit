@@ -185,14 +185,20 @@ pub fn register_route(
                 content: ruma_events::push_rules::PushRulesEventContent {
                     global: ruma_events::push_rules::Ruleset {
                         content: vec![],
-                        override_rules: vec![],
+                        override_rules: vec![ruma_events::push_rules::ConditionalPushRule {
+                            actions: vec![ruma_events::push_rules::Action::DontNotify],
+                            default: true,
+                            enabled: false,
+                            rule_id: ".m.rule.master".to_owned(),
+                            conditions: vec![],
+                        }],
                         room: vec![],
                         sender: vec![],
                         underride: vec![ruma_events::push_rules::ConditionalPushRule {
                             actions: vec![
                                 ruma_events::push_rules::Action::Notify,
                                 ruma_events::push_rules::Action::SetTweak(
-                                    ruma_common::push::Tweak::Highlight(false),
+                                    ruma_common::push::Tweak::Sound("default".to_owned()),
                                 ),
                             ],
                             default: true,
@@ -320,28 +326,27 @@ pub fn get_capabilities_route() -> MatrixResult<get_capabilities::Response> {
     }))
 }
 
-#[get("/_matrix/client/r0/pushrules")]
-pub fn get_pushrules_all_route() -> MatrixResult<get_pushrules_all::Response> {
-    // TODO
-    let mut global = BTreeMap::new();
-    global.insert(
-        push::RuleKind::Underride,
-        vec![push::PushRule {
-            actions: vec![
-                push::Action::Notify,
-                push::Action::SetTweak(ruma_common::push::Tweak::Highlight(false)),
-            ],
-            default: true,
-            enabled: true,
-            rule_id: ".m.rule.message".to_owned(),
-            conditions: Some(vec![push::PushCondition::EventMatch {
-                key: "type".to_owned(),
-                pattern: "m.room.message".to_owned(),
-            }]),
-            pattern: None,
-        }],
-    );
-    MatrixResult(Ok(get_pushrules_all::Response { global }))
+#[get("/_matrix/client/r0/pushrules", data = "<body>")]
+pub fn get_pushrules_all_route(
+    db: State<'_, Database>,
+    body: Ruma<get_pushrules_all::Request>,
+) -> MatrixResult<get_pushrules_all::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    if let Some(EduEvent::PushRules(pushrules)) = db
+        .account_data
+        .get(None, &user_id, &EventType::PushRules)
+        .unwrap().map(|edu| edu.deserialize().expect("PushRules event in db is valid"))
+    {
+        MatrixResult(Ok(get_pushrules_all::Response {
+            global: BTreeMap::new(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "PushRules event not found.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }))
+    }
 }
 
 #[put(
@@ -356,46 +361,7 @@ pub fn set_pushrule_route(
     _rule_id: String,
 ) -> MatrixResult<set_pushrule::Response> {
     // TODO
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
-    db.account_data
-        .update(
-            None,
-            &user_id,
-            &EventType::PushRules,
-            serde_json::to_value(ruma_events::push_rules::PushRulesEvent {
-                content: ruma_events::push_rules::PushRulesEventContent {
-                    global: ruma_events::push_rules::Ruleset {
-                        content: vec![],
-                        override_rules: vec![],
-                        room: vec![],
-                        sender: vec![],
-                        underride: vec![ruma_events::push_rules::ConditionalPushRule {
-                            actions: vec![
-                                ruma_events::push_rules::Action::Notify,
-                                ruma_events::push_rules::Action::SetTweak(
-                                    ruma_common::push::Tweak::Highlight(false),
-                                ),
-                            ],
-                            default: true,
-                            enabled: true,
-                            rule_id: ".m.rule.message".to_owned(),
-                            conditions: vec![ruma_events::push_rules::PushCondition::EventMatch(
-                                ruma_events::push_rules::EventMatchCondition {
-                                    key: "type".to_owned(),
-                                    pattern: "m.room.message".to_owned(),
-                                },
-                            )],
-                        }],
-                    },
-                },
-            })
-            .unwrap()
-            .as_object_mut()
-            .unwrap(),
-            &db.globals,
-        )
-        .unwrap();
-
+    warn!("TODO: set_pushrule_route");
     MatrixResult(Ok(set_pushrule::Response))
 }
 
@@ -406,6 +372,7 @@ pub fn set_pushrule_enabled_route(
     _rule_id: String,
 ) -> MatrixResult<set_pushrule_enabled::Response> {
     // TODO
+    warn!("TODO: set_pushrule_enabled_route");
     MatrixResult(Ok(set_pushrule_enabled::Response))
 }
 
@@ -616,7 +583,6 @@ pub fn set_avatar_url_route(
         db.users
             .set_avatar_url(&user_id, Some(body.avatar_url.clone()))
             .unwrap();
-
 
         let mut json = serde_json::Map::new();
         json.insert("membership".to_owned(), "join".into());
@@ -962,12 +928,7 @@ pub fn create_room_route(
         .unwrap();
 
     db.rooms
-        .join(
-            &room_id,
-            &user_id,
-            &db.users,
-            &db.globals,
-        )
+        .join(&room_id, &user_id, &db.users, &db.globals)
         .unwrap();
 
     db.rooms
@@ -1069,12 +1030,7 @@ pub fn join_room_by_id_route(
 
     if db
         .rooms
-        .join(
-            &body.room_id,
-            &user_id,
-            &db.users,
-            &db.globals,
-        )
+        .join(&body.room_id, &user_id, &db.users, &db.globals)
         .is_ok()
     {
         MatrixResult(Ok(join_room_by_id::Response {
@@ -1116,12 +1072,7 @@ pub fn join_room_by_id_or_alias_route(
 
     if db
         .rooms
-        .join(
-            &room_id,
-            &user_id,
-            &db.users,
-            &db.globals,
-        )
+        .join(&room_id, &user_id, &db.users, &db.globals)
         .is_ok()
     {
         MatrixResult(Ok(join_room_by_id_or_alias::Response { room_id }))
@@ -1545,7 +1496,6 @@ pub fn sync_route(
                 None
             };
 
-
         // They /sync response doesn't always return all messages, so we say the output is
         // limited unless there are enough events
         let mut limited = true;
@@ -1617,7 +1567,7 @@ pub fn sync_route(
                     },
                 },
                 unread_notifications: sync_events::UnreadNotificationsCount {
-                    highlight_count: None,
+                    highlight_count: notification_count,
                     notification_count,
                 },
                 timeline: sync_events::Timeline {
@@ -1736,8 +1686,8 @@ pub fn sync_route(
                 changed: db
                     .users
                     .device_keys_changed(since)
-                    .map(|u| u.unwrap().to_string())
-                    .collect(), // TODO: use userids when ruma changes
+                    .map(|u| u.unwrap())
+                    .collect(),
                 left: Vec::new(), // TODO
             })
         } else {
@@ -1843,17 +1793,16 @@ pub fn send_event_to_device_route(
 
                 to_device::DeviceIdOrAllDevices::AllDevices => {
                     for target_device_id in db.users.all_device_ids(&target_user_id) {
-                       db
-                    .users
-                    .add_to_device_event(
-                        user_id,
-                        &target_user_id,
-                        &target_device_id.unwrap(),
-                        &body.event_type,
-                        serde_json::from_str(event.get()).unwrap(),
-                        &db.globals,
-                    )
-                        .unwrap();
+                        db.users
+                            .add_to_device_event(
+                                user_id,
+                                &target_user_id,
+                                &target_device_id.unwrap(),
+                                &body.event_type,
+                                serde_json::from_str(event.get()).unwrap(),
+                                &db.globals,
+                            )
+                            .unwrap();
                     }
                 }
             }

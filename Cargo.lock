@@ -1296,8 +1296,9 @@ dependencies = [
 
 [[package]]
 name = "ruma-client-api"
-version = "0.8.0"
-source = "git+https://github.com/ruma/ruma-client-api.git#3a3ccabbf22c34da5c9de7cac54d9fbd3e571dcf"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "082913ad135ca55ee06a55d295bea954982f2ac5e0150adc09024f5cbb8cb6cf"
 dependencies = [
  "http",
  "js_int",

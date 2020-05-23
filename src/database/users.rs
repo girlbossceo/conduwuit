@@ -209,6 +209,8 @@ impl Users {
             .next()
             .map(|r| {
                 let (key, value) = r?;
+                self.onetimekeyid_onetimekeys.remove(&key)?;
+
                 Ok((
                     serde_json::from_slice(
                         &*key

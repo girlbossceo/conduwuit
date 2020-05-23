@@ -20,7 +20,7 @@ pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
             let number = u64::from_be_bytes(array);
             number + 1
         }
-        None => 0,
+        None => 1, // Start at one. since 0 should return the first event in the db
     };
 
     Some(number.to_be_bytes().to_vec())
