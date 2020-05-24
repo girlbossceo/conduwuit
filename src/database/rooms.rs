@@ -26,6 +26,8 @@ pub struct Rooms {
     pub(super) roomid_pduleaves: sled::Tree,
     pub(super) roomstateid_pdu: sled::Tree, // RoomStateId = Room + StateType + StateKey
 
+    pub(super) alias_roomid: sled::Tree,
+
     pub(super) userroomid_joined: sled::Tree,
     pub(super) roomuserid_joined: sled::Tree,
     pub(super) userroomid_invited: sled::Tree,
@@ -644,6 +646,16 @@ impl Rooms {
         self.userroomid_left.remove(userroom_id)?;
 
         Ok(())
+    }
+
+    pub fn id_from_alias(&self, alias: &str) -> Result<Option<RoomId>> {
+        if !alias.starts_with('#') {
+            return Err(Error::BadRequest("room alias does not start with #"));
+        }
+
+        self.alias_roomid.get(alias)?.map_or(Ok(None), |bytes| {
+            Ok(Some(RoomId::try_from(utils::string_from_bytes(&bytes)?)?))
+        })
     }
 
     /// Returns an iterator over all rooms a user joined.

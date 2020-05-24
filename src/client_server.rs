@@ -1272,17 +1272,17 @@ pub fn join_room_by_id_or_alias_route(
 ) -> MatrixResult<join_room_by_id_or_alias::Response> {
     let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
         Ok(room_id) => room_id,
-        Err(room_alias) => {
-            if room_alias.server_name() == db.globals.server_name() {
+        Err(_) => {
+            if let Some(room_id) = db.rooms.id_from_alias(body.room_id_or_alias.as_ref()).unwrap() {
+                room_id
+            } else {
+                // Ask creator server of the room to join TODO ask someone else when not available
+                //server_server::send_request(data, destination, request)
                 return MatrixResult(Err(Error {
                     kind: ErrorKind::NotFound,
                     message: "Room alias not found.".to_owned(),
                     status_code: http::StatusCode::BAD_REQUEST,
                 }));
-            } else {
-                // Ask creator server of the room to join TODO ask someone else when not available
-                //server_server::send_request(data, destination, request)
-                todo!();
             }
         }
     };
