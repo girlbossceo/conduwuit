@@ -29,7 +29,7 @@ use ruma_client_api::{
         push::{self, get_pushrules_all, set_pushrule, set_pushrule_enabled},
         read_marker::set_read_marker,
         room::create_room,
-        session::{get_login_types, login},
+        session::{get_login_types, login, logout},
         state::{
             create_state_event_for_empty_key, create_state_event_for_key, get_state_events,
             get_state_events_for_empty_key, get_state_events_for_key,
@@ -309,6 +309,19 @@ pub fn login_route(
         device_id,
         well_known: None,
     }))
+}
+
+#[post("/_matrix/client/r0/logout", data = "<body>")]
+pub fn logout_route(
+    db: State<'_, Database>,
+    body: Ruma<logout::Request>,
+) -> MatrixResult<logout::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
+    db.users.remove_device(&user_id, &device_id).unwrap();
+
+    MatrixResult(Ok(logout::Response))
 }
 
 #[get("/_matrix/client/r0/capabilities")]

@@ -123,6 +123,37 @@ impl Users {
         Ok(())
     }
 
+    /// Removes a device from a user
+    pub fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
+        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        userdeviceid.push(0xff);
+        userdeviceid.extend_from_slice(device_id.as_bytes());
+
+        // Remove device keys
+        self.userdeviceid_devicekeys.remove(&userdeviceid)?;
+
+        // Remove tokens
+        if let Some(old_token) = self.userdeviceid_token.remove(&userdeviceid)? {
+            self.token_userdeviceid.remove(&old_token)?;
+        }
+
+        // Remove todevice events
+        let mut prefix = userdeviceid.clone();
+        prefix.push(0xff);
+
+        for result in self.todeviceid_events.scan_prefix(&prefix) {
+            let (key, value) = result?;
+            self.todeviceid_events.remove(key)?;
+        }
+
+        // TODO: Remove onetimekeys
+
+        // Remove the device
+        self.userdeviceids.remove(userdeviceid)?;
+
+        Ok(())
+    }
+
     /// Returns an iterator over all device ids of this user.
     pub fn all_device_ids(&self, user_id: &UserId) -> impl Iterator<Item = Result<DeviceId>> {
         let mut prefix = user_id.to_string().as_bytes().to_vec();
