@@ -5,15 +5,18 @@ use std::{
 };
 
 use log::{debug, warn};
-use rocket::{get, options, post, put, State};
+use rocket::{delete, get, options, post, put, State};
 use ruma_client_api::{
     error::{Error, ErrorKind},
     r0::{
         account::{get_username_availability, register},
-        alias::get_alias,
+        alias::{create_alias, delete_alias, get_alias},
         capabilities::get_capabilities,
         config::{get_global_account_data, set_global_account_data},
-        directory::{self, get_public_rooms, get_public_rooms_filtered},
+        directory::{
+            self, get_public_rooms, get_public_rooms_filtered, get_room_visibility,
+            set_room_visibility,
+        },
         filter::{self, create_filter, get_filter},
         keys::{claim_keys, get_keys, upload_keys},
         media::{create_content, get_content, get_content_thumbnail, get_media_config},
@@ -28,6 +31,7 @@ use ruma_client_api::{
         },
         push::{get_pushrules_all, set_pushrule, set_pushrule_enabled},
         read_marker::set_read_marker,
+        redact::redact_event,
         room::{self, create_room},
         session::{get_login_types, login, logout},
         state::{
@@ -39,16 +43,16 @@ use ruma_client_api::{
         to_device::{self, send_event_to_device},
         typing::create_typing_event,
         uiaa::{AuthFlow, UiaaInfo, UiaaResponse},
-        user_directory::search_users, redact::redact_event,
+        user_directory::search_users,
     },
     unversioned::get_supported_versions,
 };
 use ruma_events::{
     collections::only::Event as EduEvent,
-    room::{guest_access, history_visibility, join_rules, member, redaction},
+    room::{canonical_alias, guest_access, history_visibility, join_rules, member, redaction},
     EventJson, EventType,
 };
-use ruma_identifiers::{RoomId, RoomVersionId, UserId};
+use ruma_identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId};
 use serde_json::{json, value::RawValue};
 
 use crate::{server_server, utils, Database, MatrixResult, Ruma};
@@ -671,7 +675,7 @@ pub fn get_profile_route(
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "Profile was not found.".to_owned(),
-        status_code: http::StatusCode::BAD_REQUEST,
+        status_code: http::StatusCode::NOT_FOUND,
     }))
 }
 
@@ -908,8 +912,32 @@ pub fn create_room_route(
     let room_id = RoomId::new(db.globals.server_name()).expect("host is valid");
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    // TODO: Create alias and check if it already exists
+    let alias = if let Some(localpart) = &body.room_alias_name {
+        // TODO: Check for invalid characters and maximum length
+        if let Ok(alias) =
+            RoomAliasId::try_from(format!("#{}:{}", localpart, db.globals.server_name()))
+        {
+            if db.rooms.id_from_alias(&alias).unwrap().is_some() {
+                return MatrixResult(Err(Error {
+                    kind: ErrorKind::Unknown,
+                    message: "Alias already exists.".to_owned(),
+                    status_code: http::StatusCode::BAD_REQUEST,
+                }));
+            }
 
+            Some(alias)
+        } else {
+            return MatrixResult(Err(Error {
+                kind: ErrorKind::Unknown,
+                message: "Invalid alias.".to_owned(),
+                status_code: http::StatusCode::BAD_REQUEST,
+            }));
+        }
+    } else {
+        None
+    };
+
+    // 1. The room create event
     db.rooms
         .append_pdu(
             room_id.clone(),
@@ -917,11 +945,11 @@ pub fn create_room_route(
             EventType::RoomCreate,
             serde_json::to_value(ruma_events::room::create::CreateEventContent {
                 creator: user_id.clone(),
-                federate: body
+                federate: body.creation_content.as_ref().map_or(true, |c| c.federate),
+                predecessor: body
                     .creation_content
                     .as_ref()
-                    .map_or(true, |c| c.federate),
-                predecessor: body.creation_content.as_ref().and_then(|c| c.predecessor.clone()),
+                    .and_then(|c| c.predecessor.clone()),
                 room_version: RoomVersionId::version_5(),
             })
             .unwrap(),
@@ -932,7 +960,7 @@ pub fn create_room_route(
         )
         .unwrap();
 
-    // Join room
+    // 2. Let the room creator join
     db.rooms
         .append_pdu(
             room_id.clone(),
@@ -960,7 +988,7 @@ pub fn create_room_route(
         room::Visibility::Public => create_room::RoomPreset::PublicChat,
     });
 
-    // 0. Power levels
+    // 3. Power levels
     let mut users = BTreeMap::new();
     users.insert(user_id.clone(), 100.into());
     for invite_user_id in &body.invite {
@@ -972,8 +1000,18 @@ pub fn create_room_route(
             .expect("TODO: handle. we hope the client sends a valid power levels json")
     } else {
         serde_json::to_value(ruma_events::room::power_levels::PowerLevelsEventContent {
+            ban: 50.into(),
+            events: BTreeMap::new(),
+            events_default: 0.into(),
+            invite: 50.into(),
+            kick: 50.into(),
+            redact: 50.into(),
+            state_default: 50.into(),
             users,
-            ..Default::default()
+            users_default: 0.into(),
+            notifications: ruma_events::room::power_levels::NotificationPowerLevels {
+                room: 50.into(),
+            },
         })
         .unwrap()
     };
@@ -990,8 +1028,8 @@ pub fn create_room_route(
         )
         .unwrap();
 
-    // 1. Events set by preset
-    // 1.1 Join Rules
+    // 4. Events set by preset
+    // 4.1 Join Rules
     db.rooms
         .append_pdu(
             room_id.clone(),
@@ -1016,7 +1054,7 @@ pub fn create_room_route(
         )
         .unwrap();
 
-    // 1.2 History Visibility
+    // 4.2 History Visibility
     db.rooms
         .append_pdu(
             room_id.clone(),
@@ -1033,7 +1071,7 @@ pub fn create_room_route(
         )
         .unwrap();
 
-    // 1.3 Guest Access
+    // 4.3 Guest Access
     db.rooms
         .append_pdu(
             room_id.clone(),
@@ -1058,7 +1096,7 @@ pub fn create_room_route(
         )
         .unwrap();
 
-    // 2. Events listed in initial_state
+    // 5. Events listed in initial_state
     for create_room::InitialStateEvent {
         event_type,
         state_key,
@@ -1079,7 +1117,7 @@ pub fn create_room_route(
             .unwrap();
     }
 
-    // 3. Events implied by name and topic
+    // 6. Events implied by name and topic
     if let Some(name) = &body.name {
         db.rooms
             .append_pdu(
@@ -1116,7 +1154,7 @@ pub fn create_room_route(
             .unwrap();
     }
 
-    // 4. Events implied by invite (and TODO: invite_3pid)
+    // 7. Events implied by invite (and TODO: invite_3pid)
     for user in &body.invite {
         db.rooms
             .append_pdu(
@@ -1139,10 +1177,24 @@ pub fn create_room_route(
             .unwrap();
     }
 
+    // Homeserver specific stuff
+    if let Some(alias) = alias {
+        db.rooms
+            .set_alias(&alias, Some(&room_id), &db.globals)
+            .unwrap();
+    }
+
+    if let Some(room::Visibility::Public) = body.visibility {
+        db.rooms.set_public(&room_id, true).unwrap();
+    }
+
     MatrixResult(Ok(create_room::Response { room_id }))
 }
 
-#[put("/_matrix/client/r0/rooms/<_room_id>/redact/<_event_id>/<_txn_id>", data = "<body>")]
+#[put(
+    "/_matrix/client/r0/rooms/<_room_id>/redact/<_event_id>/<_txn_id>",
+    data = "<body>"
+)]
 pub fn redact_event_route(
     db: State<'_, Database>,
     body: Ruma<redact_event::Request>,
@@ -1158,7 +1210,8 @@ pub fn redact_event_route(
         EventType::RoomRedaction,
         serde_json::to_value(redaction::RedactionEventContent {
             reason: body.reason.clone(),
-        }).unwrap(),
+        })
+        .unwrap(),
         None,
         None,
         Some(body.event_id.clone()),
@@ -1174,35 +1227,63 @@ pub fn redact_event_route(
     }
 }
 
+#[put("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
+pub fn create_alias_route(
+    db: State<'_, Database>,
+    body: Ruma<create_alias::Request>,
+    _room_alias: String,
+) -> MatrixResult<create_alias::Response> {
+    if db.rooms.id_from_alias(&body.room_alias).unwrap().is_some() {
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::Unknown,
+            message: "Alias already exists".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }));
+    }
+
+    db.rooms
+        .set_alias(&body.room_alias, Some(&body.room_id), &db.globals)
+        .unwrap();
+
+    MatrixResult(Ok(create_alias::Response))
+}
+
+#[delete("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
+pub fn delete_alias_route(
+    db: State<'_, Database>,
+    body: Ruma<delete_alias::Request>,
+    _room_alias: String,
+) -> MatrixResult<delete_alias::Response> {
+    db.rooms
+        .set_alias(&body.room_alias, None, &db.globals)
+        .unwrap();
+
+    MatrixResult(Ok(delete_alias::Response))
+}
+
 #[get("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
 pub fn get_alias_route(
     db: State<'_, Database>,
     body: Ruma<get_alias::Request>,
     _room_alias: String,
 ) -> MatrixResult<get_alias::Response> {
-    warn!("TODO: get_alias_route");
-    let room_id = if body.room_alias.server_name() == db.globals.server_name() {
-        match body.room_alias.alias() {
-            "conduit" => "!lgOCCXQKtXOAPlAlG5:conduit.rs",
-            _ => {
-                debug!("Room alias not found.");
-                return MatrixResult(Err(Error {
-                    kind: ErrorKind::NotFound,
-                    message: "Room not found.".to_owned(),
-                    status_code: http::StatusCode::BAD_REQUEST,
-                }));
-            }
+    if body.room_alias.server_name() == db.globals.server_name() {
+        if let Some(room_id) = db.rooms.id_from_alias(&body.room_alias).unwrap() {
+            MatrixResult(Ok(get_alias::Response {
+                room_id,
+                servers: vec![db.globals.server_name().to_owned()],
+            }))
+        } else {
+            debug!("Room alias not found.");
+            return MatrixResult(Err(Error {
+                kind: ErrorKind::NotFound,
+                message: "Room with alias not found.".to_owned(),
+                status_code: http::StatusCode::BAD_REQUEST,
+            }));
         }
     } else {
         todo!("ask remote server");
     }
-    .try_into()
-    .unwrap();
-
-    MatrixResult(Ok(get_alias::Response {
-        room_id,
-        servers: vec!["conduit.rs".to_owned()],
-    }))
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/join", data = "<body>")]
@@ -1273,7 +1354,11 @@ pub fn join_room_by_id_or_alias_route(
     let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
         Ok(room_id) => room_id,
         Err(_) => {
-            if let Some(room_id) = db.rooms.id_from_alias(body.room_id_or_alias.as_ref()).unwrap() {
+            if let Some(room_id) = db
+                .rooms
+                .id_from_alias(&body.room_id_or_alias.clone().try_into().unwrap())
+                .unwrap()
+            {
                 room_id
             } else {
                 // Ask creator server of the room to join TODO ask someone else when not available
@@ -1379,6 +1464,35 @@ pub fn invite_user_route(
     }
 }
 
+#[put("/_matrix/client/r0/directory/list/room/<_room_id>", data = "<body>")]
+pub async fn set_room_visibility_route(
+    db: State<'_, Database>,
+    body: Ruma<set_room_visibility::Request>,
+    _room_id: String,
+) -> MatrixResult<set_room_visibility::Response> {
+    match body.visibility {
+        room::Visibility::Public => db.rooms.set_public(&body.room_id, true).unwrap(),
+        room::Visibility::Private => db.rooms.set_public(&body.room_id, false).unwrap(),
+    }
+
+    MatrixResult(Ok(set_room_visibility::Response))
+}
+
+#[get("/_matrix/client/r0/directory/list/room/<_room_id>", data = "<body>")]
+pub async fn get_room_visibility_route(
+    db: State<'_, Database>,
+    body: Ruma<get_room_visibility::Request>,
+    _room_id: String,
+) -> MatrixResult<get_room_visibility::Response> {
+    MatrixResult(Ok(get_room_visibility::Response {
+        visibility: if db.rooms.is_public_room(&body.room_id).unwrap() {
+            room::Visibility::Public
+        } else {
+            room::Visibility::Private
+        },
+    }))
+}
+
 #[get("/_matrix/client/r0/publicRooms", data = "<body>")]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
@@ -1436,9 +1550,10 @@ pub async fn get_public_rooms_filtered_route(
 ) -> MatrixResult<get_public_rooms_filtered::Response> {
     let mut chunk = db
         .rooms
-        .all_rooms()
-        .into_iter()
+        .public_rooms()
         .map(|room_id| {
+            let room_id = room_id.unwrap();
+
             let state = db.rooms.room_state(&room_id).unwrap();
 
             directory::PublicRoomsChunk {
@@ -1628,12 +1743,46 @@ pub fn create_state_event_for_key_route(
 ) -> MatrixResult<create_state_event_for_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    // Reponse of with/without key is the same
+    let content =
+        serde_json::from_str::<serde_json::Value>(body.json_body.clone().unwrap().get()).unwrap();
+
+    if body.event_type == EventType::RoomCanonicalAlias {
+        let canonical_alias = serde_json::from_value::<
+            EventJson<canonical_alias::CanonicalAliasEventContent>,
+        >(content.clone())
+        .unwrap()
+        .deserialize()
+        .unwrap();
+
+        let mut aliases = canonical_alias.alt_aliases;
+
+        if let Some(alias) = canonical_alias.alias {
+            aliases.push(alias);
+        }
+
+        for alias in aliases {
+            if alias.server_name() != db.globals.server_name()
+                || db
+                    .rooms
+                    .id_from_alias(&alias)
+                    .unwrap()
+                    .filter(|room| room == &body.room_id) // Make sure it's the right room
+                    .is_none()
+            {
+                return MatrixResult(Err(Error {
+                    kind: ErrorKind::Unknown,
+                    message: "You are only allowed to send canonical_alias events when it's aliases already exists".to_owned(),
+                    status_code: http::StatusCode::BAD_REQUEST,
+                }));
+            }
+        }
+    }
+
     if let Ok(event_id) = db.rooms.append_pdu(
         body.room_id.clone(),
         user_id.clone(),
         body.event_type.clone(),
-        serde_json::from_str(body.json_body.clone().unwrap().get()).unwrap(),
+        content,
         None,
         Some(body.state_key.clone()),
         None,
@@ -1659,27 +1808,43 @@ pub fn create_state_event_for_empty_key_route(
     _room_id: String,
     _event_type: String,
 ) -> MatrixResult<create_state_event_for_empty_key::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    // This just calls create_state_event_for_key_route
+    let Ruma {
+        body:
+            create_state_event_for_empty_key::Request {
+                room_id,
+                event_type,
+                data,
+            },
+        user_id,
+        device_id,
+        json_body,
+    } = body;
 
-    // Reponse of with/without key is the same
-    if let Ok(event_id) = db.rooms.append_pdu(
-        body.room_id.clone(),
-        user_id.clone(),
-        body.event_type.clone(),
-        serde_json::from_str(body.json_body.unwrap().get()).unwrap(),
-        None,
-        Some("".to_owned()),
-        None,
-        &db.globals,
-    ) {
-        MatrixResult(Ok(create_state_event_for_empty_key::Response { event_id }))
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::Unknown,
-            message: "Failed to send event.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
-    }
+    let response = create_state_event_for_key_route(
+        db,
+        Ruma {
+            body: create_state_event_for_key::Request {
+                room_id,
+                event_type,
+                data,
+                state_key: "".to_owned(),
+            },
+            user_id,
+            device_id,
+            json_body,
+        },
+        _room_id,
+        _event_type,
+        "".to_owned(),
+    );
+
+    MatrixResult(match response.0 {
+        Ok(create_state_event_for_key::Response { event_id }) => {
+            Ok(create_state_event_for_empty_key::Response { event_id })
+        }
+        Err(e) => Err(e),
+    })
 }
 
 #[get("/_matrix/client/r0/rooms/<_room_id>/state", data = "<body>")]
@@ -1973,17 +2138,19 @@ pub fn sync_route(
     let mut invited_rooms = BTreeMap::new();
     for room_id in db.rooms.rooms_invited(&user_id) {
         let room_id = room_id.unwrap();
-        let events = db
-            .rooms
-            .pdus_since(&room_id, since)
-            .unwrap()
-            .map(|pdu| pdu.unwrap().to_stripped_state_event())
-            .collect();
 
         invited_rooms.insert(
-            room_id,
+            room_id.clone(),
             sync_events::InvitedRoom {
-                invite_state: sync_events::InviteState { events },
+                invite_state: sync_events::InviteState {
+                    events: db
+                        .rooms
+                        .room_state(&room_id)
+                        .unwrap()
+                        .into_iter()
+                        .map(|(_, pdu)| pdu.to_stripped_state_event())
+                        .collect(),
+                },
             },
         );
     }
@@ -2086,12 +2253,12 @@ pub fn get_message_events_route(
             .map(|pdu| pdu.to_room_event())
             .collect::<Vec<_>>();
 
-        MatrixResult(Ok(get_message_events::Response {
+        MatrixResult(Ok(dbg!(get_message_events::Response {
             start: Some(body.from.clone()),
             end: prev_batch,
             chunk: room_events,
             state: Vec::new(),
-        }))
+        })))
     } else {
         MatrixResult(Err(Error {
             kind: ErrorKind::Unknown,

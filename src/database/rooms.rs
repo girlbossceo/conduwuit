@@ -11,7 +11,7 @@ use ruma_events::{
     },
     EventJson, EventType,
 };
-use ruma_identifiers::{EventId, RoomId, UserId};
+use ruma_identifiers::{EventId, RoomAliasId, RoomId, UserId};
 use sled::IVec;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -27,6 +27,8 @@ pub struct Rooms {
     pub(super) roomstateid_pdu: sled::Tree, // RoomStateId = Room + StateType + StateKey
 
     pub(super) alias_roomid: sled::Tree,
+    pub(super) aliasid_alias: sled::Tree, // AliasId = RoomId + Count
+    pub(super) publicroomids: sled::Tree,
 
     pub(super) userroomid_joined: sled::Tree,
     pub(super) roomuserid_joined: sled::Tree,
@@ -312,7 +314,7 @@ impl Rooms {
                                 .join_rule
                             });
 
-                        if target_membership == member::MembershipState::Join {
+                        let authorized = if target_membership == member::MembershipState::Join {
                             let mut prev_events = prev_events.iter();
                             let prev_event = self
                                 .get_pdu(prev_events.next().ok_or(Error::BadRequest(
@@ -392,33 +394,29 @@ impl Rooms {
                             }
                         } else {
                             false
+                        };
+
+                        if authorized {
+                            // Update our membership info
+                            self.update_membership(&room_id, &target_user_id, &target_membership)?;
                         }
+
+                        authorized
                     }
                     EventType::RoomCreate => prev_events.is_empty(),
-                    _ if sender_membership == member::MembershipState::Join => {
+
+                    // Not allow any of the following events if the sender is not joined.
+                    _ if sender_membership != member::MembershipState::Join => false,
+
+                    _ => {
                         // TODO
                         sender_power.unwrap_or(&power_levels.users_default)
                             >= &power_levels.state_default
                     }
-
-                    _ => false,
                 } {
                     error!("Unauthorized");
                     // Not authorized
                     return Err(Error::BadRequest("event not authorized"));
-                }
-                if event_type == EventType::RoomMember {
-                    // TODO: Don't get this twice
-                    let target_user_id = UserId::try_from(&**state_key)?;
-                    self.update_membership(
-                        &room_id,
-                        &target_user_id,
-                        &serde_json::from_value::<EventJson<member::MemberEventContent>>(
-                            content.clone(),
-                        )?
-                        .deserialize()?
-                        .membership,
-                    )?;
                 }
             }
         } else if !self.is_joined(&sender, &room_id)? {
@@ -648,14 +646,66 @@ impl Rooms {
         Ok(())
     }
 
-    pub fn id_from_alias(&self, alias: &str) -> Result<Option<RoomId>> {
-        if !alias.starts_with('#') {
-            return Err(Error::BadRequest("room alias does not start with #"));
+    pub fn set_alias(
+        &self,
+        alias: &RoomAliasId,
+        room_id: Option<&RoomId>,
+        globals: &super::globals::Globals,
+    ) -> Result<()> {
+        if let Some(room_id) = room_id {
+            self.alias_roomid
+                .insert(alias.alias(), &*room_id.to_string())?;
+            let mut aliasid = room_id.to_string().as_bytes().to_vec();
+            aliasid.extend_from_slice(&globals.next_count()?.to_be_bytes());
+            self.aliasid_alias.insert(aliasid, &*alias.alias())?;
+        } else {
+            if let Some(room_id) = self.alias_roomid.remove(alias.alias())? {
+                for key in self.aliasid_alias.scan_prefix(room_id).keys() {
+                    self.aliasid_alias.remove(key?)?;
+                }
+            }
         }
 
-        self.alias_roomid.get(alias)?.map_or(Ok(None), |bytes| {
-            Ok(Some(RoomId::try_from(utils::string_from_bytes(&bytes)?)?))
-        })
+        Ok(())
+    }
+
+    pub fn id_from_alias(&self, alias: &RoomAliasId) -> Result<Option<RoomId>> {
+        self.alias_roomid
+            .get(alias.alias())?
+            .map_or(Ok(None), |bytes| {
+                Ok(Some(RoomId::try_from(utils::string_from_bytes(&bytes)?)?))
+            })
+    }
+
+    pub fn room_aliases(&self, room_id: &RoomId) -> impl Iterator<Item = Result<RoomAliasId>> {
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+
+        self.aliasid_alias
+            .scan_prefix(prefix)
+            .values()
+            .map(|bytes| Ok(RoomAliasId::try_from(utils::string_from_bytes(&bytes?)?)?))
+    }
+
+    pub fn set_public(&self, room_id: &RoomId, public: bool) -> Result<()> {
+        if public {
+            self.publicroomids.insert(room_id.to_string(), &[])?;
+        } else {
+            self.publicroomids.remove(room_id.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    pub fn is_public_room(&self, room_id: &RoomId) -> Result<bool> {
+        Ok(self.publicroomids.contains_key(room_id.to_string())?)
+    }
+
+    pub fn public_rooms(&self) -> impl Iterator<Item = Result<RoomId>> {
+        self.publicroomids
+            .iter()
+            .keys()
+            .map(|bytes| Ok(RoomId::try_from(utils::string_from_bytes(&bytes?)?)?))
     }
 
     /// Returns an iterator over all rooms a user joined.

@@ -141,9 +141,8 @@ impl Users {
         let mut prefix = userdeviceid.clone();
         prefix.push(0xff);
 
-        for result in self.todeviceid_events.scan_prefix(&prefix) {
-            let (key, value) = result?;
-            self.todeviceid_events.remove(key)?;
+        for key in self.todeviceid_events.scan_prefix(&prefix).keys() {
+            self.todeviceid_events.remove(key?)?;
         }
 
         // TODO: Remove onetimekeys

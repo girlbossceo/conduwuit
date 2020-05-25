@@ -77,6 +77,10 @@ impl Database {
                 roomid_pduleaves: db.open_tree("roomid_pduleaves").unwrap(),
                 roomstateid_pdu: db.open_tree("roomstateid_pdu").unwrap(),
 
+                alias_roomid: db.open_tree("alias_roomid").unwrap(),
+                aliasid_alias: db.open_tree("alias_roomid").unwrap(),
+                publicroomids: db.open_tree("publicroomids").unwrap(),
+
                 userroomid_joined: db.open_tree("userroomid_joined").unwrap(),
                 roomuserid_joined: db.open_tree("roomuserid_joined").unwrap(),
                 userroomid_invited: db.open_tree("userroomid_invited").unwrap(),

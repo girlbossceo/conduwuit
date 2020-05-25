@@ -3,6 +3,9 @@ server_name = "your.server.name"
 port = 8448
 address = "0.0.0.0"
 
+# Default path is in this user's data
+#database_path = "/home/timo/MyConduitServer"
+
 #[global.tls]
 #certs = "/etc/letsencrypt/live/your.server.name/fullchain.pem"
 #key = "/etc/letsencrypt/live/your.server.name/privkey.pem"
