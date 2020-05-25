@@ -32,12 +32,11 @@ A fast Matrix homeserver that's optimized for smaller, personal servers, instead
 - [x] Password hashing
 - [x] Riot E2EE
 - [x] Media
+- [x] Permission system
 - [ ] Basic federation
 - [ ] State resolution
-- [ ] Permission system
 - [ ] Notifications (push rules)
 - [ ] Riot presence
-- [ ] Proper room creation
 
 #### How can I contribute?
 
