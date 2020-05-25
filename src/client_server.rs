@@ -1404,7 +1404,15 @@ pub async fn get_public_rooms_filtered_route(
 
             directory::PublicRoomsChunk {
                 aliases: Vec::new(),
-                canonical_alias: None,
+                canonical_alias: state.get(&(EventType::RoomCanonicalAlias, "".to_owned())).and_then(|s| {
+                    serde_json::from_value::<
+                            EventJson<ruma_events::room::canonical_alias::CanonicalAliasEventContent>,
+                        >(s.content.clone())
+                        .unwrap()
+                        .deserialize()
+                        .unwrap()
+                        .alias
+                }).map(|a| a.to_string()),
                 name: state.get(&(EventType::RoomName, "".to_owned())).map(|s| {
                     serde_json::from_value::<EventJson<ruma_events::room::name::NameEventContent>>(
                         s.content.clone(),
@@ -1427,9 +1435,33 @@ pub async fn get_public_rooms_filtered_route(
                         .unwrap()
                         .topic
                 }),
-                world_readable: false,
-                guest_can_join: true,
-                avatar_url: None,
+                world_readable: state.get(&(EventType::RoomHistoryVisibility, "".to_owned())).map_or(false, |s| {
+                    serde_json::from_value::<
+                            EventJson<ruma_events::room::history_visibility::HistoryVisibilityEventContent>,
+                        >(s.content.clone())
+                        .unwrap()
+                        .deserialize()
+                        .unwrap()
+                        .history_visibility == history_visibility::HistoryVisibility::WorldReadable
+                }),
+                guest_can_join: state.get(&(EventType::RoomGuestAccess, "".to_owned())).map_or(false, |s| {
+                    serde_json::from_value::<
+                            EventJson<ruma_events::room::guest_access::GuestAccessEventContent>,
+                        >(s.content.clone())
+                        .unwrap()
+                        .deserialize()
+                        .unwrap()
+                        .guest_access == guest_access::GuestAccess::CanJoin
+                }),
+                avatar_url: state.get(&(EventType::RoomAvatar, "".to_owned())).map(|s| {
+                    serde_json::from_value::<
+                            EventJson<ruma_events::room::avatar::AvatarEventContent>,
+                        >(s.content.clone())
+                        .unwrap()
+                        .deserialize()
+                        .unwrap()
+                        .url
+                }),
             }
         })
         .collect::<Vec<_>>();
