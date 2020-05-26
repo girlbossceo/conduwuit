@@ -1,0 +1,2 @@
+# This test checks for a room-alias key in the response which is not in the spec
+POST /createRoom makes a public room
