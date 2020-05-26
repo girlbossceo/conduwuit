@@ -12,7 +12,7 @@ use ruma_events::{
     EventJson, EventType,
 };
 use ruma_identifiers::{EventId, RoomId, UserId};
-
+use sled::IVec;
 use std::{
     collections::{BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
@@ -110,13 +110,19 @@ impl Rooms {
         self.eventid_pduid
             .get(event_id.to_string().as_bytes())?
             .map_or(Ok(None), |pdu_id| {
-                Ok(serde_json::from_slice(
+                Ok(Some(serde_json::from_slice(
                     &self.pduid_pdu.get(pdu_id)?.ok_or(Error::BadDatabase(
                         "eventid_pduid points to nonexistent pdu",
                     ))?,
-                )?)
-                .map(Some)
+                )?))
             })
+    }
+
+    /// Returns the pdu's id.
+    pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<IVec>> {
+        self.eventid_pduid
+            .get(event_id.to_string().as_bytes())?
+            .map_or(Ok(None), |pdu_id| Ok(Some(pdu_id)))
     }
 
     /// Returns the pdu.
@@ -124,13 +130,29 @@ impl Rooms {
         self.eventid_pduid
             .get(event_id.to_string().as_bytes())?
             .map_or(Ok(None), |pdu_id| {
-                Ok(serde_json::from_slice(
+                Ok(Some(serde_json::from_slice(
                     &self.pduid_pdu.get(pdu_id)?.ok_or(Error::BadDatabase(
                         "eventid_pduid points to nonexistent pdu",
                     ))?,
-                )?)
-                .map(Some)
+                )?))
             })
+    }
+    /// Returns the pdu.
+    pub fn get_pdu_from_id(&self, pdu_id: &IVec) -> Result<Option<PduEvent>> {
+        self.pduid_pdu
+            .get(pdu_id)?
+            .map_or(Ok(None), |pdu| Ok(Some(serde_json::from_slice(&pdu)?)))
+    }
+
+    /// Returns the pdu.
+    pub fn replace_pdu(&self, pdu_id: &IVec, pdu: &PduEvent) -> Result<()> {
+        if self.pduid_pdu.get(&pdu_id)?.is_some() {
+            self.pduid_pdu
+                .insert(&pdu_id, &*serde_json::to_string(pdu)?)?;
+            Ok(())
+        } else {
+            Err(Error::BadRequest("pdu does not exist"))
+        }
     }
 
     /// Returns the leaf pdus of a room.
@@ -177,6 +199,7 @@ impl Rooms {
         content: serde_json::Value,
         unsigned: Option<serde_json::Map<String, serde_json::Value>>,
         state_key: Option<String>,
+        redacts: Option<EventId>,
         globals: &super::globals::Globals,
     ) -> Result<EventId> {
         // TODO: Make sure this isn't called twice in parallel
@@ -435,7 +458,7 @@ impl Rooms {
                 .try_into()
                 .expect("depth can overflow and should be deprecated..."),
             auth_events: Vec::new(),
-            redacts: None,
+            redacts,
             unsigned,
             hashes: ruma_federation_api::EventHash {
                 sha256: "aaa".to_owned(),
@@ -555,7 +578,21 @@ impl Rooms {
             .map(|(_, v)| Ok(serde_json::from_slice(&v)?))
     }
 
-    /// Makes a user join a room. Only call this if the membership is Join already
+    /// Replace a PDU with the redacted form.
+    pub fn redact_pdu(&self, event_id: &EventId) -> Result<()> {
+        if let Some(pdu_id) = self.get_pdu_id(event_id)? {
+            let mut pdu = self
+                .get_pdu_from_id(&pdu_id)?
+                .ok_or(Error::BadDatabase("pduid points to invalid pdu"))?;
+            pdu.redact();
+            self.replace_pdu(&pdu_id, &pdu)?;
+            Ok(())
+        } else {
+            Err(Error::BadRequest("eventid does not exist"))
+        }
+    }
+
+    /// Update current membership data.
     fn update_membership(
         &self,
         room_id: &RoomId,

@@ -33,6 +33,38 @@ pub struct PduEvent {
 }
 
 impl PduEvent {
+    pub fn redact(&mut self) {
+        self.unsigned.clear();
+        let allowed = match self.kind {
+            EventType::RoomMember => vec!["membership"],
+            EventType::RoomCreate => vec!["creator"],
+            EventType::RoomJoinRules => vec!["join_rule"],
+            EventType::RoomPowerLevels => vec![
+                "ban",
+                "events",
+                "events_default",
+                "kick",
+                "redact",
+                "state_default",
+                "users",
+                "users_default",
+            ],
+            EventType::RoomHistoryVisibility => vec!["history_visibility"],
+            _ => vec![],
+        };
+
+        let old_content = self.content.as_object_mut().unwrap(); // TODO error
+        let mut new_content = serde_json::Map::new();
+
+        for key in allowed {
+            if let Some(value) = old_content.remove(key) {
+                new_content.insert(key.to_owned(), value);
+            }
+        }
+
+        self.content = new_content.into();
+    }
+
     pub fn to_room_event(&self) -> EventJson<RoomEvent> {
         // Can only fail in rare circumstances that won't ever happen here, see
         // https://docs.rs/serde_json/1.0.50/serde_json/fn.to_string.html
@@ -40,7 +72,6 @@ impl PduEvent {
         // EventJson's deserialize implementation always returns `Ok(...)`
         serde_json::from_str::<EventJson<RoomEvent>>(&json).unwrap()
     }
-
     pub fn to_state_event(&self) -> EventJson<StateEvent> {
         let json = serde_json::to_string(&self).unwrap();
         serde_json::from_str::<EventJson<StateEvent>>(&json).unwrap()

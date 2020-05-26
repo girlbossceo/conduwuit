@@ -39,13 +39,13 @@ use ruma_client_api::{
         to_device::{self, send_event_to_device},
         typing::create_typing_event,
         uiaa::{AuthFlow, UiaaInfo, UiaaResponse},
-        user_directory::search_users,
+        user_directory::search_users, redact::redact_event,
     },
     unversioned::get_supported_versions,
 };
 use ruma_events::{
     collections::only::Event as EduEvent,
-    room::{guest_access, history_visibility, join_rules, member},
+    room::{guest_access, history_visibility, join_rules, member, redaction},
     EventJson, EventType,
 };
 use ruma_identifiers::{RoomId, RoomVersionId, UserId};
@@ -517,6 +517,7 @@ pub fn set_displayname_route(
                 .unwrap(),
                 None,
                 Some(user_id.to_string()),
+                None,
                 &db.globals,
             )
             .unwrap();
@@ -564,7 +565,7 @@ pub fn set_avatar_url_route(
 ) -> MatrixResult<set_avatar_url::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if let avatar_url = &body.avatar_url {
+    if let Some(avatar_url) = &body.avatar_url {
         if !avatar_url.starts_with("mxc://") {
             debug!("Request contains an invalid avatar_url.");
             return MatrixResult(Err(Error {
@@ -579,7 +580,7 @@ pub fn set_avatar_url_route(
     }
 
     db.users
-        .set_avatar_url(&user_id, Some(body.avatar_url.clone()))
+        .set_avatar_url(&user_id, body.avatar_url.clone())
         .unwrap();
 
     // Send a new membership event into all joined rooms
@@ -591,7 +592,7 @@ pub fn set_avatar_url_route(
                 user_id.clone(),
                 EventType::RoomMember,
                 serde_json::to_value(ruma_events::room::member::MemberEventContent {
-                    avatar_url: Some(body.avatar_url.clone()),
+                    avatar_url: body.avatar_url.clone(),
                     ..serde_json::from_value::<EventJson<_>>(
                         db.rooms
                             .room_state(&room_id)
@@ -608,6 +609,7 @@ pub fn set_avatar_url_route(
                 .unwrap(),
                 None,
                 Some(user_id.to_string()),
+                None,
                 &db.globals,
             )
             .unwrap();
@@ -917,14 +919,15 @@ pub fn create_room_route(
                 creator: user_id.clone(),
                 federate: body
                     .creation_content
-                    .and_then(|c| c.federate)
-                    .unwrap_or(true),
-                predecessor: None, // TODO: Check creation_content.predecessor once ruma has that
+                    .as_ref()
+                    .map_or(true, |c| c.federate),
+                predecessor: body.creation_content.as_ref().and_then(|c| c.predecessor.clone()),
                 room_version: RoomVersionId::version_5(),
             })
             .unwrap(),
             None,
             Some("".to_owned()),
+            None,
             &db.globals,
         )
         .unwrap();
@@ -945,6 +948,7 @@ pub fn create_room_route(
             .unwrap(),
             None,
             Some(user_id.to_string()),
+            None,
             &db.globals,
         )
         .unwrap();
@@ -968,18 +972,8 @@ pub fn create_room_route(
             .expect("TODO: handle. we hope the client sends a valid power levels json")
     } else {
         serde_json::to_value(ruma_events::room::power_levels::PowerLevelsEventContent {
-            ban: 50.into(),
-            events: BTreeMap::new(),
-            events_default: 0.into(),
-            invite: 50.into(),
-            kick: 50.into(),
-            redact: 50.into(),
-            state_default: 50.into(),
             users,
-            users_default: 0.into(),
-            notifications: ruma_events::room::power_levels::NotificationPowerLevels {
-                room: 50.into(),
-            },
+            ..Default::default()
         })
         .unwrap()
     };
@@ -991,6 +985,7 @@ pub fn create_room_route(
             power_levels_content,
             None,
             Some("".to_owned()),
+            None,
             &db.globals,
         )
         .unwrap();
@@ -1016,6 +1011,7 @@ pub fn create_room_route(
             },
             None,
             Some("".to_owned()),
+            None,
             &db.globals,
         )
         .unwrap();
@@ -1032,6 +1028,7 @@ pub fn create_room_route(
             .unwrap(),
             None,
             Some("".to_owned()),
+            None,
             &db.globals,
         )
         .unwrap();
@@ -1056,6 +1053,7 @@ pub fn create_room_route(
             },
             None,
             Some("".to_owned()),
+            None,
             &db.globals,
         )
         .unwrap();
@@ -1071,10 +1069,11 @@ pub fn create_room_route(
             .append_pdu(
                 room_id.clone(),
                 user_id.clone(),
-                EventType::from(event_type),
+                event_type.clone(),
                 serde_json::from_str(content.get()).unwrap(),
                 None,
                 state_key.clone(),
+                None,
                 &db.globals,
             )
             .unwrap();
@@ -1093,6 +1092,7 @@ pub fn create_room_route(
                 .unwrap(),
                 None,
                 Some("".to_owned()),
+                None,
                 &db.globals,
             )
             .unwrap();
@@ -1110,6 +1110,7 @@ pub fn create_room_route(
                 .unwrap(),
                 None,
                 Some("".to_owned()),
+                None,
                 &db.globals,
             )
             .unwrap();
@@ -1132,12 +1133,45 @@ pub fn create_room_route(
                 .unwrap(),
                 None,
                 Some(user.to_string()),
+                None,
                 &db.globals,
             )
             .unwrap();
     }
 
     MatrixResult(Ok(create_room::Response { room_id }))
+}
+
+#[put("/_matrix/client/r0/rooms/<_room_id>/redact/<_event_id>/<_txn_id>", data = "<body>")]
+pub fn redact_event_route(
+    db: State<'_, Database>,
+    body: Ruma<redact_event::Request>,
+    _room_id: String,
+    _event_id: String,
+    _txn_id: String,
+) -> MatrixResult<redact_event::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    if let Ok(event_id) = db.rooms.append_pdu(
+        body.room_id.clone(),
+        user_id.clone(),
+        EventType::RoomRedaction,
+        serde_json::to_value(redaction::RedactionEventContent {
+            reason: body.reason.clone(),
+        }).unwrap(),
+        None,
+        None,
+        Some(body.event_id.clone()),
+        &db.globals,
+    ) {
+        MatrixResult(Ok(redact_event::Response { event_id }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::Unknown,
+            message: "Failed to redact event.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }))
+    }
 }
 
 #[get("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
@@ -1220,6 +1254,7 @@ pub fn join_room_by_id_route(
             serde_json::to_value(event).unwrap(),
             None,
             Some(user_id.to_string()),
+            None,
             &db.globals,
         )
         .unwrap();
@@ -1285,6 +1320,7 @@ pub fn leave_room_route(
             json!({"membership": "leave"}),
             None,
             Some(user_id.to_string()),
+            None,
             &db.globals,
         )
         .unwrap();
@@ -1328,6 +1364,7 @@ pub fn invite_user_route(
                 serde_json::to_value(event).unwrap(),
                 None,
                 Some(user_id.to_string()),
+                None,
                 &db.globals,
             )
             .unwrap();
@@ -1414,7 +1451,7 @@ pub async fn get_public_rooms_filtered_route(
                         .deserialize()
                         .unwrap()
                         .alias
-                }).map(|a| a.to_string()),
+                }),
                 name: state.get(&(EventType::RoomName, "".to_owned())).map(|s| {
                     serde_json::from_value::<EventJson<ruma_events::room::name::NameEventContent>>(
                         s.content.clone(),
@@ -1565,6 +1602,7 @@ pub fn create_message_event_route(
         serde_json::from_str(body.json_body.unwrap().get()).unwrap(),
         Some(unsigned),
         None,
+        None,
         &db.globals,
     ) {
         MatrixResult(Ok(create_message_event::Response { event_id }))
@@ -1598,6 +1636,7 @@ pub fn create_state_event_for_key_route(
         serde_json::from_str(body.json_body.clone().unwrap().get()).unwrap(),
         None,
         Some(body.state_key.clone()),
+        None,
         &db.globals,
     ) {
         MatrixResult(Ok(create_state_event_for_key::Response { event_id }))
@@ -1630,6 +1669,7 @@ pub fn create_state_event_for_empty_key_route(
         serde_json::from_str(body.json_body.unwrap().get()).unwrap(),
         None,
         Some("".to_owned()),
+        None,
         &db.globals,
     ) {
         MatrixResult(Ok(create_state_event_for_empty_key::Response { event_id }))
