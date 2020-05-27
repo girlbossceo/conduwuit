@@ -126,7 +126,8 @@ pub fn register_route(
     let user_id = match UserId::parse_with_server_name(
         body.username
             .clone()
-            .unwrap_or_else(|| utils::random_string(GUEST_NAME_LENGTH)),
+            .unwrap_or_else(|| utils::random_string(GUEST_NAME_LENGTH))
+            .to_lowercase(),
         db.globals.server_name(),
     )
     .ok()
