@@ -293,6 +293,7 @@ pub fn login_route(
 
     // Generate new device id if the user didn't specify one
     let device_id = body
+        .body
         .device_id
         .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
 
