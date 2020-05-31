@@ -4,7 +4,9 @@ use log::error;
 use rocket::{get, response::content::Json, State};
 use ruma_api::Endpoint;
 use ruma_client_api::error::Error;
-use ruma_federation_api::{v1::get_server_version, v2::get_server_keys};
+use ruma_federation_api::discovery::{
+    get_server_keys::v2 as get_server_keys, get_server_version::v1 as get_server_version,
+};
 use serde_json::json;
 use std::{
     collections::BTreeMap,

@@ -14,23 +14,26 @@ edition = "2018"
 [dependencies]
 rocket = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "async", features = ["tls"] }
 http = "0.2.1"
-ruma-client-api = "0.9.0"
+ruma-client-api = { git = "https://github.com/ruma/ruma-client-api.git", rev = "c725288cd099690c1d13f1a9b9e57228bc860a62" }
 ruma-identifiers = { version = "0.16.1", features = ["rand"] }
 ruma-api = "0.16.1"
-ruma-events = "0.21.2"
+ruma-events = { git = "https://github.com/ruma/ruma-events.git", rev = "4d09416cd1663d63c22153705c9e1fd77910797f" }
 ruma-signatures = { git = "https://github.com/ruma/ruma-signatures.git", rev = "1ca545cba8dfd43e0fc8e3c18e1311fb73390a97" }
-ruma-federation-api = { git = "https://github.com/ruma/ruma-federation-api.git", rev = "ccbf216f39bbbaa59131cc200eae5bd18aa1947c" }
+ruma-federation-api = { git = "https://github.com/ruma/ruma-federation-api.git", rev = "4cf4aa6ef74b25ad8c14d99d7774129f023df163" }
 log = "0.4.8"
 sled = "0.31.0"
 directories = "2.0.2"
 js_int = "0.1.5"
 serde_json = { version = "1.0.53", features = ["raw_value"] }
-serde = "1.0.110"
+serde = "1.0.111"
 tokio = { version = "0.2.21", features = ["macros"] }
 rand = "0.7.3"
 rust-argon2 = "0.8.2"
-reqwest = "0.10.4"
+reqwest = "=0.10.4"
 base64 = "0.12.1"
-thiserror = "1.0.18"
+thiserror = "1.0.19"
 ruma-common = "0.1.2"
 image = { version = "0.23.4", default-features = false, features = ["jpeg", "png", "gif"] }
+
+[patch.crates-io]
+ruma-events = { git = "https://github.com/ruma/ruma-events.git", rev = "4d09416cd1663d63c22153705c9e1fd77910797f" }

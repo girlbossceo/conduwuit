@@ -37,7 +37,7 @@ Also check out the [milestones](https://git.koesters.xyz/timo/conduit/milestones
 
 #### How can I contribute?
 
-If you want to help, you may be able to find something in the issue tracker. If you do, comment on the issue, so others know. You can also join #conduit:matrix.org and ask there. 
+If you want to help, you may be able to find something in the issue tracker. If you do, comment on the issue, so others know. You can also join #conduit:matrix.org and ask there.
 
 #### Donate
 
