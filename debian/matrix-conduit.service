@@ -1,0 +1,21 @@
+[Unit]
+Description=Conduit Matrix homeserver
+After=network.target
+
+[Service]
+User=_matrix-conduit
+Group=_matrix-conduit
+Type=simple
+
+Environment="ROCKET_ENV=production"
+Environment="ROCKET_DATABASE_PATH=/var/lib/matrix-conduit"
+EnvironmentFile=/etc/matrix-conduit/env
+
+ExecStart=/usr/sbin/matrix-conduit
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=1m
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

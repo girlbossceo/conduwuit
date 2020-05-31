@@ -72,3 +72,25 @@ required-features = ["conduit_bin"]
 [lib]
 name = "conduit"
 path = "src/lib.rs"
+
+[package.metadata.deb]
+name = "matrix-conduit"
+maintainer = "Paul van Tilburg <paul@luon.net>"
+copyright = "2020, Timo Kösters <timo@koesters.xyz>"
+license-file = ["LICENSE", "3"]
+depends = "$auto, ca-certificates"
+extended-description = """\
+A fast Matrix homeserver that is optimized for smaller, personal servers, \
+instead of a server that has high scalability."""
+section = "net"
+priority = "optional"
+assets = [
+  ["debian/env", "etc/matrix-conduit/env", "644"],
+  ["README.md", "usr/share/doc/matrix-conduit/", "644"],
+  ["target/release/conduit", "usr/sbin/matrix-conduit", "755"],
+]
+conf-files = [
+  "/etc/matrix-conduit/env"
+]
+maintainer-scripts = "debian/"
+systemd-units = { unit-name = "matrix-conduit" }
