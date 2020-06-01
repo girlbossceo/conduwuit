@@ -2003,7 +2003,14 @@ pub fn sync_route(
 
         let notification_count =
             if let Some(last_read) = db.rooms.edus.room_read_get(&room_id, &user_id).unwrap() {
-                Some((db.rooms.pdus_since(&room_id, last_read).unwrap().count() as u32).into())
+                Some(
+                    (db.rooms
+                        .pdus_since(&room_id, last_read)
+                        .unwrap()
+                        .filter(|pdu| matches!(pdu.as_ref().unwrap().kind.clone(), EventType::RoomMessage | EventType::RoomEncrypted))
+                        .count() as u32)
+                        .into(),
+                )
             } else {
                 None
             };
@@ -2079,7 +2086,7 @@ pub fn sync_route(
                     },
                 },
                 unread_notifications: sync_events::UnreadNotificationsCount {
-                    highlight_count: notification_count,
+                    highlight_count: None,
                     notification_count,
                 },
                 timeline: sync_events::Timeline {
@@ -2253,12 +2260,12 @@ pub fn get_message_events_route(
             .map(|pdu| pdu.to_room_event())
             .collect::<Vec<_>>();
 
-        MatrixResult(Ok(dbg!(get_message_events::Response {
+        MatrixResult(Ok(get_message_events::Response {
             start: Some(body.from.clone()),
             end: prev_batch,
             chunk: room_events,
             state: Vec::new(),
-        })))
+        }))
     } else {
         MatrixResult(Err(Error {
             kind: ErrorKind::Unknown,

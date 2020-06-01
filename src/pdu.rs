@@ -7,6 +7,7 @@ use ruma_events::{
 use ruma_federation_api::EventHash;
 use ruma_identifiers::{EventId, RoomId, UserId};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 
 #[derive(Deserialize, Serialize)]
@@ -61,6 +62,11 @@ impl PduEvent {
                 new_content.insert(key.to_owned(), value);
             }
         }
+
+        self.unsigned.insert(
+            "redacted_because".to_owned(),
+            json!({"content": {}, "type": "m.room.redaction"}),
+        );
 
         self.content = new_content.into();
     }
