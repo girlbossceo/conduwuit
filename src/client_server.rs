@@ -2260,12 +2260,12 @@ pub fn get_message_events_route(
             .map(|pdu| pdu.to_room_event())
             .collect::<Vec<_>>();
 
-        MatrixResult(Ok(dbg!(get_message_events::Response {
+        MatrixResult(Ok(get_message_events::Response {
             start: Some(body.from.clone()),
             end: prev_batch,
             chunk: room_events,
             state: Vec::new(),
-        })))
+        }))
     } else {
         MatrixResult(Err(Error {
             kind: ErrorKind::Unknown,

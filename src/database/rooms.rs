@@ -8,6 +8,7 @@ use ruma_events::{
     room::{
         join_rules, member,
         power_levels::{self, PowerLevelsEventContent},
+        redaction,
     },
     EventJson, EventType,
 };
@@ -207,7 +208,6 @@ impl Rooms {
         globals: &super::globals::Globals,
     ) -> Result<EventId> {
         // TODO: Make sure this isn't called twice in parallel
-
         let prev_events = self.get_pdu_leaves(&room_id)?;
 
         // Is the event authorized?
@@ -404,7 +404,6 @@ impl Rooms {
                         authorized
                     }
                     EventType::RoomCreate => prev_events.is_empty(),
-
                     // Not allow any of the following events if the sender is not joined.
                     _ if sender_membership != member::MembershipState::Join => false,
 
@@ -450,15 +449,15 @@ impl Rooms {
             origin_server_ts: utils::millis_since_unix_epoch()
                 .try_into()
                 .expect("this only fails many years in the future"),
-            kind: event_type,
-            content,
+            kind: event_type.clone(),
+            content: content.clone(),
             state_key,
             prev_events,
             depth: depth
                 .try_into()
                 .expect("depth can overflow and should be deprecated..."),
             auth_events: Vec::new(),
-            redacts,
+            redacts: redacts.clone(),
             unsigned,
             hashes: ruma_federation_api::EventHash {
                 sha256: "aaa".to_owned(),
@@ -504,6 +503,22 @@ impl Rooms {
             key.push(0xff);
             key.extend_from_slice(state_key.as_bytes());
             self.roomstateid_pdu.insert(key, &*pdu_json.to_string())?;
+        }
+
+        match event_type {
+            EventType::RoomRedaction => {
+                if let Some(redact_id) = &redacts {
+                    // TODO: Reason
+                    let _reason = serde_json::from_value::<
+                        EventJson<redaction::RedactionEventContent>,
+                    >(content)?
+                    .deserialize()?
+                    .reason;
+
+                    self.redact_pdu(&redact_id)?;
+                }
+            }
+            _ => {}
         }
 
         self.edus.room_read_set(&room_id, &sender, index)?;
