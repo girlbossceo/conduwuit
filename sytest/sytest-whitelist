@@ -27,9 +27,6 @@ POST /login wrong password is rejected
 # Room creation endpoints implemented
 POST /createRoom makes a private room
 POST /createRoom makes a private room with invites
-POST /createRoom makes a room with a name
-POST /createRoom makes a room with a topic
-Can /sync newly created room
 GET /rooms/:room_id/state/m.room.member/:user_id fetches my membership
 GET /rooms/:room_id/state/m.room.power_levels fetches powerlevels
 POST /join/:room_alias can join a room
