@@ -338,14 +338,23 @@ pub fn logout_route(
 
 #[get("/_matrix/client/r0/capabilities")]
 pub fn get_capabilities_route() -> MatrixResult<get_capabilities::Response> {
-    // TODO
-    //let mut available = BTreeMap::new();
-    //available.insert("5".to_owned(), get_capabilities::RoomVersionStability::Unstable);
+    let mut available = BTreeMap::new();
+    available.insert(
+        "5".to_owned(),
+        get_capabilities::RoomVersionStability::Stable,
+    );
+    available.insert(
+        "6".to_owned(),
+        get_capabilities::RoomVersionStability::Stable,
+    );
 
     MatrixResult(Ok(get_capabilities::Response {
         capabilities: get_capabilities::Capabilities {
-            change_password: None,
-            room_versions: None, //Some(get_capabilities::RoomVersionsCapability { default: "5".to_owned(), available }),
+            change_password: None, // None means it is possible
+            room_versions: Some(get_capabilities::RoomVersionsCapability {
+                default: "6".to_owned(),
+                available,
+            }),
             custom_capabilities: BTreeMap::new(),
         },
     }))
@@ -954,7 +963,7 @@ pub fn create_room_route(
                     .creation_content
                     .as_ref()
                     .and_then(|c| c.predecessor.clone()),
-                room_version: RoomVersionId::version_5(),
+                room_version: RoomVersionId::version_6(),
             })
             .unwrap(),
             None,
@@ -2011,7 +2020,12 @@ pub fn sync_route(
                     (db.rooms
                         .pdus_since(&room_id, last_read)
                         .unwrap()
-                        .filter(|pdu| matches!(pdu.as_ref().unwrap().kind.clone(), EventType::RoomMessage | EventType::RoomEncrypted))
+                        .filter(|pdu| {
+                            matches!(
+                                pdu.as_ref().unwrap().kind.clone(),
+                                EventType::RoomMessage | EventType::RoomEncrypted
+                            )
+                        })
                         .count() as u32)
                         .into(),
                 )
@@ -2218,7 +2232,7 @@ pub fn sync_route(
         } else {
             None // TODO: left
         },
-        device_one_time_keys_count: Default::default(),
+        device_one_time_keys_count: Default::default(), // TODO
         to_device: sync_events::ToDevice {
             events: db
                 .users
