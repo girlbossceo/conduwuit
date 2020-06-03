@@ -1868,23 +1868,23 @@ pub fn get_state_events_route(
 ) -> MatrixResult<get_state_events::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        MatrixResult(Ok(get_state_events::Response {
-            room_state: db
-                .rooms
-                .room_state(&body.room_id)
-                .unwrap()
-                .values()
-                .map(|pdu| pdu.to_state_event())
-                .collect(),
-        }))
-    } else {
-        MatrixResult(Err(Error {
+    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
+        return MatrixResult(Err(Error {
             kind: ErrorKind::Forbidden,
             message: "You don't have permission to view the room state.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
+            status_code: http::StatusCode::FORBIDDEN,
+        }));
     }
+
+    MatrixResult(Ok(get_state_events::Response {
+        room_state: db
+            .rooms
+            .room_state(&body.room_id)
+            .unwrap()
+            .values()
+            .map(|pdu| pdu.to_state_event())
+            .collect(),
+    }))
 }
 
 #[get(
@@ -1900,28 +1900,28 @@ pub fn get_state_events_for_key_route(
 ) -> MatrixResult<get_state_events_for_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        if let Some(event) = db
-            .rooms
-            .room_state(&body.room_id)
-            .unwrap()
-            .get(&(body.event_type.clone(), body.state_key.clone()))
-        {
-            MatrixResult(Ok(get_state_events_for_key::Response {
-                content: serde_json::value::to_raw_value(&event.content).unwrap(),
-            }))
-        } else {
-            MatrixResult(Err(Error {
-                kind: ErrorKind::NotFound,
-                message: "State event not found.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }))
-        }
-    } else {
-        MatrixResult(Err(Error {
+    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
+        return MatrixResult(Err(Error {
             kind: ErrorKind::Forbidden,
             message: "You don't have permission to view the room state.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
+            status_code: http::StatusCode::FORBIDDEN,
+        }));
+    }
+
+    if let Some(event) = db
+        .rooms
+        .room_state(&body.room_id)
+        .unwrap()
+        .get(&(body.event_type.clone(), body.state_key.clone()))
+    {
+        MatrixResult(Ok(get_state_events_for_key::Response {
+            content: serde_json::value::to_raw_value(&event.content).unwrap(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "State event not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
         }))
     }
 }
@@ -1938,27 +1938,27 @@ pub fn get_state_events_for_empty_key_route(
 ) -> MatrixResult<get_state_events_for_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        if let Some(event) = db
-            .rooms
-            .room_state(&body.room_id)
-            .unwrap()
-            .get(&(body.event_type.clone(), "".to_owned()))
-        {
-            MatrixResult(Ok(get_state_events_for_key::Response {
-                content: serde_json::value::to_raw_value(event).unwrap(),
-            }))
-        } else {
-            MatrixResult(Err(Error {
-                kind: ErrorKind::NotFound,
-                message: "State event not found.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }))
-        }
-    } else {
-        MatrixResult(Err(Error {
+    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
+        return MatrixResult(Err(Error {
             kind: ErrorKind::Forbidden,
             message: "You don't have permission to view the room state.".to_owned(),
+            status_code: http::StatusCode::FORBIDDEN,
+        }));
+    }
+
+    if let Some(event) = db
+        .rooms
+        .room_state(&body.room_id)
+        .unwrap()
+        .get(&(body.event_type.clone(), "".to_owned()))
+    {
+        MatrixResult(Ok(get_state_events_for_key::Response {
+            content: serde_json::value::to_raw_value(event).unwrap(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "State event not found.".to_owned(),
             status_code: http::StatusCode::BAD_REQUEST,
         }))
     }
