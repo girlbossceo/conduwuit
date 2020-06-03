@@ -1,16 +1,19 @@
 use crate::{utils, Error, Result};
 use js_int::UInt;
-use ruma_client_api::r0::keys::{AlgorithmAndDeviceId, DeviceKeys, KeyAlgorithm, OneTimeKey};
+use ruma_client_api::r0::{
+    device::Device,
+    keys::{AlgorithmAndDeviceId, DeviceKeys, KeyAlgorithm, OneTimeKey},
+};
 use ruma_events::{to_device::AnyToDeviceEvent, EventJson, EventType};
 use ruma_identifiers::{DeviceId, UserId};
-use std::{collections::BTreeMap, convert::TryFrom};
+use std::{collections::BTreeMap, convert::TryFrom, time::SystemTime};
 
 pub struct Users {
     pub(super) userid_password: sled::Tree,
     pub(super) userid_displayname: sled::Tree,
     pub(super) userid_avatarurl: sled::Tree,
-    pub(super) userdeviceids: sled::Tree,
     pub(super) userdeviceid_token: sled::Tree,
+    pub(super) userdeviceid_metadata: sled::Tree, // This is also used to check if a device exists
     pub(super) token_userdeviceid: sled::Tree,
 
     pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + AlgorithmAndDeviceId
@@ -105,25 +108,40 @@ impl Users {
     }
 
     /// Adds a new device to a user.
-    pub fn create_device(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
+    pub fn create_device(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        token: &str,
+        initial_device_display_name: Option<String>,
+    ) -> Result<()> {
         if !self.exists(user_id)? {
             return Err(Error::BadRequest(
                 "tried to create device for nonexistent user",
             ));
         }
 
-        let mut key = user_id.to_string().as_bytes().to_vec();
-        key.push(0xff);
-        key.extend_from_slice(device_id.as_bytes());
+        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        userdeviceid.push(0xff);
+        userdeviceid.extend_from_slice(device_id.as_bytes());
 
-        self.userdeviceids.insert(key, &[])?;
+        self.userdeviceid_metadata.insert(
+            userdeviceid,
+            serde_json::to_string(&Device {
+                device_id: device_id.clone(),
+                display_name: initial_device_display_name,
+                last_seen_ip: None, // TODO
+                last_seen_ts: Some(SystemTime::now()),
+            })?
+            .as_bytes(),
+        )?;
 
         self.set_token(user_id, device_id, token)?;
 
         Ok(())
     }
 
-    /// Removes a device from a user
+    /// Removes a device from a user.
     pub fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
@@ -147,8 +165,7 @@ impl Users {
 
         // TODO: Remove onetimekeys
 
-        // Remove the device
-        self.userdeviceids.remove(userdeviceid)?;
+        self.userdeviceid_metadata.remove(&userdeviceid)?;
 
         Ok(())
     }
@@ -157,14 +174,18 @@ impl Users {
     pub fn all_device_ids(&self, user_id: &UserId) -> impl Iterator<Item = Result<DeviceId>> {
         let mut prefix = user_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
-        self.userdeviceids.scan_prefix(prefix).keys().map(|bytes| {
-            Ok(utils::string_from_bytes(
-                &*bytes?
-                    .rsplit(|&b| b == 0xff)
-                    .next()
-                    .ok_or(Error::BadDatabase("userdeviceid is invalid"))?,
-            )?)
-        })
+        // All devices have metadata
+        self.userdeviceid_metadata
+            .scan_prefix(prefix)
+            .keys()
+            .map(|bytes| {
+                Ok(utils::string_from_bytes(
+                    &*bytes?
+                        .rsplit(|&b| b == 0xff)
+                        .next()
+                        .ok_or(Error::BadDatabase("userdeviceid is invalid"))?,
+                )?)
+            })
     }
 
     /// Replaces the access token of one device.
@@ -173,7 +194,8 @@ impl Users {
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
-        if self.userdeviceids.get(&userdeviceid)?.is_none() {
+        // All devices have metadata
+        if self.userdeviceid_metadata.get(&userdeviceid)?.is_none() {
             return Err(Error::BadRequest(
                 "Tried to set token for nonexistent device",
             ));
@@ -203,7 +225,8 @@ impl Users {
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());
 
-        if self.userdeviceids.get(&key)?.is_none() {
+        // All devices have metadata
+        if self.userdeviceid_metadata.get(&key)?.is_none() {
             return Err(Error::BadRequest(
                 "Tried to set token for nonexistent device",
             ));
@@ -395,5 +418,50 @@ impl Users {
         }
 
         Ok(events)
+    }
+
+    pub fn update_device_metadata(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        device: &Device,
+    ) -> Result<()> {
+        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        userdeviceid.push(0xff);
+        userdeviceid.extend_from_slice(device_id.as_bytes());
+
+        if self.userdeviceid_metadata.get(userdeviceid)?.is_none() {
+            return Err(Error::BadRequest("device does not exist"));
+        }
+
+        self.userdeviceid_metadata
+            .insert(userdeviceid, serde_json::to_string(device)?.as_bytes())?;
+
+        Ok(())
+    }
+
+    /// Get device metadata.
+    pub fn get_device_metadata(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+    ) -> Result<Option<Device>> {
+        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        userdeviceid.push(0xff);
+        userdeviceid.extend_from_slice(device_id.as_bytes());
+
+        self.userdeviceid_metadata
+            .get(&userdeviceid)?
+            .map_or(Ok(None), |bytes| Ok(Some(serde_json::from_slice(&bytes)?)))
+    }
+
+    pub fn all_devices_metadata(&self, user_id: &UserId) -> impl Iterator<Item = Result<Device>> {
+        let mut key = user_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+
+        self.userdeviceid_metadata
+            .scan_prefix(key)
+            .values()
+            .map(|bytes| Ok(serde_json::from_slice::<Device>(&bytes?)?))
     }
 }

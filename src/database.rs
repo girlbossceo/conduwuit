@@ -56,10 +56,10 @@ impl Database {
             ),
             users: users::Users {
                 userid_password: db.open_tree("userid_password").unwrap(),
-                userdeviceids: db.open_tree("userdeviceids").unwrap(),
                 userid_displayname: db.open_tree("userid_displayname").unwrap(),
                 userid_avatarurl: db.open_tree("userid_avatarurl").unwrap(),
                 userdeviceid_token: db.open_tree("userdeviceid_token").unwrap(),
+                userdeviceid_metadata: db.open_tree("userdeviceid_metadata").unwrap(),
                 token_userdeviceid: db.open_tree("token_userdeviceid").unwrap(),
                 onetimekeyid_onetimekeys: db.open_tree("onetimekeyid_onetimekeys").unwrap(),
                 userdeviceid_devicekeys: db.open_tree("userdeviceid_devicekeys").unwrap(),

@@ -13,6 +13,9 @@ use ruma_client_api::{
         alias::{create_alias, delete_alias, get_alias},
         capabilities::get_capabilities,
         config::{get_global_account_data, set_global_account_data},
+        device::{
+            self, delete_device, delete_devices, get_device, get_devices, update_device,
+        },
         directory::{
             self, get_public_rooms, get_public_rooms_filtered, get_room_visibility,
             set_room_visibility,
@@ -52,7 +55,7 @@ use ruma_events::{
     room::{canonical_alias, guest_access, history_visibility, join_rules, member, redaction},
     EventJson, EventType,
 };
-use ruma_identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId};
+use ruma_identifiers::{DeviceId, RoomAliasId, RoomId, RoomVersionId, UserId};
 use serde_json::{json, value::RawValue};
 
 use crate::{server_server, utils, Database, MatrixResult, Ruma};
@@ -173,7 +176,7 @@ pub fn register_route(
 
     // Generate new device id if the user didn't specify one
     let device_id = body
-        .device_id
+        .device_id.clone()
         .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
 
     // Generate new token for the device
@@ -181,7 +184,7 @@ pub fn register_route(
 
     // Add device
     db.users
-        .create_device(&user_id, &device_id, &token)
+        .create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())
         .unwrap();
 
     // Initial data
@@ -300,6 +303,7 @@ pub fn login_route(
     let device_id = body
         .body
         .device_id
+        .clone()
         .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
 
     // Generate a new token for the device
@@ -307,7 +311,7 @@ pub fn login_route(
 
     // Add device
     db.users
-        .create_device(&user_id, &device_id, &token)
+        .create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())
         .unwrap();
 
     MatrixResult(Ok(login::Response {
@@ -2428,6 +2432,93 @@ pub fn get_content_thumbnail_route(
             status_code: http::StatusCode::BAD_REQUEST,
         }))
     }
+}
+
+#[get("/_matrix/client/r0/devices", data = "<body>")]
+pub fn get_devices_route(
+    db: State<'_, Database>,
+    body: Ruma<get_devices::Request>,
+) -> MatrixResult<get_devices::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    let devices = db
+        .users
+        .all_devices_metadata(user_id)
+        .map(|r| r.unwrap())
+        .collect::<Vec<device::Device>>();
+
+    MatrixResult(Ok(get_devices::Response { devices }))
+}
+
+#[get("/_matrix/client/r0/devices/<device_id>", data = "<body>")]
+pub fn get_device_route(
+    db: State<'_, Database>,
+    body: Ruma<get_device::Request>,
+    device_id: DeviceId,
+) -> MatrixResult<get_device::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device = db.users.get_device_metadata(&user_id, &device_id).unwrap();
+
+    match device {
+        None => MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Device not found".to_string(),
+            status_code: http::StatusCode::NOT_FOUND,
+        })),
+        Some(device) => MatrixResult(Ok(get_device::Response { device })),
+    }
+}
+
+#[put("/_matrix/client/r0/devices/<device_id>", data = "<body>")]
+pub fn update_device_route(
+    db: State<'_, Database>,
+    body: Ruma<update_device::Request>,
+    device_id: DeviceId,
+) -> MatrixResult<update_device::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device = db.users.get_device_metadata(&user_id, &device_id).unwrap();
+
+    match device {
+        None => MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "Device not found".to_string(),
+            status_code: http::StatusCode::NOT_FOUND,
+        })),
+        Some(mut device) => {
+            device.display_name = body.display_name.clone();
+
+            db.users
+                .update_device_metadata(&user_id, &device_id, &device)
+                .unwrap();
+
+            MatrixResult(Ok(update_device::Response))
+        }
+    }
+}
+
+#[delete("/_matrix/client/r0/devices/<device_id>", data = "<body>")]
+pub fn delete_device_route(
+    db: State<'_, Database>,
+    body: Ruma<delete_device::Request>,
+    device_id: DeviceId,
+) -> MatrixResult<delete_device::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    db.users.remove_device(&user_id, &device_id).unwrap();
+
+    MatrixResult(Ok(delete_device::Response))
+}
+
+#[post("/_matrix/client/r0/delete_devices", data = "<body>")]
+pub fn delete_devices_route(
+    db: State<'_, Database>,
+    body: Ruma<delete_devices::Request>,
+) -> MatrixResult<delete_devices::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    for device_id in &body.devices {
+        db.users.remove_device(&user_id, &device_id).unwrap()
+    }
+
+    MatrixResult(Ok(delete_devices::Response))
 }
 
 #[options("/<_segments..>")]
