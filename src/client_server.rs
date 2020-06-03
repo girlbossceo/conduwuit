@@ -1895,7 +1895,7 @@ pub fn get_state_events_for_key_route(
             .get(&(body.event_type.clone(), body.state_key.clone()))
         {
             MatrixResult(Ok(get_state_events_for_key::Response {
-                content: serde_json::value::to_raw_value(event).unwrap(),
+                content: serde_json::value::to_raw_value(&event.content).unwrap(),
             }))
         } else {
             MatrixResult(Err(Error {
