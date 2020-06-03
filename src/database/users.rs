@@ -430,7 +430,7 @@ impl Users {
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
-        if self.userdeviceid_metadata.get(userdeviceid)?.is_none() {
+        if self.userdeviceid_metadata.get(&userdeviceid)?.is_none() {
             return Err(Error::BadRequest("device does not exist"));
         }
 
