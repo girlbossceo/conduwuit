@@ -13,15 +13,13 @@ use ruma_client_api::{
         alias::{create_alias, delete_alias, get_alias},
         capabilities::get_capabilities,
         config::{get_global_account_data, set_global_account_data},
-        device::{
-            self, delete_device, delete_devices, get_device, get_devices, update_device,
-        },
+        device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
         directory::{
             self, get_public_rooms, get_public_rooms_filtered, get_room_visibility,
             set_room_visibility,
         },
         filter::{self, create_filter, get_filter},
-        keys::{claim_keys, get_keys, upload_keys},
+        keys::{self, claim_keys, get_keys, upload_keys},
         media::{create_content, get_content, get_content_thumbnail, get_media_config},
         membership::{
             forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
@@ -176,7 +174,8 @@ pub fn register_route(
 
     // Generate new device id if the user didn't specify one
     let device_id = body
-        .device_id.clone()
+        .device_id
+        .clone()
         .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
 
     // Generate new token for the device
@@ -184,7 +183,12 @@ pub fn register_route(
 
     // Add device
     db.users
-        .create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())
+        .create_device(
+            &user_id,
+            &device_id,
+            &token,
+            body.initial_device_display_name.clone(),
+        )
         .unwrap();
 
     // Initial data
@@ -311,7 +315,12 @@ pub fn login_route(
 
     // Add device
     db.users
-        .create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())
+        .create_device(
+            &user_id,
+            &device_id,
+            &token,
+            body.initial_device_display_name.clone(),
+        )
         .unwrap();
 
     MatrixResult(Ok(login::Response {
@@ -758,11 +767,21 @@ pub fn get_keys_route(
     for (user_id, device_ids) in &body.device_keys {
         if device_ids.is_empty() {
             let mut container = BTreeMap::new();
-            for (device_id, keys) in db
+            for (device_id, mut keys) in db
                 .users
                 .all_device_keys(&user_id.clone())
                 .map(|r| r.unwrap())
             {
+                let metadata = db
+                    .users
+                    .get_device_metadata(user_id, &device_id)
+                    .unwrap()
+                    .expect("this device should exist");
+
+                keys.unsigned = Some(keys::UnsignedDeviceInfo {
+                    device_display_name: metadata.display_name,
+                });
+
                 container.insert(device_id, keys);
             }
             device_keys.insert(user_id.clone(), container);
@@ -770,7 +789,18 @@ pub fn get_keys_route(
             for device_id in device_ids {
                 let mut container = BTreeMap::new();
                 for keys in db.users.get_device_keys(&user_id.clone(), &device_id) {
-                    container.insert(device_id.clone(), keys.unwrap());
+                    let mut keys = keys.unwrap();
+                    let metadata = db
+                        .users
+                        .get_device_metadata(user_id, &device_id)
+                        .unwrap()
+                        .expect("this device should exist");
+
+                    keys.unsigned = Some(keys::UnsignedDeviceInfo {
+                        device_display_name: metadata.display_name,
+                    });
+
+                    container.insert(device_id.clone(), keys);
                 }
                 device_keys.insert(user_id.clone(), container);
             }
@@ -1288,11 +1318,11 @@ pub fn get_alias_route(
             }))
         } else {
             debug!("Room alias not found.");
-            return MatrixResult(Err(Error {
+            MatrixResult(Err(Error {
                 kind: ErrorKind::NotFound,
                 message: "Room with alias not found.".to_owned(),
                 status_code: http::StatusCode::BAD_REQUEST,
-            }));
+            }))
         }
     } else {
         todo!("ask remote server");
