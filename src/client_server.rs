@@ -55,8 +55,7 @@ use ruma_events::{
 };
 use ruma_identifiers::{DeviceId, RoomAliasId, RoomId, RoomVersionId, UserId};
 use serde_json::{json, value::RawValue};
-
-use crate::{server_server, utils, Database, MatrixResult, Ruma};
+use crate::{utils, Database, MatrixResult, Ruma};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
