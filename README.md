@@ -14,7 +14,7 @@ See it in action: <https://www.youtube.com/watch?v=HoBslDtqC1k>
 
 #### Can I try it out?
 
-Yes! Just open <https://riot.conduit.rs> and register on the default homeserver. You can also use <https://riot.im/app> and set the homeserver url to <https://conduit.koesters.xyz:14004> to connect. (BUG: Registration currently doesn't work on riot.im. [Fix](https://github.com/matrix-org/matrix-js-sdk/pull/1304) will come soon)
+Yes! Just open Riot (<https://riot.im/app>) and register on the `https://conduit.koesters.xyz:14004` homeserver.
 
 #### How can I deploy my own?
 
