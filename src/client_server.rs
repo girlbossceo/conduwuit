@@ -548,9 +548,8 @@ pub fn set_displayname_route(
 
     // Presence update
     db.global_edus
-        .update_globallatest(
-            &user_id,
-            EduEvent::Presence(ruma_events::presence::PresenceEvent {
+        .update_presence(
+            ruma_events::presence::PresenceEvent {
                 content: ruma_events::presence::PresenceEventContent {
                     avatar_url: db.users.avatar_url(&user_id).unwrap(),
                     currently_active: None,
@@ -560,7 +559,7 @@ pub fn set_displayname_route(
                     status_msg: None,
                 },
                 sender: user_id.clone(),
-            }),
+            },
             &db.globals,
         )
         .unwrap();
@@ -640,9 +639,8 @@ pub fn set_avatar_url_route(
 
     // Presence update
     db.global_edus
-        .update_globallatest(
-            &user_id,
-            EduEvent::Presence(ruma_events::presence::PresenceEvent {
+        .update_presence(
+            ruma_events::presence::PresenceEvent {
                 content: ruma_events::presence::PresenceEventContent {
                     avatar_url: db.users.avatar_url(&user_id).unwrap(),
                     currently_active: None,
@@ -652,7 +650,7 @@ pub fn set_avatar_url_route(
                     status_msg: None,
                 },
                 sender: user_id.clone(),
-            }),
+            },
             &db.globals,
         )
         .unwrap();
@@ -707,9 +705,8 @@ pub fn set_presence_route(
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     db.global_edus
-        .update_globallatest(
-            &user_id,
-            EduEvent::Presence(ruma_events::presence::PresenceEvent {
+        .update_presence(
+            ruma_events::presence::PresenceEvent {
                 content: ruma_events::presence::PresenceEventContent {
                     avatar_url: db.users.avatar_url(&user_id).unwrap(),
                     currently_active: None,
@@ -719,7 +716,7 @@ pub fn set_presence_route(
                     status_msg: body.status_msg.clone(),
                 },
                 sender: user_id.clone(),
-            }),
+            },
             &db.globals,
         )
         .unwrap();
@@ -2435,24 +2432,16 @@ pub fn sync_route(
         presence: sync_events::Presence {
             events: db
                 .global_edus
-                .globallatests_since(since)
+                .presence_since(since)
                 .unwrap()
-                .filter_map(|edu| {
-                    // Only look for presence events
-                    if let Ok(mut edu) = EventJson::<ruma_events::presence::PresenceEvent>::from(
-                        edu.unwrap().into_json(),
-                    )
-                    .deserialize()
-                    {
-                        let timestamp = edu.content.last_active_ago.unwrap();
-                        edu.content.last_active_ago = Some(
-                            js_int::UInt::try_from(utils::millis_since_unix_epoch()).unwrap()
-                                - timestamp,
-                        );
-                        Some(edu.into())
-                    } else {
-                        None
-                    }
+                .map(|edu| {
+                    let mut edu = edu.unwrap().deserialize().unwrap();
+                    let timestamp = edu.content.last_active_ago.unwrap();
+                    let last_active_ago = js_int::UInt::try_from(utils::millis_since_unix_epoch())
+                        .unwrap()
+                        - timestamp;
+                    edu.content.last_active_ago = Some(last_active_ago);
+                    edu.into()
                 })
                 .collect(),
         },

@@ -94,8 +94,7 @@ impl Database {
                 roomuserdataid_accountdata: db.open_tree("roomuserdataid_accountdata").unwrap(),
             },
             global_edus: global_edus::GlobalEdus {
-                //globalallid_globalall: db.open_tree("globalallid_globalall").unwrap(),
-                globallatestid_globallatest: db.open_tree("globallatestid_globallatest").unwrap(), // Presence
+                presenceid_presence: db.open_tree("presenceid_presence").unwrap(), // Presence
             },
             media: media::Media {
                 mediaid_file: db.open_tree("mediaid_file").unwrap(),
