@@ -163,7 +163,7 @@ dependencies = [
  "ruma-api",
  "ruma-client-api",
  "ruma-common",
- "ruma-events",
+ "ruma-events 0.21.3 (git+https://github.com/ruma/ruma-events?rev=7395f94)",
  "ruma-federation-api",
  "ruma-identifiers",
  "ruma-signatures",
@@ -1297,13 +1297,13 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.9.0"
-source = "git+https://github.com/ruma/ruma-client-api.git?rev=c725288cd099690c1d13f1a9b9e57228bc860a62#c725288cd099690c1d13f1a9b9e57228bc860a62"
+source = "git+https://github.com/ruma/ruma-client-api.git?rev=c2c5a3cea01b0544e5adb40f7ddae828627afd2c#c2c5a3cea01b0544e5adb40f7ddae828627afd2c"
 dependencies = [
  "http",
  "js_int",
  "ruma-api",
  "ruma-common",
- "ruma-events",
+ "ruma-events 0.21.3 (git+https://github.com/ruma/ruma-events?rev=7395f94)",
  "ruma-identifiers",
  "ruma-serde",
  "serde",
@@ -1326,11 +1326,11 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.21.3"
-source = "git+https://github.com/ruma/ruma-events.git?rev=4d09416cd1663d63c22153705c9e1fd77910797f#4d09416cd1663d63c22153705c9e1fd77910797f"
+source = "git+https://github.com/ruma/ruma-events?rev=7395f94#7395f940a7cf70c1598223570fb2b731a6a41707"
 dependencies = [
  "js_int",
  "ruma-common",
- "ruma-events-macros",
+ "ruma-events-macros 0.21.3 (git+https://github.com/ruma/ruma-events?rev=7395f94)",
  "ruma-identifiers",
  "ruma-serde",
  "serde",
@@ -1339,9 +1339,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "ruma-events"
+version = "0.21.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ddf82c2231e4c53443424df34e868e4b09c20de7a76780d47a133a3b3f8ad9c"
+dependencies = [
+ "js_int",
+ "ruma-common",
+ "ruma-events-macros 0.21.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ruma-identifiers",
+ "ruma-serde",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ruma-events-macros"
 version = "0.21.3"
-source = "git+https://github.com/ruma/ruma-events.git?rev=4d09416cd1663d63c22153705c9e1fd77910797f#4d09416cd1663d63c22153705c9e1fd77910797f"
+source = "git+https://github.com/ruma/ruma-events?rev=7395f94#7395f940a7cf70c1598223570fb2b731a6a41707"
+dependencies = [
+ "proc-macro2 1.0.18",
+ "quote 1.0.6",
+ "syn 1.0.30",
+]
+
+[[package]]
+name = "ruma-events-macros"
+version = "0.21.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88e5c5b242fe4ee0cc56879057353621196d0988dd359579cad8f43471e483b7"
 dependencies = [
  "proc-macro2 1.0.18",
  "quote 1.0.6",
@@ -1356,7 +1382,7 @@ dependencies = [
  "js_int",
  "matches",
  "ruma-api",
- "ruma-events",
+ "ruma-events 0.21.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "ruma-identifiers",
  "ruma-serde",
  "serde",

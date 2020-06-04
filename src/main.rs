@@ -70,6 +70,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_state_events_for_key_route,
                 client_server::get_state_events_for_empty_key_route,
                 client_server::sync_route,
+                client_server::get_context_route,
                 client_server::get_message_events_route,
                 client_server::turn_server_route,
                 client_server::publicised_groups_route,
