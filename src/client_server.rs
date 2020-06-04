@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use crate::{utils, Database, MatrixResult, Ruma};
 use log::{debug, warn};
 use rocket::{delete, get, options, post, put, State};
 use ruma_client_api::{
@@ -55,7 +56,6 @@ use ruma_events::{
 };
 use ruma_identifiers::{DeviceId, RoomAliasId, RoomId, RoomVersionId, UserId};
 use serde_json::{json, value::RawValue};
-use crate::{utils, Database, MatrixResult, Ruma};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
@@ -921,18 +921,12 @@ pub fn create_typing_event_route(
     _user_id: String,
 ) -> MatrixResult<create_typing_event::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let edu = EduEvent::Typing(ruma_events::typing::TypingEvent {
-        content: ruma_events::typing::TypingEventContent {
-            user_ids: vec![user_id.clone()],
-        },
-        room_id: None, // None because it can be inferred
-    });
 
     if body.typing {
         db.rooms
             .edus
             .roomactive_add(
-                edu,
+                &user_id,
                 &body.room_id,
                 body.timeout.map(|d| d.as_millis() as u64).unwrap_or(30000)
                     + utils::millis_since_unix_epoch().try_into().unwrap_or(0),
@@ -940,7 +934,10 @@ pub fn create_typing_event_route(
             )
             .unwrap();
     } else {
-        db.rooms.edus.roomactive_remove(edu, &body.room_id).unwrap();
+        db.rooms
+            .edus
+            .roomactive_remove(&user_id, &body.room_id, &db.globals)
+            .unwrap();
     }
 
     MatrixResult(Ok(create_typing_event::Response))
@@ -2083,29 +2080,22 @@ pub fn sync_route(
         let mut edus = db
             .rooms
             .edus
-            .roomactives_all(&room_id)
+            .roomlatests_since(&room_id, since)
+            .unwrap()
             .map(|r| r.unwrap())
             .collect::<Vec<_>>();
 
-        if edus.is_empty() {
-            edus.push(
-                EduEvent::Typing(ruma_events::typing::TypingEvent {
-                    content: ruma_events::typing::TypingEventContent {
-                        user_ids: Vec::new(),
-                    },
-                    room_id: None, // None because it can be inferred
-                })
-                .into(),
-            );
+        if db
+            .rooms
+            .edus
+            .last_roomactive_update(&room_id, &db.globals)
+            .unwrap()
+            > since
+        {
+            edus.push(serde_json::from_str(&serde_json::to_string(
+                &EduEvent::Typing(db.rooms.edus.roomactives_all(&room_id).unwrap()),
+            ).unwrap()).unwrap());
         }
-
-        edus.extend(
-            db.rooms
-                .edus
-                .roomlatests_since(&room_id, since)
-                .unwrap()
-                .map(|r| r.unwrap()),
-        );
 
         joined_rooms.insert(
             room_id.clone().try_into().unwrap(),
@@ -2173,7 +2163,17 @@ pub fn sync_route(
             .map(|r| r.unwrap())
             .collect::<Vec<_>>();
 
-        edus.extend(db.rooms.edus.roomactives_all(&room_id).map(|r| r.unwrap()));
+        if db
+            .rooms
+            .edus
+            .last_roomactive_update(&room_id, &db.globals)
+            .unwrap()
+            > since
+        {
+            edus.push(serde_json::from_str(&serde_json::to_string(
+                &EduEvent::Typing(db.rooms.edus.roomactives_all(&room_id).unwrap()),
+            ).unwrap()).unwrap());
+        }
 
         left_rooms.insert(
             room_id.clone().try_into().unwrap(),
@@ -2324,7 +2324,6 @@ pub fn get_message_events_route(
 
 #[get("/_matrix/client/r0/voip/turnServer")]
 pub fn turn_server_route() -> MatrixResult<create_message_event::Response> {
-    warn!("TODO: turn_server_route");
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "There is no turn server yet.".to_owned(),

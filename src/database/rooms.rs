@@ -52,31 +52,6 @@ impl Rooms {
             .is_some())
     }
 
-    // TODO: Remove and replace with public room dir
-    /// Returns a vector over all rooms.
-    pub fn all_rooms(&self) -> Vec<RoomId> {
-        let mut room_ids = self
-            .roomid_pduleaves
-            .iter()
-            .keys()
-            .map(|key| {
-                RoomId::try_from(
-                    &*utils::string_from_bytes(
-                        &key.unwrap()
-                            .iter()
-                            .copied()
-                            .take_while(|&x| x != 0xff) // until delimiter
-                            .collect::<Vec<_>>(),
-                    )
-                    .unwrap(),
-                )
-                .unwrap()
-            })
-            .collect::<Vec<_>>();
-        room_ids.dedup();
-        room_ids
-    }
-
     /// Returns the full room state.
     pub fn room_state(&self, room_id: &RoomId) -> Result<HashMap<(EventType, String), PduEvent>> {
         let mut hashmap = HashMap::new();
