@@ -553,6 +553,29 @@ impl Rooms {
             .map(|(_, v)| Ok(serde_json::from_slice(&v)?))
     }
 
+    /// Returns an iterator over all events in a room that happened after the event with id
+    /// `from` in chronological order.
+    pub fn pdus_after(
+        &self,
+        room_id: &RoomId,
+        from: u64,
+    ) -> impl Iterator<Item = Result<PduEvent>> {
+        // Create the first part of the full pdu id
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+
+        let mut current = prefix.clone();
+        current.extend_from_slice(&(from + 1).to_be_bytes()); // +1 so we don't send the base event
+
+        let current: &[u8] = &current;
+
+        self.pduid_pdu
+            .range(current..)
+            .filter_map(|r| r.ok())
+            .take_while(move |(k, _)| k.starts_with(&prefix))
+            .map(|(_, v)| Ok(serde_json::from_slice(&v)?))
+    }
+
     /// Replace a PDU with the redacted form.
     pub fn redact_pdu(&self, event_id: &EventId) -> Result<()> {
         if let Some(pdu_id) = self.get_pdu_id(event_id)? {

@@ -14,6 +14,7 @@ use ruma_client_api::{
         alias::{create_alias, delete_alias, get_alias},
         capabilities::get_capabilities,
         config::{get_global_account_data, set_global_account_data},
+        context::get_context,
         device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
         directory::{
             self, get_public_rooms, get_public_rooms_filtered, get_room_visibility,
@@ -24,7 +25,7 @@ use ruma_client_api::{
         media::{create_content, get_content, get_content_thumbnail, get_media_config},
         membership::{
             forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
-            leave_room,
+            kick_user, leave_room, ban_user, unban_user,
         },
         message::{create_message_event, get_message_events},
         presence::set_presence,
@@ -200,7 +201,7 @@ pub fn register_route(
                 content: ruma_events::push_rules::PushRulesEventContent {
                     global: ruma_events::push_rules::Ruleset {
                         content: vec![],
-                        override_rules: vec![ruma_events::push_rules::ConditionalPushRule {
+                        override_: vec![ruma_events::push_rules::ConditionalPushRule {
                             actions: vec![ruma_events::push_rules::Action::DontNotify],
                             default: true,
                             enabled: false,
@@ -219,12 +220,10 @@ pub fn register_route(
                             default: true,
                             enabled: true,
                             rule_id: ".m.rule.message".to_owned(),
-                            conditions: vec![ruma_events::push_rules::PushCondition::EventMatch(
-                                ruma_events::push_rules::EventMatchCondition {
-                                    key: "type".to_owned(),
-                                    pattern: "m.room.message".to_owned(),
-                                },
-                            )],
+                            conditions: vec![ruma_events::push_rules::PushCondition::EventMatch {
+                                key: "type".to_owned(),
+                                pattern: "m.room.message".to_owned(),
+                            }],
                         }],
                     },
                 },
@@ -348,11 +347,11 @@ pub fn logout_route(
 pub fn get_capabilities_route() -> MatrixResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
     available.insert(
-        "5".to_owned(),
+        RoomVersionId::version_5(),
         get_capabilities::RoomVersionStability::Stable,
     );
     available.insert(
-        "6".to_owned(),
+        RoomVersionId::version_6(),
         get_capabilities::RoomVersionStability::Stable,
     );
 
@@ -374,7 +373,6 @@ pub fn get_pushrules_all_route(
     body: Ruma<get_pushrules_all::Request>,
 ) -> MatrixResult<get_pushrules_all::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    warn!("TODO: get_pushrules_all_route");
 
     if let Some(EduEvent::PushRules(pushrules)) = db
         .account_data
@@ -383,7 +381,7 @@ pub fn get_pushrules_all_route(
         .map(|edu| edu.deserialize().expect("PushRules event in db is valid"))
     {
         MatrixResult(Ok(get_pushrules_all::Response {
-            global: BTreeMap::new(),
+            global: pushrules.content.global,
         }))
     } else {
         MatrixResult(Err(Error {
@@ -1435,13 +1433,28 @@ pub fn leave_room_route(
     _room_id: String,
 ) -> MatrixResult<leave_room::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let state = db.rooms.room_state(&body.room_id).unwrap();
+
+    let mut event =
+        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+            state
+                .get(&(EventType::RoomMember, user_id.to_string()))
+                .unwrap() // TODO: error handling
+                .content
+                .clone(),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+
+    event.membership = ruma_events::room::member::MembershipState::Leave;
 
     db.rooms
         .append_pdu(
             body.room_id.clone(),
             user_id.clone(),
             EventType::RoomMember,
-            json!({"membership": "leave"}),
+            serde_json::to_value(event).unwrap(),
             None,
             Some(user_id.to_string()),
             None,
@@ -1450,6 +1463,125 @@ pub fn leave_room_route(
         .unwrap();
 
     MatrixResult(Ok(leave_room::Response))
+}
+
+#[post("/_matrix/client/r0/rooms/<_room_id>/kick", data = "<body>")]
+pub fn kick_user_route(
+    db: State<'_, Database>,
+    body: Ruma<kick_user::Request>,
+    _room_id: String,
+) -> MatrixResult<kick_user::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let state = db.rooms.room_state(&body.room_id).unwrap();
+
+    let mut event =
+        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+            state
+                .get(&(EventType::RoomMember, user_id.to_string()))
+                .unwrap() // TODO: error handling
+                .content
+                .clone(),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+
+    event.membership = ruma_events::room::member::MembershipState::Leave;
+    // TODO: reason
+
+    db.rooms
+        .append_pdu(
+            body.room_id.clone(),
+            user_id.clone(), // Sender
+            EventType::RoomMember,
+            serde_json::to_value(event).unwrap(),
+            None,
+            Some(body.body.user_id.to_string()),
+            None,
+            &db.globals,
+        )
+        .unwrap();
+
+    MatrixResult(Ok(kick_user::Response))
+}
+
+#[post("/_matrix/client/r0/rooms/<_room_id>/ban", data = "<body>")]
+pub fn ban_user_route(
+    db: State<'_, Database>,
+    body: Ruma<ban_user::Request>,
+    _room_id: String,
+) -> MatrixResult<ban_user::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let state = db.rooms.room_state(&body.room_id).unwrap();
+
+    let mut event =
+        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+            state
+                .get(&(EventType::RoomMember, user_id.to_string()))
+                .unwrap() // TODO: error handling
+                .content
+                .clone(),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+
+    event.membership = ruma_events::room::member::MembershipState::Ban;
+    // TODO: reason
+
+    db.rooms
+        .append_pdu(
+            body.room_id.clone(),
+            user_id.clone(), // Sender
+            EventType::RoomMember,
+            serde_json::to_value(event).unwrap(),
+            None,
+            Some(body.body.user_id.to_string()),
+            None,
+            &db.globals,
+        )
+        .unwrap();
+
+    MatrixResult(Ok(ban_user::Response))
+}
+
+#[post("/_matrix/client/r0/rooms/<_room_id>/unban", data = "<body>")]
+pub fn unban_user_route(
+    db: State<'_, Database>,
+    body: Ruma<unban_user::Request>,
+    _room_id: String,
+) -> MatrixResult<unban_user::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let state = db.rooms.room_state(&body.room_id).unwrap();
+
+    let mut event =
+        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+            state
+                .get(&(EventType::RoomMember, user_id.to_string()))
+                .unwrap() // TODO: error handling
+                .content
+                .clone(),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+
+    event.membership = ruma_events::room::member::MembershipState::Leave;
+
+    db.rooms
+        .append_pdu(
+            body.room_id.clone(),
+            user_id.clone(), // Sender
+            EventType::RoomMember,
+            serde_json::to_value(event).unwrap(),
+            None,
+            Some(body.body.user_id.to_string()),
+            None,
+            &db.globals,
+        )
+        .unwrap();
+
+    MatrixResult(Ok(unban_user::Response))
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/forget", data = "<body>")]
@@ -1472,20 +1604,19 @@ pub fn invite_user_route(
     _room_id: String,
 ) -> MatrixResult<invite_user::Response> {
     if let invite_user::InvitationRecipient::UserId { user_id } = &body.recipient {
-        let event = member::MemberEventContent {
-            membership: member::MembershipState::Invite,
-            displayname: db.users.displayname(&user_id).unwrap(),
-            avatar_url: db.users.avatar_url(&user_id).unwrap(),
-            is_direct: None,
-            third_party_invite: None,
-        };
-
         db.rooms
             .append_pdu(
                 body.room_id.clone(),
                 body.user_id.clone().expect("user is authenticated"),
                 EventType::RoomMember,
-                serde_json::to_value(event).unwrap(),
+                serde_json::to_value(member::MemberEventContent {
+                    membership: member::MembershipState::Invite,
+                    displayname: db.users.displayname(&user_id).unwrap(),
+                    avatar_url: db.users.avatar_url(&user_id).unwrap(),
+                    is_direct: None,
+                    third_party_invite: None,
+                })
+                .unwrap(),
                 None,
                 Some(user_id.to_string()),
                 None,
@@ -2092,9 +2223,15 @@ pub fn sync_route(
             .unwrap()
             > since
         {
-            edus.push(serde_json::from_str(&serde_json::to_string(
-                &EduEvent::Typing(db.rooms.edus.roomactives_all(&room_id).unwrap()),
-            ).unwrap()).unwrap());
+            edus.push(
+                serde_json::from_str(
+                    &serde_json::to_string(&EduEvent::Typing(
+                        db.rooms.edus.roomactives_all(&room_id).unwrap(),
+                    ))
+                    .unwrap(),
+                )
+                .unwrap(),
+            );
         }
 
         joined_rooms.insert(
@@ -2170,9 +2307,15 @@ pub fn sync_route(
             .unwrap()
             > since
         {
-            edus.push(serde_json::from_str(&serde_json::to_string(
-                &EduEvent::Typing(db.rooms.edus.roomactives_all(&room_id).unwrap()),
-            ).unwrap()).unwrap());
+            edus.push(
+                serde_json::from_str(
+                    &serde_json::to_string(&EduEvent::Typing(
+                        db.rooms.edus.roomactives_all(&room_id).unwrap(),
+                    ))
+                    .unwrap(),
+                )
+                .unwrap(),
+            );
         }
 
         left_rooms.insert(
@@ -2271,6 +2414,92 @@ pub fn sync_route(
     }))
 }
 
+#[get(
+    "/_matrix/client/r0/rooms/<_room_id>/context/<_event_id>",
+    data = "<body>"
+)]
+pub fn get_context_route(
+    db: State<'_, Database>,
+    body: Ruma<get_context::Request>,
+    _room_id: String,
+    _event_id: String,
+) -> MatrixResult<get_context::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
+        return MatrixResult(Err(Error {
+            kind: ErrorKind::Forbidden,
+            message: "You don't have permission to view this room.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }));
+    }
+
+    if let Some(base_event) = db.rooms.get_pdu(&body.event_id).unwrap() {
+        let base_event = base_event.to_room_event();
+
+        let base_token = db
+            .rooms
+            .get_pdu_count(&body.event_id)
+            .unwrap()
+            .expect("event exists, so count should exist too");
+
+        let events_before = db
+            .rooms
+            .pdus_until(&body.room_id, base_token)
+            .take(u32::try_from(body.limit).unwrap() as usize / 2)
+            .map(|r| r.unwrap())
+            .collect::<Vec<_>>();
+
+        let start_token = events_before
+            .last()
+            .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
+            .map(|c| c.to_string());
+
+        let events_before = events_before
+            .into_iter()
+            .map(|pdu| pdu.to_room_event())
+            .collect::<Vec<_>>();
+
+        let events_after = db
+            .rooms
+            .pdus_after(&body.room_id, base_token)
+            .take(u32::try_from(body.limit).unwrap() as usize / 2)
+            .map(|r| r.unwrap())
+            .collect::<Vec<_>>();
+
+        let end_token = events_after
+            .last()
+            .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
+            .map(|c| c.to_string());
+
+        let events_after = events_after
+            .into_iter()
+            .map(|pdu| pdu.to_room_event())
+            .collect::<Vec<_>>();
+
+        MatrixResult(Ok(get_context::Response {
+            start: start_token,
+            end: end_token,
+            events_before,
+            event: Some(base_event),
+            events_after,
+            state: db // TODO: State at event
+                .rooms
+                .room_state(&body.room_id)
+                .unwrap()
+                .values()
+                .map(|pdu| pdu.to_state_event())
+                .collect(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::Unknown,
+            message: "Invalid base event.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }))
+    }
+}
+
 #[get("/_matrix/client/r0/rooms/<_room_id>/messages", data = "<body>")]
 pub fn get_message_events_route(
     db: State<'_, Database>,
@@ -2287,32 +2516,59 @@ pub fn get_message_events_route(
         }));
     }
 
-    if let get_message_events::Direction::Forward = body.dir {
-        todo!();
-    }
-
     if let Ok(from) = body.from.clone().parse() {
-        let pdus = db
-            .rooms
-            .pdus_until(&body.room_id, from)
-            .take(body.limit.map(|l| l.try_into().unwrap()).unwrap_or(10_u32) as usize)
-            .map(|r| r.unwrap())
-            .collect::<Vec<_>>();
-        let prev_batch = pdus
-            .last()
-            .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
-            .map(|c| c.to_string());
-        let room_events = pdus
-            .into_iter()
-            .map(|pdu| pdu.to_room_event())
-            .collect::<Vec<_>>();
+        match body.dir {
+            get_message_events::Direction::Forward => {
+                let events_after = db
+                    .rooms
+                    .pdus_after(&body.room_id, from)
+                    .take(body.limit.map(|l| l.try_into().unwrap()).unwrap_or(10_u32) as usize)
+                    .map(|r| r.unwrap())
+                    .collect::<Vec<_>>();
 
-        MatrixResult(Ok(get_message_events::Response {
-            start: Some(body.from.clone()),
-            end: prev_batch,
-            chunk: room_events,
-            state: Vec::new(),
-        }))
+                let end_token = events_after
+                    .last()
+                    .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
+                    .map(|c| c.to_string());
+
+                let events_after = events_after
+                    .into_iter()
+                    .map(|pdu| pdu.to_room_event())
+                    .collect::<Vec<_>>();
+
+                MatrixResult(Ok(get_message_events::Response {
+                    start: Some(body.from.clone()),
+                    end: end_token,
+                    chunk: events_after,
+                    state: Vec::new(),
+                }))
+            }
+            get_message_events::Direction::Backward => {
+                let events_before = db
+                    .rooms
+                    .pdus_until(&body.room_id, from)
+                    .take(body.limit.map(|l| l.try_into().unwrap()).unwrap_or(10_u32) as usize)
+                    .map(|r| r.unwrap())
+                    .collect::<Vec<_>>();
+
+                let start_token = events_before
+                    .last()
+                    .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
+                    .map(|c| c.to_string());
+
+                let events_before = events_before
+                    .into_iter()
+                    .map(|pdu| pdu.to_room_event())
+                    .collect::<Vec<_>>();
+
+                MatrixResult(Ok(get_message_events::Response {
+                    start: Some(body.from.clone()),
+                    end: start_token,
+                    chunk: events_before,
+                    state: Vec::new(),
+                }))
+            }
+        }
     } else {
         MatrixResult(Err(Error {
             kind: ErrorKind::Unknown,
