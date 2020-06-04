@@ -77,3 +77,4 @@ User appears in user directory
 User directory correctly update on display name change
 User in shared private room does appear in user directory
 User in dir while user still shares private rooms
+POST /rooms/:room_id/ban can ban a user

@@ -25,7 +25,7 @@ use ruma_client_api::{
         media::{create_content, get_content, get_content_thumbnail, get_media_config},
         membership::{
             forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
-            leave_room,
+            kick_user, leave_room, ban_user, unban_user,
         },
         message::{create_message_event, get_message_events},
         presence::set_presence,
@@ -381,7 +381,7 @@ pub fn get_pushrules_all_route(
         .map(|edu| edu.deserialize().expect("PushRules event in db is valid"))
     {
         MatrixResult(Ok(get_pushrules_all::Response {
-            global: pushrules.content.global
+            global: pushrules.content.global,
         }))
     } else {
         MatrixResult(Err(Error {
@@ -1433,13 +1433,28 @@ pub fn leave_room_route(
     _room_id: String,
 ) -> MatrixResult<leave_room::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let state = db.rooms.room_state(&body.room_id).unwrap();
+
+    let mut event =
+        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+            state
+                .get(&(EventType::RoomMember, user_id.to_string()))
+                .unwrap() // TODO: error handling
+                .content
+                .clone(),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+
+    event.membership = ruma_events::room::member::MembershipState::Leave;
 
     db.rooms
         .append_pdu(
             body.room_id.clone(),
             user_id.clone(),
             EventType::RoomMember,
-            json!({"membership": "leave"}),
+            serde_json::to_value(event).unwrap(),
             None,
             Some(user_id.to_string()),
             None,
@@ -1448,6 +1463,125 @@ pub fn leave_room_route(
         .unwrap();
 
     MatrixResult(Ok(leave_room::Response))
+}
+
+#[post("/_matrix/client/r0/rooms/<_room_id>/kick", data = "<body>")]
+pub fn kick_user_route(
+    db: State<'_, Database>,
+    body: Ruma<kick_user::Request>,
+    _room_id: String,
+) -> MatrixResult<kick_user::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let state = db.rooms.room_state(&body.room_id).unwrap();
+
+    let mut event =
+        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+            state
+                .get(&(EventType::RoomMember, user_id.to_string()))
+                .unwrap() // TODO: error handling
+                .content
+                .clone(),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+
+    event.membership = ruma_events::room::member::MembershipState::Leave;
+    // TODO: reason
+
+    db.rooms
+        .append_pdu(
+            body.room_id.clone(),
+            user_id.clone(), // Sender
+            EventType::RoomMember,
+            serde_json::to_value(event).unwrap(),
+            None,
+            Some(body.body.user_id.to_string()),
+            None,
+            &db.globals,
+        )
+        .unwrap();
+
+    MatrixResult(Ok(kick_user::Response))
+}
+
+#[post("/_matrix/client/r0/rooms/<_room_id>/ban", data = "<body>")]
+pub fn ban_user_route(
+    db: State<'_, Database>,
+    body: Ruma<ban_user::Request>,
+    _room_id: String,
+) -> MatrixResult<ban_user::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let state = db.rooms.room_state(&body.room_id).unwrap();
+
+    let mut event =
+        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+            state
+                .get(&(EventType::RoomMember, user_id.to_string()))
+                .unwrap() // TODO: error handling
+                .content
+                .clone(),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+
+    event.membership = ruma_events::room::member::MembershipState::Ban;
+    // TODO: reason
+
+    db.rooms
+        .append_pdu(
+            body.room_id.clone(),
+            user_id.clone(), // Sender
+            EventType::RoomMember,
+            serde_json::to_value(event).unwrap(),
+            None,
+            Some(body.body.user_id.to_string()),
+            None,
+            &db.globals,
+        )
+        .unwrap();
+
+    MatrixResult(Ok(ban_user::Response))
+}
+
+#[post("/_matrix/client/r0/rooms/<_room_id>/unban", data = "<body>")]
+pub fn unban_user_route(
+    db: State<'_, Database>,
+    body: Ruma<unban_user::Request>,
+    _room_id: String,
+) -> MatrixResult<unban_user::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let state = db.rooms.room_state(&body.room_id).unwrap();
+
+    let mut event =
+        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+            state
+                .get(&(EventType::RoomMember, user_id.to_string()))
+                .unwrap() // TODO: error handling
+                .content
+                .clone(),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+
+    event.membership = ruma_events::room::member::MembershipState::Leave;
+
+    db.rooms
+        .append_pdu(
+            body.room_id.clone(),
+            user_id.clone(), // Sender
+            EventType::RoomMember,
+            serde_json::to_value(event).unwrap(),
+            None,
+            Some(body.body.user_id.to_string()),
+            None,
+            &db.globals,
+        )
+        .unwrap();
+
+    MatrixResult(Ok(unban_user::Response))
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/forget", data = "<body>")]
@@ -1470,20 +1604,19 @@ pub fn invite_user_route(
     _room_id: String,
 ) -> MatrixResult<invite_user::Response> {
     if let invite_user::InvitationRecipient::UserId { user_id } = &body.recipient {
-        let event = member::MemberEventContent {
-            membership: member::MembershipState::Invite,
-            displayname: db.users.displayname(&user_id).unwrap(),
-            avatar_url: db.users.avatar_url(&user_id).unwrap(),
-            is_direct: None,
-            third_party_invite: None,
-        };
-
         db.rooms
             .append_pdu(
                 body.room_id.clone(),
                 body.user_id.clone().expect("user is authenticated"),
                 EventType::RoomMember,
-                serde_json::to_value(event).unwrap(),
+                serde_json::to_value(member::MemberEventContent {
+                    membership: member::MembershipState::Invite,
+                    displayname: db.users.displayname(&user_id).unwrap(),
+                    avatar_url: db.users.avatar_url(&user_id).unwrap(),
+                    is_direct: None,
+                    third_party_invite: None,
+                })
+                .unwrap(),
                 None,
                 Some(user_id.to_string()),
                 None,
@@ -2302,8 +2435,7 @@ pub fn get_context_route(
     }
 
     if let Some(base_event) = db.rooms.get_pdu(&body.event_id).unwrap() {
-        let base_event = base_event
-            .to_room_event();
+        let base_event = base_event.to_room_event();
 
         let base_token = db
             .rooms
@@ -2358,7 +2490,7 @@ pub fn get_context_route(
                 .values()
                 .map(|pdu| pdu.to_state_event())
                 .collect(),
-            }))
+        }))
     } else {
         MatrixResult(Err(Error {
             kind: ErrorKind::Unknown,
@@ -2384,9 +2516,9 @@ pub fn get_message_events_route(
         }));
     }
 
-    match body.dir {
-        get_message_events::Direction::Forward => {
-            if let Ok(from) = body.from.clone().parse() {
+    if let Ok(from) = body.from.clone().parse() {
+        match body.dir {
+            get_message_events::Direction::Forward => {
                 let events_after = db
                     .rooms
                     .pdus_after(&body.room_id, from)
@@ -2410,16 +2542,8 @@ pub fn get_message_events_route(
                     chunk: events_after,
                     state: Vec::new(),
                 }))
-            } else {
-                MatrixResult(Err(Error {
-                    kind: ErrorKind::Unknown,
-                    message: "Invalid from.".to_owned(),
-                    status_code: http::StatusCode::BAD_REQUEST,
-                }))
             }
-        }
-        get_message_events::Direction::Backward => {
-            if let Ok(from) = body.from.clone().parse() {
+            get_message_events::Direction::Backward => {
                 let events_before = db
                     .rooms
                     .pdus_until(&body.room_id, from)
@@ -2443,16 +2567,15 @@ pub fn get_message_events_route(
                     chunk: events_before,
                     state: Vec::new(),
                 }))
-            } else {
-                MatrixResult(Err(Error {
-                    kind: ErrorKind::Unknown,
-                    message: "Invalid from.".to_owned(),
-                    status_code: http::StatusCode::BAD_REQUEST,
-                }))
             }
         }
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::Unknown,
+            message: "Invalid from.".to_owned(),
+            status_code: http::StatusCode::BAD_REQUEST,
+        }))
     }
-
 }
 
 #[get("/_matrix/client/r0/voip/turnServer")]
