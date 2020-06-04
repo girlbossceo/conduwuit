@@ -28,26 +28,13 @@ POST /login wrong password is rejected
 POST /createRoom makes a private room
 POST /createRoom makes a private room with invites
 GET /rooms/:room_id/state/m.room.member/:user_id fetches my membership
-GET /rooms/:room_id/state/m.room.power_levels fetches powerlevels
-POST /join/:room_alias can join a room
 POST /join/:room_id can join a room
-POST /join/:room_id can join a room with custom content
-POST /join/:room_alias can join a room with custom content
 POST /rooms/:room_id/join can join a room
 POST /rooms/:room_id/leave can leave a room
 POST /rooms/:room_id/invite can send an invite
-POST /rooms/:room_id/ban can ban a user
-POST /rooms/:room_id/send/:event_type sends a message
-PUT /rooms/:room_id/send/:event_type/:txn_id sends a message
-PUT /rooms/:room_id/send/:event_type/:txn_id deduplicates the same txn id
-GET /rooms/:room_id/state/m.room.power_levels can fetch levels
 PUT /rooms/:room_id/state/m.room.power_levels can set levels
 PUT power_levels should not explode if the old power levels were empty
 Both GET and PUT work
-POST /rooms/:room_id/read_markers can create read marker
-User signups are forbidden from starting with '_'
-Request to logout with invalid an access token is rejected
-Request to logout without an access token is rejected
 Room creation reports m.room.create to myself
 Room creation reports m.room.member to myself
 Version responds 200 OK with valid structure
@@ -60,7 +47,6 @@ Can create filter
 Should reject keys claiming to belong to a different user
 Can add account data
 Checking local federation server
-Alternative server names do not cause a routing loop
 Can read configuration endpoint
 AS cannot create users outside its own namespace
 Changing the actions of an unknown default rule fails with 404
@@ -79,3 +65,15 @@ GET /events with non-numeric 'limit'
 GET /events with negative 'limit'
 GET /events with non-numeric 'timeout'
 Getting push rules doesn't corrupt the cache SYN-390
+GET /publicRooms lists newly-created room
+PUT /directory/room/:room_alias creates alias
+3pid invite join with wrong but valid signature are rejected
+3pid invite join valid signature but revoked keys are rejected
+3pid invite join valid signature but unreachable ID server are rejected
+query for user with no keys returns empty key dict
+Can upload without a file name
+Can upload with ASCII file name
+User appears in user directory
+User directory correctly update on display name change
+User in shared private room does appear in user directory
+User in dir while user still shares private rooms

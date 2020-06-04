@@ -361,14 +361,12 @@ impl Users {
 
         self.userdeviceid_devicekeys.scan_prefix(key).map(|r| {
             let (key, value) = r?;
-            Ok((
-                utils::string_from_bytes(
-                    key.rsplit(|&b| b == 0xff)
-                        .next()
-                        .ok_or(Error::BadDatabase("userdeviceid is invalid"))?,
-                )?,
-                serde_json::from_slice(&*value)?,
-            ))
+            let userdeviceid = utils::string_from_bytes(
+                key.rsplit(|&b| b == 0xff)
+                    .next()
+                    .ok_or(Error::BadDatabase("userdeviceid is invalid"))?,
+            )?;
+            Ok((userdeviceid, serde_json::from_slice(&*value)?))
         })
     }
 

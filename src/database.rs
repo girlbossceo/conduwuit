@@ -70,7 +70,10 @@ impl Database {
                 edus: rooms::RoomEdus {
                     roomuserid_lastread: db.open_tree("roomuserid_lastread").unwrap(), // "Private" read receipt
                     roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest").unwrap(), // Read receipts
-                    roomactiveid_roomactive: db.open_tree("roomactiveid_roomactive").unwrap(), // Typing notifs
+                    roomactiveid_userid: db.open_tree("roomactiveid_userid").unwrap(), // Typing notifs
+                    roomid_lastroomactiveupdate: db
+                        .open_tree("roomid_lastroomactiveupdate")
+                        .unwrap(),
                 },
                 pduid_pdu: db.open_tree("pduid_pdu").unwrap(),
                 eventid_pduid: db.open_tree("eventid_pduid").unwrap(),

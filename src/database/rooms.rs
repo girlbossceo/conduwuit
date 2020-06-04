@@ -52,31 +52,6 @@ impl Rooms {
             .is_some())
     }
 
-    // TODO: Remove and replace with public room dir
-    /// Returns a vector over all rooms.
-    pub fn all_rooms(&self) -> Vec<RoomId> {
-        let mut room_ids = self
-            .roomid_pduleaves
-            .iter()
-            .keys()
-            .map(|key| {
-                RoomId::try_from(
-                    &*utils::string_from_bytes(
-                        &key.unwrap()
-                            .iter()
-                            .copied()
-                            .take_while(|&x| x != 0xff) // until delimiter
-                            .collect::<Vec<_>>(),
-                    )
-                    .unwrap(),
-                )
-                .unwrap()
-            })
-            .collect::<Vec<_>>();
-        room_ids.dedup();
-        room_ids
-    }
-
     /// Returns the full room state.
     pub fn room_state(&self, room_id: &RoomId) -> Result<HashMap<(EventType, String), PduEvent>> {
         let mut hashmap = HashMap::new();
@@ -329,15 +304,11 @@ impl Rooms {
                                 false
                             } else if let member::MembershipState::Ban = current_membership {
                                 false
-                            } else if join_rules == join_rules::JoinRule::Invite
-                                && (current_membership == member::MembershipState::Join
-                                    || current_membership == member::MembershipState::Invite)
-                            {
-                                true
-                            } else if join_rules == join_rules::JoinRule::Public {
-                                true
                             } else {
-                                false
+                                join_rules == join_rules::JoinRule::Invite
+                                    && (current_membership == member::MembershipState::Join
+                                        || current_membership == member::MembershipState::Invite)
+                                    || join_rules == join_rules::JoinRule::Public
                             }
                         } else if target_membership == member::MembershipState::Invite {
                             if let Some(third_party_invite_json) = content.get("third_party_invite")
@@ -351,46 +322,35 @@ impl Rooms {
                                         )?;
                                     todo!("handle third party invites");
                                 }
-                            } else if sender_membership != member::MembershipState::Join {
-                                false
-                            } else if current_membership == member::MembershipState::Join
+                            } else if sender_membership != member::MembershipState::Join
+                                || current_membership == member::MembershipState::Join
                                 || current_membership == member::MembershipState::Ban
                             {
                                 false
-                            } else if sender_power
-                                .filter(|&p| p >= &power_levels.invite)
-                                .is_some()
-                            {
-                                true
                             } else {
-                                false
+                                sender_power
+                                    .filter(|&p| p >= &power_levels.invite)
+                                    .is_some()
                             }
                         } else if target_membership == member::MembershipState::Leave {
                             if sender == target_user_id {
                                 current_membership == member::MembershipState::Join
                                     || current_membership == member::MembershipState::Invite
-                            } else if sender_membership != member::MembershipState::Join {
-                                false
-                            } else if current_membership == member::MembershipState::Ban
-                                && sender_power.filter(|&p| p < &power_levels.ban).is_some()
+                            } else if sender_membership != member::MembershipState::Join
+                                || current_membership == member::MembershipState::Ban
+                                    && sender_power.filter(|&p| p < &power_levels.ban).is_some()
                             {
                                 false
-                            } else if sender_power.filter(|&p| p >= &power_levels.kick).is_some()
-                                && target_power < sender_power
-                            {
-                                true
                             } else {
-                                false
+                                sender_power.filter(|&p| p >= &power_levels.kick).is_some()
+                                    && target_power < sender_power
                             }
                         } else if target_membership == member::MembershipState::Ban {
                             if sender_membership != member::MembershipState::Join {
                                 false
-                            } else if sender_power.filter(|&p| p >= &power_levels.ban).is_some()
-                                && target_power < sender_power
-                            {
-                                true
                             } else {
-                                false
+                                sender_power.filter(|&p| p >= &power_levels.ban).is_some()
+                                    && target_power < sender_power
                             }
                         } else {
                             false
@@ -668,16 +628,21 @@ impl Rooms {
         globals: &super::globals::Globals,
     ) -> Result<()> {
         if let Some(room_id) = room_id {
+            // New alias
             self.alias_roomid
                 .insert(alias.alias(), &*room_id.to_string())?;
             let mut aliasid = room_id.to_string().as_bytes().to_vec();
             aliasid.extend_from_slice(&globals.next_count()?.to_be_bytes());
             self.aliasid_alias.insert(aliasid, &*alias.alias())?;
         } else {
-            if let Some(room_id) = self.alias_roomid.remove(alias.alias())? {
-                for key in self.aliasid_alias.scan_prefix(room_id).keys() {
-                    self.aliasid_alias.remove(key?)?;
-                }
+            // room_id=None means remove alias
+            let room_id = self
+                .alias_roomid
+                .remove(alias.alias())?
+                .ok_or(Error::BadRequest("Alias does not exist"))?;
+
+            for key in self.aliasid_alias.scan_prefix(room_id).keys() {
+                self.aliasid_alias.remove(key?)?;
             }
         }
 

@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use crate::{utils, Database, MatrixResult, Ruma};
 use log::{debug, warn};
 use rocket::{delete, get, options, post, put, State};
 use ruma_client_api::{
@@ -13,15 +14,13 @@ use ruma_client_api::{
         alias::{create_alias, delete_alias, get_alias},
         capabilities::get_capabilities,
         config::{get_global_account_data, set_global_account_data},
-        device::{
-            self, delete_device, delete_devices, get_device, get_devices, update_device,
-        },
+        device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
         directory::{
             self, get_public_rooms, get_public_rooms_filtered, get_room_visibility,
             set_room_visibility,
         },
         filter::{self, create_filter, get_filter},
-        keys::{claim_keys, get_keys, upload_keys},
+        keys::{self, claim_keys, get_keys, upload_keys},
         media::{create_content, get_content, get_content_thumbnail, get_media_config},
         membership::{
             forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
@@ -57,8 +56,6 @@ use ruma_events::{
 };
 use ruma_identifiers::{DeviceId, RoomAliasId, RoomId, RoomVersionId, UserId};
 use serde_json::{json, value::RawValue};
-
-use crate::{server_server, utils, Database, MatrixResult, Ruma};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
@@ -176,7 +173,8 @@ pub fn register_route(
 
     // Generate new device id if the user didn't specify one
     let device_id = body
-        .device_id.clone()
+        .device_id
+        .clone()
         .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
 
     // Generate new token for the device
@@ -184,7 +182,12 @@ pub fn register_route(
 
     // Add device
     db.users
-        .create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())
+        .create_device(
+            &user_id,
+            &device_id,
+            &token,
+            body.initial_device_display_name.clone(),
+        )
         .unwrap();
 
     // Initial data
@@ -311,7 +314,12 @@ pub fn login_route(
 
     // Add device
     db.users
-        .create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())
+        .create_device(
+            &user_id,
+            &device_id,
+            &token,
+            body.initial_device_display_name.clone(),
+        )
         .unwrap();
 
     MatrixResult(Ok(login::Response {
@@ -338,14 +346,23 @@ pub fn logout_route(
 
 #[get("/_matrix/client/r0/capabilities")]
 pub fn get_capabilities_route() -> MatrixResult<get_capabilities::Response> {
-    // TODO
-    //let mut available = BTreeMap::new();
-    //available.insert("5".to_owned(), get_capabilities::RoomVersionStability::Unstable);
+    let mut available = BTreeMap::new();
+    available.insert(
+        "5".to_owned(),
+        get_capabilities::RoomVersionStability::Stable,
+    );
+    available.insert(
+        "6".to_owned(),
+        get_capabilities::RoomVersionStability::Stable,
+    );
 
     MatrixResult(Ok(get_capabilities::Response {
         capabilities: get_capabilities::Capabilities {
-            change_password: None,
-            room_versions: None, //Some(get_capabilities::RoomVersionsCapability { default: "5".to_owned(), available }),
+            change_password: None, // None means it is possible
+            room_versions: Some(get_capabilities::RoomVersionsCapability {
+                default: "6".to_owned(),
+                available,
+            }),
             custom_capabilities: BTreeMap::new(),
         },
     }))
@@ -749,11 +766,21 @@ pub fn get_keys_route(
     for (user_id, device_ids) in &body.device_keys {
         if device_ids.is_empty() {
             let mut container = BTreeMap::new();
-            for (device_id, keys) in db
+            for (device_id, mut keys) in db
                 .users
                 .all_device_keys(&user_id.clone())
                 .map(|r| r.unwrap())
             {
+                let metadata = db
+                    .users
+                    .get_device_metadata(user_id, &device_id)
+                    .unwrap()
+                    .expect("this device should exist");
+
+                keys.unsigned = Some(keys::UnsignedDeviceInfo {
+                    device_display_name: metadata.display_name,
+                });
+
                 container.insert(device_id, keys);
             }
             device_keys.insert(user_id.clone(), container);
@@ -761,7 +788,18 @@ pub fn get_keys_route(
             for device_id in device_ids {
                 let mut container = BTreeMap::new();
                 for keys in db.users.get_device_keys(&user_id.clone(), &device_id) {
-                    container.insert(device_id.clone(), keys.unwrap());
+                    let mut keys = keys.unwrap();
+                    let metadata = db
+                        .users
+                        .get_device_metadata(user_id, &device_id)
+                        .unwrap()
+                        .expect("this device should exist");
+
+                    keys.unsigned = Some(keys::UnsignedDeviceInfo {
+                        device_display_name: metadata.display_name,
+                    });
+
+                    container.insert(device_id.clone(), keys);
                 }
                 device_keys.insert(user_id.clone(), container);
             }
@@ -883,18 +921,12 @@ pub fn create_typing_event_route(
     _user_id: String,
 ) -> MatrixResult<create_typing_event::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let edu = EduEvent::Typing(ruma_events::typing::TypingEvent {
-        content: ruma_events::typing::TypingEventContent {
-            user_ids: vec![user_id.clone()],
-        },
-        room_id: None, // None because it can be inferred
-    });
 
     if body.typing {
         db.rooms
             .edus
             .roomactive_add(
-                edu,
+                &user_id,
                 &body.room_id,
                 body.timeout.map(|d| d.as_millis() as u64).unwrap_or(30000)
                     + utils::millis_since_unix_epoch().try_into().unwrap_or(0),
@@ -902,7 +934,10 @@ pub fn create_typing_event_route(
             )
             .unwrap();
     } else {
-        db.rooms.edus.roomactive_remove(edu, &body.room_id).unwrap();
+        db.rooms
+            .edus
+            .roomactive_remove(&user_id, &body.room_id, &db.globals)
+            .unwrap();
     }
 
     MatrixResult(Ok(create_typing_event::Response))
@@ -954,7 +989,7 @@ pub fn create_room_route(
                     .creation_content
                     .as_ref()
                     .and_then(|c| c.predecessor.clone()),
-                room_version: RoomVersionId::version_5(),
+                room_version: RoomVersionId::version_6(),
             })
             .unwrap(),
             None,
@@ -1279,11 +1314,11 @@ pub fn get_alias_route(
             }))
         } else {
             debug!("Room alias not found.");
-            return MatrixResult(Err(Error {
+            MatrixResult(Err(Error {
                 kind: ErrorKind::NotFound,
                 message: "Room with alias not found.".to_owned(),
                 status_code: http::StatusCode::BAD_REQUEST,
-            }));
+            }))
         }
     } else {
         todo!("ask remote server");
@@ -1859,23 +1894,23 @@ pub fn get_state_events_route(
 ) -> MatrixResult<get_state_events::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        MatrixResult(Ok(get_state_events::Response {
-            room_state: db
-                .rooms
-                .room_state(&body.room_id)
-                .unwrap()
-                .values()
-                .map(|pdu| pdu.to_state_event())
-                .collect(),
-        }))
-    } else {
-        MatrixResult(Err(Error {
+    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
+        return MatrixResult(Err(Error {
             kind: ErrorKind::Forbidden,
             message: "You don't have permission to view the room state.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
+            status_code: http::StatusCode::FORBIDDEN,
+        }));
     }
+
+    MatrixResult(Ok(get_state_events::Response {
+        room_state: db
+            .rooms
+            .room_state(&body.room_id)
+            .unwrap()
+            .values()
+            .map(|pdu| pdu.to_state_event())
+            .collect(),
+    }))
 }
 
 #[get(
@@ -1891,28 +1926,28 @@ pub fn get_state_events_for_key_route(
 ) -> MatrixResult<get_state_events_for_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        if let Some(event) = db
-            .rooms
-            .room_state(&body.room_id)
-            .unwrap()
-            .get(&(body.event_type.clone(), body.state_key.clone()))
-        {
-            MatrixResult(Ok(get_state_events_for_key::Response {
-                content: serde_json::value::to_raw_value(&event.content).unwrap(),
-            }))
-        } else {
-            MatrixResult(Err(Error {
-                kind: ErrorKind::NotFound,
-                message: "State event not found.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }))
-        }
-    } else {
-        MatrixResult(Err(Error {
+    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
+        return MatrixResult(Err(Error {
             kind: ErrorKind::Forbidden,
             message: "You don't have permission to view the room state.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
+            status_code: http::StatusCode::FORBIDDEN,
+        }));
+    }
+
+    if let Some(event) = db
+        .rooms
+        .room_state(&body.room_id)
+        .unwrap()
+        .get(&(body.event_type.clone(), body.state_key.clone()))
+    {
+        MatrixResult(Ok(get_state_events_for_key::Response {
+            content: serde_json::value::to_raw_value(&event.content).unwrap(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "State event not found.".to_owned(),
+            status_code: http::StatusCode::NOT_FOUND,
         }))
     }
 }
@@ -1929,27 +1964,27 @@ pub fn get_state_events_for_empty_key_route(
 ) -> MatrixResult<get_state_events_for_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        if let Some(event) = db
-            .rooms
-            .room_state(&body.room_id)
-            .unwrap()
-            .get(&(body.event_type.clone(), "".to_owned()))
-        {
-            MatrixResult(Ok(get_state_events_for_key::Response {
-                content: serde_json::value::to_raw_value(event).unwrap(),
-            }))
-        } else {
-            MatrixResult(Err(Error {
-                kind: ErrorKind::NotFound,
-                message: "State event not found.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }))
-        }
-    } else {
-        MatrixResult(Err(Error {
+    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
+        return MatrixResult(Err(Error {
             kind: ErrorKind::Forbidden,
             message: "You don't have permission to view the room state.".to_owned(),
+            status_code: http::StatusCode::FORBIDDEN,
+        }));
+    }
+
+    if let Some(event) = db
+        .rooms
+        .room_state(&body.room_id)
+        .unwrap()
+        .get(&(body.event_type.clone(), "".to_owned()))
+    {
+        MatrixResult(Ok(get_state_events_for_key::Response {
+            content: serde_json::value::to_raw_value(event).unwrap(),
+        }))
+    } else {
+        MatrixResult(Err(Error {
+            kind: ErrorKind::NotFound,
+            message: "State event not found.".to_owned(),
             status_code: http::StatusCode::BAD_REQUEST,
         }))
     }
@@ -2011,7 +2046,12 @@ pub fn sync_route(
                     (db.rooms
                         .pdus_since(&room_id, last_read)
                         .unwrap()
-                        .filter(|pdu| matches!(pdu.as_ref().unwrap().kind.clone(), EventType::RoomMessage | EventType::RoomEncrypted))
+                        .filter(|pdu| {
+                            matches!(
+                                pdu.as_ref().unwrap().kind.clone(),
+                                EventType::RoomMessage | EventType::RoomEncrypted
+                            )
+                        })
                         .count() as u32)
                         .into(),
                 )
@@ -2040,29 +2080,22 @@ pub fn sync_route(
         let mut edus = db
             .rooms
             .edus
-            .roomactives_all(&room_id)
+            .roomlatests_since(&room_id, since)
+            .unwrap()
             .map(|r| r.unwrap())
             .collect::<Vec<_>>();
 
-        if edus.is_empty() {
-            edus.push(
-                EduEvent::Typing(ruma_events::typing::TypingEvent {
-                    content: ruma_events::typing::TypingEventContent {
-                        user_ids: Vec::new(),
-                    },
-                    room_id: None, // None because it can be inferred
-                })
-                .into(),
-            );
+        if db
+            .rooms
+            .edus
+            .last_roomactive_update(&room_id, &db.globals)
+            .unwrap()
+            > since
+        {
+            edus.push(serde_json::from_str(&serde_json::to_string(
+                &EduEvent::Typing(db.rooms.edus.roomactives_all(&room_id).unwrap()),
+            ).unwrap()).unwrap());
         }
-
-        edus.extend(
-            db.rooms
-                .edus
-                .roomlatests_since(&room_id, since)
-                .unwrap()
-                .map(|r| r.unwrap()),
-        );
 
         joined_rooms.insert(
             room_id.clone().try_into().unwrap(),
@@ -2130,7 +2163,17 @@ pub fn sync_route(
             .map(|r| r.unwrap())
             .collect::<Vec<_>>();
 
-        edus.extend(db.rooms.edus.roomactives_all(&room_id).map(|r| r.unwrap()));
+        if db
+            .rooms
+            .edus
+            .last_roomactive_update(&room_id, &db.globals)
+            .unwrap()
+            > since
+        {
+            edus.push(serde_json::from_str(&serde_json::to_string(
+                &EduEvent::Typing(db.rooms.edus.roomactives_all(&room_id).unwrap()),
+            ).unwrap()).unwrap());
+        }
 
         left_rooms.insert(
             room_id.clone().try_into().unwrap(),
@@ -2218,7 +2261,7 @@ pub fn sync_route(
         } else {
             None // TODO: left
         },
-        device_one_time_keys_count: Default::default(),
+        device_one_time_keys_count: Default::default(), // TODO
         to_device: sync_events::ToDevice {
             events: db
                 .users
@@ -2281,7 +2324,6 @@ pub fn get_message_events_route(
 
 #[get("/_matrix/client/r0/voip/turnServer")]
 pub fn turn_server_route() -> MatrixResult<create_message_event::Response> {
-    warn!("TODO: turn_server_route");
     MatrixResult(Err(Error {
         kind: ErrorKind::NotFound,
         message: "There is no turn server yet.".to_owned(),

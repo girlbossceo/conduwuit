@@ -6,11 +6,8 @@ mod database;
 mod error;
 mod pdu;
 mod ruma_wrapper;
-mod server_server;
+//mod server_server;
 mod utils;
-
-#[cfg(test)]
-mod test;
 
 pub use database::Database;
 pub use error::{Error, Result};
@@ -87,10 +84,10 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::delete_device_route,
                 client_server::delete_devices_route,
                 client_server::options_route,
-                server_server::well_known_server,
-                server_server::get_server_version,
-                server_server::get_server_keys,
-                server_server::get_server_keys_deprecated,
+                //server_server::well_known_server,
+                //server_server::get_server_version,
+                //server_server::get_server_keys,
+                //server_server::get_server_keys_deprecated,
             ],
         )
         .attach(AdHoc::on_attach("Config", |rocket| {
