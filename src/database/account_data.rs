@@ -1,6 +1,8 @@
 use crate::{utils, Error, Result};
-use ruma_events::{collections::only::Event as EduEvent, EventJson, EventType};
-use ruma_identifiers::{RoomId, UserId};
+use ruma::{
+    events::{collections::only::Event as EduEvent, EventJson, EventType},
+    identifiers::{RoomId, UserId},
+};
 use std::{collections::HashMap, convert::TryFrom};
 
 pub struct AccountData {

@@ -5,13 +5,13 @@ pub const COUNTER: &str = "c";
 pub struct Globals {
     pub(super) globals: sled::Tree,
     server_name: String,
-    keypair: ruma_signatures::Ed25519KeyPair,
+    keypair: ruma::signatures::Ed25519KeyPair,
     reqwest_client: reqwest::Client,
 }
 
 impl Globals {
     pub fn load(globals: sled::Tree, server_name: String) -> Self {
-        let keypair = ruma_signatures::Ed25519KeyPair::new(
+        let keypair = ruma::signatures::Ed25519KeyPair::new(
             &*globals
                 .update_and_fetch("keypair", utils::generate_keypair)
                 .unwrap()
@@ -34,7 +34,7 @@ impl Globals {
     }
 
     /// Returns this server's keypair.
-    pub fn keypair(&self) -> &ruma_signatures::Ed25519KeyPair {
+    pub fn keypair(&self) -> &ruma::signatures::Ed25519KeyPair {
         &self.keypair
     }
 

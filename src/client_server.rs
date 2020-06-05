@@ -7,55 +7,57 @@ use std::{
 use crate::{utils, Database, MatrixResult, Ruma};
 use log::{debug, warn};
 use rocket::{delete, get, options, post, put, State};
-use ruma_client_api::{
-    error::{Error, ErrorKind},
-    r0::{
-        account::{get_username_availability, register},
-        alias::{create_alias, delete_alias, get_alias},
-        capabilities::get_capabilities,
-        config::{get_global_account_data, set_global_account_data},
-        context::get_context,
-        device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
-        directory::{
-            self, get_public_rooms, get_public_rooms_filtered, get_room_visibility,
-            set_room_visibility,
+use ruma::{
+    api::client::{
+        error::{Error, ErrorKind},
+        r0::{
+            account::{get_username_availability, register},
+            alias::{create_alias, delete_alias, get_alias},
+            capabilities::get_capabilities,
+            config::{get_global_account_data, set_global_account_data},
+            context::get_context,
+            device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
+            directory::{
+                self, get_public_rooms, get_public_rooms_filtered, get_room_visibility,
+                set_room_visibility,
+            },
+            filter::{self, create_filter, get_filter},
+            keys::{self, claim_keys, get_keys, upload_keys},
+            media::{create_content, get_content, get_content_thumbnail, get_media_config},
+            membership::{
+                ban_user, forget_room, get_member_events, invite_user, join_room_by_id,
+                join_room_by_id_or_alias, kick_user, leave_room, unban_user,
+            },
+            message::{create_message_event, get_message_events},
+            presence::set_presence,
+            profile::{
+                get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
+            },
+            push::{get_pushrules_all, set_pushrule, set_pushrule_enabled},
+            read_marker::set_read_marker,
+            redact::redact_event,
+            room::{self, create_room},
+            session::{get_login_types, login, logout},
+            state::{
+                create_state_event_for_empty_key, create_state_event_for_key, get_state_events,
+                get_state_events_for_empty_key, get_state_events_for_key,
+            },
+            sync::sync_events,
+            thirdparty::get_protocols,
+            to_device::{self, send_event_to_device},
+            typing::create_typing_event,
+            uiaa::{AuthFlow, UiaaInfo, UiaaResponse},
+            user_directory::search_users,
         },
-        filter::{self, create_filter, get_filter},
-        keys::{self, claim_keys, get_keys, upload_keys},
-        media::{create_content, get_content, get_content_thumbnail, get_media_config},
-        membership::{
-            ban_user, forget_room, get_member_events, invite_user, join_room_by_id,
-            join_room_by_id_or_alias, kick_user, leave_room, unban_user,
-        },
-        message::{create_message_event, get_message_events},
-        presence::set_presence,
-        profile::{
-            get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
-        },
-        push::{get_pushrules_all, set_pushrule, set_pushrule_enabled},
-        read_marker::set_read_marker,
-        redact::redact_event,
-        room::{self, create_room},
-        session::{get_login_types, login, logout},
-        state::{
-            create_state_event_for_empty_key, create_state_event_for_key, get_state_events,
-            get_state_events_for_empty_key, get_state_events_for_key,
-        },
-        sync::sync_events,
-        thirdparty::get_protocols,
-        to_device::{self, send_event_to_device},
-        typing::create_typing_event,
-        uiaa::{AuthFlow, UiaaInfo, UiaaResponse},
-        user_directory::search_users,
+        unversioned::get_supported_versions,
     },
-    unversioned::get_supported_versions,
+    events::{
+        collections::only::Event as EduEvent,
+        room::{canonical_alias, guest_access, history_visibility, join_rules, member, redaction},
+        EventJson, EventType,
+    },
+    identifiers::{DeviceId, RoomAliasId, RoomId, RoomVersionId, UserId},
 };
-use ruma_events::{
-    collections::only::Event as EduEvent,
-    room::{canonical_alias, guest_access, history_visibility, join_rules, member, redaction},
-    EventJson, EventType,
-};
-use ruma_identifiers::{DeviceId, RoomAliasId, RoomId, RoomVersionId, UserId};
 use serde_json::{json, value::RawValue};
 
 const GUEST_NAME_LENGTH: usize = 10;
@@ -197,12 +199,12 @@ pub fn register_route(
             None,
             &user_id,
             &EventType::PushRules,
-            serde_json::to_value(ruma_events::push_rules::PushRulesEvent {
-                content: ruma_events::push_rules::PushRulesEventContent {
-                    global: ruma_events::push_rules::Ruleset {
+            serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
+                content: ruma::events::push_rules::PushRulesEventContent {
+                    global: ruma::events::push_rules::Ruleset {
                         content: vec![],
-                        override_: vec![ruma_events::push_rules::ConditionalPushRule {
-                            actions: vec![ruma_events::push_rules::Action::DontNotify],
+                        override_: vec![ruma::events::push_rules::ConditionalPushRule {
+                            actions: vec![ruma::events::push_rules::Action::DontNotify],
                             default: true,
                             enabled: false,
                             rule_id: ".m.rule.master".to_owned(),
@@ -210,17 +212,17 @@ pub fn register_route(
                         }],
                         room: vec![],
                         sender: vec![],
-                        underride: vec![ruma_events::push_rules::ConditionalPushRule {
+                        underride: vec![ruma::events::push_rules::ConditionalPushRule {
                             actions: vec![
-                                ruma_events::push_rules::Action::Notify,
-                                ruma_events::push_rules::Action::SetTweak(
-                                    ruma_common::push::Tweak::Sound("default".to_owned()),
+                                ruma::events::push_rules::Action::Notify,
+                                ruma::events::push_rules::Action::SetTweak(
+                                    ruma::push::Tweak::Sound("default".to_owned()),
                                 ),
                             ],
                             default: true,
                             enabled: true,
                             rule_id: ".m.rule.message".to_owned(),
-                            conditions: vec![ruma_events::push_rules::PushCondition::EventMatch {
+                            conditions: vec![ruma::events::push_rules::PushCondition::EventMatch {
                                 key: "type".to_owned(),
                                 pattern: "m.room.message".to_owned(),
                             }],
@@ -522,7 +524,7 @@ pub fn set_displayname_route(
                 room_id.clone(),
                 user_id.clone(),
                 EventType::RoomMember,
-                serde_json::to_value(ruma_events::room::member::MemberEventContent {
+                serde_json::to_value(ruma::events::room::member::MemberEventContent {
                     displayname: body.displayname.clone(),
                     ..serde_json::from_value::<EventJson<_>>(
                         db.rooms
@@ -549,13 +551,13 @@ pub fn set_displayname_route(
     // Presence update
     db.global_edus
         .update_presence(
-            ruma_events::presence::PresenceEvent {
-                content: ruma_events::presence::PresenceEventContent {
+            ruma::events::presence::PresenceEvent {
+                content: ruma::events::presence::PresenceEventContent {
                     avatar_url: db.users.avatar_url(&user_id).unwrap(),
                     currently_active: None,
                     displayname: db.users.displayname(&user_id).unwrap(),
                     last_active_ago: Some(utils::millis_since_unix_epoch().try_into().unwrap()),
-                    presence: ruma_events::presence::PresenceState::Online,
+                    presence: ruma::events::presence::PresenceState::Online,
                     status_msg: None,
                 },
                 sender: user_id.clone(),
@@ -613,7 +615,7 @@ pub fn set_avatar_url_route(
                 room_id.clone(),
                 user_id.clone(),
                 EventType::RoomMember,
-                serde_json::to_value(ruma_events::room::member::MemberEventContent {
+                serde_json::to_value(ruma::events::room::member::MemberEventContent {
                     avatar_url: body.avatar_url.clone(),
                     ..serde_json::from_value::<EventJson<_>>(
                         db.rooms
@@ -640,13 +642,13 @@ pub fn set_avatar_url_route(
     // Presence update
     db.global_edus
         .update_presence(
-            ruma_events::presence::PresenceEvent {
-                content: ruma_events::presence::PresenceEventContent {
+            ruma::events::presence::PresenceEvent {
+                content: ruma::events::presence::PresenceEventContent {
                     avatar_url: db.users.avatar_url(&user_id).unwrap(),
                     currently_active: None,
                     displayname: db.users.displayname(&user_id).unwrap(),
                     last_active_ago: Some(utils::millis_since_unix_epoch().try_into().unwrap()),
-                    presence: ruma_events::presence::PresenceState::Online,
+                    presence: ruma::events::presence::PresenceState::Online,
                     status_msg: None,
                 },
                 sender: user_id.clone(),
@@ -706,8 +708,8 @@ pub fn set_presence_route(
 
     db.global_edus
         .update_presence(
-            ruma_events::presence::PresenceEvent {
-                content: ruma_events::presence::PresenceEventContent {
+            ruma::events::presence::PresenceEvent {
+                content: ruma::events::presence::PresenceEventContent {
                     avatar_url: db.users.avatar_url(&user_id).unwrap(),
                     currently_active: None,
                     displayname: db.users.displayname(&user_id).unwrap(),
@@ -848,8 +850,8 @@ pub fn set_read_marker_route(
             Some(&body.room_id),
             &user_id,
             &EventType::FullyRead,
-            serde_json::to_value(ruma_events::fully_read::FullyReadEvent {
-                content: ruma_events::fully_read::FullyReadEventContent {
+            serde_json::to_value(ruma::events::fully_read::FullyReadEvent {
+                content: ruma::events::fully_read::FullyReadEventContent {
                     event_id: body.fully_read.clone(),
                 },
                 room_id: Some(body.room_id.clone()),
@@ -877,14 +879,14 @@ pub fn set_read_marker_route(
         let mut user_receipts = BTreeMap::new();
         user_receipts.insert(
             user_id.clone(),
-            ruma_events::receipt::Receipt {
+            ruma::events::receipt::Receipt {
                 ts: Some(SystemTime::now()),
             },
         );
         let mut receipt_content = BTreeMap::new();
         receipt_content.insert(
             event.clone(),
-            ruma_events::receipt::Receipts {
+            ruma::events::receipt::Receipts {
                 read: Some(user_receipts),
             },
         );
@@ -894,7 +896,7 @@ pub fn set_read_marker_route(
             .roomlatest_update(
                 &user_id,
                 &body.room_id,
-                EduEvent::Receipt(ruma_events::receipt::ReceiptEvent {
+                EduEvent::Receipt(ruma::events::receipt::ReceiptEvent {
                     content: receipt_content,
                     room_id: None, // None because it can be inferred
                 }),
@@ -977,7 +979,7 @@ pub fn create_room_route(
             room_id.clone(),
             user_id.clone(),
             EventType::RoomCreate,
-            serde_json::to_value(ruma_events::room::create::CreateEventContent {
+            serde_json::to_value(ruma::events::room::create::CreateEventContent {
                 creator: user_id.clone(),
                 federate: body.creation_content.as_ref().map_or(true, |c| c.federate),
                 predecessor: body
@@ -1033,7 +1035,7 @@ pub fn create_room_route(
         serde_json::from_str(power_levels.json().get())
             .expect("TODO: handle. we hope the client sends a valid power levels json")
     } else {
-        serde_json::to_value(ruma_events::room::power_levels::PowerLevelsEventContent {
+        serde_json::to_value(ruma::events::room::power_levels::PowerLevelsEventContent {
             ban: 50.into(),
             events: BTreeMap::new(),
             events_default: 0.into(),
@@ -1043,7 +1045,7 @@ pub fn create_room_route(
             state_default: 50.into(),
             users,
             users_default: 0.into(),
-            notifications: ruma_events::room::power_levels::NotificationPowerLevels {
+            notifications: ruma::events::room::power_levels::NotificationPowerLevels {
                 room: 50.into(),
             },
         })
@@ -1159,7 +1161,7 @@ pub fn create_room_route(
                 user_id.clone(),
                 EventType::RoomName,
                 serde_json::to_value(
-                    ruma_events::room::name::NameEventContent::new(name.clone()).unwrap(),
+                    ruma::events::room::name::NameEventContent::new(name.clone()).unwrap(),
                 )
                 .unwrap(),
                 None,
@@ -1176,7 +1178,7 @@ pub fn create_room_route(
                 room_id.clone(),
                 user_id.clone(),
                 EventType::RoomTopic,
-                serde_json::to_value(ruma_events::room::topic::TopicEventContent {
+                serde_json::to_value(ruma::events::room::topic::TopicEventContent {
                     topic: topic.clone(),
                 })
                 .unwrap(),
@@ -1433,7 +1435,7 @@ pub fn leave_room_route(
     let state = db.rooms.room_state(&body.room_id).unwrap();
 
     let mut event =
-        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+        serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
             state
                 .get(&(EventType::RoomMember, user_id.to_string()))
                 .unwrap() // TODO: error handling
@@ -1444,7 +1446,7 @@ pub fn leave_room_route(
         .deserialize()
         .unwrap();
 
-    event.membership = ruma_events::room::member::MembershipState::Leave;
+    event.membership = ruma::events::room::member::MembershipState::Leave;
 
     db.rooms
         .append_pdu(
@@ -1472,7 +1474,7 @@ pub fn kick_user_route(
     let state = db.rooms.room_state(&body.room_id).unwrap();
 
     let mut event =
-        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+        serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
             state
                 .get(&(EventType::RoomMember, user_id.to_string()))
                 .unwrap() // TODO: error handling
@@ -1483,7 +1485,7 @@ pub fn kick_user_route(
         .deserialize()
         .unwrap();
 
-    event.membership = ruma_events::room::member::MembershipState::Leave;
+    event.membership = ruma::events::room::member::MembershipState::Leave;
     // TODO: reason
 
     db.rooms
@@ -1512,7 +1514,7 @@ pub fn ban_user_route(
     let state = db.rooms.room_state(&body.room_id).unwrap();
 
     let mut event =
-        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+        serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
             state
                 .get(&(EventType::RoomMember, user_id.to_string()))
                 .unwrap() // TODO: error handling
@@ -1523,7 +1525,7 @@ pub fn ban_user_route(
         .deserialize()
         .unwrap();
 
-    event.membership = ruma_events::room::member::MembershipState::Ban;
+    event.membership = ruma::events::room::member::MembershipState::Ban;
     // TODO: reason
 
     db.rooms
@@ -1552,7 +1554,7 @@ pub fn unban_user_route(
     let state = db.rooms.room_state(&body.room_id).unwrap();
 
     let mut event =
-        serde_json::from_value::<EventJson<ruma_events::room::member::MemberEventContent>>(
+        serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
             state
                 .get(&(EventType::RoomMember, user_id.to_string()))
                 .unwrap() // TODO: error handling
@@ -1563,7 +1565,7 @@ pub fn unban_user_route(
         .deserialize()
         .unwrap();
 
-    event.membership = ruma_events::room::member::MembershipState::Leave;
+    event.membership = ruma::events::room::member::MembershipState::Leave;
 
     db.rooms
         .append_pdu(
@@ -1727,7 +1729,7 @@ pub async fn get_public_rooms_filtered_route(
                 aliases: Vec::new(),
                 canonical_alias: state.get(&(EventType::RoomCanonicalAlias, "".to_owned())).and_then(|s| {
                     serde_json::from_value::<
-                            EventJson<ruma_events::room::canonical_alias::CanonicalAliasEventContent>,
+                            EventJson<ruma::events::room::canonical_alias::CanonicalAliasEventContent>,
                         >(s.content.clone())
                         .unwrap()
                         .deserialize()
@@ -1735,7 +1737,7 @@ pub async fn get_public_rooms_filtered_route(
                         .alias
                 }),
                 name: state.get(&(EventType::RoomName, "".to_owned())).map(|s| {
-                    serde_json::from_value::<EventJson<ruma_events::room::name::NameEventContent>>(
+                    serde_json::from_value::<EventJson<ruma::events::room::name::NameEventContent>>(
                         s.content.clone(),
                     )
                     .unwrap()
@@ -1749,7 +1751,7 @@ pub async fn get_public_rooms_filtered_route(
                 room_id,
                 topic: state.get(&(EventType::RoomTopic, "".to_owned())).map(|s| {
                     serde_json::from_value::<
-                            EventJson<ruma_events::room::topic::TopicEventContent>,
+                            EventJson<ruma::events::room::topic::TopicEventContent>,
                         >(s.content.clone())
                         .unwrap()
                         .deserialize()
@@ -1758,7 +1760,7 @@ pub async fn get_public_rooms_filtered_route(
                 }),
                 world_readable: state.get(&(EventType::RoomHistoryVisibility, "".to_owned())).map_or(false, |s| {
                     serde_json::from_value::<
-                            EventJson<ruma_events::room::history_visibility::HistoryVisibilityEventContent>,
+                            EventJson<ruma::events::room::history_visibility::HistoryVisibilityEventContent>,
                         >(s.content.clone())
                         .unwrap()
                         .deserialize()
@@ -1767,7 +1769,7 @@ pub async fn get_public_rooms_filtered_route(
                 }),
                 guest_can_join: state.get(&(EventType::RoomGuestAccess, "".to_owned())).map_or(false, |s| {
                     serde_json::from_value::<
-                            EventJson<ruma_events::room::guest_access::GuestAccessEventContent>,
+                            EventJson<ruma::events::room::guest_access::GuestAccessEventContent>,
                         >(s.content.clone())
                         .unwrap()
                         .deserialize()
@@ -1776,7 +1778,7 @@ pub async fn get_public_rooms_filtered_route(
                 }),
                 avatar_url: state.get(&(EventType::RoomAvatar, "".to_owned())).map(|s| {
                     serde_json::from_value::<
-                            EventJson<ruma_events::room::avatar::AvatarEventContent>,
+                            EventJson<ruma::events::room::avatar::AvatarEventContent>,
                         >(s.content.clone())
                         .unwrap()
                         .deserialize()
@@ -1794,10 +1796,10 @@ pub async fn get_public_rooms_filtered_route(
         &server_server::send_request(
             &db,
             "privacytools.io".to_owned(),
-            ruma_federation_api::v1::get_public_rooms::Request {
+            ruma::api::federation::v1::get_public_rooms::Request {
                 limit: Some(20_u32.into()),
                 since: None,
-                room_network: ruma_federation_api::v1::get_public_rooms::RoomNetwork::Matrix,
+                room_network: ruma::api::federation::v1::get_public_rooms::RoomNetwork::Matrix,
             },
         )
         .await
@@ -2155,12 +2157,12 @@ pub fn sync_route(
                 send_member_count = true;
                 if !send_full_state && pdu.state_key == Some(user_id.to_string()) {
                     let content = serde_json::from_value::<
-                        EventJson<ruma_events::room::member::MemberEventContent>,
+                        EventJson<ruma::events::room::member::MemberEventContent>,
                     >(pdu.content.clone())
                     .unwrap()
                     .deserialize()
                     .unwrap();
-                    if content.membership == ruma_events::room::member::MembershipState::Join {
+                    if content.membership == ruma::events::room::member::MembershipState::Join {
                         send_full_state = true;
                         // Both send_member_count and send_full_state are set. There's nothing more
                         // to do
@@ -2191,14 +2193,14 @@ pub fn sync_route(
                     .filter(|pdu| pdu.kind == EventType::RoomMember)
                     .filter_map(|pdu| {
                         let content = serde_json::from_value::<
-                            EventJson<ruma_events::room::member::MemberEventContent>,
+                            EventJson<ruma::events::room::member::MemberEventContent>,
                         >(pdu.content.clone())
                         .unwrap()
                         .deserialize()
                         .unwrap();
 
                         let current_content = serde_json::from_value::<
-                            EventJson<ruma_events::room::member::MemberEventContent>,
+                            EventJson<ruma::events::room::member::MemberEventContent>,
                         >(
                             state
                                 .get(&(
@@ -2218,12 +2220,12 @@ pub fn sync_route(
                         // The membership was and still is invite or join
                         if matches!(
                             content.membership,
-                            ruma_events::room::member::MembershipState::Join
-                                | ruma_events::room::member::MembershipState::Invite
+                            ruma::events::room::member::MembershipState::Join
+                                | ruma::events::room::member::MembershipState::Invite
                         ) && matches!(
                             current_content.membership,
-                            ruma_events::room::member::MembershipState::Join
-                                | ruma_events::room::member::MembershipState::Invite
+                            ruma::events::room::member::MembershipState::Join
+                                | ruma::events::room::member::MembershipState::Invite
                         ) {
                             Some(pdu.state_key.unwrap())
                         } else {

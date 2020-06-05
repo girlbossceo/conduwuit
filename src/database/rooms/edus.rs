@@ -1,6 +1,8 @@
 use crate::{utils, Error, Result};
-use ruma_events::{collections::only::Event as EduEvent, EventJson};
-use ruma_identifiers::{RoomId, UserId};
+use ruma::{
+    events::{collections::only::Event as EduEvent, EventJson},
+    identifiers::{RoomId, UserId},
+};
 use std::convert::TryFrom;
 
 pub struct RoomEdus {
@@ -190,7 +192,7 @@ impl RoomEdus {
     }
 
     /// Returns an iterator over all active events (e.g. typing notifications).
-    pub fn roomactives_all(&self, room_id: &RoomId) -> Result<ruma_events::typing::TypingEvent> {
+    pub fn roomactives_all(&self, room_id: &RoomId) -> Result<ruma::events::typing::TypingEvent> {
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -205,8 +207,8 @@ impl RoomEdus {
             user_ids.push(user_id?);
         }
 
-        Ok(ruma_events::typing::TypingEvent {
-            content: ruma_events::typing::TypingEventContent { user_ids },
+        Ok(ruma::events::typing::TypingEvent {
+            content: ruma::events::typing::TypingEventContent { user_ids },
             room_id: None, // Can be inferred
         })
     }
