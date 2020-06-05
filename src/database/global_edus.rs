@@ -1,67 +1,53 @@
 use crate::Result;
-use ruma_events::{collections::only::Event as EduEvent, EventJson};
-use ruma_identifiers::UserId;
+use ruma_events::EventJson;
 
 pub struct GlobalEdus {
     //pub globalallid_globalall: sled::Tree, // ToDevice, GlobalAllId = UserId + Count
-    pub(super) globallatestid_globallatest: sled::Tree, // Presence, GlobalLatestId = Count + UserId
+    pub(super) presenceid_presence: sled::Tree, // Presence, PresenceId = Count + UserId
 }
 
 impl GlobalEdus {
     /// Adds a global event which will be saved until a new event replaces it (e.g. presence updates).
-    pub fn update_globallatest(
+    pub fn update_presence(
         &self,
-        user_id: &UserId,
-        event: EduEvent,
+        presence: ruma_events::presence::PresenceEvent,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         // Remove old entry
         if let Some(old) = self
-            .globallatestid_globallatest
+            .presenceid_presence
             .iter()
             .keys()
             .rev()
             .filter_map(|r| r.ok())
             .find(|key| {
-                key.rsplit(|&b| b == 0xff).next().unwrap() == user_id.to_string().as_bytes()
+                key.rsplit(|&b| b == 0xff).next().unwrap() == presence.sender.to_string().as_bytes()
             })
         {
             // This is the old global_latest
-            self.globallatestid_globallatest.remove(old)?;
+            self.presenceid_presence.remove(old)?;
         }
 
-        let mut global_latest_id = globals.next_count()?.to_be_bytes().to_vec();
-        global_latest_id.push(0xff);
-        global_latest_id.extend_from_slice(&user_id.to_string().as_bytes());
+        let mut presence_id = globals.next_count()?.to_be_bytes().to_vec();
+        presence_id.push(0xff);
+        presence_id.extend_from_slice(&presence.sender.to_string().as_bytes());
 
-        self.globallatestid_globallatest
-            .insert(global_latest_id, &*serde_json::to_string(&event)?)?;
+        self.presenceid_presence
+            .insert(presence_id, &*serde_json::to_string(&presence)?)?;
 
         Ok(())
     }
 
     /// Returns an iterator over the most recent presence updates that happened after the event with id `since`.
-    pub fn globallatests_since(
+    pub fn presence_since(
         &self,
         since: u64,
-    ) -> Result<impl Iterator<Item = Result<EventJson<EduEvent>>>> {
-        let first_possible_edu = since.to_be_bytes().to_vec();
+    ) -> Result<impl Iterator<Item = Result<EventJson<ruma_events::presence::PresenceEvent>>>> {
+        let first_possible_edu = (since + 1).to_be_bytes().to_vec(); // +1 so we don't send the event at since
 
         Ok(self
-            .globallatestid_globallatest
+            .presenceid_presence
             .range(&*first_possible_edu..)
-            // Skip the first pdu if it's exactly at since, because we sent that last time
-            .skip(
-                if self
-                    .globallatestid_globallatest
-                    .get(first_possible_edu)?
-                    .is_some()
-                {
-                    1
-                } else {
-                    0
-                },
-            )
             .filter_map(|r| r.ok())
             .map(|(_, v)| Ok(serde_json::from_slice(&v)?)))
     }

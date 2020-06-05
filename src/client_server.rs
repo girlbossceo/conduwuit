@@ -24,8 +24,8 @@ use ruma_client_api::{
         keys::{self, claim_keys, get_keys, upload_keys},
         media::{create_content, get_content, get_content_thumbnail, get_media_config},
         membership::{
-            forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
-            kick_user, leave_room, ban_user, unban_user,
+            ban_user, forget_room, get_member_events, invite_user, join_room_by_id,
+            join_room_by_id_or_alias, kick_user, leave_room, unban_user,
         },
         message::{create_message_event, get_message_events},
         presence::set_presence,
@@ -548,9 +548,8 @@ pub fn set_displayname_route(
 
     // Presence update
     db.global_edus
-        .update_globallatest(
-            &user_id,
-            EduEvent::Presence(ruma_events::presence::PresenceEvent {
+        .update_presence(
+            ruma_events::presence::PresenceEvent {
                 content: ruma_events::presence::PresenceEventContent {
                     avatar_url: db.users.avatar_url(&user_id).unwrap(),
                     currently_active: None,
@@ -560,7 +559,7 @@ pub fn set_displayname_route(
                     status_msg: None,
                 },
                 sender: user_id.clone(),
-            }),
+            },
             &db.globals,
         )
         .unwrap();
@@ -640,9 +639,8 @@ pub fn set_avatar_url_route(
 
     // Presence update
     db.global_edus
-        .update_globallatest(
-            &user_id,
-            EduEvent::Presence(ruma_events::presence::PresenceEvent {
+        .update_presence(
+            ruma_events::presence::PresenceEvent {
                 content: ruma_events::presence::PresenceEventContent {
                     avatar_url: db.users.avatar_url(&user_id).unwrap(),
                     currently_active: None,
@@ -652,7 +650,7 @@ pub fn set_avatar_url_route(
                     status_msg: None,
                 },
                 sender: user_id.clone(),
-            }),
+            },
             &db.globals,
         )
         .unwrap();
@@ -707,9 +705,8 @@ pub fn set_presence_route(
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     db.global_edus
-        .update_globallatest(
-            &user_id,
-            EduEvent::Presence(ruma_events::presence::PresenceEvent {
+        .update_presence(
+            ruma_events::presence::PresenceEvent {
                 content: ruma_events::presence::PresenceEventContent {
                     avatar_url: db.users.avatar_url(&user_id).unwrap(),
                     currently_active: None,
@@ -719,7 +716,7 @@ pub fn set_presence_route(
                     status_msg: body.status_msg.clone(),
                 },
                 sender: user_id.clone(),
-            }),
+            },
             &db.globals,
         )
         .unwrap();
@@ -2151,7 +2148,9 @@ pub fn sync_route(
 
         let mut send_member_count = false;
         let mut send_full_state = false;
+        let mut send_notification_counts = false;
         for pdu in &pdus {
+            send_notification_counts = true;
             if pdu.kind == EventType::RoomMember {
                 send_member_count = true;
                 if !send_full_state && pdu.state_key == Some(user_id.to_string()) {
@@ -2171,7 +2170,85 @@ pub fn sync_route(
             }
         }
 
-        let notification_count =
+        let state = db.rooms.room_state(&room_id).unwrap();
+
+        let (joined_member_count, invited_member_count, heroes) = if send_member_count {
+            let joined_member_count = db.rooms.room_members(&room_id).count();
+            let invited_member_count = db.rooms.room_members_invited(&room_id).count();
+
+            // Recalculate heroes (first 5 members)
+            let mut heroes = Vec::new();
+
+            if joined_member_count + invited_member_count <= 5 {
+                // Go through all PDUs and for each member event, check if the user is still joined or
+                // invited until we have 5 or we reach the end
+
+                for hero in db
+                    .rooms
+                    .all_pdus(&room_id)
+                    .unwrap()
+                    .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
+                    .filter(|pdu| pdu.kind == EventType::RoomMember)
+                    .filter_map(|pdu| {
+                        let content = serde_json::from_value::<
+                            EventJson<ruma_events::room::member::MemberEventContent>,
+                        >(pdu.content.clone())
+                        .unwrap()
+                        .deserialize()
+                        .unwrap();
+
+                        let current_content = serde_json::from_value::<
+                            EventJson<ruma_events::room::member::MemberEventContent>,
+                        >(
+                            state
+                                .get(&(
+                                    EventType::RoomMember,
+                                    pdu.state_key.clone().expect(
+                                        "TODO: error handling. Is it really a state event?",
+                                    ),
+                                ))
+                                .expect("a user that joined once will always have a member event")
+                                .content
+                                .clone(),
+                        )
+                        .unwrap()
+                        .deserialize()
+                        .unwrap();
+
+                        // The membership was and still is invite or join
+                        if matches!(
+                            content.membership,
+                            ruma_events::room::member::MembershipState::Join
+                                | ruma_events::room::member::MembershipState::Invite
+                        ) && matches!(
+                            current_content.membership,
+                            ruma_events::room::member::MembershipState::Join
+                                | ruma_events::room::member::MembershipState::Invite
+                        ) {
+                            Some(pdu.state_key.unwrap())
+                        } else {
+                            None
+                        }
+                    })
+                {
+                    if heroes.contains(&hero) || hero == user_id.to_string() {
+                        continue;
+                    }
+
+                    heroes.push(hero);
+                }
+            }
+
+            (
+                Some(joined_member_count),
+                Some(invited_member_count),
+                heroes,
+            )
+        } else {
+            (None, None, Vec::new())
+        };
+
+        let notification_count = if send_notification_counts {
             if let Some(last_read) = db.rooms.edus.room_read_get(&room_id, &user_id).unwrap() {
                 Some(
                     (db.rooms
@@ -2188,7 +2265,10 @@ pub fn sync_route(
                 )
             } else {
                 None
-            };
+            }
+        } else {
+            None
+        };
 
         // They /sync response doesn't always return all messages, so we say the output is
         // limited unless there are enough events
@@ -2247,17 +2327,9 @@ pub fn sync_route(
                         .collect(),
                 }),
                 summary: sync_events::RoomSummary {
-                    heroes: Vec::new(),
-                    joined_member_count: if send_member_count {
-                        Some((db.rooms.room_members(&room_id).count() as u32).into())
-                    } else {
-                        None
-                    },
-                    invited_member_count: if send_member_count {
-                        Some((db.rooms.room_members_invited(&room_id).count() as u32).into())
-                    } else {
-                        None
-                    },
+                    heroes,
+                    joined_member_count: joined_member_count.map(|n| (n as u32).into()),
+                    invited_member_count: invited_member_count.map(|n| (n as u32).into()),
                 },
                 unread_notifications: sync_events::UnreadNotificationsCount {
                     highlight_count: None,
@@ -2271,9 +2343,7 @@ pub fn sync_route(
                 // TODO: state before timeline
                 state: sync_events::State {
                     events: if send_full_state {
-                        db.rooms
-                            .room_state(&room_id)
-                            .unwrap()
+                        state
                             .into_iter()
                             .map(|(_, pdu)| pdu.to_state_event())
                             .collect()
@@ -2362,24 +2432,16 @@ pub fn sync_route(
         presence: sync_events::Presence {
             events: db
                 .global_edus
-                .globallatests_since(since)
+                .presence_since(since)
                 .unwrap()
-                .filter_map(|edu| {
-                    // Only look for presence events
-                    if let Ok(mut edu) = EventJson::<ruma_events::presence::PresenceEvent>::from(
-                        edu.unwrap().into_json(),
-                    )
-                    .deserialize()
-                    {
-                        let timestamp = edu.content.last_active_ago.unwrap();
-                        edu.content.last_active_ago = Some(
-                            js_int::UInt::try_from(utils::millis_since_unix_epoch()).unwrap()
-                                - timestamp,
-                        );
-                        Some(edu.into())
-                    } else {
-                        None
-                    }
+                .map(|edu| {
+                    let mut edu = edu.unwrap().deserialize().unwrap();
+                    let timestamp = edu.content.last_active_ago.unwrap();
+                    let last_active_ago = js_int::UInt::try_from(utils::millis_since_unix_epoch())
+                        .unwrap()
+                        - timestamp;
+                    edu.content.last_active_ago = Some(last_active_ago);
+                    edu.into()
                 })
                 .collect(),
         },

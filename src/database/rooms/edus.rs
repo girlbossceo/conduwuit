@@ -59,23 +59,11 @@ impl RoomEdus {
         prefix.push(0xff);
 
         let mut first_possible_edu = prefix.clone();
-        first_possible_edu.extend_from_slice(&since.to_be_bytes());
+        first_possible_edu.extend_from_slice(&(since + 1).to_be_bytes()); // +1 so we don't send the event at since
 
         Ok(self
             .roomlatestid_roomlatest
             .range(&*first_possible_edu..)
-            // Skip the first pdu if it's exactly at since, because we sent that last time
-            .skip(
-                if self
-                    .roomlatestid_roomlatest
-                    .get(first_possible_edu)?
-                    .is_some()
-                {
-                    1
-                } else {
-                    0
-                },
-            )
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(_, v)| Ok(serde_json::from_slice(&v)?)))
