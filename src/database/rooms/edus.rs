@@ -162,7 +162,7 @@ impl RoomEdus {
             })
         {
             // This is an outdated edu (time > timestamp)
-            self.roomlatestid_roomlatest.remove(outdated_edu)?;
+            self.roomactiveid_userid.remove(outdated_edu)?;
             found_outdated = true;
         }
 
