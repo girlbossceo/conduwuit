@@ -7,6 +7,7 @@ pub(self) mod uiaa;
 pub(self) mod users;
 
 use directories::ProjectDirs;
+use log::info;
 use std::fs::remove_dir_all;
 
 use rocket::Config;
@@ -49,13 +50,10 @@ impl Database {
             });
 
         let db = sled::open(&path).unwrap();
-        log::info!("Opened sled database at {}", path);
+        info!("Opened sled database at {}", path);
 
         Self {
-            globals: globals::Globals::load(
-                db.open_tree("global").unwrap(),
-                server_name.to_owned(),
-            ),
+            globals: globals::Globals::load(db.open_tree("global").unwrap(), config),
             users: users::Users {
                 userid_password: db.open_tree("userid_password").unwrap(),
                 userid_displayname: db.open_tree("userid_displayname").unwrap(),

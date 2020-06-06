@@ -117,6 +117,14 @@ pub fn register_route(
     db: State<'_, Database>,
     body: Ruma<register::Request>,
 ) -> MatrixResult<register::Response, UiaaResponse> {
+    if db.globals.registration_disabled() {
+        return MatrixResult(Err(UiaaResponse::MatrixError(Error {
+            kind: ErrorKind::Unknown,
+            message: "Registration has been disabled.".to_owned(),
+            status_code: http::StatusCode::FORBIDDEN,
+        })));
+    }
+
     // Validate user id
     let user_id = match UserId::parse_with_server_name(
         body.username
