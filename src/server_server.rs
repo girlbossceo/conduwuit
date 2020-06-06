@@ -2,9 +2,9 @@ use crate::{Database, MatrixResult};
 use http::header::{HeaderValue, AUTHORIZATION};
 use log::error;
 use rocket::{get, response::content::Json, State};
-use ruma_api::Endpoint;
-use ruma_client_api::error::Error;
-use ruma_federation_api::discovery::{
+use ruma::api::Endpoint;
+use ruma::api::client::error::Error;
+use ruma::api::federation::discovery::{
     get_server_keys::v2 as get_server_keys, get_server_version::v1 as get_server_version,
 };
 use serde_json::json;
@@ -61,7 +61,7 @@ pub async fn send_request<T: Endpoint>(
     request_map.insert("destination".to_owned(), destination.into());
 
     let mut request_json = request_map.into();
-    ruma_signatures::sign_json(
+    ruma::signatures::sign_json(
         db.globals.server_name(),
         db.globals.keypair(),
         &mut request_json,
@@ -168,7 +168,7 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
         .body(),
     )
     .unwrap();
-    ruma_signatures::sign_json(
+    ruma::signatures::sign_json(
         db.globals.server_name(),
         db.globals.keypair(),
         &mut response,

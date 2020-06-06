@@ -1,5 +1,5 @@
 use crate::Result;
-use ruma_events::EventJson;
+use ruma::events::EventJson;
 
 pub struct GlobalEdus {
     //pub globalallid_globalall: sled::Tree, // ToDevice, GlobalAllId = UserId + Count
@@ -10,7 +10,7 @@ impl GlobalEdus {
     /// Adds a global event which will be saved until a new event replaces it (e.g. presence updates).
     pub fn update_presence(
         &self,
-        presence: ruma_events::presence::PresenceEvent,
+        presence: ruma::events::presence::PresenceEvent,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         // Remove old entry
@@ -42,7 +42,8 @@ impl GlobalEdus {
     pub fn presence_since(
         &self,
         since: u64,
-    ) -> Result<impl Iterator<Item = Result<EventJson<ruma_events::presence::PresenceEvent>>>> {
+    ) -> Result<impl Iterator<Item = Result<EventJson<ruma::events::presence::PresenceEvent>>>>
+    {
         let first_possible_edu = (since + 1).to_be_bytes().to_vec(); // +1 so we don't send the event at since
 
         Ok(self

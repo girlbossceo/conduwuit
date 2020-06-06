@@ -7,8 +7,7 @@ use rocket::{
     Outcome::*,
     Request, State,
 };
-use ruma_api::Endpoint;
-use ruma_identifiers::UserId;
+use ruma::{api::Endpoint, identifiers::UserId};
 use std::{convert::TryInto, io::Cursor, ops::Deref};
 use tokio::io::AsyncReadExt;
 
@@ -109,7 +108,7 @@ impl<T> Deref for Ruma<T> {
 }
 
 /// This struct converts ruma responses into rocket http responses.
-pub struct MatrixResult<T, E = ruma_client_api::Error>(pub std::result::Result<T, E>);
+pub struct MatrixResult<T, E = ruma::api::client::Error>(pub std::result::Result<T, E>);
 
 impl<T, E> TryInto<http::Response<Vec<u8>>> for MatrixResult<T, E>
 where

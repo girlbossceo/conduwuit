@@ -4,15 +4,17 @@ pub use edus::RoomEdus;
 
 use crate::{utils, Error, PduEvent, Result};
 use log::error;
-use ruma_events::{
-    room::{
-        join_rules, member,
-        power_levels::{self, PowerLevelsEventContent},
-        redaction,
+use ruma::{
+    events::{
+        room::{
+            join_rules, member,
+            power_levels::{self, PowerLevelsEventContent},
+            redaction,
+        },
+        EventJson, EventType,
     },
-    EventJson, EventType,
+    identifiers::{EventId, RoomAliasId, RoomId, UserId},
 };
-use ruma_identifiers::{EventId, RoomAliasId, RoomId, UserId};
 use sled::IVec;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -203,7 +205,7 @@ impl Rooms {
                             users: BTreeMap::new(),
                             users_default: 0.into(),
                             notifications:
-                                ruma_events::room::power_levels::NotificationPowerLevels {
+                                ruma::events::room::power_levels::NotificationPowerLevels {
                                     room: 50.into(),
                                 },
                         })
@@ -419,7 +421,7 @@ impl Rooms {
             auth_events: Vec::new(),
             redacts: redacts.clone(),
             unsigned,
-            hashes: ruma_federation_api::EventHash {
+            hashes: ruma::api::federation::EventHash {
                 sha256: "aaa".to_owned(),
             },
             signatures: HashMap::new(),
@@ -428,13 +430,13 @@ impl Rooms {
         // Generate event id
         pdu.event_id = EventId::try_from(&*format!(
             "${}",
-            ruma_signatures::reference_hash(&serde_json::to_value(&pdu)?)
+            ruma::signatures::reference_hash(&serde_json::to_value(&pdu)?)
                 .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are correct");
 
         let mut pdu_json = serde_json::to_value(&pdu)?;
-        ruma_signatures::hash_and_sign_event(
+        ruma::signatures::hash_and_sign_event(
             globals.server_name(),
             globals.keypair(),
             &mut pdu_json,

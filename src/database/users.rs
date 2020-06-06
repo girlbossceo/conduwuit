@@ -1,11 +1,13 @@
 use crate::{utils, Error, Result};
 use js_int::UInt;
-use ruma_client_api::r0::{
-    device::Device,
-    keys::{AlgorithmAndDeviceId, DeviceKeys, KeyAlgorithm, OneTimeKey},
+use ruma::{
+    api::client::r0::{
+        device::Device,
+        keys::{AlgorithmAndDeviceId, DeviceKeys, KeyAlgorithm, OneTimeKey},
+    },
+    events::{to_device::AnyToDeviceEvent, EventJson, EventType},
+    identifiers::{DeviceId, UserId},
 };
-use ruma_events::{to_device::AnyToDeviceEvent, EventJson, EventType};
-use ruma_identifiers::{DeviceId, UserId};
 use std::{collections::BTreeMap, convert::TryFrom, time::SystemTime};
 
 pub struct Users {

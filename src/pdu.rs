@@ -1,11 +1,13 @@
 use js_int::UInt;
-use ruma_events::{
-    collections::all::{RoomEvent, StateEvent},
-    stripped::AnyStrippedStateEvent,
-    EventJson, EventType,
+use ruma::{
+    api::federation::EventHash,
+    events::{
+        collections::all::{RoomEvent, StateEvent},
+        stripped::AnyStrippedStateEvent,
+        EventJson, EventType,
+    },
+    identifiers::{EventId, RoomId, UserId},
 };
-use ruma_federation_api::EventHash;
-use ruma_identifiers::{EventId, RoomId, UserId};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;

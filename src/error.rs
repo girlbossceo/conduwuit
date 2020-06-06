@@ -22,12 +22,12 @@ pub enum Error {
     #[error("tried to parse invalid identifier")]
     RumaIdentifierError {
         #[from]
-        source: ruma_identifiers::Error,
+        source: ruma::identifiers::Error,
     },
     #[error("tried to parse invalid event")]
     RumaEventError {
         #[from]
-        source: ruma_events::InvalidEvent,
+        source: ruma::events::InvalidEvent,
     },
     #[error("could not generate image")]
     ImageError {
