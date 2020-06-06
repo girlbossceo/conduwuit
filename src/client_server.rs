@@ -2338,7 +2338,11 @@ pub fn sync_route(
                     notification_count,
                 },
                 timeline: sync_events::Timeline {
-                    limited: if limited || joined_since_last_sync { Some(true) } else { None },
+                    limited: if limited || joined_since_last_sync {
+                        Some(true)
+                    } else {
+                        None
+                    },
                     prev_batch,
                     events: room_events,
                 },
