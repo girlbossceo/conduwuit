@@ -62,9 +62,9 @@ use serde_json::{json, value::RawValue};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
-const SESSION_ID_LENGTH: usize = 256;
 const TOKEN_LENGTH: usize = 256;
 const MXC_LENGTH: usize = 256;
+const SESSION_ID_LENGTH: usize = 256;
 
 #[get("/_matrix/client/versions")]
 pub fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
@@ -117,18 +117,6 @@ pub fn register_route(
     db: State<'_, Database>,
     body: Ruma<register::Request>,
 ) -> MatrixResult<register::Response, UiaaResponse> {
-    if body.auth.is_none() {
-        return MatrixResult(Err(UiaaResponse::AuthResponse(UiaaInfo {
-            flows: vec![AuthFlow {
-                stages: vec!["m.login.dummy".to_owned()],
-            }],
-            completed: vec![],
-            params: RawValue::from_string("{}".to_owned()).unwrap(),
-            session: Some(utils::random_string(SESSION_ID_LENGTH)),
-            auth_error: None,
-        })));
-    }
-
     // Validate user id
     let user_id = match UserId::parse_with_server_name(
         body.username
@@ -159,6 +147,32 @@ pub fn register_route(
             message: "Desired user ID is already taken.".to_owned(),
             status_code: http::StatusCode::BAD_REQUEST,
         })));
+    }
+
+    // UIAA
+    let uiaainfo = UiaaInfo {
+        flows: vec![AuthFlow {
+            stages: vec!["m.login.dummy".to_owned()],
+        }],
+        completed: Vec::new(),
+        params: Default::default(),
+        session: Some(utils::random_string(SESSION_ID_LENGTH)),
+        auth_error: None,
+    };
+
+    if let Some(auth) = &body.auth {
+        let (worked, uiaainfo) = db
+            .uiaa
+            .try_auth(&user_id, &"".to_owned(), auth, &uiaainfo, &db.users, &db.globals)
+            .unwrap();
+        if !worked {
+            return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+        }
+        // Success!
+    } else {
+        db.uiaa.create(&user_id, &"".to_owned(), &uiaainfo).unwrap();
+
+        return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
     }
 
     let password = body.password.clone().unwrap_or_default();
@@ -2867,8 +2881,35 @@ pub fn delete_device_route(
     db: State<'_, Database>,
     body: Ruma<delete_device::Request>,
     device_id: DeviceId,
-) -> MatrixResult<delete_device::Response> {
+) -> MatrixResult<delete_device::Response, UiaaResponse> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    // UIAA
+    let uiaainfo = UiaaInfo {
+        flows: vec![AuthFlow {
+            stages: vec!["m.login.password".to_owned()],
+        }],
+        completed: Vec::new(),
+        params: Default::default(),
+        session: Some(utils::random_string(SESSION_ID_LENGTH)),
+        auth_error: None,
+    };
+
+    if let Some(auth) = &body.auth {
+        let (worked, uiaainfo) = db
+            .uiaa
+            .try_auth(&user_id, &"".to_owned(), auth, &uiaainfo, &db.users, &db.globals)
+            .unwrap();
+        if !worked {
+            return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+        }
+        // Success!
+    } else {
+        db.uiaa.create(&user_id, &"".to_owned(), &uiaainfo).unwrap();
+
+        return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+    }
+
     db.users.remove_device(&user_id, &device_id).unwrap();
 
     MatrixResult(Ok(delete_device::Response))
@@ -2878,8 +2919,35 @@ pub fn delete_device_route(
 pub fn delete_devices_route(
     db: State<'_, Database>,
     body: Ruma<delete_devices::Request>,
-) -> MatrixResult<delete_devices::Response> {
+) -> MatrixResult<delete_devices::Response, UiaaResponse> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    // UIAA
+    let uiaainfo = UiaaInfo {
+        flows: vec![AuthFlow {
+            stages: vec!["m.login.password".to_owned()],
+        }],
+        completed: Vec::new(),
+        params: Default::default(),
+        session: Some(utils::random_string(SESSION_ID_LENGTH)),
+        auth_error: None,
+    };
+
+    if let Some(auth) = &body.auth {
+        let (worked, uiaainfo) = db
+            .uiaa
+            .try_auth(&user_id, &"".to_owned(), auth, &uiaainfo, &db.users, &db.globals)
+            .unwrap();
+        if !worked {
+            return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+        }
+        // Success!
+    } else {
+        db.uiaa.create(&user_id, &"".to_owned(), &uiaainfo).unwrap();
+
+        return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+    }
+
     for device_id in &body.devices {
         db.users.remove_device(&user_id, &device_id).unwrap()
     }

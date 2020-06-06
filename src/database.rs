@@ -3,6 +3,7 @@ pub(self) mod global_edus;
 pub(self) mod globals;
 pub(self) mod media;
 pub(self) mod rooms;
+pub(self) mod uiaa;
 pub(self) mod users;
 
 use directories::ProjectDirs;
@@ -13,6 +14,7 @@ use rocket::Config;
 pub struct Database {
     pub globals: globals::Globals,
     pub users: users::Users,
+    pub uiaa: uiaa::Uiaa,
     pub rooms: rooms::Rooms,
     pub account_data: account_data::AccountData,
     pub global_edus: global_edus::GlobalEdus,
@@ -65,6 +67,9 @@ impl Database {
                 userdeviceid_devicekeys: db.open_tree("userdeviceid_devicekeys").unwrap(),
                 devicekeychangeid_userid: db.open_tree("devicekeychangeid_userid").unwrap(),
                 todeviceid_events: db.open_tree("todeviceid_events").unwrap(),
+            },
+            uiaa: uiaa::Uiaa {
+                userdeviceid_uiaainfo: db.open_tree("userdeviceid_uiaainfo").unwrap(),
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {
