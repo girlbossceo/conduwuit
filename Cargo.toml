@@ -30,12 +30,13 @@ image = { version = "0.23.4", default-features = false, features = ["jpeg", "png
 
 [dependencies.ruma]
 git = "https://github.com/ruma/ruma"
-rev = "f6fb971329a4a5a7faeebf7ea47a86cd19e580f4"
+rev = "12388c3fbc8ba2a685cbf0fe810c633c827f5b2c"
+#path = "../ruma/ruma"
 features = ["rand", "client-api", "federation-api"]
 
 # These are required only until ruma-events and ruma-federation-api are merged into ruma/ruma
 [patch.crates-io]
-ruma-api = { git = "https://github.com/ruma/ruma", rev = "f6fb971329a4a5a7faeebf7ea47a86cd19e580f4" }
-ruma-common = { git = "https://github.com/ruma/ruma", rev = "f6fb971329a4a5a7faeebf7ea47a86cd19e580f4" }
-ruma-events = { git = "https://github.com/ruma/ruma-events", rev = "c1ee72d" }
-ruma-serde = { git = "https://github.com/ruma/ruma", rev = "f6fb971329a4a5a7faeebf7ea47a86cd19e580f4" }
+ruma-common = { git = "https://github.com/ruma/ruma", rev = "12388c3fbc8ba2a685cbf0fe810c633c827f5b2c" }
+ruma-serde = { git = "https://github.com/ruma/ruma", rev = "12388c3fbc8ba2a685cbf0fe810c633c827f5b2c" }
+#ruma-common = { path = "../ruma/ruma-common" }
+#ruma-serde = { path = "../ruma/ruma-serde" }

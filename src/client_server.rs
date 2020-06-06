@@ -2338,50 +2338,51 @@ pub fn sync_route(
             );
         }
 
-        joined_rooms.insert(
-            room_id.clone().try_into().unwrap(),
-            sync_events::JoinedRoom {
-                account_data: Some(sync_events::AccountData {
-                    events: db
-                        .account_data
-                        .changes_since(Some(&room_id), &user_id, since)
-                        .unwrap()
-                        .into_iter()
-                        .map(|(_, v)| v)
-                        .collect(),
-                }),
-                summary: sync_events::RoomSummary {
-                    heroes,
-                    joined_member_count: joined_member_count.map(|n| (n as u32).into()),
-                    invited_member_count: invited_member_count.map(|n| (n as u32).into()),
-                },
-                unread_notifications: sync_events::UnreadNotificationsCount {
-                    highlight_count: None,
-                    notification_count,
-                },
-                timeline: sync_events::Timeline {
-                    limited: if limited || joined_since_last_sync {
-                        Some(true)
-                    } else {
-                        None
-                    },
-                    prev_batch,
-                    events: room_events,
-                },
-                // TODO: state before timeline
-                state: sync_events::State {
-                    events: if joined_since_last_sync {
-                        state
-                            .into_iter()
-                            .map(|(_, pdu)| pdu.to_state_event())
-                            .collect()
-                    } else {
-                        Vec::new()
-                    },
-                },
-                ephemeral: sync_events::Ephemeral { events: edus },
+        let joined_room = sync_events::JoinedRoom {
+            account_data: sync_events::AccountData {
+                events: db
+                    .account_data
+                    .changes_since(Some(&room_id), &user_id, since)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(_, v)| v)
+                    .collect(),
             },
-        );
+            summary: sync_events::RoomSummary {
+                heroes,
+                joined_member_count: joined_member_count.map(|n| (n as u32).into()),
+                invited_member_count: invited_member_count.map(|n| (n as u32).into()),
+            },
+            unread_notifications: sync_events::UnreadNotificationsCount {
+                highlight_count: None,
+                notification_count,
+            },
+            timeline: sync_events::Timeline {
+                limited: if limited || joined_since_last_sync {
+                    Some(true)
+                } else {
+                    None
+                },
+                prev_batch,
+                events: room_events,
+            },
+            // TODO: state before timeline
+            state: sync_events::State {
+                events: if joined_since_last_sync {
+                    state
+                        .into_iter()
+                        .map(|(_, pdu)| pdu.to_state_event())
+                        .collect()
+                } else {
+                    Vec::new()
+                },
+            },
+            ephemeral: sync_events::Ephemeral { events: edus },
+        };
+
+        if !joined_room.is_empty() {
+            joined_rooms.insert(room_id.clone().try_into().unwrap(), joined_room);
+        }
     }
 
     let mut left_rooms = BTreeMap::new();
@@ -2390,6 +2391,7 @@ pub fn sync_route(
         let pdus = db.rooms.pdus_since(&room_id, since).unwrap();
         let room_events = pdus.map(|pdu| pdu.unwrap().to_room_event()).collect();
 
+        // TODO: Only until leave point
         let mut edus = db
             .rooms
             .edus
@@ -2416,38 +2418,40 @@ pub fn sync_route(
             );
         }
 
-        left_rooms.insert(
-            room_id.clone().try_into().unwrap(),
-            sync_events::LeftRoom {
-                account_data: Some(sync_events::AccountData { events: Vec::new() }),
-                timeline: sync_events::Timeline {
-                    limited: Some(false),
-                    prev_batch: Some(next_batch.clone()),
-                    events: room_events,
-                },
-                state: sync_events::State { events: Vec::new() },
+        let left_room = sync_events::LeftRoom {
+            account_data: sync_events::AccountData { events: Vec::new() },
+            timeline: sync_events::Timeline {
+                limited: Some(false),
+                prev_batch: Some(next_batch.clone()),
+                events: room_events,
             },
-        );
+            state: sync_events::State { events: Vec::new() },
+        };
+
+        if !left_room.is_empty() {
+            left_rooms.insert(room_id.clone().try_into().unwrap(), left_room);
+        }
     }
 
     let mut invited_rooms = BTreeMap::new();
     for room_id in db.rooms.rooms_invited(&user_id) {
         let room_id = room_id.unwrap();
 
-        invited_rooms.insert(
-            room_id.clone(),
-            sync_events::InvitedRoom {
-                invite_state: sync_events::InviteState {
-                    events: db
-                        .rooms
-                        .room_state(&room_id)
-                        .unwrap()
-                        .into_iter()
-                        .map(|(_, pdu)| pdu.to_stripped_state_event())
-                        .collect(),
-                },
+        let invited_room = sync_events::InvitedRoom {
+            invite_state: sync_events::InviteState {
+                events: db
+                    .rooms
+                    .room_state(&room_id)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(_, pdu)| pdu.to_stripped_state_event())
+                    .collect(),
             },
-        );
+        };
+
+        if !invited_room.is_empty() {
+            invited_rooms.insert(room_id.clone(), invited_room);
+        }
     }
 
     MatrixResult(Ok(sync_events::Response {
@@ -2482,17 +2486,16 @@ pub fn sync_route(
                 .map(|(_, v)| v)
                 .collect(),
         },
-        device_lists: if since != 0 {
-            Some(sync_events::DeviceLists {
-                changed: db
-                    .users
+        device_lists: sync_events::DeviceLists {
+            changed: if since != 0 {
+                db.users
                     .device_keys_changed(since)
                     .map(|u| u.unwrap())
-                    .collect(),
-                left: Vec::new(), // TODO
-            })
-        } else {
-            None // TODO: left
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            left: Vec::new(), // TODO
         },
         device_one_time_keys_count: Default::default(), // TODO
         to_device: sync_events::ToDevice {

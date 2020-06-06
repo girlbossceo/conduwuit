@@ -421,7 +421,7 @@ impl Rooms {
             auth_events: Vec::new(),
             redacts: redacts.clone(),
             unsigned,
-            hashes: ruma::api::federation::EventHash {
+            hashes: ruma::api::federation::pdu::EventHash {
                 sha256: "aaa".to_owned(),
             },
             signatures: HashMap::new(),
