@@ -11,7 +11,7 @@ use ruma::{
         },
     },
     events::{to_device::AnyToDeviceEvent, EventJson, EventType},
-    identifiers::{DeviceId, UserId},
+    identifiers::UserId,
 };
 use serde_json::value::RawValue;
 use std::{collections::BTreeMap, convert::TryFrom, time::SystemTime};
@@ -29,7 +29,7 @@ impl Uiaa {
     pub fn try_auth(
         &self,
         user_id: &UserId,
-        device_id: &DeviceId,
+        device_id: &str,
         auth: &AuthData,
         uiaainfo: &UiaaInfo,
         users: &super::users::Users,

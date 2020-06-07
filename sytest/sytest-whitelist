@@ -43,7 +43,6 @@ GET /profile/:user_id/displayname publicly accessible
 GET /device/{deviceId} gives a 404 for unknown devices
 PUT /device/{deviceId} gives a 404 for unknown devices
 After deactivating account, can't log in with an email
-Can create filter
 Should reject keys claiming to belong to a different user
 Can add account data
 Checking local federation server

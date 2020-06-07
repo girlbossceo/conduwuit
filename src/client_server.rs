@@ -56,7 +56,7 @@ use ruma::{
         room::{canonical_alias, guest_access, history_visibility, join_rules, member, redaction},
         EventJson, EventType,
     },
-    identifiers::{DeviceId, RoomAliasId, RoomId, RoomVersionId, UserId},
+    identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId},
 };
 use serde_json::{json, value::RawValue};
 
@@ -2841,13 +2841,15 @@ pub fn get_devices_route(
     MatrixResult(Ok(get_devices::Response { devices }))
 }
 
-#[get("/_matrix/client/r0/devices/<device_id>", data = "<body>")]
+#[get("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
 pub fn get_device_route(
     db: State<'_, Database>,
     body: Ruma<get_device::Request>,
-    device_id: DeviceId,
+    _device_id: String,
 ) -> MatrixResult<get_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
     let device = db.users.get_device_metadata(&user_id, &device_id).unwrap();
 
     match device {
@@ -2860,13 +2862,15 @@ pub fn get_device_route(
     }
 }
 
-#[put("/_matrix/client/r0/devices/<device_id>", data = "<body>")]
+#[put("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
 pub fn update_device_route(
     db: State<'_, Database>,
     body: Ruma<update_device::Request>,
-    device_id: DeviceId,
+    _device_id: String,
 ) -> MatrixResult<update_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
     let device = db.users.get_device_metadata(&user_id, &device_id).unwrap();
 
     match device {
@@ -2887,13 +2891,14 @@ pub fn update_device_route(
     }
 }
 
-#[delete("/_matrix/client/r0/devices/<device_id>", data = "<body>")]
+#[delete("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
 pub fn delete_device_route(
     db: State<'_, Database>,
     body: Ruma<delete_device::Request>,
-    device_id: DeviceId,
+    _device_id: String,
 ) -> MatrixResult<delete_device::Response, UiaaResponse> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     // UIAA
     let uiaainfo = UiaaInfo {
