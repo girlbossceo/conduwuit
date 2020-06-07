@@ -2149,13 +2149,13 @@ pub fn sync_route(
             .collect::<Vec<_>>();
 
         let mut send_member_count = false;
-        let mut send_full_state = false;
+        let mut joined_since_last_sync = false;
         let mut send_notification_counts = false;
         for pdu in &pdus {
             send_notification_counts = true;
             if pdu.kind == EventType::RoomMember {
                 send_member_count = true;
-                if !send_full_state && pdu.state_key == Some(user_id.to_string()) {
+                if !joined_since_last_sync && pdu.state_key == Some(user_id.to_string()) {
                     let content = serde_json::from_value::<
                         EventJson<ruma::events::room::member::MemberEventContent>,
                     >(pdu.content.clone())
@@ -2163,8 +2163,8 @@ pub fn sync_route(
                     .deserialize()
                     .unwrap();
                     if content.membership == ruma::events::room::member::MembershipState::Join {
-                        send_full_state = true;
-                        // Both send_member_count and send_full_state are set. There's nothing more
+                        joined_since_last_sync = true;
+                        // Both send_member_count and joined_since_last_sync are set. There's nothing more
                         // to do
                         break;
                     }
@@ -2338,13 +2338,17 @@ pub fn sync_route(
                     notification_count,
                 },
                 timeline: sync_events::Timeline {
-                    limited: if limited { Some(limited) } else { None },
+                    limited: if limited || joined_since_last_sync {
+                        Some(true)
+                    } else {
+                        None
+                    },
                     prev_batch,
                     events: room_events,
                 },
                 // TODO: state before timeline
                 state: sync_events::State {
-                    events: if send_full_state {
+                    events: if joined_since_last_sync {
                         state
                             .into_iter()
                             .map(|(_, pdu)| pdu.to_state_event())
