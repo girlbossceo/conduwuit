@@ -1,20 +1,12 @@
-use crate::{utils, Error, Result};
-use js_int::UInt;
+use crate::{Error, Result};
 use log::debug;
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::{
-            device::Device,
-            keys::{AlgorithmAndDeviceId, DeviceKeys, KeyAlgorithm, OneTimeKey},
-            uiaa::{AuthData, AuthFlow, UiaaInfo, UiaaResponse},
-        },
+        r0::uiaa::{AuthData, UiaaInfo},
     },
-    events::{to_device::AnyToDeviceEvent, EventJson, EventType},
     identifiers::UserId,
 };
-use serde_json::value::RawValue;
-use std::{collections::BTreeMap, convert::TryFrom, time::SystemTime};
 
 pub struct Uiaa {
     pub(super) userdeviceid_uiaainfo: sled::Tree, // User-interactive authentication
@@ -44,7 +36,7 @@ impl Uiaa {
             let mut uiaainfo = session
                 .as_ref()
                 .map(|session| {
-                    Ok::<_, Error>(self.get_uiaa_session(&user_id, &"".to_owned(), session)?)
+                    Ok::<_, Error>(self.get_uiaa_session(&user_id, &device_id, session)?)
                 })
                 .unwrap_or(Ok(uiaainfo.clone()))?;
 
