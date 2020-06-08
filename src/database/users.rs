@@ -6,7 +6,7 @@ use ruma::{
         keys::{AlgorithmAndDeviceId, DeviceKeys, KeyAlgorithm, OneTimeKey},
     },
     events::{to_device::AnyToDeviceEvent, EventJson, EventType},
-    identifiers::{DeviceId, UserId},
+    identifiers::UserId,
 };
 use std::{collections::BTreeMap, convert::TryFrom, time::SystemTime};
 
@@ -113,7 +113,7 @@ impl Users {
     pub fn create_device(
         &self,
         user_id: &UserId,
-        device_id: &DeviceId,
+        device_id: &str,
         token: &str,
         initial_device_display_name: Option<String>,
     ) -> Result<()> {
@@ -130,7 +130,7 @@ impl Users {
         self.userdeviceid_metadata.insert(
             userdeviceid,
             serde_json::to_string(&Device {
-                device_id: device_id.clone(),
+                device_id: device_id.to_owned(),
                 display_name: initial_device_display_name,
                 last_seen_ip: None, // TODO
                 last_seen_ts: Some(SystemTime::now()),
@@ -144,7 +144,7 @@ impl Users {
     }
 
     /// Removes a device from a user.
-    pub fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
+    pub fn remove_device(&self, user_id: &UserId, device_id: &str) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
@@ -173,7 +173,7 @@ impl Users {
     }
 
     /// Returns an iterator over all device ids of this user.
-    pub fn all_device_ids(&self, user_id: &UserId) -> impl Iterator<Item = Result<DeviceId>> {
+    pub fn all_device_ids(&self, user_id: &UserId) -> impl Iterator<Item = Result<String>> {
         let mut prefix = user_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
         // All devices have metadata
@@ -191,7 +191,7 @@ impl Users {
     }
 
     /// Replaces the access token of one device.
-    pub fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
+    pub fn set_token(&self, user_id: &UserId, device_id: &str, token: &str) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
@@ -219,7 +219,7 @@ impl Users {
     pub fn add_one_time_key(
         &self,
         user_id: &UserId,
-        device_id: &DeviceId,
+        device_id: &str,
         one_time_key_key: &AlgorithmAndDeviceId,
         one_time_key_value: &OneTimeKey,
     ) -> Result<()> {
@@ -248,7 +248,7 @@ impl Users {
     pub fn take_one_time_key(
         &self,
         user_id: &UserId,
-        device_id: &DeviceId,
+        device_id: &str,
         key_algorithm: &KeyAlgorithm,
     ) -> Result<Option<(AlgorithmAndDeviceId, OneTimeKey)>> {
         let mut prefix = user_id.to_string().as_bytes().to_vec();
@@ -282,7 +282,7 @@ impl Users {
     pub fn count_one_time_keys(
         &self,
         user_id: &UserId,
-        device_id: &DeviceId,
+        device_id: &str,
     ) -> Result<BTreeMap<KeyAlgorithm, UInt>> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
@@ -315,7 +315,7 @@ impl Users {
     pub fn add_device_keys(
         &self,
         user_id: &UserId,
-        device_id: &DeviceId,
+        device_id: &str,
         device_keys: &DeviceKeys,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -335,7 +335,7 @@ impl Users {
     pub fn get_device_keys(
         &self,
         user_id: &UserId,
-        device_id: &DeviceId,
+        device_id: &str,
     ) -> impl Iterator<Item = Result<DeviceKeys>> {
         let mut key = user_id.to_string().as_bytes().to_vec();
         key.push(0xff);
@@ -376,7 +376,7 @@ impl Users {
         &self,
         sender: &UserId,
         target_user_id: &UserId,
-        target_device_id: &DeviceId,
+        target_device_id: &str,
         event_type: &EventType,
         content: serde_json::Value,
         globals: &super::globals::Globals,
@@ -401,7 +401,7 @@ impl Users {
     pub fn take_to_device_events(
         &self,
         user_id: &UserId,
-        device_id: &DeviceId,
+        device_id: &str,
         max: usize,
     ) -> Result<Vec<EventJson<AnyToDeviceEvent>>> {
         let mut events = Vec::new();
@@ -423,7 +423,7 @@ impl Users {
     pub fn update_device_metadata(
         &self,
         user_id: &UserId,
-        device_id: &DeviceId,
+        device_id: &str,
         device: &Device,
     ) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
@@ -441,11 +441,7 @@ impl Users {
     }
 
     /// Get device metadata.
-    pub fn get_device_metadata(
-        &self,
-        user_id: &UserId,
-        device_id: &DeviceId,
-    ) -> Result<Option<Device>> {
+    pub fn get_device_metadata(&self, user_id: &UserId, device_id: &str) -> Result<Option<Device>> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());

@@ -1,6 +1,6 @@
 use js_int::UInt;
 use ruma::{
-    api::federation::EventHash,
+    api::federation::pdu::EventHash,
     events::{
         collections::all::{RoomEvent, StateEvent},
         stripped::AnyStrippedStateEvent,

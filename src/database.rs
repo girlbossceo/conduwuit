@@ -3,9 +3,11 @@ pub(self) mod global_edus;
 pub(self) mod globals;
 pub(self) mod media;
 pub(self) mod rooms;
+pub(self) mod uiaa;
 pub(self) mod users;
 
 use directories::ProjectDirs;
+use log::info;
 use std::fs::remove_dir_all;
 
 use rocket::Config;
@@ -13,6 +15,7 @@ use rocket::Config;
 pub struct Database {
     pub globals: globals::Globals,
     pub users: users::Users,
+    pub uiaa: uiaa::Uiaa,
     pub rooms: rooms::Rooms,
     pub account_data: account_data::AccountData,
     pub global_edus: global_edus::GlobalEdus,
@@ -47,13 +50,10 @@ impl Database {
             });
 
         let db = sled::open(&path).unwrap();
-        log::info!("Opened sled database at {}", path);
+        info!("Opened sled database at {}", path);
 
         Self {
-            globals: globals::Globals::load(
-                db.open_tree("global").unwrap(),
-                server_name.to_owned(),
-            ),
+            globals: globals::Globals::load(db.open_tree("global").unwrap(), config),
             users: users::Users {
                 userid_password: db.open_tree("userid_password").unwrap(),
                 userid_displayname: db.open_tree("userid_displayname").unwrap(),
@@ -65,6 +65,9 @@ impl Database {
                 userdeviceid_devicekeys: db.open_tree("userdeviceid_devicekeys").unwrap(),
                 devicekeychangeid_userid: db.open_tree("devicekeychangeid_userid").unwrap(),
                 todeviceid_events: db.open_tree("todeviceid_events").unwrap(),
+            },
+            uiaa: uiaa::Uiaa {
+                userdeviceid_uiaainfo: db.open_tree("userdeviceid_uiaainfo").unwrap(),
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {

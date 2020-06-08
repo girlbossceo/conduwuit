@@ -56,15 +56,15 @@ use ruma::{
         room::{canonical_alias, guest_access, history_visibility, join_rules, member, redaction},
         EventJson, EventType,
     },
-    identifiers::{DeviceId, RoomAliasId, RoomId, RoomVersionId, UserId},
+    identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId},
 };
 use serde_json::{json, value::RawValue};
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
-const SESSION_ID_LENGTH: usize = 256;
 const TOKEN_LENGTH: usize = 256;
 const MXC_LENGTH: usize = 256;
+const SESSION_ID_LENGTH: usize = 256;
 
 #[get("/_matrix/client/versions")]
 pub fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
@@ -117,15 +117,11 @@ pub fn register_route(
     db: State<'_, Database>,
     body: Ruma<register::Request>,
 ) -> MatrixResult<register::Response, UiaaResponse> {
-    if body.auth.is_none() {
-        return MatrixResult(Err(UiaaResponse::AuthResponse(UiaaInfo {
-            flows: vec![AuthFlow {
-                stages: vec!["m.login.dummy".to_owned()],
-            }],
-            completed: vec![],
-            params: RawValue::from_string("{}".to_owned()).unwrap(),
-            session: Some(utils::random_string(SESSION_ID_LENGTH)),
-            auth_error: None,
+    if db.globals.registration_disabled() {
+        return MatrixResult(Err(UiaaResponse::MatrixError(Error {
+            kind: ErrorKind::Unknown,
+            message: "Registration has been disabled.".to_owned(),
+            status_code: http::StatusCode::FORBIDDEN,
         })));
     }
 
@@ -159,6 +155,31 @@ pub fn register_route(
             message: "Desired user ID is already taken.".to_owned(),
             status_code: http::StatusCode::BAD_REQUEST,
         })));
+    }
+
+    // UIAA
+    let uiaainfo = UiaaInfo {
+        flows: vec![AuthFlow {
+            stages: vec!["m.login.dummy".to_owned()],
+        }],
+        completed: Vec::new(),
+        params: Default::default(),
+        session: Some(utils::random_string(SESSION_ID_LENGTH)),
+        auth_error: None,
+    };
+
+    if let Some(auth) = &body.auth {
+        let (worked, uiaainfo) = db
+            .uiaa
+            .try_auth(&user_id, "", auth, &uiaainfo, &db.users, &db.globals)
+            .unwrap();
+        if !worked {
+            return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+        }
+    // Success!
+    } else {
+        db.uiaa.create(&user_id, "", &uiaainfo).unwrap();
+        return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
     }
 
     let password = body.password.clone().unwrap_or_default();
@@ -575,7 +596,7 @@ pub fn get_displayname_route(
     body: Ruma<get_display_name::Request>,
     _user_id: String,
 ) -> MatrixResult<get_display_name::Response> {
-    let user_id = (*body).user_id.clone();
+    let user_id = body.body.user_id.clone();
     MatrixResult(Ok(get_display_name::Response {
         displayname: db.users.displayname(&user_id).unwrap(),
     }))
@@ -666,7 +687,7 @@ pub fn get_avatar_url_route(
     body: Ruma<get_avatar_url::Request>,
     _user_id: String,
 ) -> MatrixResult<get_avatar_url::Response> {
-    let user_id = (*body).user_id.clone();
+    let user_id = body.body.user_id.clone();
     MatrixResult(Ok(get_avatar_url::Response {
         avatar_url: db.users.avatar_url(&user_id).unwrap(),
     }))
@@ -678,7 +699,7 @@ pub fn get_profile_route(
     body: Ruma<get_profile::Request>,
     _user_id: String,
 ) -> MatrixResult<get_profile::Response> {
-    let user_id = (*body).user_id.clone();
+    let user_id = body.body.user_id.clone();
     let avatar_url = db.users.avatar_url(&user_id).unwrap();
     let displayname = db.users.displayname(&user_id).unwrap();
 
@@ -2316,50 +2337,51 @@ pub fn sync_route(
             );
         }
 
-        joined_rooms.insert(
-            room_id.clone().try_into().unwrap(),
-            sync_events::JoinedRoom {
-                account_data: Some(sync_events::AccountData {
-                    events: db
-                        .account_data
-                        .changes_since(Some(&room_id), &user_id, since)
-                        .unwrap()
-                        .into_iter()
-                        .map(|(_, v)| v)
-                        .collect(),
-                }),
-                summary: sync_events::RoomSummary {
-                    heroes,
-                    joined_member_count: joined_member_count.map(|n| (n as u32).into()),
-                    invited_member_count: invited_member_count.map(|n| (n as u32).into()),
-                },
-                unread_notifications: sync_events::UnreadNotificationsCount {
-                    highlight_count: None,
-                    notification_count,
-                },
-                timeline: sync_events::Timeline {
-                    limited: if limited || joined_since_last_sync {
-                        Some(true)
-                    } else {
-                        None
-                    },
-                    prev_batch,
-                    events: room_events,
-                },
-                // TODO: state before timeline
-                state: sync_events::State {
-                    events: if joined_since_last_sync {
-                        state
-                            .into_iter()
-                            .map(|(_, pdu)| pdu.to_state_event())
-                            .collect()
-                    } else {
-                        Vec::new()
-                    },
-                },
-                ephemeral: sync_events::Ephemeral { events: edus },
+        let joined_room = sync_events::JoinedRoom {
+            account_data: sync_events::AccountData {
+                events: db
+                    .account_data
+                    .changes_since(Some(&room_id), &user_id, since)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(_, v)| v)
+                    .collect(),
             },
-        );
+            summary: sync_events::RoomSummary {
+                heroes,
+                joined_member_count: joined_member_count.map(|n| (n as u32).into()),
+                invited_member_count: invited_member_count.map(|n| (n as u32).into()),
+            },
+            unread_notifications: sync_events::UnreadNotificationsCount {
+                highlight_count: None,
+                notification_count,
+            },
+            timeline: sync_events::Timeline {
+                limited: if limited || joined_since_last_sync {
+                    Some(true)
+                } else {
+                    None
+                },
+                prev_batch,
+                events: room_events,
+            },
+            // TODO: state before timeline
+            state: sync_events::State {
+                events: if joined_since_last_sync {
+                    state
+                        .into_iter()
+                        .map(|(_, pdu)| pdu.to_state_event())
+                        .collect()
+                } else {
+                    Vec::new()
+                },
+            },
+            ephemeral: sync_events::Ephemeral { events: edus },
+        };
+
+        if !joined_room.is_empty() {
+            joined_rooms.insert(room_id.clone().try_into().unwrap(), joined_room);
+        }
     }
 
     let mut left_rooms = BTreeMap::new();
@@ -2368,6 +2390,7 @@ pub fn sync_route(
         let pdus = db.rooms.pdus_since(&room_id, since).unwrap();
         let room_events = pdus.map(|pdu| pdu.unwrap().to_room_event()).collect();
 
+        // TODO: Only until leave point
         let mut edus = db
             .rooms
             .edus
@@ -2394,38 +2417,40 @@ pub fn sync_route(
             );
         }
 
-        left_rooms.insert(
-            room_id.clone().try_into().unwrap(),
-            sync_events::LeftRoom {
-                account_data: Some(sync_events::AccountData { events: Vec::new() }),
-                timeline: sync_events::Timeline {
-                    limited: Some(false),
-                    prev_batch: Some(next_batch.clone()),
-                    events: room_events,
-                },
-                state: sync_events::State { events: Vec::new() },
+        let left_room = sync_events::LeftRoom {
+            account_data: sync_events::AccountData { events: Vec::new() },
+            timeline: sync_events::Timeline {
+                limited: Some(false),
+                prev_batch: Some(next_batch.clone()),
+                events: room_events,
             },
-        );
+            state: sync_events::State { events: Vec::new() },
+        };
+
+        if !left_room.is_empty() {
+            left_rooms.insert(room_id.clone().try_into().unwrap(), left_room);
+        }
     }
 
     let mut invited_rooms = BTreeMap::new();
     for room_id in db.rooms.rooms_invited(&user_id) {
         let room_id = room_id.unwrap();
 
-        invited_rooms.insert(
-            room_id.clone(),
-            sync_events::InvitedRoom {
-                invite_state: sync_events::InviteState {
-                    events: db
-                        .rooms
-                        .room_state(&room_id)
-                        .unwrap()
-                        .into_iter()
-                        .map(|(_, pdu)| pdu.to_stripped_state_event())
-                        .collect(),
-                },
+        let invited_room = sync_events::InvitedRoom {
+            invite_state: sync_events::InviteState {
+                events: db
+                    .rooms
+                    .room_state(&room_id)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(_, pdu)| pdu.to_stripped_state_event())
+                    .collect(),
             },
-        );
+        };
+
+        if !invited_room.is_empty() {
+            invited_rooms.insert(room_id.clone(), invited_room);
+        }
     }
 
     MatrixResult(Ok(sync_events::Response {
@@ -2460,17 +2485,16 @@ pub fn sync_route(
                 .map(|(_, v)| v)
                 .collect(),
         },
-        device_lists: if since != 0 {
-            Some(sync_events::DeviceLists {
-                changed: db
-                    .users
+        device_lists: sync_events::DeviceLists {
+            changed: if since != 0 {
+                db.users
                     .device_keys_changed(since)
                     .map(|u| u.unwrap())
-                    .collect(),
-                left: Vec::new(), // TODO
-            })
-        } else {
-            None // TODO: left
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            left: Vec::new(), // TODO
         },
         device_one_time_keys_count: Default::default(), // TODO
         to_device: sync_events::ToDevice {
@@ -2816,14 +2840,18 @@ pub fn get_devices_route(
     MatrixResult(Ok(get_devices::Response { devices }))
 }
 
-#[get("/_matrix/client/r0/devices/<device_id>", data = "<body>")]
+#[get("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
 pub fn get_device_route(
     db: State<'_, Database>,
     body: Ruma<get_device::Request>,
-    device_id: DeviceId,
+    _device_id: String,
 ) -> MatrixResult<get_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let device = db.users.get_device_metadata(&user_id, &device_id).unwrap();
+
+    let device = db
+        .users
+        .get_device_metadata(&user_id, &body.body.device_id)
+        .unwrap();
 
     match device {
         None => MatrixResult(Err(Error {
@@ -2835,14 +2863,18 @@ pub fn get_device_route(
     }
 }
 
-#[put("/_matrix/client/r0/devices/<device_id>", data = "<body>")]
+#[put("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
 pub fn update_device_route(
     db: State<'_, Database>,
     body: Ruma<update_device::Request>,
-    device_id: DeviceId,
+    _device_id: String,
 ) -> MatrixResult<update_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let device = db.users.get_device_metadata(&user_id, &device_id).unwrap();
+
+    let device = db
+        .users
+        .get_device_metadata(&user_id, &body.body.device_id)
+        .unwrap();
 
     match device {
         None => MatrixResult(Err(Error {
@@ -2854,7 +2886,7 @@ pub fn update_device_route(
             device.display_name = body.display_name.clone();
 
             db.users
-                .update_device_metadata(&user_id, &device_id, &device)
+                .update_device_metadata(&user_id, &body.body.device_id, &device)
                 .unwrap();
 
             MatrixResult(Ok(update_device::Response))
@@ -2862,14 +2894,50 @@ pub fn update_device_route(
     }
 }
 
-#[delete("/_matrix/client/r0/devices/<device_id>", data = "<body>")]
+#[delete("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
 pub fn delete_device_route(
     db: State<'_, Database>,
     body: Ruma<delete_device::Request>,
-    device_id: DeviceId,
-) -> MatrixResult<delete_device::Response> {
+    _device_id: String,
+) -> MatrixResult<delete_device::Response, UiaaResponse> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    db.users.remove_device(&user_id, &device_id).unwrap();
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
+    // UIAA
+    let uiaainfo = UiaaInfo {
+        flows: vec![AuthFlow {
+            stages: vec!["m.login.password".to_owned()],
+        }],
+        completed: Vec::new(),
+        params: Default::default(),
+        session: Some(utils::random_string(SESSION_ID_LENGTH)),
+        auth_error: None,
+    };
+
+    if let Some(auth) = &body.auth {
+        let (worked, uiaainfo) = db
+            .uiaa
+            .try_auth(
+                &user_id,
+                &device_id,
+                auth,
+                &uiaainfo,
+                &db.users,
+                &db.globals,
+            )
+            .unwrap();
+        if !worked {
+            return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+        }
+    // Success!
+    } else {
+        db.uiaa.create(&user_id, &device_id, &uiaainfo).unwrap();
+        return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+    }
+
+    db.users
+        .remove_device(&user_id, &body.body.device_id)
+        .unwrap();
 
     MatrixResult(Ok(delete_device::Response))
 }
@@ -2878,8 +2946,42 @@ pub fn delete_device_route(
 pub fn delete_devices_route(
     db: State<'_, Database>,
     body: Ruma<delete_devices::Request>,
-) -> MatrixResult<delete_devices::Response> {
+) -> MatrixResult<delete_devices::Response, UiaaResponse> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
+    // UIAA
+    let uiaainfo = UiaaInfo {
+        flows: vec![AuthFlow {
+            stages: vec!["m.login.password".to_owned()],
+        }],
+        completed: Vec::new(),
+        params: Default::default(),
+        session: Some(utils::random_string(SESSION_ID_LENGTH)),
+        auth_error: None,
+    };
+
+    if let Some(auth) = &body.auth {
+        let (worked, uiaainfo) = db
+            .uiaa
+            .try_auth(
+                &user_id,
+                &device_id,
+                auth,
+                &uiaainfo,
+                &db.users,
+                &db.globals,
+            )
+            .unwrap();
+        if !worked {
+            return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+        }
+    // Success!
+    } else {
+        db.uiaa.create(&user_id, &device_id, &uiaainfo).unwrap();
+        return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+    }
+
     for device_id in &body.devices {
         db.users.remove_device(&user_id, &device_id).unwrap()
     }

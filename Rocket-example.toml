@@ -1,10 +1,12 @@
 [global]
 server_name = "your.server.name"
-port = 8448
-address = "0.0.0.0"
+#registration_disabled = true
 
 # Default path is in this user's data
 #database_path = "/home/timo/MyConduitServer"
+
+port = 14004
+address = "0.0.0.0"
 
 #[global.tls]
 #certs = "/etc/letsencrypt/live/your.server.name/fullchain.pem"
