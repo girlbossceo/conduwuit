@@ -58,7 +58,7 @@ use ruma::{
     },
     identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId},
 };
-use serde_json::{json, value::RawValue};
+use serde_json::json;
 
 const GUEST_NAME_LENGTH: usize = 10;
 const DEVICE_ID_LENGTH: usize = 10;
@@ -2904,13 +2904,13 @@ pub fn delete_device_route(
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     // UIAA
-    let uiaainfo = UiaaInfo {
+    let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
             stages: vec!["m.login.password".to_owned()],
         }],
         completed: Vec::new(),
         params: Default::default(),
-        session: Some(utils::random_string(SESSION_ID_LENGTH)),
+        session: None,
         auth_error: None,
     };
 
@@ -2931,6 +2931,7 @@ pub fn delete_device_route(
         }
     // Success!
     } else {
+        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
         db.uiaa.create(&user_id, &device_id, &uiaainfo).unwrap();
         return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
     }
