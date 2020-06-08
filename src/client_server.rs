@@ -171,22 +171,14 @@ pub fn register_route(
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db
             .uiaa
-            .try_auth(
-                &user_id,
-                &"".to_owned(),
-                auth,
-                &uiaainfo,
-                &db.users,
-                &db.globals,
-            )
+            .try_auth(&user_id, "", auth, &uiaainfo, &db.users, &db.globals)
             .unwrap();
         if !worked {
             return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
         }
     // Success!
     } else {
-        db.uiaa.create(&user_id, &"".to_owned(), &uiaainfo).unwrap();
-
+        db.uiaa.create(&user_id, "", &uiaainfo).unwrap();
         return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
     }
 
@@ -604,7 +596,7 @@ pub fn get_displayname_route(
     body: Ruma<get_display_name::Request>,
     _user_id: String,
 ) -> MatrixResult<get_display_name::Response> {
-    let user_id = (*body).user_id.clone();
+    let user_id = body.body.user_id.clone();
     MatrixResult(Ok(get_display_name::Response {
         displayname: db.users.displayname(&user_id).unwrap(),
     }))
@@ -695,7 +687,7 @@ pub fn get_avatar_url_route(
     body: Ruma<get_avatar_url::Request>,
     _user_id: String,
 ) -> MatrixResult<get_avatar_url::Response> {
-    let user_id = (*body).user_id.clone();
+    let user_id = body.body.user_id.clone();
     MatrixResult(Ok(get_avatar_url::Response {
         avatar_url: db.users.avatar_url(&user_id).unwrap(),
     }))
@@ -707,7 +699,7 @@ pub fn get_profile_route(
     body: Ruma<get_profile::Request>,
     _user_id: String,
 ) -> MatrixResult<get_profile::Response> {
-    let user_id = (*body).user_id.clone();
+    let user_id = body.body.user_id.clone();
     let avatar_url = db.users.avatar_url(&user_id).unwrap();
     let displayname = db.users.displayname(&user_id).unwrap();
 
@@ -2855,9 +2847,11 @@ pub fn get_device_route(
     _device_id: String,
 ) -> MatrixResult<get_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
 
-    let device = db.users.get_device_metadata(&user_id, &device_id).unwrap();
+    let device = db
+        .users
+        .get_device_metadata(&user_id, &body.body.device_id)
+        .unwrap();
 
     match device {
         None => MatrixResult(Err(Error {
@@ -2876,9 +2870,11 @@ pub fn update_device_route(
     _device_id: String,
 ) -> MatrixResult<update_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
 
-    let device = db.users.get_device_metadata(&user_id, &device_id).unwrap();
+    let device = db
+        .users
+        .get_device_metadata(&user_id, &body.body.device_id)
+        .unwrap();
 
     match device {
         None => MatrixResult(Err(Error {
@@ -2890,7 +2886,7 @@ pub fn update_device_route(
             device.display_name = body.display_name.clone();
 
             db.users
-                .update_device_metadata(&user_id, &device_id, &device)
+                .update_device_metadata(&user_id, &body.body.device_id, &device)
                 .unwrap();
 
             MatrixResult(Ok(update_device::Response))
@@ -2923,7 +2919,7 @@ pub fn delete_device_route(
             .uiaa
             .try_auth(
                 &user_id,
-                &"".to_owned(),
+                &device_id,
                 auth,
                 &uiaainfo,
                 &db.users,
@@ -2935,12 +2931,13 @@ pub fn delete_device_route(
         }
     // Success!
     } else {
-        db.uiaa.create(&user_id, &"".to_owned(), &uiaainfo).unwrap();
-
+        db.uiaa.create(&user_id, &device_id, &uiaainfo).unwrap();
         return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
     }
 
-    db.users.remove_device(&user_id, &device_id).unwrap();
+    db.users
+        .remove_device(&user_id, &body.body.device_id)
+        .unwrap();
 
     MatrixResult(Ok(delete_device::Response))
 }
@@ -2951,6 +2948,7 @@ pub fn delete_devices_route(
     body: Ruma<delete_devices::Request>,
 ) -> MatrixResult<delete_devices::Response, UiaaResponse> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     // UIAA
     let uiaainfo = UiaaInfo {
@@ -2968,7 +2966,7 @@ pub fn delete_devices_route(
             .uiaa
             .try_auth(
                 &user_id,
-                &"".to_owned(),
+                &device_id,
                 auth,
                 &uiaainfo,
                 &db.users,
@@ -2980,8 +2978,7 @@ pub fn delete_devices_route(
         }
     // Success!
     } else {
-        db.uiaa.create(&user_id, &"".to_owned(), &uiaainfo).unwrap();
-
+        db.uiaa.create(&user_id, &device_id, &uiaainfo).unwrap();
         return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
     }
 
