@@ -171,12 +171,19 @@ pub fn register_route(
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db
             .uiaa
-            .try_auth(&user_id, &"".to_owned(), auth, &uiaainfo, &db.users, &db.globals)
+            .try_auth(
+                &user_id,
+                &"".to_owned(),
+                auth,
+                &uiaainfo,
+                &db.users,
+                &db.globals,
+            )
             .unwrap();
         if !worked {
             return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
         }
-        // Success!
+    // Success!
     } else {
         db.uiaa.create(&user_id, &"".to_owned(), &uiaainfo).unwrap();
 
@@ -2914,12 +2921,19 @@ pub fn delete_device_route(
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db
             .uiaa
-            .try_auth(&user_id, &"".to_owned(), auth, &uiaainfo, &db.users, &db.globals)
+            .try_auth(
+                &user_id,
+                &"".to_owned(),
+                auth,
+                &uiaainfo,
+                &db.users,
+                &db.globals,
+            )
             .unwrap();
         if !worked {
             return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
         }
-        // Success!
+    // Success!
     } else {
         db.uiaa.create(&user_id, &"".to_owned(), &uiaainfo).unwrap();
 
@@ -2952,12 +2966,19 @@ pub fn delete_devices_route(
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db
             .uiaa
-            .try_auth(&user_id, &"".to_owned(), auth, &uiaainfo, &db.users, &db.globals)
+            .try_auth(
+                &user_id,
+                &"".to_owned(),
+                auth,
+                &uiaainfo,
+                &db.users,
+                &db.globals,
+            )
             .unwrap();
         if !worked {
             return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
         }
-        // Success!
+    // Success!
     } else {
         db.uiaa.create(&user_id, &"".to_owned(), &uiaainfo).unwrap();
 
