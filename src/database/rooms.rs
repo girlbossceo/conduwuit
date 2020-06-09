@@ -5,6 +5,7 @@ pub use edus::RoomEdus;
 use crate::{utils, Error, PduEvent, Result};
 use log::error;
 use ruma::{
+    api::client::error::ErrorKind,
     events::{
         room::{
             join_rules, member,
@@ -61,30 +62,34 @@ impl Rooms {
             .roomstateid_pdu
             .scan_prefix(&room_id.to_string().as_bytes())
             .values()
-            .map(|value| Ok::<_, Error>(serde_json::from_slice::<PduEvent>(&value?)?))
+            .map(|value| {
+                Ok::<_, Error>(
+                    serde_json::from_slice::<PduEvent>(&value?)
+                        .map_err(|_| Error::BadDatabase("Invalid PDU in db."))?,
+                )
+            })
         {
             let pdu = pdu?;
-            hashmap.insert(
-                (
-                    pdu.kind.clone(),
-                    pdu.state_key
-                        .clone()
-                        .expect("state events have a state key"),
-                ),
-                pdu,
-            );
+            let state_key = pdu.state_key.clone().ok_or(Error::BadDatabase(
+                "Room state contains event without state_key.",
+            ))?;
+            hashmap.insert((pdu.kind.clone(), state_key), pdu);
         }
         Ok(hashmap)
     }
 
     /// Returns the `count` of this pdu's id.
     pub fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<u64>> {
-        Ok(self
-            .eventid_pduid
+        self.eventid_pduid
             .get(event_id.to_string().as_bytes())?
-            .map(|pdu_id| {
-                utils::u64_from_bytes(&pdu_id[pdu_id.len() - mem::size_of::<u64>()..pdu_id.len()])
-            }))
+            .map_or(Ok(None), |pdu_id| {
+                Ok(Some(
+                    utils::u64_from_bytes(
+                        &pdu_id[pdu_id.len() - mem::size_of::<u64>()..pdu_id.len()],
+                    )
+                    .map_err(|_| Error::BadDatabase("PDU has invalid count bytes."))?,
+                ))
+            })
     }
 
     /// Returns the json of a pdu.
@@ -92,11 +97,12 @@ impl Rooms {
         self.eventid_pduid
             .get(event_id.to_string().as_bytes())?
             .map_or(Ok(None), |pdu_id| {
-                Ok(Some(serde_json::from_slice(
-                    &self.pduid_pdu.get(pdu_id)?.ok_or(Error::BadDatabase(
-                        "eventid_pduid points to nonexistent pdu",
-                    ))?,
-                )?))
+                Ok(Some(
+                    serde_json::from_slice(&self.pduid_pdu.get(pdu_id)?.ok_or(
+                        Error::BadDatabase("eventid_pduid points to nonexistent pdu."),
+                    )?)
+                    .map_err(|_| Error::BadDatabase("Invalid PDU in db."))?,
+                ))
             })
     }
 
@@ -112,28 +118,37 @@ impl Rooms {
         self.eventid_pduid
             .get(event_id.to_string().as_bytes())?
             .map_or(Ok(None), |pdu_id| {
-                Ok(Some(serde_json::from_slice(
-                    &self.pduid_pdu.get(pdu_id)?.ok_or(Error::BadDatabase(
-                        "eventid_pduid points to nonexistent pdu",
-                    ))?,
-                )?))
+                Ok(Some(
+                    serde_json::from_slice(&self.pduid_pdu.get(pdu_id)?.ok_or(
+                        Error::BadDatabase("eventid_pduid points to nonexistent pdu."),
+                    )?)
+                    .map_err(|_| Error::BadDatabase("Invalid PDU in db."))?,
+                ))
             })
     }
     /// Returns the pdu.
     pub fn get_pdu_from_id(&self, pdu_id: &IVec) -> Result<Option<PduEvent>> {
-        self.pduid_pdu
-            .get(pdu_id)?
-            .map_or(Ok(None), |pdu| Ok(Some(serde_json::from_slice(&pdu)?)))
+        self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
+            Ok(Some(
+                serde_json::from_slice(&pdu)
+                    .map_err(|_| Error::BadDatabase("Invalid PDU in db."))?,
+            ))
+        })
     }
 
-    /// Returns the pdu.
-    pub fn replace_pdu(&self, pdu_id: &IVec, pdu: &PduEvent) -> Result<()> {
+    /// Removes a pdu and creates a new one with the same id.
+    fn replace_pdu(&self, pdu_id: &IVec, pdu: &PduEvent) -> Result<()> {
         if self.pduid_pdu.get(&pdu_id)?.is_some() {
-            self.pduid_pdu
-                .insert(&pdu_id, &*serde_json::to_string(pdu)?)?;
+            self.pduid_pdu.insert(
+                &pdu_id,
+                &*serde_json::to_string(pdu).expect("PduEvent::to_string always works"),
+            )?;
             Ok(())
         } else {
-            Err(Error::BadRequest("pdu does not exist"))
+            Err(Error::BadRequest(
+                ErrorKind::NotFound,
+                "PDU does not exist.",
+            ))
         }
     }
 
@@ -148,7 +163,12 @@ impl Rooms {
             .roomid_pduleaves
             .scan_prefix(prefix)
             .values()
-            .map(|bytes| Ok::<_, Error>(EventId::try_from(&*utils::string_from_bytes(&bytes?)?)?))
+            .map(|bytes| {
+                Ok::<_, Error>(
+                    serde_json::from_slice(&bytes?)
+                        .map_err(|_| Error::BadDatabase("Invalid EventID in roomid_pduleaves."))?,
+                )
+            })
         {
             events.push(event?);
         }
@@ -214,174 +234,203 @@ impl Rooms {
                         Ok(
                             serde_json::from_value::<EventJson<PowerLevelsEventContent>>(
                                 power_levels.content.clone(),
-                            )?
-                            .deserialize()?,
+                            )
+                            .expect("EventJson::from_value always works.")
+                            .deserialize()
+                            .map_err(|_| Error::BadDatabase("Invalid PowerLevels event in db."))?,
                         )
                     },
                 )?;
-            {
-                let sender_membership = self
-                    .room_state(&room_id)?
-                    .get(&(EventType::RoomMember, sender.to_string()))
-                    .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
-                        Ok(
-                            serde_json::from_value::<EventJson<member::MemberEventContent>>(
-                                pdu.content.clone(),
-                            )?
-                            .deserialize()?
-                            .membership,
+            let sender_membership = self
+                .room_state(&room_id)?
+                .get(&(EventType::RoomMember, sender.to_string()))
+                .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
+                    Ok(
+                        serde_json::from_value::<EventJson<member::MemberEventContent>>(
+                            pdu.content.clone(),
+                        )
+                        .expect("EventJson::from_value always works.")
+                        .deserialize()
+                        .map_err(|_| Error::BadDatabase("Invalid Member event in db."))?
+                        .membership,
+                    )
+                })?;
+
+            let sender_power = power_levels.users.get(&sender).map_or_else(
+                || {
+                    if sender_membership != member::MembershipState::Join {
+                        None
+                    } else {
+                        Some(&power_levels.users_default)
+                    }
+                },
+                // If it's okay, wrap with Some(_)
+                Some,
+            );
+
+            if !match event_type {
+                EventType::RoomMember => {
+                    let target_user_id = UserId::try_from(&**state_key).map_err(|_| {
+                        Error::BadRequest(
+                            ErrorKind::InvalidParam,
+                            "State key of member event does not contain user id.",
                         )
                     })?;
 
-                let sender_power = power_levels.users.get(&sender).map_or_else(
-                    || {
-                        if sender_membership != member::MembershipState::Join {
-                            None
-                        } else {
-                            Some(&power_levels.users_default)
-                        }
-                    },
-                    // If it's okay, wrap with Some(_)
-                    Some,
-                );
+                    let current_membership = self
+                        .room_state(&room_id)?
+                        .get(&(EventType::RoomMember, target_user_id.to_string()))
+                        .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
+                            Ok(
+                                serde_json::from_value::<EventJson<member::MemberEventContent>>(
+                                    pdu.content.clone(),
+                                )
+                                .expect("EventJson::from_value always works.")
+                                .deserialize()
+                                .map_err(|_| Error::BadDatabase("Invalid Member event in db."))?
+                                .membership,
+                            )
+                        })?;
 
-                if !match event_type {
-                    EventType::RoomMember => {
-                        let target_user_id = UserId::try_from(&**state_key)?;
+                    let target_membership = serde_json::from_value::<
+                        EventJson<member::MemberEventContent>,
+                    >(content.clone())
+                    .expect("EventJson::from_value always works.")
+                    .deserialize()
+                    .map_err(|_| Error::BadDatabase("Invalid Member event in db."))?
+                    .membership;
 
-                        let current_membership = self
-                            .room_state(&room_id)?
-                            .get(&(EventType::RoomMember, target_user_id.to_string()))
-                            .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
-                                Ok(serde_json::from_value::<
-                                        EventJson<member::MemberEventContent>,
-                                    >(pdu.content.clone())?
-                                    .deserialize()?
-                                    .membership)
-                            })?;
+                    let target_power = power_levels.users.get(&target_user_id).map_or_else(
+                        || {
+                            if target_membership != member::MembershipState::Join {
+                                None
+                            } else {
+                                Some(&power_levels.users_default)
+                            }
+                        },
+                        // If it's okay, wrap with Some(_)
+                        Some,
+                    );
 
-                        let target_membership = serde_json::from_value::<
-                            EventJson<member::MemberEventContent>,
-                        >(content.clone())?
-                        .deserialize()?
-                        .membership;
-
-                        let target_power = power_levels.users.get(&target_user_id).map_or_else(
-                            || {
-                                if target_membership != member::MembershipState::Join {
-                                    None
-                                } else {
-                                    Some(&power_levels.users_default)
-                                }
-                            },
-                            // If it's okay, wrap with Some(_)
-                            Some,
-                        );
-
-                        let join_rules = self
-                            .room_state(&room_id)?
+                    let join_rules =
+                        self.room_state(&room_id)?
                             .get(&(EventType::RoomJoinRules, "".to_owned()))
-                            .map_or(join_rules::JoinRule::Public, |pdu| {
-                                serde_json::from_value::<
+                            .map_or(Ok::<_, Error>(join_rules::JoinRule::Public), |pdu| {
+                                Ok(serde_json::from_value::<
                                     EventJson<join_rules::JoinRulesEventContent>,
                                 >(pdu.content.clone())
-                                .unwrap()
+                                .expect("EventJson::from_value always works.")
                                 .deserialize()
-                                .unwrap()
-                                .join_rule
-                            });
+                                .map_err(|_| {
+                                    Error::BadDatabase("Database contains invalid JoinRules event")
+                                })?
+                                .join_rule)
+                            })?;
 
-                        let authorized = if target_membership == member::MembershipState::Join {
-                            let mut prev_events = prev_events.iter();
-                            let prev_event = self
-                                .get_pdu(prev_events.next().ok_or(Error::BadRequest(
-                                    "membership can't be the first event",
-                                ))?)?
-                                .ok_or(Error::BadDatabase("pdu leave points to valid event"))?;
-                            if prev_event.kind == EventType::RoomCreate
-                                && prev_event.prev_events.is_empty()
-                            {
-                                true
-                            } else if sender != target_user_id {
-                                false
-                            } else if let member::MembershipState::Ban = current_membership {
-                                false
-                            } else {
-                                join_rules == join_rules::JoinRule::Invite
-                                    && (current_membership == member::MembershipState::Join
-                                        || current_membership == member::MembershipState::Invite)
-                                    || join_rules == join_rules::JoinRule::Public
-                            }
-                        } else if target_membership == member::MembershipState::Invite {
-                            if let Some(third_party_invite_json) = content.get("third_party_invite")
-                            {
-                                if current_membership == member::MembershipState::Ban {
-                                    false
-                                } else {
-                                    let _third_party_invite =
-                                        serde_json::from_value::<member::ThirdPartyInvite>(
-                                            third_party_invite_json.clone(),
-                                        )?;
-                                    todo!("handle third party invites");
-                                }
-                            } else if sender_membership != member::MembershipState::Join
-                                || current_membership == member::MembershipState::Join
-                                || current_membership == member::MembershipState::Ban
-                            {
-                                false
-                            } else {
-                                sender_power
-                                    .filter(|&p| p >= &power_levels.invite)
-                                    .is_some()
-                            }
-                        } else if target_membership == member::MembershipState::Leave {
-                            if sender == target_user_id {
-                                current_membership == member::MembershipState::Join
-                                    || current_membership == member::MembershipState::Invite
-                            } else if sender_membership != member::MembershipState::Join
-                                || current_membership == member::MembershipState::Ban
-                                    && sender_power.filter(|&p| p < &power_levels.ban).is_some()
-                            {
-                                false
-                            } else {
-                                sender_power.filter(|&p| p >= &power_levels.kick).is_some()
-                                    && target_power < sender_power
-                            }
-                        } else if target_membership == member::MembershipState::Ban {
-                            if sender_membership != member::MembershipState::Join {
-                                false
-                            } else {
-                                sender_power.filter(|&p| p >= &power_levels.ban).is_some()
-                                    && target_power < sender_power
-                            }
-                        } else {
+                    let authorized = if target_membership == member::MembershipState::Join {
+                        let mut prev_events = prev_events.iter();
+                        let prev_event = self
+                            .get_pdu(prev_events.next().ok_or(Error::BadRequest(
+                                ErrorKind::Unknown,
+                                "Membership can't be the first event",
+                            ))?)?
+                            .ok_or(Error::BadDatabase("PDU leaf points to invalid event!"))?;
+                        if prev_event.kind == EventType::RoomCreate
+                            && prev_event.prev_events.is_empty()
+                        {
+                            true
+                        } else if sender != target_user_id {
                             false
-                        };
-
-                        if authorized {
-                            // Update our membership info
-                            self.update_membership(&room_id, &target_user_id, &target_membership)?;
+                        } else if let member::MembershipState::Ban = current_membership {
+                            false
+                        } else {
+                            join_rules == join_rules::JoinRule::Invite
+                                && (current_membership == member::MembershipState::Join
+                                    || current_membership == member::MembershipState::Invite)
+                                || join_rules == join_rules::JoinRule::Public
                         }
+                    } else if target_membership == member::MembershipState::Invite {
+                        if let Some(third_party_invite_json) = content.get("third_party_invite") {
+                            if current_membership == member::MembershipState::Ban {
+                                false
+                            } else {
+                                let _third_party_invite =
+                                    serde_json::from_value::<member::ThirdPartyInvite>(
+                                        third_party_invite_json.clone(),
+                                    )
+                                    .map_err(|_| {
+                                        Error::BadRequest(
+                                            ErrorKind::InvalidParam,
+                                            "ThirdPartyInvite is invalid",
+                                        )
+                                    })?;
+                                todo!("handle third party invites");
+                            }
+                        } else if sender_membership != member::MembershipState::Join
+                            || current_membership == member::MembershipState::Join
+                            || current_membership == member::MembershipState::Ban
+                        {
+                            false
+                        } else {
+                            sender_power
+                                .filter(|&p| p >= &power_levels.invite)
+                                .is_some()
+                        }
+                    } else if target_membership == member::MembershipState::Leave {
+                        if sender == target_user_id {
+                            current_membership == member::MembershipState::Join
+                                || current_membership == member::MembershipState::Invite
+                        } else if sender_membership != member::MembershipState::Join
+                            || current_membership == member::MembershipState::Ban
+                                && sender_power.filter(|&p| p < &power_levels.ban).is_some()
+                        {
+                            false
+                        } else {
+                            sender_power.filter(|&p| p >= &power_levels.kick).is_some()
+                                && target_power < sender_power
+                        }
+                    } else if target_membership == member::MembershipState::Ban {
+                        if sender_membership != member::MembershipState::Join {
+                            false
+                        } else {
+                            sender_power.filter(|&p| p >= &power_levels.ban).is_some()
+                                && target_power < sender_power
+                        }
+                    } else {
+                        false
+                    };
 
-                        authorized
+                    if authorized {
+                        // Update our membership info
+                        self.update_membership(&room_id, &target_user_id, &target_membership)?;
                     }
-                    EventType::RoomCreate => prev_events.is_empty(),
-                    // Not allow any of the following events if the sender is not joined.
-                    _ if sender_membership != member::MembershipState::Join => false,
 
-                    _ => {
-                        // TODO
-                        sender_power.unwrap_or(&power_levels.users_default)
-                            >= &power_levels.state_default
-                    }
-                } {
-                    error!("Unauthorized");
-                    // Not authorized
-                    return Err(Error::BadRequest("event not authorized"));
+                    authorized
                 }
+                EventType::RoomCreate => prev_events.is_empty(),
+                // Not allow any of the following events if the sender is not joined.
+                _ if sender_membership != member::MembershipState::Join => false,
+
+                _ => {
+                    // TODO
+                    sender_power.unwrap_or(&power_levels.users_default)
+                        >= &power_levels.state_default
+                }
+            } {
+                error!("Unauthorized");
+                // Not authorized
+                return Err(Error::BadRequest(
+                    ErrorKind::Forbidden,
+                    "Event is not authorized",
+                ));
             }
         } else if !self.is_joined(&sender, &room_id)? {
-            return Err(Error::BadRequest("event not authorized"));
+            // TODO: auth rules apply to all events, not only those with a state key
+            error!("Unauthorized");
+            return Err(Error::BadRequest(
+                ErrorKind::Forbidden,
+                "Event is not authorized",
+            ));
         }
 
         // Our depth is the maximum depth of prev_events + 1
@@ -410,14 +459,14 @@ impl Rooms {
             origin: globals.server_name().to_owned(),
             origin_server_ts: utils::millis_since_unix_epoch()
                 .try_into()
-                .expect("this only fails many years in the future"),
+                .expect("time is valid"),
             kind: event_type.clone(),
             content: content.clone(),
             state_key,
             prev_events,
             depth: depth
                 .try_into()
-                .expect("depth can overflow and should be deprecated..."),
+                .map_err(|_| Error::BadDatabase("Depth is invalid"))?,
             auth_events: Vec::new(),
             redacts: redacts.clone(),
             unsigned,
@@ -430,18 +479,20 @@ impl Rooms {
         // Generate event id
         pdu.event_id = EventId::try_from(&*format!(
             "${}",
-            ruma::signatures::reference_hash(&serde_json::to_value(&pdu)?)
-                .expect("ruma can calculate reference hashes")
+            ruma::signatures::reference_hash(
+                &serde_json::to_value(&pdu).expect("event is valid, we just created it")
+            )
+            .expect("ruma can calculate reference hashes")
         ))
-        .expect("ruma's reference hashes are correct");
+        .expect("ruma's reference hashes are valid event ids");
 
-        let mut pdu_json = serde_json::to_value(&pdu)?;
+        let mut pdu_json = serde_json::to_value(&pdu).expect("event is valid, we just created it");
         ruma::signatures::hash_and_sign_event(
             globals.server_name(),
             globals.keypair(),
             &mut pdu_json,
         )
-        .expect("our new event can be hashed and signed");
+        .expect("event is valid, we just created it");
 
         self.replace_pdu_leaves(&room_id, &pdu.event_id)?;
 
@@ -473,8 +524,15 @@ impl Rooms {
                     // TODO: Reason
                     let _reason = serde_json::from_value::<
                         EventJson<redaction::RedactionEventContent>,
-                    >(content)?
-                    .deserialize()?
+                    >(content)
+                    .expect("EventJson::from_value always works.")
+                    .deserialize()
+                    .map_err(|_| {
+                        Error::BadRequest(
+                            ErrorKind::InvalidParam,
+                            "Invalid redaction event content.",
+                        )
+                    })?
                     .reason;
 
                     self.redact_pdu(&redact_id)?;
@@ -528,7 +586,10 @@ impl Rooms {
             })
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(|(_, v)| Ok(serde_json::from_slice(&v)?)))
+            .map(|(_, v)| {
+                Ok(serde_json::from_slice(&v)
+                    .map_err(|_| Error::BadDatabase("PDU in db is invalid."))?)
+            }))
     }
 
     /// Returns an iterator over all events in a room that happened before the event with id
@@ -552,7 +613,10 @@ impl Rooms {
             .rev()
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(|(_, v)| Ok(serde_json::from_slice(&v)?))
+            .map(|(_, v)| {
+                Ok(serde_json::from_slice(&v)
+                    .map_err(|_| Error::BadDatabase("PDU in db is invalid."))?)
+            })
     }
 
     /// Returns an iterator over all events in a room that happened after the event with id
@@ -575,7 +639,10 @@ impl Rooms {
             .range(current..)
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(|(_, v)| Ok(serde_json::from_slice(&v)?))
+            .map(|(_, v)| {
+                Ok(serde_json::from_slice(&v)
+                    .map_err(|_| Error::BadDatabase("PDU in db is invalid."))?)
+            })
     }
 
     /// Replace a PDU with the redacted form.
@@ -583,12 +650,15 @@ impl Rooms {
         if let Some(pdu_id) = self.get_pdu_id(event_id)? {
             let mut pdu = self
                 .get_pdu_from_id(&pdu_id)?
-                .ok_or(Error::BadDatabase("pduid points to invalid pdu"))?;
-            pdu.redact();
+                .ok_or(Error::BadDatabase("PDU ID points to invalid PDU."))?;
+            pdu.redact()?;
             self.replace_pdu(&pdu_id, &pdu)?;
             Ok(())
         } else {
-            Err(Error::BadRequest("eventid does not exist"))
+            Err(Error::BadRequest(
+                ErrorKind::NotFound,
+                "Event ID does not exist.",
+            ))
         }
     }
 
@@ -664,7 +734,10 @@ impl Rooms {
             let room_id = self
                 .alias_roomid
                 .remove(alias.alias())?
-                .ok_or(Error::BadRequest("Alias does not exist"))?;
+                .ok_or(Error::BadRequest(
+                    ErrorKind::NotFound,
+                    "Alias does not exist.",
+                ))?;
 
             for key in self.aliasid_alias.scan_prefix(room_id).keys() {
                 self.aliasid_alias.remove(key?)?;
@@ -678,7 +751,9 @@ impl Rooms {
         self.alias_roomid
             .get(alias.alias())?
             .map_or(Ok(None), |bytes| {
-                Ok(Some(RoomId::try_from(utils::string_from_bytes(&bytes)?)?))
+                Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
+                    Error::BadDatabase("Room ID in alias_roomid is invalid.")
+                })?))
             })
     }
 
@@ -689,7 +764,10 @@ impl Rooms {
         self.aliasid_alias
             .scan_prefix(prefix)
             .values()
-            .map(|bytes| Ok(RoomAliasId::try_from(utils::string_from_bytes(&bytes?)?)?))
+            .map(|bytes| {
+                Ok(serde_json::from_slice(&bytes?)
+                    .map_err(|_| Error::BadDatabase("Alias in aliasid_alias is invalid."))?)
+            })
     }
 
     pub fn set_public(&self, room_id: &RoomId, public: bool) -> Result<()> {
@@ -707,10 +785,10 @@ impl Rooms {
     }
 
     pub fn public_rooms(&self) -> impl Iterator<Item = Result<RoomId>> {
-        self.publicroomids
-            .iter()
-            .keys()
-            .map(|bytes| Ok(RoomId::try_from(utils::string_from_bytes(&bytes?)?)?))
+        self.publicroomids.iter().keys().map(|bytes| {
+            Ok(serde_json::from_slice(&bytes?)
+                .map_err(|_| Error::BadDatabase("Room ID in publicroomids is invalid."))?)
+        })
     }
 
     /// Returns an iterator over all rooms a user joined.
@@ -719,12 +797,13 @@ impl Rooms {
             .scan_prefix(room_id.to_string())
             .values()
             .map(|key| {
-                Ok(UserId::try_from(&*utils::string_from_bytes(
+                Ok(serde_json::from_slice(
                     &key?
                         .rsplit(|&b| b == 0xff)
                         .next()
-                        .ok_or(Error::BadDatabase("userroomid is invalid"))?,
-                )?)?)
+                        .ok_or(Error::BadDatabase("RoomUser ID is invalid."))?,
+                )
+                .map_err(|_| Error::BadDatabase("Invalid User ID in db."))?)
             })
     }
 
@@ -734,12 +813,13 @@ impl Rooms {
             .scan_prefix(room_id.to_string())
             .keys()
             .map(|key| {
-                Ok(UserId::try_from(&*utils::string_from_bytes(
+                Ok(serde_json::from_slice(
                     &key?
                         .rsplit(|&b| b == 0xff)
                         .next()
-                        .ok_or(Error::BadDatabase("userroomid is invalid"))?,
-                )?)?)
+                        .ok_or(Error::BadDatabase("RoomUser ID is invalid."))?,
+                )
+                .map_err(|_| Error::BadDatabase("Invalid User ID in db."))?)
             })
     }
 
@@ -749,12 +829,13 @@ impl Rooms {
             .scan_prefix(user_id.to_string())
             .keys()
             .map(|key| {
-                Ok(RoomId::try_from(&*utils::string_from_bytes(
+                Ok(serde_json::from_slice(
                     &key?
                         .rsplit(|&b| b == 0xff)
                         .next()
-                        .ok_or(Error::BadDatabase("userroomid is invalid"))?,
-                )?)?)
+                        .ok_or(Error::BadDatabase("UserRoom ID is invalid."))?,
+                )
+                .map_err(|_| Error::BadDatabase("Invalid Room ID in db."))?)
             })
     }
 
@@ -764,12 +845,13 @@ impl Rooms {
             .scan_prefix(&user_id.to_string())
             .keys()
             .map(|key| {
-                Ok(RoomId::try_from(&*utils::string_from_bytes(
+                Ok(serde_json::from_slice(
                     &key?
                         .rsplit(|&b| b == 0xff)
                         .next()
-                        .ok_or(Error::BadDatabase("userroomid is invalid"))?,
-                )?)?)
+                        .ok_or(Error::BadDatabase("UserRoom ID is invalid."))?,
+                )
+                .map_err(|_| Error::BadDatabase("Invalid Room ID in db."))?)
             })
     }
 
@@ -779,12 +861,13 @@ impl Rooms {
             .scan_prefix(&user_id.to_string())
             .keys()
             .map(|key| {
-                Ok(RoomId::try_from(&*utils::string_from_bytes(
+                Ok(serde_json::from_slice(
                     &key?
                         .rsplit(|&b| b == 0xff)
                         .next()
-                        .ok_or(Error::BadDatabase("userroomid is invalid"))?,
-                )?)?)
+                        .ok_or(Error::BadDatabase("UserRoom ID is invalid."))?,
+                )
+                .map_err(|_| Error::BadDatabase("Invalid Room ID in db."))?)
             })
     }
 

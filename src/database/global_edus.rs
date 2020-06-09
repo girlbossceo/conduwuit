@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{Error, Result};
 use ruma::events::EventJson;
 
 pub struct GlobalEdus {
@@ -21,7 +21,10 @@ impl GlobalEdus {
             .rev()
             .filter_map(|r| r.ok())
             .find(|key| {
-                key.rsplit(|&b| b == 0xff).next().unwrap() == presence.sender.to_string().as_bytes()
+                key.rsplit(|&b| b == 0xff)
+                    .next()
+                    .expect("rsplit always returns an element")
+                    == presence.sender.to_string().as_bytes()
             })
         {
             // This is the old global_latest
@@ -32,8 +35,10 @@ impl GlobalEdus {
         presence_id.push(0xff);
         presence_id.extend_from_slice(&presence.sender.to_string().as_bytes());
 
-        self.presenceid_presence
-            .insert(presence_id, &*serde_json::to_string(&presence)?)?;
+        self.presenceid_presence.insert(
+            presence_id,
+            &*serde_json::to_string(&presence).expect("PresenceEvent can be serialized"),
+        )?;
 
         Ok(())
     }
@@ -50,6 +55,9 @@ impl GlobalEdus {
             .presenceid_presence
             .range(&*first_possible_edu..)
             .filter_map(|r| r.ok())
-            .map(|(_, v)| Ok(serde_json::from_slice(&v)?)))
+            .map(|(_, v)| {
+                Ok(serde_json::from_slice(&v)
+                    .map_err(|_| Error::BadDatabase("Invalid presence event in db."))?)
+            }))
     }
 }

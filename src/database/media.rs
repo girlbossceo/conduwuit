@@ -43,16 +43,21 @@ impl Media {
             let content_type = utils::string_from_bytes(
                 parts
                     .next()
-                    .ok_or(Error::BadDatabase("mediaid is invalid"))?,
-            )?;
+                    .ok_or(Error::BadDatabase("Invalid Media ID in db"))?,
+            )
+            .map_err(|_| Error::BadDatabase("Invalid content type in db."))?;
 
             let filename_bytes = parts
                 .next()
-                .ok_or(Error::BadDatabase("mediaid is invalid"))?;
+                .ok_or(Error::BadDatabase("Media ID in db is invalid."))?;
+
             let filename = if filename_bytes.is_empty() {
                 None
             } else {
-                Some(utils::string_from_bytes(filename_bytes)?)
+                Some(
+                    utils::string_from_bytes(filename_bytes)
+                        .map_err(|_| Error::BadDatabase("Filename in db is invalid."))?,
+                )
             };
 
             Ok(Some((filename, content_type, file.to_vec())))
@@ -89,16 +94,21 @@ impl Media {
             let content_type = utils::string_from_bytes(
                 parts
                     .next()
-                    .ok_or(Error::BadDatabase("mediaid is invalid"))?,
-            )?;
+                    .ok_or(Error::BadDatabase("Invalid Media ID in db"))?,
+            )
+            .map_err(|_| Error::BadDatabase("Invalid content type in db."))?;
 
             let filename_bytes = parts
                 .next()
-                .ok_or(Error::BadDatabase("mediaid is invalid"))?;
+                .ok_or(Error::BadDatabase("Media ID in db is invalid."))?;
+
             let filename = if filename_bytes.is_empty() {
                 None
             } else {
-                Some(utils::string_from_bytes(filename_bytes)?)
+                Some(
+                    utils::string_from_bytes(filename_bytes)
+                        .map_err(|_| Error::BadDatabase("Filename in db is invalid."))?,
+                )
             };
 
             Ok(Some((filename, content_type, file.to_vec())))
@@ -110,16 +120,21 @@ impl Media {
             let content_type = utils::string_from_bytes(
                 parts
                     .next()
-                    .ok_or(Error::BadDatabase("mediaid is invalid"))?,
-            )?;
+                    .ok_or(Error::BadDatabase("Media ID in db is invalid"))?,
+            )
+            .map_err(|_| Error::BadDatabase("Invalid content type in db."))?;
 
             let filename_bytes = parts
                 .next()
-                .ok_or(Error::BadDatabase("mediaid is invalid"))?;
+                .ok_or(Error::BadDatabase("Media ID in db is invalid"))?;
+
             let filename = if filename_bytes.is_empty() {
                 None
             } else {
-                Some(utils::string_from_bytes(filename_bytes)?)
+                Some(
+                    utils::string_from_bytes(filename_bytes)
+                        .map_err(|_| Error::BadDatabase("Filename in db is invalid."))?,
+                )
             };
 
             if let Ok(image) = image::load_from_memory(&file) {

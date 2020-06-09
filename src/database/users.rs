@@ -43,24 +43,29 @@ impl Users {
             .get(token)?
             .map_or(Ok(None), |bytes| {
                 let mut parts = bytes.split(|&b| b == 0xff);
-                let user_bytes = parts
-                    .next()
-                    .ok_or(Error::BadDatabase("token_userdeviceid value invalid"))?;
-                let device_bytes = parts
-                    .next()
-                    .ok_or(Error::BadDatabase("token_userdeviceid value invalid"))?;
+                let user_bytes = parts.next().ok_or(Error::BadDatabase(
+                    "token_userdeviceid value in db is invalid.",
+                ))?;
+                let device_bytes = parts.next().ok_or(Error::BadDatabase(
+                    "token_userdeviceid value in db is invalid.",
+                ))?;
 
                 Ok(Some((
-                    UserId::try_from(utils::string_from_bytes(&user_bytes)?)?,
-                    utils::string_from_bytes(&device_bytes)?,
+                    serde_json::from_slice(&user_bytes).map_err(|_| {
+                        Error::BadDatabase("User ID in token_userdeviceid is invalid.")
+                    })?,
+                    utils::string_from_bytes(&device_bytes).map_err(|_| {
+                        Error::BadDatabase("Device ID in token_userdeviceid is invalid.")
+                    })?,
                 )))
             })
     }
 
     /// Returns an iterator over all users on this homeserver.
     pub fn iter(&self) -> impl Iterator<Item = Result<UserId>> {
-        self.userid_password.iter().keys().map(|r| {
-            utils::string_from_bytes(&r?).and_then(|string| Ok(UserId::try_from(&*string)?))
+        self.userid_password.iter().keys().map(|bytes| {
+            Ok(serde_json::from_slice(&bytes?)
+                .map_err(|_| Error::BadDatabase("User ID bytes in db are invalid."))?)
         })
     }
 
@@ -68,14 +73,22 @@ impl Users {
     pub fn password_hash(&self, user_id: &UserId) -> Result<Option<String>> {
         self.userid_password
             .get(user_id.to_string())?
-            .map_or(Ok(None), |bytes| utils::string_from_bytes(&bytes).map(Some))
+            .map_or(Ok(None), |bytes| {
+                Ok(Some(utils::string_from_bytes(&bytes).map_err(|_| {
+                    Error::BadDatabase("Password hash in db is not valid string.")
+                })?))
+            })
     }
 
     /// Returns the displayname of a user on this homeserver.
     pub fn displayname(&self, user_id: &UserId) -> Result<Option<String>> {
         self.userid_displayname
             .get(user_id.to_string())?
-            .map_or(Ok(None), |bytes| utils::string_from_bytes(&bytes).map(Some))
+            .map_or(Ok(None), |bytes| {
+                Ok(Some(utils::string_from_bytes(&bytes).map_err(|_| {
+                    Error::BadDatabase("Displayname in db is invalid.")
+                })?))
+            })
     }
 
     /// Sets a new displayname or removes it if displayname is None. You still need to nofify all rooms of this change.
@@ -94,7 +107,11 @@ impl Users {
     pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<String>> {
         self.userid_avatarurl
             .get(user_id.to_string())?
-            .map_or(Ok(None), |bytes| utils::string_from_bytes(&bytes).map(Some))
+            .map_or(Ok(None), |bytes| {
+                Ok(Some(utils::string_from_bytes(&bytes).map_err(|_| {
+                    Error::BadDatabase("Avatar URL in db is invalid.")
+                })?))
+            })
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
@@ -117,11 +134,8 @@ impl Users {
         token: &str,
         initial_device_display_name: Option<String>,
     ) -> Result<()> {
-        if !self.exists(user_id)? {
-            return Err(Error::BadRequest(
-                "tried to create device for nonexistent user",
-            ));
-        }
+        // This method should never be called for nonexistent users.
+        assert!(self.exists(user_id)?);
 
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
@@ -134,7 +148,8 @@ impl Users {
                 display_name: initial_device_display_name,
                 last_seen_ip: None, // TODO
                 last_seen_ts: Some(SystemTime::now()),
-            })?
+            })
+            .expect("Device::to_string never fails.")
             .as_bytes(),
         )?;
 
@@ -185,23 +200,22 @@ impl Users {
                     &*bytes?
                         .rsplit(|&b| b == 0xff)
                         .next()
-                        .ok_or(Error::BadDatabase("userdeviceid is invalid"))?,
-                )?)
+                        .ok_or(Error::BadDatabase("UserDevice ID in db is invalid."))?,
+                )
+                .map_err(|_| {
+                    Error::BadDatabase("Device ID in userdeviceid_metadata is invalid.")
+                })?)
             })
     }
 
     /// Replaces the access token of one device.
-    pub fn set_token(&self, user_id: &UserId, device_id: &str, token: &str) -> Result<()> {
+    fn set_token(&self, user_id: &UserId, device_id: &str, token: &str) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
         // All devices have metadata
-        if self.userdeviceid_metadata.get(&userdeviceid)?.is_none() {
-            return Err(Error::BadRequest(
-                "Tried to set token for nonexistent device",
-            ));
-        }
+        assert!(self.userdeviceid_metadata.get(&userdeviceid)?.is_some());
 
         // Remove old token
         if let Some(old_token) = self.userdeviceid_token.get(&userdeviceid)? {
@@ -228,19 +242,23 @@ impl Users {
         key.extend_from_slice(device_id.as_bytes());
 
         // All devices have metadata
-        if self.userdeviceid_metadata.get(&key)?.is_none() {
-            return Err(Error::BadRequest(
-                "Tried to set token for nonexistent device",
-            ));
-        }
+        // Only existing devices should be able to call this.
+        assert!(self.userdeviceid_metadata.get(&key)?.is_some());
 
         key.push(0xff);
         // TODO: Use AlgorithmAndDeviceId::to_string when it's available (and update everything,
         // because there are no wrapping quotation marks anymore)
-        key.extend_from_slice(&serde_json::to_string(one_time_key_key)?.as_bytes());
+        key.extend_from_slice(
+            &serde_json::to_string(one_time_key_key)
+                .expect("AlgorithmAndDeviceId::to_string always works")
+                .as_bytes(),
+        );
 
-        self.onetimekeyid_onetimekeys
-            .insert(&key, &*serde_json::to_string(&one_time_key_value)?)?;
+        self.onetimekeyid_onetimekeys.insert(
+            &key,
+            &*serde_json::to_string(&one_time_key_value)
+                .expect("OneTimeKey::to_string always works"),
+        )?;
 
         Ok(())
     }
@@ -271,9 +289,11 @@ impl Users {
                         &*key
                             .rsplit(|&b| b == 0xff)
                             .next()
-                            .ok_or(Error::BadDatabase("onetimekeyid is invalid"))?,
-                    )?,
-                    serde_json::from_slice(&*value)?,
+                            .ok_or(Error::BadDatabase("OneTimeKeyId in db is invalid."))?,
+                    )
+                    .map_err(|_| Error::BadDatabase("OneTimeKeyId in db is invalid."))?,
+                    serde_json::from_slice(&*value)
+                        .map_err(|_| Error::BadDatabase("OneTimeKeys in db are invalid."))?,
                 ))
             })
             .transpose()
@@ -300,8 +320,9 @@ impl Users {
                         &*bytes?
                             .rsplit(|&b| b == 0xff)
                             .next()
-                            .ok_or(Error::BadDatabase("onetimekeyid is invalid"))?,
-                    )?
+                            .ok_or(Error::BadDatabase("OneTimeKey ID in db is invalid."))?,
+                    )
+                    .map_err(|_| Error::BadDatabase("AlgorithmAndDeviceID in db is invalid."))?
                     .0,
                 )
             })
@@ -323,8 +344,10 @@ impl Users {
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
-        self.userdeviceid_devicekeys
-            .insert(&userdeviceid, &*serde_json::to_string(&device_keys)?)?;
+        self.userdeviceid_devicekeys.insert(
+            &userdeviceid,
+            &*serde_json::to_string(&device_keys).expect("DeviceKeys::to_string always works"),
+        )?;
 
         self.devicekeychangeid_userid
             .insert(globals.next_count()?.to_be_bytes(), &*user_id.to_string())?;
@@ -344,14 +367,21 @@ impl Users {
         self.userdeviceid_devicekeys
             .scan_prefix(key)
             .values()
-            .map(|bytes| Ok(serde_json::from_slice(&bytes?)?))
+            .map(|bytes| {
+                Ok(serde_json::from_slice(&bytes?)
+                    .map_err(|_| Error::BadDatabase("DeviceKeys in db are invalid."))?)
+            })
     }
 
     pub fn device_keys_changed(&self, since: u64) -> impl Iterator<Item = Result<UserId>> {
         self.devicekeychangeid_userid
             .range(since.to_be_bytes()..)
             .values()
-            .map(|bytes| Ok(UserId::try_from(utils::string_from_bytes(&bytes?)?)?))
+            .map(|bytes| {
+                Ok(serde_json::from_slice(&bytes?).map_err(|_| {
+                    Error::BadDatabase("User ID in devicekeychangeid_userid is invalid.")
+                })?)
+            })
     }
 
     pub fn all_device_keys(
@@ -366,9 +396,14 @@ impl Users {
             let userdeviceid = utils::string_from_bytes(
                 key.rsplit(|&b| b == 0xff)
                     .next()
-                    .ok_or(Error::BadDatabase("userdeviceid is invalid"))?,
-            )?;
-            Ok((userdeviceid, serde_json::from_slice(&*value)?))
+                    .ok_or(Error::BadDatabase("UserDeviceID in db is invalid."))?,
+            )
+            .map_err(|_| Error::BadDatabase("UserDeviceId in db is invalid."))?;
+            Ok((
+                userdeviceid,
+                serde_json::from_slice(&*value)
+                    .map_err(|_| Error::BadDatabase("DeviceKeys in db are invalid."))?,
+            ))
         })
     }
 
@@ -392,8 +427,10 @@ impl Users {
         json.insert("sender".to_owned(), sender.to_string().into());
         json.insert("content".to_owned(), content);
 
-        self.todeviceid_events
-            .insert(&key, &*serde_json::to_string(&json)?)?;
+        self.todeviceid_events.insert(
+            &key,
+            &*serde_json::to_string(&json).expect("Map::to_string always works"),
+        )?;
 
         Ok(())
     }
@@ -413,7 +450,10 @@ impl Users {
 
         for result in self.todeviceid_events.scan_prefix(&prefix).take(max) {
             let (key, value) = result?;
-            events.push(serde_json::from_slice(&*value)?);
+            events.push(
+                serde_json::from_slice(&*value)
+                    .map_err(|_| Error::BadDatabase("Event in todeviceid_events is invalid."))?,
+            );
             self.todeviceid_events.remove(key)?;
         }
 
@@ -430,12 +470,15 @@ impl Users {
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
-        if self.userdeviceid_metadata.get(&userdeviceid)?.is_none() {
-            return Err(Error::BadRequest("device does not exist"));
-        }
+        // Only existing devices should be able to call this.
+        assert!(self.userdeviceid_metadata.get(&userdeviceid)?.is_some());
 
-        self.userdeviceid_metadata
-            .insert(userdeviceid, serde_json::to_string(device)?.as_bytes())?;
+        self.userdeviceid_metadata.insert(
+            userdeviceid,
+            serde_json::to_string(device)
+                .expect("Device::to_string always works")
+                .as_bytes(),
+        )?;
 
         Ok(())
     }
@@ -448,7 +491,11 @@ impl Users {
 
         self.userdeviceid_metadata
             .get(&userdeviceid)?
-            .map_or(Ok(None), |bytes| Ok(Some(serde_json::from_slice(&bytes)?)))
+            .map_or(Ok(None), |bytes| {
+                Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
+                    Error::BadDatabase("Metadata in userdeviceid_metadata is invalid.")
+                })?))
+            })
     }
 
     pub fn all_devices_metadata(&self, user_id: &UserId) -> impl Iterator<Item = Result<Device>> {
@@ -458,6 +505,10 @@ impl Users {
         self.userdeviceid_metadata
             .scan_prefix(key)
             .values()
-            .map(|bytes| Ok(serde_json::from_slice::<Device>(&bytes?)?))
+            .map(|bytes| {
+                Ok(serde_json::from_slice::<Device>(&bytes?).map_err(|_| {
+                    Error::BadDatabase("Device in userdeviceid_metadata is invalid.")
+                })?)
+            })
     }
 }

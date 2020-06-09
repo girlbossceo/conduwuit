@@ -12,7 +12,7 @@ mod utils;
 pub use database::Database;
 pub use error::{Error, Result};
 pub use pdu::PduEvent;
-pub use ruma_wrapper::{MatrixResult, Ruma};
+pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
 use rocket::{fairing::AdHoc, routes};
 
@@ -95,7 +95,7 @@ fn setup_rocket() -> rocket::Rocket {
             ],
         )
         .attach(AdHoc::on_attach("Config", |rocket| {
-            let data = Database::load_or_create(&rocket.config());
+            let data = Database::load_or_create(&rocket.config()).expect("valid config");
 
             Ok(rocket.manage(data))
         }))

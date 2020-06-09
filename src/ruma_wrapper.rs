@@ -1,4 +1,4 @@
-use crate::utils;
+use crate::{utils, Error};
 use log::warn;
 use rocket::{
     data::{Data, FromData, FromDataFuture, Transform, TransformFuture, Transformed},
@@ -42,7 +42,7 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
             let data = rocket::try_outcome!(outcome.owned());
 
             let (user_id, device_id) = if T::METADATA.requires_authentication {
-                let db = request.guard::<State<'_, crate::Database>>().await.unwrap();
+                let db = request.guard::<State<'_, crate::Database>>().await.expect("database was loaded");
 
                 // Get token from header or query value
                 let token = match request
@@ -108,32 +108,24 @@ impl<T> Deref for Ruma<T> {
 }
 
 /// This struct converts ruma responses into rocket http responses.
-pub struct MatrixResult<T, E = ruma::api::client::Error>(pub std::result::Result<T, E>);
+pub type ConduitResult<T> = std::result::Result<RumaResponse<T>, Error>;
 
-impl<T, E> TryInto<http::Response<Vec<u8>>> for MatrixResult<T, E>
-where
-    T: TryInto<http::Response<Vec<u8>>>,
-    E: Into<http::Response<Vec<u8>>>,
-{
-    type Error = T::Error;
+pub struct RumaResponse<T: TryInto<http::Response<Vec<u8>>>>(pub T);
 
-    fn try_into(self) -> Result<http::Response<Vec<u8>>, T::Error> {
-        match self.0 {
-            Ok(t) => t.try_into(),
-            Err(e) => Ok(e.into()),
-        }
+impl<T: TryInto<http::Response<Vec<u8>>>> From<T> for RumaResponse<T> {
+    fn from(t: T) -> Self {
+        Self(t)
     }
 }
 
 #[rocket::async_trait]
-impl<'r, T, E> Responder<'r> for MatrixResult<T, E>
+impl<'r, T> Responder<'r> for RumaResponse<T>
 where
     T: Send + TryInto<http::Response<Vec<u8>>>,
     T::Error: Send,
-    E: Into<http::Response<Vec<u8>>> + Send,
 {
     async fn respond_to(self, _: &'r Request<'_>) -> response::Result<'r> {
-        let http_response: Result<http::Response<_>, _> = self.try_into();
+        let http_response: Result<http::Response<_>, _> = self.0.try_into();
         match http_response {
             Ok(http_response) => {
                 let mut response = rocket::response::Response::build();
@@ -163,13 +155,5 @@ where
             }
             Err(_) => Err(Status::InternalServerError),
         }
-    }
-}
-
-impl<T, E> Deref for MatrixResult<T, E> {
-    type Target = Result<T, E>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }

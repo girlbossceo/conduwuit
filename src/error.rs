@@ -1,41 +1,79 @@
+use crate::RumaResponse;
+use http::StatusCode;
+use rocket::{
+    response::{self, Responder},
+    Request,
+};
+use ruma::api::client::{
+    error::{Error as RumaError, ErrorKind},
+    r0::uiaa::{UiaaInfo, UiaaResponse},
+};
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("problem with the database")]
+    #[error("There was a problem with the connection to the database.")]
     SledError {
         #[from]
         source: sled::Error,
     },
-    #[error("tried to parse invalid string")]
-    StringFromBytesError {
-        #[from]
-        source: std::string::FromUtf8Error,
-    },
-    #[error("tried to parse invalid identifier")]
-    SerdeJsonError {
-        #[from]
-        source: serde_json::Error,
-    },
-    #[error("tried to parse invalid identifier")]
-    RumaIdentifierError {
-        #[from]
-        source: ruma::identifiers::Error,
-    },
-    #[error("tried to parse invalid event")]
-    RumaEventError {
-        #[from]
-        source: ruma::events::InvalidEvent,
-    },
-    #[error("could not generate image")]
+    #[error("Could not generate an image.")]
     ImageError {
         #[from]
         source: image::error::ImageError,
     },
-    #[error("bad request")]
-    BadRequest(&'static str),
-    #[error("problem in that database")]
+    #[error("{0}")]
+    BadConfig(&'static str),
+    #[error("{0}")]
     BadDatabase(&'static str),
+    #[error("uiaa")]
+    Uiaa(UiaaInfo),
+
+    #[error("{0}: {1}")]
+    BadRequest(ErrorKind, &'static str),
+    #[error("{0}")]
+    Conflict(&'static str), // This is only needed for when a room alias already exists
+}
+
+#[rocket::async_trait]
+impl<'r> Responder<'r> for Error {
+    async fn respond_to(self, r: &'r Request<'_>) -> response::Result<'r> {
+        if let Self::Uiaa(uiaainfo) = &self {
+            return RumaResponse::from(UiaaResponse::AuthResponse(uiaainfo.clone()))
+                .respond_to(r)
+                .await;
+        }
+
+        let message = format!("{}", self);
+
+        use ErrorKind::*;
+        let (kind, status_code) = match self {
+            Self::BadRequest(kind, _) => (
+                kind,
+                match kind {
+                    Forbidden | GuestAccessForbidden | ThreepidAuthFailed | ThreepidDenied => {
+                        StatusCode::FORBIDDEN
+                    }
+                    Unauthorized | UnknownToken | MissingToken => StatusCode::UNAUTHORIZED,
+                    NotFound => StatusCode::NOT_FOUND,
+                    LimitExceeded => StatusCode::TOO_MANY_REQUESTS,
+                    UserDeactivated => StatusCode::FORBIDDEN,
+                    TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+                    _ => StatusCode::BAD_REQUEST,
+                },
+            ),
+            Self::Conflict(_) => (Unknown, StatusCode::CONFLICT),
+            _ => (Unknown, StatusCode::INTERNAL_SERVER_ERROR),
+        };
+
+        RumaResponse::from(RumaError {
+            kind,
+            message,
+            status_code,
+        })
+        .respond_to(r)
+        .await
+    }
 }

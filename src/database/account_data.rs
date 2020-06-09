@@ -1,5 +1,6 @@
 use crate::{utils, Error, Result};
 use ruma::{
+    api::client::error::ErrorKind,
     events::{collections::only::Event as EduEvent, EventJson, EventType},
     identifiers::{RoomId, UserId},
 };
@@ -20,7 +21,10 @@ impl AccountData {
         globals: &super::globals::Globals,
     ) -> Result<()> {
         if json.get("content").is_none() {
-            return Err(Error::BadRequest("json needs to have a content field"));
+            return Err(Error::BadRequest(
+                ErrorKind::BadJson,
+                "Json needs to have a content field.",
+            ));
         }
         json.insert("type".to_owned(), kind.to_string().into());
 
@@ -62,9 +66,10 @@ impl AccountData {
         key.push(0xff);
         key.extend_from_slice(kind.to_string().as_bytes());
 
-        self.roomuserdataid_accountdata
-            .insert(key, &*serde_json::to_string(&json)?)
-            .unwrap();
+        self.roomuserdataid_accountdata.insert(
+            key,
+            &*serde_json::to_string(&json).expect("Map::to_string always works"),
+        )?;
 
         Ok(())
     }
@@ -109,17 +114,22 @@ impl AccountData {
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(k, v)| {
                 Ok::<_, Error>((
-                    EventType::try_from(utils::string_from_bytes(
-                        k.rsplit(|&b| b == 0xff)
-                            .next()
-                            .ok_or(Error::BadDatabase("roomuserdataid is invalid"))?,
-                    )?)
-                    .map_err(|_| Error::BadDatabase("roomuserdataid is invalid"))?,
-                    serde_json::from_slice::<EventJson<EduEvent>>(&v).unwrap(),
+                    EventType::try_from(
+                        utils::string_from_bytes(
+                            k.rsplit(|&b| b == 0xff)
+                                .next()
+                                .ok_or(Error::BadDatabase("RoomUserData ID in db is invalid."))?,
+                        )
+                        .map_err(|_| Error::BadDatabase("RoomUserData ID in db is invalid."))?,
+                    )
+                    .map_err(|_| Error::BadDatabase("RoomUserData ID in db is invalid."))?,
+                    serde_json::from_slice::<EventJson<EduEvent>>(&v).map_err(|_| {
+                        Error::BadDatabase("Database contains invalid account data.")
+                    })?,
                 ))
             })
         {
-            let (kind, data) = r.unwrap();
+            let (kind, data) = r?;
             userdata.insert(kind, data);
         }
 

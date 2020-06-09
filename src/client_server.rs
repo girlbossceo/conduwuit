@@ -4,12 +4,12 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::{utils, Database, MatrixResult, Ruma};
+use crate::{utils, ConduitResult, Database, Error, Ruma};
 use log::{debug, warn};
 use rocket::{delete, get, options, post, put, State};
 use ruma::{
     api::client::{
-        error::{Error, ErrorKind},
+        error::ErrorKind,
         r0::{
             account::{get_username_availability, register},
             alias::{create_alias, delete_alias, get_alias},
@@ -53,7 +53,10 @@ use ruma::{
     },
     events::{
         collections::only::Event as EduEvent,
-        room::{canonical_alias, guest_access, history_visibility, join_rules, member, redaction},
+        room::{
+            canonical_alias, guest_access, history_visibility, join_rules, member, name, redaction,
+            topic,
+        },
         EventJson, EventType,
     },
     identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId},
@@ -67,66 +70,58 @@ const MXC_LENGTH: usize = 256;
 const SESSION_ID_LENGTH: usize = 256;
 
 #[get("/_matrix/client/versions")]
-pub fn get_supported_versions_route() -> MatrixResult<get_supported_versions::Response> {
-    MatrixResult(Ok(get_supported_versions::Response {
+pub fn get_supported_versions_route() -> ConduitResult<get_supported_versions::Response> {
+    Ok(get_supported_versions::Response {
         versions: vec!["r0.5.0".to_owned(), "r0.6.0".to_owned()],
         unstable_features: BTreeMap::new(),
-    }))
+    }
+    .into())
 }
 
 #[get("/_matrix/client/r0/register/available", data = "<body>")]
 pub fn get_register_available_route(
     db: State<'_, Database>,
     body: Ruma<get_username_availability::Request>,
-) -> MatrixResult<get_username_availability::Response> {
+) -> ConduitResult<get_username_availability::Response> {
     // Validate user id
-    let user_id =
-        match UserId::parse_with_server_name(body.username.clone(), db.globals.server_name())
-            .ok()
-            .filter(|user_id| !user_id.is_historical())
-        {
-            None => {
-                debug!("Username invalid");
-                return MatrixResult(Err(Error {
-                    kind: ErrorKind::InvalidUsername,
-                    message: "Username was invalid.".to_owned(),
-                    status_code: http::StatusCode::BAD_REQUEST,
-                }));
-            }
-            Some(user_id) => user_id,
-        };
+    let user_id = UserId::parse_with_server_name(body.username.clone(), db.globals.server_name())
+        .ok()
+        .filter(|user_id| {
+            !user_id.is_historical() && user_id.server_name() == db.globals.server_name()
+        })
+        .ok_or(Error::BadRequest(
+            ErrorKind::InvalidUsername,
+            "Username is invalid.",
+        ))?;
 
     // Check if username is creative enough
-    if db.users.exists(&user_id).unwrap() {
-        debug!("ID already taken");
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::UserInUse,
-            message: "Desired user ID is already taken.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }));
+    if db.users.exists(&user_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::UserInUse,
+            "Desired user ID is already taken.",
+        ));
     }
 
     // TODO add check for appservice namespaces
 
     // If no if check is true we have an username that's available to be used.
-    MatrixResult(Ok(get_username_availability::Response { available: true }))
+    Ok(get_username_availability::Response { available: true }.into())
 }
 
 #[post("/_matrix/client/r0/register", data = "<body>")]
 pub fn register_route(
     db: State<'_, Database>,
     body: Ruma<register::Request>,
-) -> MatrixResult<register::Response, UiaaResponse> {
+) -> ConduitResult<register::Response> {
     if db.globals.registration_disabled() {
-        return MatrixResult(Err(UiaaResponse::MatrixError(Error {
-            kind: ErrorKind::Unknown,
-            message: "Registration has been disabled.".to_owned(),
-            status_code: http::StatusCode::FORBIDDEN,
-        })));
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Registration has been disabled.",
+        ));
     }
 
     // Validate user id
-    let user_id = match UserId::parse_with_server_name(
+    let user_id = UserId::parse_with_server_name(
         body.username
             .clone()
             .unwrap_or_else(|| utils::random_string(GUEST_NAME_LENGTH))
@@ -134,65 +129,55 @@ pub fn register_route(
         db.globals.server_name(),
     )
     .ok()
-    .filter(|user_id| !user_id.is_historical())
-    {
-        None => {
-            debug!("Username invalid");
-            return MatrixResult(Err(UiaaResponse::MatrixError(Error {
-                kind: ErrorKind::InvalidUsername,
-                message: "Username was invalid.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            })));
-        }
-        Some(user_id) => user_id,
-    };
+    .filter(|user_id| !user_id.is_historical() && user_id.server_name() == db.globals.server_name())
+    .ok_or(Error::BadRequest(
+        ErrorKind::InvalidUsername,
+        "Username is invalid.",
+    ))?;
 
     // Check if username is creative enough
-    if db.users.exists(&user_id).unwrap() {
-        debug!("ID already taken");
-        return MatrixResult(Err(UiaaResponse::MatrixError(Error {
-            kind: ErrorKind::UserInUse,
-            message: "Desired user ID is already taken.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        })));
+    if db.users.exists(&user_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::UserInUse,
+            "Desired user ID is already taken.",
+        ));
     }
 
     // UIAA
-    let uiaainfo = UiaaInfo {
+    let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
             stages: vec!["m.login.dummy".to_owned()],
         }],
         completed: Vec::new(),
         params: Default::default(),
-        session: Some(utils::random_string(SESSION_ID_LENGTH)),
+        session: None,
         auth_error: None,
     };
 
     if let Some(auth) = &body.auth {
-        let (worked, uiaainfo) = db
-            .uiaa
-            .try_auth(&user_id, "", auth, &uiaainfo, &db.users, &db.globals)
-            .unwrap();
+        let (worked, uiaainfo) =
+            db.uiaa
+                .try_auth(&user_id, "", auth, &uiaainfo, &db.users, &db.globals)?;
         if !worked {
-            return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+            return Err(Error::Uiaa(uiaainfo));
         }
     // Success!
     } else {
-        db.uiaa.create(&user_id, "", &uiaainfo).unwrap();
-        return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+        db.uiaa.create(&user_id, "", &uiaainfo)?;
+        return Err(Error::Uiaa(uiaainfo));
     }
 
     let password = body.password.clone().unwrap_or_default();
 
     if let Ok(hash) = utils::calculate_hash(&password) {
         // Create user
-        db.users.create(&user_id, &hash).unwrap();
+        db.users.create(&user_id, &hash)?;
     } else {
-        return MatrixResult(Err(UiaaResponse::MatrixError(Error {
-            kind: ErrorKind::InvalidParam,
-            message: "Password did not met requirements".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        })));
+        return Err(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Password does not meet the requirements.",
+        ));
     }
 
     // Generate new device id if the user didn't specify one
@@ -205,123 +190,95 @@ pub fn register_route(
     let token = utils::random_string(TOKEN_LENGTH);
 
     // Add device
-    db.users
-        .create_device(
-            &user_id,
-            &device_id,
-            &token,
-            body.initial_device_display_name.clone(),
-        )
-        .unwrap();
+    db.users.create_device(
+        &user_id,
+        &device_id,
+        &token,
+        body.initial_device_display_name.clone(),
+    )?;
 
     // Initial data
-    db.account_data
-        .update(
-            None,
-            &user_id,
-            &EventType::PushRules,
-            serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
-                content: ruma::events::push_rules::PushRulesEventContent {
-                    global: ruma::events::push_rules::Ruleset {
-                        content: vec![],
-                        override_: vec![ruma::events::push_rules::ConditionalPushRule {
-                            actions: vec![ruma::events::push_rules::Action::DontNotify],
-                            default: true,
-                            enabled: false,
-                            rule_id: ".m.rule.master".to_owned(),
-                            conditions: vec![],
+    db.account_data.update(
+        None,
+        &user_id,
+        &EventType::PushRules,
+        serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
+            content: ruma::events::push_rules::PushRulesEventContent {
+                global: ruma::events::push_rules::Ruleset {
+                    content: vec![],
+                    override_: vec![ruma::events::push_rules::ConditionalPushRule {
+                        actions: vec![ruma::events::push_rules::Action::DontNotify],
+                        default: true,
+                        enabled: false,
+                        rule_id: ".m.rule.master".to_owned(),
+                        conditions: vec![],
+                    }],
+                    room: vec![],
+                    sender: vec![],
+                    underride: vec![ruma::events::push_rules::ConditionalPushRule {
+                        actions: vec![
+                            ruma::events::push_rules::Action::Notify,
+                            ruma::events::push_rules::Action::SetTweak(ruma::push::Tweak::Sound(
+                                "default".to_owned(),
+                            )),
+                        ],
+                        default: true,
+                        enabled: true,
+                        rule_id: ".m.rule.message".to_owned(),
+                        conditions: vec![ruma::events::push_rules::PushCondition::EventMatch {
+                            key: "type".to_owned(),
+                            pattern: "m.room.message".to_owned(),
                         }],
-                        room: vec![],
-                        sender: vec![],
-                        underride: vec![ruma::events::push_rules::ConditionalPushRule {
-                            actions: vec![
-                                ruma::events::push_rules::Action::Notify,
-                                ruma::events::push_rules::Action::SetTweak(
-                                    ruma::push::Tweak::Sound("default".to_owned()),
-                                ),
-                            ],
-                            default: true,
-                            enabled: true,
-                            rule_id: ".m.rule.message".to_owned(),
-                            conditions: vec![ruma::events::push_rules::PushCondition::EventMatch {
-                                key: "type".to_owned(),
-                                pattern: "m.room.message".to_owned(),
-                            }],
-                        }],
-                    },
+                    }],
                 },
-            })
-            .unwrap()
-            .as_object_mut()
-            .unwrap(),
-            &db.globals,
-        )
-        .unwrap();
+            },
+        })
+        .expect("data is valid, we just created it")
+        .as_object_mut()
+        .expect("data is valid, we just created it"),
+        &db.globals,
+    )?;
 
-    MatrixResult(Ok(register::Response {
+    Ok(register::Response {
         access_token: Some(token),
         user_id,
         device_id: Some(device_id),
-    }))
+    }
+    .into())
 }
 
 #[get("/_matrix/client/r0/login")]
-pub fn get_login_route() -> MatrixResult<get_login_types::Response> {
-    MatrixResult(Ok(get_login_types::Response {
+pub fn get_login_route() -> ConduitResult<get_login_types::Response> {
+    Ok(get_login_types::Response {
         flows: vec![get_login_types::LoginType::Password],
-    }))
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/login", data = "<body>")]
 pub fn login_route(
     db: State<'_, Database>,
     body: Ruma<login::Request>,
-) -> MatrixResult<login::Response> {
+) -> ConduitResult<login::Response> {
     // Validate login method
     let user_id =
         // TODO: Other login methods
         if let (login::UserInfo::MatrixId(username), login::LoginInfo::Password { password }) =
             (body.user.clone(), body.login_info.clone())
         {
-            if let Ok(user_id) = UserId::parse_with_server_name(username, db.globals.server_name()) {
-                if let Some(hash) = db.users.password_hash(&user_id).unwrap() {
-                    let hash_matches =
-                        argon2::verify_encoded(&hash, password.as_bytes()).unwrap_or(false);
+            let user_id = UserId::parse_with_server_name(username, db.globals.server_name()).map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
+            let hash = db.users.password_hash(&user_id)?.ok_or(Error::BadRequest(ErrorKind::Forbidden, "Wrong username or password."))?;
 
-                    if hash_matches {
-                        // Success!
-                        user_id
-                    } else {
-                        debug!("Invalid password.");
-                        return MatrixResult(Err(Error {
-                            kind: ErrorKind::Forbidden,
-                            message: "".to_owned(),
-                            status_code: http::StatusCode::FORBIDDEN,
-                        }));
-                    }
-                } else {
-                    debug!("UserId does not exist (has no assigned password). Can't log in.");
-                    return MatrixResult(Err(Error {
-                        kind: ErrorKind::Forbidden,
-                        message: "".to_owned(),
-                        status_code: http::StatusCode::FORBIDDEN,
-                    }));
-                }
-            } else {
-                debug!("Invalid UserId.");
-                return MatrixResult(Err(Error {
-                    kind: ErrorKind::InvalidUsername,
-                    message: "Bad user id.".to_owned(),
-                    status_code: http::StatusCode::BAD_REQUEST,
-                }));
+            let hash_matches =
+                argon2::verify_encoded(&hash, password.as_bytes()).unwrap_or(false);
+
+            if !hash_matches {
+                return Err(Error::BadRequest(ErrorKind::Forbidden, "Wrong username or password."));
             }
+
+            user_id
         } else {
-            debug!("Bad login type");
-            return MatrixResult(Err(Error {
-                kind: ErrorKind::Unknown,
-                message: "Bad login type.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }));
+            return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
         };
 
     // Generate new device id if the user didn't specify one
@@ -335,39 +292,38 @@ pub fn login_route(
     let token = utils::random_string(TOKEN_LENGTH);
 
     // Add device
-    db.users
-        .create_device(
-            &user_id,
-            &device_id,
-            &token,
-            body.initial_device_display_name.clone(),
-        )
-        .unwrap();
+    db.users.create_device(
+        &user_id,
+        &device_id,
+        &token,
+        body.initial_device_display_name.clone(),
+    )?;
 
-    MatrixResult(Ok(login::Response {
+    Ok(login::Response {
         user_id,
         access_token: token,
         home_server: Some(db.globals.server_name().to_owned()),
         device_id,
         well_known: None,
-    }))
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/logout", data = "<body>")]
 pub fn logout_route(
     db: State<'_, Database>,
     body: Ruma<logout::Request>,
-) -> MatrixResult<logout::Response> {
+) -> ConduitResult<logout::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
-    db.users.remove_device(&user_id, &device_id).unwrap();
+    db.users.remove_device(&user_id, &device_id)?;
 
-    MatrixResult(Ok(logout::Response))
+    Ok(logout::Response.into())
 }
 
 #[get("/_matrix/client/r0/capabilities")]
-pub fn get_capabilities_route() -> MatrixResult<get_capabilities::Response> {
+pub fn get_capabilities_route() -> ConduitResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
     available.insert(
         RoomVersionId::version_5(),
@@ -378,7 +334,7 @@ pub fn get_capabilities_route() -> MatrixResult<get_capabilities::Response> {
         get_capabilities::RoomVersionStability::Stable,
     );
 
-    MatrixResult(Ok(get_capabilities::Response {
+    Ok(get_capabilities::Response {
         capabilities: get_capabilities::Capabilities {
             change_password: None, // None means it is possible
             room_versions: Some(get_capabilities::RoomVersionsCapability {
@@ -387,31 +343,36 @@ pub fn get_capabilities_route() -> MatrixResult<get_capabilities::Response> {
             }),
             custom_capabilities: BTreeMap::new(),
         },
-    }))
+    }
+    .into())
 }
 
 #[get("/_matrix/client/r0/pushrules", data = "<body>")]
 pub fn get_pushrules_all_route(
     db: State<'_, Database>,
     body: Ruma<get_pushrules_all::Request>,
-) -> MatrixResult<get_pushrules_all::Response> {
+) -> ConduitResult<get_pushrules_all::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if let Some(EduEvent::PushRules(pushrules)) = db
+    if let EduEvent::PushRules(pushrules) = db
         .account_data
-        .get(None, &user_id, &EventType::PushRules)
-        .unwrap()
-        .map(|edu| edu.deserialize().expect("PushRules event in db is valid"))
+        .get(None, &user_id, &EventType::PushRules)?
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "PushRules event not found.",
+        ))?
+        .deserialize()
+        .map_err(|_| Error::BadRequest(
+            ErrorKind::NotFound,
+            "PushRules event in db is invalid.",
+        ))?
     {
-        MatrixResult(Ok(get_pushrules_all::Response {
+        Ok(get_pushrules_all::Response {
             global: pushrules.content.global,
-        }))
+        }
+        .into())
     } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "PushRules event not found.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
+        Err(Error::BadDatabase("Pushrules event has wrong content."))
     }
 }
 
@@ -425,10 +386,10 @@ pub fn set_pushrule_route(
     _scope: String,
     _kind: String,
     _rule_id: String,
-) -> MatrixResult<set_pushrule::Response> {
+) -> ConduitResult<set_pushrule::Response> {
     // TODO
     warn!("TODO: set_pushrule_route");
-    MatrixResult(Ok(set_pushrule::Response))
+    Ok(set_pushrule::Response.into())
 }
 
 #[put("/_matrix/client/r0/pushrules/<_scope>/<_kind>/<_rule_id>/enabled")]
@@ -436,19 +397,19 @@ pub fn set_pushrule_enabled_route(
     _scope: String,
     _kind: String,
     _rule_id: String,
-) -> MatrixResult<set_pushrule_enabled::Response> {
+) -> ConduitResult<set_pushrule_enabled::Response> {
     // TODO
     warn!("TODO: set_pushrule_enabled_route");
-    MatrixResult(Ok(set_pushrule_enabled::Response))
+    Ok(set_pushrule_enabled::Response.into())
 }
 
 #[get("/_matrix/client/r0/user/<_user_id>/filter/<_filter_id>")]
 pub fn get_filter_route(
     _user_id: String,
     _filter_id: String,
-) -> MatrixResult<get_filter::Response> {
+) -> ConduitResult<get_filter::Response> {
     // TODO
-    MatrixResult(Ok(get_filter::Response {
+    Ok(get_filter::Response {
         filter: filter::FilterDefinition {
             event_fields: None,
             event_format: None,
@@ -456,15 +417,17 @@ pub fn get_filter_route(
             room: None,
             presence: None,
         },
-    }))
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/user/<_user_id>/filter")]
-pub fn create_filter_route(_user_id: String) -> MatrixResult<create_filter::Response> {
+pub fn create_filter_route(_user_id: String) -> ConduitResult<create_filter::Response> {
     // TODO
-    MatrixResult(Ok(create_filter::Response {
+    Ok(create_filter::Response {
         filter_id: utils::random_string(10),
-    }))
+    }
+    .into())
 }
 
 #[put(
@@ -476,22 +439,24 @@ pub fn set_global_account_data_route(
     body: Ruma<set_global_account_data::Request>,
     _user_id: String,
     _type: String,
-) -> MatrixResult<set_global_account_data::Response> {
+) -> ConduitResult<set_global_account_data::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    db.account_data
-        .update(
-            None,
-            user_id,
-            &EventType::try_from(&body.event_type).unwrap(),
-            json!({"content": serde_json::from_str::<serde_json::Value>(body.data.get()).unwrap()})
-                .as_object_mut()
-                .unwrap(),
-            &db.globals,
+    db.account_data.update(
+        None,
+        user_id,
+        &EventType::try_from(&body.event_type).expect("EventType::try_from can never fail"),
+        json!(
+            {"content": serde_json::from_str::<serde_json::Value>(body.data.get())
+                .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Data is invalid."))?
+            }
         )
-        .unwrap();
+        .as_object_mut()
+        .expect("we just created a valid object"),
+        &db.globals,
+    )?;
 
-    MatrixResult(Ok(set_global_account_data::Response))
+    Ok(set_global_account_data::Response.into())
 }
 
 #[get(
@@ -503,26 +468,19 @@ pub fn get_global_account_data_route(
     body: Ruma<get_global_account_data::Request>,
     _user_id: String,
     _type: String,
-) -> MatrixResult<get_global_account_data::Response> {
+) -> ConduitResult<get_global_account_data::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if let Some(data) = db
+    let data = db
         .account_data
         .get(
             None,
             user_id,
-            &EventType::try_from(&body.event_type).unwrap(),
-        )
-        .unwrap()
-    {
-        MatrixResult(Ok(get_global_account_data::Response { account_data: data }))
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "Data not found.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
-    }
+            &EventType::try_from(&body.event_type).expect("EventType::try_from can never fail"),
+        )?
+        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
+
+    Ok(get_global_account_data::Response { account_data: data }.into())
 }
 
 #[put("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")]
@@ -530,64 +488,64 @@ pub fn set_displayname_route(
     db: State<'_, Database>,
     body: Ruma<set_display_name::Request>,
     _user_id: String,
-) -> MatrixResult<set_display_name::Response> {
+) -> ConduitResult<set_display_name::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     db.users
-        .set_displayname(&user_id, body.displayname.clone())
-        .unwrap();
+        .set_displayname(&user_id, body.displayname.clone())?;
 
     // Send a new membership event into all joined rooms
     for room_id in db.rooms.rooms_joined(&user_id) {
-        let room_id = room_id.unwrap();
-        db.rooms
-            .append_pdu(
-                room_id.clone(),
-                user_id.clone(),
-                EventType::RoomMember,
-                serde_json::to_value(ruma::events::room::member::MemberEventContent {
-                    displayname: body.displayname.clone(),
-                    ..serde_json::from_value::<EventJson<_>>(
-                        db.rooms
-                            .room_state(&room_id)
-                            .unwrap()
-                            .get(&(EventType::RoomMember, user_id.to_string()))
-                            .expect("user is part of the room")
-                            .content
-                            .clone(),
-                    )
-                    .unwrap()
-                    .deserialize()
-                    .unwrap()
-                })
-                .unwrap(),
-                None,
-                Some(user_id.to_string()),
-                None,
-                &db.globals,
-            )
-            .unwrap();
+        let room_id = room_id?;
+        db.rooms.append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomMember,
+            serde_json::to_value(ruma::events::room::member::MemberEventContent {
+                displayname: body.displayname.clone(),
+                ..serde_json::from_value::<EventJson<_>>(
+                    db.rooms
+                        .room_state(&room_id)?
+                        .get(&(EventType::RoomMember, user_id.to_string()))
+                        .ok_or(Error::BadDatabase(
+                            "Tried to send displayname update for user not in the room.",
+                        ))?
+                        .content
+                        .clone(),
+                )
+                .map_err(|_| Error::BadDatabase("Database contains invalid PDU."))?
+                .deserialize()
+                .map_err(|_| Error::BadDatabase("Database contains invalid PDU."))?
+            })
+            .expect("event is valid, we just created it"),
+            None,
+            Some(user_id.to_string()),
+            None,
+            &db.globals,
+        )?;
     }
 
     // Presence update
-    db.global_edus
-        .update_presence(
-            ruma::events::presence::PresenceEvent {
-                content: ruma::events::presence::PresenceEventContent {
-                    avatar_url: db.users.avatar_url(&user_id).unwrap(),
-                    currently_active: None,
-                    displayname: db.users.displayname(&user_id).unwrap(),
-                    last_active_ago: Some(utils::millis_since_unix_epoch().try_into().unwrap()),
-                    presence: ruma::events::presence::PresenceState::Online,
-                    status_msg: None,
-                },
-                sender: user_id.clone(),
+    db.global_edus.update_presence(
+        ruma::events::presence::PresenceEvent {
+            content: ruma::events::presence::PresenceEventContent {
+                avatar_url: db.users.avatar_url(&user_id)?,
+                currently_active: None,
+                displayname: db.users.displayname(&user_id)?,
+                last_active_ago: Some(
+                    utils::millis_since_unix_epoch()
+                        .try_into()
+                        .expect("time is valid"),
+                ),
+                presence: ruma::events::presence::PresenceState::Online,
+                status_msg: None,
             },
-            &db.globals,
-        )
-        .unwrap();
+            sender: user_id.clone(),
+        },
+        &db.globals,
+    )?;
 
-    MatrixResult(Ok(set_display_name::Response))
+    Ok(set_display_name::Response.into())
 }
 
 #[get("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")]
@@ -595,11 +553,12 @@ pub fn get_displayname_route(
     db: State<'_, Database>,
     body: Ruma<get_display_name::Request>,
     _user_id: String,
-) -> MatrixResult<get_display_name::Response> {
+) -> ConduitResult<get_display_name::Response> {
     let user_id = body.body.user_id.clone();
-    MatrixResult(Ok(get_display_name::Response {
-        displayname: db.users.displayname(&user_id).unwrap(),
-    }))
+    Ok(get_display_name::Response {
+        displayname: db.users.displayname(&user_id)?,
+    }
+    .into())
 }
 
 #[put("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")]
@@ -607,78 +566,75 @@ pub fn set_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<set_avatar_url::Request>,
     _user_id: String,
-) -> MatrixResult<set_avatar_url::Response> {
+) -> ConduitResult<set_avatar_url::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     if let Some(avatar_url) = &body.avatar_url {
         if !avatar_url.starts_with("mxc://") {
-            debug!("Request contains an invalid avatar_url.");
-            return MatrixResult(Err(Error {
-                kind: ErrorKind::InvalidParam,
-                message: "avatar_url has to start with mxc://.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }));
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "avatar_url has to start with mxc://.",
+            ));
         }
 
         // TODO in the future when we can handle media uploads make sure that this url is our own server
         // TODO also make sure this is valid mxc:// format (not only starting with it)
     }
 
-    db.users
-        .set_avatar_url(&user_id, body.avatar_url.clone())
-        .unwrap();
+    db.users.set_avatar_url(&user_id, body.avatar_url.clone())?;
 
     // Send a new membership event into all joined rooms
     for room_id in db.rooms.rooms_joined(&user_id) {
-        let room_id = room_id.unwrap();
-        db.rooms
-            .append_pdu(
-                room_id.clone(),
-                user_id.clone(),
-                EventType::RoomMember,
-                serde_json::to_value(ruma::events::room::member::MemberEventContent {
-                    avatar_url: body.avatar_url.clone(),
-                    ..serde_json::from_value::<EventJson<_>>(
-                        db.rooms
-                            .room_state(&room_id)
-                            .unwrap()
-                            .get(&(EventType::RoomMember, user_id.to_string()))
-                            .expect("user should be part of the room")
-                            .content
-                            .clone(),
-                    )
-                    .unwrap()
-                    .deserialize()
-                    .unwrap()
-                })
-                .unwrap(),
-                None,
-                Some(user_id.to_string()),
-                None,
-                &db.globals,
-            )
-            .unwrap();
+        let room_id = room_id?;
+        db.rooms.append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomMember,
+            serde_json::to_value(ruma::events::room::member::MemberEventContent {
+                avatar_url: body.avatar_url.clone(),
+                ..serde_json::from_value::<EventJson<_>>(
+                    db.rooms
+                        .room_state(&room_id)?
+                        .get(&(EventType::RoomMember, user_id.to_string()))
+                        .ok_or(Error::BadDatabase(
+                            "Tried to send avatar url update for user not in the room.",
+                        ))?
+                        .content
+                        .clone(),
+                )
+                .map_err(|_| Error::BadDatabase("Database contains invalid PDU."))?
+                .deserialize()
+                .map_err(|_| Error::BadDatabase("Database contains invalid PDU."))?
+            })
+            .expect("event is valid, we just created it"),
+            None,
+            Some(user_id.to_string()),
+            None,
+            &db.globals,
+        )?;
     }
 
     // Presence update
-    db.global_edus
-        .update_presence(
-            ruma::events::presence::PresenceEvent {
-                content: ruma::events::presence::PresenceEventContent {
-                    avatar_url: db.users.avatar_url(&user_id).unwrap(),
-                    currently_active: None,
-                    displayname: db.users.displayname(&user_id).unwrap(),
-                    last_active_ago: Some(utils::millis_since_unix_epoch().try_into().unwrap()),
-                    presence: ruma::events::presence::PresenceState::Online,
-                    status_msg: None,
-                },
-                sender: user_id.clone(),
+    db.global_edus.update_presence(
+        ruma::events::presence::PresenceEvent {
+            content: ruma::events::presence::PresenceEventContent {
+                avatar_url: db.users.avatar_url(&user_id)?,
+                currently_active: None,
+                displayname: db.users.displayname(&user_id)?,
+                last_active_ago: Some(
+                    utils::millis_since_unix_epoch()
+                        .try_into()
+                        .expect("time is valid"),
+                ),
+                presence: ruma::events::presence::PresenceState::Online,
+                status_msg: None,
             },
-            &db.globals,
-        )
-        .unwrap();
+            sender: user_id.clone(),
+        },
+        &db.globals,
+    )?;
 
-    MatrixResult(Ok(set_avatar_url::Response))
+    Ok(set_avatar_url::Response.into())
 }
 
 #[get("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")]
@@ -686,11 +642,12 @@ pub fn get_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<get_avatar_url::Request>,
     _user_id: String,
-) -> MatrixResult<get_avatar_url::Response> {
+) -> ConduitResult<get_avatar_url::Response> {
     let user_id = body.body.user_id.clone();
-    MatrixResult(Ok(get_avatar_url::Response {
-        avatar_url: db.users.avatar_url(&user_id).unwrap(),
-    }))
+    Ok(get_avatar_url::Response {
+        avatar_url: db.users.avatar_url(&user_id)?,
+    }
+    .into())
 }
 
 #[get("/_matrix/client/r0/profile/<_user_id>", data = "<body>")]
@@ -698,25 +655,24 @@ pub fn get_profile_route(
     db: State<'_, Database>,
     body: Ruma<get_profile::Request>,
     _user_id: String,
-) -> MatrixResult<get_profile::Response> {
+) -> ConduitResult<get_profile::Response> {
     let user_id = body.body.user_id.clone();
-    let avatar_url = db.users.avatar_url(&user_id).unwrap();
-    let displayname = db.users.displayname(&user_id).unwrap();
+    let avatar_url = db.users.avatar_url(&user_id)?;
+    let displayname = db.users.displayname(&user_id)?;
 
-    if avatar_url.is_some() || displayname.is_some() {
-        return MatrixResult(Ok(get_profile::Response {
-            avatar_url,
-            displayname,
-        }));
+    if avatar_url.is_none() && displayname.is_none() {
+        // Return 404 if we don't have a profile for this id
+        return Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Profile was not found.",
+        ));
     }
 
-    // Return 404 if we don't have a profile for this id
-    debug!("Profile was not found.");
-    MatrixResult(Err(Error {
-        kind: ErrorKind::NotFound,
-        message: "Profile was not found.".to_owned(),
-        status_code: http::StatusCode::NOT_FOUND,
-    }))
+    Ok(get_profile::Response {
+        avatar_url,
+        displayname,
+    }
+    .into())
 }
 
 #[put("/_matrix/client/r0/presence/<_user_id>/status", data = "<body>")]
@@ -724,76 +680,73 @@ pub fn set_presence_route(
     db: State<'_, Database>,
     body: Ruma<set_presence::Request>,
     _user_id: String,
-) -> MatrixResult<set_presence::Response> {
+) -> ConduitResult<set_presence::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    db.global_edus
-        .update_presence(
-            ruma::events::presence::PresenceEvent {
-                content: ruma::events::presence::PresenceEventContent {
-                    avatar_url: db.users.avatar_url(&user_id).unwrap(),
-                    currently_active: None,
-                    displayname: db.users.displayname(&user_id).unwrap(),
-                    last_active_ago: Some(utils::millis_since_unix_epoch().try_into().unwrap()),
-                    presence: body.presence,
-                    status_msg: body.status_msg.clone(),
-                },
-                sender: user_id.clone(),
+    db.global_edus.update_presence(
+        ruma::events::presence::PresenceEvent {
+            content: ruma::events::presence::PresenceEventContent {
+                avatar_url: db.users.avatar_url(&user_id)?,
+                currently_active: None,
+                displayname: db.users.displayname(&user_id)?,
+                last_active_ago: Some(
+                    utils::millis_since_unix_epoch()
+                        .try_into()
+                        .expect("time is valid"),
+                ),
+                presence: body.presence,
+                status_msg: body.status_msg.clone(),
             },
-            &db.globals,
-        )
-        .unwrap();
+            sender: user_id.clone(),
+        },
+        &db.globals,
+    )?;
 
-    MatrixResult(Ok(set_presence::Response))
+    Ok(set_presence::Response.into())
 }
 
 #[post("/_matrix/client/r0/keys/upload", data = "<body>")]
 pub fn upload_keys_route(
     db: State<'_, Database>,
     body: Ruma<upload_keys::Request>,
-) -> MatrixResult<upload_keys::Response> {
+) -> ConduitResult<upload_keys::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     if let Some(one_time_keys) = &body.one_time_keys {
         for (key_key, key_value) in one_time_keys {
             db.users
-                .add_one_time_key(user_id, device_id, key_key, key_value)
-                .unwrap();
+                .add_one_time_key(user_id, device_id, key_key, key_value)?;
         }
     }
 
     if let Some(device_keys) = &body.device_keys {
         db.users
-            .add_device_keys(user_id, device_id, device_keys, &db.globals)
-            .unwrap();
+            .add_device_keys(user_id, device_id, device_keys, &db.globals)?;
     }
 
-    MatrixResult(Ok(upload_keys::Response {
-        one_time_key_counts: db.users.count_one_time_keys(user_id, device_id).unwrap(),
-    }))
+    Ok(upload_keys::Response {
+        one_time_key_counts: db.users.count_one_time_keys(user_id, device_id)?,
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/keys/query", data = "<body>")]
 pub fn get_keys_route(
     db: State<'_, Database>,
     body: Ruma<get_keys::Request>,
-) -> MatrixResult<get_keys::Response> {
+) -> ConduitResult<get_keys::Response> {
     let mut device_keys = BTreeMap::new();
 
     for (user_id, device_ids) in &body.device_keys {
         if device_ids.is_empty() {
             let mut container = BTreeMap::new();
-            for (device_id, mut keys) in db
-                .users
-                .all_device_keys(&user_id.clone())
-                .map(|r| r.unwrap())
-            {
-                let metadata = db
-                    .users
-                    .get_device_metadata(user_id, &device_id)
-                    .unwrap()
-                    .expect("this device should exist");
+            for result in db.users.all_device_keys(&user_id.clone()) {
+                let (device_id, mut keys) = result?;
+
+                let metadata = db.users.get_device_metadata(user_id, &device_id)?.ok_or(
+                    Error::BadDatabase("all_device_keys contained nonexistent device."),
+                )?;
 
                 keys.unsigned = Some(keys::UnsignedDeviceInfo {
                     device_display_name: metadata.display_name,
@@ -806,12 +759,13 @@ pub fn get_keys_route(
             for device_id in device_ids {
                 let mut container = BTreeMap::new();
                 for keys in db.users.get_device_keys(&user_id.clone(), &device_id) {
-                    let mut keys = keys.unwrap();
-                    let metadata = db
-                        .users
-                        .get_device_metadata(user_id, &device_id)
-                        .unwrap()
-                        .expect("this device should exist");
+                    let mut keys = keys?;
+                    let metadata = db.users.get_device_metadata(user_id, &device_id)?.ok_or(
+                        Error::BadRequest(
+                            ErrorKind::InvalidParam,
+                            "Tried to get keys for nonexistent device.",
+                        ),
+                    )?;
 
                     keys.unsigned = Some(keys::UnsignedDeviceInfo {
                         device_display_name: metadata.display_name,
@@ -824,25 +778,25 @@ pub fn get_keys_route(
         }
     }
 
-    MatrixResult(Ok(get_keys::Response {
+    Ok(get_keys::Response {
         failures: BTreeMap::new(),
         device_keys,
-    }))
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/keys/claim", data = "<body>")]
 pub fn claim_keys_route(
     db: State<'_, Database>,
     body: Ruma<claim_keys::Request>,
-) -> MatrixResult<claim_keys::Response> {
+) -> ConduitResult<claim_keys::Response> {
     let mut one_time_keys = BTreeMap::new();
     for (user_id, map) in &body.one_time_keys {
         let mut container = BTreeMap::new();
         for (device_id, key_algorithm) in map {
-            if let Some(one_time_keys) = db
-                .users
-                .take_one_time_key(user_id, device_id, key_algorithm)
-                .unwrap()
+            if let Some(one_time_keys) =
+                db.users
+                    .take_one_time_key(user_id, device_id, key_algorithm)?
             {
                 let mut c = BTreeMap::new();
                 c.insert(one_time_keys.0, one_time_keys.1);
@@ -852,10 +806,11 @@ pub fn claim_keys_route(
         one_time_keys.insert(user_id.clone(), container);
     }
 
-    MatrixResult(Ok(claim_keys::Response {
+    Ok(claim_keys::Response {
         failures: BTreeMap::new(),
         one_time_keys,
-    }))
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/read_markers", data = "<body>")]
@@ -863,39 +818,34 @@ pub fn set_read_marker_route(
     db: State<'_, Database>,
     body: Ruma<set_read_marker::Request>,
     _room_id: String,
-) -> MatrixResult<set_read_marker::Response> {
+) -> ConduitResult<set_read_marker::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    db.account_data
-        .update(
-            Some(&body.room_id),
-            &user_id,
-            &EventType::FullyRead,
-            serde_json::to_value(ruma::events::fully_read::FullyReadEvent {
-                content: ruma::events::fully_read::FullyReadEventContent {
-                    event_id: body.fully_read.clone(),
-                },
-                room_id: Some(body.room_id.clone()),
-            })
-            .unwrap()
-            .as_object_mut()
-            .unwrap(),
-            &db.globals,
-        )
-        .unwrap();
+    db.account_data.update(
+        Some(&body.room_id),
+        &user_id,
+        &EventType::FullyRead,
+        serde_json::to_value(ruma::events::fully_read::FullyReadEvent {
+            content: ruma::events::fully_read::FullyReadEventContent {
+                event_id: body.fully_read.clone(),
+            },
+            room_id: Some(body.room_id.clone()),
+        })
+        .expect("we just created a valid event")
+        .as_object_mut()
+        .expect("we just created a valid event"),
+        &db.globals,
+    )?;
 
     if let Some(event) = &body.read_receipt {
-        db.rooms
-            .edus
-            .room_read_set(
-                &body.room_id,
-                &user_id,
-                db.rooms
-                    .get_pdu_count(event)
-                    .unwrap()
-                    .expect("TODO: what if a client specifies an invalid event"),
-            )
-            .unwrap();
+        db.rooms.edus.room_read_set(
+            &body.room_id,
+            &user_id,
+            db.rooms.get_pdu_count(event)?.ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Event does not exist.",
+            ))?,
+        )?;
 
         let mut user_receipts = BTreeMap::new();
         user_receipts.insert(
@@ -912,20 +862,17 @@ pub fn set_read_marker_route(
             },
         );
 
-        db.rooms
-            .edus
-            .roomlatest_update(
-                &user_id,
-                &body.room_id,
-                EduEvent::Receipt(ruma::events::receipt::ReceiptEvent {
-                    content: receipt_content,
-                    room_id: None, // None because it can be inferred
-                }),
-                &db.globals,
-            )
-            .unwrap();
+        db.rooms.edus.roomlatest_update(
+            &user_id,
+            &body.room_id,
+            EduEvent::Receipt(ruma::events::receipt::ReceiptEvent {
+                content: receipt_content,
+                room_id: None, // None because it can be inferred
+            }),
+            &db.globals,
+        )?;
     }
-    MatrixResult(Ok(set_read_marker::Response))
+    Ok(set_read_marker::Response.into())
 }
 
 #[put(
@@ -937,106 +884,94 @@ pub fn create_typing_event_route(
     body: Ruma<create_typing_event::Request>,
     _room_id: String,
     _user_id: String,
-) -> MatrixResult<create_typing_event::Response> {
+) -> ConduitResult<create_typing_event::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     if body.typing {
-        db.rooms
-            .edus
-            .roomactive_add(
-                &user_id,
-                &body.room_id,
-                body.timeout.map(|d| d.as_millis() as u64).unwrap_or(30000)
-                    + utils::millis_since_unix_epoch().try_into().unwrap_or(0),
-                &db.globals,
-            )
-            .unwrap();
+        db.rooms.edus.roomactive_add(
+            &user_id,
+            &body.room_id,
+            body.timeout.map(|d| d.as_millis() as u64).unwrap_or(30000)
+                + utils::millis_since_unix_epoch(),
+            &db.globals,
+        )?;
     } else {
         db.rooms
             .edus
-            .roomactive_remove(&user_id, &body.room_id, &db.globals)
-            .unwrap();
+            .roomactive_remove(&user_id, &body.room_id, &db.globals)?;
     }
 
-    MatrixResult(Ok(create_typing_event::Response))
+    Ok(create_typing_event::Response.into())
 }
 
 #[post("/_matrix/client/r0/createRoom", data = "<body>")]
 pub fn create_room_route(
     db: State<'_, Database>,
     body: Ruma<create_room::Request>,
-) -> MatrixResult<create_room::Response> {
-    let room_id = RoomId::new(db.globals.server_name()).expect("host is valid");
+) -> ConduitResult<create_room::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    let alias = if let Some(localpart) = &body.room_alias_name {
-        // TODO: Check for invalid characters and maximum length
-        if let Ok(alias) =
-            RoomAliasId::try_from(format!("#{}:{}", localpart, db.globals.server_name()))
-        {
-            if db.rooms.id_from_alias(&alias).unwrap().is_some() {
-                return MatrixResult(Err(Error {
-                    kind: ErrorKind::Unknown,
-                    message: "Alias already exists.".to_owned(),
-                    status_code: http::StatusCode::BAD_REQUEST,
-                }));
-            }
+    let room_id = RoomId::new(db.globals.server_name())
+        .map_err(|_| Error::BadDatabase("Server name is invalid."))?;
 
-            Some(alias)
-        } else {
-            return MatrixResult(Err(Error {
-                kind: ErrorKind::Unknown,
-                message: "Invalid alias.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }));
-        }
-    } else {
-        None
-    };
+    let alias = body
+        .room_alias_name
+        .as_ref()
+        .map_or(Ok(None), |localpart| {
+            // TODO: Check for invalid characters and maximum length
+            let alias =
+                RoomAliasId::try_from(format!("#{}:{}", localpart, db.globals.server_name()))
+                    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
+
+            if db.rooms.id_from_alias(&alias)?.is_some() {
+                Err(Error::BadRequest(
+                    ErrorKind::RoomInUse,
+                    "Room alias already exists.",
+                ))
+            } else {
+                Ok(Some(alias))
+            }
+        })?;
 
     // 1. The room create event
-    db.rooms
-        .append_pdu(
-            room_id.clone(),
-            user_id.clone(),
-            EventType::RoomCreate,
-            serde_json::to_value(ruma::events::room::create::CreateEventContent {
-                creator: user_id.clone(),
-                federate: body.creation_content.as_ref().map_or(true, |c| c.federate),
-                predecessor: body
-                    .creation_content
-                    .as_ref()
-                    .and_then(|c| c.predecessor.clone()),
-                room_version: RoomVersionId::version_6(),
-            })
-            .unwrap(),
-            None,
-            Some("".to_owned()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+    db.rooms.append_pdu(
+        room_id.clone(),
+        user_id.clone(),
+        EventType::RoomCreate,
+        serde_json::to_value(ruma::events::room::create::CreateEventContent {
+            creator: user_id.clone(),
+            federate: body.creation_content.as_ref().map_or(true, |c| c.federate),
+            predecessor: body
+                .creation_content
+                .as_ref()
+                .and_then(|c| c.predecessor.clone()),
+            room_version: RoomVersionId::version_6(),
+        })
+        .expect("event is valid, we just created it"),
+        None,
+        Some("".to_owned()),
+        None,
+        &db.globals,
+    )?;
 
     // 2. Let the room creator join
-    db.rooms
-        .append_pdu(
-            room_id.clone(),
-            user_id.clone(),
-            EventType::RoomMember,
-            serde_json::to_value(member::MemberEventContent {
-                membership: member::MembershipState::Join,
-                displayname: db.users.displayname(&user_id).unwrap(),
-                avatar_url: db.users.avatar_url(&user_id).unwrap(),
-                is_direct: body.is_direct,
-                third_party_invite: None,
-            })
-            .unwrap(),
-            None,
-            Some(user_id.to_string()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+    db.rooms.append_pdu(
+        room_id.clone(),
+        user_id.clone(),
+        EventType::RoomMember,
+        serde_json::to_value(member::MemberEventContent {
+            membership: member::MembershipState::Join,
+            displayname: db.users.displayname(&user_id)?,
+            avatar_url: db.users.avatar_url(&user_id)?,
+            is_direct: body.is_direct,
+            third_party_invite: None,
+        })
+        .expect("event is valid, we just created it"),
+        None,
+        Some(user_id.to_string()),
+        None,
+        &db.globals,
+    )?;
 
     // Figure out preset. We need it for power levels and preset specific events
     let visibility = body.visibility.unwrap_or(room::Visibility::Private);
@@ -1053,8 +988,9 @@ pub fn create_room_route(
     }
 
     let power_levels_content = if let Some(power_levels) = &body.power_level_content_override {
-        serde_json::from_str(power_levels.json().get())
-            .expect("TODO: handle. we hope the client sends a valid power levels json")
+        serde_json::from_str(power_levels.json().get()).map_err(|_| {
+            Error::BadRequest(ErrorKind::BadJson, "Invalid power_level_content_override.")
+        })?
     } else {
         serde_json::to_value(ruma::events::room::power_levels::PowerLevelsEventContent {
             ban: 50.into(),
@@ -1070,88 +1006,80 @@ pub fn create_room_route(
                 room: 50.into(),
             },
         })
-        .unwrap()
+        .expect("event is valid, we just created it")
     };
-    db.rooms
-        .append_pdu(
-            room_id.clone(),
-            user_id.clone(),
-            EventType::RoomPowerLevels,
-            power_levels_content,
-            None,
-            Some("".to_owned()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+    db.rooms.append_pdu(
+        room_id.clone(),
+        user_id.clone(),
+        EventType::RoomPowerLevels,
+        power_levels_content,
+        None,
+        Some("".to_owned()),
+        None,
+        &db.globals,
+    )?;
 
     // 4. Events set by preset
     // 4.1 Join Rules
-    db.rooms
-        .append_pdu(
-            room_id.clone(),
-            user_id.clone(),
-            EventType::RoomJoinRules,
-            match preset {
-                create_room::RoomPreset::PublicChat => {
-                    serde_json::to_value(join_rules::JoinRulesEventContent {
-                        join_rule: join_rules::JoinRule::Public,
-                    })
-                    .unwrap()
-                }
-                _ => serde_json::to_value(join_rules::JoinRulesEventContent {
-                    join_rule: join_rules::JoinRule::Invite,
+    db.rooms.append_pdu(
+        room_id.clone(),
+        user_id.clone(),
+        EventType::RoomJoinRules,
+        match preset {
+            create_room::RoomPreset::PublicChat => {
+                serde_json::to_value(join_rules::JoinRulesEventContent {
+                    join_rule: join_rules::JoinRule::Public,
                 })
-                .unwrap(),
-            },
-            None,
-            Some("".to_owned()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+                .expect("event is valid, we just created it")
+            }
+            _ => serde_json::to_value(join_rules::JoinRulesEventContent {
+                join_rule: join_rules::JoinRule::Invite,
+            })
+            .expect("event is valid, we just created it"),
+        },
+        None,
+        Some("".to_owned()),
+        None,
+        &db.globals,
+    )?;
 
     // 4.2 History Visibility
-    db.rooms
-        .append_pdu(
-            room_id.clone(),
-            user_id.clone(),
-            EventType::RoomHistoryVisibility,
-            serde_json::to_value(history_visibility::HistoryVisibilityEventContent {
-                history_visibility: history_visibility::HistoryVisibility::Shared,
-            })
-            .unwrap(),
-            None,
-            Some("".to_owned()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+    db.rooms.append_pdu(
+        room_id.clone(),
+        user_id.clone(),
+        EventType::RoomHistoryVisibility,
+        serde_json::to_value(history_visibility::HistoryVisibilityEventContent {
+            history_visibility: history_visibility::HistoryVisibility::Shared,
+        })
+        .expect("event is valid, we just created it"),
+        None,
+        Some("".to_owned()),
+        None,
+        &db.globals,
+    )?;
 
     // 4.3 Guest Access
-    db.rooms
-        .append_pdu(
-            room_id.clone(),
-            user_id.clone(),
-            EventType::RoomGuestAccess,
-            match preset {
-                create_room::RoomPreset::PublicChat => {
-                    serde_json::to_value(guest_access::GuestAccessEventContent {
-                        guest_access: guest_access::GuestAccess::Forbidden,
-                    })
-                    .unwrap()
-                }
-                _ => serde_json::to_value(guest_access::GuestAccessEventContent {
-                    guest_access: guest_access::GuestAccess::CanJoin,
+    db.rooms.append_pdu(
+        room_id.clone(),
+        user_id.clone(),
+        EventType::RoomGuestAccess,
+        match preset {
+            create_room::RoomPreset::PublicChat => {
+                serde_json::to_value(guest_access::GuestAccessEventContent {
+                    guest_access: guest_access::GuestAccess::Forbidden,
                 })
-                .unwrap(),
-            },
-            None,
-            Some("".to_owned()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+                .expect("event is valid, we just created it")
+            }
+            _ => serde_json::to_value(guest_access::GuestAccessEventContent {
+                guest_access: guest_access::GuestAccess::CanJoin,
+            })
+            .expect("event is valid, we just created it"),
+        },
+        None,
+        Some("".to_owned()),
+        None,
+        &db.globals,
+    )?;
 
     // 5. Events listed in initial_state
     for create_room::InitialStateEvent {
@@ -1160,92 +1088,85 @@ pub fn create_room_route(
         content,
     } in &body.initial_state
     {
-        db.rooms
-            .append_pdu(
-                room_id.clone(),
-                user_id.clone(),
-                event_type.clone(),
-                serde_json::from_str(content.get()).unwrap(),
-                None,
-                state_key.clone(),
-                None,
-                &db.globals,
-            )
-            .unwrap();
+        db.rooms.append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            event_type.clone(),
+            serde_json::from_str(content.get()).map_err(|_| {
+                Error::BadRequest(ErrorKind::BadJson, "Invalid initial_state content.")
+            })?,
+            None,
+            state_key.clone(),
+            None,
+            &db.globals,
+        )?;
     }
 
     // 6. Events implied by name and topic
     if let Some(name) = &body.name {
-        db.rooms
-            .append_pdu(
-                room_id.clone(),
-                user_id.clone(),
-                EventType::RoomName,
-                serde_json::to_value(
-                    ruma::events::room::name::NameEventContent::new(name.clone()).unwrap(),
-                )
-                .unwrap(),
-                None,
-                Some("".to_owned()),
-                None,
-                &db.globals,
+        db.rooms.append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomName,
+            serde_json::to_value(
+                name::NameEventContent::new(name.clone())
+                    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Name is invalid."))?,
             )
-            .unwrap();
+            .expect("event is valid, we just created it"),
+            None,
+            Some("".to_owned()),
+            None,
+            &db.globals,
+        )?;
     }
 
     if let Some(topic) = &body.topic {
-        db.rooms
-            .append_pdu(
-                room_id.clone(),
-                user_id.clone(),
-                EventType::RoomTopic,
-                serde_json::to_value(ruma::events::room::topic::TopicEventContent {
-                    topic: topic.clone(),
-                })
-                .unwrap(),
-                None,
-                Some("".to_owned()),
-                None,
-                &db.globals,
-            )
-            .unwrap();
+        db.rooms.append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomTopic,
+            serde_json::to_value(topic::TopicEventContent {
+                topic: topic.clone(),
+            })
+            .expect("event is valid, we just created it"),
+            None,
+            Some("".to_owned()),
+            None,
+            &db.globals,
+        )?;
     }
 
     // 7. Events implied by invite (and TODO: invite_3pid)
     for user in &body.invite {
-        db.rooms
-            .append_pdu(
-                room_id.clone(),
-                user_id.clone(),
-                EventType::RoomMember,
-                serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Invite,
-                    displayname: db.users.displayname(&user).unwrap(),
-                    avatar_url: db.users.avatar_url(&user).unwrap(),
-                    is_direct: body.is_direct,
-                    third_party_invite: None,
-                })
-                .unwrap(),
-                None,
-                Some(user.to_string()),
-                None,
-                &db.globals,
-            )
-            .unwrap();
+        db.rooms.append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomMember,
+            serde_json::to_value(member::MemberEventContent {
+                membership: member::MembershipState::Invite,
+                displayname: db.users.displayname(&user)?,
+                avatar_url: db.users.avatar_url(&user)?,
+                is_direct: body.is_direct,
+                third_party_invite: None,
+            })
+            .expect("event is valid, we just created it"),
+            None,
+            Some(user.to_string()),
+            None,
+            &db.globals,
+        )?;
     }
 
     // Homeserver specific stuff
     if let Some(alias) = alias {
-        db.rooms
-            .set_alias(&alias, Some(&room_id), &db.globals)
-            .unwrap();
+        db.rooms.set_alias(&alias, Some(&room_id), &db.globals)?;
     }
 
     if let Some(room::Visibility::Public) = body.visibility {
-        db.rooms.set_public(&room_id, true).unwrap();
+        db.rooms.set_public(&room_id, true)?;
     }
 
-    MatrixResult(Ok(create_room::Response { room_id }))
+    Ok(create_room::Response { room_id }.into())
 }
 
 #[put(
@@ -1258,30 +1179,24 @@ pub fn redact_event_route(
     _room_id: String,
     _event_id: String,
     _txn_id: String,
-) -> MatrixResult<redact_event::Response> {
+) -> ConduitResult<redact_event::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if let Ok(event_id) = db.rooms.append_pdu(
+    let event_id = db.rooms.append_pdu(
         body.room_id.clone(),
         user_id.clone(),
         EventType::RoomRedaction,
         serde_json::to_value(redaction::RedactionEventContent {
             reason: body.reason.clone(),
         })
-        .unwrap(),
+        .expect("event is valid, we just created it"),
         None,
         None,
         Some(body.event_id.clone()),
         &db.globals,
-    ) {
-        MatrixResult(Ok(redact_event::Response { event_id }))
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::Unknown,
-            message: "Failed to redact event.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
-    }
+    )?;
+
+    Ok(redact_event::Response { event_id }.into())
 }
 
 #[put("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
@@ -1289,20 +1204,15 @@ pub fn create_alias_route(
     db: State<'_, Database>,
     body: Ruma<create_alias::Request>,
     _room_alias: String,
-) -> MatrixResult<create_alias::Response> {
-    if db.rooms.id_from_alias(&body.room_alias).unwrap().is_some() {
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::Unknown,
-            message: "Alias already exists".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }));
+) -> ConduitResult<create_alias::Response> {
+    if db.rooms.id_from_alias(&body.room_alias)?.is_some() {
+        return Err(Error::Conflict("Alias already exists."));
     }
 
     db.rooms
-        .set_alias(&body.room_alias, Some(&body.room_id), &db.globals)
-        .unwrap();
+        .set_alias(&body.room_alias, Some(&body.room_id), &db.globals)?;
 
-    MatrixResult(Ok(create_alias::Response))
+    Ok(create_alias::Response.into())
 }
 
 #[delete("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
@@ -1310,12 +1220,10 @@ pub fn delete_alias_route(
     db: State<'_, Database>,
     body: Ruma<delete_alias::Request>,
     _room_alias: String,
-) -> MatrixResult<delete_alias::Response> {
-    db.rooms
-        .set_alias(&body.room_alias, None, &db.globals)
-        .unwrap();
+) -> ConduitResult<delete_alias::Response> {
+    db.rooms.set_alias(&body.room_alias, None, &db.globals)?;
 
-    MatrixResult(Ok(delete_alias::Response))
+    Ok(delete_alias::Response.into())
 }
 
 #[get("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
@@ -1323,24 +1231,24 @@ pub fn get_alias_route(
     db: State<'_, Database>,
     body: Ruma<get_alias::Request>,
     _room_alias: String,
-) -> MatrixResult<get_alias::Response> {
-    if body.room_alias.server_name() == db.globals.server_name() {
-        if let Some(room_id) = db.rooms.id_from_alias(&body.room_alias).unwrap() {
-            MatrixResult(Ok(get_alias::Response {
-                room_id,
-                servers: vec![db.globals.server_name().to_owned()],
-            }))
-        } else {
-            debug!("Room alias not found.");
-            MatrixResult(Err(Error {
-                kind: ErrorKind::NotFound,
-                message: "Room with alias not found.".to_owned(),
-                status_code: http::StatusCode::BAD_REQUEST,
-            }))
-        }
-    } else {
+) -> ConduitResult<get_alias::Response> {
+    if body.room_alias.server_name() != db.globals.server_name() {
         todo!("ask remote server");
     }
+
+    let room_id = db
+        .rooms
+        .id_from_alias(&body.room_alias)?
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Room with alias not found.",
+        ))?;
+
+    Ok(get_alias::Response {
+        room_id,
+        servers: vec![db.globals.server_name().to_owned()],
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/join", data = "<body>")]
@@ -1348,58 +1256,56 @@ pub fn join_room_by_id_route(
     db: State<'_, Database>,
     body: Ruma<join_room_by_id::Request>,
     _room_id: String,
-) -> MatrixResult<join_room_by_id::Response> {
+) -> ConduitResult<join_room_by_id::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     // TODO: Ask a remote server if we don't have this room
 
     let event = db
         .rooms
-        .room_state(&body.room_id)
-        .unwrap()
+        .room_state(&body.room_id)?
         .get(&(EventType::RoomMember, user_id.to_string()))
         .map_or_else(
             || {
                 // There was no existing membership event
-                member::MemberEventContent {
+                Ok::<_, Error>(member::MemberEventContent {
                     membership: member::MembershipState::Join,
-                    displayname: db.users.displayname(&user_id).unwrap(),
-                    avatar_url: db.users.avatar_url(&user_id).unwrap(),
+                    displayname: db.users.displayname(&user_id)?,
+                    avatar_url: db.users.avatar_url(&user_id)?,
                     is_direct: None,
                     third_party_invite: None,
-                }
+                })
             },
             |pdu| {
                 // We change the existing membership event
                 let mut event = serde_json::from_value::<EventJson<member::MemberEventContent>>(
                     pdu.content.clone(),
                 )
-                .unwrap()
+                .map_err(|_| Error::BadDatabase("Invalid member event in db."))?
                 .deserialize()
-                .unwrap();
+                .map_err(|_| Error::BadDatabase("Invalid member event in db."))?;
                 event.membership = member::MembershipState::Join;
-                event.displayname = db.users.displayname(&user_id).unwrap();
-                event.avatar_url = db.users.avatar_url(&user_id).unwrap();
-                event
+                event.displayname = db.users.displayname(&user_id)?;
+                event.avatar_url = db.users.avatar_url(&user_id)?;
+                Ok(event)
             },
-        );
+        )?;
 
-    db.rooms
-        .append_pdu(
-            body.room_id.clone(),
-            user_id.clone(),
-            EventType::RoomMember,
-            serde_json::to_value(event).unwrap(),
-            None,
-            Some(user_id.to_string()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+    db.rooms.append_pdu(
+        body.room_id.clone(),
+        user_id.clone(),
+        EventType::RoomMember,
+        serde_json::to_value(event).expect("event is valid, we just created it"),
+        None,
+        Some(user_id.to_string()),
+        None,
+        &db.globals,
+    )?;
 
-    MatrixResult(Ok(join_room_by_id::Response {
+    Ok(join_room_by_id::Response {
         room_id: body.room_id.clone(),
-    }))
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/join/<_room_id_or_alias>", data = "<body>")]
@@ -1407,27 +1313,13 @@ pub fn join_room_by_id_or_alias_route(
     db: State<'_, Database>,
     body: Ruma<join_room_by_id_or_alias::Request>,
     _room_id_or_alias: String,
-) -> MatrixResult<join_room_by_id_or_alias::Response> {
-    let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
-        Ok(room_id) => room_id,
-        Err(_) => {
-            if let Some(room_id) = db
-                .rooms
-                .id_from_alias(&body.room_id_or_alias.clone().try_into().unwrap())
-                .unwrap()
-            {
-                room_id
-            } else {
-                // Ask creator server of the room to join TODO ask someone else when not available
-                //server_server::send_request(data, destination, request)
-                return MatrixResult(Err(Error {
-                    kind: ErrorKind::NotFound,
-                    message: "Room alias not found.".to_owned(),
-                    status_code: http::StatusCode::BAD_REQUEST,
-                }));
-            }
-        }
-    };
+) -> ConduitResult<join_room_by_id_or_alias::Response> {
+    let room_id = RoomId::try_from(body.room_id_or_alias.clone()).or_else(|alias| {
+        Ok::<_, Error>(db.rooms.id_from_alias(&alias)?.ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Room not found (TODO: Federation).",
+        ))?)
+    })?;
 
     let body = Ruma {
         user_id: body.user_id.clone(),
@@ -1438,12 +1330,11 @@ pub fn join_room_by_id_or_alias_route(
             third_party_signed: body.third_party_signed.clone(),
         },
     };
-    MatrixResult(match join_room_by_id_route(db, body, "".to_owned()).0 {
-        Ok(response) => Ok(join_room_by_id_or_alias::Response {
-            room_id: response.room_id,
-        }),
-        Err(e) => Err(e),
-    })
+
+    Ok(join_room_by_id_or_alias::Response {
+        room_id: join_room_by_id_route(db, body, "".to_owned())?.0.room_id,
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/leave", data = "<body>")]
@@ -1451,38 +1342,38 @@ pub fn leave_room_route(
     db: State<'_, Database>,
     body: Ruma<leave_room::Request>,
     _room_id: String,
-) -> MatrixResult<leave_room::Response> {
+) -> ConduitResult<leave_room::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let state = db.rooms.room_state(&body.room_id).unwrap();
+    let state = db.rooms.room_state(&body.room_id)?;
 
-    let mut event =
-        serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
-            state
-                .get(&(EventType::RoomMember, user_id.to_string()))
-                .unwrap() // TODO: error handling
-                .content
-                .clone(),
-        )
-        .unwrap()
-        .deserialize()
-        .unwrap();
+    let mut event = serde_json::from_value::<EventJson<member::MemberEventContent>>(
+        state
+            .get(&(EventType::RoomMember, user_id.to_string()))
+            .ok_or(Error::BadRequest(
+                ErrorKind::BadState,
+                "Cannot leave a room you are not a member of.",
+            ))?
+            .content
+            .clone(),
+    )
+    .map_err(|_| Error::BadDatabase("Invalid member event in database."))?
+    .deserialize()
+    .map_err(|_| Error::BadDatabase("Invalid member event in database."))?;
 
-    event.membership = ruma::events::room::member::MembershipState::Leave;
+    event.membership = member::MembershipState::Leave;
 
-    db.rooms
-        .append_pdu(
-            body.room_id.clone(),
-            user_id.clone(),
-            EventType::RoomMember,
-            serde_json::to_value(event).unwrap(),
-            None,
-            Some(user_id.to_string()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+    db.rooms.append_pdu(
+        body.room_id.clone(),
+        user_id.clone(),
+        EventType::RoomMember,
+        serde_json::to_value(event).expect("event is valid, we just created it"),
+        None,
+        Some(user_id.to_string()),
+        None,
+        &db.globals,
+    )?;
 
-    MatrixResult(Ok(leave_room::Response))
+    Ok(leave_room::Response.into())
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/kick", data = "<body>")]
@@ -1490,39 +1381,40 @@ pub fn kick_user_route(
     db: State<'_, Database>,
     body: Ruma<kick_user::Request>,
     _room_id: String,
-) -> MatrixResult<kick_user::Response> {
+) -> ConduitResult<kick_user::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let state = db.rooms.room_state(&body.room_id).unwrap();
+    let state = db.rooms.room_state(&body.room_id)?;
 
     let mut event =
         serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
             state
                 .get(&(EventType::RoomMember, user_id.to_string()))
-                .unwrap() // TODO: error handling
+                .ok_or(Error::BadRequest(
+                    ErrorKind::BadState,
+                    "Cannot kick member that's not in the room.",
+                ))?
                 .content
                 .clone(),
         )
-        .unwrap()
+        .map_err(|_| Error::BadDatabase("Invalid member event in database."))?
         .deserialize()
-        .unwrap();
+        .map_err(|_| Error::BadDatabase("Invalid member event in database."))?;
 
     event.membership = ruma::events::room::member::MembershipState::Leave;
     // TODO: reason
 
-    db.rooms
-        .append_pdu(
-            body.room_id.clone(),
-            user_id.clone(), // Sender
-            EventType::RoomMember,
-            serde_json::to_value(event).unwrap(),
-            None,
-            Some(body.body.user_id.to_string()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+    db.rooms.append_pdu(
+        body.room_id.clone(),
+        user_id.clone(), // Sender
+        EventType::RoomMember,
+        serde_json::to_value(event).expect("event is valid, we just created it"),
+        None,
+        Some(body.body.user_id.to_string()),
+        None,
+        &db.globals,
+    )?;
 
-    MatrixResult(Ok(kick_user::Response))
+    Ok(kick_user::Response.into())
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/ban", data = "<body>")]
@@ -1530,39 +1422,46 @@ pub fn ban_user_route(
     db: State<'_, Database>,
     body: Ruma<ban_user::Request>,
     _room_id: String,
-) -> MatrixResult<ban_user::Response> {
+) -> ConduitResult<ban_user::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let state = db.rooms.room_state(&body.room_id).unwrap();
+    let state = db.rooms.room_state(&body.room_id)?;
 
-    let mut event =
-        serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
-            state
-                .get(&(EventType::RoomMember, user_id.to_string()))
-                .unwrap() // TODO: error handling
-                .content
-                .clone(),
-        )
-        .unwrap()
-        .deserialize()
-        .unwrap();
-
-    event.membership = ruma::events::room::member::MembershipState::Ban;
     // TODO: reason
 
-    db.rooms
-        .append_pdu(
-            body.room_id.clone(),
-            user_id.clone(), // Sender
-            EventType::RoomMember,
-            serde_json::to_value(event).unwrap(),
-            None,
-            Some(body.body.user_id.to_string()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+    let event = state
+        .get(&(EventType::RoomMember, user_id.to_string()))
+        .map_or(
+            Ok::<_, Error>(member::MemberEventContent {
+                membership: member::MembershipState::Ban,
+                displayname: db.users.displayname(&user_id)?,
+                avatar_url: db.users.avatar_url(&user_id)?,
+                is_direct: None,
+                third_party_invite: None,
+            }),
+            |event| {
+                let mut event = serde_json::from_value::<EventJson<member::MemberEventContent>>(
+                    event.content.clone(),
+                )
+                .map_err(|_| Error::BadDatabase("Invalid member event in database."))?
+                .deserialize()
+                .map_err(|_| Error::BadDatabase("Invalid member event in database."))?;
+                event.membership = ruma::events::room::member::MembershipState::Ban;
+                Ok(event)
+            },
+        )?;
 
-    MatrixResult(Ok(ban_user::Response))
+    db.rooms.append_pdu(
+        body.room_id.clone(),
+        user_id.clone(), // Sender
+        EventType::RoomMember,
+        serde_json::to_value(event).expect("event is valid, we just created it"),
+        None,
+        Some(body.body.user_id.to_string()),
+        None,
+        &db.globals,
+    )?;
+
+    Ok(ban_user::Response.into())
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/unban", data = "<body>")]
@@ -1570,38 +1469,39 @@ pub fn unban_user_route(
     db: State<'_, Database>,
     body: Ruma<unban_user::Request>,
     _room_id: String,
-) -> MatrixResult<unban_user::Response> {
+) -> ConduitResult<unban_user::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let state = db.rooms.room_state(&body.room_id).unwrap();
+    let state = db.rooms.room_state(&body.room_id)?;
 
     let mut event =
         serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
             state
                 .get(&(EventType::RoomMember, user_id.to_string()))
-                .unwrap() // TODO: error handling
+                .ok_or(Error::BadRequest(
+                    ErrorKind::BadState,
+                    "Cannot unban a user who is not banned.",
+                ))?
                 .content
                 .clone(),
         )
-        .unwrap()
+        .map_err(|_| Error::BadDatabase("Invalid member event in database."))?
         .deserialize()
-        .unwrap();
+        .map_err(|_| Error::BadDatabase("Invalid member event in database."))?;
 
     event.membership = ruma::events::room::member::MembershipState::Leave;
 
-    db.rooms
-        .append_pdu(
-            body.room_id.clone(),
-            user_id.clone(), // Sender
-            EventType::RoomMember,
-            serde_json::to_value(event).unwrap(),
-            None,
-            Some(body.body.user_id.to_string()),
-            None,
-            &db.globals,
-        )
-        .unwrap();
+    db.rooms.append_pdu(
+        body.room_id.clone(),
+        user_id.clone(), // Sender
+        EventType::RoomMember,
+        serde_json::to_value(event).expect("event is valid, we just created it"),
+        None,
+        Some(body.body.user_id.to_string()),
+        None,
+        &db.globals,
+    )?;
 
-    MatrixResult(Ok(unban_user::Response))
+    Ok(unban_user::Response.into())
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/forget", data = "<body>")]
@@ -1609,12 +1509,12 @@ pub fn forget_room_route(
     db: State<'_, Database>,
     body: Ruma<forget_room::Request>,
     _room_id: String,
-) -> MatrixResult<forget_room::Response> {
+) -> ConduitResult<forget_room::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    db.rooms.forget(&body.room_id, &user_id).unwrap();
+    db.rooms.forget(&body.room_id, &user_id)?;
 
-    MatrixResult(Ok(forget_room::Response))
+    Ok(forget_room::Response.into())
 }
 
 #[post("/_matrix/client/r0/rooms/<_room_id>/invite", data = "<body>")]
@@ -1622,35 +1522,29 @@ pub fn invite_user_route(
     db: State<'_, Database>,
     body: Ruma<invite_user::Request>,
     _room_id: String,
-) -> MatrixResult<invite_user::Response> {
+) -> ConduitResult<invite_user::Response> {
     if let invite_user::InvitationRecipient::UserId { user_id } = &body.recipient {
-        db.rooms
-            .append_pdu(
-                body.room_id.clone(),
-                body.user_id.clone().expect("user is authenticated"),
-                EventType::RoomMember,
-                serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Invite,
-                    displayname: db.users.displayname(&user_id).unwrap(),
-                    avatar_url: db.users.avatar_url(&user_id).unwrap(),
-                    is_direct: None,
-                    third_party_invite: None,
-                })
-                .unwrap(),
-                None,
-                Some(user_id.to_string()),
-                None,
-                &db.globals,
-            )
-            .unwrap();
+        db.rooms.append_pdu(
+            body.room_id.clone(),
+            body.user_id.clone().expect("user is authenticated"),
+            EventType::RoomMember,
+            serde_json::to_value(member::MemberEventContent {
+                membership: member::MembershipState::Invite,
+                displayname: db.users.displayname(&user_id)?,
+                avatar_url: db.users.avatar_url(&user_id)?,
+                is_direct: None,
+                third_party_invite: None,
+            })
+            .expect("event is valid, we just created it"),
+            None,
+            Some(user_id.to_string()),
+            None,
+            &db.globals,
+        )?;
 
-        MatrixResult(Ok(invite_user::Response))
+        Ok(invite_user::Response.into())
     } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "User not found.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
+        Err(Error::BadRequest(ErrorKind::NotFound, "User not found."))
     }
 }
 
@@ -1659,13 +1553,13 @@ pub async fn set_room_visibility_route(
     db: State<'_, Database>,
     body: Ruma<set_room_visibility::Request>,
     _room_id: String,
-) -> MatrixResult<set_room_visibility::Response> {
+) -> ConduitResult<set_room_visibility::Response> {
     match body.visibility {
-        room::Visibility::Public => db.rooms.set_public(&body.room_id, true).unwrap(),
-        room::Visibility::Private => db.rooms.set_public(&body.room_id, false).unwrap(),
+        room::Visibility::Public => db.rooms.set_public(&body.room_id, true)?,
+        room::Visibility::Private => db.rooms.set_public(&body.room_id, false)?,
     }
 
-    MatrixResult(Ok(set_room_visibility::Response))
+    Ok(set_room_visibility::Response.into())
 }
 
 #[get("/_matrix/client/r0/directory/list/room/<_room_id>", data = "<body>")]
@@ -1673,21 +1567,22 @@ pub async fn get_room_visibility_route(
     db: State<'_, Database>,
     body: Ruma<get_room_visibility::Request>,
     _room_id: String,
-) -> MatrixResult<get_room_visibility::Response> {
-    MatrixResult(Ok(get_room_visibility::Response {
-        visibility: if db.rooms.is_public_room(&body.room_id).unwrap() {
+) -> ConduitResult<get_room_visibility::Response> {
+    Ok(get_room_visibility::Response {
+        visibility: if db.rooms.is_public_room(&body.room_id)? {
             room::Visibility::Public
         } else {
             room::Visibility::Private
         },
-    }))
+    }
+    .into())
 }
 
 #[get("/_matrix/client/r0/publicRooms", data = "<body>")]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms::Request>,
-) -> MatrixResult<get_public_rooms::Response> {
+) -> ConduitResult<get_public_rooms::Response> {
     let Ruma {
         body:
             get_public_rooms::Request {
@@ -1700,7 +1595,12 @@ pub async fn get_public_rooms_route(
         json_body,
     } = body;
 
-    let response = get_public_rooms_filtered_route(
+    let get_public_rooms_filtered::Response {
+        chunk,
+        prev_batch,
+        next_batch,
+        total_room_count_estimate,
+    } = get_public_rooms_filtered_route(
         db,
         Ruma {
             body: get_public_rooms_filtered::Request {
@@ -1715,99 +1615,94 @@ pub async fn get_public_rooms_route(
             json_body,
         },
     )
-    .await;
+    .await?
+    .0;
 
-    MatrixResult(match response.0 {
-        Ok(get_public_rooms_filtered::Response {
-            chunk,
-            prev_batch,
-            next_batch,
-            total_room_count_estimate,
-        }) => Ok(get_public_rooms::Response {
-            chunk,
-            prev_batch,
-            next_batch,
-            total_room_count_estimate,
-        }),
-        Err(e) => Err(e),
-    })
+    Ok(get_public_rooms::Response {
+        chunk,
+        prev_batch,
+        next_batch,
+        total_room_count_estimate,
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/publicRooms", data = "<body>")]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms_filtered::Request>,
-) -> MatrixResult<get_public_rooms_filtered::Response> {
+) -> ConduitResult<get_public_rooms_filtered::Response> {
     let mut chunk = db
         .rooms
         .public_rooms()
         .map(|room_id| {
-            let room_id = room_id.unwrap();
+            let room_id = room_id?;
 
-            let state = db.rooms.room_state(&room_id).unwrap();
+            let state = db.rooms.room_state(&room_id)?;
 
-            directory::PublicRoomsChunk {
+            let chunk = directory::PublicRoomsChunk {
                 aliases: Vec::new(),
-                canonical_alias: state.get(&(EventType::RoomCanonicalAlias, "".to_owned())).and_then(|s| {
-                    serde_json::from_value::<
+                canonical_alias: state.get(&(EventType::RoomCanonicalAlias, "".to_owned())).map_or(Ok::<_, Error>(None), |s| {
+                    Ok(serde_json::from_value::<
                             EventJson<ruma::events::room::canonical_alias::CanonicalAliasEventContent>,
                         >(s.content.clone())
-                        .unwrap()
+                        .map_err(|_| Error::BadDatabase("Invalid canonical alias event in database."))?
                         .deserialize()
-                        .unwrap()
-                        .alias
-                }),
-                name: state.get(&(EventType::RoomName, "".to_owned())).map(|s| {
-                    serde_json::from_value::<EventJson<ruma::events::room::name::NameEventContent>>(
+                        .map_err(|_| Error::BadDatabase("Invalid canonical alias event in database."))?
+                        .alias)
+                })?,
+                name: state.get(&(EventType::RoomName, "".to_owned())).map_or(Ok::<_, Error>(None), |s| {
+                    Ok(serde_json::from_value::<EventJson<ruma::events::room::name::NameEventContent>>(
                         s.content.clone(),
                     )
-                    .unwrap()
+                    .map_err(|_| Error::BadDatabase("Invalid room name event in database."))?
                     .deserialize()
-                    .unwrap()
+                    .map_err(|_| Error::BadDatabase("Invalid room name event in database."))?
                     .name()
-                    .unwrap()
-                    .to_owned()
-                }),
+                    .map(|n| n.to_owned()))
+                })?,
                 num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
                 room_id,
-                topic: state.get(&(EventType::RoomTopic, "".to_owned())).map(|s| {
-                    serde_json::from_value::<
+                topic: state.get(&(EventType::RoomTopic, "".to_owned())).map_or(Ok::<_, Error>(None), |s| {
+                    Ok(Some(serde_json::from_value::<
                             EventJson<ruma::events::room::topic::TopicEventContent>,
                         >(s.content.clone())
-                        .unwrap()
+                        .map_err(|_| Error::BadDatabase("Invalid room topic event in database."))?
                         .deserialize()
-                        .unwrap()
-                        .topic
-                }),
-                world_readable: state.get(&(EventType::RoomHistoryVisibility, "".to_owned())).map_or(false, |s| {
-                    serde_json::from_value::<
+                        .map_err(|_| Error::BadDatabase("Invalid room topic event in database."))?
+                        .topic))
+                })?,
+                world_readable: state.get(&(EventType::RoomHistoryVisibility, "".to_owned())).map_or(Ok::<_, Error>(false), |s| {
+                    Ok(serde_json::from_value::<
                             EventJson<ruma::events::room::history_visibility::HistoryVisibilityEventContent>,
                         >(s.content.clone())
-                        .unwrap()
+                        .map_err(|_| Error::BadDatabase("Invalid room history visibility event in database."))?
                         .deserialize()
-                        .unwrap()
-                        .history_visibility == history_visibility::HistoryVisibility::WorldReadable
-                }),
-                guest_can_join: state.get(&(EventType::RoomGuestAccess, "".to_owned())).map_or(false, |s| {
-                    serde_json::from_value::<
+                        .map_err(|_| Error::BadDatabase("Invalid room history visibility event in database."))?
+                        .history_visibility == history_visibility::HistoryVisibility::WorldReadable)
+                })?,
+                guest_can_join: state.get(&(EventType::RoomGuestAccess, "".to_owned())).map_or(Ok::<_, Error>(false), |s| {
+                    Ok(serde_json::from_value::<
                             EventJson<ruma::events::room::guest_access::GuestAccessEventContent>,
                         >(s.content.clone())
-                        .unwrap()
+                        .map_err(|_| Error::BadDatabase("Invalid room guest access event in database."))?
                         .deserialize()
-                        .unwrap()
-                        .guest_access == guest_access::GuestAccess::CanJoin
-                }),
-                avatar_url: state.get(&(EventType::RoomAvatar, "".to_owned())).map(|s| {
-                    serde_json::from_value::<
+                        .map_err(|_| Error::BadDatabase("Invalid room guest access event in database."))?
+                        .guest_access == guest_access::GuestAccess::CanJoin)
+                })?,
+                avatar_url: state.get(&(EventType::RoomAvatar, "".to_owned())).map_or( Ok::<_, Error>(None),|s| {
+                    Ok(Some(serde_json::from_value::<
                             EventJson<ruma::events::room::avatar::AvatarEventContent>,
                         >(s.content.clone())
-                        .unwrap()
+                        .map_err(|_| Error::BadDatabase("Invalid room avatar event in database."))?
                         .deserialize()
-                        .unwrap()
-                        .url
-                }),
-            }
+                        .map_err(|_| Error::BadDatabase("Invalid room avatar event in database."))?
+                        .url))
+                })?,
+            };
+            Ok::<_, Error>(chunk)
         })
+        .filter_map(|r| r.ok()) // Filter out buggy rooms
         .collect::<Vec<_>>();
 
     chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
@@ -1824,38 +1719,42 @@ pub async fn get_public_rooms_filtered_route(
             },
         )
         .await
-        .unwrap()
+        ?
         .chunk
         .into_iter()
-        .map(|c| serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap())
+        .map(|c| serde_json::from_str(&serde_json::to_string(&c)?)?)
         .collect::<Vec<_>>(),
     );
     */
 
     let total_room_count_estimate = (chunk.len() as u32).into();
 
-    MatrixResult(Ok(get_public_rooms_filtered::Response {
+    Ok(get_public_rooms_filtered::Response {
         chunk,
         prev_batch: None,
         next_batch: None,
         total_room_count_estimate: Some(total_room_count_estimate),
-    }))
+    }
+    .into())
 }
 
 #[post("/_matrix/client/r0/user_directory/search", data = "<body>")]
 pub fn search_users_route(
     db: State<'_, Database>,
     body: Ruma<search_users::Request>,
-) -> MatrixResult<search_users::Response> {
-    MatrixResult(Ok(search_users::Response {
+) -> ConduitResult<search_users::Response> {
+    Ok(search_users::Response {
         results: db
             .users
             .iter()
-            .map(Result::unwrap)
-            .map(|user_id| search_users::User {
-                user_id: user_id.clone(),
-                display_name: db.users.displayname(&user_id).unwrap(),
-                avatar_url: db.users.avatar_url(&user_id).unwrap(),
+            .filter_map(|user_id| {
+                // Filter out buggy users (they should not exist, but you never know...)
+                let user_id = user_id.ok()?;
+                Some(search_users::User {
+                    user_id: user_id.clone(),
+                    display_name: db.users.displayname(&user_id).ok()?,
+                    avatar_url: db.users.avatar_url(&user_id).ok()?,
+                })
             })
             .filter(|user| {
                 user.user_id.to_string().contains(&body.search_term)
@@ -1867,21 +1766,23 @@ pub fn search_users_route(
             })
             .collect(),
         limited: false,
-    }))
+    }
+    .into())
 }
 
 #[get("/_matrix/client/r0/rooms/<_room_id>/members")]
-pub fn get_member_events_route(_room_id: String) -> MatrixResult<get_member_events::Response> {
+pub fn get_member_events_route(_room_id: String) -> ConduitResult<get_member_events::Response> {
     warn!("TODO: get_member_events_route");
-    MatrixResult(Ok(get_member_events::Response { chunk: Vec::new() }))
+    Ok(get_member_events::Response { chunk: Vec::new() }.into())
 }
 
 #[get("/_matrix/client/r0/thirdparty/protocols")]
-pub fn get_protocols_route() -> MatrixResult<get_protocols::Response> {
+pub fn get_protocols_route() -> ConduitResult<get_protocols::Response> {
     warn!("TODO: get_protocols_route");
-    MatrixResult(Ok(get_protocols::Response {
+    Ok(get_protocols::Response {
         protocols: BTreeMap::new(),
-    }))
+    }
+    .into())
 }
 
 #[put(
@@ -1894,30 +1795,29 @@ pub fn create_message_event_route(
     _room_id: String,
     _event_type: String,
     _txn_id: String,
-) -> MatrixResult<create_message_event::Response> {
+) -> ConduitResult<create_message_event::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     let mut unsigned = serde_json::Map::new();
     unsigned.insert("transaction_id".to_owned(), body.txn_id.clone().into());
 
-    if let Ok(event_id) = db.rooms.append_pdu(
+    let event_id = db.rooms.append_pdu(
         body.room_id.clone(),
         user_id.clone(),
         body.event_type.clone(),
-        serde_json::from_str(body.json_body.unwrap().get()).unwrap(),
+        serde_json::from_str(
+            body.json_body
+                .ok_or(Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?
+                .get(),
+        )
+        .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?,
         Some(unsigned),
         None,
         None,
         &db.globals,
-    ) {
-        MatrixResult(Ok(create_message_event::Response { event_id }))
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::Unknown,
-            message: "Failed to send message.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
-    }
+    )?;
+
+    Ok(create_message_event::Response { event_id }.into())
 }
 
 #[put(
@@ -1930,19 +1830,24 @@ pub fn create_state_event_for_key_route(
     _room_id: String,
     _event_type: String,
     _state_key: String,
-) -> MatrixResult<create_state_event_for_key::Response> {
+) -> ConduitResult<create_state_event_for_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    let content =
-        serde_json::from_str::<serde_json::Value>(body.json_body.clone().unwrap().get()).unwrap();
+    let content = serde_json::from_str::<serde_json::Value>(
+        body.json_body
+            .as_ref()
+            .ok_or(Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?
+            .get(),
+    )
+    .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
 
     if body.event_type == EventType::RoomCanonicalAlias {
         let canonical_alias = serde_json::from_value::<
             EventJson<canonical_alias::CanonicalAliasEventContent>,
         >(content.clone())
-        .unwrap()
+        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid canonical alias."))?
         .deserialize()
-        .unwrap();
+        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid canonical alias."))?;
 
         let mut aliases = canonical_alias.alt_aliases;
 
@@ -1954,21 +1859,16 @@ pub fn create_state_event_for_key_route(
             if alias.server_name() != db.globals.server_name()
                 || db
                     .rooms
-                    .id_from_alias(&alias)
-                    .unwrap()
+                    .id_from_alias(&alias)?
                     .filter(|room| room == &body.room_id) // Make sure it's the right room
                     .is_none()
             {
-                return MatrixResult(Err(Error {
-                    kind: ErrorKind::Unknown,
-                    message: "You are only allowed to send canonical_alias events when it's aliases already exists".to_owned(),
-                    status_code: http::StatusCode::BAD_REQUEST,
-                }));
+                return Err(Error::BadRequest(ErrorKind::Forbidden, "You are only allowed to send canonical_alias events when it's aliases already exists"));
             }
         }
     }
 
-    if let Ok(event_id) = db.rooms.append_pdu(
+    let event_id = db.rooms.append_pdu(
         body.room_id.clone(),
         user_id.clone(),
         body.event_type.clone(),
@@ -1977,15 +1877,9 @@ pub fn create_state_event_for_key_route(
         Some(body.state_key.clone()),
         None,
         &db.globals,
-    ) {
-        MatrixResult(Ok(create_state_event_for_key::Response { event_id }))
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::Unknown,
-            message: "Failed to send event.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
-    }
+    )?;
+
+    Ok(create_state_event_for_key::Response { event_id }.into())
 }
 
 #[put(
@@ -1997,7 +1891,7 @@ pub fn create_state_event_for_empty_key_route(
     body: Ruma<create_state_event_for_empty_key::Request>,
     _room_id: String,
     _event_type: String,
-) -> MatrixResult<create_state_event_for_empty_key::Response> {
+) -> ConduitResult<create_state_event_for_empty_key::Response> {
     // This just calls create_state_event_for_key_route
     let Ruma {
         body:
@@ -2011,30 +1905,28 @@ pub fn create_state_event_for_empty_key_route(
         json_body,
     } = body;
 
-    let response = create_state_event_for_key_route(
-        db,
-        Ruma {
-            body: create_state_event_for_key::Request {
-                room_id,
-                event_type,
-                data,
-                state_key: "".to_owned(),
+    Ok(create_state_event_for_empty_key::Response {
+        event_id: create_state_event_for_key_route(
+            db,
+            Ruma {
+                body: create_state_event_for_key::Request {
+                    room_id,
+                    event_type,
+                    data,
+                    state_key: "".to_owned(),
+                },
+                user_id,
+                device_id,
+                json_body,
             },
-            user_id,
-            device_id,
-            json_body,
-        },
-        _room_id,
-        _event_type,
-        "".to_owned(),
-    );
-
-    MatrixResult(match response.0 {
-        Ok(create_state_event_for_key::Response { event_id }) => {
-            Ok(create_state_event_for_empty_key::Response { event_id })
-        }
-        Err(e) => Err(e),
-    })
+            _room_id,
+            _event_type,
+            "".to_owned(),
+        )?
+        .0
+        .event_id,
+    }
+    .into())
 }
 
 #[get("/_matrix/client/r0/rooms/<_room_id>/state", data = "<body>")]
@@ -2042,26 +1934,25 @@ pub fn get_state_events_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events::Request>,
     _room_id: String,
-) -> MatrixResult<get_state_events::Response> {
+) -> ConduitResult<get_state_events::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::Forbidden,
-            message: "You don't have permission to view the room state.".to_owned(),
-            status_code: http::StatusCode::FORBIDDEN,
-        }));
+    if !db.rooms.is_joined(user_id, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view the room state.",
+        ));
     }
 
-    MatrixResult(Ok(get_state_events::Response {
+    Ok(get_state_events::Response {
         room_state: db
             .rooms
-            .room_state(&body.room_id)
-            .unwrap()
+            .room_state(&body.room_id)?
             .values()
             .map(|pdu| pdu.to_state_event())
             .collect(),
-    }))
+    }
+    .into())
 }
 
 #[get(
@@ -2074,33 +1965,30 @@ pub fn get_state_events_for_key_route(
     _room_id: String,
     _event_type: String,
     _state_key: String,
-) -> MatrixResult<get_state_events_for_key::Response> {
+) -> ConduitResult<get_state_events_for_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::Forbidden,
-            message: "You don't have permission to view the room state.".to_owned(),
-            status_code: http::StatusCode::FORBIDDEN,
-        }));
+    if !db.rooms.is_joined(user_id, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view the room state.",
+        ));
     }
 
-    if let Some(event) = db
-        .rooms
-        .room_state(&body.room_id)
-        .unwrap()
+    let state = db.rooms.room_state(&body.room_id)?;
+
+    let event = state
         .get(&(body.event_type.clone(), body.state_key.clone()))
-    {
-        MatrixResult(Ok(get_state_events_for_key::Response {
-            content: serde_json::value::to_raw_value(&event.content).unwrap(),
-        }))
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "State event not found.".to_owned(),
-            status_code: http::StatusCode::NOT_FOUND,
-        }))
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "State event not found.",
+        ))?;
+
+    Ok(get_state_events_for_key::Response {
+        content: serde_json::value::to_raw_value(&event.content)
+            .map_err(|_| Error::BadDatabase("Invalid event content in database"))?,
     }
+    .into())
 }
 
 #[get(
@@ -2112,45 +2000,42 @@ pub fn get_state_events_for_empty_key_route(
     body: Ruma<get_state_events_for_empty_key::Request>,
     _room_id: String,
     _event_type: String,
-) -> MatrixResult<get_state_events_for_key::Response> {
+) -> ConduitResult<get_state_events_for_empty_key::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::Forbidden,
-            message: "You don't have permission to view the room state.".to_owned(),
-            status_code: http::StatusCode::FORBIDDEN,
-        }));
+    if !db.rooms.is_joined(user_id, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view the room state.",
+        ));
     }
 
-    if let Some(event) = db
-        .rooms
-        .room_state(&body.room_id)
-        .unwrap()
+    let state = db.rooms.room_state(&body.room_id)?;
+
+    let event = state
         .get(&(body.event_type.clone(), "".to_owned()))
-    {
-        MatrixResult(Ok(get_state_events_for_key::Response {
-            content: serde_json::value::to_raw_value(event).unwrap(),
-        }))
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "State event not found.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "State event not found.",
+        ))?;
+
+    Ok(get_state_events_for_empty_key::Response {
+        content: serde_json::value::to_raw_value(event)
+            .map_err(|_| Error::BadDatabase("Invalid event content in database"))?,
     }
+    .into())
 }
 
 #[get("/_matrix/client/r0/sync", data = "<body>")]
 pub fn sync_route(
     db: State<'_, Database>,
     body: Ruma<sync_events::Request>,
-) -> MatrixResult<sync_events::Response> {
+) -> ConduitResult<sync_events::Response> {
     std::thread::sleep(Duration::from_millis(1000));
     let user_id = body.user_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
-    let next_batch = db.globals.current_count().unwrap().to_string();
+    let next_batch = db.globals.current_count()?.to_string();
 
     let mut joined_rooms = BTreeMap::new();
     let since = body
@@ -2160,13 +2045,12 @@ pub fn sync_route(
         .unwrap_or(0);
 
     for room_id in db.rooms.rooms_joined(&user_id) {
-        let room_id = room_id.unwrap();
+        let room_id = room_id?;
 
         let mut pdus = db
             .rooms
-            .pdus_since(&room_id, since)
-            .unwrap()
-            .map(|r| r.unwrap())
+            .pdus_since(&room_id, since)?
+            .filter_map(|r| r.ok()) // Filter out buggy events
             .collect::<Vec<_>>();
 
         let mut send_member_count = false;
@@ -2180,9 +2064,9 @@ pub fn sync_route(
                     let content = serde_json::from_value::<
                         EventJson<ruma::events::room::member::MemberEventContent>,
                     >(pdu.content.clone())
-                    .unwrap()
+                    .map_err(|_| Error::BadDatabase("Invalid PDU in database."))?
                     .deserialize()
-                    .unwrap();
+                    .map_err(|_| Error::BadDatabase("Invalid PDU in database."))?;
                     if content.membership == ruma::events::room::member::MembershipState::Join {
                         joined_since_last_sync = true;
                         // Both send_member_count and joined_since_last_sync are set. There's nothing more
@@ -2193,7 +2077,7 @@ pub fn sync_route(
             }
         }
 
-        let state = db.rooms.room_state(&room_id).unwrap();
+        let state = db.rooms.room_state(&room_id)?;
 
         let (joined_member_count, invited_member_count, heroes) = if send_member_count {
             let joined_member_count = db.rooms.room_members(&room_id).count();
@@ -2208,51 +2092,54 @@ pub fn sync_route(
 
                 for hero in db
                     .rooms
-                    .all_pdus(&room_id)
-                    .unwrap()
+                    .all_pdus(&room_id)?
                     .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
                     .filter(|pdu| pdu.kind == EventType::RoomMember)
-                    .filter_map(|pdu| {
+                    .map(|pdu| {
                         let content = serde_json::from_value::<
                             EventJson<ruma::events::room::member::MemberEventContent>,
                         >(pdu.content.clone())
-                        .unwrap()
+                        .map_err(|_| Error::BadDatabase("Invalid member event in database."))?
                         .deserialize()
-                        .unwrap();
+                        .map_err(|_| Error::BadDatabase("Invalid member event in database."))?;
 
-                        let current_content = serde_json::from_value::<
-                            EventJson<ruma::events::room::member::MemberEventContent>,
-                        >(
-                            state
-                                .get(&(
-                                    EventType::RoomMember,
-                                    pdu.state_key.clone().expect(
-                                        "TODO: error handling. Is it really a state event?",
-                                    ),
-                                ))
-                                .expect("a user that joined once will always have a member event")
-                                .content
-                                .clone(),
-                        )
-                        .unwrap()
-                        .deserialize()
-                        .unwrap();
+                        if let Some(state_key) = &pdu.state_key {
+                            let current_content = serde_json::from_value::<
+                                EventJson<ruma::events::room::member::MemberEventContent>,
+                            >(
+                                state
+                                    .get(&(EventType::RoomMember, state_key.clone()))
+                                    .ok_or(Error::BadDatabase(
+                                        "A user that joined once has no member event anymore.",
+                                    ))?
+                                    .content
+                                    .clone(),
+                            )
+                            .map_err(|_| Error::BadDatabase("Invalid member event in database."))?
+                            .deserialize()
+                            .map_err(|_| Error::BadDatabase("Invalid member event in database."))?;
 
-                        // The membership was and still is invite or join
-                        if matches!(
-                            content.membership,
-                            ruma::events::room::member::MembershipState::Join
-                                | ruma::events::room::member::MembershipState::Invite
-                        ) && matches!(
-                            current_content.membership,
-                            ruma::events::room::member::MembershipState::Join
-                                | ruma::events::room::member::MembershipState::Invite
-                        ) {
-                            Some(pdu.state_key.unwrap())
+                            // The membership was and still is invite or join
+                            if matches!(
+                                content.membership,
+                                ruma::events::room::member::MembershipState::Join
+                                    | ruma::events::room::member::MembershipState::Invite
+                            ) && matches!(
+                                current_content.membership,
+                                ruma::events::room::member::MembershipState::Join
+                                    | ruma::events::room::member::MembershipState::Invite
+                            ) {
+                                Ok::<_, Error>(Some(state_key.clone()))
+                            } else {
+                                Ok(None)
+                            }
                         } else {
-                            None
+                            Ok(None)
                         }
                     })
+                    .filter_map(|u| u.ok()) // Filter out buggy users
+                    // Filter for possible heroes
+                    .filter_map(|u| u)
                 {
                     if heroes.contains(&hero) || hero == user_id.to_string() {
                         continue;
@@ -2272,14 +2159,14 @@ pub fn sync_route(
         };
 
         let notification_count = if send_notification_counts {
-            if let Some(last_read) = db.rooms.edus.room_read_get(&room_id, &user_id).unwrap() {
+            if let Some(last_read) = db.rooms.edus.room_read_get(&room_id, &user_id)? {
                 Some(
                     (db.rooms
-                        .pdus_since(&room_id, last_read)
-                        .unwrap()
+                        .pdus_since(&room_id, last_read)?
+                        .filter_map(|pdu| pdu.ok()) // Filter out buggy events
                         .filter(|pdu| {
                             matches!(
-                                pdu.as_ref().unwrap().kind.clone(),
+                                pdu.kind.clone(),
                                 EventType::RoomMessage | EventType::RoomEncrypted
                             )
                         })
@@ -2301,10 +2188,14 @@ pub fn sync_route(
             0
         }));
 
-        let prev_batch = pdus
-            .first()
-            .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
-            .map(|c| c.to_string());
+        let prev_batch = pdus.first().map_or(Ok::<_, Error>(None), |e| {
+            Ok(Some(
+                db.rooms
+                    .get_pdu_count(&e.event_id)?
+                    .ok_or(Error::BadDatabase("Can't find count from event in db."))?
+                    .to_string(),
+            ))
+        })?;
 
         let room_events = pdus
             .into_iter()
@@ -2314,26 +2205,24 @@ pub fn sync_route(
         let mut edus = db
             .rooms
             .edus
-            .roomlatests_since(&room_id, since)
-            .unwrap()
-            .map(|r| r.unwrap())
+            .roomlatests_since(&room_id, since)?
+            .filter_map(|r| r.ok()) // Filter out buggy events
             .collect::<Vec<_>>();
 
         if db
             .rooms
             .edus
-            .last_roomactive_update(&room_id, &db.globals)
-            .unwrap()
+            .last_roomactive_update(&room_id, &db.globals)?
             > since
         {
             edus.push(
                 serde_json::from_str(
                     &serde_json::to_string(&EduEvent::Typing(
-                        db.rooms.edus.roomactives_all(&room_id).unwrap(),
+                        db.rooms.edus.roomactives_all(&room_id)?,
                     ))
-                    .unwrap(),
+                    .expect("event is valid, we just created it"),
                 )
-                .unwrap(),
+                .expect("event is valid, we just created it"),
             );
         }
 
@@ -2341,8 +2230,7 @@ pub fn sync_route(
             account_data: sync_events::AccountData {
                 events: db
                     .account_data
-                    .changes_since(Some(&room_id), &user_id, since)
-                    .unwrap()
+                    .changes_since(Some(&room_id), &user_id, since)?
                     .into_iter()
                     .map(|(_, v)| v)
                     .collect(),
@@ -2380,40 +2268,41 @@ pub fn sync_route(
         };
 
         if !joined_room.is_empty() {
-            joined_rooms.insert(room_id.clone().try_into().unwrap(), joined_room);
+            joined_rooms.insert(room_id.clone(), joined_room);
         }
     }
 
     let mut left_rooms = BTreeMap::new();
     for room_id in db.rooms.rooms_left(&user_id) {
-        let room_id = room_id.unwrap();
-        let pdus = db.rooms.pdus_since(&room_id, since).unwrap();
-        let room_events = pdus.map(|pdu| pdu.unwrap().to_room_event()).collect();
+        let room_id = room_id?;
+        let pdus = db.rooms.pdus_since(&room_id, since)?;
+        let room_events = pdus
+            .filter_map(|pdu| pdu.ok()) // Filter out buggy events
+            .map(|pdu| pdu.to_room_event())
+            .collect();
 
         // TODO: Only until leave point
         let mut edus = db
             .rooms
             .edus
-            .roomlatests_since(&room_id, since)
-            .unwrap()
-            .map(|r| r.unwrap())
+            .roomlatests_since(&room_id, since)?
+            .filter_map(|r| r.ok()) // Filter out buggy events
             .collect::<Vec<_>>();
 
         if db
             .rooms
             .edus
-            .last_roomactive_update(&room_id, &db.globals)
-            .unwrap()
+            .last_roomactive_update(&room_id, &db.globals)?
             > since
         {
             edus.push(
                 serde_json::from_str(
                     &serde_json::to_string(&EduEvent::Typing(
-                        db.rooms.edus.roomactives_all(&room_id).unwrap(),
+                        db.rooms.edus.roomactives_all(&room_id)?,
                     ))
-                    .unwrap(),
+                    .expect("event is valid, we just created it"),
                 )
-                .unwrap(),
+                .expect("event is valid, we just created it"),
             );
         }
 
@@ -2428,20 +2317,19 @@ pub fn sync_route(
         };
 
         if !left_room.is_empty() {
-            left_rooms.insert(room_id.clone().try_into().unwrap(), left_room);
+            left_rooms.insert(room_id.clone(), left_room);
         }
     }
 
     let mut invited_rooms = BTreeMap::new();
     for room_id in db.rooms.rooms_invited(&user_id) {
-        let room_id = room_id.unwrap();
+        let room_id = room_id?;
 
         let invited_room = sync_events::InvitedRoom {
             invite_state: sync_events::InviteState {
                 events: db
                     .rooms
-                    .room_state(&room_id)
-                    .unwrap()
+                    .room_state(&room_id)?
                     .into_iter()
                     .map(|(_, pdu)| pdu.to_stripped_state_event())
                     .collect(),
@@ -2453,7 +2341,7 @@ pub fn sync_route(
         }
     }
 
-    MatrixResult(Ok(sync_events::Response {
+    Ok(sync_events::Response {
         next_batch,
         rooms: sync_events::Rooms {
             leave: left_rooms,
@@ -2463,24 +2351,27 @@ pub fn sync_route(
         presence: sync_events::Presence {
             events: db
                 .global_edus
-                .presence_since(since)
-                .unwrap()
+                .presence_since(since)?
                 .map(|edu| {
-                    let mut edu = edu.unwrap().deserialize().unwrap();
-                    let timestamp = edu.content.last_active_ago.unwrap();
-                    let last_active_ago = js_int::UInt::try_from(utils::millis_since_unix_epoch())
-                        .unwrap()
-                        - timestamp;
-                    edu.content.last_active_ago = Some(last_active_ago);
-                    edu.into()
+                    let mut edu = edu?
+                        .deserialize()
+                        .map_err(|_| Error::BadDatabase("EDU in database is invalid."))?;
+                    if let Some(timestamp) = edu.content.last_active_ago {
+                        let last_active_ago =
+                            js_int::UInt::try_from(utils::millis_since_unix_epoch())
+                                .expect("time is valid")
+                                - timestamp;
+                        edu.content.last_active_ago = Some(last_active_ago);
+                    }
+                    Ok::<_, Error>(edu.into())
                 })
+                .filter_map(|edu| edu.ok()) // Filter out buggy events
                 .collect(),
         },
         account_data: sync_events::AccountData {
             events: db
                 .account_data
-                .changes_since(None, &user_id, since)
-                .unwrap()
+                .changes_since(None, &user_id, since)?
                 .into_iter()
                 .map(|(_, v)| v)
                 .collect(),
@@ -2489,8 +2380,8 @@ pub fn sync_route(
             changed: if since != 0 {
                 db.users
                     .device_keys_changed(since)
-                    .map(|u| u.unwrap())
-                    .collect()
+                    .filter_map(|u| u.ok())
+                    .collect() // Filter out buggy events
             } else {
                 Vec::new()
             },
@@ -2498,12 +2389,10 @@ pub fn sync_route(
         },
         device_one_time_keys_count: Default::default(), // TODO
         to_device: sync_events::ToDevice {
-            events: db
-                .users
-                .take_to_device_events(user_id, device_id, 100)
-                .unwrap(),
+            events: db.users.take_to_device_events(user_id, device_id, 100)?,
         },
-    }))
+    }
+    .into())
 }
 
 #[get(
@@ -2515,81 +2404,96 @@ pub fn get_context_route(
     body: Ruma<get_context::Request>,
     _room_id: String,
     _event_id: String,
-) -> MatrixResult<get_context::Response> {
+) -> ConduitResult<get_context::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::Forbidden,
-            message: "You don't have permission to view this room.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }));
+    if !db.rooms.is_joined(user_id, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view this room.",
+        ));
     }
 
-    if let Some(base_event) = db.rooms.get_pdu(&body.event_id).unwrap() {
-        let base_event = base_event.to_room_event();
+    let base_event = db
+        .rooms
+        .get_pdu(&body.event_id)?
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Base event not found.",
+        ))?
+        .to_room_event();
 
-        let base_token = db
+    let base_token = db
+        .rooms
+        .get_pdu_count(&body.event_id)?
+        .expect("event still exists");
+
+    let events_before = db
+        .rooms
+        .pdus_until(&body.room_id, base_token)
+        .take(
+            u32::try_from(body.limit).map_err(|_| {
+                Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
+            })? as usize
+                / 2,
+        )
+        .filter_map(|r| r.ok()) // Remove buggy events
+        .collect::<Vec<_>>();
+
+    let start_token = events_before.last().map_or(Ok(None), |e| {
+        Ok::<_, Error>(Some(
+            db.rooms
+                .get_pdu_count(&e.event_id)?
+                .ok_or(Error::BadDatabase("Can't find count from event in db."))?
+                .to_string(),
+        ))
+    })?;
+
+    let events_before = events_before
+        .into_iter()
+        .map(|pdu| pdu.to_room_event())
+        .collect::<Vec<_>>();
+
+    let events_after = db
+        .rooms
+        .pdus_after(&body.room_id, base_token)
+        .take(
+            u32::try_from(body.limit).map_err(|_| {
+                Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
+            })? as usize
+                / 2,
+        )
+        .filter_map(|r| r.ok()) // Remove buggy events
+        .collect::<Vec<_>>();
+
+    let end_token = events_after.last().map_or(Ok(None), |e| {
+        Ok::<_, Error>(Some(
+            db.rooms
+                .get_pdu_count(&e.event_id)?
+                .ok_or(Error::BadDatabase("Can't find count from event in db."))?
+                .to_string(),
+        ))
+    })?;
+
+    let events_after = events_after
+        .into_iter()
+        .map(|pdu| pdu.to_room_event())
+        .collect::<Vec<_>>();
+
+    Ok(get_context::Response {
+        start: start_token,
+        end: end_token,
+        events_before,
+        event: Some(base_event),
+        events_after,
+        state: db // TODO: State at event
             .rooms
-            .get_pdu_count(&body.event_id)
-            .unwrap()
-            .expect("event exists, so count should exist too");
-
-        let events_before = db
-            .rooms
-            .pdus_until(&body.room_id, base_token)
-            .take(u32::try_from(body.limit).unwrap() as usize / 2)
-            .map(|r| r.unwrap())
-            .collect::<Vec<_>>();
-
-        let start_token = events_before
-            .last()
-            .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
-            .map(|c| c.to_string());
-
-        let events_before = events_before
-            .into_iter()
-            .map(|pdu| pdu.to_room_event())
-            .collect::<Vec<_>>();
-
-        let events_after = db
-            .rooms
-            .pdus_after(&body.room_id, base_token)
-            .take(u32::try_from(body.limit).unwrap() as usize / 2)
-            .map(|r| r.unwrap())
-            .collect::<Vec<_>>();
-
-        let end_token = events_after
-            .last()
-            .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
-            .map(|c| c.to_string());
-
-        let events_after = events_after
-            .into_iter()
-            .map(|pdu| pdu.to_room_event())
-            .collect::<Vec<_>>();
-
-        MatrixResult(Ok(get_context::Response {
-            start: start_token,
-            end: end_token,
-            events_before,
-            event: Some(base_event),
-            events_after,
-            state: db // TODO: State at event
-                .rooms
-                .room_state(&body.room_id)
-                .unwrap()
-                .values()
-                .map(|pdu| pdu.to_state_event())
-                .collect(),
-        }))
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::Unknown,
-            message: "Invalid base event.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
+            .room_state(&body.room_id)?
+            .values()
+            .map(|pdu| pdu.to_state_event())
+            .collect(),
     }
+    .into())
 }
 
 #[get("/_matrix/client/r0/rooms/<_room_id>/messages", data = "<body>")]
@@ -2597,96 +2501,109 @@ pub fn get_message_events_route(
     db: State<'_, Database>,
     body: Ruma<get_message_events::Request>,
     _room_id: String,
-) -> MatrixResult<get_message_events::Response> {
+) -> ConduitResult<get_message_events::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id).unwrap() {
-        return MatrixResult(Err(Error {
-            kind: ErrorKind::Forbidden,
-            message: "You don't have permission to view this room.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }));
+    if !db.rooms.is_joined(user_id, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view this room.",
+        ));
     }
 
-    if let Ok(from) = body.from.clone().parse() {
-        match body.dir {
-            get_message_events::Direction::Forward => {
-                let events_after = db
-                    .rooms
-                    .pdus_after(&body.room_id, from)
-                    .take(body.limit.map(|l| l.try_into().unwrap()).unwrap_or(10_u32) as usize)
-                    .map(|r| r.unwrap())
-                    .collect::<Vec<_>>();
+    let from = body
+        .from
+        .clone()
+        .parse()
+        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from` value."))?;
+    match body.dir {
+        get_message_events::Direction::Forward => {
+            let events_after = db
+                .rooms
+                .pdus_after(&body.room_id, from)
+                // Use limit or else 10
+                .take(body.limit.map_or(Ok::<_, Error>(10_usize), |l| {
+                    Ok(u32::try_from(l).map_err(|_| {
+                        Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
+                    })? as usize)
+                })?)
+                .filter_map(|r| r.ok()) // Filter out buggy events
+                .collect::<Vec<_>>();
 
-                let end_token = events_after
-                    .last()
-                    .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
-                    .map(|c| c.to_string());
+            let end_token = events_after.last().map_or(Ok::<_, Error>(None), |e| {
+                Ok(Some(
+                    db.rooms
+                        .get_pdu_count(&e.event_id)?
+                        .ok_or(Error::BadDatabase("Can't find count from event in db."))?
+                        .to_string(),
+                ))
+            })?;
 
-                let events_after = events_after
-                    .into_iter()
-                    .map(|pdu| pdu.to_room_event())
-                    .collect::<Vec<_>>();
+            let events_after = events_after
+                .into_iter()
+                .map(|pdu| pdu.to_room_event())
+                .collect::<Vec<_>>();
 
-                MatrixResult(Ok(get_message_events::Response {
-                    start: Some(body.from.clone()),
-                    end: end_token,
-                    chunk: events_after,
-                    state: Vec::new(),
-                }))
+            Ok(get_message_events::Response {
+                start: Some(body.from.clone()),
+                end: end_token,
+                chunk: events_after,
+                state: Vec::new(),
             }
-            get_message_events::Direction::Backward => {
-                let events_before = db
-                    .rooms
-                    .pdus_until(&body.room_id, from)
-                    .take(body.limit.map(|l| l.try_into().unwrap()).unwrap_or(10_u32) as usize)
-                    .map(|r| r.unwrap())
-                    .collect::<Vec<_>>();
-
-                let start_token = events_before
-                    .last()
-                    .and_then(|e| db.rooms.get_pdu_count(&e.event_id).unwrap())
-                    .map(|c| c.to_string());
-
-                let events_before = events_before
-                    .into_iter()
-                    .map(|pdu| pdu.to_room_event())
-                    .collect::<Vec<_>>();
-
-                MatrixResult(Ok(get_message_events::Response {
-                    start: Some(body.from.clone()),
-                    end: start_token,
-                    chunk: events_before,
-                    state: Vec::new(),
-                }))
-            }
+            .into())
         }
-    } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::Unknown,
-            message: "Invalid from.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
+        get_message_events::Direction::Backward => {
+            let events_before = db
+                .rooms
+                .pdus_until(&body.room_id, from)
+                // Use limit or else 10
+                .take(body.limit.map_or(Ok::<_, Error>(10_usize), |l| {
+                    Ok(u32::try_from(l).map_err(|_| {
+                        Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
+                    })? as usize)
+                })?)
+                .filter_map(|r| r.ok()) // Filter out buggy events
+                .collect::<Vec<_>>();
+
+            let start_token = events_before.last().map_or(Ok::<_, Error>(None), |e| {
+                Ok(Some(
+                    db.rooms
+                        .get_pdu_count(&e.event_id)?
+                        .ok_or(Error::BadDatabase("Can't find count from event in db."))?
+                        .to_string(),
+                ))
+            })?;
+
+            let events_before = events_before
+                .into_iter()
+                .map(|pdu| pdu.to_room_event())
+                .collect::<Vec<_>>();
+
+            Ok(get_message_events::Response {
+                start: Some(body.from.clone()),
+                end: start_token,
+                chunk: events_before,
+                state: Vec::new(),
+            }
+            .into())
+        }
     }
 }
 
 #[get("/_matrix/client/r0/voip/turnServer")]
-pub fn turn_server_route() -> MatrixResult<create_message_event::Response> {
-    MatrixResult(Err(Error {
-        kind: ErrorKind::NotFound,
-        message: "There is no turn server yet.".to_owned(),
-        status_code: http::StatusCode::NOT_FOUND,
-    }))
+pub fn turn_server_route() -> ConduitResult<create_message_event::Response> {
+    Err(Error::BadRequest(
+        ErrorKind::NotFound,
+        "There is no turn server yet.",
+    ))
 }
 
 #[post("/_matrix/client/r0/publicised_groups")]
-pub fn publicised_groups_route() -> MatrixResult<create_message_event::Response> {
-    warn!("TODO: publicised_groups_route");
-    MatrixResult(Err(Error {
-        kind: ErrorKind::NotFound,
-        message: "There are no publicised groups yet.".to_owned(),
-        status_code: http::StatusCode::NOT_FOUND,
-    }))
+pub fn publicised_groups_route() -> ConduitResult<create_message_event::Response> {
+    Err(Error::BadRequest(
+        ErrorKind::NotFound,
+        "There are not publicised groups yet.",
+    ))
 }
 
 #[put(
@@ -2698,72 +2615,72 @@ pub fn send_event_to_device_route(
     body: Ruma<send_event_to_device::Request>,
     _event_type: String,
     _txn_id: String,
-) -> MatrixResult<send_event_to_device::Response> {
+) -> ConduitResult<send_event_to_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     for (target_user_id, map) in &body.messages {
         for (target_device_id_maybe, event) in map {
             match target_device_id_maybe {
-                to_device::DeviceIdOrAllDevices::DeviceId(target_device_id) => db
-                    .users
-                    .add_to_device_event(
+                to_device::DeviceIdOrAllDevices::DeviceId(target_device_id) => {
+                    db.users.add_to_device_event(
                         user_id,
                         &target_user_id,
                         &target_device_id,
                         &body.event_type,
-                        serde_json::from_str(event.get()).unwrap(),
+                        serde_json::from_str(event.get()).map_err(|_| {
+                            Error::BadRequest(ErrorKind::InvalidParam, "Event is invalid")
+                        })?,
                         &db.globals,
-                    )
-                    .unwrap(),
+                    )?
+                }
 
                 to_device::DeviceIdOrAllDevices::AllDevices => {
                     for target_device_id in db.users.all_device_ids(&target_user_id) {
-                        db.users
-                            .add_to_device_event(
-                                user_id,
-                                &target_user_id,
-                                &target_device_id.unwrap(),
-                                &body.event_type,
-                                serde_json::from_str(event.get()).unwrap(),
-                                &db.globals,
-                            )
-                            .unwrap();
+                        db.users.add_to_device_event(
+                            user_id,
+                            &target_user_id,
+                            &target_device_id?,
+                            &body.event_type,
+                            serde_json::from_str(event.get()).map_err(|_| {
+                                Error::BadRequest(ErrorKind::InvalidParam, "Event is invalid")
+                            })?,
+                            &db.globals,
+                        )?;
                     }
                 }
             }
         }
     }
 
-    MatrixResult(Ok(send_event_to_device::Response))
+    Ok(send_event_to_device::Response.into())
 }
 
 #[get("/_matrix/media/r0/config")]
-pub fn get_media_config_route() -> MatrixResult<get_media_config::Response> {
-    MatrixResult(Ok(get_media_config::Response {
+pub fn get_media_config_route() -> ConduitResult<get_media_config::Response> {
+    Ok(get_media_config::Response {
         upload_size: (20_u32 * 1024 * 1024).into(), // 20 MB
-    }))
+    }
+    .into())
 }
 
 #[post("/_matrix/media/r0/upload", data = "<body>")]
 pub fn create_content_route(
     db: State<'_, Database>,
     body: Ruma<create_content::Request>,
-) -> MatrixResult<create_content::Response> {
+) -> ConduitResult<create_content::Response> {
     let mxc = format!(
         "mxc://{}/{}",
         db.globals.server_name(),
         utils::random_string(MXC_LENGTH)
     );
-    db.media
-        .create(
-            mxc.clone(),
-            body.filename.as_ref(),
-            &body.content_type,
-            &body.file,
-        )
-        .unwrap();
+    db.media.create(
+        mxc.clone(),
+        body.filename.as_ref(),
+        &body.content_type,
+        &body.file,
+    )?;
 
-    MatrixResult(Ok(create_content::Response { content_uri: mxc }))
+    Ok(create_content::Response { content_uri: mxc }.into())
 }
 
 #[get(
@@ -2775,23 +2692,19 @@ pub fn get_content_route(
     body: Ruma<get_content::Request>,
     _server_name: String,
     _media_id: String,
-) -> MatrixResult<get_content::Response> {
+) -> ConduitResult<get_content::Response> {
     if let Some((filename, content_type, file)) = db
         .media
-        .get(format!("mxc://{}/{}", body.server_name, body.media_id))
-        .unwrap()
+        .get(format!("mxc://{}/{}", body.server_name, body.media_id))?
     {
-        MatrixResult(Ok(get_content::Response {
+        Ok(get_content::Response {
             file,
             content_type,
             content_disposition: filename.unwrap_or_default(), // TODO: Spec says this should be optional
-        }))
+        }
+        .into())
     } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "Media not found.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
+        Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
     }
 }
 
@@ -2804,23 +2717,19 @@ pub fn get_content_thumbnail_route(
     body: Ruma<get_content_thumbnail::Request>,
     _server_name: String,
     _media_id: String,
-) -> MatrixResult<get_content_thumbnail::Response> {
-    if let Some((_, content_type, file)) = db
-        .media
-        .get_thumbnail(
-            format!("mxc://{}/{}", body.server_name, body.media_id),
-            body.width.try_into().unwrap(),
-            body.height.try_into().unwrap(),
-        )
-        .unwrap()
-    {
-        MatrixResult(Ok(get_content_thumbnail::Response { file, content_type }))
+) -> ConduitResult<get_content_thumbnail::Response> {
+    if let Some((_, content_type, file)) = db.media.get_thumbnail(
+        format!("mxc://{}/{}", body.server_name, body.media_id),
+        body.width
+            .try_into()
+            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
+        body.height
+            .try_into()
+            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
+    )? {
+        Ok(get_content_thumbnail::Response { file, content_type }.into())
     } else {
-        MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "Media not found.".to_owned(),
-            status_code: http::StatusCode::BAD_REQUEST,
-        }))
+        Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
     }
 }
 
@@ -2828,16 +2737,16 @@ pub fn get_content_thumbnail_route(
 pub fn get_devices_route(
     db: State<'_, Database>,
     body: Ruma<get_devices::Request>,
-) -> MatrixResult<get_devices::Response> {
+) -> ConduitResult<get_devices::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     let devices = db
         .users
         .all_devices_metadata(user_id)
-        .map(|r| r.unwrap())
+        .filter_map(|r| r.ok()) // Filter out buggy devices
         .collect::<Vec<device::Device>>();
 
-    MatrixResult(Ok(get_devices::Response { devices }))
+    Ok(get_devices::Response { devices }.into())
 }
 
 #[get("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
@@ -2845,22 +2754,15 @@ pub fn get_device_route(
     db: State<'_, Database>,
     body: Ruma<get_device::Request>,
     _device_id: String,
-) -> MatrixResult<get_device::Response> {
+) -> ConduitResult<get_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
     let device = db
         .users
-        .get_device_metadata(&user_id, &body.body.device_id)
-        .unwrap();
+        .get_device_metadata(&user_id, &body.body.device_id)?
+        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
 
-    match device {
-        None => MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "Device not found".to_string(),
-            status_code: http::StatusCode::NOT_FOUND,
-        })),
-        Some(device) => MatrixResult(Ok(get_device::Response { device })),
-    }
+    Ok(get_device::Response { device }.into())
 }
 
 #[put("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
@@ -2868,30 +2770,20 @@ pub fn update_device_route(
     db: State<'_, Database>,
     body: Ruma<update_device::Request>,
     _device_id: String,
-) -> MatrixResult<update_device::Response> {
+) -> ConduitResult<update_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    let device = db
+    let mut device = db
         .users
-        .get_device_metadata(&user_id, &body.body.device_id)
-        .unwrap();
+        .get_device_metadata(&user_id, &body.body.device_id)?
+        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
 
-    match device {
-        None => MatrixResult(Err(Error {
-            kind: ErrorKind::NotFound,
-            message: "Device not found".to_string(),
-            status_code: http::StatusCode::NOT_FOUND,
-        })),
-        Some(mut device) => {
-            device.display_name = body.display_name.clone();
+    device.display_name = body.display_name.clone();
 
-            db.users
-                .update_device_metadata(&user_id, &body.body.device_id, &device)
-                .unwrap();
+    db.users
+        .update_device_metadata(&user_id, &body.body.device_id, &device)?;
 
-            MatrixResult(Ok(update_device::Response))
-        }
-    }
+    Ok(update_device::Response.into())
 }
 
 #[delete("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
@@ -2899,7 +2791,7 @@ pub fn delete_device_route(
     db: State<'_, Database>,
     body: Ruma<delete_device::Request>,
     _device_id: String,
-) -> MatrixResult<delete_device::Response, UiaaResponse> {
+) -> ConduitResult<delete_device::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
@@ -2915,84 +2807,77 @@ pub fn delete_device_route(
     };
 
     if let Some(auth) = &body.auth {
-        let (worked, uiaainfo) = db
-            .uiaa
-            .try_auth(
-                &user_id,
-                &device_id,
-                auth,
-                &uiaainfo,
-                &db.users,
-                &db.globals,
-            )
-            .unwrap();
+        let (worked, uiaainfo) = db.uiaa.try_auth(
+            &user_id,
+            &device_id,
+            auth,
+            &uiaainfo,
+            &db.users,
+            &db.globals,
+        )?;
         if !worked {
-            return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+            return Err(Error::Uiaa(uiaainfo));
         }
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&user_id, &device_id, &uiaainfo).unwrap();
-        return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+        db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
+        return Err(Error::Uiaa(uiaainfo));
     }
 
-    db.users
-        .remove_device(&user_id, &body.body.device_id)
-        .unwrap();
+    db.users.remove_device(&user_id, &body.body.device_id)?;
 
-    MatrixResult(Ok(delete_device::Response))
+    Ok(delete_device::Response.into())
 }
 
 #[post("/_matrix/client/r0/delete_devices", data = "<body>")]
 pub fn delete_devices_route(
     db: State<'_, Database>,
     body: Ruma<delete_devices::Request>,
-) -> MatrixResult<delete_devices::Response, UiaaResponse> {
+) -> ConduitResult<delete_devices::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     // UIAA
-    let uiaainfo = UiaaInfo {
+    let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
             stages: vec!["m.login.password".to_owned()],
         }],
         completed: Vec::new(),
         params: Default::default(),
-        session: Some(utils::random_string(SESSION_ID_LENGTH)),
+        session: None,
         auth_error: None,
     };
 
     if let Some(auth) = &body.auth {
-        let (worked, uiaainfo) = db
-            .uiaa
-            .try_auth(
-                &user_id,
-                &device_id,
-                auth,
-                &uiaainfo,
-                &db.users,
-                &db.globals,
-            )
-            .unwrap();
+        let (worked, uiaainfo) = db.uiaa.try_auth(
+            &user_id,
+            &device_id,
+            auth,
+            &uiaainfo,
+            &db.users,
+            &db.globals,
+        )?;
         if !worked {
-            return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+            return Err(Error::Uiaa(uiaainfo));
         }
     // Success!
     } else {
-        db.uiaa.create(&user_id, &device_id, &uiaainfo).unwrap();
-        return MatrixResult(Err(UiaaResponse::AuthResponse(uiaainfo)));
+        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+        db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
+        return Err(Error::Uiaa(uiaainfo));
     }
 
     for device_id in &body.devices {
-        db.users.remove_device(&user_id, &device_id).unwrap()
+        db.users.remove_device(&user_id, &device_id)?
     }
 
-    MatrixResult(Ok(delete_devices::Response))
+    Ok(delete_devices::Response.into())
 }
 
 #[options("/<_segments..>")]
 pub fn options_route(
     _segments: rocket::http::uri::Segments<'_>,
-) -> MatrixResult<send_event_to_device::Response> {
-    MatrixResult(Ok(send_event_to_device::Response))
+) -> ConduitResult<send_event_to_device::Response> {
+    Ok(send_event_to_device::Response.into())
 }
