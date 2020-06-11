@@ -43,16 +43,20 @@ impl Media {
             let content_type = utils::string_from_bytes(
                 parts
                     .next()
-                    .ok_or(Error::BadDatabase("mediaid is invalid"))?,
-            )?;
+                    .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?,
+            )
+            .map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))?;
 
             let filename_bytes = parts
                 .next()
-                .ok_or(Error::BadDatabase("mediaid is invalid"))?;
+                .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?;
+
             let filename = if filename_bytes.is_empty() {
                 None
             } else {
-                Some(utils::string_from_bytes(filename_bytes)?)
+                Some(utils::string_from_bytes(filename_bytes).map_err(|_| {
+                    Error::bad_database("Filename in mediaid_file is invalid unicode.")
+                })?)
             };
 
             Ok(Some((filename, content_type, file.to_vec())))
@@ -89,16 +93,21 @@ impl Media {
             let content_type = utils::string_from_bytes(
                 parts
                     .next()
-                    .ok_or(Error::BadDatabase("mediaid is invalid"))?,
-            )?;
+                    .ok_or_else(|| Error::bad_database("Invalid Media ID in db"))?,
+            )
+            .map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))?;
 
             let filename_bytes = parts
                 .next()
-                .ok_or(Error::BadDatabase("mediaid is invalid"))?;
+                .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?;
+
             let filename = if filename_bytes.is_empty() {
                 None
             } else {
-                Some(utils::string_from_bytes(filename_bytes)?)
+                Some(
+                    utils::string_from_bytes(filename_bytes)
+                        .map_err(|_| Error::bad_database("Filename in db is invalid."))?,
+                )
             };
 
             Ok(Some((filename, content_type, file.to_vec())))
@@ -110,16 +119,20 @@ impl Media {
             let content_type = utils::string_from_bytes(
                 parts
                     .next()
-                    .ok_or(Error::BadDatabase("mediaid is invalid"))?,
-            )?;
+                    .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?,
+            )
+            .map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))?;
 
             let filename_bytes = parts
                 .next()
-                .ok_or(Error::BadDatabase("mediaid is invalid"))?;
+                .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?;
+
             let filename = if filename_bytes.is_empty() {
                 None
             } else {
-                Some(utils::string_from_bytes(filename_bytes)?)
+                Some(utils::string_from_bytes(filename_bytes).map_err(|_| {
+                    Error::bad_database("Filename in mediaid_file is invalid unicode.")
+                })?)
             };
 
             if let Ok(image) = image::load_from_memory(&file) {
@@ -132,7 +145,7 @@ impl Media {
                 let width_index = thumbnail_key
                     .iter()
                     .position(|&b| b == 0xff)
-                    .ok_or(Error::BadDatabase("mediaid is invalid"))?
+                    .ok_or_else(|| Error::bad_database("Media in db is invalid."))?
                     + 1;
                 let mut widthheight = width.to_be_bytes().to_vec();
                 widthheight.extend_from_slice(&height.to_be_bytes());

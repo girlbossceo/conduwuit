@@ -35,8 +35,6 @@ POST /rooms/:room_id/invite can send an invite
 PUT /rooms/:room_id/state/m.room.power_levels can set levels
 PUT power_levels should not explode if the old power levels were empty
 Both GET and PUT work
-Room creation reports m.room.create to myself
-Room creation reports m.room.member to myself
 Version responds 200 OK with valid structure
 PUT /profile/:user_id/displayname sets my name
 GET /profile/:user_id/displayname publicly accessible
@@ -78,3 +76,4 @@ User directory correctly update on display name change
 User in shared private room does appear in user directory
 User in dir while user still shares private rooms
 POST /rooms/:room_id/ban can ban a user
+Alternative server names do not cause a routing loop

@@ -1,4 +1,4 @@
-use crate::{utils, Result};
+use crate::{utils, Error, Result};
 
 pub const COUNTER: &str = "c";
 
@@ -11,17 +11,16 @@ pub struct Globals {
 }
 
 impl Globals {
-    pub fn load(globals: sled::Tree, config: &rocket::Config) -> Self {
+    pub fn load(globals: sled::Tree, config: &rocket::Config) -> Result<Self> {
         let keypair = ruma::signatures::Ed25519KeyPair::new(
             &*globals
-                .update_and_fetch("keypair", utils::generate_keypair)
-                .unwrap()
-                .unwrap(),
+                .update_and_fetch("keypair", utils::generate_keypair)?
+                .expect("utils::generate_keypair always returns Some"),
             "key1".to_owned(),
         )
-        .unwrap();
+        .map_err(|_| Error::bad_database("Private or public keys are invalid."))?;
 
-        Self {
+        Ok(Self {
             globals,
             keypair,
             reqwest_client: reqwest::Client::new(),
@@ -30,7 +29,7 @@ impl Globals {
                 .unwrap_or("localhost")
                 .to_owned(),
             registration_disabled: config.get_bool("registration_disabled").unwrap_or(false),
-        }
+        })
     }
 
     /// Returns this server's keypair.
@@ -49,14 +48,15 @@ impl Globals {
                 .globals
                 .update_and_fetch(COUNTER, utils::increment)?
                 .expect("utils::increment will always put in a value"),
-        ))
+        )
+        .map_err(|_| Error::bad_database("Count has invalid bytes."))?)
     }
 
     pub fn current_count(&self) -> Result<u64> {
-        Ok(self
-            .globals
-            .get(COUNTER)?
-            .map_or(0_u64, |bytes| utils::u64_from_bytes(&bytes)))
+        self.globals.get(COUNTER)?.map_or(Ok(0_u64), |bytes| {
+            Ok(utils::u64_from_bytes(&bytes)
+                .map_err(|_| Error::bad_database("Count has invalid bytes."))?)
+        })
     }
 
     pub fn server_name(&self) -> &str {

@@ -1,3 +1,4 @@
+use crate::{Error, Result};
 use js_int::UInt;
 use ruma::{
     api::federation::pdu::EventHash,
@@ -36,7 +37,7 @@ pub struct PduEvent {
 }
 
 impl PduEvent {
-    pub fn redact(&mut self) {
+    pub fn redact(&mut self) -> Result<()> {
         self.unsigned.clear();
         let allowed = match self.kind {
             EventType::RoomMember => vec!["membership"],
@@ -56,7 +57,11 @@ impl PduEvent {
             _ => vec![],
         };
 
-        let old_content = self.content.as_object_mut().unwrap(); // TODO error
+        let old_content = self
+            .content
+            .as_object_mut()
+            .ok_or_else(|| Error::bad_database("PDU in db has invalid content."))?;
+
         let mut new_content = serde_json::Map::new();
 
         for key in allowed {
@@ -71,21 +76,23 @@ impl PduEvent {
         );
 
         self.content = new_content.into();
+
+        Ok(())
     }
 
     pub fn to_room_event(&self) -> EventJson<RoomEvent> {
-        // Can only fail in rare circumstances that won't ever happen here, see
-        // https://docs.rs/serde_json/1.0.50/serde_json/fn.to_string.html
-        let json = serde_json::to_string(&self).unwrap();
-        // EventJson's deserialize implementation always returns `Ok(...)`
-        serde_json::from_str::<EventJson<RoomEvent>>(&json).unwrap()
+        let json = serde_json::to_string(&self).expect("PDUs are always valid");
+        serde_json::from_str::<EventJson<RoomEvent>>(&json)
+            .expect("EventJson::from_str always works")
     }
     pub fn to_state_event(&self) -> EventJson<StateEvent> {
-        let json = serde_json::to_string(&self).unwrap();
-        serde_json::from_str::<EventJson<StateEvent>>(&json).unwrap()
+        let json = serde_json::to_string(&self).expect("PDUs are always valid");
+        serde_json::from_str::<EventJson<StateEvent>>(&json)
+            .expect("EventJson::from_str always works")
     }
     pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEvent> {
-        let json = serde_json::to_string(&self).unwrap();
-        serde_json::from_str::<EventJson<AnyStrippedStateEvent>>(&json).unwrap()
+        let json = serde_json::to_string(&self).expect("PDUs are always valid");
+        serde_json::from_str::<EventJson<AnyStrippedStateEvent>>(&json)
+            .expect("EventJson::from_str always works")
     }
 }

@@ -43,15 +43,51 @@ impl Uiaa {
             // Find out what the user completed
             match &**kind {
                 "m.login.password" => {
-                    if auth_parameters["identifier"]["type"] != "m.id.user" {
-                        panic!("identifier not supported");
+                    let identifier = auth_parameters.get("identifier").ok_or(Error::BadRequest(
+                        ErrorKind::MissingParam,
+                        "m.login.password needs identifier.",
+                    ))?;
+
+                    let identifier_type = identifier.get("type").ok_or(Error::BadRequest(
+                        ErrorKind::MissingParam,
+                        "Identifier needs a type.",
+                    ))?;
+
+                    if identifier_type != "m.id.user" {
+                        return Err(Error::BadRequest(
+                            ErrorKind::Unrecognized,
+                            "Identifier type not recognized.",
+                        ));
                     }
 
-                    let user_id = UserId::parse_with_server_name(
-                        auth_parameters["identifier"]["user"].as_str().unwrap(),
-                        globals.server_name(),
-                    )?;
-                    let password = auth_parameters["password"].as_str().unwrap();
+                    let username = identifier
+                        .get("user")
+                        .ok_or(Error::BadRequest(
+                            ErrorKind::MissingParam,
+                            "Identifier needs user field.",
+                        ))?
+                        .as_str()
+                        .ok_or(Error::BadRequest(
+                            ErrorKind::BadJson,
+                            "User is not a string.",
+                        ))?;
+
+                    let user_id = UserId::parse_with_server_name(username, globals.server_name())
+                        .map_err(|_| {
+                        Error::BadRequest(ErrorKind::InvalidParam, "User ID is invalid.")
+                    })?;
+
+                    let password = auth_parameters
+                        .get("password")
+                        .ok_or(Error::BadRequest(
+                            ErrorKind::MissingParam,
+                            "Password is missing.",
+                        ))?
+                        .as_str()
+                        .ok_or(Error::BadRequest(
+                            ErrorKind::BadJson,
+                            "Password is not a string.",
+                        ))?;
 
                     // Check if password is correct
                     if let Some(hash) = users.password_hash(&user_id)? {
@@ -59,7 +95,6 @@ impl Uiaa {
                             argon2::verify_encoded(&hash, password.as_bytes()).unwrap_or(false);
 
                         if !hash_matches {
-                            debug!("Invalid password.");
                             uiaainfo.auth_error = Some(ruma::api::client::error::ErrorBody {
                                 kind: ErrorKind::Forbidden,
                                 message: "Invalid username or password.".to_owned(),
@@ -113,8 +148,10 @@ impl Uiaa {
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
         if let Some(uiaainfo) = uiaainfo {
-            self.userdeviceid_uiaainfo
-                .insert(&userdeviceid, &*serde_json::to_string(&uiaainfo)?)?;
+            self.userdeviceid_uiaainfo.insert(
+                &userdeviceid,
+                &*serde_json::to_string(&uiaainfo).expect("UiaaInfo::to_string always works"),
+            )?;
         } else {
             self.userdeviceid_uiaainfo.remove(&userdeviceid)?;
         }
@@ -136,8 +173,12 @@ impl Uiaa {
             &self
                 .userdeviceid_uiaainfo
                 .get(&userdeviceid)?
-                .ok_or(Error::BadRequest("session does not exist"))?,
-        )?;
+                .ok_or(Error::BadRequest(
+                    ErrorKind::Forbidden,
+                    "UIAA session does not exist.",
+                ))?,
+        )
+        .map_err(|_| Error::bad_database("UiaaInfo in userdeviceid_uiaainfo is invalid."))?;
 
         if uiaainfo
             .session
@@ -145,7 +186,10 @@ impl Uiaa {
             .filter(|&s| s == session)
             .is_none()
         {
-            return Err(Error::BadRequest("wrong session token"));
+            return Err(Error::BadRequest(
+                ErrorKind::Forbidden,
+                "UIAA session token invalid.",
+            ));
         }
 
         Ok(uiaainfo)
