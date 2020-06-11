@@ -18,7 +18,7 @@ impl Globals {
                 .expect("utils::generate_keypair always returns Some"),
             "key1".to_owned(),
         )
-        .map_err(|_| Error::BadDatabase("Private or public keys are invalid."))?;
+        .map_err(|_| Error::bad_database("Private or public keys are invalid."))?;
 
         Ok(Self {
             globals,
@@ -49,13 +49,13 @@ impl Globals {
                 .update_and_fetch(COUNTER, utils::increment)?
                 .expect("utils::increment will always put in a value"),
         )
-        .map_err(|_| Error::BadDatabase("Count has invalid bytes."))?)
+        .map_err(|_| Error::bad_database("Count has invalid bytes."))?)
     }
 
     pub fn current_count(&self) -> Result<u64> {
         self.globals.get(COUNTER)?.map_or(Ok(0_u64), |bytes| {
             Ok(utils::u64_from_bytes(&bytes)
-                .map_err(|_| Error::BadDatabase("Count has invalid bytes."))?)
+                .map_err(|_| Error::bad_database("Count has invalid bytes."))?)
         })
     }
 

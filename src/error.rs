@@ -1,5 +1,6 @@
 use crate::RumaResponse;
 use http::StatusCode;
+use log::error;
 use rocket::{
     response::{self, Responder},
     Request,
@@ -27,6 +28,7 @@ pub enum Error {
     #[error("{0}")]
     BadConfig(&'static str),
     #[error("{0}")]
+    /// Don't create this directly. Use Error::bad_database instead.
     BadDatabase(&'static str),
     #[error("uiaa")]
     Uiaa(UiaaInfo),
@@ -35,6 +37,13 @@ pub enum Error {
     BadRequest(ErrorKind, &'static str),
     #[error("{0}")]
     Conflict(&'static str), // This is only needed for when a room alias already exists
+}
+
+impl Error {
+    pub fn bad_database(message: &'static str) -> Self {
+        error!("BadDatabase: {}", message);
+        Self::BadDatabase(message)
+    }
 }
 
 #[rocket::async_trait]

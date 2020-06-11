@@ -57,7 +57,7 @@ impl GlobalEdus {
             .filter_map(|r| r.ok())
             .map(|(_, v)| {
                 Ok(serde_json::from_slice(&v)
-                    .map_err(|_| Error::BadDatabase("Invalid presence event in db."))?)
+                    .map_err(|_| Error::bad_database("Invalid presence event in db."))?)
             }))
     }
 }

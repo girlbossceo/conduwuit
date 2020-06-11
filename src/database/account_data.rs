@@ -115,16 +115,14 @@ impl AccountData {
             .map(|(k, v)| {
                 Ok::<_, Error>((
                     EventType::try_from(
-                        utils::string_from_bytes(
-                            k.rsplit(|&b| b == 0xff)
-                                .next()
-                                .ok_or(Error::BadDatabase("RoomUserData ID in db is invalid."))?,
-                        )
-                        .map_err(|_| Error::BadDatabase("RoomUserData ID in db is invalid."))?,
+                        utils::string_from_bytes(k.rsplit(|&b| b == 0xff).next().ok_or_else(
+                            || Error::bad_database("RoomUserData ID in db is invalid."),
+                        )?)
+                        .map_err(|_| Error::bad_database("RoomUserData ID in db is invalid."))?,
                     )
-                    .map_err(|_| Error::BadDatabase("RoomUserData ID in db is invalid."))?,
+                    .map_err(|_| Error::bad_database("RoomUserData ID in db is invalid."))?,
                     serde_json::from_slice::<EventJson<EduEvent>>(&v).map_err(|_| {
-                        Error::BadDatabase("Database contains invalid account data.")
+                        Error::bad_database("Database contains invalid account data.")
                     })?,
                 ))
             })

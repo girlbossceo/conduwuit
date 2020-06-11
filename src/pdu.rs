@@ -60,7 +60,7 @@ impl PduEvent {
         let old_content = self
             .content
             .as_object_mut()
-            .ok_or(Error::BadDatabase("PDU has invalid content"))?;
+            .ok_or_else(|| Error::bad_database("PDU in db has invalid content."))?;
 
         let mut new_content = serde_json::Map::new();
 

@@ -178,7 +178,7 @@ impl Uiaa {
                     "UIAA session does not exist.",
                 ))?,
         )
-        .map_err(|_| Error::BadDatabase("UiaaInfo in userdeviceid_uiaainfo is invalid."))?;
+        .map_err(|_| Error::bad_database("UiaaInfo in userdeviceid_uiaainfo is invalid."))?;
 
         if uiaainfo
             .session

@@ -65,14 +65,14 @@ impl Rooms {
             .map(|value| {
                 Ok::<_, Error>(
                     serde_json::from_slice::<PduEvent>(&value?)
-                        .map_err(|_| Error::BadDatabase("Invalid PDU in db."))?,
+                        .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
                 )
             })
         {
             let pdu = pdu?;
-            let state_key = pdu.state_key.clone().ok_or(Error::BadDatabase(
-                "Room state contains event without state_key.",
-            ))?;
+            let state_key = pdu.state_key.clone().ok_or_else(|| {
+                Error::bad_database("Room state contains event without state_key.")
+            })?;
             hashmap.insert((pdu.kind.clone(), state_key), pdu);
         }
         Ok(hashmap)
@@ -87,7 +87,7 @@ impl Rooms {
                     utils::u64_from_bytes(
                         &pdu_id[pdu_id.len() - mem::size_of::<u64>()..pdu_id.len()],
                     )
-                    .map_err(|_| Error::BadDatabase("PDU has invalid count bytes."))?,
+                    .map_err(|_| Error::bad_database("PDU has invalid count bytes."))?,
                 ))
             })
     }
@@ -98,10 +98,10 @@ impl Rooms {
             .get(event_id.to_string().as_bytes())?
             .map_or(Ok(None), |pdu_id| {
                 Ok(Some(
-                    serde_json::from_slice(&self.pduid_pdu.get(pdu_id)?.ok_or(
-                        Error::BadDatabase("eventid_pduid points to nonexistent pdu."),
-                    )?)
-                    .map_err(|_| Error::BadDatabase("Invalid PDU in db."))?,
+                    serde_json::from_slice(&self.pduid_pdu.get(pdu_id)?.ok_or_else(|| {
+                        Error::bad_database("eventid_pduid points to nonexistent pdu.")
+                    })?)
+                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
                 ))
             })
     }
@@ -119,10 +119,10 @@ impl Rooms {
             .get(event_id.to_string().as_bytes())?
             .map_or(Ok(None), |pdu_id| {
                 Ok(Some(
-                    serde_json::from_slice(&self.pduid_pdu.get(pdu_id)?.ok_or(
-                        Error::BadDatabase("eventid_pduid points to nonexistent pdu."),
-                    )?)
-                    .map_err(|_| Error::BadDatabase("Invalid PDU in db."))?,
+                    serde_json::from_slice(&self.pduid_pdu.get(pdu_id)?.ok_or_else(|| {
+                        Error::bad_database("eventid_pduid points to nonexistent pdu.")
+                    })?)
+                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
                 ))
             })
     }
@@ -131,7 +131,7 @@ impl Rooms {
         self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
             Ok(Some(
                 serde_json::from_slice(&pdu)
-                    .map_err(|_| Error::BadDatabase("Invalid PDU in db."))?,
+                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
             ))
         })
     }
@@ -165,8 +165,10 @@ impl Rooms {
             .values()
             .map(|bytes| {
                 Ok::<_, Error>(
-                    serde_json::from_slice(&bytes?)
-                        .map_err(|_| Error::BadDatabase("Invalid EventID in roomid_pduleaves."))?,
+                    EventId::try_from(utils::string_from_bytes(&bytes?).map_err(|_| {
+                        Error::bad_database("EventID in roomid_pduleaves is invalid unicode.")
+                    })?)
+                    .map_err(|_| Error::bad_database("EventId in roomid_pduleaves is invalid."))?,
                 )
             })
         {
@@ -237,7 +239,7 @@ impl Rooms {
                             )
                             .expect("EventJson::from_value always works.")
                             .deserialize()
-                            .map_err(|_| Error::BadDatabase("Invalid PowerLevels event in db."))?,
+                            .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))?,
                         )
                     },
                 )?;
@@ -251,7 +253,7 @@ impl Rooms {
                         )
                         .expect("EventJson::from_value always works.")
                         .deserialize()
-                        .map_err(|_| Error::BadDatabase("Invalid Member event in db."))?
+                        .map_err(|_| Error::bad_database("Invalid Member event in db."))?
                         .membership,
                     )
                 })?;
@@ -287,7 +289,7 @@ impl Rooms {
                                 )
                                 .expect("EventJson::from_value always works.")
                                 .deserialize()
-                                .map_err(|_| Error::BadDatabase("Invalid Member event in db."))?
+                                .map_err(|_| Error::bad_database("Invalid Member event in db."))?
                                 .membership,
                             )
                         })?;
@@ -297,7 +299,7 @@ impl Rooms {
                     >(content.clone())
                     .expect("EventJson::from_value always works.")
                     .deserialize()
-                    .map_err(|_| Error::BadDatabase("Invalid Member event in db."))?
+                    .map_err(|_| Error::bad_database("Invalid Member event in db."))?
                     .membership;
 
                     let target_power = power_levels.users.get(&target_user_id).map_or_else(
@@ -322,7 +324,7 @@ impl Rooms {
                                 .expect("EventJson::from_value always works.")
                                 .deserialize()
                                 .map_err(|_| {
-                                    Error::BadDatabase("Database contains invalid JoinRules event")
+                                    Error::bad_database("Database contains invalid JoinRules event")
                                 })?
                                 .join_rule)
                             })?;
@@ -334,7 +336,9 @@ impl Rooms {
                                 ErrorKind::Unknown,
                                 "Membership can't be the first event",
                             ))?)?
-                            .ok_or(Error::BadDatabase("PDU leaf points to invalid event!"))?;
+                            .ok_or_else(|| {
+                                Error::bad_database("PDU leaf points to invalid event!")
+                            })?;
                         if prev_event.kind == EventType::RoomCreate
                             && prev_event.prev_events.is_empty()
                         {
@@ -466,7 +470,7 @@ impl Rooms {
             prev_events,
             depth: depth
                 .try_into()
-                .map_err(|_| Error::BadDatabase("Depth is invalid"))?,
+                .map_err(|_| Error::bad_database("Depth is invalid"))?,
             auth_events: Vec::new(),
             redacts: redacts.clone(),
             unsigned,
@@ -588,7 +592,7 @@ impl Rooms {
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(_, v)| {
                 Ok(serde_json::from_slice(&v)
-                    .map_err(|_| Error::BadDatabase("PDU in db is invalid."))?)
+                    .map_err(|_| Error::bad_database("PDU in db is invalid."))?)
             }))
     }
 
@@ -615,7 +619,7 @@ impl Rooms {
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(_, v)| {
                 Ok(serde_json::from_slice(&v)
-                    .map_err(|_| Error::BadDatabase("PDU in db is invalid."))?)
+                    .map_err(|_| Error::bad_database("PDU in db is invalid."))?)
             })
     }
 
@@ -641,7 +645,7 @@ impl Rooms {
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(_, v)| {
                 Ok(serde_json::from_slice(&v)
-                    .map_err(|_| Error::BadDatabase("PDU in db is invalid."))?)
+                    .map_err(|_| Error::bad_database("PDU in db is invalid."))?)
             })
     }
 
@@ -650,7 +654,7 @@ impl Rooms {
         if let Some(pdu_id) = self.get_pdu_id(event_id)? {
             let mut pdu = self
                 .get_pdu_from_id(&pdu_id)?
-                .ok_or(Error::BadDatabase("PDU ID points to invalid PDU."))?;
+                .ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
             pdu.redact()?;
             self.replace_pdu(&pdu_id, &pdu)?;
             Ok(())
@@ -751,9 +755,12 @@ impl Rooms {
         self.alias_roomid
             .get(alias.alias())?
             .map_or(Ok(None), |bytes| {
-                Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
-                    Error::BadDatabase("Room ID in alias_roomid is invalid.")
-                })?))
+                Ok(Some(
+                    RoomId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                        Error::bad_database("Room ID in alias_roomid is invalid unicode.")
+                    })?)
+                    .map_err(|_| Error::bad_database("Room ID in alias_roomid is invalid."))?,
+                ))
             })
     }
 
@@ -766,7 +773,7 @@ impl Rooms {
             .values()
             .map(|bytes| {
                 Ok(serde_json::from_slice(&bytes?)
-                    .map_err(|_| Error::BadDatabase("Alias in aliasid_alias is invalid."))?)
+                    .map_err(|_| Error::bad_database("Alias in aliasid_alias is invalid."))?)
             })
     }
 
@@ -786,56 +793,75 @@ impl Rooms {
 
     pub fn public_rooms(&self) -> impl Iterator<Item = Result<RoomId>> {
         self.publicroomids.iter().keys().map(|bytes| {
-            Ok(serde_json::from_slice(&bytes?)
-                .map_err(|_| Error::BadDatabase("Room ID in publicroomids is invalid."))?)
+            Ok(
+                RoomId::try_from(utils::string_from_bytes(&bytes?).map_err(|_| {
+                    Error::bad_database("Room ID in publicroomids is invalid unicode.")
+                })?)
+                .map_err(|_| Error::bad_database("Room ID in publicroomids is invalid."))?,
+            )
         })
     }
 
-    /// Returns an iterator over all rooms a user joined.
+    /// Returns an iterator over all joined members of a room.
     pub fn room_members(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
         self.roomuserid_joined
             .scan_prefix(room_id.to_string())
-            .values()
+            .keys()
             .map(|key| {
-                Ok(serde_json::from_slice(
-                    &key?
-                        .rsplit(|&b| b == 0xff)
-                        .next()
-                        .ok_or(Error::BadDatabase("RoomUser ID is invalid."))?,
+                Ok(UserId::try_from(
+                    utils::string_from_bytes(
+                        &key?
+                            .rsplit(|&b| b == 0xff)
+                            .next()
+                            .expect("rsplit always returns an element"),
+                    )
+                    .map_err(|_| {
+                        Error::bad_database("User ID in roomuserid_joined is invalid unicode.")
+                    })?,
                 )
-                .map_err(|_| Error::BadDatabase("Invalid User ID in db."))?)
+                .map_err(|_| Error::bad_database("User ID in roomuserid_joined is invalid."))?)
             })
     }
 
-    /// Returns an iterator over all rooms a user joined.
+    /// Returns an iterator over all invited members of a room.
     pub fn room_members_invited(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
         self.roomuserid_invited
             .scan_prefix(room_id.to_string())
             .keys()
             .map(|key| {
-                Ok(serde_json::from_slice(
-                    &key?
-                        .rsplit(|&b| b == 0xff)
-                        .next()
-                        .ok_or(Error::BadDatabase("RoomUser ID is invalid."))?,
+                Ok(UserId::try_from(
+                    utils::string_from_bytes(
+                        &key?
+                            .rsplit(|&b| b == 0xff)
+                            .next()
+                            .expect("rsplit always returns an element"),
+                    )
+                    .map_err(|_| {
+                        Error::bad_database("User ID in roomuserid_invited is invalid unicode.")
+                    })?,
                 )
-                .map_err(|_| Error::BadDatabase("Invalid User ID in db."))?)
+                .map_err(|_| Error::bad_database("User ID in roomuserid_invited is invalid."))?)
             })
     }
 
-    /// Returns an iterator over all rooms a user joined.
+    /// Returns an iterator over all left members of a room.
     pub fn rooms_joined(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
         self.userroomid_joined
             .scan_prefix(user_id.to_string())
             .keys()
             .map(|key| {
-                Ok(serde_json::from_slice(
-                    &key?
-                        .rsplit(|&b| b == 0xff)
-                        .next()
-                        .ok_or(Error::BadDatabase("UserRoom ID is invalid."))?,
+                Ok(RoomId::try_from(
+                    utils::string_from_bytes(
+                        &key?
+                            .rsplit(|&b| b == 0xff)
+                            .next()
+                            .expect("rsplit always returns an element"),
+                    )
+                    .map_err(|_| {
+                        Error::bad_database("Room ID in userroomid_joined is invalid unicode.")
+                    })?,
                 )
-                .map_err(|_| Error::BadDatabase("Invalid Room ID in db."))?)
+                .map_err(|_| Error::bad_database("Room ID in userroomid_joined is invalid."))?)
             })
     }
 
@@ -845,13 +871,18 @@ impl Rooms {
             .scan_prefix(&user_id.to_string())
             .keys()
             .map(|key| {
-                Ok(serde_json::from_slice(
-                    &key?
-                        .rsplit(|&b| b == 0xff)
-                        .next()
-                        .ok_or(Error::BadDatabase("UserRoom ID is invalid."))?,
+                Ok(RoomId::try_from(
+                    utils::string_from_bytes(
+                        &key?
+                            .rsplit(|&b| b == 0xff)
+                            .next()
+                            .expect("rsplit always returns an element"),
+                    )
+                    .map_err(|_| {
+                        Error::bad_database("Room ID in userroomid_invited is invalid unicode.")
+                    })?,
                 )
-                .map_err(|_| Error::BadDatabase("Invalid Room ID in db."))?)
+                .map_err(|_| Error::bad_database("Room ID in userroomid_invited is invalid."))?)
             })
     }
 
@@ -861,13 +892,18 @@ impl Rooms {
             .scan_prefix(&user_id.to_string())
             .keys()
             .map(|key| {
-                Ok(serde_json::from_slice(
-                    &key?
-                        .rsplit(|&b| b == 0xff)
-                        .next()
-                        .ok_or(Error::BadDatabase("UserRoom ID is invalid."))?,
+                Ok(RoomId::try_from(
+                    utils::string_from_bytes(
+                        &key?
+                            .rsplit(|&b| b == 0xff)
+                            .next()
+                            .expect("rsplit always returns an element"),
+                    )
+                    .map_err(|_| {
+                        Error::bad_database("Room ID in userroomid_left is invalid unicode.")
+                    })?,
                 )
-                .map_err(|_| Error::BadDatabase("Invalid Room ID in db."))?)
+                .map_err(|_| Error::bad_database("Room ID in userroomid_left is invalid."))?)
             })
     }
 

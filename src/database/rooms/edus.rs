@@ -74,8 +74,9 @@ impl RoomEdus {
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(_, v)| {
-                Ok(serde_json::from_slice(&v)
-                    .map_err(|_| Error::BadDatabase("Read receipt in db is invalid."))?)
+                Ok(serde_json::from_slice(&v).map_err(|_| {
+                    Error::bad_database("Read receipt in roomlatestid_roomlatest is invalid.")
+                })?)
             }))
     }
 
@@ -164,10 +165,10 @@ impl RoomEdus {
                 let key = key?;
                 Ok::<_, Error>((
                     key.clone(),
-                    utils::u64_from_bytes(key.split(|&b| b == 0xff).nth(1).ok_or(
-                        Error::BadDatabase("RoomActive has invalid timestamp or delimiters."),
-                    )?)
-                    .map_err(|_| Error::BadDatabase("RoomActive has invalid timestamp bytes."))?,
+                    utils::u64_from_bytes(key.split(|&b| b == 0xff).nth(1).ok_or_else(|| {
+                        Error::bad_database("RoomActive has invalid timestamp or delimiters.")
+                    })?)
+                    .map_err(|_| Error::bad_database("RoomActive has invalid timestamp bytes."))?,
                 ))
             })
             .filter_map(|r| r.ok())
@@ -200,9 +201,9 @@ impl RoomEdus {
             .roomid_lastroomactiveupdate
             .get(&room_id.to_string().as_bytes())?
             .map_or(Ok::<_, Error>(None), |bytes| {
-                Ok(Some(
-                    utils::u64_from_bytes(&bytes).map_err(|_| Error::BadDatabase(""))?,
-                ))
+                Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("Count in roomid_lastroomactiveupdate is invalid.")
+                })?))
             })?
             .unwrap_or(0))
     }
@@ -219,9 +220,14 @@ impl RoomEdus {
             .scan_prefix(prefix)
             .values()
             .map(|user_id| {
-                Ok::<_, Error>(serde_json::from_slice(&user_id?).map_err(|_| {
-                    Error::BadDatabase("User ID in roomactiveid_userid is invalid.")
-                })?)
+                Ok::<_, Error>(
+                    UserId::try_from(utils::string_from_bytes(&user_id?).map_err(|_| {
+                        Error::bad_database("User ID in roomactiveid_userid is invalid unicode.")
+                    })?)
+                    .map_err(|_| {
+                        Error::bad_database("User ID in roomactiveid_userid is invalid.")
+                    })?,
+                )
             })
         {
             user_ids.push(user_id?);
@@ -252,7 +258,7 @@ impl RoomEdus {
 
         self.roomuserid_lastread.get(key)?.map_or(Ok(None), |v| {
             Ok(Some(utils::u64_from_bytes(&v).map_err(|_| {
-                Error::BadDatabase("Invalid private read marker bytes")
+                Error::bad_database("Invalid private read marker bytes")
             })?))
         })
     }

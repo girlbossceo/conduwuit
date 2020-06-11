@@ -42,7 +42,10 @@ impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
             let data = rocket::try_outcome!(outcome.owned());
 
             let (user_id, device_id) = if T::METADATA.requires_authentication {
-                let db = request.guard::<State<'_, crate::Database>>().await.expect("database was loaded");
+                let db = request
+                    .guard::<State<'_, crate::Database>>()
+                    .await
+                    .expect("database was loaded");
 
                 // Get token from header or query value
                 let token = match request
