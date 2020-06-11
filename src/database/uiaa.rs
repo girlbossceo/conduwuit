@@ -1,5 +1,4 @@
 use crate::{Error, Result};
-use log::debug;
 use ruma::{
     api::client::{
         error::ErrorKind,
