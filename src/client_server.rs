@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{utils, ConduitResult, Database, Error, Ruma};
-use log::{debug, warn};
+use log::warn;
 use rocket::{delete, get, options, post, put, State};
 use ruma::{
     api::client::{
@@ -46,7 +46,7 @@ use ruma::{
             thirdparty::get_protocols,
             to_device::{self, send_event_to_device},
             typing::create_typing_event,
-            uiaa::{AuthFlow, UiaaInfo, UiaaResponse},
+            uiaa::{AuthFlow, UiaaInfo},
             user_directory::search_users,
         },
         unversioned::get_supported_versions,
