@@ -204,33 +204,7 @@ pub fn register_route(
         &EventType::PushRules,
         serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
             content: ruma::events::push_rules::PushRulesEventContent {
-                global: ruma::events::push_rules::Ruleset {
-                    content: vec![],
-                    override_: vec![ruma::events::push_rules::ConditionalPushRule {
-                        actions: vec![ruma::events::push_rules::Action::DontNotify],
-                        default: true,
-                        enabled: false,
-                        rule_id: ".m.rule.master".to_owned(),
-                        conditions: vec![],
-                    }],
-                    room: vec![],
-                    sender: vec![],
-                    underride: vec![ruma::events::push_rules::ConditionalPushRule {
-                        actions: vec![
-                            ruma::events::push_rules::Action::Notify,
-                            ruma::events::push_rules::Action::SetTweak(ruma::push::Tweak::Sound(
-                                "default".to_owned(),
-                            )),
-                        ],
-                        default: true,
-                        enabled: true,
-                        rule_id: ".m.rule.message".to_owned(),
-                        conditions: vec![ruma::events::push_rules::PushCondition::EventMatch {
-                            key: "type".to_owned(),
-                            pattern: "m.room.message".to_owned(),
-                        }],
-                    }],
-                },
+                global: crate::push_rules::default_pushrules(&user_id),
             },
         })
         .expect("data is valid, we just created it")
@@ -502,8 +476,7 @@ pub fn set_displayname_route(
                 displayname: body.displayname.clone(),
                 ..serde_json::from_value::<EventJson<_>>(
                     db.rooms
-                        .room_state(&room_id)?
-                        .get(&(EventType::RoomMember, user_id.to_string()))
+                        .room_state_get(&room_id, &EventType::RoomMember, &user_id.to_string())?
                         .ok_or_else(|| {
                             Error::bad_database(
                                 "Tried to send displayname update for user not in the room.",
@@ -593,8 +566,7 @@ pub fn set_avatar_url_route(
                 avatar_url: body.avatar_url.clone(),
                 ..serde_json::from_value::<EventJson<_>>(
                     db.rooms
-                        .room_state(&room_id)?
-                        .get(&(EventType::RoomMember, user_id.to_string()))
+                        .room_state_get(&room_id, &EventType::RoomMember, &user_id.to_string())?
                         .ok_or_else(|| {
                             Error::bad_database(
                                 "Tried to send avatar url update for user not in the room.",
@@ -1267,8 +1239,7 @@ pub fn join_room_by_id_route(
 
     let event = db
         .rooms
-        .room_state(&body.room_id)?
-        .get(&(EventType::RoomMember, user_id.to_string()))
+        .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
         .map_or_else(
             || {
                 // There was no existing membership event
@@ -1348,11 +1319,10 @@ pub fn leave_room_route(
     _room_id: String,
 ) -> ConduitResult<leave_room::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let state = db.rooms.room_state(&body.room_id)?;
 
     let mut event = serde_json::from_value::<EventJson<member::MemberEventContent>>(
-        state
-            .get(&(EventType::RoomMember, user_id.to_string()))
+        db.rooms
+            .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
             .ok_or(Error::BadRequest(
                 ErrorKind::BadState,
                 "Cannot leave a room you are not a member of.",
@@ -1387,12 +1357,11 @@ pub fn kick_user_route(
     _room_id: String,
 ) -> ConduitResult<kick_user::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let state = db.rooms.room_state(&body.room_id)?;
 
     let mut event =
         serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
-            state
-                .get(&(EventType::RoomMember, user_id.to_string()))
+            db.rooms
+                .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
                 .ok_or(Error::BadRequest(
                     ErrorKind::BadState,
                     "Cannot kick member that's not in the room.",
@@ -1428,12 +1397,12 @@ pub fn ban_user_route(
     _room_id: String,
 ) -> ConduitResult<ban_user::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let state = db.rooms.room_state(&body.room_id)?;
 
     // TODO: reason
 
-    let event = state
-        .get(&(EventType::RoomMember, user_id.to_string()))
+    let event = db
+        .rooms
+        .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
         .map_or(
             Ok::<_, Error>(member::MemberEventContent {
                 membership: member::MembershipState::Ban,
@@ -1475,12 +1444,11 @@ pub fn unban_user_route(
     _room_id: String,
 ) -> ConduitResult<unban_user::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
-    let state = db.rooms.room_state(&body.room_id)?;
 
     let mut event =
         serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
-            state
-                .get(&(EventType::RoomMember, user_id.to_string()))
+            db.rooms
+                .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
                 .ok_or(Error::BadRequest(
                     ErrorKind::BadState,
                     "Cannot unban a user who is not banned.",
@@ -1642,7 +1610,8 @@ pub async fn get_public_rooms_filtered_route(
         .map(|room_id| {
             let room_id = room_id?;
 
-            let state = db.rooms.room_state(&room_id)?;
+            // TODO: Do not load full state?
+            let state = db.rooms.room_state_full(&room_id)?;
 
             let chunk = directory::PublicRoomsChunk {
                 aliases: Vec::new(),
@@ -1775,9 +1744,29 @@ pub fn search_users_route(
 }
 
 #[get("/_matrix/client/r0/rooms/<_room_id>/members")]
-pub fn get_member_events_route(_room_id: String) -> ConduitResult<get_member_events::Response> {
-    warn!("TODO: get_member_events_route");
-    Ok(get_member_events::Response { chunk: Vec::new() }.into())
+pub fn get_member_events_route(
+    db: State<'_, Database>,
+    //body: Ruma<create_message_event::Request>,
+    _room_id: String,
+) -> ConduitResult<get_member_events::Response> {
+    //let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    //if !db.rooms.is_joined(user_id, &body.room_id)? {
+    //    return Err(Error::BadRequest(
+    //        ErrorKind::Forbidden,
+    //        "You don't have permission to view this room.",
+    //    ));
+    //}
+
+    Ok(get_member_events::Response {
+        chunk: Vec::new(),/*db
+            .rooms
+            .room_state_type(&body.room_id, &EventType::RoomMember)?
+            .values()
+            .map(|pdu| pdu.to_member_event())
+            .collect(),*/
+    }
+    .into())
 }
 
 #[get("/_matrix/client/r0/thirdparty/protocols")]
@@ -1951,7 +1940,7 @@ pub fn get_state_events_route(
     Ok(get_state_events::Response {
         room_state: db
             .rooms
-            .room_state(&body.room_id)?
+            .room_state_full(&body.room_id)?
             .values()
             .map(|pdu| pdu.to_state_event())
             .collect(),
@@ -1979,10 +1968,9 @@ pub fn get_state_events_for_key_route(
         ));
     }
 
-    let state = db.rooms.room_state(&body.room_id)?;
-
-    let event = state
-        .get(&(body.event_type.clone(), body.state_key.clone()))
+    let event = db
+        .rooms
+        .room_state_get(&body.room_id, &body.event_type, &body.state_key)?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "State event not found.",
@@ -2014,17 +2002,16 @@ pub fn get_state_events_for_empty_key_route(
         ));
     }
 
-    let state = db.rooms.room_state(&body.room_id)?;
-
-    let event = state
-        .get(&(body.event_type.clone(), "".to_owned()))
+    let event = db
+        .rooms
+        .room_state_get(&body.room_id, &body.event_type, "")?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "State event not found.",
         ))?;
 
     Ok(get_state_events_for_empty_key::Response {
-        content: serde_json::value::to_raw_value(event)
+        content: serde_json::value::to_raw_value(&event)
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
     .into())
@@ -2068,7 +2055,7 @@ pub fn sync_route(
                     let content = serde_json::from_value::<
                         EventJson<ruma::events::room::member::MemberEventContent>,
                     >(pdu.content.clone())
-                    .map_err(|_| Error::bad_database("Invalid PDU in database."))?
+                    .expect("EventJson::from_value always works")
                     .deserialize()
                     .map_err(|_| Error::bad_database("Invalid PDU in database."))?;
                     if content.membership == ruma::events::room::member::MembershipState::Join {
@@ -2081,7 +2068,7 @@ pub fn sync_route(
             }
         }
 
-        let state = db.rooms.room_state(&room_id)?;
+        let members = db.rooms.room_state_type(&room_id, &EventType::RoomMember)?;
 
         let (joined_member_count, invited_member_count, heroes) = if send_member_count {
             let joined_member_count = db.rooms.room_members(&room_id).count();
@@ -2111,8 +2098,8 @@ pub fn sync_route(
                             let current_content = serde_json::from_value::<
                                 EventJson<ruma::events::room::member::MemberEventContent>,
                             >(
-                                state
-                                    .get(&(EventType::RoomMember, state_key.clone()))
+                                members
+                                    .get(state_key)
                                     .ok_or_else(|| {
                                         Error::bad_database(
                                             "A user that joined once has no member event anymore.",
@@ -2264,7 +2251,8 @@ pub fn sync_route(
             // TODO: state before timeline
             state: sync_events::State {
                 events: if joined_since_last_sync {
-                    state
+                    db.rooms
+                        .room_state_full(&room_id)?
                         .into_iter()
                         .map(|(_, pdu)| pdu.to_state_event())
                         .collect()
@@ -2337,7 +2325,7 @@ pub fn sync_route(
             invite_state: sync_events::InviteState {
                 events: db
                     .rooms
-                    .room_state(&room_id)?
+                    .room_state_full(&room_id)?
                     .into_iter()
                     .map(|(_, pdu)| pdu.to_stripped_state_event())
                     .collect(),
@@ -2496,7 +2484,7 @@ pub fn get_context_route(
         events_after,
         state: db // TODO: State at event
             .rooms
-            .room_state(&body.room_id)?
+            .room_state_full(&body.room_id)?
             .values()
             .map(|pdu| pdu.to_state_event())
             .collect(),

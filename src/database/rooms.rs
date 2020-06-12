@@ -56,7 +56,10 @@ impl Rooms {
     }
 
     /// Returns the full room state.
-    pub fn room_state(&self, room_id: &RoomId) -> Result<HashMap<(EventType, String), PduEvent>> {
+    pub fn room_state_full(
+        &self,
+        room_id: &RoomId,
+    ) -> Result<HashMap<(EventType, String), PduEvent>> {
         let mut hashmap = HashMap::new();
         for pdu in self
             .roomstateid_pdu
@@ -76,6 +79,58 @@ impl Rooms {
             hashmap.insert((pdu.kind.clone(), state_key), pdu);
         }
         Ok(hashmap)
+    }
+
+    /// Returns the full room state.
+    pub fn room_state_type(
+        &self,
+        room_id: &RoomId,
+        event_type: &EventType,
+    ) -> Result<HashMap<String, PduEvent>> {
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+        prefix.extend_from_slice(&event_type.to_string().as_bytes());
+
+        let mut hashmap = HashMap::new();
+        for pdu in self
+            .roomstateid_pdu
+            .scan_prefix(&prefix)
+            .values()
+            .map(|value| {
+                Ok::<_, Error>(
+                    serde_json::from_slice::<PduEvent>(&value?)
+                        .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
+                )
+            })
+        {
+            let pdu = pdu?;
+            let state_key = pdu.state_key.clone().ok_or_else(|| {
+                Error::bad_database("Room state contains event without state_key.")
+            })?;
+            hashmap.insert(state_key, pdu);
+        }
+        Ok(hashmap)
+    }
+
+    /// Returns the full room state.
+    pub fn room_state_get(
+        &self,
+        room_id: &RoomId,
+        event_type: &EventType,
+        state_key: &str,
+    ) -> Result<Option<PduEvent>> {
+        let mut key = room_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&event_type.to_string().as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(&state_key.as_bytes());
+
+        self.roomstateid_pdu.get(&key)?.map_or(Ok(None), |value| {
+            Ok::<_, Error>(Some(
+                serde_json::from_slice::<PduEvent>(&value)
+                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
+            ))
+        })
     }
 
     /// Returns the `count` of this pdu's id.
@@ -212,8 +267,7 @@ impl Rooms {
         // Is the event authorized?
         if let Some(state_key) = &state_key {
             let power_levels = self
-                .room_state(&room_id)?
-                .get(&(EventType::RoomPowerLevels, "".to_owned()))
+                .room_state_get(&room_id, &EventType::RoomPowerLevels, "")?
                 .map_or_else(
                     || {
                         Ok::<_, Error>(power_levels::PowerLevelsEventContent {
@@ -244,8 +298,7 @@ impl Rooms {
                     },
                 )?;
             let sender_membership = self
-                .room_state(&room_id)?
-                .get(&(EventType::RoomMember, sender.to_string()))
+                .room_state_get(&room_id, &EventType::RoomMember, &sender.to_string())?
                 .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
                     Ok(
                         serde_json::from_value::<EventJson<member::MemberEventContent>>(
@@ -280,8 +333,11 @@ impl Rooms {
                     })?;
 
                     let current_membership = self
-                        .room_state(&room_id)?
-                        .get(&(EventType::RoomMember, target_user_id.to_string()))
+                        .room_state_get(
+                            &room_id,
+                            &EventType::RoomMember,
+                            &target_user_id.to_string(),
+                        )?
                         .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
                             Ok(
                                 serde_json::from_value::<EventJson<member::MemberEventContent>>(
@@ -315,8 +371,7 @@ impl Rooms {
                     );
 
                     let join_rules =
-                        self.room_state(&room_id)?
-                            .get(&(EventType::RoomJoinRules, "".to_owned()))
+                        self.room_state_get(&room_id, &EventType::RoomJoinRules, "")?
                             .map_or(Ok::<_, Error>(join_rules::JoinRule::Public), |pdu| {
                                 Ok(serde_json::from_value::<
                                     EventJson<join_rules::JoinRulesEventContent>,
@@ -446,12 +501,8 @@ impl Rooms {
             + 1;
 
         let mut unsigned = unsigned.unwrap_or_default();
-        // TODO: Optimize this to not load the whole room state?
         if let Some(state_key) = &state_key {
-            if let Some(prev_pdu) = self
-                .room_state(&room_id)?
-                .get(&(event_type.clone(), state_key.to_owned()))
-            {
+            if let Some(prev_pdu) = self.room_state_get(&room_id, &event_type, &state_key)? {
                 unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
             }
         }
