@@ -1743,28 +1743,28 @@ pub fn search_users_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/rooms/<_room_id>/members")]
+#[get("/_matrix/client/r0/rooms/<_room_id>/members", data = "<body>")]
 pub fn get_member_events_route(
     db: State<'_, Database>,
-    //body: Ruma<create_message_event::Request>,
+    body: Ruma<get_member_events::Request>,
     _room_id: String,
 ) -> ConduitResult<get_member_events::Response> {
-    //let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    //if !db.rooms.is_joined(user_id, &body.room_id)? {
-    //    return Err(Error::BadRequest(
-    //        ErrorKind::Forbidden,
-    //        "You don't have permission to view this room.",
-    //    ));
-    //}
+    if !db.rooms.is_joined(user_id, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view this room.",
+        ));
+    }
 
     Ok(get_member_events::Response {
-        chunk: Vec::new(),/*db
+        chunk: db
             .rooms
             .room_state_type(&body.room_id, &EventType::RoomMember)?
             .values()
             .map(|pdu| pdu.to_member_event())
-            .collect(),*/
+            .collect(),
     }
     .into())
 }
