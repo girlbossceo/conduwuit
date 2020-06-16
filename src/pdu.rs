@@ -1,7 +1,7 @@
 use crate::{Error, Result};
 use js_int::UInt;
 use ruma::{
-    api::federation::pdu::EventHash,
+    api::federation::EventHash,
     events::{
         collections::all::{RoomEvent, StateEvent},
         stripped::AnyStrippedStateEvent,
