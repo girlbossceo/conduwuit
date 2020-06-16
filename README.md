@@ -14,7 +14,7 @@ See it in action: <https://www.youtube.com/watch?v=HoBslDtqC1k>
 
 #### Can I try it out?
 
-Yes! Just open Riot (<https://riot.im/app>) and register on the `https://conduit.koesters.xyz:14004` homeserver.
+Yes! Just open Riot (<https://riot.im/app> or RiotX) and register on the `https://conduit.koesters.xyz:14004` homeserver.
 
 #### How can I deploy my own?
 
@@ -42,3 +42,4 @@ If you want to help, you may be able to find something in the issue tracker. If 
 #### Donate
 
 Liberapay: <https://liberapay.com/timokoesters/>
+Bitcoin: `bc1qnnykf986tw49ur7wx9rpw2tevpsztvar5x8w4n`
