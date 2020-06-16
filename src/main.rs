@@ -94,18 +94,19 @@ fn setup_rocket() -> rocket::Rocket {
                 //server_server::get_server_keys_deprecated,
             ],
         )
-        .attach(AdHoc::on_attach("Config", |rocket| {
-            let data = Database::load_or_create(&rocket.config()).expect("valid config");
+        .attach(AdHoc::on_attach("Config", |mut rocket| async {
+            let data = Database::load_or_create(rocket.config().await).expect("valid config");
 
             Ok(rocket.manage(data))
         }))
 }
 
-fn main() {
-    // Log info by default
+#[rocket::main]
+async fn main() {
+    // Default log level
     if std::env::var("ROCKET_LOG").is_err() {
         std::env::set_var("ROCKET_LOG", "critical");
     }
 
-    setup_rocket().launch().unwrap();
+    setup_rocket().launch().await.unwrap();
 }
