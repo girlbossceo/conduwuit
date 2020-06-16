@@ -1,7 +1,5 @@
 use ruma::{
-    events::push_rules::{
-        ConditionalPushRule, PatternedPushRule, PushCondition, PushRule, Ruleset,
-    },
+    events::push_rules::{ConditionalPushRule, PatternedPushRule, PushCondition, Ruleset},
     identifiers::UserId,
     push::{Action, Tweak},
 };

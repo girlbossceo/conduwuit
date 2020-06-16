@@ -602,13 +602,18 @@ impl Rooms {
     }
 
     /// Returns an iterator over all PDUs in a room.
-    pub fn all_pdus(&self, room_id: &RoomId) -> Result<impl Iterator<Item = Result<PduEvent>>> {
-        self.pdus_since(room_id, 0)
+    pub fn all_pdus(
+        &self,
+        user_id: &UserId,
+        room_id: &RoomId,
+    ) -> Result<impl Iterator<Item = Result<PduEvent>>> {
+        self.pdus_since(user_id, room_id, 0)
     }
 
     /// Returns an iterator over all events in a room that happened after the event with id `since`.
     pub fn pdus_since(
         &self,
+        user_id: &UserId,
         room_id: &RoomId,
         since: u64,
     ) -> Result<impl Iterator<Item = Result<PduEvent>>> {
@@ -617,12 +622,13 @@ impl Rooms {
         pdu_id.push(0xff);
         pdu_id.extend_from_slice(&(since).to_be_bytes());
 
-        self.pdus_since_pduid(room_id, &pdu_id)
+        self.pdus_since_pduid(user_id, room_id, &pdu_id)
     }
 
     /// Returns an iterator over all events in a room that happened after the event with id `since`.
     pub fn pdus_since_pduid(
         &self,
+        user_id: &UserId,
         room_id: &RoomId,
         pdu_id: &[u8],
     ) -> Result<impl Iterator<Item = Result<PduEvent>>> {
@@ -630,6 +636,7 @@ impl Rooms {
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 
+        let user_id = user_id.clone();
         Ok(self
             .pduid_pdu
             .range(pdu_id..)
@@ -641,9 +648,13 @@ impl Rooms {
             })
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(|(_, v)| {
-                Ok(serde_json::from_slice(&v)
-                    .map_err(|_| Error::bad_database("PDU in db is invalid."))?)
+            .map(move |(_, v)| {
+                let mut pdu = serde_json::from_slice::<PduEvent>(&v)
+                    .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
+                if pdu.sender != user_id {
+                    pdu.unsigned.remove("transaction_id");
+                }
+                Ok(pdu)
             }))
     }
 
@@ -651,6 +662,7 @@ impl Rooms {
     /// `until` in reverse-chronological order.
     pub fn pdus_until(
         &self,
+        user_id: &UserId,
         room_id: &RoomId,
         until: u64,
     ) -> impl Iterator<Item = Result<PduEvent>> {
@@ -663,14 +675,19 @@ impl Rooms {
 
         let current: &[u8] = &current;
 
+        let user_id = user_id.clone();
         self.pduid_pdu
             .range(..current)
             .rev()
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(|(_, v)| {
-                Ok(serde_json::from_slice(&v)
-                    .map_err(|_| Error::bad_database("PDU in db is invalid."))?)
+            .map(move |(_, v)| {
+                let mut pdu = serde_json::from_slice::<PduEvent>(&v)
+                    .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
+                if pdu.sender != user_id {
+                    pdu.unsigned.remove("transaction_id");
+                }
+                Ok(pdu)
             })
     }
 
@@ -678,6 +695,7 @@ impl Rooms {
     /// `from` in chronological order.
     pub fn pdus_after(
         &self,
+        user_id: &UserId,
         room_id: &RoomId,
         from: u64,
     ) -> impl Iterator<Item = Result<PduEvent>> {
@@ -690,13 +708,18 @@ impl Rooms {
 
         let current: &[u8] = &current;
 
+        let user_id = user_id.clone();
         self.pduid_pdu
             .range(current..)
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(|(_, v)| {
-                Ok(serde_json::from_slice(&v)
-                    .map_err(|_| Error::bad_database("PDU in db is invalid."))?)
+            .map(move |(_, v)| {
+                let mut pdu = serde_json::from_slice::<PduEvent>(&v)
+                    .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
+                if pdu.sender != user_id {
+                    pdu.unsigned.remove("transaction_id");
+                }
+                Ok(pdu)
             })
     }
 
