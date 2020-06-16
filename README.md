@@ -41,5 +41,5 @@ If you want to help, you may be able to find something in the issue tracker. If 
 
 #### Donate
 
-Liberapay: <https://liberapay.com/timokoesters/>
+Liberapay: <https://liberapay.com/timokoesters/>\
 Bitcoin: `bc1qnnykf986tw49ur7wx9rpw2tevpsztvar5x8w4n`
