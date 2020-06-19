@@ -1390,34 +1390,13 @@ pub fn join_room_by_id_route(
 
     // TODO: Ask a remote server if we don't have this room
 
-    let event = db
-        .rooms
-        .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
-        .map_or_else(
-            || {
-                // There was no existing membership event
-                Ok::<_, Error>(member::MemberEventContent {
-                    membership: member::MembershipState::Join,
-                    displayname: db.users.displayname(&user_id)?,
-                    avatar_url: db.users.avatar_url(&user_id)?,
-                    is_direct: None,
-                    third_party_invite: None,
-                })
-            },
-            |pdu| {
-                // We change the existing membership event
-                let mut event = serde_json::from_value::<EventJson<member::MemberEventContent>>(
-                    pdu.content.clone(),
-                )
-                .map_err(|_| Error::bad_database("Invalid member event in db."))?
-                .deserialize()
-                .map_err(|_| Error::bad_database("Invalid member event in db."))?;
-                event.membership = member::MembershipState::Join;
-                event.displayname = db.users.displayname(&user_id)?;
-                event.avatar_url = db.users.avatar_url(&user_id)?;
-                Ok(event)
-            },
-        )?;
+    let event = member::MemberEventContent {
+        membership: member::MembershipState::Join,
+        displayname: db.users.displayname(&user_id)?,
+        avatar_url: db.users.avatar_url(&user_id)?,
+        is_direct: None,
+        third_party_invite: None,
+    };
 
     db.rooms.append_pdu(
         body.room_id.clone(),
