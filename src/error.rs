@@ -25,6 +25,11 @@ pub enum Error {
         #[from]
         source: image::error::ImageError,
     },
+    #[error("Could not deserialize json")]
+    SerdeError {
+        #[from]
+        source: serde_json::Error,
+    },
     #[error("{0}")]
     BadConfig(&'static str),
     #[error("{0}")]

@@ -8,7 +8,7 @@ use ruma::{
             keys::{AlgorithmAndDeviceId, CrossSigningKey, DeviceKeys, KeyAlgorithm, OneTimeKey},
         },
     },
-    events::{to_device::AnyToDeviceEvent, EventJson, EventType},
+    events::{AnyToDeviceEvent, EventJson, EventType},
     identifiers::UserId,
 };
 use std::{collections::BTreeMap, convert::TryFrom, time::SystemTime};

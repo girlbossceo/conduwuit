@@ -29,16 +29,16 @@ thiserror = "1.0.19"
 image = { version = "0.23.4", default-features = false, features = ["jpeg", "png", "gif"] }
 
 [dependencies.ruma]
-git = "https://github.com/timokoesters/ruma"
-#rev = "baa87104569b45dc07a9a7a16d3c7592ab8f4d6b"
+git = "https://github.com/DevinR528/ruma"
+branch = "matrix-sdk2"
 #path = "../ruma/ruma"
 features = ["rand", "client-api", "federation-api"]
 
 # These are required only until ruma-events and ruma-federation-api are merged into ruma/ruma
-[patch.crates-io]
-ruma-common = { git = "https://github.com/timokoesters/ruma" }
-ruma-serde = { git = "https://github.com/timokoesters/ruma" }
-ruma-identifiers = { git = "https://github.com/timokoesters/ruma" }
+# [patch.crates-io]
+# ruma-common = { git = "https://github.com/ruma/ruma", rev = "baa87104569b45dc07a9a7a16d3c7592ab8f4d6b" }
+# ruma-serde = { git = "https://github.com/ruma/ruma", rev = "baa87104569b45dc07a9a7a16d3c7592ab8f4d6b" }
+# ruma-identifiers = { git = "https://github.com/ruma/ruma", rev = "baa87104569b45dc07a9a7a16d3c7592ab8f4d6b" }
 #ruma-common = { path = "../ruma/ruma-common" }
 #ruma-serde = { path = "../ruma/ruma-serde" }
 #ruma-identifiers = { path = "../ruma/ruma-identifiers" }

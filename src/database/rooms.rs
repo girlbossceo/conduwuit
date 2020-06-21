@@ -515,7 +515,7 @@ impl Rooms {
             event_id: EventId::try_from("$thiswillbefilledinlater").expect("we know this is valid"),
             room_id: room_id.clone(),
             sender: sender.clone(),
-            origin: globals.server_name().to_owned(),
+            origin: globals.server_name().to_string(),
             origin_server_ts: utils::millis_since_unix_epoch()
                 .try_into()
                 .expect("time is valid"),
@@ -529,7 +529,7 @@ impl Rooms {
             auth_events: Vec::new(),
             redacts: redacts.clone(),
             unsigned,
-            hashes: ruma::api::federation::EventHash {
+            hashes: ruma::events::pdu::EventHash {
                 sha256: "aaa".to_owned(),
             },
             signatures: HashMap::new(),
@@ -547,7 +547,7 @@ impl Rooms {
 
         let mut pdu_json = serde_json::to_value(&pdu).expect("event is valid, we just created it");
         ruma::signatures::hash_and_sign_event(
-            globals.server_name(),
+            globals.server_name().as_str(),
             globals.keypair(),
             &mut pdu_json,
         )

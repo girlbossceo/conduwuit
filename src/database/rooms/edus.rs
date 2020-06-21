@@ -1,6 +1,6 @@
 use crate::{utils, Error, Result};
 use ruma::{
-    events::{collections::only::Event as EduEvent, EventJson},
+    events::{AnyEvent as EduEvent, EventJson},
     identifiers::{RoomId, UserId},
 };
 use std::convert::TryFrom;
@@ -235,7 +235,7 @@ impl RoomEdus {
 
         Ok(ruma::events::typing::TypingEvent {
             content: ruma::events::typing::TypingEventContent { user_ids },
-            room_id: None, // Can be inferred
+            room_id: room_id.clone(), // Can be inferred
         })
     }
 

@@ -1,12 +1,9 @@
 use crate::{Error, Result};
 use js_int::UInt;
 use ruma::{
-    api::federation::EventHash,
     events::{
-        collections::all::{RoomEvent, StateEvent},
-        room::member::MemberEvent,
-        stripped::AnyStrippedStateEvent,
-        EventJson, EventType,
+        pdu::EventHash, AnyRoomEvent, AnyStateEvent, AnyStrippedStateEventStub, EventJson,
+        EventType,
     },
     identifiers::{EventId, RoomId, UserId},
 };
@@ -81,19 +78,19 @@ impl PduEvent {
         Ok(())
     }
 
-    pub fn to_room_event(&self) -> EventJson<RoomEvent> {
+    pub fn to_room_event(&self) -> EventJson<AnyRoomEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<EventJson<RoomEvent>>(&json)
+        serde_json::from_str::<EventJson<AnyRoomEvent>>(&json)
             .expect("EventJson::from_str always works")
     }
-    pub fn to_state_event(&self) -> EventJson<StateEvent> {
+    pub fn to_state_event(&self) -> EventJson<AnyStateEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<EventJson<StateEvent>>(&json)
+        serde_json::from_str::<EventJson<AnyStateEvent>>(&json)
             .expect("EventJson::from_str always works")
     }
-    pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEvent> {
+    pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEventStub> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<EventJson<AnyStrippedStateEvent>>(&json)
+        serde_json::from_str::<EventJson<AnyStrippedStateEventStub>>(&json)
             .expect("EventJson::from_str always works")
     }
     pub fn to_member_event(&self) -> EventJson<MemberEvent> {
