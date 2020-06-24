@@ -62,8 +62,6 @@ impl RoomEdus {
         room_id: &RoomId,
         since: u64,
     ) -> Result<impl Iterator<Item = Result<EventJson<EduEvent>>>> {
-        // TODO is this                                ^^^^^^^
-        // only ever a read receipt could we just return EphemeralRoomEvent here?
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 

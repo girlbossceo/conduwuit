@@ -602,15 +602,17 @@ pub fn get_global_account_data_route(
         )?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
-    // TODO clearly this is not ideal...
-    // NOTE: EventJson is no longer needed as all the enums and event structs impl ser/de
-    let data: Result<EduEvent, Error> = data.deserialize().map_err(Into::into);
-    match data? {
-        EduEvent::Basic(data) => Ok(get_global_account_data::Response {
+    let data: Result<EduEvent, Error> = data
+        .deserialize()
+        .map_err(|_| Error::bad_database("Deserialization of account data failed"));
+
+    if let EduEvent::Basic(data) = data? {
+        Ok(get_global_account_data::Response {
             account_data: EventJson::from(data),
         }
-        .into()),
-        _ => panic!("timo what do i do here"),
+        .into())
+    } else {
+        Err(Error::bad_database("Encountered a non account data event."))
     }
 }
 
@@ -2523,7 +2525,6 @@ pub fn sync_route(
             .filter_map(|r| r.ok()) // Filter out buggy events
             .filter_map(|r| {
                 if let Ok(EduEvent::Ephemeral(ev)) = r.deserialize() {
-                    // TODO we could get rid of EventJson?
                     Some(EventJson::from(ev))
                 } else {
                     None
@@ -2554,8 +2555,8 @@ pub fn sync_route(
                     .account_data
                     .changes_since(Some(&room_id), &user_id, since)?
                     .into_iter()
-                    .flat_map(|(_, v)| {
-                        if let Some(EduEvent::Basic(account_event)) = v.deserialize().ok() {
+                    .filter_map(|(_, v)| {
+                        if let Ok(EduEvent::Basic(account_event)) = v.deserialize() {
                             Some(EventJson::from(account_event))
                         } else {
                             None
@@ -2618,7 +2619,6 @@ pub fn sync_route(
             .filter_map(|r| r.ok()) // Filter out buggy events
             .filter_map(|r| {
                 if let Ok(EduEvent::Ephemeral(ev)) = r.deserialize() {
-                    // TODO we could get rid of EventJson?
                     Some(EventJson::from(ev))
                 } else {
                     None
@@ -2710,8 +2710,8 @@ pub fn sync_route(
                 .account_data
                 .changes_since(None, &user_id, since)?
                 .into_iter()
-                .flat_map(|(_, v)| {
-                    if let Some(EduEvent::Basic(account_event)) = v.deserialize().ok() {
+                .filter_map(|(_, v)| {
+                    if let Ok(EduEvent::Basic(account_event)) = v.deserialize() {
                         Some(EventJson::from(account_event))
                     } else {
                         None
@@ -2859,13 +2859,12 @@ pub fn get_message_events_route(
         .clone()
         .parse()
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from` value."))?;
+    let limit = body
+        .limit
+        .try_into()
+        .map_or(Ok::<_, Error>(10_usize), |l: u32| Ok(l as usize))?;
     match body.dir {
         get_message_events::Direction::Forward => {
-            let limit = body
-                .limit
-                .try_into()
-                .map_or(Ok::<_, Error>(10_usize), |l: u32| Ok(l as usize))?;
-
             let events_after = db
                 .rooms
                 .pdus_after(&user_id, &body.room_id, from)
@@ -2897,11 +2896,6 @@ pub fn get_message_events_route(
             .into())
         }
         get_message_events::Direction::Backward => {
-            let limit = body
-                .limit
-                .try_into()
-                .map_or(Ok::<_, Error>(10_usize), |l: u32| Ok(l as usize))?;
-
             let events_before = db
                 .rooms
                 .pdus_until(&user_id, &body.room_id, from)

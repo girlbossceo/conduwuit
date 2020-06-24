@@ -32,7 +32,7 @@ impl Globals {
                     .unwrap_or("localhost")
                     .to_owned(),
             )
-            .map_err(|_| Error::bad_database("Invalid server name"))?,
+            .map_err(|_| Error::BadConfig("Invalid server name"))?,
             registration_disabled: config.get_bool("registration_disabled").unwrap_or(false),
         })
     }
