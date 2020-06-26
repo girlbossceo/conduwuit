@@ -2523,13 +2523,6 @@ pub fn sync_route(
             .edus
             .roomlatests_since(&room_id, since)?
             .filter_map(|r| r.ok()) // Filter out buggy events
-            .filter_map(|r| {
-                if let Ok(EduEvent::Ephemeral(ev)) = r.deserialize() {
-                    Some(EventJson::from(ev))
-                } else {
-                    None
-                }
-            })
             .collect::<Vec<_>>();
 
         if db
@@ -2617,13 +2610,6 @@ pub fn sync_route(
             .edus
             .roomlatests_since(&room_id, since)?
             .filter_map(|r| r.ok()) // Filter out buggy events
-            .filter_map(|r| {
-                if let Ok(EduEvent::Ephemeral(ev)) = r.deserialize() {
-                    Some(EventJson::from(ev))
-                } else {
-                    None
-                }
-            })
             .collect::<Vec<_>>();
 
         if db
@@ -2634,9 +2620,9 @@ pub fn sync_route(
         {
             edus.push(
                 serde_json::from_str(
-                    &serde_json::to_string(&EduEvent::Ephemeral(AnyEphemeralRoomEvent::Typing(
+                    &serde_json::to_string(&ruma::events::AnyEphemeralRoomEventStub::Typing(
                         db.rooms.edus.roomactives_all(&room_id)?,
-                    )))
+                    ))
                     .expect("event is valid, we just created it"),
                 )
                 .expect("event is valid, we just created it"),

@@ -1,7 +1,10 @@
+use js_int::uint;
 use ruma::{
-    events::push_rules::{ConditionalPushRule, PatternedPushRule, PushCondition, Ruleset},
     identifiers::UserId,
-    push::{Action, Tweak},
+    push::{
+        Action, ConditionalPushRule, PatternedPushRule, PushCondition, RoomMemberCountIs, Ruleset,
+        Tweak,
+    },
 };
 
 pub fn default_pushrules(user_id: &UserId) -> Ruleset {
@@ -174,7 +177,9 @@ pub fn encrypted_room_one_to_one_rule() -> ConditionalPushRule {
         enabled: true,
         rule_id: ".m.rule.encrypted_room_one_to_one".to_owned(),
         conditions: vec![
-            PushCondition::RoomMemberCount { is: "2".to_owned() },
+            PushCondition::RoomMemberCount {
+                is: RoomMemberCountIs::from(uint!(2)..),
+            },
             PushCondition::EventMatch {
                 key: "type".to_owned(),
                 pattern: "m.room.encrypted".to_owned(),
@@ -194,7 +199,9 @@ pub fn room_one_to_one_rule() -> ConditionalPushRule {
         enabled: true,
         rule_id: ".m.rule.room_one_to_one".to_owned(),
         conditions: vec![
-            PushCondition::RoomMemberCount { is: "2".to_owned() },
+            PushCondition::RoomMemberCount {
+                is: RoomMemberCountIs::from(uint!(2)..),
+            },
             PushCondition::EventMatch {
                 key: "type".to_owned(),
                 pattern: "m.room.message".to_owned(),

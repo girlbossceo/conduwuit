@@ -61,7 +61,8 @@ impl RoomEdus {
         &self,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<impl Iterator<Item = Result<EventJson<EduEvent>>>> {
+    ) -> Result<impl Iterator<Item = Result<EventJson<ruma::events::AnyEphemeralRoomEventStub>>>>
+    {
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 
