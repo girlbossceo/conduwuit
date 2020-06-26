@@ -504,6 +504,10 @@ impl Rooms {
         if let Some(state_key) = &state_key {
             if let Some(prev_pdu) = self.room_state_get(&room_id, &event_type, &state_key)? {
                 unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
+                unsigned.insert(
+                    "prev_sender".to_owned(),
+                    serde_json::to_value(prev_pdu.sender).expect("UserId::to_value always works"),
+                );
             }
         }
 
