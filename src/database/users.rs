@@ -1,9 +1,12 @@
 use crate::{utils, Error, Result};
 use js_int::UInt;
 use ruma::{
-    api::client::r0::{
-        device::Device,
-        keys::{AlgorithmAndDeviceId, DeviceKeys, KeyAlgorithm, OneTimeKey},
+    api::client::{
+        error::ErrorKind,
+        r0::{
+            device::Device,
+            keys::{AlgorithmAndDeviceId, CrossSigningKey, DeviceKeys, KeyAlgorithm, OneTimeKey},
+        },
     },
     events::{to_device::AnyToDeviceEvent, EventJson, EventType},
     identifiers::UserId,
@@ -19,8 +22,11 @@ pub struct Users {
     pub(super) token_userdeviceid: sled::Tree,
 
     pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + AlgorithmAndDeviceId
-    pub(super) userdeviceid_devicekeys: sled::Tree,
-    pub(super) devicekeychangeid_userid: sled::Tree, // DeviceKeyChangeId = Count
+    pub(super) keychangeid_userid: sled::Tree,       // KeyChangeId = Count
+    pub(super) keyid_key: sled::Tree,                // KeyId = UserId + KeyId (depends on key type)
+    pub(super) userid_masterkeyid: sled::Tree,
+    pub(super) userid_selfsigningkeyid: sled::Tree,
+    pub(super) userid_usersigningkeyid: sled::Tree,
 
     pub(super) todeviceid_events: sled::Tree, // ToDeviceId = UserId + DeviceId + Count
 }
@@ -170,9 +176,6 @@ impl Users {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
-
-        // Remove device keys
-        self.userdeviceid_devicekeys.remove(&userdeviceid)?;
 
         // Remove tokens
         if let Some(old_token) = self.userdeviceid_token.remove(&userdeviceid)? {
@@ -350,38 +353,163 @@ impl Users {
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
-        self.userdeviceid_devicekeys.insert(
+        self.keyid_key.insert(
             &userdeviceid,
             &*serde_json::to_string(&device_keys).expect("DeviceKeys::to_string always works"),
         )?;
 
-        self.devicekeychangeid_userid
+        self.keychangeid_userid
             .insert(globals.next_count()?.to_be_bytes(), &*user_id.to_string())?;
 
         Ok(())
     }
 
-    pub fn get_device_keys(
+    pub fn add_cross_signing_keys(
         &self,
         user_id: &UserId,
-        device_id: &str,
-    ) -> impl Iterator<Item = Result<DeviceKeys>> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
-        key.push(0xff);
-        key.extend_from_slice(device_id.as_bytes());
+        master_key: &CrossSigningKey,
+        self_signing_key: &Option<CrossSigningKey>,
+        user_signing_key: &Option<CrossSigningKey>,
+        globals: &super::globals::Globals,
+    ) -> Result<()> {
+        // TODO: Check signatures
 
-        self.userdeviceid_devicekeys
-            .scan_prefix(key)
-            .values()
-            .map(|bytes| {
-                Ok(serde_json::from_slice(&bytes?)
-                    .map_err(|_| Error::bad_database("DeviceKeys in db are invalid."))?)
-            })
+        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+
+        // Master key
+        let mut master_key_ids = master_key.keys.values();
+        let master_key_id = master_key_ids.next().ok_or(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Master key contained no key.",
+        ))?;
+
+        if master_key_ids.next().is_some() {
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Master key contained more than one key.",
+            ));
+        }
+
+        let mut master_key_key = prefix.clone();
+        master_key_key.extend_from_slice(master_key_id.as_bytes());
+
+        self.keyid_key.insert(
+            &master_key_key,
+            &*serde_json::to_string(&master_key).expect("CrossSigningKey::to_string always works"),
+        )?;
+
+        self.userid_masterkeyid
+            .insert(&*user_id.to_string(), master_key_key)?;
+
+        // Self-signing key
+        if let Some(self_signing_key) = self_signing_key {
+            let mut self_signing_key_ids = self_signing_key.keys.values();
+            let self_signing_key_id = self_signing_key_ids.next().ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Self signing key contained no key.",
+            ))?;
+
+            if self_signing_key_ids.next().is_some() {
+                return Err(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "Self signing key contained more than one key.",
+                ));
+            }
+
+            let mut self_signing_key_key = prefix.clone();
+            self_signing_key_key.extend_from_slice(self_signing_key_id.as_bytes());
+
+            self.keyid_key.insert(
+                &self_signing_key_key,
+                &*serde_json::to_string(&self_signing_key)
+                    .expect("CrossSigningKey::to_string always works"),
+            )?;
+
+            self.userid_selfsigningkeyid
+                .insert(&*user_id.to_string(), self_signing_key_key)?;
+        }
+
+        // User-signing key
+        if let Some(user_signing_key) = user_signing_key {
+            let mut user_signing_key_ids = user_signing_key.keys.values();
+            let user_signing_key_id = user_signing_key_ids.next().ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "User signing key contained no key.",
+            ))?;
+
+            if user_signing_key_ids.next().is_some() {
+                return Err(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "User signing key contained more than one key.",
+                ));
+            }
+
+            let mut user_signing_key_key = prefix.clone();
+            user_signing_key_key.extend_from_slice(user_signing_key_id.as_bytes());
+
+            self.keyid_key.insert(
+                &user_signing_key_key,
+                &*serde_json::to_string(&user_signing_key)
+                    .expect("CrossSigningKey::to_string always works"),
+            )?;
+
+            self.userid_usersigningkeyid
+                .insert(&*user_id.to_string(), user_signing_key_key)?;
+        }
+
+        self.keychangeid_userid
+            .insert(globals.next_count()?.to_be_bytes(), &*user_id.to_string())?;
+
+        Ok(())
     }
 
-    pub fn device_keys_changed(&self, since: u64) -> impl Iterator<Item = Result<UserId>> {
-        self.devicekeychangeid_userid
-            .range(since.to_be_bytes()..)
+    pub fn sign_key(
+        &self,
+        target_id: &UserId,
+        key_id: &str,
+        signature: (String, String),
+        sender_id: &UserId,
+        globals: &super::globals::Globals,
+    ) -> Result<()> {
+        let mut key = target_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(key_id.to_string().as_bytes());
+
+        let mut cross_signing_key =
+            serde_json::from_slice::<serde_json::Value>(&self.keyid_key.get(&key)?.ok_or(
+                Error::BadRequest(ErrorKind::InvalidParam, "Tried to sign nonexistent key."),
+            )?)
+            .map_err(|_| Error::bad_database("key in keyid_key is invalid."))?;
+
+        let signatures = cross_signing_key
+            .get_mut("signatures")
+            .ok_or_else(|| Error::bad_database("key in keyid_key has no signatures field."))?
+            .as_object_mut()
+            .ok_or_else(|| Error::bad_database("key in keyid_key has invalid signatures field."))?
+            .entry(sender_id.clone())
+            .or_insert_with(|| serde_json::Map::new().into());
+
+        signatures
+            .as_object_mut()
+            .ok_or_else(|| Error::bad_database("signatures in keyid_key for a user is invalid."))?
+            .insert(signature.0, signature.1.into());
+
+        self.keyid_key.insert(
+            &key,
+            &*serde_json::to_string(&cross_signing_key)
+                .expect("CrossSigningKey::to_string always works"),
+        )?;
+
+        self.keychangeid_userid
+            .insert(globals.next_count()?.to_be_bytes(), &*target_id.to_string())?;
+
+        Ok(())
+    }
+
+    pub fn keys_changed(&self, since: u64) -> impl Iterator<Item = Result<UserId>> {
+        self.keychangeid_userid
+            .range((since + 1).to_be_bytes()..)
             .values()
             .map(|bytes| {
                 Ok(
@@ -397,27 +525,83 @@ impl Users {
             })
     }
 
-    pub fn all_device_keys(
-        &self,
-        user_id: &UserId,
-    ) -> impl Iterator<Item = Result<(String, DeviceKeys)>> {
+    pub fn get_device_keys(&self, user_id: &UserId, device_id: &str) -> Result<Option<DeviceKeys>> {
         let mut key = user_id.to_string().as_bytes().to_vec();
         key.push(0xff);
+        key.extend_from_slice(device_id.as_bytes());
 
-        self.userdeviceid_devicekeys.scan_prefix(key).map(|r| {
-            let (key, value) = r?;
-            let userdeviceid = utils::string_from_bytes(
-                key.rsplit(|&b| b == 0xff)
-                    .next()
-                    .ok_or_else(|| Error::bad_database("UserDeviceID in db is invalid."))?,
-            )
-            .map_err(|_| Error::bad_database("UserDeviceId in db is invalid."))?;
-            Ok((
-                userdeviceid,
-                serde_json::from_slice(&*value)
-                    .map_err(|_| Error::bad_database("DeviceKeys in db are invalid."))?,
-            ))
+        self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+            Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
+                Error::bad_database("DeviceKeys in db are invalid.")
+            })?))
         })
+    }
+
+    pub fn get_master_key(
+        &self,
+        user_id: &UserId,
+        sender_id: &UserId,
+    ) -> Result<Option<CrossSigningKey>> {
+        // TODO: hide some signatures
+        self.userid_masterkeyid
+            .get(user_id.to_string())?
+            .map_or(Ok(None), |key| {
+                self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+                    let mut cross_signing_key = serde_json::from_slice::<CrossSigningKey>(&bytes)
+                        .map_err(|_| {
+                        Error::bad_database("CrossSigningKey in db is invalid.")
+                    })?;
+
+                    // A user is not allowed to see signatures from users other than himself and
+                    // the target user
+                    cross_signing_key.signatures = cross_signing_key
+                        .signatures
+                        .into_iter()
+                        .filter(|(user, _)| user == user_id || user == sender_id)
+                        .collect();
+
+                    Ok(Some(cross_signing_key))
+                })
+            })
+    }
+
+    pub fn get_self_signing_key(
+        &self,
+        user_id: &UserId,
+        sender_id: &UserId,
+    ) -> Result<Option<CrossSigningKey>> {
+        self.userid_selfsigningkeyid
+            .get(user_id.to_string())?
+            .map_or(Ok(None), |key| {
+                self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+                    let mut cross_signing_key = serde_json::from_slice::<CrossSigningKey>(&bytes)
+                        .map_err(|_| {
+                        Error::bad_database("CrossSigningKey in db is invalid.")
+                    })?;
+
+                    // A user is not allowed to see signatures from users other than himself and
+                    // the target user
+                    cross_signing_key.signatures = cross_signing_key
+                        .signatures
+                        .into_iter()
+                        .filter(|(user, _)| user == user_id || user == sender_id)
+                        .collect();
+
+                    Ok(Some(cross_signing_key))
+                })
+            })
+    }
+
+    pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<CrossSigningKey>> {
+        self.userid_usersigningkeyid
+            .get(user_id.to_string())?
+            .map_or(Ok(None), |key| {
+                self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+                    Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
+                        Error::bad_database("CrossSigningKey in db is invalid.")
+                    })?))
+                })
+            })
     }
 
     pub fn add_to_device_event(

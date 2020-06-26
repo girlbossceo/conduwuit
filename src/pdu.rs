@@ -4,6 +4,7 @@ use ruma::{
     api::federation::EventHash,
     events::{
         collections::all::{RoomEvent, StateEvent},
+        room::member::MemberEvent,
         stripped::AnyStrippedStateEvent,
         EventJson, EventType,
     },
@@ -93,6 +94,11 @@ impl PduEvent {
     pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
         serde_json::from_str::<EventJson<AnyStrippedStateEvent>>(&json)
+            .expect("EventJson::from_str always works")
+    }
+    pub fn to_member_event(&self) -> EventJson<MemberEvent> {
+        let json = serde_json::to_string(&self).expect("PDUs are always valid");
+        serde_json::from_str::<EventJson<MemberEvent>>(&json)
             .expect("EventJson::from_str always works")
     }
 }

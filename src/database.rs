@@ -1,6 +1,7 @@
 pub(self) mod account_data;
 pub(self) mod global_edus;
 pub(self) mod globals;
+pub(self) mod key_backups;
 pub(self) mod media;
 pub(self) mod rooms;
 pub(self) mod uiaa;
@@ -21,6 +22,7 @@ pub struct Database {
     pub account_data: account_data::AccountData,
     pub global_edus: global_edus::GlobalEdus,
     pub media: media::Media,
+    pub key_backups: key_backups::KeyBackups,
     pub _db: sled::Db,
 }
 
@@ -73,8 +75,11 @@ impl Database {
                 userdeviceid_metadata: db.open_tree("userdeviceid_metadata")?,
                 token_userdeviceid: db.open_tree("token_userdeviceid")?,
                 onetimekeyid_onetimekeys: db.open_tree("onetimekeyid_onetimekeys")?,
-                userdeviceid_devicekeys: db.open_tree("userdeviceid_devicekeys")?,
-                devicekeychangeid_userid: db.open_tree("devicekeychangeid_userid")?,
+                keychangeid_userid: db.open_tree("devicekeychangeid_userid")?,
+                keyid_key: db.open_tree("keyid_key")?,
+                userid_masterkeyid: db.open_tree("userid_masterkeyid")?,
+                userid_selfsigningkeyid: db.open_tree("userid_selfsigningkeyid")?,
+                userid_usersigningkeyid: db.open_tree("userid_usersigningkeyid")?,
                 todeviceid_events: db.open_tree("todeviceid_events")?,
             },
             uiaa: uiaa::Uiaa {
@@ -110,6 +115,11 @@ impl Database {
             },
             media: media::Media {
                 mediaid_file: db.open_tree("mediaid_file")?,
+            },
+            key_backups: key_backups::KeyBackups {
+                backupid_algorithm: db.open_tree("backupid_algorithm")?,
+                backupid_etag: db.open_tree("backupid_etag")?,
+                backupkeyid_backup: db.open_tree("backupkeyid_backupmetadata")?,
             },
             _db: db,
         })
