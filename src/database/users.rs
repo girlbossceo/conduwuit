@@ -93,6 +93,19 @@ impl Users {
             })
     }
 
+    /// Hash and set the user's password to the Argon2 hash
+    pub fn set_password(&self, user_id: &UserId, password: &str) -> Result<()> {
+        if let Ok(hash) = utils::calculate_hash(&password) {
+            self.userid_password.insert(user_id.to_string(), &*hash)?;
+        } else {
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Password does not meet the requirements.",
+            ));
+        }
+        Ok(())
+    }
+
     /// Returns the displayname of a user on this homeserver.
     pub fn displayname(&self, user_id: &UserId) -> Result<Option<String>> {
         self.userid_displayname

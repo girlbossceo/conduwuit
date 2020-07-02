@@ -12,7 +12,7 @@ use ruma::{
     api::client::{
         error::ErrorKind,
         r0::{
-            account::{get_username_availability, register},
+            account::{change_password, get_username_availability, register},
             alias::{create_alias, delete_alias, get_alias},
             backup::{
                 add_backup_keys, create_backup, get_backup, get_backup_keys, get_latest_backup,
@@ -303,6 +303,58 @@ pub fn logout_route(
     db.users.remove_device(&user_id, &device_id)?;
 
     Ok(logout::Response.into())
+}
+
+#[post("/_matrix/client/r0/account/password", data = "<body>")]
+pub fn change_password_route(
+    db: State<'_, Database>,
+    body: Ruma<change_password::Request>,
+) -> ConduitResult<change_password::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+    let mut uiaainfo = UiaaInfo {
+        flows: vec![AuthFlow {
+            stages: vec!["m.login.password".to_owned()],
+        }],
+        completed: Vec::new(),
+        params: Default::default(),
+        session: None,
+        auth_error: None,
+    };
+
+    if let Some(auth) = &body.auth {
+        let (worked, uiaainfo) = db.uiaa.try_auth(
+            &user_id,
+            &device_id,
+            auth,
+            &uiaainfo,
+            &db.users,
+            &db.globals,
+        )?;
+        if !worked {
+            return Err(Error::Uiaa(uiaainfo));
+        }
+    } else {
+        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+        db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
+        return Err(Error::Uiaa(uiaainfo));
+    }
+
+    db.users.set_password(&user_id, &body.new_password)?;
+
+    // TODO: Read logout_devices field when it's available and respect that, currently not supported in Ruma
+    // See: https://github.com/ruma/ruma/issues/107
+    // Logout all devices except the current one
+    for id in db
+        .users
+        .all_device_ids(&user_id)
+        .filter_map(|id| id.ok())
+        .filter(|id| id != device_id)
+    {
+        db.users.remove_device(&user_id, &id)?;
+    }
+
+    Ok(change_password::Response.into())
 }
 
 #[get("/_matrix/client/r0/capabilities")]
