@@ -30,6 +30,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::login_route,
                 client_server::logout_route,
                 client_server::change_password_route,
+                client_server::deactivate_route,
                 client_server::get_capabilities_route,
                 client_server::get_pushrules_all_route,
                 client_server::set_pushrule_route,

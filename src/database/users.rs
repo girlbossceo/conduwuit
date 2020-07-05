@@ -37,9 +37,21 @@ impl Users {
         Ok(self.userid_password.contains_key(user_id.to_string())?)
     }
 
+    /// Check if account is deactivated
+    pub fn is_deactivated(&self, user_id: &UserId) -> Result<bool> {
+        Ok(self
+            .userid_password
+            .get(user_id.to_string())?
+            .ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "User does not exist.",
+            ))?
+            .is_empty())
+    }
+
     /// Create a new user account on this homeserver.
-    pub fn create(&self, user_id: &UserId, hash: &str) -> Result<()> {
-        self.userid_password.insert(user_id.to_string(), hash)?;
+    pub fn create(&self, user_id: &UserId, password: &str) -> Result<()> {
+        self.set_password(user_id, password)?;
         Ok(())
     }
 
@@ -97,13 +109,13 @@ impl Users {
     pub fn set_password(&self, user_id: &UserId, password: &str) -> Result<()> {
         if let Ok(hash) = utils::calculate_hash(&password) {
             self.userid_password.insert(user_id.to_string(), &*hash)?;
+            Ok(())
         } else {
-            return Err(Error::BadRequest(
+            Err(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Password does not meet the requirements.",
-            ));
+            ))
         }
-        Ok(())
     }
 
     /// Returns the displayname of a user on this homeserver.
@@ -720,5 +732,19 @@ impl Users {
                     Error::bad_database("Device in userdeviceid_metadata is invalid.")
                 })?)
             })
+    }
+
+    /// Deactivate account
+    pub fn deactivate_account(&self, user_id: &UserId) -> Result<()> {
+        // Remove all associated devices
+        for device_id in self.all_device_ids(user_id) {
+            self.remove_device(&user_id, &device_id?)?;
+        }
+
+        // Set the password to "" to indicate a deactivated account
+        self.userid_password.insert(user_id.to_string(), "")?;
+
+        // TODO: Unhook 3PID
+        Ok(())
     }
 }

@@ -12,7 +12,10 @@ use ruma::{
     api::client::{
         error::ErrorKind,
         r0::{
-            account::{change_password, get_username_availability, register},
+            account::{
+                change_password, deactivate, get_username_availability, register,
+                ThirdPartyIdRemovalStatus,
+            },
             alias::{create_alias, delete_alias, get_alias},
             backup::{
                 add_backup_keys, create_backup, get_backup, get_backup_keys, get_latest_backup,
@@ -179,15 +182,8 @@ pub fn register_route(
 
     let password = body.password.clone().unwrap_or_default();
 
-    if let Ok(hash) = utils::calculate_hash(&password) {
-        // Create user
-        db.users.create(&user_id, &hash)?;
-    } else {
-        return Err(Error::BadRequest(
-            ErrorKind::InvalidParam,
-            "Password does not meet the requirements.",
-        ));
-    }
+    // Create user
+    db.users.create(&user_id, &password)?;
 
     // Generate new device id if the user didn't specify one
     let device_id = body
@@ -252,6 +248,10 @@ pub fn login_route(
             let user_id = UserId::parse_with_server_name(username, db.globals.server_name()).map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
             let hash = db.users.password_hash(&user_id)?.ok_or(Error::BadRequest(ErrorKind::Forbidden, "Wrong username or password."))?;
 
+            if hash.is_empty() {
+                return Err(Error::BadRequest(ErrorKind::UserDeactivated, "The user has been deactivated"));
+            }
+
             let hash_matches =
                 argon2::verify_encoded(&hash, password.as_bytes()).unwrap_or(false);
 
@@ -312,6 +312,7 @@ pub fn change_password_route(
 ) -> ConduitResult<change_password::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
+
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
             stages: vec!["m.login.password".to_owned()],
@@ -334,6 +335,7 @@ pub fn change_password_route(
         if !worked {
             return Err(Error::Uiaa(uiaainfo));
         }
+    // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
         db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
@@ -355,6 +357,79 @@ pub fn change_password_route(
     }
 
     Ok(change_password::Response.into())
+}
+
+#[post("/_matrix/client/r0/account/deactivate", data = "<body>")]
+pub fn deactivate_route(
+    db: State<'_, Database>,
+    body: Ruma<deactivate::Request>,
+) -> ConduitResult<deactivate::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
+    let mut uiaainfo = UiaaInfo {
+        flows: vec![AuthFlow {
+            stages: vec!["m.login.password".to_owned()],
+        }],
+        completed: Vec::new(),
+        params: Default::default(),
+        session: None,
+        auth_error: None,
+    };
+
+    if let Some(auth) = &body.auth {
+        let (worked, uiaainfo) = db.uiaa.try_auth(
+            &user_id,
+            &device_id,
+            auth,
+            &uiaainfo,
+            &db.users,
+            &db.globals,
+        )?;
+        if !worked {
+            return Err(Error::Uiaa(uiaainfo));
+        }
+    // Success!
+    } else {
+        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+        db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
+        return Err(Error::Uiaa(uiaainfo));
+    }
+
+    // Leave all joined rooms and reject all invitations
+    for room_id in db
+        .rooms
+        .rooms_joined(&user_id)
+        .chain(db.rooms.rooms_invited(&user_id))
+    {
+        let room_id = room_id?;
+        let event = member::MemberEventContent {
+            membership: member::MembershipState::Leave,
+            displayname: None,
+            avatar_url: None,
+            is_direct: None,
+            third_party_invite: None,
+        };
+
+        db.rooms.append_pdu(
+            room_id.clone(),
+            user_id.clone(),
+            EventType::RoomMember,
+            serde_json::to_value(event).expect("event is valid, we just created it"),
+            None,
+            Some(user_id.to_string()),
+            None,
+            &db.globals,
+        )?;
+    }
+
+    // Remove devices and mark account as deactivated
+    db.users.deactivate_account(&user_id)?;
+
+    Ok(deactivate::Response {
+        id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,
+    }
+    .into())
 }
 
 #[get("/_matrix/client/r0/capabilities")]
@@ -1905,19 +1980,27 @@ pub fn search_users_route(
             .filter_map(|user_id| {
                 // Filter out buggy users (they should not exist, but you never know...)
                 let user_id = user_id.ok()?;
-                Some(search_users::User {
+                if db.users.is_deactivated(&user_id).ok()? {
+                    return None;
+                }
+
+                let user = search_users::User {
                     user_id: user_id.clone(),
                     display_name: db.users.displayname(&user_id).ok()?,
                     avatar_url: db.users.avatar_url(&user_id).ok()?,
-                })
-            })
-            .filter(|user| {
-                user.user_id.to_string().contains(&body.search_term)
-                    || user
+                };
+
+                if !user.user_id.to_string().contains(&body.search_term)
+                    && user
                         .display_name
                         .as_ref()
                         .filter(|name| name.contains(&body.search_term))
-                        .is_some()
+                        .is_none()
+                {
+                    return None;
+                }
+
+                Some(user)
             })
             .collect(),
         limited: false,
