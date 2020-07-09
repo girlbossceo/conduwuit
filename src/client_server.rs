@@ -45,7 +45,7 @@ use ruma::{
             read_marker::set_read_marker,
             redact::redact_event,
             room::{self, create_room},
-            session::{get_login_types, login, logout},
+            session::{get_login_types, login, logout, logout_all},
             state::{
                 create_state_event_for_empty_key, create_state_event_for_key, get_state_events,
                 get_state_events_for_empty_key, get_state_events_for_key,
@@ -303,6 +303,22 @@ pub fn logout_route(
     db.users.remove_device(&user_id, &device_id)?;
 
     Ok(logout::Response.into())
+}
+
+#[post("/_matrix/client/r0/logout/all", data = "<body>")]
+pub fn logout_all_route(
+    db: State<'_, Database>,
+    body: Ruma<logout_all::Request>,
+) -> ConduitResult<logout_all::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    for device_id in db.users.all_device_ids(user_id) {
+        if let Ok(device_id) = device_id {
+            db.users.remove_device(&user_id, &device_id)?;
+        }
+    }
+
+    Ok(logout_all::Response.into())
 }
 
 #[post("/_matrix/client/r0/account/password", data = "<body>")]
