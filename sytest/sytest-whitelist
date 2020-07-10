@@ -1,3 +1,4 @@
+/joined_members return joined members
 /joined_rooms returns only joined rooms
 3pid invite join valid signature but revoked keys are rejected
 3pid invite join valid signature but unreachable ID server are rejected
