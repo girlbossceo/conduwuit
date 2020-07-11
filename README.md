@@ -14,7 +14,7 @@ See it in action: <https://www.youtube.com/watch?v=HoBslDtqC1k>
 
 #### Can I try it out?
 
-Yes! Just open Riot (<https://riot.im/app> or RiotX) and register on the `https://conduit.koesters.xyz:14004` homeserver.
+Yes! Just open Riot (<https://riot.im/app> or RiotX for example) and register on the `https://conduit.koesters.xyz:14004` homeserver.
 
 #### How can I deploy my own?
 
@@ -29,15 +29,20 @@ It's explained in more detail [here](https://git.koesters.xyz/timo/conduit/wiki/
 
 #### What are the biggest things still missing?
 
-- Federation (Make Conduit talk to other Matrix servers)
-- Notifications (Make Matrix client notify the user when new messages or pings arrive)
+- Federation (Talk to other Matrix servers)
+- Appservices (Bridges and Bots)
+- Push notifications on mobile
+- Notification settings
 - Lots of testing
 
 Also check out the [milestones](https://git.koesters.xyz/timo/conduit/milestones).
 
 #### How can I contribute?
 
-If you want to help, you may be able to find something in the issue tracker. If you do, comment on the issue, so others know. You can also join #conduit:matrix.org and ask there.
+1. Look for an issue you would like to work on and make sure it's not assigned to other users
+2. Ask someone to assign the issue to you (comment on the issue or chat in #conduit:matrix.org)
+3. Fork the repo and work on the issue. #conduit:matrix.org is happy to help :)
+4. Submit a PR
 
 #### Donate
 
