@@ -36,6 +36,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_pushrules_all_route,
                 client_server::set_pushrule_route,
                 client_server::set_pushrule_enabled_route,
+                client_server::get_room_event_route,
                 client_server::get_filter_route,
                 client_server::create_filter_route,
                 client_server::set_global_account_data_route,

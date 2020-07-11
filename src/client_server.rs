@@ -44,7 +44,7 @@ use ruma::{
             push::{get_pushers, get_pushrules_all, set_pushrule, set_pushrule_enabled},
             read_marker::set_read_marker,
             redact::redact_event,
-            room::{self, create_room},
+            room::{self, create_room, get_room_event},
             session::{get_login_types, login, logout, logout_all},
             state::{
                 create_state_event_for_empty_key, create_state_event_for_key, get_state_events,
@@ -2055,6 +2055,35 @@ pub fn get_protocols_route() -> ConduitResult<get_protocols::Response> {
     warn!("TODO: get_protocols_route");
     Ok(get_protocols::Response {
         protocols: BTreeMap::new(),
+    }
+    .into())
+}
+
+#[get(
+    "/_matrix/client/r0/rooms/<_room_id>/event/<_event_id>",
+    data = "<body>"
+)]
+pub fn get_room_event_route(
+    db: State<'_, Database>,
+    body: Ruma<get_room_event::Request>,
+    _room_id: String,
+    _event_id: String,
+) -> ConduitResult<get_room_event::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    if !db.rooms.is_joined(user_id, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view this room.",
+        ));
+    }
+
+    Ok(get_room_event::Response {
+        event: db
+            .rooms
+            .get_pdu(&body.event_id)?
+            .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?
+            .to_room_event(),
     }
     .into())
 }
