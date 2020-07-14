@@ -46,13 +46,13 @@ impl Error {
     }
 }
 
-#[rocket::async_trait]
-impl<'r> Responder<'r> for Error {
-    async fn respond_to(self, r: &'r Request<'_>) -> response::Result<'r> {
+impl<'r, 'o> Responder<'r, 'o> for Error
+where
+    'o: 'r,
+{
+    fn respond_to(self, r: &'r Request<'_>) -> response::Result<'o> {
         if let Self::Uiaa(uiaainfo) = &self {
-            return RumaResponse::from(UiaaResponse::AuthResponse(uiaainfo.clone()))
-                .respond_to(r)
-                .await;
+            return RumaResponse::from(UiaaResponse::AuthResponse(uiaainfo.clone())).respond_to(r);
         }
 
         let message = format!("{}", self);
@@ -83,6 +83,5 @@ impl<'r> Responder<'r> for Error {
             status_code,
         })
         .respond_to(r)
-        .await
     }
 }

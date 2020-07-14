@@ -1,7 +1,7 @@
 use crate::{utils, Error};
 use log::warn;
 use rocket::{
-    data::{Data, FromData, FromDataFuture, Transform, TransformFuture, Transformed},
+    data::{Data, FromDataFuture, Transform, TransformFuture, Transformed, FromTransformedData},
     http::Status,
     response::{self, Responder},
     Outcome::*,
@@ -22,7 +22,7 @@ pub struct Ruma<T> {
     pub json_body: Option<Box<serde_json::value::RawValue>>, // This is None when body is not a valid string
 }
 
-impl<'a, T: Endpoint> FromData<'a> for Ruma<T> {
+impl<'a, T: Endpoint> FromTransformedData<'a> for Ruma<T> {
     type Error = (); // TODO: Better error handling
     type Owned = Data;
     type Borrowed = Self::Owned;
@@ -121,13 +121,13 @@ impl<T: TryInto<http::Response<Vec<u8>>>> From<T> for RumaResponse<T> {
     }
 }
 
-#[rocket::async_trait]
-impl<'r, T> Responder<'r> for RumaResponse<T>
+impl<'r, 'o, T> Responder<'r, 'o> for RumaResponse<T>
 where
     T: Send + TryInto<http::Response<Vec<u8>>>,
     T::Error: Send,
+    'o: 'r
 {
-    async fn respond_to(self, _: &'r Request<'_>) -> response::Result<'r> {
+    fn respond_to(self, _: &'r Request<'_>) -> response::Result<'o> {
         let http_response: Result<http::Response<_>, _> = self.0.try_into();
         match http_response {
             Ok(http_response) => {
@@ -141,9 +141,10 @@ where
                         .raw_header(header.0.to_string(), header.1.to_str().unwrap().to_owned());
                 }
 
+                let http_body = http_response.into_body();
+
                 response
-                    .sized_body(Cursor::new(http_response.into_body()))
-                    .await;
+                    .sized_body(http_body.len(), Cursor::new(http_body));
 
                 response.raw_header("Access-Control-Allow-Origin", "*");
                 response.raw_header(
