@@ -1,68 +1,77 @@
+3pid invite join valid signature but revoked keys are rejected
+3pid invite join valid signature but unreachable ID server are rejected
+3pid invite join with wrong but valid signature are rejected
+AS cannot create users outside its own namespace
+After deactivating account, can't log in with an email
+Alternative server names do not cause a routing loop
+Both GET and PUT work
+Can add account data
+Can create filter
+Can logout all devices
+Can read configuration endpoint
+Can send a message directly to a device using PUT /sendToDevice
+Can upload with ASCII file name
+Can upload with Unicode file name
+Can upload without a file name
+Changing the actions of an unknown default rule fails with 404
+Changing the actions of an unknown rule fails with 404
+Checking local federation server
+GET /device/{deviceId}
+GET /device/{deviceId} gives a 404 for unknown devices
+GET /devices
+GET /events with negative 'limit'
+GET /events with non-numeric 'limit'
+GET /events with non-numeric 'timeout'
+GET /login yields a set of flows
+GET /media/r0/download can fetch the value again
+GET /profile/:user_id/displayname publicly accessible
+GET /publicRooms lists newly-created room
 GET /register yields a set of flows
+GET /rooms/:room_id/state fetches entire room state
+GET /rooms/:room_id/state/m.room.member/:user_id fetches my membership
+Getting push rules doesn't corrupt the cache SYN-390
+POST /createRoom makes a private room
+POST /createRoom makes a private room with invites
+POST /join/:room_id can join a room
+POST /login as non-existing user is rejected
+POST /login can log in as a user
+POST /login can log in as a user with just the local part of the id
+POST /login returns the same device_id as that in the request
+POST /login wrong password is rejected
+POST /media/r0/upload can create an upload
 POST /register can create a user
 POST /register downcases capitals in usernames
 POST /register rejects registration of usernames with '!'
 POST /register rejects registration of usernames with '"'
+POST /register rejects registration of usernames with '''
 POST /register rejects registration of usernames with ':'
 POST /register rejects registration of usernames with '?'
-POST /register rejects registration of usernames with '\'
 POST /register rejects registration of usernames with '@'
 POST /register rejects registration of usernames with '['
+POST /register rejects registration of usernames with '\'
+POST /register rejects registration of usernames with '\n'
 POST /register rejects registration of usernames with ']'
 POST /register rejects registration of usernames with '{'
 POST /register rejects registration of usernames with '|'
 POST /register rejects registration of usernames with '}'
 POST /register rejects registration of usernames with '£'
 POST /register rejects registration of usernames with 'é'
-POST /register rejects registration of usernames with '\n'
-POST /register rejects registration of usernames with '''
-GET /login yields a set of flows
-POST /login can log in as a user
-POST /login returns the same device_id as that in the request
-POST /login can log in as a user with just the local part of the id
-POST /login as non-existing user is rejected
-POST /login wrong password is rejected
-POST /createRoom makes a private room
-POST /createRoom makes a private room with invites
-GET /rooms/:room_id/state/m.room.member/:user_id fetches my membership
-POST /join/:room_id can join a room
+POST /rooms/:room_id/ban can ban a user
+POST /rooms/:room_id/invite can send an invite
 POST /rooms/:room_id/join can join a room
 POST /rooms/:room_id/leave can leave a room
-POST /rooms/:room_id/invite can send an invite
+POSTed media can be thumbnailed
+PUT /device/{deviceId} gives a 404 for unknown devices
+PUT /device/{deviceId} updates device fields
+PUT /directory/room/:room_alias creates alias
+PUT /profile/:user_id/displayname sets my name
 PUT /rooms/:room_id/state/m.room.power_levels can set levels
 PUT power_levels should not explode if the old power levels were empty
-Both GET and PUT work
-Version responds 200 OK with valid structure
-PUT /profile/:user_id/displayname sets my name
-GET /profile/:user_id/displayname publicly accessible
-GET /device/{deviceId} gives a 404 for unknown devices
-PUT /device/{deviceId} gives a 404 for unknown devices
-After deactivating account, can't log in with an email
-Can create filter
 Should reject keys claiming to belong to a different user
-Can add account data
-Checking local federation server
-Can read configuration endpoint
-AS cannot create users outside its own namespace
-Changing the actions of an unknown default rule fails with 404
-Changing the actions of an unknown rule fails with 404
 Trying to get push rules with unknown rule_id fails with 404
-GET /events with non-numeric 'limit'
-GET /events with negative 'limit'
-GET /events with non-numeric 'timeout'
-Getting push rules doesn't corrupt the cache SYN-390
-GET /publicRooms lists newly-created room
-PUT /directory/room/:room_alias creates alias
-3pid invite join with wrong but valid signature are rejected
-3pid invite join valid signature but revoked keys are rejected
-3pid invite join valid signature but unreachable ID server are rejected
-query for user with no keys returns empty key dict
-Can upload without a file name
-Can upload with ASCII file name
 User appears in user directory
 User directory correctly update on display name change
-User in shared private room does appear in user directory
 User in dir while user still shares private rooms
-POST /rooms/:room_id/ban can ban a user
-Alternative server names do not cause a routing loop
-Can logout all devices
+User in shared private room does appear in user directory
+Version responds 200 OK with valid structure
+query for user with no keys returns empty key dict
