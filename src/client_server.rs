@@ -220,7 +220,7 @@ pub fn register_route(
     Ok(register::Response {
         access_token: Some(token),
         user_id,
-        device_id: Some(device_id.into_boxed_str()),
+        device_id: Some(device_id.into()),
     }
     .into())
 }
@@ -268,7 +268,7 @@ pub fn login_route(
         .body
         .device_id
         .clone()
-        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into_boxed_str());
+        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
 
     // Generate a new token for the device
     let token = utils::random_string(TOKEN_LENGTH);
@@ -898,7 +898,7 @@ pub fn get_keys_route(
                         device_display_name: metadata.display_name,
                     });
 
-                    container.insert(device_id.to_owned().into_boxed_str(), keys);
+                    container.insert(device_id.into(), keys);
                 }
             }
             device_keys.insert(user_id.clone(), container);
@@ -917,7 +917,7 @@ pub fn get_keys_route(
                         device_display_name: metadata.display_name,
                     });
 
-                    container.insert(device_id.to_string().into_boxed_str(), keys);
+                    container.insert(device_id.as_ref().into(), keys);
                 }
                 device_keys.insert(user_id.clone(), container);
             }

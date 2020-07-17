@@ -182,7 +182,7 @@ impl Users {
         self.userdeviceid_metadata.insert(
             userdeviceid,
             serde_json::to_string(&Device {
-                device_id: device_id.to_string().into_boxed_str(),
+                device_id: device_id.into(),
                 display_name: initial_device_display_name,
                 last_seen_ip: None, // TODO
                 last_seen_ts: Some(SystemTime::now()),
