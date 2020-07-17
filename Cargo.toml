@@ -29,6 +29,6 @@ thiserror = "1.0.19"
 image = { version = "0.23.4", default-features = false, features = ["jpeg", "png", "gif"] }
 
 [dependencies.ruma]
-git = "https://github.com/DevinR528/ruma"
-branch = "key-sign"
-features = ["rand", "client-api", "federation-api"]
+git = "https://github.com/ruma/ruma"
+features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"]
+rev = "848b225"

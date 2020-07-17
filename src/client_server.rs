@@ -220,7 +220,7 @@ pub fn register_route(
     Ok(register::Response {
         access_token: Some(token),
         user_id,
-        device_id: Some(device_id),
+        device_id: Some(device_id.into_boxed_str()),
     }
     .into())
 }
@@ -268,7 +268,7 @@ pub fn login_route(
         .body
         .device_id
         .clone()
-        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
+        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into_boxed_str());
 
     // Generate a new token for the device
     let token = utils::random_string(TOKEN_LENGTH);
@@ -285,7 +285,7 @@ pub fn login_route(
         user_id,
         access_token: token,
         home_server: Some(db.globals.server_name().to_string()),
-        device_id,
+        device_id: device_id.to_string(),
         well_known: None,
     }
     .into())
@@ -898,7 +898,7 @@ pub fn get_keys_route(
                         device_display_name: metadata.display_name,
                     });
 
-                    container.insert(device_id.to_owned(), keys);
+                    container.insert(device_id.to_owned().into_boxed_str(), keys);
                 }
             }
             device_keys.insert(user_id.clone(), container);
@@ -917,7 +917,7 @@ pub fn get_keys_route(
                         device_display_name: metadata.display_name,
                     });
 
-                    container.insert(device_id.clone(), keys);
+                    container.insert(device_id.to_string().into_boxed_str(), keys);
                 }
                 device_keys.insert(user_id.clone(), container);
             }
@@ -1214,21 +1214,19 @@ pub fn create_room_route(
             }
         })?;
 
+    let mut content = ruma::events::room::create::CreateEventContent::new(user_id.clone());
+    content.federate = body.creation_content.as_ref().map_or(true, |c| c.federate);
+    content.predecessor = body
+        .creation_content
+        .as_ref()
+        .and_then(|c| c.predecessor.clone());
+    content.room_version = RoomVersionId::version_6();
     // 1. The room create event
     db.rooms.append_pdu(
         room_id.clone(),
         user_id.clone(),
         EventType::RoomCreate,
-        serde_json::to_value(ruma::events::room::create::CreateEventContent {
-            creator: user_id.clone(),
-            federate: body.creation_content.as_ref().map_or(true, |c| c.federate),
-            predecessor: body
-                .creation_content
-                .as_ref()
-                .and_then(|c| c.predecessor.clone()),
-            room_version: RoomVersionId::version_6(),
-        })
-        .expect("event is valid, we just created it"),
+        serde_json::to_value(content).expect("event is valid, we just created it"),
         None,
         Some("".to_owned()),
         None,
@@ -1329,9 +1327,9 @@ pub fn create_room_route(
         room_id.clone(),
         user_id.clone(),
         EventType::RoomHistoryVisibility,
-        serde_json::to_value(history_visibility::HistoryVisibilityEventContent {
-            history_visibility: history_visibility::HistoryVisibility::Shared,
-        })
+        serde_json::to_value(history_visibility::HistoryVisibilityEventContent::new(
+            history_visibility::HistoryVisibility::Shared,
+        ))
         .expect("event is valid, we just created it"),
         None,
         Some("".to_owned()),
@@ -1345,15 +1343,13 @@ pub fn create_room_route(
         user_id.clone(),
         EventType::RoomGuestAccess,
         match preset {
-            create_room::RoomPreset::PublicChat => {
-                serde_json::to_value(guest_access::GuestAccessEventContent {
-                    guest_access: guest_access::GuestAccess::Forbidden,
-                })
-                .expect("event is valid, we just created it")
-            }
-            _ => serde_json::to_value(guest_access::GuestAccessEventContent {
-                guest_access: guest_access::GuestAccess::CanJoin,
-            })
+            create_room::RoomPreset::PublicChat => serde_json::to_value(
+                guest_access::GuestAccessEventContent::new(guest_access::GuestAccess::Forbidden),
+            )
+            .expect("event is valid, we just created it"),
+            _ => serde_json::to_value(guest_access::GuestAccessEventContent::new(
+                guest_access::GuestAccess::CanJoin,
+            ))
             .expect("event is valid, we just created it"),
         },
         None,
@@ -2567,11 +2563,7 @@ pub fn sync_route(
                 notification_count,
             },
             timeline: sync_events::Timeline {
-                limited: if limited || joined_since_last_sync {
-                    Some(true)
-                } else {
-                    None
-                },
+                limited: limited || joined_since_last_sync,
                 prev_batch,
                 events: room_events,
             },
@@ -2620,7 +2612,7 @@ pub fn sync_route(
         {
             edus.push(
                 serde_json::from_str(
-                    &serde_json::to_string(&ruma::events::AnyEphemeralRoomEventStub::Typing(
+                    &serde_json::to_string(&ruma::events::AnySyncEphemeralRoomEvent::Typing(
                         db.rooms.edus.roomactives_all(&room_id)?,
                     ))
                     .expect("event is valid, we just created it"),
@@ -2632,7 +2624,7 @@ pub fn sync_route(
         let left_room = sync_events::LeftRoom {
             account_data: sync_events::AccountData { events: Vec::new() },
             timeline: sync_events::Timeline {
-                limited: Some(false),
+                limited: false,
                 prev_batch: Some(next_batch.clone()),
                 events: room_events,
             },

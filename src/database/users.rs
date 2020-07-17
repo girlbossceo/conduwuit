@@ -9,7 +9,7 @@ use ruma::{
         },
     },
     events::{AnyToDeviceEvent, EventJson, EventType},
-    identifiers::UserId,
+    identifiers::{DeviceId, UserId},
 };
 use std::{collections::BTreeMap, convert::TryFrom, time::SystemTime};
 
@@ -168,7 +168,7 @@ impl Users {
     pub fn create_device(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         token: &str,
         initial_device_display_name: Option<String>,
     ) -> Result<()> {
@@ -182,7 +182,7 @@ impl Users {
         self.userdeviceid_metadata.insert(
             userdeviceid,
             serde_json::to_string(&Device {
-                device_id: device_id.to_owned(),
+                device_id: device_id.to_string().into_boxed_str(),
                 display_name: initial_device_display_name,
                 last_seen_ip: None, // TODO
                 last_seen_ts: Some(SystemTime::now()),

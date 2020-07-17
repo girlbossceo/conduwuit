@@ -1,14 +1,14 @@
-use std::convert::TryFrom;
+use std::convert::TryInto;
 
 use crate::{utils, Error, Result};
-use ruma::identifiers::{ServerName, ServerNameRef};
+use ruma::identifiers::ServerName;
 pub const COUNTER: &str = "c";
 
 pub struct Globals {
     pub(super) globals: sled::Tree,
     keypair: ruma::signatures::Ed25519KeyPair,
     reqwest_client: reqwest::Client,
-    server_name: ServerName,
+    server_name: Box<ServerName>,
     registration_disabled: bool,
 }
 
@@ -26,13 +26,12 @@ impl Globals {
             globals,
             keypair,
             reqwest_client: reqwest::Client::new(),
-            server_name: ServerName::try_from(
-                config
-                    .get_str("server_name")
-                    .unwrap_or("localhost")
-                    .to_owned(),
-            )
-            .map_err(|_| Error::BadConfig("Invalid server name"))?,
+            server_name: config
+                .get_str("server_name")
+                .unwrap_or("localhost")
+                .to_string()
+                .try_into()
+                .map_err(|_| crate::Error::bad_database("Private or public keys are invalid."))?,
             registration_disabled: config.get_bool("registration_disabled").unwrap_or(false),
         })
     }
@@ -64,7 +63,7 @@ impl Globals {
         })
     }
 
-    pub fn server_name(&self) -> ServerNameRef<'_> {
+    pub fn server_name(&self) -> &ServerName {
         self.server_name.as_ref()
     }
 

@@ -2,8 +2,8 @@ use crate::{Error, Result};
 use js_int::UInt;
 use ruma::{
     events::{
-        pdu::EventHash, room::member::MemberEventContent, AnyRoomEvent, AnyRoomEventStub,
-        AnyStateEvent, AnyStateEventStub, AnyStrippedStateEventStub, EventJson, EventType,
+        pdu::EventHash, room::member::MemberEventContent, AnyRoomEvent, AnyStateEvent,
+        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventJson, EventType,
         StateEvent,
     },
     identifiers::{EventId, RoomId, UserId},
@@ -79,9 +79,9 @@ impl PduEvent {
         Ok(())
     }
 
-    pub fn to_room_event_stub(&self) -> EventJson<AnyRoomEventStub> {
+    pub fn to_room_event_stub(&self) -> EventJson<AnySyncRoomEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<EventJson<AnyRoomEventStub>>(&json)
+        serde_json::from_str::<EventJson<AnySyncRoomEvent>>(&json)
             .expect("EventJson::from_str always works")
     }
     pub fn to_room_event(&self) -> EventJson<AnyRoomEvent> {
@@ -94,14 +94,14 @@ impl PduEvent {
         serde_json::from_str::<EventJson<AnyStateEvent>>(&json)
             .expect("EventJson::from_str always works")
     }
-    pub fn to_state_event_stub(&self) -> EventJson<AnyStateEventStub> {
+    pub fn to_state_event_stub(&self) -> EventJson<AnySyncStateEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<EventJson<AnyStateEventStub>>(&json)
+        serde_json::from_str::<EventJson<AnySyncStateEvent>>(&json)
             .expect("EventJson::from_str always works")
     }
-    pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEventStub> {
+    pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<EventJson<AnyStrippedStateEventStub>>(&json)
+        serde_json::from_str::<EventJson<AnyStrippedStateEvent>>(&json)
             .expect("EventJson::from_str always works")
     }
     pub fn to_member_event(&self) -> EventJson<StateEvent<MemberEventContent>> {
