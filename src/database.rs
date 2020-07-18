@@ -62,7 +62,6 @@ impl Database {
                     .to_owned())
             })?;
 
-        println!("{:?}", path);
         let db = sled::open(&path)?;
         info!("Opened sled database at {}", path);
 

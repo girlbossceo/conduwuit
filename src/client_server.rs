@@ -64,7 +64,7 @@ use ruma::{
             canonical_alias, guest_access, history_visibility, join_rules, member, name, redaction,
             topic,
         },
-        AnyBasicEvent, AnyEphemeralRoomEvent, AnyEvent as EduEvent, EventJson, EventType,
+        AnyBasicEvent, AnyEphemeralRoomEvent, AnyEvent, EventJson, EventType,
     },
     identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId},
 };
@@ -285,7 +285,7 @@ pub fn login_route(
         user_id,
         access_token: token,
         home_server: Some(db.globals.server_name().to_string()),
-        device_id: device_id.to_string(),
+        device_id: device_id.into(),
         well_known: None,
     }
     .into())
@@ -479,7 +479,7 @@ pub fn get_pushrules_all_route(
 ) -> ConduitResult<get_pushrules_all::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if let EduEvent::Basic(AnyBasicEvent::PushRules(pushrules)) = db
+    if let AnyEvent::Basic(AnyBasicEvent::PushRules(pushrules)) = db
         .account_data
         .get(None, &user_id, &EventType::PushRules)?
         .ok_or(Error::BadRequest(
@@ -602,13 +602,13 @@ pub fn get_global_account_data_route(
         )?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
-    let data: Result<EduEvent, Error> = data
+    let data: AnyEvent = data
         .deserialize()
-        .map_err(|_| Error::bad_database("Deserialization of account data failed"));
+        .map_err(|_| Error::bad_database("Deserialization of account data failed"))?;
 
-    if let EduEvent::Basic(data) = data? {
+    if let AnyEvent::Basic(data) = data {
         Ok(get_global_account_data::Response {
-            account_data: EventJson::from(data),
+            account_data: data.into(),
         }
         .into())
     } else {
@@ -1145,7 +1145,7 @@ pub fn set_read_marker_route(
         db.rooms.edus.roomlatest_update(
             &user_id,
             &body.room_id,
-            EduEvent::Ephemeral(AnyEphemeralRoomEvent::Receipt(
+            AnyEvent::Ephemeral(AnyEphemeralRoomEvent::Receipt(
                 ruma::events::receipt::ReceiptEvent {
                     content: ruma::events::receipt::ReceiptEventContent(receipt_content),
                     room_id: body.room_id.clone(),
@@ -1221,6 +1221,7 @@ pub fn create_room_route(
         .as_ref()
         .and_then(|c| c.predecessor.clone());
     content.room_version = RoomVersionId::version_6();
+
     // 1. The room create event
     db.rooms.append_pdu(
         room_id.clone(),
@@ -2511,7 +2512,7 @@ pub fn sync_route(
 
         let room_events = pdus
             .into_iter()
-            .map(|pdu| pdu.to_room_event_stub())
+            .map(|pdu| pdu.to_sync_room_event())
             .collect::<Vec<_>>();
 
         let mut edus = db
@@ -2529,7 +2530,7 @@ pub fn sync_route(
         {
             edus.push(
                 serde_json::from_str(
-                    &serde_json::to_string(&EduEvent::Ephemeral(AnyEphemeralRoomEvent::Typing(
+                    &serde_json::to_string(&AnyEvent::Ephemeral(AnyEphemeralRoomEvent::Typing(
                         db.rooms.edus.roomactives_all(&room_id)?,
                     )))
                     .expect("event is valid, we just created it"),
@@ -2544,14 +2545,14 @@ pub fn sync_route(
                     .account_data
                     .changes_since(Some(&room_id), &user_id, since)?
                     .into_iter()
-                    .filter_map(|(_, v)| {
-                        if let Ok(EduEvent::Basic(account_event)) = v.deserialize() {
-                            Some(EventJson::from(account_event))
+                    .map(|(_, v)| {
+                        if let Ok(AnyEvent::Basic(account_event)) = v.deserialize() {
+                            Ok(EventJson::from(account_event))
                         } else {
-                            None
+                            Err(Error::bad_database("found invalid event"))
                         }
                     })
-                    .collect(),
+                    .collect::<Result<Vec<_>, _>>()?,
             },
             summary: sync_events::RoomSummary {
                 heroes,
@@ -2573,7 +2574,7 @@ pub fn sync_route(
                     db.rooms
                         .room_state_full(&room_id)?
                         .into_iter()
-                        .map(|(_, pdu)| pdu.to_state_event_stub())
+                        .map(|(_, pdu)| pdu.to_sync_state_event())
                         .collect()
                 } else {
                     Vec::new()
@@ -2593,7 +2594,7 @@ pub fn sync_route(
         let pdus = db.rooms.pdus_since(&user_id, &room_id, since)?;
         let room_events = pdus
             .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-            .map(|pdu| pdu.to_room_event_stub())
+            .map(|pdu| pdu.to_sync_room_event())
             .collect();
 
         // TODO: Only until leave point
@@ -2688,14 +2689,14 @@ pub fn sync_route(
                 .account_data
                 .changes_since(None, &user_id, since)?
                 .into_iter()
-                .filter_map(|(_, v)| {
-                    if let Ok(EduEvent::Basic(account_event)) = v.deserialize() {
-                        Some(EventJson::from(account_event))
+                .map(|(_, v)| {
+                    if let Ok(AnyEvent::Basic(account_event)) = v.deserialize() {
+                        Ok(EventJson::from(account_event))
                     } else {
-                        None
+                        Err(Error::bad_database("found invalid event"))
                     }
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, _>>()?,
         },
         device_lists: sync_events::DeviceLists {
             changed: if since != 0 {

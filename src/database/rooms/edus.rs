@@ -1,6 +1,6 @@
 use crate::{utils, Error, Result};
 use ruma::{
-    events::{AnyEvent as EduEvent, EventJson},
+    events::{AnyEvent as EduEvent, EventJson, SyncEphemeralRoomEvent},
     identifiers::{RoomId, UserId},
 };
 use std::convert::TryFrom;
@@ -236,9 +236,41 @@ impl RoomEdus {
 
         Ok(ruma::events::typing::TypingEvent {
             content: ruma::events::typing::TypingEventContent { user_ids },
-            room_id: room_id.clone(), // Can be inferred
+            room_id: room_id.clone(),
         })
     }
+    // REMOVE the above method and uncomment the bottom when ruma/ruma PR #141 is merged
+    // pub fn roomactives_all(
+    //     &self,
+    //     room_id: &RoomId,
+    // ) -> Result<SyncEphemeralRoomEvent<ruma::events::typing::TypingEventContent>> {
+    //     let mut prefix = room_id.to_string().as_bytes().to_vec();
+    //     prefix.push(0xff);
+
+    //     let mut user_ids = Vec::new();
+
+    //     for user_id in self
+    //         .roomactiveid_userid
+    //         .scan_prefix(prefix)
+    //         .values()
+    //         .map(|user_id| {
+    //             Ok::<_, Error>(
+    //                 UserId::try_from(utils::string_from_bytes(&user_id?).map_err(|_| {
+    //                     Error::bad_database("User ID in roomactiveid_userid is invalid unicode.")
+    //                 })?)
+    //                 .map_err(|_| {
+    //                     Error::bad_database("User ID in roomactiveid_userid is invalid.")
+    //                 })?,
+    //             )
+    //         })
+    //     {
+    //         user_ids.push(user_id?);
+    //     }
+
+    //     Ok(SyncEphemeralRoomEvent {
+    //         content: ruma::events::typing::TypingEventContent { user_ids },
+    //     })
+    // }
 
     /// Sets a private read marker at `count`.
     pub fn room_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -> Result<()> {
