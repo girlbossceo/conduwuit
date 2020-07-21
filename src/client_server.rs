@@ -594,27 +594,18 @@ pub fn get_global_account_data_route(
 ) -> ConduitResult<get_global_account_data::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    let data = db
-        .account_data
+    db.account_data
         .get(
             None,
             user_id,
             &EventType::try_from(&body.event_type).expect("EventType::try_from can never fail"),
         )?
-        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
-
-    let data: AnyEvent = data
-        .deserialize()
-        .map_err(|_| Error::bad_database("Deserialization of account data failed"))?;
-
-    if let AnyEvent::Basic(data) = data {
-        Ok(get_global_account_data::Response {
-            account_data: data.into(),
-        }
-        .into())
-    } else {
-        Err(Error::bad_database("Encountered a non account data event."))
-    }
+        .and_then(|ev| {
+            serde_json::from_str(ev.json().get())
+                .map(|data| get_global_account_data::Response { account_data: data }.into())
+                .ok()
+        })
+        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))
 }
 
 #[put("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")]
@@ -2546,14 +2537,12 @@ pub fn sync_route(
                     .account_data
                     .changes_since(Some(&room_id), &user_id, since)?
                     .into_iter()
-                    .map(|(_, v)| {
-                        if let Ok(AnyEvent::Basic(account_event)) = v.deserialize() {
-                            Ok(EventJson::from(account_event))
-                        } else {
-                            Err(Error::bad_database("found invalid event"))
-                        }
+                    .filter_map(|(_, v)| {
+                        serde_json::from_str(v.json().get())
+                            .map_err(|_| Error::bad_database("Invalid account event in database."))
+                            .ok()
                     })
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .collect::<Vec<_>>(),
             },
             summary: sync_events::RoomSummary {
                 heroes,
@@ -2690,14 +2679,12 @@ pub fn sync_route(
                 .account_data
                 .changes_since(None, &user_id, since)?
                 .into_iter()
-                .map(|(_, v)| {
-                    if let Ok(AnyEvent::Basic(account_event)) = v.deserialize() {
-                        Ok(EventJson::from(account_event))
-                    } else {
-                        Err(Error::bad_database("found invalid event"))
-                    }
+                .filter_map(|(_, v)| {
+                    serde_json::from_str(v.json().get())
+                        .map_err(|_| Error::bad_database("Invalid account event in database."))
+                        .ok()
                 })
-                .collect::<Result<Vec<_>, _>>()?,
+                .collect::<Vec<_>>(),
         },
         device_lists: sync_events::DeviceLists {
             changed: if since != 0 {

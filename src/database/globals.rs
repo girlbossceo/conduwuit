@@ -31,7 +31,7 @@ impl Globals {
                 .unwrap_or("localhost")
                 .to_string()
                 .try_into()
-                .map_err(|_| Error::bad_database("Private or public keys are invalid."))?,
+                .map_err(|_| Error::BadConfig("Invalid server name found."))?,
             registration_disabled: config.get_bool("registration_disabled").unwrap_or(false),
         })
     }
