@@ -64,7 +64,8 @@ use ruma::{
             canonical_alias, guest_access, history_visibility, join_rules, member, name, redaction,
             topic,
         },
-        AnyBasicEvent, AnyEphemeralRoomEvent, AnyEvent, EventJson, EventType,
+        AnyBasicEvent, AnyEphemeralRoomEvent, AnyEvent, AnySyncEphemeralRoomEvent, EventJson,
+        EventType,
     },
     identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId},
 };
@@ -284,7 +285,7 @@ pub fn login_route(
     Ok(login::Response {
         user_id,
         access_token: token,
-        home_server: Some(db.globals.server_name().to_string()),
+        home_server: Some(db.globals.server_name().to_owned()),
         device_id: device_id.into(),
         well_known: None,
     }
@@ -2530,9 +2531,9 @@ pub fn sync_route(
         {
             edus.push(
                 serde_json::from_str(
-                    &serde_json::to_string(&AnyEvent::Ephemeral(AnyEphemeralRoomEvent::Typing(
+                    &serde_json::to_string(&AnySyncEphemeralRoomEvent::Typing(
                         db.rooms.edus.roomactives_all(&room_id)?,
-                    )))
+                    ))
                     .expect("event is valid, we just created it"),
                 )
                 .expect("event is valid, we just created it"),
@@ -2613,7 +2614,7 @@ pub fn sync_route(
         {
             edus.push(
                 serde_json::from_str(
-                    &serde_json::to_string(&ruma::events::AnySyncEphemeralRoomEvent::Typing(
+                    &serde_json::to_string(&AnySyncEphemeralRoomEvent::Typing(
                         db.rooms.edus.roomactives_all(&room_id)?,
                     ))
                     .expect("event is valid, we just created it"),

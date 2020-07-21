@@ -27,4 +27,4 @@ reqwest = "0.10.6"
 base64 = "0.12.1"
 thiserror = "1.0.19"
 image = { version = "0.23.4", default-features = false, features = ["jpeg", "png", "gif"] }
-ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"], rev = "848b225" }
+ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"], rev = "b55f827" }

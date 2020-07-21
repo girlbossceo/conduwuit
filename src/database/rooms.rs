@@ -515,7 +515,7 @@ impl Rooms {
             event_id: EventId::try_from("$thiswillbefilledinlater").expect("we know this is valid"),
             room_id: room_id.clone(),
             sender: sender.clone(),
-            origin: globals.server_name().to_string(),
+            origin: globals.server_name().to_owned(),
             origin_server_ts: utils::millis_since_unix_epoch()
                 .try_into()
                 .expect("time is valid"),

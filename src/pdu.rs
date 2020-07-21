@@ -6,7 +6,7 @@ use ruma::{
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventJson, EventType,
         StateEvent,
     },
-    identifiers::{EventId, RoomId, UserId},
+    identifiers::{EventId, RoomId, ServerName, UserId},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -17,7 +17,7 @@ pub struct PduEvent {
     pub event_id: EventId,
     pub room_id: RoomId,
     pub sender: UserId,
-    pub origin: String,
+    pub origin: Box<ServerName>,
     pub origin_server_ts: UInt,
     #[serde(rename = "type")]
     pub kind: EventType,
