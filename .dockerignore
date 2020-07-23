@@ -1,0 +1,27 @@
+# Local build and dev artifacts
+target
+sytest
+
+# Docker files
+Dockerfile*
+docker-compose*
+
+# IDE files
+.vscode
+.idea
+*.iml
+
+# Git folder
+.git
+.gitea
+
+# Dot files
+.env
+.gitignore
+
+# Toml files
+rustfmt.toml
+Rocket-example.toml
+
+# Documentation
+*.md
