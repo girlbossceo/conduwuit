@@ -1872,10 +1872,10 @@ pub async fn get_public_rooms_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/publicRooms", data = "<body>")]
+#[post("/_matrix/client/r0/publicRooms", data = "<_body>")]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
-    body: Ruma<get_public_rooms_filtered::Request>,
+    _body: Ruma<get_public_rooms_filtered::Request>,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
     let mut chunk = db
         .rooms

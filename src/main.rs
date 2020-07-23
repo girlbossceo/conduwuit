@@ -1,4 +1,3 @@
-#![feature(proc_macro_hygiene, decl_macro)]
 #![warn(rust_2018_idioms)]
 
 pub mod push_rules;
