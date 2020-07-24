@@ -11,8 +11,6 @@ use ruma::{api::Endpoint, DeviceId, UserId};
 use std::{convert::TryInto, io::Cursor, ops::Deref};
 use tokio::io::AsyncReadExt;
 
-const MESSAGE_LIMIT: u64 = 20 * 1024 * 1024; // 20 MB
-
 /// This struct converts rocket requests into ruma structs by converting them into http requests
 /// first.
 pub struct Ruma<T> {
@@ -40,13 +38,12 @@ impl<'a, T: Endpoint> FromTransformedData<'a> for Ruma<T> {
     ) -> FromDataFuture<'a, Self, Self::Error> {
         Box::pin(async move {
             let data = rocket::try_outcome!(outcome.owned());
+            let db = request
+                .guard::<State<'_, crate::Database>>()
+                .await
+                .expect("database was loaded");
 
             let (user_id, device_id) = if T::METADATA.requires_authentication {
-                let db = request
-                    .guard::<State<'_, crate::Database>>()
-                    .await
-                    .expect("database was loaded");
-
                 // Get token from header or query value
                 let token = match request
                     .headers()
@@ -76,7 +73,8 @@ impl<'a, T: Endpoint> FromTransformedData<'a> for Ruma<T> {
                 http_request = http_request.header(header.name.as_str(), &*header.value);
             }
 
-            let mut handle = data.open().take(MESSAGE_LIMIT);
+            let limit = db.globals.max_request_size();
+            let mut handle = data.open().take(limit.into());
             let mut body = Vec::new();
             handle.read_to_end(&mut body).await.unwrap();
 

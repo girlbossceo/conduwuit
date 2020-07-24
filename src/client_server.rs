@@ -2977,11 +2977,11 @@ pub fn send_event_to_device_route(
 }
 
 #[get("/_matrix/media/r0/config")]
-pub fn get_media_config_route() -> ConduitResult<get_media_config::Response> {
-    Ok(get_media_config::Response {
-        upload_size: (20_u32 * 1024 * 1024).into(), // 20 MB
-    }
-    .into())
+pub fn get_media_config_route(
+    db: State<'_, Database>,
+) -> ConduitResult<get_media_config::Response> {
+    let upload_size = db.globals.max_request_size().into();
+    Ok(get_media_config::Response { upload_size }.into())
 }
 
 #[post("/_matrix/media/r0/upload", data = "<body>")]

@@ -1,7 +1,7 @@
-use std::convert::TryInto;
-
 use crate::{utils, Error, Result};
 use ruma::ServerName;
+use std::convert::TryInto;
+
 pub const COUNTER: &str = "c";
 
 pub struct Globals {
@@ -9,6 +9,7 @@ pub struct Globals {
     keypair: ruma::signatures::Ed25519KeyPair,
     reqwest_client: reqwest::Client,
     server_name: Box<ServerName>,
+    max_request_size: u32,
     registration_disabled: bool,
     encryption_disabled: bool,
 }
@@ -32,7 +33,12 @@ impl Globals {
                 .unwrap_or("localhost")
                 .to_string()
                 .try_into()
-                .map_err(|_| Error::BadConfig("Invalid server name found."))?,
+                .map_err(|_| Error::BadConfig("Invalid server_name."))?,
+            max_request_size: config
+                .get_int("max_request_size")
+                .unwrap_or(20 * 1024 * 1024) // Default to 20 MB
+                .try_into()
+                .map_err(|_| Error::BadConfig("Invalid max_request_size."))?,
             registration_disabled: config.get_bool("registration_disabled").unwrap_or(false),
             encryption_disabled: config.get_bool("encryption_disabled").unwrap_or(false),
         })
@@ -67,6 +73,10 @@ impl Globals {
 
     pub fn server_name(&self) -> &ServerName {
         self.server_name.as_ref()
+    }
+
+    pub fn max_request_size(&self) -> u32 {
+        self.max_request_size
     }
 
     pub fn registration_disabled(&self) -> bool {
