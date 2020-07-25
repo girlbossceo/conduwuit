@@ -8,8 +8,8 @@ use ruma::{
             keys::{AlgorithmAndDeviceId, CrossSigningKey, DeviceKeys, KeyAlgorithm, OneTimeKey},
         },
     },
-    events::{to_device::AnyToDeviceEvent, EventJson, EventType},
-    identifiers::UserId,
+    events::{AnyToDeviceEvent, EventJson, EventType},
+    identifiers::{DeviceId, UserId},
 };
 use std::{collections::BTreeMap, convert::TryFrom, time::SystemTime};
 
@@ -168,7 +168,7 @@ impl Users {
     pub fn create_device(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         token: &str,
         initial_device_display_name: Option<String>,
     ) -> Result<()> {
@@ -177,12 +177,12 @@ impl Users {
 
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
 
         self.userdeviceid_metadata.insert(
             userdeviceid,
             serde_json::to_string(&Device {
-                device_id: device_id.to_owned(),
+                device_id: device_id.into(),
                 display_name: initial_device_display_name,
                 last_seen_ip: None, // TODO
                 last_seen_ts: Some(SystemTime::now()),
@@ -191,16 +191,16 @@ impl Users {
             .as_bytes(),
         )?;
 
-        self.set_token(user_id, device_id, token)?;
+        self.set_token(user_id, &device_id, token)?;
 
         Ok(())
     }
 
     /// Removes a device from a user.
-    pub fn remove_device(&self, user_id: &UserId, device_id: &str) -> Result<()> {
+    pub fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
 
         // Remove tokens
         if let Some(old_token) = self.userdeviceid_token.remove(&userdeviceid)? {
@@ -223,7 +223,7 @@ impl Users {
     }
 
     /// Returns an iterator over all device ids of this user.
-    pub fn all_device_ids(&self, user_id: &UserId) -> impl Iterator<Item = Result<String>> {
+    pub fn all_device_ids(&self, user_id: &UserId) -> impl Iterator<Item = Result<Box<DeviceId>>> {
         let mut prefix = user_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
         // All devices have metadata
@@ -237,17 +237,16 @@ impl Users {
                         .next()
                         .ok_or_else(|| Error::bad_database("UserDevice ID in db is invalid."))?,
                 )
-                .map_err(|_| {
-                    Error::bad_database("Device ID in userdeviceid_metadata is invalid.")
-                })?)
+                .map_err(|_| Error::bad_database("Device ID in userdeviceid_metadata is invalid."))?
+                .into())
             })
     }
 
     /// Replaces the access token of one device.
-    fn set_token(&self, user_id: &UserId, device_id: &str, token: &str) -> Result<()> {
+    fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
 
         // All devices have metadata
         assert!(self.userdeviceid_metadata.get(&userdeviceid)?.is_some());
@@ -268,13 +267,13 @@ impl Users {
     pub fn add_one_time_key(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         one_time_key_key: &AlgorithmAndDeviceId,
         one_time_key_value: &OneTimeKey,
     ) -> Result<()> {
         let mut key = user_id.to_string().as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(device_id.as_bytes());
+        key.extend_from_slice(device_id.as_str().as_bytes());
 
         // All devices have metadata
         // Only existing devices should be able to call this.
@@ -301,12 +300,12 @@ impl Users {
     pub fn take_one_time_key(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         key_algorithm: &KeyAlgorithm,
     ) -> Result<Option<(AlgorithmAndDeviceId, OneTimeKey)>> {
         let mut prefix = user_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
-        prefix.extend_from_slice(device_id.as_bytes());
+        prefix.extend_from_slice(device_id.as_str().as_bytes());
         prefix.push(0xff);
         prefix.push(b'"'); // Annoying quotation mark
         prefix.extend_from_slice(key_algorithm.to_string().as_bytes());
@@ -337,11 +336,11 @@ impl Users {
     pub fn count_one_time_keys(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
     ) -> Result<BTreeMap<KeyAlgorithm, UInt>> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
 
         let mut counts = BTreeMap::new();
 
@@ -370,13 +369,13 @@ impl Users {
     pub fn add_device_keys(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         device_keys: &DeviceKeys,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
 
         self.keyid_key.insert(
             &userdeviceid,
@@ -550,10 +549,14 @@ impl Users {
             })
     }
 
-    pub fn get_device_keys(&self, user_id: &UserId, device_id: &str) -> Result<Option<DeviceKeys>> {
+    pub fn get_device_keys(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+    ) -> Result<Option<DeviceKeys>> {
         let mut key = user_id.to_string().as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(device_id.as_bytes());
+        key.extend_from_slice(device_id.as_str().as_bytes());
 
         self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
             Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
@@ -633,14 +636,14 @@ impl Users {
         &self,
         sender: &UserId,
         target_user_id: &UserId,
-        target_device_id: &str,
+        target_device_id: &DeviceId,
         event_type: &EventType,
         content: serde_json::Value,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let mut key = target_user_id.to_string().as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(target_device_id.as_bytes());
+        key.extend_from_slice(target_device_id.as_str().as_bytes());
         key.push(0xff);
         key.extend_from_slice(&globals.next_count()?.to_be_bytes());
 
@@ -660,14 +663,14 @@ impl Users {
     pub fn take_to_device_events(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         max: usize,
     ) -> Result<Vec<EventJson<AnyToDeviceEvent>>> {
         let mut events = Vec::new();
 
         let mut prefix = user_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
-        prefix.extend_from_slice(device_id.as_bytes());
+        prefix.extend_from_slice(device_id.as_str().as_bytes());
         prefix.push(0xff);
 
         for result in self.todeviceid_events.scan_prefix(&prefix).take(max) {
@@ -685,12 +688,12 @@ impl Users {
     pub fn update_device_metadata(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         device: &Device,
     ) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
 
         // Only existing devices should be able to call this.
         assert!(self.userdeviceid_metadata.get(&userdeviceid)?.is_some());
@@ -706,10 +709,14 @@ impl Users {
     }
 
     /// Get device metadata.
-    pub fn get_device_metadata(&self, user_id: &UserId, device_id: &str) -> Result<Option<Device>> {
+    pub fn get_device_metadata(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+    ) -> Result<Option<Device>> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
 
         self.userdeviceid_metadata
             .get(&userdeviceid)?

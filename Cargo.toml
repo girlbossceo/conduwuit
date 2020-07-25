@@ -27,18 +27,4 @@ reqwest = "0.10.6"
 base64 = "0.12.1"
 thiserror = "1.0.19"
 image = { version = "0.23.4", default-features = false, features = ["jpeg", "png", "gif"] }
-
-[dependencies.ruma]
-git = "https://github.com/timokoesters/ruma"
-#rev = "baa87104569b45dc07a9a7a16d3c7592ab8f4d6b"
-#path = "../ruma/ruma"
-features = ["rand", "client-api", "federation-api"]
-
-# These are required only until ruma-events and ruma-federation-api are merged into ruma/ruma
-[patch.crates-io]
-ruma-common = { git = "https://github.com/timokoesters/ruma" }
-ruma-serde = { git = "https://github.com/timokoesters/ruma" }
-ruma-identifiers = { git = "https://github.com/timokoesters/ruma" }
-#ruma-common = { path = "../ruma/ruma-common" }
-#ruma-serde = { path = "../ruma/ruma-serde" }
-#ruma-identifiers = { path = "../ruma/ruma-identifiers" }
+ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"], rev = "08fbace" }

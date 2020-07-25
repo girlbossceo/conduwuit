@@ -4,7 +4,7 @@ use ruma::{
         error::ErrorKind,
         r0::uiaa::{AuthData, UiaaInfo},
     },
-    identifiers::UserId,
+    identifiers::{DeviceId, UserId},
 };
 
 pub struct Uiaa {
@@ -13,14 +13,19 @@ pub struct Uiaa {
 
 impl Uiaa {
     /// Creates a new Uiaa session. Make sure the session token is unique.
-    pub fn create(&self, user_id: &UserId, device_id: &str, uiaainfo: &UiaaInfo) -> Result<()> {
+    pub fn create(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        uiaainfo: &UiaaInfo,
+    ) -> Result<()> {
         self.update_uiaa_session(user_id, device_id, Some(uiaainfo))
     }
 
     pub fn try_auth(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         auth: &AuthData,
         uiaainfo: &UiaaInfo,
         users: &super::users::Users,
@@ -130,7 +135,7 @@ impl Uiaa {
 
             // UIAA was successful! Remove this session and return true
             self.update_uiaa_session(user_id, device_id, None)?;
-            return Ok((true, uiaainfo));
+            Ok((true, uiaainfo))
         } else {
             panic!("FallbackAcknowledgement is not supported yet");
         }
@@ -139,12 +144,12 @@ impl Uiaa {
     fn update_uiaa_session(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         uiaainfo: Option<&UiaaInfo>,
     ) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
 
         if let Some(uiaainfo) = uiaainfo {
             self.userdeviceid_uiaainfo.insert(
@@ -161,12 +166,12 @@ impl Uiaa {
     fn get_uiaa_session(
         &self,
         user_id: &UserId,
-        device_id: &str,
+        device_id: &DeviceId,
         session: &str,
     ) -> Result<UiaaInfo> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
 
         let uiaainfo = serde_json::from_slice::<UiaaInfo>(
             &self

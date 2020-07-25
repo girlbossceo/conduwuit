@@ -1,6 +1,6 @@
 use crate::{utils, Error, Result};
 use ruma::{
-    events::{collections::only::Event as EduEvent, EventJson},
+    events::{AnyEvent as EduEvent, EventJson, SyncEphemeralRoomEvent},
     identifiers::{RoomId, UserId},
 };
 use std::convert::TryFrom;
@@ -61,7 +61,8 @@ impl RoomEdus {
         &self,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<impl Iterator<Item = Result<EventJson<EduEvent>>>> {
+    ) -> Result<impl Iterator<Item = Result<EventJson<ruma::events::AnySyncEphemeralRoomEvent>>>>
+    {
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -208,8 +209,10 @@ impl RoomEdus {
             .unwrap_or(0))
     }
 
-    /// Returns an iterator over all active events (e.g. typing notifications).
-    pub fn roomactives_all(&self, room_id: &RoomId) -> Result<ruma::events::typing::TypingEvent> {
+    pub fn roomactives_all(
+        &self,
+        room_id: &RoomId,
+    ) -> Result<SyncEphemeralRoomEvent<ruma::events::typing::TypingEventContent>> {
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -233,9 +236,8 @@ impl RoomEdus {
             user_ids.push(user_id?);
         }
 
-        Ok(ruma::events::typing::TypingEvent {
+        Ok(SyncEphemeralRoomEvent {
             content: ruma::events::typing::TypingEventContent { user_ids },
-            room_id: None, // Can be inferred
         })
     }
 

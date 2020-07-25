@@ -1,7 +1,7 @@
 use crate::{utils, Error, Result};
 use ruma::{
     api::client::error::ErrorKind,
-    events::{collections::only::Event as EduEvent, EventJson, EventType},
+    events::{AnyEvent as EduEvent, EventJson, EventType},
     identifiers::{RoomId, UserId},
 };
 use std::{collections::HashMap, convert::TryFrom};

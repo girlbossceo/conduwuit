@@ -60,12 +60,12 @@ use ruma::{
         unversioned::get_supported_versions,
     },
     events::{
-        collections::only::Event as EduEvent,
         room::{
             canonical_alias, guest_access, history_visibility, join_rules, member, name, redaction,
             topic,
         },
-        EventJson, EventType,
+        AnyBasicEvent, AnyEphemeralRoomEvent, AnyEvent, AnySyncEphemeralRoomEvent, EventJson,
+        EventType,
     },
     identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId},
 };
@@ -169,14 +169,14 @@ pub fn register_route(
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) =
             db.uiaa
-                .try_auth(&user_id, "", auth, &uiaainfo, &db.users, &db.globals)?;
+                .try_auth(&user_id, "".into(), auth, &uiaainfo, &db.users, &db.globals)?;
         if !worked {
             return Err(Error::Uiaa(uiaainfo));
         }
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&user_id, "", &uiaainfo)?;
+        db.uiaa.create(&user_id, "".into(), &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
@@ -189,7 +189,7 @@ pub fn register_route(
     let device_id = body
         .device_id
         .clone()
-        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
+        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
 
     // Generate new token for the device
     let token = utils::random_string(TOKEN_LENGTH);
@@ -221,7 +221,7 @@ pub fn register_route(
     Ok(register::Response {
         access_token: Some(token),
         user_id,
-        device_id: Some(device_id),
+        device_id: Some(device_id.into()),
     }
     .into())
 }
@@ -269,7 +269,7 @@ pub fn login_route(
         .body
         .device_id
         .clone()
-        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
+        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
 
     // Generate a new token for the device
     let token = utils::random_string(TOKEN_LENGTH);
@@ -286,7 +286,7 @@ pub fn login_route(
         user_id,
         access_token: token,
         home_server: Some(db.globals.server_name().to_owned()),
-        device_id,
+        device_id: device_id.into(),
         well_known: None,
     }
     .into())
@@ -300,7 +300,7 @@ pub fn logout_route(
     let user_id = body.user_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
-    db.users.remove_device(&user_id, &device_id)?;
+    db.users.remove_device(&user_id, device_id)?;
 
     Ok(logout::Response.into())
 }
@@ -340,14 +340,9 @@ pub fn change_password_route(
     };
 
     if let Some(auth) = &body.auth {
-        let (worked, uiaainfo) = db.uiaa.try_auth(
-            &user_id,
-            &device_id,
-            auth,
-            &uiaainfo,
-            &db.users,
-            &db.globals,
-        )?;
+        let (worked, uiaainfo) =
+            db.uiaa
+                .try_auth(&user_id, device_id, auth, &uiaainfo, &db.users, &db.globals)?;
         if !worked {
             return Err(Error::Uiaa(uiaainfo));
         }
@@ -452,11 +447,11 @@ pub fn deactivate_route(
 pub fn get_capabilities_route() -> ConduitResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
     available.insert(
-        RoomVersionId::version_5(),
+        RoomVersionId::Version5,
         get_capabilities::RoomVersionStability::Stable,
     );
     available.insert(
-        RoomVersionId::version_6(),
+        RoomVersionId::Version6,
         get_capabilities::RoomVersionStability::Stable,
     );
 
@@ -480,7 +475,7 @@ pub fn get_pushrules_all_route(
 ) -> ConduitResult<get_pushrules_all::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    if let EduEvent::PushRules(pushrules) = db
+    if let AnyEvent::Basic(AnyBasicEvent::PushRules(pushrules)) = db
         .account_data
         .get(None, &user_id, &EventType::PushRules)?
         .ok_or(Error::BadRequest(
@@ -594,7 +589,7 @@ pub fn get_global_account_data_route(
 ) -> ConduitResult<get_global_account_data::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    let data = db
+    let event = db
         .account_data
         .get(
             None,
@@ -602,6 +597,9 @@ pub fn get_global_account_data_route(
             &EventType::try_from(&body.event_type).expect("EventType::try_from can never fail"),
         )?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
+
+    let data = serde_json::from_str(event.json().get())
+        .map_err(|_| Error::bad_database("Invalid account data event in db."))?;
 
     Ok(get_global_account_data::Response { account_data: data }.into())
 }
@@ -888,7 +886,7 @@ pub fn get_keys_route(
                         device_display_name: metadata.display_name,
                     });
 
-                    container.insert(device_id.to_owned(), keys);
+                    container.insert(device_id, keys);
                 }
             }
             device_keys.insert(user_id.clone(), container);
@@ -1099,7 +1097,7 @@ pub fn set_read_marker_route(
             content: ruma::events::fully_read::FullyReadEventContent {
                 event_id: body.fully_read.clone(),
             },
-            room_id: Some(body.room_id.clone()),
+            room_id: body.room_id.clone(),
         })
         .expect("we just created a valid event")
         .as_object_mut()
@@ -1135,10 +1133,12 @@ pub fn set_read_marker_route(
         db.rooms.edus.roomlatest_update(
             &user_id,
             &body.room_id,
-            EduEvent::Receipt(ruma::events::receipt::ReceiptEvent {
-                content: receipt_content,
-                room_id: None, // None because it can be inferred
-            }),
+            AnyEvent::Ephemeral(AnyEphemeralRoomEvent::Receipt(
+                ruma::events::receipt::ReceiptEvent {
+                    content: ruma::events::receipt::ReceiptEventContent(receipt_content),
+                    room_id: body.room_id.clone(),
+                },
+            )),
             &db.globals,
         )?;
     }
@@ -1181,8 +1181,7 @@ pub fn create_room_route(
 ) -> ConduitResult<create_room::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    let room_id = RoomId::new(db.globals.server_name())
-        .map_err(|_| Error::bad_database("Server name is invalid."))?;
+    let room_id = RoomId::new(db.globals.server_name());
 
     let alias = body
         .room_alias_name
@@ -1203,21 +1202,20 @@ pub fn create_room_route(
             }
         })?;
 
+    let mut content = ruma::events::room::create::CreateEventContent::new(user_id.clone());
+    content.federate = body.creation_content.as_ref().map_or(true, |c| c.federate);
+    content.predecessor = body
+        .creation_content
+        .as_ref()
+        .and_then(|c| c.predecessor.clone());
+    content.room_version = RoomVersionId::Version6;
+
     // 1. The room create event
     db.rooms.append_pdu(
         room_id.clone(),
         user_id.clone(),
         EventType::RoomCreate,
-        serde_json::to_value(ruma::events::room::create::CreateEventContent {
-            creator: user_id.clone(),
-            federate: body.creation_content.as_ref().map_or(true, |c| c.federate),
-            predecessor: body
-                .creation_content
-                .as_ref()
-                .and_then(|c| c.predecessor.clone()),
-            room_version: RoomVersionId::version_6(),
-        })
-        .expect("event is valid, we just created it"),
+        serde_json::to_value(content).expect("event is valid, we just created it"),
         None,
         Some("".to_owned()),
         None,
@@ -1296,15 +1294,14 @@ pub fn create_room_route(
         user_id.clone(),
         EventType::RoomJoinRules,
         match preset {
-            create_room::RoomPreset::PublicChat => {
-                serde_json::to_value(join_rules::JoinRulesEventContent {
-                    join_rule: join_rules::JoinRule::Public,
-                })
-                .expect("event is valid, we just created it")
-            }
-            _ => serde_json::to_value(join_rules::JoinRulesEventContent {
-                join_rule: join_rules::JoinRule::Invite,
-            })
+            create_room::RoomPreset::PublicChat => serde_json::to_value(
+                join_rules::JoinRulesEventContent::new(join_rules::JoinRule::Public),
+            )
+            .expect("event is valid, we just created it"),
+            // according to spec "invite" is the default
+            _ => serde_json::to_value(join_rules::JoinRulesEventContent::new(
+                join_rules::JoinRule::Invite,
+            ))
             .expect("event is valid, we just created it"),
         },
         None,
@@ -1318,9 +1315,9 @@ pub fn create_room_route(
         room_id.clone(),
         user_id.clone(),
         EventType::RoomHistoryVisibility,
-        serde_json::to_value(history_visibility::HistoryVisibilityEventContent {
-            history_visibility: history_visibility::HistoryVisibility::Shared,
-        })
+        serde_json::to_value(history_visibility::HistoryVisibilityEventContent::new(
+            history_visibility::HistoryVisibility::Shared,
+        ))
         .expect("event is valid, we just created it"),
         None,
         Some("".to_owned()),
@@ -1334,15 +1331,13 @@ pub fn create_room_route(
         user_id.clone(),
         EventType::RoomGuestAccess,
         match preset {
-            create_room::RoomPreset::PublicChat => {
-                serde_json::to_value(guest_access::GuestAccessEventContent {
-                    guest_access: guest_access::GuestAccess::Forbidden,
-                })
-                .expect("event is valid, we just created it")
-            }
-            _ => serde_json::to_value(guest_access::GuestAccessEventContent {
-                guest_access: guest_access::GuestAccess::CanJoin,
-            })
+            create_room::RoomPreset::PublicChat => serde_json::to_value(
+                guest_access::GuestAccessEventContent::new(guest_access::GuestAccess::Forbidden),
+            )
+            .expect("event is valid, we just created it"),
+            _ => serde_json::to_value(guest_access::GuestAccessEventContent::new(
+                guest_access::GuestAccess::CanJoin,
+            ))
             .expect("event is valid, we just created it"),
         },
         None,
@@ -1533,7 +1528,7 @@ pub fn get_alias_route(
 
     Ok(get_alias::Response {
         room_id,
-        servers: vec![db.globals.server_name().to_owned()],
+        servers: vec![db.globals.server_name().to_string()],
     }
     .into())
 }
@@ -2521,7 +2516,7 @@ pub fn sync_route(
 
         let room_events = pdus
             .into_iter()
-            .map(|pdu| pdu.to_room_event())
+            .map(|pdu| pdu.to_sync_room_event())
             .collect::<Vec<_>>();
 
         let mut edus = db
@@ -2539,7 +2534,7 @@ pub fn sync_route(
         {
             edus.push(
                 serde_json::from_str(
-                    &serde_json::to_string(&EduEvent::Typing(
+                    &serde_json::to_string(&AnySyncEphemeralRoomEvent::Typing(
                         db.rooms.edus.roomactives_all(&room_id)?,
                     ))
                     .expect("event is valid, we just created it"),
@@ -2554,8 +2549,12 @@ pub fn sync_route(
                     .account_data
                     .changes_since(Some(&room_id), &user_id, since)?
                     .into_iter()
-                    .map(|(_, v)| v)
-                    .collect(),
+                    .filter_map(|(_, v)| {
+                        serde_json::from_str(v.json().get())
+                            .map_err(|_| Error::bad_database("Invalid account event in database."))
+                            .ok()
+                    })
+                    .collect::<Vec<_>>(),
             },
             summary: sync_events::RoomSummary {
                 heroes,
@@ -2567,11 +2566,7 @@ pub fn sync_route(
                 notification_count,
             },
             timeline: sync_events::Timeline {
-                limited: if limited || joined_since_last_sync {
-                    Some(true)
-                } else {
-                    None
-                },
+                limited: limited || joined_since_last_sync,
                 prev_batch,
                 events: room_events,
             },
@@ -2581,7 +2576,7 @@ pub fn sync_route(
                     db.rooms
                         .room_state_full(&room_id)?
                         .into_iter()
-                        .map(|(_, pdu)| pdu.to_state_event())
+                        .map(|(_, pdu)| pdu.to_sync_state_event())
                         .collect()
                 } else {
                     Vec::new()
@@ -2601,7 +2596,7 @@ pub fn sync_route(
         let pdus = db.rooms.pdus_since(&user_id, &room_id, since)?;
         let room_events = pdus
             .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-            .map(|pdu| pdu.to_room_event())
+            .map(|pdu| pdu.to_sync_room_event())
             .collect();
 
         // TODO: Only until leave point
@@ -2620,7 +2615,7 @@ pub fn sync_route(
         {
             edus.push(
                 serde_json::from_str(
-                    &serde_json::to_string(&EduEvent::Typing(
+                    &serde_json::to_string(&AnySyncEphemeralRoomEvent::Typing(
                         db.rooms.edus.roomactives_all(&room_id)?,
                     ))
                     .expect("event is valid, we just created it"),
@@ -2632,7 +2627,7 @@ pub fn sync_route(
         let left_room = sync_events::LeftRoom {
             account_data: sync_events::AccountData { events: Vec::new() },
             timeline: sync_events::Timeline {
-                limited: Some(false),
+                limited: false,
                 prev_batch: Some(next_batch.clone()),
                 events: room_events,
             },
@@ -2696,8 +2691,12 @@ pub fn sync_route(
                 .account_data
                 .changes_since(None, &user_id, since)?
                 .into_iter()
-                .map(|(_, v)| v)
-                .collect(),
+                .filter_map(|(_, v)| {
+                    serde_json::from_str(v.json().get())
+                        .map_err(|_| Error::bad_database("Invalid account event in database."))
+                        .ok()
+                })
+                .collect::<Vec<_>>(),
         },
         device_lists: sync_events::DeviceLists {
             changed: if since != 0 {
@@ -2839,17 +2838,17 @@ pub fn get_message_events_route(
         .clone()
         .parse()
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from` value."))?;
+    let limit = body
+        .limit
+        .try_into()
+        .map_or(Ok::<_, Error>(10_usize), |l: u32| Ok(l as usize))?;
     match body.dir {
         get_message_events::Direction::Forward => {
             let events_after = db
                 .rooms
                 .pdus_after(&user_id, &body.room_id, from)
                 // Use limit or else 10
-                .take(body.limit.map_or(Ok::<_, Error>(10_usize), |l| {
-                    Ok(u32::try_from(l).map_err(|_| {
-                        Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
-                    })? as usize)
-                })?)
+                .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
                 .collect::<Vec<_>>();
 
@@ -2880,11 +2879,7 @@ pub fn get_message_events_route(
                 .rooms
                 .pdus_until(&user_id, &body.room_id, from)
                 // Use limit or else 10
-                .take(body.limit.map_or(Ok::<_, Error>(10_usize), |l| {
-                    Ok(u32::try_from(l).map_err(|_| {
-                        Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
-                    })? as usize)
-                })?)
+                .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
                 .collect::<Vec<_>>();
 

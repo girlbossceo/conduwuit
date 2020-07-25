@@ -2,7 +2,7 @@ use crate::{utils, Error, Result};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::backup::{get_backup_keys::Sessions, BackupAlgorithm, KeyData},
+        r0::backup::{BackupAlgorithm, KeyData, Sessions},
     },
     identifiers::{RoomId, UserId},
 };

@@ -529,7 +529,7 @@ impl Rooms {
             auth_events: Vec::new(),
             redacts: redacts.clone(),
             unsigned,
-            hashes: ruma::api::federation::EventHash {
+            hashes: ruma::events::pdu::EventHash {
                 sha256: "aaa".to_owned(),
             },
             signatures: HashMap::new(),
@@ -547,7 +547,7 @@ impl Rooms {
 
         let mut pdu_json = serde_json::to_value(&pdu).expect("event is valid, we just created it");
         ruma::signatures::hash_and_sign_event(
-            globals.server_name(),
+            globals.server_name().as_str(),
             globals.keypair(),
             &mut pdu_json,
         )
