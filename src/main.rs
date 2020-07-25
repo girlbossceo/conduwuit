@@ -66,6 +66,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::join_room_by_id_or_alias_route,
                 client_server::leave_room_route,
                 client_server::forget_room_route,
+                client_server::joined_rooms_route,
                 client_server::kick_user_route,
                 client_server::ban_user_route,
                 client_server::unban_user_route,

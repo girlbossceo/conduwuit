@@ -29,6 +29,8 @@ GET /publicRooms lists newly-created room
 GET /register yields a set of flows
 GET /rooms/:room_id/state fetches entire room state
 GET /rooms/:room_id/state/m.room.member/:user_id fetches my membership
+GET /joined_rooms lists newly-created room
+/joined_rooms returns only joined rooms
 Getting push rules doesn't corrupt the cache SYN-390
 POST /createRoom makes a private room
 POST /createRoom makes a private room with invites

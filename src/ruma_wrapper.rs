@@ -1,7 +1,7 @@
 use crate::{utils, Error};
 use log::warn;
 use rocket::{
-    data::{Data, FromDataFuture, Transform, TransformFuture, Transformed, FromTransformedData},
+    data::{Data, FromDataFuture, FromTransformedData, Transform, TransformFuture, Transformed},
     http::Status,
     response::{self, Responder},
     Outcome::*,
@@ -125,7 +125,7 @@ impl<'r, 'o, T> Responder<'r, 'o> for RumaResponse<T>
 where
     T: Send + TryInto<http::Response<Vec<u8>>>,
     T::Error: Send,
-    'o: 'r
+    'o: 'r,
 {
     fn respond_to(self, _: &'r Request<'_>) -> response::Result<'o> {
         let http_response: Result<http::Response<_>, _> = self.0.try_into();
@@ -143,8 +143,7 @@ where
 
                 let http_body = http_response.into_body();
 
-                response
-                    .sized_body(http_body.len(), Cursor::new(http_body));
+                response.sized_body(http_body.len(), Cursor::new(http_body));
 
                 response.raw_header("Access-Control-Allow-Origin", "*");
                 response.raw_header(
