@@ -589,18 +589,19 @@ pub fn get_global_account_data_route(
 ) -> ConduitResult<get_global_account_data::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    db.account_data
+    let event = db
+        .account_data
         .get(
             None,
             user_id,
             &EventType::try_from(&body.event_type).expect("EventType::try_from can never fail"),
         )?
-        .and_then(|ev| {
-            serde_json::from_str(ev.json().get())
-                .map(|data| get_global_account_data::Response { account_data: data }.into())
-                .ok()
-        })
-        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))
+        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
+
+    let data = serde_json::from_str(event.json().get())
+        .map_err(|_| Error::bad_database("Invalid account data event in db."))?;
+
+    Ok(get_global_account_data::Response { account_data: data }.into())
 }
 
 #[put("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")]
