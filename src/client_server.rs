@@ -34,7 +34,7 @@ use ruma::{
             media::{create_content, get_content, get_content_thumbnail, get_media_config},
             membership::{
                 ban_user, forget_room, get_member_events, invite_user, join_room_by_id,
-                join_room_by_id_or_alias, kick_user, leave_room, unban_user,
+                join_room_by_id_or_alias, joined_rooms, kick_user, leave_room, unban_user,
             },
             message::{create_message_event, get_message_events},
             presence::set_presence,
@@ -1439,6 +1439,23 @@ pub fn create_room_route(
     Ok(create_room::Response { room_id }.into())
 }
 
+#[get("/_matrix/client/r0/joined_rooms", data = "<body>")]
+pub fn joined_rooms_route(
+    db: State<'_, Database>,
+    body: Ruma<joined_rooms::Request>,
+) -> ConduitResult<joined_rooms::Response> {
+    let user_id = body.user_id.as_ref().expect("user is authenticated");
+
+    Ok(joined_rooms::Response {
+        joined_rooms: db
+            .rooms
+            .rooms_joined(&user_id)
+            .filter_map(|r| r.ok())
+            .collect(),
+    }
+    .into())
+}
+
 #[put(
     "/_matrix/client/r0/rooms/<_room_id>/redact/<_event_id>/<_txn_id>",
     data = "<body>"
@@ -1872,10 +1889,10 @@ pub async fn get_public_rooms_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/publicRooms", data = "<body>")]
+#[post("/_matrix/client/r0/publicRooms", data = "<_body>")]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
-    body: Ruma<get_public_rooms_filtered::Request>,
+    _body: Ruma<get_public_rooms_filtered::Request>,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
     let mut chunk = db
         .rooms
