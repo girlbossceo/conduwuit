@@ -169,14 +169,14 @@ pub fn register_route(
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) =
             db.uiaa
-                .try_auth(&user_id, "", auth, &uiaainfo, &db.users, &db.globals)?;
+                .try_auth(&user_id, "".into(), auth, &uiaainfo, &db.users, &db.globals)?;
         if !worked {
             return Err(Error::Uiaa(uiaainfo));
         }
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&user_id, "", &uiaainfo)?;
+        db.uiaa.create(&user_id, "".into(), &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
@@ -189,7 +189,7 @@ pub fn register_route(
     let device_id = body
         .device_id
         .clone()
-        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH));
+        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
 
     // Generate new token for the device
     let token = utils::random_string(TOKEN_LENGTH);
@@ -300,7 +300,7 @@ pub fn logout_route(
     let user_id = body.user_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
-    db.users.remove_device(&user_id, &device_id)?;
+    db.users.remove_device(&user_id, device_id)?;
 
     Ok(logout::Response.into())
 }
@@ -340,14 +340,9 @@ pub fn change_password_route(
     };
 
     if let Some(auth) = &body.auth {
-        let (worked, uiaainfo) = db.uiaa.try_auth(
-            &user_id,
-            &device_id,
-            auth,
-            &uiaainfo,
-            &db.users,
-            &db.globals,
-        )?;
+        let (worked, uiaainfo) =
+            db.uiaa
+                .try_auth(&user_id, device_id, auth, &uiaainfo, &db.users, &db.globals)?;
         if !worked {
             return Err(Error::Uiaa(uiaainfo));
         }
@@ -452,11 +447,11 @@ pub fn deactivate_route(
 pub fn get_capabilities_route() -> ConduitResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
     available.insert(
-        RoomVersionId::version_5(),
+        RoomVersionId::Version5,
         get_capabilities::RoomVersionStability::Stable,
     );
     available.insert(
-        RoomVersionId::version_6(),
+        RoomVersionId::Version6,
         get_capabilities::RoomVersionStability::Stable,
     );
 
@@ -890,7 +885,7 @@ pub fn get_keys_route(
                         device_display_name: metadata.display_name,
                     });
 
-                    container.insert(device_id.into(), keys);
+                    container.insert(device_id, keys);
                 }
             }
             device_keys.insert(user_id.clone(), container);
@@ -909,7 +904,7 @@ pub fn get_keys_route(
                         device_display_name: metadata.display_name,
                     });
 
-                    container.insert(device_id.as_ref().into(), keys);
+                    container.insert(device_id.clone(), keys);
                 }
                 device_keys.insert(user_id.clone(), container);
             }
@@ -1212,7 +1207,7 @@ pub fn create_room_route(
         .creation_content
         .as_ref()
         .and_then(|c| c.predecessor.clone());
-    content.room_version = RoomVersionId::version_6();
+    content.room_version = RoomVersionId::Version6;
 
     // 1. The room create event
     db.rooms.append_pdu(
@@ -1298,15 +1293,14 @@ pub fn create_room_route(
         user_id.clone(),
         EventType::RoomJoinRules,
         match preset {
-            create_room::RoomPreset::PublicChat => {
-                serde_json::to_value(join_rules::JoinRulesEventContent {
-                    join_rule: join_rules::JoinRule::Public,
-                })
-                .expect("event is valid, we just created it")
-            }
-            _ => serde_json::to_value(join_rules::JoinRulesEventContent {
-                join_rule: join_rules::JoinRule::Invite,
-            })
+            create_room::RoomPreset::PublicChat => serde_json::to_value(
+                join_rules::JoinRulesEventContent::new(join_rules::JoinRule::Public),
+            )
+            .expect("event is valid, we just created it"),
+            // according to spec "invite" is the default
+            _ => serde_json::to_value(join_rules::JoinRulesEventContent::new(
+                join_rules::JoinRule::Invite,
+            ))
             .expect("event is valid, we just created it"),
         },
         None,

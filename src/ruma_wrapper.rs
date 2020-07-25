@@ -7,7 +7,10 @@ use rocket::{
     Outcome::*,
     Request, State,
 };
-use ruma::{api::Endpoint, identifiers::UserId};
+use ruma::{
+    api::Endpoint,
+    identifiers::{DeviceId, UserId},
+};
 use std::{convert::TryInto, io::Cursor, ops::Deref};
 use tokio::io::AsyncReadExt;
 
@@ -18,7 +21,7 @@ const MESSAGE_LIMIT: u64 = 20 * 1024 * 1024; // 20 MB
 pub struct Ruma<T> {
     pub body: T,
     pub user_id: Option<UserId>,
-    pub device_id: Option<String>,
+    pub device_id: Option<Box<DeviceId>>,
     pub json_body: Option<Box<serde_json::value::RawValue>>, // This is None when body is not a valid string
 }
 
@@ -63,7 +66,7 @@ impl<'a, T: Endpoint> FromTransformedData<'a> for Ruma<T> {
                 match db.users.find_from_token(&token).unwrap() {
                     // TODO: M_UNKNOWN_TOKEN
                     None => return Failure((Status::Unauthorized, ())),
-                    Some((user_id, device_id)) => (Some(user_id), Some(device_id)),
+                    Some((user_id, device_id)) => (Some(user_id), Some(device_id.into())),
                 }
             } else {
                 (None, None)
