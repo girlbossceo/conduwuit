@@ -1,10 +1,10 @@
 use js_int::uint;
 use ruma::{
-    UserId,
     push::{
         Action, ConditionalPushRule, ConditionalPushRuleInit, PatternedPushRule,
         PatternedPushRuleInit, PushCondition, RoomMemberCountIs, Ruleset, Tweak,
     },
+    UserId,
 };
 
 pub fn default_pushrules(user_id: &UserId) -> Ruleset {
