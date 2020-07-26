@@ -2659,6 +2659,9 @@ pub fn sync_route(
         }
     }
 
+    // Remove all to-device events the device received *last time*
+    db.users.remove_to_device_events(user_id, device_id, since)?;
+
     Ok(sync_events::Response {
         next_batch,
         rooms: sync_events::Rooms {
@@ -2711,7 +2714,7 @@ pub fn sync_route(
         },
         device_one_time_keys_count: Default::default(), // TODO
         to_device: sync_events::ToDevice {
-            events: db.users.take_to_device_events(user_id, device_id, 100)?,
+            events: db.users.get_to_device_events(user_id, device_id)?,
         },
     }
     .into())
