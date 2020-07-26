@@ -4,7 +4,7 @@ use ruma::{
         error::ErrorKind,
         r0::uiaa::{AuthData, UiaaInfo},
     },
-    identifiers::{DeviceId, UserId},
+    DeviceId, UserId,
 };
 
 pub struct Uiaa {
@@ -149,7 +149,7 @@ impl Uiaa {
     ) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_bytes());
 
         if let Some(uiaainfo) = uiaainfo {
             self.userdeviceid_uiaainfo.insert(
@@ -171,7 +171,7 @@ impl Uiaa {
     ) -> Result<UiaaInfo> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
-        userdeviceid.extend_from_slice(device_id.as_str().as_bytes());
+        userdeviceid.extend_from_slice(device_id.as_bytes());
 
         let uiaainfo = serde_json::from_slice::<UiaaInfo>(
             &self

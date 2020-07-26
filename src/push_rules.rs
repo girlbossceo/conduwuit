@@ -1,6 +1,6 @@
 use js_int::uint;
 use ruma::{
-    identifiers::UserId,
+    UserId,
     push::{
         Action, ConditionalPushRule, ConditionalPushRuleInit, PatternedPushRule,
         PatternedPushRuleInit, PushCondition, RoomMemberCountIs, Ruleset, Tweak,

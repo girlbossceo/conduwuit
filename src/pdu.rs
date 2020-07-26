@@ -3,10 +3,9 @@ use js_int::UInt;
 use ruma::{
     events::{
         pdu::EventHash, room::member::MemberEventContent, AnyRoomEvent, AnyStateEvent,
-        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventJson, EventType,
-        StateEvent,
+        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
-    identifiers::{EventId, RoomId, ServerName, UserId},
+    EventId, Raw, RoomId, ServerName, UserId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -79,40 +78,40 @@ impl PduEvent {
         Ok(())
     }
 
-    pub fn to_sync_room_event(&self) -> EventJson<AnySyncRoomEvent> {
+    pub fn to_sync_room_event(&self) -> Raw<AnySyncRoomEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
         serde_json::from_str::<AnySyncRoomEvent>(&json)
-            .map(EventJson::from)
+            .map(Raw::from)
             .expect("AnySyncRoomEvent can always be built from a full PDU event")
     }
-    pub fn to_room_event(&self) -> EventJson<AnyRoomEvent> {
+    pub fn to_room_event(&self) -> Raw<AnyRoomEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
         serde_json::from_str::<AnyRoomEvent>(&json)
-            .map(EventJson::from)
+            .map(Raw::from)
             .expect("AnyRoomEvent can always be built from a full PDU event")
     }
-    pub fn to_state_event(&self) -> EventJson<AnyStateEvent> {
+    pub fn to_state_event(&self) -> Raw<AnyStateEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
         serde_json::from_str::<AnyStateEvent>(&json)
-            .map(EventJson::from)
+            .map(Raw::from)
             .expect("AnyStateEvent can always be built from a full PDU event")
     }
-    pub fn to_sync_state_event(&self) -> EventJson<AnySyncStateEvent> {
+    pub fn to_sync_state_event(&self) -> Raw<AnySyncStateEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
         serde_json::from_str::<AnySyncStateEvent>(&json)
-            .map(EventJson::from)
+            .map(Raw::from)
             .expect("AnySyncStateEvent can always be built from a full PDU event")
     }
-    pub fn to_stripped_state_event(&self) -> EventJson<AnyStrippedStateEvent> {
+    pub fn to_stripped_state_event(&self) -> Raw<AnyStrippedStateEvent> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
         serde_json::from_str::<AnyStrippedStateEvent>(&json)
-            .map(EventJson::from)
+            .map(Raw::from)
             .expect("AnyStrippedStateEvent can always be built from a full PDU event")
     }
-    pub fn to_member_event(&self) -> EventJson<StateEvent<MemberEventContent>> {
+    pub fn to_member_event(&self) -> Raw<StateEvent<MemberEventContent>> {
         let json = serde_json::to_string(&self).expect("PDUs are always valid");
         serde_json::from_str::<StateEvent<MemberEventContent>>(&json)
-            .map(EventJson::from)
+            .map(Raw::from)
             .expect("StateEvent<MemberEventContent> can always be built from a full PDU event")
     }
 }
