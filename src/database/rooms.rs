@@ -654,14 +654,14 @@ impl Rooms {
             }))
     }
 
-    /// Returns an iterator over all events in a room that happened before the event with id
-    /// `until` in reverse-chronological order.
+    /// Returns an iterator over all events and their tokens in a room that happened before the
+    /// event with id `until` in reverse-chronological order.
     pub fn pdus_until(
         &self,
         user_id: &UserId,
         room_id: &RoomId,
         until: u64,
-    ) -> impl Iterator<Item = Result<PduEvent>> {
+    ) -> impl Iterator<Item = Result<(IVec, PduEvent)>> {
         // Create the first part of the full pdu id
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
@@ -677,24 +677,24 @@ impl Rooms {
             .rev()
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(move |(_, v)| {
+            .map(move |(k, v)| {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
                 if pdu.sender != user_id {
                     pdu.unsigned.remove("transaction_id");
                 }
-                Ok(pdu)
+                Ok((k, pdu))
             })
     }
 
-    /// Returns an iterator over all events in a room that happened after the event with id
-    /// `from` in chronological order.
+    /// Returns an iterator over all events and their token in a room that happened after the event
+    /// with id `from` in chronological order.
     pub fn pdus_after(
         &self,
         user_id: &UserId,
         room_id: &RoomId,
         from: u64,
-    ) -> impl Iterator<Item = Result<PduEvent>> {
+    ) -> impl Iterator<Item = Result<(IVec, PduEvent)>> {
         // Create the first part of the full pdu id
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
@@ -709,13 +709,13 @@ impl Rooms {
             .range(current..)
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(move |(_, v)| {
+            .map(move |(k, v)| {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
                 if pdu.sender != user_id {
                     pdu.unsigned.remove("transaction_id");
                 }
-                Ok(pdu)
+                Ok((k, pdu))
             })
     }
 
