@@ -1,5 +1,5 @@
 use crate::{Error, Result};
-use ruma::events::EventJson;
+use ruma::Raw;
 
 pub struct GlobalEdus {
     //pub globalallid_globalall: sled::Tree, // ToDevice, GlobalAllId = UserId + Count
@@ -47,8 +47,7 @@ impl GlobalEdus {
     pub fn presence_since(
         &self,
         since: u64,
-    ) -> Result<impl Iterator<Item = Result<EventJson<ruma::events::presence::PresenceEvent>>>>
-    {
+    ) -> Result<impl Iterator<Item = Result<Raw<ruma::events::presence::PresenceEvent>>>> {
         let first_possible_edu = (since + 1).to_be_bytes().to_vec(); // +1 so we don't send the event at since
 
         Ok(self

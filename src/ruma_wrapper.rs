@@ -7,10 +7,7 @@ use rocket::{
     Outcome::*,
     Request, State,
 };
-use ruma::{
-    api::Endpoint,
-    identifiers::{DeviceId, UserId},
-};
+use ruma::{api::Endpoint, DeviceId, UserId};
 use std::{convert::TryInto, io::Cursor, ops::Deref};
 use tokio::io::AsyncReadExt;
 

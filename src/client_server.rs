@@ -64,10 +64,9 @@ use ruma::{
             canonical_alias, guest_access, history_visibility, join_rules, member, name, redaction,
             topic,
         },
-        AnyBasicEvent, AnyEphemeralRoomEvent, AnyEvent, AnySyncEphemeralRoomEvent, EventJson,
-        EventType,
+        AnyBasicEvent, AnyEphemeralRoomEvent, AnyEvent, AnySyncEphemeralRoomEvent, EventType,
     },
-    identifiers::{RoomAliasId, RoomId, RoomVersionId, UserId},
+    Raw, RoomAliasId, RoomId, RoomVersionId, UserId,
 };
 use serde_json::json;
 
@@ -624,7 +623,7 @@ pub fn set_displayname_route(
             EventType::RoomMember,
             serde_json::to_value(ruma::events::room::member::MemberEventContent {
                 displayname: body.displayname.clone(),
-                ..serde_json::from_value::<EventJson<_>>(
+                ..serde_json::from_value::<Raw<_>>(
                     db.rooms
                         .room_state_get(&room_id, &EventType::RoomMember, &user_id.to_string())?
                         .ok_or_else(|| {
@@ -659,7 +658,7 @@ pub fn set_displayname_route(
                         .try_into()
                         .expect("time is valid"),
                 ),
-                presence: ruma::events::presence::PresenceState::Online,
+                presence: ruma::presence::PresenceState::Online,
                 status_msg: None,
             },
             sender: user_id.clone(),
@@ -714,7 +713,7 @@ pub fn set_avatar_url_route(
             EventType::RoomMember,
             serde_json::to_value(ruma::events::room::member::MemberEventContent {
                 avatar_url: body.avatar_url.clone(),
-                ..serde_json::from_value::<EventJson<_>>(
+                ..serde_json::from_value::<Raw<_>>(
                     db.rooms
                         .room_state_get(&room_id, &EventType::RoomMember, &user_id.to_string())?
                         .ok_or_else(|| {
@@ -749,7 +748,7 @@ pub fn set_avatar_url_route(
                         .try_into()
                         .expect("time is valid"),
                 ),
-                presence: ruma::events::presence::PresenceState::Online,
+                presence: ruma::presence::PresenceState::Online,
                 status_msg: None,
             },
             sender: user_id.clone(),
@@ -1605,7 +1604,7 @@ pub fn leave_room_route(
 ) -> ConduitResult<leave_room::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    let mut event = serde_json::from_value::<EventJson<member::MemberEventContent>>(
+    let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
         db.rooms
             .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
             .ok_or(Error::BadRequest(
@@ -1643,20 +1642,19 @@ pub fn kick_user_route(
 ) -> ConduitResult<kick_user::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    let mut event =
-        serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
-            db.rooms
-                .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
-                .ok_or(Error::BadRequest(
-                    ErrorKind::BadState,
-                    "Cannot kick member that's not in the room.",
-                ))?
-                .content
-                .clone(),
-        )
-        .map_err(|_| Error::bad_database("Invalid member event in database."))?
-        .deserialize()
-        .map_err(|_| Error::bad_database("Invalid member event in database."))?;
+    let mut event = serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
+        db.rooms
+            .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
+            .ok_or(Error::BadRequest(
+                ErrorKind::BadState,
+                "Cannot kick member that's not in the room.",
+            ))?
+            .content
+            .clone(),
+    )
+    .map_err(|_| Error::bad_database("Invalid member event in database."))?
+    .deserialize()
+    .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
     event.membership = ruma::events::room::member::MembershipState::Leave;
     // TODO: reason
@@ -1697,7 +1695,7 @@ pub fn ban_user_route(
                 third_party_invite: None,
             }),
             |event| {
-                let mut event = serde_json::from_value::<EventJson<member::MemberEventContent>>(
+                let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
                     event.content.clone(),
                 )
                 .map_err(|_| Error::bad_database("Invalid member event in database."))?
@@ -1730,20 +1728,19 @@ pub fn unban_user_route(
 ) -> ConduitResult<unban_user::Response> {
     let user_id = body.user_id.as_ref().expect("user is authenticated");
 
-    let mut event =
-        serde_json::from_value::<EventJson<ruma::events::room::member::MemberEventContent>>(
-            db.rooms
-                .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
-                .ok_or(Error::BadRequest(
-                    ErrorKind::BadState,
-                    "Cannot unban a user who is not banned.",
-                ))?
-                .content
-                .clone(),
-        )
-        .map_err(|_| Error::bad_database("Invalid member event in database."))?
-        .deserialize()
-        .map_err(|_| Error::bad_database("Invalid member event in database."))?;
+    let mut event = serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
+        db.rooms
+            .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
+            .ok_or(Error::BadRequest(
+                ErrorKind::BadState,
+                "Cannot unban a user who is not banned.",
+            ))?
+            .content
+            .clone(),
+    )
+    .map_err(|_| Error::bad_database("Invalid member event in database."))?
+    .deserialize()
+    .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
     event.membership = ruma::events::room::member::MembershipState::Leave;
 
@@ -1902,7 +1899,7 @@ pub async fn get_public_rooms_filtered_route(
                 aliases: Vec::new(),
                 canonical_alias: state.get(&(EventType::RoomCanonicalAlias, "".to_owned())).map_or(Ok::<_, Error>(None), |s| {
                     Ok(serde_json::from_value::<
-                            EventJson<ruma::events::room::canonical_alias::CanonicalAliasEventContent>,
+                            Raw<ruma::events::room::canonical_alias::CanonicalAliasEventContent>,
                         >(s.content.clone())
                         .map_err(|_| Error::bad_database("Invalid canonical alias event in database."))?
                         .deserialize()
@@ -1910,7 +1907,7 @@ pub async fn get_public_rooms_filtered_route(
                         .alias)
                 })?,
                 name: state.get(&(EventType::RoomName, "".to_owned())).map_or(Ok::<_, Error>(None), |s| {
-                    Ok(serde_json::from_value::<EventJson<ruma::events::room::name::NameEventContent>>(
+                    Ok(serde_json::from_value::<Raw<ruma::events::room::name::NameEventContent>>(
                         s.content.clone(),
                     )
                     .map_err(|_| Error::bad_database("Invalid room name event in database."))?
@@ -1923,7 +1920,7 @@ pub async fn get_public_rooms_filtered_route(
                 room_id,
                 topic: state.get(&(EventType::RoomTopic, "".to_owned())).map_or(Ok::<_, Error>(None), |s| {
                     Ok(Some(serde_json::from_value::<
-                            EventJson<ruma::events::room::topic::TopicEventContent>,
+                            Raw<ruma::events::room::topic::TopicEventContent>,
                         >(s.content.clone())
                         .map_err(|_| Error::bad_database("Invalid room topic event in database."))?
                         .deserialize()
@@ -1932,7 +1929,7 @@ pub async fn get_public_rooms_filtered_route(
                 })?,
                 world_readable: state.get(&(EventType::RoomHistoryVisibility, "".to_owned())).map_or(Ok::<_, Error>(false), |s| {
                     Ok(serde_json::from_value::<
-                            EventJson<ruma::events::room::history_visibility::HistoryVisibilityEventContent>,
+                            Raw<ruma::events::room::history_visibility::HistoryVisibilityEventContent>,
                         >(s.content.clone())
                         .map_err(|_| Error::bad_database("Invalid room history visibility event in database."))?
                         .deserialize()
@@ -1941,7 +1938,7 @@ pub async fn get_public_rooms_filtered_route(
                 })?,
                 guest_can_join: state.get(&(EventType::RoomGuestAccess, "".to_owned())).map_or(Ok::<_, Error>(false), |s| {
                     Ok(serde_json::from_value::<
-                            EventJson<ruma::events::room::guest_access::GuestAccessEventContent>,
+                            Raw<ruma::events::room::guest_access::GuestAccessEventContent>,
                         >(s.content.clone())
                         .map_err(|_| Error::bad_database("Invalid room guest access event in database."))?
                         .deserialize()
@@ -1950,7 +1947,7 @@ pub async fn get_public_rooms_filtered_route(
                 })?,
                 avatar_url: state.get(&(EventType::RoomAvatar, "".to_owned())).map_or( Ok::<_, Error>(None),|s| {
                     Ok(Some(serde_json::from_value::<
-                            EventJson<ruma::events::room::avatar::AvatarEventContent>,
+                            Raw<ruma::events::room::avatar::AvatarEventContent>,
                         >(s.content.clone())
                         .map_err(|_| Error::bad_database("Invalid room avatar event in database."))?
                         .deserialize()
@@ -2158,7 +2155,7 @@ pub fn create_state_event_for_key_route(
 
     if body.event_type == EventType::RoomCanonicalAlias {
         let canonical_alias = serde_json::from_value::<
-            EventJson<canonical_alias::CanonicalAliasEventContent>,
+            Raw<canonical_alias::CanonicalAliasEventContent>,
         >(content.clone())
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid canonical alias."))?
         .deserialize()
@@ -2375,9 +2372,9 @@ pub fn sync_route(
                 send_member_count = true;
                 if !joined_since_last_sync && pdu.state_key == Some(user_id.to_string()) {
                     let content = serde_json::from_value::<
-                        EventJson<ruma::events::room::member::MemberEventContent>,
+                        Raw<ruma::events::room::member::MemberEventContent>,
                     >(pdu.content.clone())
-                    .expect("EventJson::from_value always works")
+                    .expect("Raw::from_value always works")
                     .deserialize()
                     .map_err(|_| Error::bad_database("Invalid PDU in database."))?;
                     if content.membership == ruma::events::room::member::MembershipState::Join {
@@ -2410,7 +2407,7 @@ pub fn sync_route(
                     .filter(|pdu| pdu.kind == EventType::RoomMember)
                     .map(|pdu| {
                         let content = serde_json::from_value::<
-                            EventJson<ruma::events::room::member::MemberEventContent>,
+                            Raw<ruma::events::room::member::MemberEventContent>,
                         >(pdu.content.clone())
                         .map_err(|_| Error::bad_database("Invalid member event in database."))?
                         .deserialize()
@@ -2418,7 +2415,7 @@ pub fn sync_route(
 
                         if let Some(state_key) = &pdu.state_key {
                             let current_content = serde_json::from_value::<
-                                EventJson<ruma::events::room::member::MemberEventContent>,
+                                Raw<ruma::events::room::member::MemberEventContent>,
                             >(
                                 members
                                     .get(state_key)
@@ -2660,7 +2657,8 @@ pub fn sync_route(
     }
 
     // Remove all to-device events the device received *last time*
-    db.users.remove_to_device_events(user_id, device_id, since)?;
+    db.users
+        .remove_to_device_events(user_id, device_id, since)?;
 
     Ok(sync_events::Response {
         next_batch,

@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use crate::{utils, Error, Result};
-use ruma::identifiers::ServerName;
+use ruma::ServerName;
 pub const COUNTER: &str = "c";
 
 pub struct Globals {

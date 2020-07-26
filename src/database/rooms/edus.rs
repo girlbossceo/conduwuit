@@ -1,7 +1,7 @@
 use crate::{utils, Error, Result};
 use ruma::{
-    events::{AnyEvent as EduEvent, EventJson, SyncEphemeralRoomEvent},
-    identifiers::{RoomId, UserId},
+    events::{AnyEvent as EduEvent, SyncEphemeralRoomEvent},
+    Raw, RoomId, UserId,
 };
 use std::convert::TryFrom;
 
@@ -61,8 +61,7 @@ impl RoomEdus {
         &self,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<impl Iterator<Item = Result<EventJson<ruma::events::AnySyncEphemeralRoomEvent>>>>
-    {
+    ) -> Result<impl Iterator<Item = Result<Raw<ruma::events::AnySyncEphemeralRoomEvent>>>> {
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 

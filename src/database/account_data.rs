@@ -1,8 +1,8 @@
 use crate::{utils, Error, Result};
 use ruma::{
     api::client::error::ErrorKind,
-    events::{AnyEvent as EduEvent, EventJson, EventType},
-    identifiers::{RoomId, UserId},
+    events::{AnyEvent as EduEvent, EventType},
+    Raw, RoomId, UserId,
 };
 use std::{collections::HashMap, convert::TryFrom};
 
@@ -81,7 +81,7 @@ impl AccountData {
         room_id: Option<&RoomId>,
         user_id: &UserId,
         kind: &EventType,
-    ) -> Result<Option<EventJson<EduEvent>>> {
+    ) -> Result<Option<Raw<EduEvent>>> {
         Ok(self.all(room_id, user_id)?.remove(kind))
     }
 
@@ -91,7 +91,7 @@ impl AccountData {
         room_id: Option<&RoomId>,
         user_id: &UserId,
         since: u64,
-    ) -> Result<HashMap<EventType, EventJson<EduEvent>>> {
+    ) -> Result<HashMap<EventType, Raw<EduEvent>>> {
         let mut userdata = HashMap::new();
 
         let mut prefix = room_id
@@ -121,7 +121,7 @@ impl AccountData {
                         .map_err(|_| Error::bad_database("RoomUserData ID in db is invalid."))?,
                     )
                     .map_err(|_| Error::bad_database("RoomUserData ID in db is invalid."))?,
-                    serde_json::from_slice::<EventJson<EduEvent>>(&v).map_err(|_| {
+                    serde_json::from_slice::<Raw<EduEvent>>(&v).map_err(|_| {
                         Error::bad_database("Database contains invalid account data.")
                     })?,
                 ))
@@ -139,7 +139,7 @@ impl AccountData {
         &self,
         room_id: Option<&RoomId>,
         user_id: &UserId,
-    ) -> Result<HashMap<EventType, EventJson<EduEvent>>> {
+    ) -> Result<HashMap<EventType, Raw<EduEvent>>> {
         self.changes_since(room_id, user_id, 0)
     }
 }

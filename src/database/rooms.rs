@@ -12,9 +12,9 @@ use ruma::{
             power_levels::{self, PowerLevelsEventContent},
             redaction,
         },
-        EventJson, EventType,
+        EventType,
     },
-    identifiers::{EventId, RoomAliasId, RoomId, UserId},
+    EventId, Raw, RoomAliasId, RoomId, UserId,
 };
 use sled::IVec;
 use std::{
@@ -287,28 +287,24 @@ impl Rooms {
                         })
                     },
                     |power_levels| {
-                        Ok(
-                            serde_json::from_value::<EventJson<PowerLevelsEventContent>>(
-                                power_levels.content.clone(),
-                            )
-                            .expect("EventJson::from_value always works.")
-                            .deserialize()
-                            .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))?,
+                        Ok(serde_json::from_value::<Raw<PowerLevelsEventContent>>(
+                            power_levels.content.clone(),
                         )
+                        .expect("Raw::from_value always works.")
+                        .deserialize()
+                        .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))?)
                     },
                 )?;
             let sender_membership = self
                 .room_state_get(&room_id, &EventType::RoomMember, &sender.to_string())?
                 .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
-                    Ok(
-                        serde_json::from_value::<EventJson<member::MemberEventContent>>(
-                            pdu.content.clone(),
-                        )
-                        .expect("EventJson::from_value always works.")
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid Member event in db."))?
-                        .membership,
+                    Ok(serde_json::from_value::<Raw<member::MemberEventContent>>(
+                        pdu.content.clone(),
                     )
+                    .expect("Raw::from_value always works.")
+                    .deserialize()
+                    .map_err(|_| Error::bad_database("Invalid Member event in db."))?
+                    .membership)
                 })?;
 
             let sender_power = power_levels.users.get(&sender).map_or_else(
@@ -339,24 +335,21 @@ impl Rooms {
                             &target_user_id.to_string(),
                         )?
                         .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
-                            Ok(
-                                serde_json::from_value::<EventJson<member::MemberEventContent>>(
-                                    pdu.content.clone(),
-                                )
-                                .expect("EventJson::from_value always works.")
-                                .deserialize()
-                                .map_err(|_| Error::bad_database("Invalid Member event in db."))?
-                                .membership,
+                            Ok(serde_json::from_value::<Raw<member::MemberEventContent>>(
+                                pdu.content.clone(),
                             )
+                            .expect("Raw::from_value always works.")
+                            .deserialize()
+                            .map_err(|_| Error::bad_database("Invalid Member event in db."))?
+                            .membership)
                         })?;
 
-                    let target_membership = serde_json::from_value::<
-                        EventJson<member::MemberEventContent>,
-                    >(content.clone())
-                    .expect("EventJson::from_value always works.")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Invalid Member event in db."))?
-                    .membership;
+                    let target_membership =
+                        serde_json::from_value::<Raw<member::MemberEventContent>>(content.clone())
+                            .expect("Raw::from_value always works.")
+                            .deserialize()
+                            .map_err(|_| Error::bad_database("Invalid Member event in db."))?
+                            .membership;
 
                     let target_power = power_levels.users.get(&target_user_id).map_or_else(
                         || {
@@ -374,9 +367,9 @@ impl Rooms {
                         self.room_state_get(&room_id, &EventType::RoomJoinRules, "")?
                             .map_or(Ok::<_, Error>(join_rules::JoinRule::Public), |pdu| {
                                 Ok(serde_json::from_value::<
-                                    EventJson<join_rules::JoinRulesEventContent>,
+                                    Raw<join_rules::JoinRulesEventContent>,
                                 >(pdu.content.clone())
-                                .expect("EventJson::from_value always works.")
+                                .expect("Raw::from_value always works.")
                                 .deserialize()
                                 .map_err(|_| {
                                     Error::bad_database("Database contains invalid JoinRules event")
@@ -581,18 +574,17 @@ impl Rooms {
             EventType::RoomRedaction => {
                 if let Some(redact_id) = &redacts {
                     // TODO: Reason
-                    let _reason = serde_json::from_value::<
-                        EventJson<redaction::RedactionEventContent>,
-                    >(content)
-                    .expect("EventJson::from_value always works.")
-                    .deserialize()
-                    .map_err(|_| {
-                        Error::BadRequest(
-                            ErrorKind::InvalidParam,
-                            "Invalid redaction event content.",
-                        )
-                    })?
-                    .reason;
+                    let _reason =
+                        serde_json::from_value::<Raw<redaction::RedactionEventContent>>(content)
+                            .expect("Raw::from_value always works.")
+                            .deserialize()
+                            .map_err(|_| {
+                                Error::BadRequest(
+                                    ErrorKind::InvalidParam,
+                                    "Invalid redaction event content.",
+                                )
+                            })?
+                            .reason;
 
                     self.redact_pdu(&redact_id)?;
                 }
