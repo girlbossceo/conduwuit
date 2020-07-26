@@ -1341,6 +1341,11 @@ pub fn create_room_route(
         content,
     } in &body.initial_state
     {
+        // Silently skip encryption events if they are not allowed
+        if event_type == &EventType::RoomEncryption && db.globals.encryption_disabled() {
+            continue
+        }
+
         db.rooms.append_pdu(
             room_id.clone(),
             user_id.clone(),

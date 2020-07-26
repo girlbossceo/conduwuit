@@ -10,6 +10,7 @@ pub struct Globals {
     reqwest_client: reqwest::Client,
     server_name: Box<ServerName>,
     registration_disabled: bool,
+    encryption_disabled: bool,
 }
 
 impl Globals {
@@ -33,6 +34,7 @@ impl Globals {
                 .try_into()
                 .map_err(|_| Error::BadConfig("Invalid server name found."))?,
             registration_disabled: config.get_bool("registration_disabled").unwrap_or(false),
+            encryption_disabled: config.get_bool("encryption_disabled").unwrap_or(false),
         })
     }
 
@@ -69,5 +71,9 @@ impl Globals {
 
     pub fn registration_disabled(&self) -> bool {
         self.registration_disabled
+    }
+
+    pub fn encryption_disabled(&self) -> bool {
+        self.encryption_disabled
     }
 }
