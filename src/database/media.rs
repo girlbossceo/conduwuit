@@ -1,6 +1,8 @@
 use crate::{utils, Error, Result};
 use std::mem;
 
+pub type FileMeta = (Option<String>, String, Vec<u8>);
+
 pub struct Media {
     pub(super) mediaid_file: sled::Tree, // MediaId = MXC + WidthHeight + Filename + ContentType
 }
@@ -29,7 +31,7 @@ impl Media {
     }
 
     /// Downloads a file.
-    pub fn get(&self, mxc: String) -> Result<Option<(Option<String>, String, Vec<u8>)>> {
+    pub fn get(&self, mxc: String) -> Result<Option<FileMeta>> {
         let mut prefix = mxc.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(&0_u32.to_be_bytes()); // Width = 0 if it's not a thumbnail
@@ -66,12 +68,7 @@ impl Media {
     }
 
     /// Downloads a file's thumbnail.
-    pub fn get_thumbnail(
-        &self,
-        mxc: String,
-        width: u32,
-        height: u32,
-    ) -> Result<Option<(Option<String>, String, Vec<u8>)>> {
+    pub fn get_thumbnail(&self, mxc: String, width: u32, height: u32) -> Result<Option<FileMeta>> {
         let mut main_prefix = mxc.as_bytes().to_vec();
         main_prefix.push(0xff);
 

@@ -250,6 +250,7 @@ impl Rooms {
     }
 
     /// Creates a new persisted data unit and adds it to a room.
+    #[allow(clippy::too_many_arguments, clippy::blocks_in_if_conditions)]
     pub fn append_pdu(
         &self,
         room_id: RoomId,
@@ -288,7 +289,7 @@ impl Rooms {
                     },
                     |power_levels| {
                         Ok(serde_json::from_value::<Raw<PowerLevelsEventContent>>(
-                            power_levels.content.clone(),
+                            power_levels.content,
                         )
                         .expect("Raw::from_value always works.")
                         .deserialize()
@@ -298,13 +299,13 @@ impl Rooms {
             let sender_membership = self
                 .room_state_get(&room_id, &EventType::RoomMember, &sender.to_string())?
                 .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
-                    Ok(serde_json::from_value::<Raw<member::MemberEventContent>>(
-                        pdu.content.clone(),
+                    Ok(
+                        serde_json::from_value::<Raw<member::MemberEventContent>>(pdu.content)
+                            .expect("Raw::from_value always works.")
+                            .deserialize()
+                            .map_err(|_| Error::bad_database("Invalid Member event in db."))?
+                            .membership,
                     )
-                    .expect("Raw::from_value always works.")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Invalid Member event in db."))?
-                    .membership)
                 })?;
 
             let sender_power = power_levels.users.get(&sender).map_or_else(
@@ -341,7 +342,7 @@ impl Rooms {
                         )?
                         .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
                             Ok(serde_json::from_value::<Raw<member::MemberEventContent>>(
-                                pdu.content.clone(),
+                                pdu.content,
                             )
                             .expect("Raw::from_value always works.")
                             .deserialize()
@@ -373,7 +374,7 @@ impl Rooms {
                             .map_or(Ok::<_, Error>(join_rules::JoinRule::Public), |pdu| {
                                 Ok(serde_json::from_value::<
                                     Raw<join_rules::JoinRulesEventContent>,
-                                >(pdu.content.clone())
+                                >(pdu.content)
                                 .expect("Raw::from_value always works.")
                                 .deserialize()
                                 .map_err(|_| {
@@ -501,7 +502,7 @@ impl Rooms {
         let mut unsigned = unsigned.unwrap_or_default();
         if let Some(state_key) = &state_key {
             if let Some(prev_pdu) = self.room_state_get(&room_id, &event_type, &state_key)? {
-                unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
+                unsigned.insert("prev_content".to_owned(), prev_pdu.content);
                 unsigned.insert(
                     "prev_sender".to_owned(),
                     serde_json::to_value(prev_pdu.sender).expect("UserId::to_value always works"),
@@ -575,28 +576,24 @@ impl Rooms {
             self.roomstateid_pdu.insert(key, &*pdu_json.to_string())?;
         }
 
-        match event_type {
-            EventType::RoomRedaction => {
-                if let Some(redact_id) = &redacts {
-                    // TODO: Reason
-                    let _reason =
-                        serde_json::from_value::<Raw<redaction::RedactionEventContent>>(content)
-                            .expect("Raw::from_value always works.")
-                            .deserialize()
-                            .map_err(|_| {
-                                Error::BadRequest(
-                                    ErrorKind::InvalidParam,
-                                    "Invalid redaction event content.",
-                                )
-                            })?
-                            .reason;
+        if let EventType::RoomRedaction = event_type {
+            if let Some(redact_id) = &redacts {
+                // TODO: Reason
+                let _reason =
+                    serde_json::from_value::<Raw<redaction::RedactionEventContent>>(content)
+                        .expect("Raw::from_value always works.")
+                        .deserialize()
+                        .map_err(|_| {
+                            Error::BadRequest(
+                                ErrorKind::InvalidParam,
+                                "Invalid redaction event content.",
+                            )
+                        })?
+                        .reason;
 
-                    self.redact_pdu(&redact_id)?;
-                }
+                self.redact_pdu(&redact_id)?;
             }
-            _ => {}
         }
-
         self.edus.room_read_set(&room_id, &sender, index)?;
 
         Ok(pdu.event_id)

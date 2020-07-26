@@ -230,7 +230,7 @@ pub fn register_route(
     Ok(register::Response {
         access_token: Some(token),
         user_id,
-        device_id: Some(device_id.into()),
+        device_id: Some(device_id),
     }
     .into())
 }
@@ -257,11 +257,22 @@ pub fn login_route(
         if let (login::UserInfo::MatrixId(username), login::LoginInfo::Password { password }) =
             (body.user.clone(), body.login_info.clone())
         {
-            let user_id = UserId::parse_with_server_name(username, db.globals.server_name()).map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
-            let hash = db.users.password_hash(&user_id)?.ok_or(Error::BadRequest(ErrorKind::Forbidden, "Wrong username or password."))?;
+            let user_id = UserId::parse_with_server_name(username, db.globals.server_name())
+                .map_err(|_| Error::BadRequest(
+                    ErrorKind::InvalidUsername,
+                    "Username is invalid."
+                ))?;
+            let hash = db.users.password_hash(&user_id)?
+                .ok_or(Error::BadRequest(
+                    ErrorKind::Forbidden,
+                    "Wrong username or password."
+                ))?;
 
             if hash.is_empty() {
-                return Err(Error::BadRequest(ErrorKind::UserDeactivated, "The user has been deactivated"));
+                return Err(Error::BadRequest(
+                    ErrorKind::UserDeactivated,
+                    "The user has been deactivated"
+                ));
             }
 
             let hash_matches =
@@ -298,7 +309,7 @@ pub fn login_route(
         user_id,
         access_token: token,
         home_server: Some(db.globals.server_name().to_owned()),
-        device_id: device_id.into(),
+        device_id,
         well_known: None,
     }
     .into())
@@ -1702,8 +1713,7 @@ pub fn leave_room_route(
                 ErrorKind::BadState,
                 "Cannot leave a room you are not a member of.",
             ))?
-            .content
-            .clone(),
+            .content,
     )
     .map_err(|_| Error::bad_database("Invalid member event in database."))?
     .deserialize()
@@ -1746,8 +1756,7 @@ pub fn kick_user_route(
                 ErrorKind::BadState,
                 "Cannot kick member that's not in the room.",
             ))?
-            .content
-            .clone(),
+            .content,
     )
     .expect("Raw::from_value always works")
     .deserialize()
@@ -1882,8 +1891,7 @@ pub fn unban_user_route(
                 ErrorKind::BadState,
                 "Cannot unban a user who is not banned.",
             ))?
-            .content
-            .clone(),
+            .content,
     )
     .map_err(|_| Error::bad_database("Invalid member event in database."))?
     .deserialize()
@@ -2049,6 +2057,8 @@ pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
     _body: Ruma<get_public_rooms_filtered::Request>,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
+    use ruma::events::room;
+
     let mut chunk = db
         .rooms
         .public_rooms()
@@ -2060,63 +2070,110 @@ pub async fn get_public_rooms_filtered_route(
 
             let chunk = directory::PublicRoomsChunk {
                 aliases: Vec::new(),
-                canonical_alias: state.get(&(EventType::RoomCanonicalAlias, "".to_owned())).map_or(Ok::<_, Error>(None), |s| {
-                    Ok(serde_json::from_value::<
-                            Raw<ruma::events::room::canonical_alias::CanonicalAliasEventContent>,
+                canonical_alias: state
+                    .get(&(EventType::RoomCanonicalAlias, "".to_owned()))
+                    .map_or(Ok::<_, Error>(None), |s| {
+                        Ok(serde_json::from_value::<
+                            Raw<room::canonical_alias::CanonicalAliasEventContent>,
                         >(s.content.clone())
-                        .map_err(|_| Error::bad_database("Invalid canonical alias event in database."))?
+                        .map_err(|_| {
+                            Error::bad_database("Invalid canonical alias event in database.")
+                        })?
                         .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid canonical alias event in database."))?
+                        .map_err(|_| {
+                            Error::bad_database("Invalid canonical alias event in database.")
+                        })?
                         .alias)
-                })?,
-                name: state.get(&(EventType::RoomName, "".to_owned())).map_or(Ok::<_, Error>(None), |s| {
-                    Ok(serde_json::from_value::<Raw<ruma::events::room::name::NameEventContent>>(
-                        s.content.clone(),
-                    )
-                    .map_err(|_| Error::bad_database("Invalid room name event in database."))?
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Invalid room name event in database."))?
-                    .name()
-                    .map(|n| n.to_owned()))
-                })?,
+                    })?,
+                name: state.get(&(EventType::RoomName, "".to_owned())).map_or(
+                    Ok::<_, Error>(None),
+                    |s| {
+                        Ok(serde_json::from_value::<Raw<room::name::NameEventContent>>(
+                            s.content.clone(),
+                        )
+                        .map_err(|_| Error::bad_database("Invalid room name event in database."))?
+                        .deserialize()
+                        .map_err(|_| Error::bad_database("Invalid room name event in database."))?
+                        .name()
+                        .map(|n| n.to_owned()))
+                    },
+                )?,
                 num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
                 room_id,
-                topic: state.get(&(EventType::RoomTopic, "".to_owned())).map_or(Ok::<_, Error>(None), |s| {
-                    Ok(Some(serde_json::from_value::<
-                            Raw<ruma::events::room::topic::TopicEventContent>,
+                topic: state.get(&(EventType::RoomTopic, "".to_owned())).map_or(
+                    Ok::<_, Error>(None),
+                    |s| {
+                        Ok(Some(
+                            serde_json::from_value::<Raw<room::topic::TopicEventContent>>(
+                                s.content.clone(),
+                            )
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room topic event in database.")
+                            })?
+                            .deserialize()
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room topic event in database.")
+                            })?
+                            .topic,
+                        ))
+                    },
+                )?,
+                world_readable: state
+                    .get(&(EventType::RoomHistoryVisibility, "".to_owned()))
+                    .map_or(Ok::<_, Error>(false), |s| {
+                        Ok(serde_json::from_value::<
+                            Raw<room::history_visibility::HistoryVisibilityEventContent>,
                         >(s.content.clone())
-                        .map_err(|_| Error::bad_database("Invalid room topic event in database."))?
+                        .map_err(|_| {
+                            Error::bad_database(
+                                "Invalid room history visibility event in database.",
+                            )
+                        })?
                         .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid room topic event in database."))?
-                        .topic))
-                })?,
-                world_readable: state.get(&(EventType::RoomHistoryVisibility, "".to_owned())).map_or(Ok::<_, Error>(false), |s| {
-                    Ok(serde_json::from_value::<
-                            Raw<ruma::events::room::history_visibility::HistoryVisibilityEventContent>,
-                        >(s.content.clone())
-                        .map_err(|_| Error::bad_database("Invalid room history visibility event in database."))?
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid room history visibility event in database."))?
-                        .history_visibility == history_visibility::HistoryVisibility::WorldReadable)
-                })?,
-                guest_can_join: state.get(&(EventType::RoomGuestAccess, "".to_owned())).map_or(Ok::<_, Error>(false), |s| {
-                    Ok(serde_json::from_value::<
-                            Raw<ruma::events::room::guest_access::GuestAccessEventContent>,
-                        >(s.content.clone())
-                        .map_err(|_| Error::bad_database("Invalid room guest access event in database."))?
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid room guest access event in database."))?
-                        .guest_access == guest_access::GuestAccess::CanJoin)
-                })?,
-                avatar_url: state.get(&(EventType::RoomAvatar, "".to_owned())).map_or( Ok::<_, Error>(None),|s| {
-                    Ok(Some(serde_json::from_value::<
-                            Raw<ruma::events::room::avatar::AvatarEventContent>,
-                        >(s.content.clone())
-                        .map_err(|_| Error::bad_database("Invalid room avatar event in database."))?
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid room avatar event in database."))?
-                        .url))
-                })?,
+                        .map_err(|_| {
+                            Error::bad_database(
+                                "Invalid room history visibility event in database.",
+                            )
+                        })?
+                        .history_visibility
+                            == history_visibility::HistoryVisibility::WorldReadable)
+                    })?,
+                guest_can_join: state
+                    .get(&(EventType::RoomGuestAccess, "".to_owned()))
+                    .map_or(Ok::<_, Error>(false), |s| {
+                        Ok(
+                            serde_json::from_value::<
+                                Raw<room::guest_access::GuestAccessEventContent>,
+                            >(s.content.clone())
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room guest access event in database.")
+                            })?
+                            .deserialize()
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room guest access event in database.")
+                            })?
+                            .guest_access
+                                == guest_access::GuestAccess::CanJoin,
+                        )
+                    })?,
+                avatar_url: state.get(&(EventType::RoomAvatar, "".to_owned())).map_or(
+                    Ok::<_, Error>(None),
+                    |s| {
+                        Ok(Some(
+                            serde_json::from_value::<Raw<room::avatar::AvatarEventContent>>(
+                                s.content.clone(),
+                            )
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room avatar event in database.")
+                            })?
+                            .deserialize()
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room avatar event in database.")
+                            })?
+                            .url,
+                        ))
+                    },
+                )?,
             };
             Ok::<_, Error>(chunk)
         })
@@ -2338,7 +2395,11 @@ pub fn create_state_event_for_key_route(
                     .filter(|room| room == &body.room_id) // Make sure it's the right room
                     .is_none()
             {
-                return Err(Error::BadRequest(ErrorKind::Forbidden, "You are only allowed to send canonical_alias events when it's aliases already exists"));
+                return Err(Error::BadRequest(
+                    ErrorKind::Forbidden,
+                    "You are only allowed to send canonical_alias \
+                    events when it's aliases already exists",
+                ));
             }
         }
     }
