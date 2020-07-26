@@ -7,7 +7,12 @@ use std::{
 use crate::{utils, ConduitResult, Database, Error, Ruma};
 use keys::{upload_signatures, upload_signing_keys};
 use log::warn;
+
+#[cfg(not(feature = "conduit_bin"))]
+use super::State;
+#[cfg(feature = "conduit_bin")]
 use rocket::{delete, get, options, post, put, State};
+
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -77,7 +82,7 @@ const TOKEN_LENGTH: usize = 256;
 const MXC_LENGTH: usize = 256;
 const SESSION_ID_LENGTH: usize = 256;
 
-#[get("/_matrix/client/versions")]
+#[cfg_attr(feature = "conduit_bin", get("/_matrix/client/versions"))]
 pub fn get_supported_versions_route() -> ConduitResult<get_supported_versions::Response> {
     let mut unstable_features = BTreeMap::new();
 
@@ -90,7 +95,10 @@ pub fn get_supported_versions_route() -> ConduitResult<get_supported_versions::R
     .into())
 }
 
-#[get("/_matrix/client/r0/register/available", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/register/available", data = "<body>")
+)]
 pub fn get_register_available_route(
     db: State<'_, Database>,
     body: Ruma<get_username_availability::Request>,
@@ -120,7 +128,10 @@ pub fn get_register_available_route(
     Ok(get_username_availability::Response { available: true }.into())
 }
 
-#[post("/_matrix/client/r0/register", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/register", data = "<body>")
+)]
 pub fn register_route(
     db: State<'_, Database>,
     body: Ruma<register::Request>,
@@ -223,7 +234,7 @@ pub fn register_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/login")]
+#[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/login"))]
 pub fn get_login_route() -> ConduitResult<get_login_types::Response> {
     Ok(get_login_types::Response {
         flows: vec![get_login_types::LoginType::Password],
@@ -231,7 +242,10 @@ pub fn get_login_route() -> ConduitResult<get_login_types::Response> {
     .into())
 }
 
-#[post("/_matrix/client/r0/login", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/login", data = "<body>")
+)]
 pub fn login_route(
     db: State<'_, Database>,
     body: Ruma<login::Request>,
@@ -289,7 +303,10 @@ pub fn login_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/logout", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/logout", data = "<body>")
+)]
 pub fn logout_route(
     db: State<'_, Database>,
     body: Ruma<logout::Request>,
@@ -302,7 +319,10 @@ pub fn logout_route(
     Ok(logout::Response.into())
 }
 
-#[post("/_matrix/client/r0/logout/all", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/logout/all", data = "<body>")
+)]
 pub fn logout_all_route(
     db: State<'_, Database>,
     body: Ruma<logout_all::Request>,
@@ -318,7 +338,10 @@ pub fn logout_all_route(
     Ok(logout_all::Response.into())
 }
 
-#[post("/_matrix/client/r0/account/password", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/account/password", data = "<body>")
+)]
 pub fn change_password_route(
     db: State<'_, Database>,
     body: Ruma<change_password::Request>,
@@ -367,7 +390,10 @@ pub fn change_password_route(
     Ok(change_password::Response.into())
 }
 
-#[post("/_matrix/client/r0/account/deactivate", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/account/deactivate", data = "<body>")
+)]
 pub fn deactivate_route(
     db: State<'_, Database>,
     body: Ruma<deactivate::Request>,
@@ -440,7 +466,7 @@ pub fn deactivate_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/capabilities")]
+#[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/capabilities"))]
 pub fn get_capabilities_route() -> ConduitResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
     available.insert(
@@ -465,7 +491,10 @@ pub fn get_capabilities_route() -> ConduitResult<get_capabilities::Response> {
     .into())
 }
 
-#[get("/_matrix/client/r0/pushrules", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/pushrules", data = "<body>")
+)]
 pub fn get_pushrules_all_route(
     db: State<'_, Database>,
     body: Ruma<get_pushrules_all::Request>,
@@ -486,10 +515,10 @@ pub fn get_pushrules_all_route(
     .into())
 }
 
-#[put(
+#[cfg_attr(feature = "conduit_bin", put(
     "/_matrix/client/r0/pushrules/<_scope>/<_kind>/<_rule_id>",
     //data = "<body>"
-)]
+))]
 pub fn set_pushrule_route(
     //db: State<'_, Database>,
     //body: Ruma<set_pushrule::Request>,
@@ -502,7 +531,10 @@ pub fn set_pushrule_route(
     Ok(set_pushrule::Response.into())
 }
 
-#[put("/_matrix/client/r0/pushrules/<_scope>/<_kind>/<_rule_id>/enabled")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/client/r0/pushrules/<_scope>/<_kind>/<_rule_id>/enabled")
+)]
 pub fn set_pushrule_enabled_route(
     _scope: String,
     _kind: String,
@@ -513,7 +545,10 @@ pub fn set_pushrule_enabled_route(
     Ok(set_pushrule_enabled::Response.into())
 }
 
-#[get("/_matrix/client/r0/user/<_user_id>/filter/<_filter_id>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/user/<_user_id>/filter/<_filter_id>")
+)]
 pub fn get_filter_route(
     _user_id: String,
     _filter_id: String,
@@ -531,7 +566,10 @@ pub fn get_filter_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/user/<_user_id>/filter")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/user/<_user_id>/filter")
+)]
 pub fn create_filter_route(_user_id: String) -> ConduitResult<create_filter::Response> {
     // TODO
     Ok(create_filter::Response {
@@ -540,9 +578,12 @@ pub fn create_filter_route(_user_id: String) -> ConduitResult<create_filter::Res
     .into())
 }
 
-#[put(
-    "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    put(
+        "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+        data = "<body>"
+    )
 )]
 pub fn set_global_account_data_route(
     db: State<'_, Database>,
@@ -568,9 +609,12 @@ pub fn set_global_account_data_route(
     Ok(set_global_account_data::Response.into())
 }
 
-#[get(
-    "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    get(
+        "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+        data = "<body>"
+    )
 )]
 pub fn get_global_account_data_route(
     db: State<'_, Database>,
@@ -595,7 +639,10 @@ pub fn get_global_account_data_route(
     .into())
 }
 
-#[put("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")
+)]
 pub fn set_displayname_route(
     db: State<'_, Database>,
     body: Ruma<set_display_name::Request>,
@@ -661,7 +708,10 @@ pub fn set_displayname_route(
     Ok(set_display_name::Response.into())
 }
 
-#[get("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")
+)]
 pub fn get_displayname_route(
     db: State<'_, Database>,
     body: Ruma<get_display_name::Request>,
@@ -674,7 +724,10 @@ pub fn get_displayname_route(
     .into())
 }
 
-#[put("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")
+)]
 pub fn set_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<set_avatar_url::Request>,
@@ -751,7 +804,10 @@ pub fn set_avatar_url_route(
     Ok(set_avatar_url::Response.into())
 }
 
-#[get("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")
+)]
 pub fn get_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<get_avatar_url::Request>,
@@ -764,7 +820,10 @@ pub fn get_avatar_url_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/profile/<_user_id>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/profile/<_user_id>", data = "<body>")
+)]
 pub fn get_profile_route(
     db: State<'_, Database>,
     body: Ruma<get_profile::Request>,
@@ -789,7 +848,10 @@ pub fn get_profile_route(
     .into())
 }
 
-#[put("/_matrix/client/r0/presence/<_user_id>/status", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/client/r0/presence/<_user_id>/status", data = "<body>")
+)]
 pub fn set_presence_route(
     db: State<'_, Database>,
     body: Ruma<set_presence::Request>,
@@ -819,7 +881,10 @@ pub fn set_presence_route(
     Ok(set_presence::Response.into())
 }
 
-#[post("/_matrix/client/r0/keys/upload", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/keys/upload", data = "<body>")
+)]
 pub fn upload_keys_route(
     db: State<'_, Database>,
     body: Ruma<upload_keys::Request>,
@@ -848,7 +913,10 @@ pub fn upload_keys_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/keys/query", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/keys/query", data = "<body>")
+)]
 pub fn get_keys_route(
     db: State<'_, Database>,
     body: Ruma<get_keys::Request>,
@@ -925,7 +993,10 @@ pub fn get_keys_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/keys/claim", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/keys/claim", data = "<body>")
+)]
 pub fn claim_keys_route(
     db: State<'_, Database>,
     body: Ruma<claim_keys::Request>,
@@ -953,7 +1024,10 @@ pub fn claim_keys_route(
     .into())
 }
 
-#[post("/_matrix/client/unstable/room_keys/version", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/unstable/room_keys/version", data = "<body>")
+)]
 pub fn create_backup_route(
     db: State<'_, Database>,
     body: Ruma<create_backup::Request>,
@@ -966,9 +1040,12 @@ pub fn create_backup_route(
     Ok(create_backup::Response { version }.into())
 }
 
-#[put(
-    "/_matrix/client/unstable/room_keys/version/<_version>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    put(
+        "/_matrix/client/unstable/room_keys/version/<_version>",
+        data = "<body>"
+    )
 )]
 pub fn update_backup_route(
     db: State<'_, Database>,
@@ -982,7 +1059,10 @@ pub fn update_backup_route(
     Ok(update_backup::Response.into())
 }
 
-#[get("/_matrix/client/unstable/room_keys/version", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/unstable/room_keys/version", data = "<body>")
+)]
 pub fn get_latest_backup_route(
     db: State<'_, Database>,
     body: Ruma<get_latest_backup::Request>,
@@ -1006,9 +1086,12 @@ pub fn get_latest_backup_route(
     .into())
 }
 
-#[get(
-    "/_matrix/client/unstable/room_keys/version/<_version>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    get(
+        "/_matrix/client/unstable/room_keys/version/<_version>",
+        data = "<body>"
+    )
 )]
 pub fn get_backup_route(
     db: State<'_, Database>,
@@ -1033,7 +1116,11 @@ pub fn get_backup_route(
     .into())
 }
 
-#[put("/_matrix/client/unstable/room_keys/keys", data = "<body>")]
+/// Add the received backup_keys to the database.
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/client/unstable/room_keys/keys", data = "<body>")
+)]
 pub fn add_backup_keys_route(
     db: State<'_, Database>,
     body: Ruma<add_backup_keys::Request>,
@@ -1060,7 +1147,10 @@ pub fn add_backup_keys_route(
     .into())
 }
 
-#[get("/_matrix/client/unstable/room_keys/keys", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/unstable/room_keys/keys", data = "<body>")
+)]
 pub fn get_backup_keys_route(
     db: State<'_, Database>,
     body: Ruma<get_backup_keys::Request>,
@@ -1072,7 +1162,10 @@ pub fn get_backup_keys_route(
     Ok(get_backup_keys::Response { rooms }.into())
 }
 
-#[post("/_matrix/client/r0/rooms/<_room_id>/read_markers", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_room_id>/read_markers", data = "<body>")
+)]
 pub fn set_read_marker_route(
     db: State<'_, Database>,
     body: Ruma<set_read_marker::Request>,
@@ -1134,9 +1227,12 @@ pub fn set_read_marker_route(
     Ok(set_read_marker::Response.into())
 }
 
-#[put(
-    "/_matrix/client/r0/rooms/<_room_id>/typing/<_user_id>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    put(
+        "/_matrix/client/r0/rooms/<_room_id>/typing/<_user_id>",
+        data = "<body>"
+    )
 )]
 pub fn create_typing_event_route(
     db: State<'_, Database>,
@@ -1163,7 +1259,10 @@ pub fn create_typing_event_route(
     Ok(create_typing_event::Response.into())
 }
 
-#[post("/_matrix/client/r0/createRoom", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/createRoom", data = "<body>")
+)]
 pub fn create_room_route(
     db: State<'_, Database>,
     body: Ruma<create_room::Request>,
@@ -1428,7 +1527,10 @@ pub fn create_room_route(
     Ok(create_room::Response { room_id }.into())
 }
 
-#[get("/_matrix/client/r0/joined_rooms", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/joined_rooms", data = "<body>")
+)]
 pub fn joined_rooms_route(
     db: State<'_, Database>,
     body: Ruma<joined_rooms::Request>,
@@ -1445,9 +1547,12 @@ pub fn joined_rooms_route(
     .into())
 }
 
-#[put(
-    "/_matrix/client/r0/rooms/<_room_id>/redact/<_event_id>/<_txn_id>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    put(
+        "/_matrix/client/r0/rooms/<_room_id>/redact/<_event_id>/<_txn_id>",
+        data = "<body>"
+    )
 )]
 pub fn redact_event_route(
     db: State<'_, Database>,
@@ -1475,7 +1580,10 @@ pub fn redact_event_route(
     Ok(redact_event::Response { event_id }.into())
 }
 
-#[put("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")
+)]
 pub fn create_alias_route(
     db: State<'_, Database>,
     body: Ruma<create_alias::Request>,
@@ -1491,7 +1599,10 @@ pub fn create_alias_route(
     Ok(create_alias::Response.into())
 }
 
-#[delete("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    delete("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")
+)]
 pub fn delete_alias_route(
     db: State<'_, Database>,
     body: Ruma<delete_alias::Request>,
@@ -1502,7 +1613,10 @@ pub fn delete_alias_route(
     Ok(delete_alias::Response.into())
 }
 
-#[get("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")
+)]
 pub fn get_alias_route(
     db: State<'_, Database>,
     body: Ruma<get_alias::Request>,
@@ -1527,7 +1641,10 @@ pub fn get_alias_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/rooms/<_room_id>/join", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_room_id>/join", data = "<body>")
+)]
 pub fn join_room_by_id_route(
     db: State<'_, Database>,
     body: Ruma<join_room_by_id::Request>,
@@ -1562,7 +1679,10 @@ pub fn join_room_by_id_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/join/<_room_id_or_alias>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/join/<_room_id_or_alias>", data = "<body>")
+)]
 pub fn join_room_by_id_or_alias_route(
     db: State<'_, Database>,
     body: Ruma<join_room_by_id_or_alias::Request>,
@@ -1591,7 +1711,10 @@ pub fn join_room_by_id_or_alias_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/rooms/<_room_id>/leave", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_room_id>/leave", data = "<body>")
+)]
 pub fn leave_room_route(
     db: State<'_, Database>,
     body: Ruma<leave_room::Request>,
@@ -1629,7 +1752,10 @@ pub fn leave_room_route(
     Ok(leave_room::Response.into())
 }
 
-#[post("/_matrix/client/r0/rooms/<_room_id>/kick", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_room_id>/kick", data = "<body>")
+)]
 pub fn kick_user_route(
     db: State<'_, Database>,
     body: Ruma<kick_user::Request>,
@@ -1668,7 +1794,10 @@ pub fn kick_user_route(
     Ok(kick_user::Response.into())
 }
 
-#[get("/_matrix/client/r0/rooms/<_room_id>/joined_members", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/rooms/<_room_id>/joined_members", data = "<body>")
+)]
 pub fn joined_members_route(
     db: State<'_, Database>,
     body: Ruma<joined_members::Request>,
@@ -1700,7 +1829,10 @@ pub fn joined_members_route(
     Ok(joined_members::Response { joined }.into())
 }
 
-#[post("/_matrix/client/r0/rooms/<_room_id>/ban", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_room_id>/ban", data = "<body>")
+)]
 pub fn ban_user_route(
     db: State<'_, Database>,
     body: Ruma<ban_user::Request>,
@@ -1747,7 +1879,10 @@ pub fn ban_user_route(
     Ok(ban_user::Response.into())
 }
 
-#[post("/_matrix/client/r0/rooms/<_room_id>/unban", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_room_id>/unban", data = "<body>")
+)]
 pub fn unban_user_route(
     db: State<'_, Database>,
     body: Ruma<unban_user::Request>,
@@ -1785,7 +1920,10 @@ pub fn unban_user_route(
     Ok(unban_user::Response.into())
 }
 
-#[post("/_matrix/client/r0/rooms/<_room_id>/forget", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_room_id>/forget", data = "<body>")
+)]
 pub fn forget_room_route(
     db: State<'_, Database>,
     body: Ruma<forget_room::Request>,
@@ -1798,7 +1936,10 @@ pub fn forget_room_route(
     Ok(forget_room::Response.into())
 }
 
-#[post("/_matrix/client/r0/rooms/<_room_id>/invite", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_room_id>/invite", data = "<body>")
+)]
 pub fn invite_user_route(
     db: State<'_, Database>,
     body: Ruma<invite_user::Request>,
@@ -1829,7 +1970,10 @@ pub fn invite_user_route(
     }
 }
 
-#[put("/_matrix/client/r0/directory/list/room/<_room_id>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/client/r0/directory/list/room/<_room_id>", data = "<body>")
+)]
 pub async fn set_room_visibility_route(
     db: State<'_, Database>,
     body: Ruma<set_room_visibility::Request>,
@@ -1843,7 +1987,10 @@ pub async fn set_room_visibility_route(
     Ok(set_room_visibility::Response.into())
 }
 
-#[get("/_matrix/client/r0/directory/list/room/<_room_id>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/directory/list/room/<_room_id>", data = "<body>")
+)]
 pub async fn get_room_visibility_route(
     db: State<'_, Database>,
     body: Ruma<get_room_visibility::Request>,
@@ -1859,7 +2006,10 @@ pub async fn get_room_visibility_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/publicRooms", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/publicRooms", data = "<body>")
+)]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms::Request>,
@@ -1908,7 +2058,10 @@ pub async fn get_public_rooms_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/publicRooms", data = "<_body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/publicRooms", data = "<_body>")
+)]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
     _body: Ruma<get_public_rooms_filtered::Request>,
@@ -2020,7 +2173,10 @@ pub async fn get_public_rooms_filtered_route(
     .into())
 }
 
-#[post("/_matrix/client/r0/user_directory/search", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/user_directory/search", data = "<body>")
+)]
 pub fn search_users_route(
     db: State<'_, Database>,
     body: Ruma<search_users::Request>,
@@ -2060,7 +2216,10 @@ pub fn search_users_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/rooms/<_room_id>/members", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/rooms/<_room_id>/members", data = "<body>")
+)]
 pub fn get_member_events_route(
     db: State<'_, Database>,
     body: Ruma<get_member_events::Request>,
@@ -2086,7 +2245,10 @@ pub fn get_member_events_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/thirdparty/protocols")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/thirdparty/protocols")
+)]
 pub fn get_protocols_route() -> ConduitResult<get_protocols::Response> {
     warn!("TODO: get_protocols_route");
     Ok(get_protocols::Response {
@@ -2095,9 +2257,12 @@ pub fn get_protocols_route() -> ConduitResult<get_protocols::Response> {
     .into())
 }
 
-#[get(
-    "/_matrix/client/r0/rooms/<_room_id>/event/<_event_id>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    get(
+        "/_matrix/client/r0/rooms/<_room_id>/event/<_event_id>",
+        data = "<body>"
+    )
 )]
 pub fn get_room_event_route(
     db: State<'_, Database>,
@@ -2124,9 +2289,12 @@ pub fn get_room_event_route(
     .into())
 }
 
-#[put(
-    "/_matrix/client/r0/rooms/<_room_id>/send/<_event_type>/<_txn_id>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    put(
+        "/_matrix/client/r0/rooms/<_room_id>/send/<_event_type>/<_txn_id>",
+        data = "<body>"
+    )
 )]
 pub fn create_message_event_route(
     db: State<'_, Database>,
@@ -2159,9 +2327,12 @@ pub fn create_message_event_route(
     Ok(create_message_event::Response { event_id }.into())
 }
 
-#[put(
-    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    put(
+        "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
+        data = "<body>"
+    )
 )]
 pub fn create_state_event_for_key_route(
     db: State<'_, Database>,
@@ -2221,9 +2392,12 @@ pub fn create_state_event_for_key_route(
     Ok(create_state_event_for_key::Response { event_id }.into())
 }
 
-#[put(
-    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    put(
+        "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
+        data = "<body>"
+    )
 )]
 pub fn create_state_event_for_empty_key_route(
     db: State<'_, Database>,
@@ -2268,7 +2442,10 @@ pub fn create_state_event_for_empty_key_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/rooms/<_room_id>/state", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/rooms/<_room_id>/state", data = "<body>")
+)]
 pub fn get_state_events_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events::Request>,
@@ -2294,9 +2471,12 @@ pub fn get_state_events_route(
     .into())
 }
 
-#[get(
-    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    get(
+        "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
+        data = "<body>"
+    )
 )]
 pub fn get_state_events_for_key_route(
     db: State<'_, Database>,
@@ -2329,9 +2509,12 @@ pub fn get_state_events_for_key_route(
     .into())
 }
 
-#[get(
-    "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    get(
+        "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
+        data = "<body>"
+    )
 )]
 pub fn get_state_events_for_empty_key_route(
     db: State<'_, Database>,
@@ -2363,7 +2546,10 @@ pub fn get_state_events_for_empty_key_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/sync", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/sync", data = "<body>")
+)]
 pub fn sync_route(
     db: State<'_, Database>,
     body: Ruma<sync_events::Request>,
@@ -2703,10 +2889,10 @@ pub fn sync_route(
                         .deserialize()
                         .map_err(|_| Error::bad_database("EDU in database is invalid."))?;
                     if let Some(timestamp) = edu.content.last_active_ago {
-                        let last_active_ago =
-                            js_int::UInt::try_from(utils::millis_since_unix_epoch())
-                                .expect("time is valid")
-                                - timestamp;
+                        let mut last_active_ago = utils::millis_since_unix_epoch()
+                            .try_into()
+                            .expect("time is valid");
+                        last_active_ago -= timestamp;
                         edu.content.last_active_ago = Some(last_active_ago);
                     }
                     Ok::<_, Error>(edu.into())
@@ -2745,9 +2931,12 @@ pub fn sync_route(
     .into())
 }
 
-#[get(
-    "/_matrix/client/r0/rooms/<_room_id>/context/<_event_id>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    get(
+        "/_matrix/client/r0/rooms/<_room_id>/context/<_event_id>",
+        data = "<body>"
+    )
 )]
 pub fn get_context_route(
     db: State<'_, Database>,
@@ -2847,7 +3036,10 @@ pub fn get_context_route(
     .into())
 }
 
-#[get("/_matrix/client/r0/rooms/<_room_id>/messages", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/rooms/<_room_id>/messages", data = "<body>")
+)]
 pub fn get_message_events_route(
     db: State<'_, Database>,
     body: Ruma<get_message_events::Request>,
@@ -2944,7 +3136,7 @@ pub fn get_message_events_route(
     }
 }
 
-#[get("/_matrix/client/r0/voip/turnServer")]
+#[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/voip/turnServer"))]
 pub fn turn_server_route() -> ConduitResult<create_message_event::Response> {
     Err(Error::BadRequest(
         ErrorKind::NotFound,
@@ -2952,7 +3144,7 @@ pub fn turn_server_route() -> ConduitResult<create_message_event::Response> {
     ))
 }
 
-#[post("/_matrix/client/r0/publicised_groups")]
+#[cfg_attr(feature = "conduit_bin", post("/_matrix/client/r0/publicised_groups"))]
 pub fn publicised_groups_route() -> ConduitResult<create_message_event::Response> {
     Err(Error::BadRequest(
         ErrorKind::NotFound,
@@ -2960,9 +3152,12 @@ pub fn publicised_groups_route() -> ConduitResult<create_message_event::Response
     ))
 }
 
-#[put(
-    "/_matrix/client/r0/sendToDevice/<_event_type>/<_txn_id>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    put(
+        "/_matrix/client/r0/sendToDevice/<_event_type>/<_txn_id>",
+        data = "<body>"
+    )
 )]
 pub fn send_event_to_device_route(
     db: State<'_, Database>,
@@ -3009,7 +3204,7 @@ pub fn send_event_to_device_route(
     Ok(send_event_to_device::Response.into())
 }
 
-#[get("/_matrix/media/r0/config")]
+#[cfg_attr(feature = "conduit_bin", get("/_matrix/media/r0/config"))]
 pub fn get_media_config_route(
     db: State<'_, Database>,
 ) -> ConduitResult<get_media_config::Response> {
@@ -3019,7 +3214,10 @@ pub fn get_media_config_route(
     .into())
 }
 
-#[post("/_matrix/media/r0/upload", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/media/r0/upload", data = "<body>")
+)]
 pub fn create_content_route(
     db: State<'_, Database>,
     body: Ruma<create_content::Request>,
@@ -3039,9 +3237,12 @@ pub fn create_content_route(
     Ok(create_content::Response { content_uri: mxc }.into())
 }
 
-#[get(
-    "/_matrix/media/r0/download/<_server_name>/<_media_id>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    get(
+        "/_matrix/media/r0/download/<_server_name>/<_media_id>",
+        data = "<body>"
+    )
 )]
 pub fn get_content_route(
     db: State<'_, Database>,
@@ -3064,9 +3265,12 @@ pub fn get_content_route(
     }
 }
 
-#[get(
-    "/_matrix/media/r0/thumbnail/<_server_name>/<_media_id>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    get(
+        "/_matrix/media/r0/thumbnail/<_server_name>/<_media_id>",
+        data = "<body>"
+    )
 )]
 pub fn get_content_thumbnail_route(
     db: State<'_, Database>,
@@ -3089,7 +3293,10 @@ pub fn get_content_thumbnail_route(
     }
 }
 
-#[get("/_matrix/client/r0/devices", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/devices", data = "<body>")
+)]
 pub fn get_devices_route(
     db: State<'_, Database>,
     body: Ruma<get_devices::Request>,
@@ -3105,7 +3312,10 @@ pub fn get_devices_route(
     Ok(get_devices::Response { devices }.into())
 }
 
-#[get("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/devices/<_device_id>", data = "<body>")
+)]
 pub fn get_device_route(
     db: State<'_, Database>,
     body: Ruma<get_device::Request>,
@@ -3121,7 +3331,10 @@ pub fn get_device_route(
     Ok(get_device::Response { device }.into())
 }
 
-#[put("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/client/r0/devices/<_device_id>", data = "<body>")
+)]
 pub fn update_device_route(
     db: State<'_, Database>,
     body: Ruma<update_device::Request>,
@@ -3142,7 +3355,10 @@ pub fn update_device_route(
     Ok(update_device::Response.into())
 }
 
-#[delete("/_matrix/client/r0/devices/<_device_id>", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    delete("/_matrix/client/r0/devices/<_device_id>", data = "<body>")
+)]
 pub fn delete_device_route(
     db: State<'_, Database>,
     body: Ruma<delete_device::Request>,
@@ -3186,7 +3402,10 @@ pub fn delete_device_route(
     Ok(delete_device::Response.into())
 }
 
-#[post("/_matrix/client/r0/delete_devices", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/delete_devices", data = "<body>")
+)]
 pub fn delete_devices_route(
     db: State<'_, Database>,
     body: Ruma<delete_devices::Request>,
@@ -3231,7 +3450,10 @@ pub fn delete_devices_route(
     Ok(delete_devices::Response.into())
 }
 
-#[post("/_matrix/client/unstable/keys/device_signing/upload", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/unstable/keys/device_signing/upload", data = "<body>")
+)]
 pub fn upload_signing_keys_route(
     db: State<'_, Database>,
     body: Ruma<upload_signing_keys::Request>,
@@ -3282,7 +3504,10 @@ pub fn upload_signing_keys_route(
     Ok(upload_signing_keys::Response.into())
 }
 
-#[post("/_matrix/client/unstable/keys/signatures/upload", data = "<body>")]
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/unstable/keys/signatures/upload", data = "<body>")
+)]
 pub fn upload_signatures_route(
     db: State<'_, Database>,
     body: Ruma<upload_signatures::Request>,
@@ -3331,7 +3556,7 @@ pub fn upload_signatures_route(
     Ok(upload_signatures::Response.into())
 }
 
-#[get("/_matrix/client/r0/pushers")]
+#[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/pushers"))]
 pub fn pushers_route() -> ConduitResult<get_pushers::Response> {
     Ok(get_pushers::Response {
         pushers: Vec::new(),
@@ -3339,7 +3564,7 @@ pub fn pushers_route() -> ConduitResult<get_pushers::Response> {
     .into())
 }
 
-#[post("/_matrix/client/r0/pushers/set")]
+#[cfg_attr(feature = "conduit_bin", post("/_matrix/client/r0/pushers/set"))]
 pub fn set_pushers_route() -> ConduitResult<get_pushers::Response> {
     Ok(get_pushers::Response {
         pushers: Vec::new(),
@@ -3347,9 +3572,12 @@ pub fn set_pushers_route() -> ConduitResult<get_pushers::Response> {
     .into())
 }
 
-#[put(
-    "/_matrix/client/r0/user/<_user_id>/rooms/<_room_id>/tags/<_tag>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    put(
+        "/_matrix/client/r0/user/<_user_id>/rooms/<_room_id>/tags/<_tag>",
+        data = "<body>"
+    )
 )]
 pub fn update_tag_route(
     db: State<'_, Database>,
@@ -3384,9 +3612,12 @@ pub fn update_tag_route(
     Ok(create_tag::Response.into())
 }
 
-#[delete(
-    "/_matrix/client/r0/user/<_user_id>/rooms/<_room_id>/tags/<_tag>",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    delete(
+        "/_matrix/client/r0/user/<_user_id>/rooms/<_room_id>/tags/<_tag>",
+        data = "<body>"
+    )
 )]
 pub fn delete_tag_route(
     db: State<'_, Database>,
@@ -3418,9 +3649,12 @@ pub fn delete_tag_route(
     Ok(delete_tag::Response.into())
 }
 
-#[get(
-    "/_matrix/client/r0/user/<_user_id>/rooms/<_room_id>/tags",
-    data = "<body>"
+#[cfg_attr(
+    feature = "conduit_bin",
+    get(
+        "/_matrix/client/r0/user/<_user_id>/rooms/<_room_id>/tags",
+        data = "<body>"
+    )
 )]
 pub fn get_tags_route(
     db: State<'_, Database>,
@@ -3445,6 +3679,7 @@ pub fn get_tags_route(
     .into())
 }
 
+#[cfg(feature = "conduit_bin")]
 #[options("/<_segments..>")]
 pub fn options_route(
     _segments: rocket::http::uri::Segments<'_>,

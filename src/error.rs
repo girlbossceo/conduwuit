@@ -1,15 +1,17 @@
-use crate::RumaResponse;
-use http::StatusCode;
 use log::error;
-use rocket::{
-    response::{self, Responder},
-    Request,
-};
-use ruma::api::client::{
-    error::{Error as RumaError, ErrorKind},
-    r0::uiaa::{UiaaInfo, UiaaResponse},
-};
+use ruma::api::client::{error::ErrorKind, r0::uiaa::UiaaInfo};
 use thiserror::Error;
+
+#[cfg(feature = "conduit_bin")]
+use {
+    crate::RumaResponse,
+    http::StatusCode,
+    rocket::{
+        response::{self, Responder},
+        Request,
+    },
+    ruma::api::client::{error::Error as RumaError, r0::uiaa::UiaaResponse},
+};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -46,6 +48,7 @@ impl Error {
     }
 }
 
+#[cfg(feature = "conduit_bin")]
 impl<'r, 'o> Responder<'r, 'o> for Error
 where
     'o: 'r,

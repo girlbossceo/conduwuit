@@ -1,15 +1,24 @@
-use crate::{utils, Error};
-use log::warn;
-use rocket::{
-    data::{Data, FromDataFuture, FromTransformedData, Transform, TransformFuture, Transformed},
-    http::Status,
-    response::{self, Responder},
-    Outcome::*,
-    Request, State,
+use crate::Error;
+use ruma::identifiers::{DeviceId, UserId};
+use std::{convert::TryInto, ops::Deref};
+
+#[cfg(feature = "conduit_bin")]
+use {
+    crate::utils,
+    log::warn,
+    rocket::{
+        data::{
+            Data, FromDataFuture, FromTransformedData, Transform, TransformFuture, Transformed,
+        },
+        http::Status,
+        response::{self, Responder},
+        tokio::io::AsyncReadExt,
+        Outcome::*,
+        Request, State,
+    },
+    ruma::api::Endpoint,
+    std::io::Cursor,
 };
-use ruma::{api::Endpoint, DeviceId, UserId};
-use std::{convert::TryInto, io::Cursor, ops::Deref};
-use tokio::io::AsyncReadExt;
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
 /// first.
@@ -20,6 +29,7 @@ pub struct Ruma<T> {
     pub json_body: Option<Box<serde_json::value::RawValue>>, // This is None when body is not a valid string
 }
 
+#[cfg(feature = "conduit_bin")]
 impl<'a, T: Endpoint> FromTransformedData<'a> for Ruma<T> {
     type Error = (); // TODO: Better error handling
     type Owned = Data;
@@ -119,6 +129,7 @@ impl<T: TryInto<http::Response<Vec<u8>>>> From<T> for RumaResponse<T> {
     }
 }
 
+#[cfg(feature = "conduit_bin")]
 impl<'r, 'o, T> Responder<'r, 'o> for RumaResponse<T>
 where
     T: Send + TryInto<http::Response<Vec<u8>>>,
