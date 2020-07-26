@@ -1,9 +1,11 @@
 use crate::{utils, Error, Result};
 use ruma::{
-    api::client::error::ErrorKind,
     events::{AnyEvent as EduEvent, EventType},
     Raw, RoomId, UserId,
 };
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use sled::IVec;
 use std::{collections::HashMap, convert::TryFrom};
 
 pub struct AccountData {
@@ -12,77 +14,55 @@ pub struct AccountData {
 
 impl AccountData {
     /// Places one event in the account data of the user and removes the previous entry.
-    pub fn update(
+    pub fn update<T: Serialize>(
         &self,
         room_id: Option<&RoomId>,
         user_id: &UserId,
-        kind: &EventType,
-        json: &mut serde_json::Map<String, serde_json::Value>,
+        event_type: EventType,
+        event: &T,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        if json.get("content").is_none() {
-            return Err(Error::BadRequest(
-                ErrorKind::BadJson,
-                "Json needs to have a content field.",
-            ));
-        }
-        json.insert("type".to_owned(), kind.to_string().into());
-
-        let user_id_string = user_id.to_string();
-        let kind_string = kind.to_string();
-
         let mut prefix = room_id
             .map(|r| r.to_string())
             .unwrap_or_default()
             .as_bytes()
             .to_vec();
         prefix.push(0xff);
-        prefix.extend_from_slice(&user_id_string.as_bytes());
+        prefix.extend_from_slice(&user_id.to_string().as_bytes());
         prefix.push(0xff);
 
         // Remove old entry
-        if let Some(old) = self
-            .roomuserdataid_accountdata
-            .scan_prefix(&prefix)
-            .keys()
-            .rev()
-            .filter_map(|r| r.ok())
-            .take_while(|key| key.starts_with(&prefix))
-            .find(|key| {
-                let user = key.split(|&b| b == 0xff).nth(1);
-                let k = key.rsplit(|&b| b == 0xff).next();
-
-                user.filter(|&user| user == user_id_string.as_bytes())
-                    .is_some()
-                    && k.filter(|&k| k == kind_string.as_bytes()).is_some()
-            })
-        {
-            // This is the old room_latest
-            self.roomuserdataid_accountdata.remove(old)?;
+        if let Some(previous) = self.find_event(room_id, user_id, &event_type) {
+            let (old_key, _) = previous?;
+            self.roomuserdataid_accountdata.remove(old_key)?;
         }
 
         let mut key = prefix;
         key.extend_from_slice(&globals.next_count()?.to_be_bytes());
         key.push(0xff);
-        key.extend_from_slice(kind.to_string().as_bytes());
+        key.extend_from_slice(event_type.to_string().as_bytes());
 
         self.roomuserdataid_accountdata.insert(
             key,
-            &*serde_json::to_string(&json).expect("Map::to_string always works"),
+            &*serde_json::to_string(&event).expect("Map::to_string always works"),
         )?;
 
         Ok(())
     }
 
-    // TODO: Optimize
     /// Searches the account data for a specific kind.
-    pub fn get(
+    pub fn get<T: DeserializeOwned>(
         &self,
         room_id: Option<&RoomId>,
         user_id: &UserId,
-        kind: &EventType,
-    ) -> Result<Option<Raw<EduEvent>>> {
-        Ok(self.all(room_id, user_id)?.remove(kind))
+        kind: EventType,
+    ) -> Result<Option<T>> {
+        self.find_event(room_id, user_id, &kind)
+            .map(|r| {
+                let (_, v) = r?;
+                serde_json::from_slice(&v).map_err(|_| Error::BadDatabase("could not deserialize"))
+            })
+            .transpose()
     }
 
     /// Returns all changes to the account data that happened after `since`.
@@ -134,12 +114,37 @@ impl AccountData {
         Ok(userdata)
     }
 
-    /// Returns all account data.
-    pub fn all(
+    fn find_event(
         &self,
         room_id: Option<&RoomId>,
         user_id: &UserId,
-    ) -> Result<HashMap<EventType, Raw<EduEvent>>> {
-        self.changes_since(room_id, user_id, 0)
+        kind: &EventType,
+    ) -> Option<Result<(IVec, IVec)>> {
+        let mut prefix = room_id
+            .map(|r| r.to_string())
+            .unwrap_or_default()
+            .as_bytes()
+            .to_vec();
+        prefix.push(0xff);
+        prefix.extend_from_slice(&user_id.to_string().as_bytes());
+        prefix.push(0xff);
+        let kind = kind.clone();
+
+        self.roomuserdataid_accountdata
+            .scan_prefix(prefix)
+            .rev()
+            .find(move |r| {
+                r.as_ref()
+                    .map(|(k, _)| {
+                        k.rsplit(|&b| b == 0xff)
+                            .next()
+                            .map(|current_event_type| {
+                                current_event_type == kind.to_string().as_bytes()
+                            })
+                            .unwrap_or(false)
+                    })
+                    .unwrap_or(false)
+            })
+            .map(|r| Ok(r?))
     }
 }

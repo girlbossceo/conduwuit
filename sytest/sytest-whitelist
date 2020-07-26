@@ -1,3 +1,4 @@
+/joined_rooms returns only joined rooms
 3pid invite join valid signature but revoked keys are rejected
 3pid invite join valid signature but unreachable ID server are rejected
 3pid invite join with wrong but valid signature are rejected
@@ -6,9 +7,12 @@ After deactivating account, can't log in with an email
 Alternative server names do not cause a routing loop
 Both GET and PUT work
 Can add account data
+Can add tag
 Can create filter
+Can list tags for a room
 Can logout all devices
 Can read configuration endpoint
+Can remove tag
 Can send a message directly to a device using PUT /sendToDevice
 Can upload with ASCII file name
 Can upload with Unicode file name
@@ -22,6 +26,7 @@ GET /devices
 GET /events with negative 'limit'
 GET /events with non-numeric 'limit'
 GET /events with non-numeric 'timeout'
+GET /joined_rooms lists newly-created room
 GET /login yields a set of flows
 GET /media/r0/download can fetch the value again
 GET /profile/:user_id/displayname publicly accessible
@@ -29,8 +34,6 @@ GET /publicRooms lists newly-created room
 GET /register yields a set of flows
 GET /rooms/:room_id/state fetches entire room state
 GET /rooms/:room_id/state/m.room.member/:user_id fetches my membership
-GET /joined_rooms lists newly-created room
-/joined_rooms returns only joined rooms
 Getting push rules doesn't corrupt the cache SYN-390
 POST /createRoom makes a private room
 POST /createRoom makes a private room with invites
