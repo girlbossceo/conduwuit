@@ -130,14 +130,14 @@ pub async fn send_request<T: Endpoint>(
     }
 }
 
-#[get("/.well-known/matrix/server")]
+#[cfg_attr(feature = "conduit_bin",get("/.well-known/matrix/server"))]
 pub fn well_known_server() -> Json<String> {
     rocket::response::content::Json(
         json!({ "m.server": "matrixtesting.koesters.xyz:14004"}).to_string(),
     )
 }
 
-#[get("/_matrix/federation/v1/version")]
+#[cfg_attr(feature = "conduit_bin",get("/_matrix/federation/v1/version"))]
 pub fn get_server_version() -> MatrixResult<get_server_version::Response, Error> {
     MatrixResult(Ok(get_server_version::Response {
         server: Some(get_server_version::Server {
@@ -147,7 +147,7 @@ pub fn get_server_version() -> MatrixResult<get_server_version::Response, Error>
     }))
 }
 
-#[get("/_matrix/key/v2/server")]
+#[cfg_attr(feature = "conduit_bin",get("/_matrix/key/v2/server"))]
 pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
     let mut verify_keys = BTreeMap::new();
     verify_keys.insert(
@@ -177,7 +177,7 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
     Json(response.to_string())
 }
 
-#[get("/_matrix/key/v2/server/<_key_id>")]
+#[cfg_attr(feature = "conduit_bin",get("/_matrix/key/v2/server/<_key_id>"))]
 pub fn get_server_keys_deprecated(db: State<'_, Database>, _key_id: String) -> Json<String> {
     get_server_keys(db)
 }
