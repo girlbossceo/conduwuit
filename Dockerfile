@@ -47,21 +47,25 @@ RUN cargo build --release --color=always
 # runtime image/container
 FROM alpine:3.12
 
-ARG BUILD_DATE
+ARG CREATED
 ARG VERSION
 ARG GIT_REF=HEAD
 
-# Labels inspired by this medium post:
-# https://medium.com/@chamilad/lets-make-your-docker-image-better-than-90-of-existing-ones-8b1e5de950d
-LABEL org.label-schema.build-date=${BUILD_DATE} \
-      org.label-schema.name="Conduit" \
-      org.label-schema.version=${VERSION} \
-      org.label-schema.vendor="Conduit Authors" \
-      org.label-schema.description="A Matrix homeserver written in Rust" \
-      org.label-schema.url="https://conduit.rs/" \
-      org.label-schema.vcs-ref=$GIT_REF \
-      org.label-schema.vcs-url="https://git.koesters.xyz/timo/conduit.git" \
-      ord.label-schema.docker.build="docker build . -t conduit:latest --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)"\
+# Labels according to https://github.com/opencontainers/image-spec/blob/master/annotations.md
+# including a custom label specifying the build command
+LABEL org.opencontainers.image.created=${CREATED} \
+      org.opencontainers.image.authors="Conduit Contributors, weasy@hotmail.de" \
+      org.opencontainers.image.title="Conduit" \
+      org.opencontainers.image.version=${VERSION} \
+      org.opencontainers.image.vendor="Conduit Contributors" \
+      org.opencontainers.image.description="A Matrix homeserver written in Rust" \
+      org.opencontainers.image.url="https://conduit.rs/" \
+      org.opencontainers.image.revision=$GIT_REF \
+      org.opencontainers.image.source="https://git.koesters.xyz/timo/conduit.git" \
+      org.opencontainers.image.documentation.="" \
+      org.opencontainers.image.licenses="AGPL-3.0" \
+      org.opencontainers.image.ref.name="" \
+      org.label-schema.docker.build="docker build . -t conduit:latest --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)"\
       maintainer="weasy@hotmail.de"
 
 # Change some Rocket.rs default configs. They can then
