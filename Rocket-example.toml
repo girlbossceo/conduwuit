@@ -1,15 +1,29 @@
 [global]
+# The name of this server
+# Note: If server name != hostname, you need a .well-known file for federation
+# to work
 server_name = "your.server.name"
+
+port = 14004
+
+# Max size for uploads
+#max_request_size = 20_000_000 # in bytes, ~20 MB
+
+# Disable registration. No new users will be able to register on this server
 #registration_disabled = true
+
+# Disable encryption, so no new encrypted rooms can be created
+# Note: existing rooms will continue to work
 #encryption_disabled = true
 
 # Default path is in this user's data
 #database_path = "/home/timo/MyConduitServer"
 
-port = 14004
+# You should probably leave this at 0.0.0.0
 address = "0.0.0.0"
 
-# Not necessary when using a reverse proxy
+# TLS support
+# Note: Not necessary when using a reverse proxy:
 #[global.tls]
 #certs = "/etc/letsencrypt/live/your.server.name/fullchain.pem"
 #key = "/etc/letsencrypt/live/your.server.name/privkey.pem"
