@@ -28,6 +28,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::register_route,
                 client_server::get_login_route,
                 client_server::login_route,
+                client_server::whoami_route,
                 client_server::logout_route,
                 client_server::logout_all_route,
                 client_server::change_password_route,
