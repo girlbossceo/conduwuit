@@ -261,7 +261,6 @@ checksum = "0dbbb57365263e881e805dc77d94697c9118fd94d8da011240555aa7b23445bd"
 name = "conduit"
 version = "0.1.0"
 dependencies = [
- "base64 0.12.3",
  "directories",
  "http",
  "image",
@@ -276,7 +275,6 @@ dependencies = [
  "serde_json",
  "sled",
  "thiserror",
- "tokio",
 ]
 
 [[package]]

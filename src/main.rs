@@ -13,6 +13,7 @@ mod utils;
 pub use database::Database;
 pub use error::{Error, Result};
 pub use pdu::PduEvent;
+pub use rocket::State;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
 use rocket::{fairing::AdHoc, routes};
