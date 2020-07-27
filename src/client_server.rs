@@ -676,7 +676,7 @@ pub fn set_displayname_route(
                         .content
                         .clone(),
                 )
-                .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
+                .expect("from_value::<Raw<..>> can never fail")
                 .deserialize()
                 .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
             })
@@ -772,7 +772,7 @@ pub fn set_avatar_url_route(
                         .content
                         .clone(),
                 )
-                .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
+                .expect("from_value::<Raw<..>> can never fail")
                 .deserialize()
                 .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
             })
@@ -1715,7 +1715,7 @@ pub fn leave_room_route(
             ))?
             .content,
     )
-    .map_err(|_| Error::bad_database("Invalid member event in database."))?
+    .expect("from_value::<Raw<..>> can never fail")
     .deserialize()
     .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
@@ -1846,7 +1846,7 @@ pub fn ban_user_route(
             }),
             |event| {
                 let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
-                    event.content.clone(),
+                    event.content,
                 )
                 .expect("Raw::from_value always works")
                 .deserialize()
@@ -1893,7 +1893,7 @@ pub fn unban_user_route(
             ))?
             .content,
     )
-    .map_err(|_| Error::bad_database("Invalid member event in database."))?
+    .expect("from_value::<Raw<..>> can never fail")
     .deserialize()
     .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
@@ -2076,9 +2076,7 @@ pub async fn get_public_rooms_filtered_route(
                         Ok(serde_json::from_value::<
                             Raw<room::canonical_alias::CanonicalAliasEventContent>,
                         >(s.content.clone())
-                        .map_err(|_| {
-                            Error::bad_database("Invalid canonical alias event in database.")
-                        })?
+                        .expect("from_value::<Raw<..>> can never fail")
                         .deserialize()
                         .map_err(|_| {
                             Error::bad_database("Invalid canonical alias event in database.")
@@ -2091,7 +2089,7 @@ pub async fn get_public_rooms_filtered_route(
                         Ok(serde_json::from_value::<Raw<room::name::NameEventContent>>(
                             s.content.clone(),
                         )
-                        .map_err(|_| Error::bad_database("Invalid room name event in database."))?
+                        .expect("from_value::<Raw<..>> can never fail")
                         .deserialize()
                         .map_err(|_| Error::bad_database("Invalid room name event in database."))?
                         .name()
@@ -2107,9 +2105,7 @@ pub async fn get_public_rooms_filtered_route(
                             serde_json::from_value::<Raw<room::topic::TopicEventContent>>(
                                 s.content.clone(),
                             )
-                            .map_err(|_| {
-                                Error::bad_database("Invalid room topic event in database.")
-                            })?
+                            .expect("from_value::<Raw<..>> can never fail")
                             .deserialize()
                             .map_err(|_| {
                                 Error::bad_database("Invalid room topic event in database.")
@@ -2124,11 +2120,7 @@ pub async fn get_public_rooms_filtered_route(
                         Ok(serde_json::from_value::<
                             Raw<room::history_visibility::HistoryVisibilityEventContent>,
                         >(s.content.clone())
-                        .map_err(|_| {
-                            Error::bad_database(
-                                "Invalid room history visibility event in database.",
-                            )
-                        })?
+                        .expect("from_value::<Raw<..>> can never fail")
                         .deserialize()
                         .map_err(|_| {
                             Error::bad_database(
@@ -2145,9 +2137,7 @@ pub async fn get_public_rooms_filtered_route(
                             serde_json::from_value::<
                                 Raw<room::guest_access::GuestAccessEventContent>,
                             >(s.content.clone())
-                            .map_err(|_| {
-                                Error::bad_database("Invalid room guest access event in database.")
-                            })?
+                            .expect("from_value::<Raw<..>> can never fail")
                             .deserialize()
                             .map_err(|_| {
                                 Error::bad_database("Invalid room guest access event in database.")
@@ -2163,9 +2153,7 @@ pub async fn get_public_rooms_filtered_route(
                             serde_json::from_value::<Raw<room::avatar::AvatarEventContent>>(
                                 s.content.clone(),
                             )
-                            .map_err(|_| {
-                                Error::bad_database("Invalid room avatar event in database.")
-                            })?
+                            .expect("from_value::<Raw<..>> can never fail")
                             .deserialize()
                             .map_err(|_| {
                                 Error::bad_database("Invalid room avatar event in database.")
@@ -2377,7 +2365,7 @@ pub fn create_state_event_for_key_route(
         let canonical_alias = serde_json::from_value::<
             Raw<canonical_alias::CanonicalAliasEventContent>,
         >(content.clone())
-        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid canonical alias."))?
+        .expect("from_value::<Raw<..>> can never fail")
         .deserialize()
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid canonical alias."))?;
 
