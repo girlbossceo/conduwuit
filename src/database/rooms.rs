@@ -81,7 +81,7 @@ impl Rooms {
         Ok(hashmap)
     }
 
-    /// Returns the full room state.
+    /// Returns the all state entries for this type.
     pub fn room_state_type(
         &self,
         room_id: &RoomId,
