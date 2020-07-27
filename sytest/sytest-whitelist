@@ -4,22 +4,40 @@
 3pid invite join with wrong but valid signature are rejected
 AS cannot create users outside its own namespace
 After deactivating account, can't log in with an email
+Alias creators can delete alias with no ops
+Alias creators can delete canonical alias with no ops
 Alternative server names do not cause a routing loop
 Both GET and PUT work
 Can add account data
 Can add tag
 Can create filter
+Can delete canonical alias
+Can invite users to invite-only rooms
 Can list tags for a room
 Can logout all devices
+Can logout current device
 Can read configuration endpoint
+Can recv a device message using /sync
+Can recv device messages until they are acknowledged
 Can remove tag
 Can send a message directly to a device using PUT /sendToDevice
+Can send a to-device message to two users which both receive it using /sync
+Can send messages with a wildcard device id
+Can send messages with a wildcard device id to two devices
+Can sync
 Can upload with ASCII file name
 Can upload with Unicode file name
 Can upload without a file name
 Changing the actions of an unknown default rule fails with 404
 Changing the actions of an unknown rule fails with 404
 Checking local federation server
+Current state appears in timeline in private history
+Current state appears in timeline in private history with many messages before
+Deleted tags appear in an incremental v2 /sync
+Deleting a non-existent alias should return a 404
+Device messages over federation wake up /sync
+Device messages wake up /sync
+Events come down the correct room
 GET /device/{deviceId}
 GET /device/{deviceId} gives a 404 for unknown devices
 GET /devices
@@ -29,12 +47,14 @@ GET /events with non-numeric 'timeout'
 GET /joined_rooms lists newly-created room
 GET /login yields a set of flows
 GET /media/r0/download can fetch the value again
+GET /profile/:user_id/avatar_url publicly accessible
 GET /profile/:user_id/displayname publicly accessible
 GET /publicRooms lists newly-created room
 GET /register yields a set of flows
 GET /rooms/:room_id/state fetches entire room state
 GET /rooms/:room_id/state/m.room.member/:user_id fetches my membership
 Getting push rules doesn't corrupt the cache SYN-390
+Newly updated tags appear in an incremental v2 /sync
 POST /createRoom makes a private room
 POST /createRoom makes a private room with invites
 POST /join/:room_id can join a room
@@ -65,18 +85,40 @@ POST /rooms/:room_id/ban can ban a user
 POST /rooms/:room_id/invite can send an invite
 POST /rooms/:room_id/join can join a room
 POST /rooms/:room_id/leave can leave a room
+POST /rooms/:room_id/state/m.room.name sets name
+POST /rooms/:room_id/state/m.room.topic sets topic
 POSTed media can be thumbnailed
 PUT /device/{deviceId} gives a 404 for unknown devices
 PUT /device/{deviceId} updates device fields
 PUT /directory/room/:room_alias creates alias
+PUT /profile/:user_id/avatar_url sets my avatar
 PUT /profile/:user_id/displayname sets my name
 PUT /rooms/:room_id/state/m.room.power_levels can set levels
 PUT power_levels should not explode if the old power levels were empty
+Push rules come down in an initial /sync
+Read markers appear in incremental v2 /sync
+Read markers appear in initial v2 /sync
+Read markers can be updated
+Regular users can add and delete aliases in the default room configuration
+Room creation reports m.room.create to myself
+Room creation reports m.room.member to myself
+Rooms a user is invited to appear in an incremental sync
+Rooms a user is invited to appear in an initial sync
+Setting room topic reports m.room.topic to myself
 Should reject keys claiming to belong to a different user
+Tags appear in an initial v2 /sync
 Trying to get push rules with unknown rule_id fails with 404
+Typing events appear in gapped sync
+Typing events appear in incremental sync
+Typing events appear in initial sync
+Uninvited users cannot join the room
 User appears in user directory
 User directory correctly update on display name change
 User in dir while user still shares private rooms
 User in shared private room does appear in user directory
+User is offline if they set_presence=offline in their sync
+Users with sufficient power-level can delete other's aliases
 Version responds 200 OK with valid structure
+Wildcard device messages over federation wake up /sync
+Wildcard device messages wake up /sync
 query for user with no keys returns empty key dict
