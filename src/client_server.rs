@@ -11,7 +11,7 @@ use log::warn;
 #[cfg(not(feature = "conduit_bin"))]
 use super::State;
 #[cfg(feature = "conduit_bin")]
-use rocket::{delete, get, options, post, put, State};
+use rocket::{delete, get, options, post, put, State, tokio};
 
 use ruma::{
     api::client::{
@@ -312,10 +312,10 @@ pub fn logout_route(
     db: State<'_, Database>,
     body: Ruma<logout::Request>,
 ) -> ConduitResult<logout::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
-    db.users.remove_device(&user_id, device_id)?;
+    db.users.remove_device(&sender_id, device_id)?;
 
     Ok(logout::Response.into())
 }
@@ -328,11 +328,11 @@ pub fn logout_all_route(
     db: State<'_, Database>,
     body: Ruma<logout_all::Request>,
 ) -> ConduitResult<logout_all::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    for device_id in db.users.all_device_ids(user_id) {
+    for device_id in db.users.all_device_ids(sender_id) {
         if let Ok(device_id) = device_id {
-            db.users.remove_device(&user_id, &device_id)?;
+            db.users.remove_device(&sender_id, &device_id)?;
         }
     }
 
@@ -347,7 +347,7 @@ pub fn change_password_route(
     db: State<'_, Database>,
     body: Ruma<change_password::Request>,
 ) -> ConduitResult<change_password::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     let mut uiaainfo = UiaaInfo {
@@ -363,29 +363,29 @@ pub fn change_password_route(
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) =
             db.uiaa
-                .try_auth(&user_id, device_id, auth, &uiaainfo, &db.users, &db.globals)?;
+                .try_auth(&sender_id, device_id, auth, &uiaainfo, &db.users, &db.globals)?;
         if !worked {
             return Err(Error::Uiaa(uiaainfo));
         }
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
+        db.uiaa.create(&sender_id, &device_id, &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
-    db.users.set_password(&user_id, &body.new_password)?;
+    db.users.set_password(&sender_id, &body.new_password)?;
 
     // TODO: Read logout_devices field when it's available and respect that, currently not supported in Ruma
     // See: https://github.com/ruma/ruma/issues/107
     // Logout all devices except the current one
     for id in db
         .users
-        .all_device_ids(&user_id)
+        .all_device_ids(&sender_id)
         .filter_map(|id| id.ok())
         .filter(|id| id != device_id)
     {
-        db.users.remove_device(&user_id, &id)?;
+        db.users.remove_device(&sender_id, &id)?;
     }
 
     Ok(change_password::Response.into())
@@ -399,7 +399,7 @@ pub fn deactivate_route(
     db: State<'_, Database>,
     body: Ruma<deactivate::Request>,
 ) -> ConduitResult<deactivate::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     let mut uiaainfo = UiaaInfo {
@@ -414,7 +414,7 @@ pub fn deactivate_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &user_id,
+            &sender_id,
             &device_id,
             auth,
             &uiaainfo,
@@ -427,15 +427,15 @@ pub fn deactivate_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
+        db.uiaa.create(&sender_id, &device_id, &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
     // Leave all joined rooms and reject all invitations
     for room_id in db
         .rooms
-        .rooms_joined(&user_id)
-        .chain(db.rooms.rooms_invited(&user_id))
+        .rooms_joined(&sender_id)
+        .chain(db.rooms.rooms_invited(&sender_id))
     {
         let room_id = room_id?;
         let event = member::MemberEventContent {
@@ -448,18 +448,18 @@ pub fn deactivate_route(
 
         db.rooms.append_pdu(
             room_id.clone(),
-            user_id.clone(),
+            sender_id.clone(),
             EventType::RoomMember,
             serde_json::to_value(event).expect("event is valid, we just created it"),
             None,
-            Some(user_id.to_string()),
+            Some(sender_id.to_string()),
             None,
             &db.globals,
         )?;
     }
 
     // Remove devices and mark account as deactivated
-    db.users.deactivate_account(&user_id)?;
+    db.users.deactivate_account(&sender_id)?;
 
     Ok(deactivate::Response {
         id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,
@@ -500,11 +500,11 @@ pub fn get_pushrules_all_route(
     db: State<'_, Database>,
     body: Ruma<get_pushrules_all::Request>,
 ) -> ConduitResult<get_pushrules_all::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let event = db
         .account_data
-        .get::<ruma::events::push_rules::PushRulesEvent>(None, &user_id, EventType::PushRules)?
+        .get::<ruma::events::push_rules::PushRulesEvent>(None, &sender_id, EventType::PushRules)?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -517,15 +517,12 @@ pub fn get_pushrules_all_route(
 }
 
 #[cfg_attr(feature = "conduit_bin", put(
-    "/_matrix/client/r0/pushrules/<_scope>/<_kind>/<_rule_id>",
+    "/_matrix/client/r0/pushrules/<_>/<_>/<_>",
     //data = "<body>"
 ))]
 pub fn set_pushrule_route(
     //db: State<'_, Database>,
     //body: Ruma<set_pushrule::Request>,
-    _scope: String,
-    _kind: String,
-    _rule_id: String,
 ) -> ConduitResult<set_pushrule::Response> {
     // TODO
     warn!("TODO: set_pushrule_route");
@@ -534,12 +531,9 @@ pub fn set_pushrule_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    put("/_matrix/client/r0/pushrules/<_scope>/<_kind>/<_rule_id>/enabled")
+    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>/enabled")
 )]
 pub fn set_pushrule_enabled_route(
-    _scope: String,
-    _kind: String,
-    _rule_id: String,
 ) -> ConduitResult<set_pushrule_enabled::Response> {
     // TODO
     warn!("TODO: set_pushrule_enabled_route");
@@ -548,11 +542,9 @@ pub fn set_pushrule_enabled_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/user/<_user_id>/filter/<_filter_id>")
+    get("/_matrix/client/r0/user/<_>/filter/<_>")
 )]
 pub fn get_filter_route(
-    _user_id: String,
-    _filter_id: String,
 ) -> ConduitResult<get_filter::Response> {
     // TODO
     Ok(get_filter::Response {
@@ -569,9 +561,9 @@ pub fn get_filter_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/user/<_user_id>/filter")
+    post("/_matrix/client/r0/user/<_>/filter")
 )]
-pub fn create_filter_route(_user_id: String) -> ConduitResult<create_filter::Response> {
+pub fn create_filter_route() -> ConduitResult<create_filter::Response> {
     // TODO
     Ok(create_filter::Response {
         filter_id: utils::random_string(10),
@@ -582,17 +574,15 @@ pub fn create_filter_route(_user_id: String) -> ConduitResult<create_filter::Res
 #[cfg_attr(
     feature = "conduit_bin",
     put(
-        "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+        "/_matrix/client/r0/user/<_>/account_data/<_>",
         data = "<body>"
     )
 )]
 pub fn set_global_account_data_route(
     db: State<'_, Database>,
     body: Ruma<set_global_account_data::Request>,
-    _user_id: String,
-    _type: String,
 ) -> ConduitResult<set_global_account_data::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let content = serde_json::from_str::<serde_json::Value>(body.data.get())
         .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Data is invalid."))?;
@@ -601,7 +591,7 @@ pub fn set_global_account_data_route(
 
     db.account_data.update(
         None,
-        user_id,
+        sender_id,
         event_type.clone().into(),
         &BasicEvent {
             content: CustomEventContent {
@@ -618,23 +608,21 @@ pub fn set_global_account_data_route(
 #[cfg_attr(
     feature = "conduit_bin",
     get(
-        "/_matrix/client/r0/user/<_user_id>/account_data/<_type>",
+        "/_matrix/client/r0/user/<_>/account_data/<_>",
         data = "<body>"
     )
 )]
 pub fn get_global_account_data_route(
     db: State<'_, Database>,
     body: Ruma<get_global_account_data::Request>,
-    _user_id: String,
-    _type: String,
 ) -> ConduitResult<get_global_account_data::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let data = db
         .account_data
         .get::<ruma::events::AnyBasicEvent>(
             None,
-            user_id,
+            sender_id,
             EventType::try_from(&body.event_type).expect("EventType::try_from can never fail"),
         )?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
@@ -647,30 +635,29 @@ pub fn get_global_account_data_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    put("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")
+    put("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
 )]
 pub fn set_displayname_route(
     db: State<'_, Database>,
     body: Ruma<set_display_name::Request>,
-    _user_id: String,
 ) -> ConduitResult<set_display_name::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     db.users
-        .set_displayname(&user_id, body.displayname.clone())?;
+        .set_displayname(&sender_id, body.displayname.clone())?;
 
     // Send a new membership event into all joined rooms
-    for room_id in db.rooms.rooms_joined(&user_id) {
+    for room_id in db.rooms.rooms_joined(&sender_id) {
         let room_id = room_id?;
         db.rooms.append_pdu(
             room_id.clone(),
-            user_id.clone(),
+            sender_id.clone(),
             EventType::RoomMember,
             serde_json::to_value(ruma::events::room::member::MemberEventContent {
                 displayname: body.displayname.clone(),
                 ..serde_json::from_value::<Raw<_>>(
                     db.rooms
-                        .room_state_get(&room_id, &EventType::RoomMember, &user_id.to_string())?
+                        .room_state_get(&room_id, &EventType::RoomMember, &sender_id.to_string())?
                         .ok_or_else(|| {
                             Error::bad_database(
                                 "Tried to send displayname update for user not in the room.",
@@ -685,7 +672,7 @@ pub fn set_displayname_route(
             })
             .expect("event is valid, we just created it"),
             None,
-            Some(user_id.to_string()),
+            Some(sender_id.to_string()),
             None,
             &db.globals,
         )?;
@@ -695,9 +682,9 @@ pub fn set_displayname_route(
     db.global_edus.update_presence(
         ruma::events::presence::PresenceEvent {
             content: ruma::events::presence::PresenceEventContent {
-                avatar_url: db.users.avatar_url(&user_id)?,
+                avatar_url: db.users.avatar_url(&sender_id)?,
                 currently_active: None,
-                displayname: db.users.displayname(&user_id)?,
+                displayname: db.users.displayname(&sender_id)?,
                 last_active_ago: Some(
                     utils::millis_since_unix_epoch()
                         .try_into()
@@ -706,7 +693,7 @@ pub fn set_displayname_route(
                 presence: ruma::presence::PresenceState::Online,
                 status_msg: None,
             },
-            sender: user_id.clone(),
+            sender: sender_id.clone(),
         },
         &db.globals,
     )?;
@@ -716,30 +703,27 @@ pub fn set_displayname_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/profile/<_user_id>/displayname", data = "<body>")
+    get("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
 )]
 pub fn get_displayname_route(
     db: State<'_, Database>,
     body: Ruma<get_display_name::Request>,
-    _user_id: String,
 ) -> ConduitResult<get_display_name::Response> {
-    let user_id = body.body.user_id.clone();
     Ok(get_display_name::Response {
-        displayname: db.users.displayname(&user_id)?,
+        displayname: db.users.displayname(&body.user_id)?,
     }
     .into())
 }
 
 #[cfg_attr(
     feature = "conduit_bin",
-    put("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")
+    put("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
 )]
 pub fn set_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<set_avatar_url::Request>,
-    _user_id: String,
 ) -> ConduitResult<set_avatar_url::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     if let Some(avatar_url) = &body.avatar_url {
         if !avatar_url.starts_with("mxc://") {
@@ -753,20 +737,20 @@ pub fn set_avatar_url_route(
         // TODO also make sure this is valid mxc:// format (not only starting with it)
     }
 
-    db.users.set_avatar_url(&user_id, body.avatar_url.clone())?;
+    db.users.set_avatar_url(&sender_id, body.avatar_url.clone())?;
 
     // Send a new membership event into all joined rooms
-    for room_id in db.rooms.rooms_joined(&user_id) {
+    for room_id in db.rooms.rooms_joined(&sender_id) {
         let room_id = room_id?;
         db.rooms.append_pdu(
             room_id.clone(),
-            user_id.clone(),
+            sender_id.clone(),
             EventType::RoomMember,
             serde_json::to_value(ruma::events::room::member::MemberEventContent {
                 avatar_url: body.avatar_url.clone(),
                 ..serde_json::from_value::<Raw<_>>(
                     db.rooms
-                        .room_state_get(&room_id, &EventType::RoomMember, &user_id.to_string())?
+                        .room_state_get(&room_id, &EventType::RoomMember, &sender_id.to_string())?
                         .ok_or_else(|| {
                             Error::bad_database(
                                 "Tried to send avatar url update for user not in the room.",
@@ -781,7 +765,7 @@ pub fn set_avatar_url_route(
             })
             .expect("event is valid, we just created it"),
             None,
-            Some(user_id.to_string()),
+            Some(sender_id.to_string()),
             None,
             &db.globals,
         )?;
@@ -791,9 +775,9 @@ pub fn set_avatar_url_route(
     db.global_edus.update_presence(
         ruma::events::presence::PresenceEvent {
             content: ruma::events::presence::PresenceEventContent {
-                avatar_url: db.users.avatar_url(&user_id)?,
+                avatar_url: db.users.avatar_url(&sender_id)?,
                 currently_active: None,
-                displayname: db.users.displayname(&user_id)?,
+                displayname: db.users.displayname(&sender_id)?,
                 last_active_ago: Some(
                     utils::millis_since_unix_epoch()
                         .try_into()
@@ -802,7 +786,7 @@ pub fn set_avatar_url_route(
                 presence: ruma::presence::PresenceState::Online,
                 status_msg: None,
             },
-            sender: user_id.clone(),
+            sender: sender_id.clone(),
         },
         &db.globals,
     )?;
@@ -812,32 +796,28 @@ pub fn set_avatar_url_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/profile/<_user_id>/avatar_url", data = "<body>")
+    get("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
 )]
 pub fn get_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<get_avatar_url::Request>,
-    _user_id: String,
 ) -> ConduitResult<get_avatar_url::Response> {
-    let user_id = body.body.user_id.clone();
     Ok(get_avatar_url::Response {
-        avatar_url: db.users.avatar_url(&user_id)?,
+        avatar_url: db.users.avatar_url(&body.user_id)?,
     }
     .into())
 }
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/profile/<_user_id>", data = "<body>")
+    get("/_matrix/client/r0/profile/<_>", data = "<body>")
 )]
 pub fn get_profile_route(
     db: State<'_, Database>,
     body: Ruma<get_profile::Request>,
-    _user_id: String,
 ) -> ConduitResult<get_profile::Response> {
-    let user_id = body.body.user_id.clone();
-    let avatar_url = db.users.avatar_url(&user_id)?;
-    let displayname = db.users.displayname(&user_id)?;
+    let avatar_url = db.users.avatar_url(&body.user_id)?;
+    let displayname = db.users.displayname(&body.user_id)?;
 
     if avatar_url.is_none() && displayname.is_none() {
         // Return 404 if we don't have a profile for this id
@@ -856,21 +836,20 @@ pub fn get_profile_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    put("/_matrix/client/r0/presence/<_user_id>/status", data = "<body>")
+    put("/_matrix/client/r0/presence/<_>/status", data = "<body>")
 )]
 pub fn set_presence_route(
     db: State<'_, Database>,
     body: Ruma<set_presence::Request>,
-    _user_id: String,
 ) -> ConduitResult<set_presence::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     db.global_edus.update_presence(
         ruma::events::presence::PresenceEvent {
             content: ruma::events::presence::PresenceEventContent {
-                avatar_url: db.users.avatar_url(&user_id)?,
+                avatar_url: db.users.avatar_url(&sender_id)?,
                 currently_active: None,
-                displayname: db.users.displayname(&user_id)?,
+                displayname: db.users.displayname(&sender_id)?,
                 last_active_ago: Some(
                     utils::millis_since_unix_epoch()
                         .try_into()
@@ -879,7 +858,7 @@ pub fn set_presence_route(
                 presence: body.presence,
                 status_msg: body.status_msg.clone(),
             },
-            sender: user_id.clone(),
+            sender: sender_id.clone(),
         },
         &db.globals,
     )?;
@@ -895,26 +874,26 @@ pub fn upload_keys_route(
     db: State<'_, Database>,
     body: Ruma<upload_keys::Request>,
 ) -> ConduitResult<upload_keys::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     if let Some(one_time_keys) = &body.one_time_keys {
         for (key_key, key_value) in one_time_keys {
             db.users
-                .add_one_time_key(user_id, device_id, key_key, key_value)?;
+                .add_one_time_key(sender_id, device_id, key_key, key_value)?;
         }
     }
 
     if let Some(device_keys) = &body.device_keys {
         // This check is needed to assure that signatures are kept
-        if db.users.get_device_keys(user_id, device_id)?.is_none() {
+        if db.users.get_device_keys(sender_id, device_id)?.is_none() {
             db.users
-                .add_device_keys(user_id, device_id, device_keys, &db.globals)?;
+                .add_device_keys(sender_id, device_id, device_keys, &db.globals)?;
         }
     }
 
     Ok(upload_keys::Response {
-        one_time_key_counts: db.users.count_one_time_keys(user_id, device_id)?,
+        one_time_key_counts: db.users.count_one_time_keys(sender_id, device_id)?,
     }
     .into())
 }
@@ -927,7 +906,7 @@ pub fn get_keys_route(
     db: State<'_, Database>,
     body: Ruma<get_keys::Request>,
 ) -> ConduitResult<get_keys::Response> {
-    let sender_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut master_keys = BTreeMap::new();
     let mut self_signing_keys = BTreeMap::new();
@@ -1038,10 +1017,10 @@ pub fn create_backup_route(
     db: State<'_, Database>,
     body: Ruma<create_backup::Request>,
 ) -> ConduitResult<create_backup::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let version = db
         .key_backups
-        .create_backup(&user_id, &body.algorithm, &db.globals)?;
+        .create_backup(&sender_id, &body.algorithm, &db.globals)?;
 
     Ok(create_backup::Response { version }.into())
 }
@@ -1049,18 +1028,17 @@ pub fn create_backup_route(
 #[cfg_attr(
     feature = "conduit_bin",
     put(
-        "/_matrix/client/unstable/room_keys/version/<_version>",
+        "/_matrix/client/unstable/room_keys/version/<_>",
         data = "<body>"
     )
 )]
 pub fn update_backup_route(
     db: State<'_, Database>,
     body: Ruma<update_backup::Request>,
-    _version: String,
 ) -> ConduitResult<update_backup::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     db.key_backups
-        .update_backup(&user_id, &body.version, &body.algorithm, &db.globals)?;
+        .update_backup(&sender_id, &body.version, &body.algorithm, &db.globals)?;
 
     Ok(update_backup::Response.into())
 }
@@ -1073,11 +1051,11 @@ pub fn get_latest_backup_route(
     db: State<'_, Database>,
     body: Ruma<get_latest_backup::Request>,
 ) -> ConduitResult<get_latest_backup::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let (version, algorithm) =
         db.key_backups
-            .get_latest_backup(&user_id)?
+            .get_latest_backup(&sender_id)?
             .ok_or(Error::BadRequest(
                 ErrorKind::NotFound,
                 "Key backup does not exist.",
@@ -1085,8 +1063,8 @@ pub fn get_latest_backup_route(
 
     Ok(get_latest_backup::Response {
         algorithm,
-        count: (db.key_backups.count_keys(user_id, &version)? as u32).into(),
-        etag: db.key_backups.get_etag(user_id, &version)?,
+        count: (db.key_backups.count_keys(sender_id, &version)? as u32).into(),
+        etag: db.key_backups.get_etag(sender_id, &version)?,
         version,
     }
     .into())
@@ -1095,19 +1073,18 @@ pub fn get_latest_backup_route(
 #[cfg_attr(
     feature = "conduit_bin",
     get(
-        "/_matrix/client/unstable/room_keys/version/<_version>",
+        "/_matrix/client/unstable/room_keys/version/<_>",
         data = "<body>"
     )
 )]
 pub fn get_backup_route(
     db: State<'_, Database>,
     body: Ruma<get_backup::Request>,
-    _version: String,
 ) -> ConduitResult<get_backup::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let algorithm =
         db.key_backups
-            .get_backup(&user_id, &body.version)?
+            .get_backup(&sender_id, &body.version)?
             .ok_or(Error::BadRequest(
                 ErrorKind::NotFound,
                 "Key backup does not exist.",
@@ -1115,8 +1092,8 @@ pub fn get_backup_route(
 
     Ok(get_backup::Response {
         algorithm,
-        count: (db.key_backups.count_keys(user_id, &body.version)? as u32).into(),
-        etag: db.key_backups.get_etag(user_id, &body.version)?,
+        count: (db.key_backups.count_keys(sender_id, &body.version)? as u32).into(),
+        etag: db.key_backups.get_etag(sender_id, &body.version)?,
         version: body.version.clone(),
     }
     .into())
@@ -1131,12 +1108,12 @@ pub fn add_backup_keys_route(
     db: State<'_, Database>,
     body: Ruma<add_backup_keys::Request>,
 ) -> ConduitResult<add_backup_keys::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     for (room_id, room) in &body.rooms {
         for (session_id, key_data) in &room.sessions {
             db.key_backups.add_key(
-                &user_id,
+                &sender_id,
                 &body.version,
                 &room_id,
                 &session_id,
@@ -1147,8 +1124,8 @@ pub fn add_backup_keys_route(
     }
 
     Ok(add_backup_keys::Response {
-        count: (db.key_backups.count_keys(user_id, &body.version)? as u32).into(),
-        etag: db.key_backups.get_etag(user_id, &body.version)?,
+        count: (db.key_backups.count_keys(sender_id, &body.version)? as u32).into(),
+        etag: db.key_backups.get_etag(sender_id, &body.version)?,
     }
     .into())
 }
@@ -1161,23 +1138,22 @@ pub fn get_backup_keys_route(
     db: State<'_, Database>,
     body: Ruma<get_backup_keys::Request>,
 ) -> ConduitResult<get_backup_keys::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    let rooms = db.key_backups.get_all(&user_id, &body.version)?;
+    let rooms = db.key_backups.get_all(&sender_id, &body.version)?;
 
     Ok(get_backup_keys::Response { rooms }.into())
 }
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_room_id>/read_markers", data = "<body>")
+    post("/_matrix/client/r0/rooms/<_>/read_markers", data = "<body>")
 )]
 pub fn set_read_marker_route(
     db: State<'_, Database>,
     body: Ruma<set_read_marker::Request>,
-    _room_id: String,
 ) -> ConduitResult<set_read_marker::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let fully_read_event = ruma::events::fully_read::FullyReadEvent {
         content: ruma::events::fully_read::FullyReadEventContent {
@@ -1187,7 +1163,7 @@ pub fn set_read_marker_route(
     };
     db.account_data.update(
         Some(&body.room_id),
-        &user_id,
+        &sender_id,
         EventType::FullyRead,
         &fully_read_event,
         &db.globals,
@@ -1196,7 +1172,7 @@ pub fn set_read_marker_route(
     if let Some(event) = &body.read_receipt {
         db.rooms.edus.room_read_set(
             &body.room_id,
-            &user_id,
+            &sender_id,
             db.rooms.get_pdu_count(event)?.ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Event does not exist.",
@@ -1205,7 +1181,7 @@ pub fn set_read_marker_route(
 
         let mut user_receipts = BTreeMap::new();
         user_receipts.insert(
-            user_id.clone(),
+            sender_id.clone(),
             ruma::events::receipt::Receipt {
                 ts: Some(SystemTime::now()),
             },
@@ -1219,7 +1195,7 @@ pub fn set_read_marker_route(
         );
 
         db.rooms.edus.roomlatest_update(
-            &user_id,
+            &sender_id,
             &body.room_id,
             AnyEvent::Ephemeral(AnyEphemeralRoomEvent::Receipt(
                 ruma::events::receipt::ReceiptEvent {
@@ -1236,21 +1212,19 @@ pub fn set_read_marker_route(
 #[cfg_attr(
     feature = "conduit_bin",
     put(
-        "/_matrix/client/r0/rooms/<_room_id>/typing/<_user_id>",
+        "/_matrix/client/r0/rooms/<_>/typing/<_>",
         data = "<body>"
     )
 )]
 pub fn create_typing_event_route(
     db: State<'_, Database>,
     body: Ruma<create_typing_event::Request>,
-    _room_id: String,
-    _user_id: String,
 ) -> ConduitResult<create_typing_event::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     if body.typing {
         db.rooms.edus.roomactive_add(
-            &user_id,
+            &sender_id,
             &body.room_id,
             body.timeout.map(|d| d.as_millis() as u64).unwrap_or(30000)
                 + utils::millis_since_unix_epoch(),
@@ -1259,7 +1233,7 @@ pub fn create_typing_event_route(
     } else {
         db.rooms
             .edus
-            .roomactive_remove(&user_id, &body.room_id, &db.globals)?;
+            .roomactive_remove(&sender_id, &body.room_id, &db.globals)?;
     }
 
     Ok(create_typing_event::Response.into())
@@ -1273,7 +1247,7 @@ pub fn create_room_route(
     db: State<'_, Database>,
     body: Ruma<create_room::Request>,
 ) -> ConduitResult<create_room::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let room_id = RoomId::new(db.globals.server_name());
 
@@ -1296,7 +1270,7 @@ pub fn create_room_route(
             }
         })?;
 
-    let mut content = ruma::events::room::create::CreateEventContent::new(user_id.clone());
+    let mut content = ruma::events::room::create::CreateEventContent::new(sender_id.clone());
     content.federate = body.creation_content.as_ref().map_or(true, |c| c.federate);
     content.predecessor = body
         .creation_content
@@ -1307,7 +1281,7 @@ pub fn create_room_route(
     // 1. The room create event
     db.rooms.append_pdu(
         room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         EventType::RoomCreate,
         serde_json::to_value(content).expect("event is valid, we just created it"),
         None,
@@ -1319,18 +1293,18 @@ pub fn create_room_route(
     // 2. Let the room creator join
     db.rooms.append_pdu(
         room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         EventType::RoomMember,
         serde_json::to_value(member::MemberEventContent {
             membership: member::MembershipState::Join,
-            displayname: db.users.displayname(&user_id)?,
-            avatar_url: db.users.avatar_url(&user_id)?,
+            displayname: db.users.displayname(&sender_id)?,
+            avatar_url: db.users.avatar_url(&sender_id)?,
             is_direct: body.is_direct,
             third_party_invite: None,
         })
         .expect("event is valid, we just created it"),
         None,
-        Some(user_id.to_string()),
+        Some(sender_id.to_string()),
         None,
         &db.globals,
     )?;
@@ -1344,9 +1318,9 @@ pub fn create_room_route(
 
     // 3. Power levels
     let mut users = BTreeMap::new();
-    users.insert(user_id.clone(), 100.into());
-    for invite_user_id in &body.invite {
-        users.insert(invite_user_id.clone(), 100.into());
+    users.insert(sender_id.clone(), 100.into());
+    for invite_ in &body.invite {
+        users.insert(invite_.clone(), 100.into());
     }
 
     let power_levels_content = if let Some(power_levels) = &body.power_level_content_override {
@@ -1372,7 +1346,7 @@ pub fn create_room_route(
     };
     db.rooms.append_pdu(
         room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         EventType::RoomPowerLevels,
         power_levels_content,
         None,
@@ -1385,7 +1359,7 @@ pub fn create_room_route(
     // 4.1 Join Rules
     db.rooms.append_pdu(
         room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         EventType::RoomJoinRules,
         match preset {
             create_room::RoomPreset::PublicChat => serde_json::to_value(
@@ -1407,7 +1381,7 @@ pub fn create_room_route(
     // 4.2 History Visibility
     db.rooms.append_pdu(
         room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         EventType::RoomHistoryVisibility,
         serde_json::to_value(history_visibility::HistoryVisibilityEventContent::new(
             history_visibility::HistoryVisibility::Shared,
@@ -1422,7 +1396,7 @@ pub fn create_room_route(
     // 4.3 Guest Access
     db.rooms.append_pdu(
         room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         EventType::RoomGuestAccess,
         match preset {
             create_room::RoomPreset::PublicChat => serde_json::to_value(
@@ -1454,7 +1428,7 @@ pub fn create_room_route(
 
         db.rooms.append_pdu(
             room_id.clone(),
-            user_id.clone(),
+            sender_id.clone(),
             event_type.clone(),
             serde_json::from_str(content.get()).map_err(|_| {
                 Error::BadRequest(ErrorKind::BadJson, "Invalid initial_state content.")
@@ -1470,7 +1444,7 @@ pub fn create_room_route(
     if let Some(name) = &body.name {
         db.rooms.append_pdu(
             room_id.clone(),
-            user_id.clone(),
+            sender_id.clone(),
             EventType::RoomName,
             serde_json::to_value(
                 name::NameEventContent::new(name.clone())
@@ -1487,7 +1461,7 @@ pub fn create_room_route(
     if let Some(topic) = &body.topic {
         db.rooms.append_pdu(
             room_id.clone(),
-            user_id.clone(),
+            sender_id.clone(),
             EventType::RoomTopic,
             serde_json::to_value(topic::TopicEventContent {
                 topic: topic.clone(),
@@ -1504,7 +1478,7 @@ pub fn create_room_route(
     for user in &body.invite {
         db.rooms.append_pdu(
             room_id.clone(),
-            user_id.clone(),
+            sender_id.clone(),
             EventType::RoomMember,
             serde_json::to_value(member::MemberEventContent {
                 membership: member::MembershipState::Invite,
@@ -1541,12 +1515,12 @@ pub fn joined_rooms_route(
     db: State<'_, Database>,
     body: Ruma<joined_rooms::Request>,
 ) -> ConduitResult<joined_rooms::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     Ok(joined_rooms::Response {
         joined_rooms: db
             .rooms
-            .rooms_joined(&user_id)
+            .rooms_joined(&sender_id)
             .filter_map(|r| r.ok())
             .collect(),
     }
@@ -1556,22 +1530,19 @@ pub fn joined_rooms_route(
 #[cfg_attr(
     feature = "conduit_bin",
     put(
-        "/_matrix/client/r0/rooms/<_room_id>/redact/<_event_id>/<_txn_id>",
+        "/_matrix/client/r0/rooms/<_>/redact/<_>/<_>",
         data = "<body>"
     )
 )]
 pub fn redact_event_route(
     db: State<'_, Database>,
     body: Ruma<redact_event::Request>,
-    _room_id: String,
-    _event_id: String,
-    _txn_id: String,
 ) -> ConduitResult<redact_event::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let event_id = db.rooms.append_pdu(
         body.room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         EventType::RoomRedaction,
         serde_json::to_value(redaction::RedactionEventContent {
             reason: body.reason.clone(),
@@ -1588,12 +1559,11 @@ pub fn redact_event_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    put("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")
+    put("/_matrix/client/r0/directory/room/<_>", data = "<body>")
 )]
 pub fn create_alias_route(
     db: State<'_, Database>,
     body: Ruma<create_alias::Request>,
-    _room_alias: String,
 ) -> ConduitResult<create_alias::Response> {
     if db.rooms.id_from_alias(&body.room_alias)?.is_some() {
         return Err(Error::Conflict("Alias already exists."));
@@ -1607,12 +1577,11 @@ pub fn create_alias_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    delete("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")
+    delete("/_matrix/client/r0/directory/room/<_>", data = "<body>")
 )]
 pub fn delete_alias_route(
     db: State<'_, Database>,
     body: Ruma<delete_alias::Request>,
-    _room_alias: String,
 ) -> ConduitResult<delete_alias::Response> {
     db.rooms.set_alias(&body.room_alias, None, &db.globals)?;
 
@@ -1621,12 +1590,11 @@ pub fn delete_alias_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/directory/room/<_room_alias>", data = "<body>")
+    get("/_matrix/client/r0/directory/room/<_>", data = "<body>")
 )]
 pub fn get_alias_route(
     db: State<'_, Database>,
     body: Ruma<get_alias::Request>,
-    _room_alias: String,
 ) -> ConduitResult<get_alias::Response> {
     if body.room_alias.server_name() != db.globals.server_name() {
         todo!("ask remote server");
@@ -1649,32 +1617,31 @@ pub fn get_alias_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_room_id>/join", data = "<body>")
+    post("/_matrix/client/r0/rooms/<_>/join", data = "<body>")
 )]
 pub fn join_room_by_id_route(
     db: State<'_, Database>,
     body: Ruma<join_room_by_id::Request>,
-    _room_id: String,
 ) -> ConduitResult<join_room_by_id::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     // TODO: Ask a remote server if we don't have this room
 
     let event = member::MemberEventContent {
         membership: member::MembershipState::Join,
-        displayname: db.users.displayname(&user_id)?,
-        avatar_url: db.users.avatar_url(&user_id)?,
+        displayname: db.users.displayname(&sender_id)?,
+        avatar_url: db.users.avatar_url(&sender_id)?,
         is_direct: None,
         third_party_invite: None,
     };
 
     db.rooms.append_pdu(
         body.room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         EventType::RoomMember,
         serde_json::to_value(event).expect("event is valid, we just created it"),
         None,
-        Some(user_id.to_string()),
+        Some(sender_id.to_string()),
         None,
         &db.globals,
     )?;
@@ -1687,12 +1654,11 @@ pub fn join_room_by_id_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/join/<_room_id_or_alias>", data = "<body>")
+    post("/_matrix/client/r0/join/<_>", data = "<body>")
 )]
 pub fn join_room_by_id_or_alias_route(
     db: State<'_, Database>,
     body: Ruma<join_room_by_id_or_alias::Request>,
-    _room_id_or_alias: String,
 ) -> ConduitResult<join_room_by_id_or_alias::Response> {
     let room_id = RoomId::try_from(body.room_id_or_alias.clone()).or_else(|alias| {
         Ok::<_, Error>(db.rooms.id_from_alias(&alias)?.ok_or(Error::BadRequest(
@@ -1702,7 +1668,7 @@ pub fn join_room_by_id_or_alias_route(
     })?;
 
     let body = Ruma {
-        user_id: body.user_id.clone(),
+        sender_id: body.sender_id.clone(),
         device_id: body.device_id.clone(),
         json_body: None,
         body: join_room_by_id::Request {
@@ -1712,25 +1678,24 @@ pub fn join_room_by_id_or_alias_route(
     };
 
     Ok(join_room_by_id_or_alias::Response {
-        room_id: join_room_by_id_route(db, body, "".to_owned())?.0.room_id,
+        room_id: join_room_by_id_route(db, body)?.0.room_id,
     }
     .into())
 }
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_room_id>/leave", data = "<body>")
+    post("/_matrix/client/r0/rooms/<_>/leave", data = "<body>")
 )]
 pub fn leave_room_route(
     db: State<'_, Database>,
     body: Ruma<leave_room::Request>,
-    _room_id: String,
 ) -> ConduitResult<leave_room::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
         db.rooms
-            .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
+            .room_state_get(&body.room_id, &EventType::RoomMember, &sender_id.to_string())?
             .ok_or(Error::BadRequest(
                 ErrorKind::BadState,
                 "Cannot leave a room you are not a member of.",
@@ -1746,11 +1711,11 @@ pub fn leave_room_route(
 
     db.rooms.append_pdu(
         body.room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         EventType::RoomMember,
         serde_json::to_value(event).expect("event is valid, we just created it"),
         None,
-        Some(user_id.to_string()),
+        Some(sender_id.to_string()),
         None,
         &db.globals,
     )?;
@@ -1760,18 +1725,17 @@ pub fn leave_room_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_room_id>/kick", data = "<body>")
+    post("/_matrix/client/r0/rooms/<_>/kick", data = "<body>")
 )]
 pub fn kick_user_route(
     db: State<'_, Database>,
     body: Ruma<kick_user::Request>,
-    _room_id: String,
 ) -> ConduitResult<kick_user::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut event = serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
         db.rooms
-            .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
+            .room_state_get(&body.room_id, &EventType::RoomMember, &body.user_id.to_string())?
             .ok_or(Error::BadRequest(
                 ErrorKind::BadState,
                 "Cannot kick member that's not in the room.",
@@ -1779,7 +1743,7 @@ pub fn kick_user_route(
             .content
             .clone(),
     )
-    .map_err(|_| Error::bad_database("Invalid member event in database."))?
+    .expect("Raw::from_value always works")
     .deserialize()
     .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
@@ -1788,11 +1752,11 @@ pub fn kick_user_route(
 
     db.rooms.append_pdu(
         body.room_id.clone(),
-        user_id.clone(), // Sender
+        sender_id.clone(),
         EventType::RoomMember,
         serde_json::to_value(event).expect("event is valid, we just created it"),
         None,
-        Some(body.body.user_id.to_string()),
+        Some(body.user_id.to_string()),
         None,
         &db.globals,
     )?;
@@ -1802,16 +1766,15 @@ pub fn kick_user_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_room_id>/joined_members", data = "<body>")
+    get("/_matrix/client/r0/rooms/<_>/joined_members", data = "<body>")
 )]
 pub fn joined_members_route(
     db: State<'_, Database>,
     body: Ruma<joined_members::Request>,
-    _room_id: String,
 ) -> ConduitResult<joined_members::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(&user_id, &body.room_id).unwrap_or(false) {
+    if !db.rooms.is_joined(&sender_id, &body.room_id).unwrap_or(false) {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You aren't a member of the room.",
@@ -1837,25 +1800,24 @@ pub fn joined_members_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_room_id>/ban", data = "<body>")
+    post("/_matrix/client/r0/rooms/<_>/ban", data = "<body>")
 )]
 pub fn ban_user_route(
     db: State<'_, Database>,
     body: Ruma<ban_user::Request>,
-    _room_id: String,
 ) -> ConduitResult<ban_user::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     // TODO: reason
 
     let event = db
         .rooms
-        .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
+        .room_state_get(&body.room_id, &EventType::RoomMember, &body.user_id.to_string())?
         .map_or(
             Ok::<_, Error>(member::MemberEventContent {
                 membership: member::MembershipState::Ban,
-                displayname: db.users.displayname(&user_id)?,
-                avatar_url: db.users.avatar_url(&user_id)?,
+                displayname: db.users.displayname(&body.user_id)?,
+                avatar_url: db.users.avatar_url(&body.user_id)?,
                 is_direct: None,
                 third_party_invite: None,
             }),
@@ -1863,7 +1825,7 @@ pub fn ban_user_route(
                 let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
                     event.content.clone(),
                 )
-                .map_err(|_| Error::bad_database("Invalid member event in database."))?
+                .expect("Raw::from_value always works")
                 .deserialize()
                 .map_err(|_| Error::bad_database("Invalid member event in database."))?;
                 event.membership = ruma::events::room::member::MembershipState::Ban;
@@ -1873,11 +1835,11 @@ pub fn ban_user_route(
 
     db.rooms.append_pdu(
         body.room_id.clone(),
-        user_id.clone(), // Sender
+        sender_id.clone(),
         EventType::RoomMember,
         serde_json::to_value(event).expect("event is valid, we just created it"),
         None,
-        Some(body.body.user_id.to_string()),
+        Some(body.user_id.to_string()),
         None,
         &db.globals,
     )?;
@@ -1887,18 +1849,17 @@ pub fn ban_user_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_room_id>/unban", data = "<body>")
+    post("/_matrix/client/r0/rooms/<_>/unban", data = "<body>")
 )]
 pub fn unban_user_route(
     db: State<'_, Database>,
     body: Ruma<unban_user::Request>,
-    _room_id: String,
 ) -> ConduitResult<unban_user::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut event = serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
         db.rooms
-            .room_state_get(&body.room_id, &EventType::RoomMember, &user_id.to_string())?
+            .room_state_get(&body.room_id, &EventType::RoomMember, &body.user_id.to_string())?
             .ok_or(Error::BadRequest(
                 ErrorKind::BadState,
                 "Cannot unban a user who is not banned.",
@@ -1914,11 +1875,11 @@ pub fn unban_user_route(
 
     db.rooms.append_pdu(
         body.room_id.clone(),
-        user_id.clone(), // Sender
+        sender_id.clone(),
         EventType::RoomMember,
         serde_json::to_value(event).expect("event is valid, we just created it"),
         None,
-        Some(body.body.user_id.to_string()),
+        Some(body.user_id.to_string()),
         None,
         &db.globals,
     )?;
@@ -1928,33 +1889,33 @@ pub fn unban_user_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_room_id>/forget", data = "<body>")
+    post("/_matrix/client/r0/rooms/<_>/forget", data = "<body>")
 )]
 pub fn forget_room_route(
     db: State<'_, Database>,
     body: Ruma<forget_room::Request>,
-    _room_id: String,
 ) -> ConduitResult<forget_room::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    db.rooms.forget(&body.room_id, &user_id)?;
+    db.rooms.forget(&body.room_id, &sender_id)?;
 
     Ok(forget_room::Response.into())
 }
 
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_room_id>/invite", data = "<body>")
+    post("/_matrix/client/r0/rooms/<_>/invite", data = "<body>")
 )]
 pub fn invite_user_route(
     db: State<'_, Database>,
     body: Ruma<invite_user::Request>,
-    _room_id: String,
 ) -> ConduitResult<invite_user::Response> {
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+
     if let invite_user::InvitationRecipient::UserId { user_id } = &body.recipient {
         db.rooms.append_pdu(
             body.room_id.clone(),
-            body.user_id.clone().expect("user is authenticated"),
+            sender_id.clone(),
             EventType::RoomMember,
             serde_json::to_value(member::MemberEventContent {
                 membership: member::MembershipState::Invite,
@@ -1978,12 +1939,11 @@ pub fn invite_user_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    put("/_matrix/client/r0/directory/list/room/<_room_id>", data = "<body>")
+    put("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
 )]
 pub async fn set_room_visibility_route(
     db: State<'_, Database>,
     body: Ruma<set_room_visibility::Request>,
-    _room_id: String,
 ) -> ConduitResult<set_room_visibility::Response> {
     match body.visibility {
         room::Visibility::Public => db.rooms.set_public(&body.room_id, true)?,
@@ -1995,12 +1955,11 @@ pub async fn set_room_visibility_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/directory/list/room/<_room_id>", data = "<body>")
+    get("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
 )]
 pub async fn get_room_visibility_route(
     db: State<'_, Database>,
     body: Ruma<get_room_visibility::Request>,
-    _room_id: String,
 ) -> ConduitResult<get_room_visibility::Response> {
     Ok(get_room_visibility::Response {
         visibility: if db.rooms.is_public_room(&body.room_id)? {
@@ -2027,7 +1986,7 @@ pub async fn get_public_rooms_route(
                 server,
                 since,
             },
-        user_id,
+        sender_id,
         device_id,
         json_body,
     } = body;
@@ -2047,7 +2006,7 @@ pub async fn get_public_rooms_route(
                 server,
                 since,
             },
-            user_id,
+            sender_id,
             device_id,
             json_body,
         },
@@ -2224,16 +2183,15 @@ pub fn search_users_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_room_id>/members", data = "<body>")
+    get("/_matrix/client/r0/rooms/<_>/members", data = "<body>")
 )]
 pub fn get_member_events_route(
     db: State<'_, Database>,
     body: Ruma<get_member_events::Request>,
-    _room_id: String,
 ) -> ConduitResult<get_member_events::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_id, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view this room.",
@@ -2266,19 +2224,17 @@ pub fn get_protocols_route() -> ConduitResult<get_protocols::Response> {
 #[cfg_attr(
     feature = "conduit_bin",
     get(
-        "/_matrix/client/r0/rooms/<_room_id>/event/<_event_id>",
+        "/_matrix/client/r0/rooms/<_>/event/<_>",
         data = "<body>"
     )
 )]
 pub fn get_room_event_route(
     db: State<'_, Database>,
     body: Ruma<get_room_event::Request>,
-    _room_id: String,
-    _event_id: String,
 ) -> ConduitResult<get_room_event::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_id, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view this room.",
@@ -2298,25 +2254,22 @@ pub fn get_room_event_route(
 #[cfg_attr(
     feature = "conduit_bin",
     put(
-        "/_matrix/client/r0/rooms/<_room_id>/send/<_event_type>/<_txn_id>",
+        "/_matrix/client/r0/rooms/<_>/send/<_>/<_>",
         data = "<body>"
     )
 )]
 pub fn create_message_event_route(
     db: State<'_, Database>,
     body: Ruma<create_message_event::Request>,
-    _room_id: String,
-    _event_type: String,
-    _txn_id: String,
 ) -> ConduitResult<create_message_event::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut unsigned = serde_json::Map::new();
     unsigned.insert("transaction_id".to_owned(), body.txn_id.clone().into());
 
     let event_id = db.rooms.append_pdu(
         body.room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         body.event_type.clone(),
         serde_json::from_str(
             body.json_body
@@ -2336,18 +2289,15 @@ pub fn create_message_event_route(
 #[cfg_attr(
     feature = "conduit_bin",
     put(
-        "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
+        "/_matrix/client/r0/rooms/<_>/state/<_>/<_>",
         data = "<body>"
     )
 )]
 pub fn create_state_event_for_key_route(
     db: State<'_, Database>,
     body: Ruma<create_state_event_for_key::Request>,
-    _room_id: String,
-    _event_type: String,
-    _state_key: String,
 ) -> ConduitResult<create_state_event_for_key::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let content = serde_json::from_str::<serde_json::Value>(
         body.json_body
@@ -2386,7 +2336,7 @@ pub fn create_state_event_for_key_route(
 
     let event_id = db.rooms.append_pdu(
         body.room_id.clone(),
-        user_id.clone(),
+        sender_id.clone(),
         body.event_type.clone(),
         content,
         None,
@@ -2401,15 +2351,13 @@ pub fn create_state_event_for_key_route(
 #[cfg_attr(
     feature = "conduit_bin",
     put(
-        "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
+        "/_matrix/client/r0/rooms/<_>/state/<_>",
         data = "<body>"
     )
 )]
 pub fn create_state_event_for_empty_key_route(
     db: State<'_, Database>,
     body: Ruma<create_state_event_for_empty_key::Request>,
-    _room_id: String,
-    _event_type: String,
 ) -> ConduitResult<create_state_event_for_empty_key::Response> {
     // This just calls create_state_event_for_key_route
     let Ruma {
@@ -2419,7 +2367,7 @@ pub fn create_state_event_for_empty_key_route(
                 event_type,
                 data,
             },
-        user_id,
+        sender_id,
         device_id,
         json_body,
     } = body;
@@ -2434,13 +2382,10 @@ pub fn create_state_event_for_empty_key_route(
                     data,
                     state_key: "".to_owned(),
                 },
-                user_id,
+                sender_id,
                 device_id,
                 json_body,
             },
-            _room_id,
-            _event_type,
-            "".to_owned(),
         )?
         .0
         .event_id,
@@ -2450,16 +2395,15 @@ pub fn create_state_event_for_empty_key_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_room_id>/state", data = "<body>")
+    get("/_matrix/client/r0/rooms/<_>/state", data = "<body>")
 )]
 pub fn get_state_events_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events::Request>,
-    _room_id: String,
 ) -> ConduitResult<get_state_events::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_id, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view the room state.",
@@ -2480,20 +2424,17 @@ pub fn get_state_events_route(
 #[cfg_attr(
     feature = "conduit_bin",
     get(
-        "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>/<_state_key>",
+        "/_matrix/client/r0/rooms/<_>/state/<_>/<_>",
         data = "<body>"
     )
 )]
 pub fn get_state_events_for_key_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events_for_key::Request>,
-    _room_id: String,
-    _event_type: String,
-    _state_key: String,
 ) -> ConduitResult<get_state_events_for_key::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_id, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view the room state.",
@@ -2518,19 +2459,17 @@ pub fn get_state_events_for_key_route(
 #[cfg_attr(
     feature = "conduit_bin",
     get(
-        "/_matrix/client/r0/rooms/<_room_id>/state/<_event_type>",
+        "/_matrix/client/r0/rooms/<_>/state/<_>",
         data = "<body>"
     )
 )]
 pub fn get_state_events_for_empty_key_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events_for_empty_key::Request>,
-    _room_id: String,
-    _event_type: String,
 ) -> ConduitResult<get_state_events_for_empty_key::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_id, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view the room state.",
@@ -2556,13 +2495,15 @@ pub fn get_state_events_for_empty_key_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/sync", data = "<body>")
 )]
-pub fn sync_route(
+pub async fn sync_events_route(
     db: State<'_, Database>,
     body: Ruma<sync_events::Request>,
 ) -> ConduitResult<sync_events::Response> {
-    std::thread::sleep(Duration::from_millis(1000));
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
+
+    // Setup watchers, so if there's no response, we can wait for them
+    let watcher = db.watch(sender_id, device_id);
 
     let next_batch = db.globals.current_count()?.to_string();
 
@@ -2573,12 +2514,12 @@ pub fn sync_route(
         .and_then(|string| string.parse().ok())
         .unwrap_or(0);
 
-    for room_id in db.rooms.rooms_joined(&user_id) {
+    for room_id in db.rooms.rooms_joined(&sender_id) {
         let room_id = room_id?;
 
         let mut pdus = db
             .rooms
-            .pdus_since(&user_id, &room_id, since)?
+            .pdus_since(&sender_id, &room_id, since)?
             .filter_map(|r| r.ok()) // Filter out buggy events
             .collect::<Vec<_>>();
 
@@ -2589,7 +2530,7 @@ pub fn sync_route(
             send_notification_counts = true;
             if pdu.kind == EventType::RoomMember {
                 send_member_count = true;
-                if !joined_since_last_sync && pdu.state_key == Some(user_id.to_string()) {
+                if !joined_since_last_sync && pdu.state_key == Some(sender_id.to_string()) {
                     let content = serde_json::from_value::<
                         Raw<ruma::events::room::member::MemberEventContent>,
                     >(pdu.content.clone())
@@ -2621,7 +2562,7 @@ pub fn sync_route(
 
                 for hero in db
                     .rooms
-                    .all_pdus(&user_id, &room_id)?
+                    .all_pdus(&sender_id, &room_id)?
                     .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
                     .filter(|pdu| pdu.kind == EventType::RoomMember)
                     .map(|pdu| {
@@ -2674,7 +2615,7 @@ pub fn sync_route(
                     // Filter for possible heroes
                     .filter_map(|u| u)
                 {
-                    if heroes.contains(&hero) || hero == user_id.to_string() {
+                    if heroes.contains(&hero) || hero == sender_id.to_string() {
                         continue;
                     }
 
@@ -2692,10 +2633,10 @@ pub fn sync_route(
         };
 
         let notification_count = if send_notification_counts {
-            if let Some(last_read) = db.rooms.edus.room_read_get(&room_id, &user_id)? {
+            if let Some(last_read) = db.rooms.edus.room_read_get(&room_id, &sender_id)? {
                 Some(
                     (db.rooms
-                        .pdus_since(&user_id, &room_id, last_read)?
+                        .pdus_since(&sender_id, &room_id, last_read)?
                         .filter_map(|pdu| pdu.ok()) // Filter out buggy events
                         .filter(|pdu| {
                             matches!(
@@ -2763,7 +2704,7 @@ pub fn sync_route(
             account_data: sync_events::AccountData {
                 events: db
                     .account_data
-                    .changes_since(Some(&room_id), &user_id, since)?
+                    .changes_since(Some(&room_id), &sender_id, since)?
                     .into_iter()
                     .filter_map(|(_, v)| {
                         serde_json::from_str(v.json().get())
@@ -2807,9 +2748,9 @@ pub fn sync_route(
     }
 
     let mut left_rooms = BTreeMap::new();
-    for room_id in db.rooms.rooms_left(&user_id) {
+    for room_id in db.rooms.rooms_left(&sender_id) {
         let room_id = room_id?;
-        let pdus = db.rooms.pdus_since(&user_id, &room_id, since)?;
+        let pdus = db.rooms.pdus_since(&sender_id, &room_id, since)?;
         let room_events = pdus
             .filter_map(|pdu| pdu.ok()) // Filter out buggy events
             .map(|pdu| pdu.to_sync_room_event())
@@ -2856,7 +2797,7 @@ pub fn sync_route(
     }
 
     let mut invited_rooms = BTreeMap::new();
-    for room_id in db.rooms.rooms_invited(&user_id) {
+    for room_id in db.rooms.rooms_invited(&sender_id) {
         let room_id = room_id?;
 
         let invited_room = sync_events::InvitedRoom {
@@ -2877,9 +2818,9 @@ pub fn sync_route(
 
     // Remove all to-device events the device received *last time*
     db.users
-        .remove_to_device_events(user_id, device_id, since)?;
+        .remove_to_device_events(sender_id, device_id, since)?;
 
-    Ok(sync_events::Response {
+    let response = sync_events::Response {
         next_batch,
         rooms: sync_events::Rooms {
             leave: left_rooms,
@@ -2909,7 +2850,7 @@ pub fn sync_route(
         account_data: sync_events::AccountData {
             events: db
                 .account_data
-                .changes_since(None, &user_id, since)?
+                .changes_since(None, &sender_id, since)?
                 .into_iter()
                 .filter_map(|(_, v)| {
                     serde_json::from_str(v.json().get())
@@ -2931,28 +2872,48 @@ pub fn sync_route(
         },
         device_one_time_keys_count: Default::default(), // TODO
         to_device: sync_events::ToDevice {
-            events: db.users.get_to_device_events(user_id, device_id)?,
+            events: db.users.get_to_device_events(sender_id, device_id)?,
         },
+    };
+
+    // TODO: Retry the endpoint instead of returning (waiting for #118)
+    if !body.full_state && response.rooms.is_empty()
+        && response.presence.is_empty()
+        && response.account_data.is_empty()
+        && response.device_lists.is_empty()
+        && response.device_one_time_keys_count.is_empty()
+        && response.to_device.is_empty()
+    {
+        // Hang a few seconds so requests are not spammed
+        // Stop hanging if new info arrives
+        let mut duration = body.timeout.unwrap_or(Duration::default());
+        if duration.as_secs() > 10 {
+            duration = Duration::from_secs(10);
+        }
+        let mut delay = tokio::time::delay_for(duration);
+        tokio::select! {
+            _ = &mut delay => {}
+            _ = watcher => {}
+        }
     }
-    .into())
+
+    Ok(response.into())
 }
 
 #[cfg_attr(
     feature = "conduit_bin",
     get(
-        "/_matrix/client/r0/rooms/<_room_id>/context/<_event_id>",
+        "/_matrix/client/r0/rooms/<_>/context/<_>",
         data = "<body>"
     )
 )]
 pub fn get_context_route(
     db: State<'_, Database>,
     body: Ruma<get_context::Request>,
-    _room_id: String,
-    _event_id: String,
 ) -> ConduitResult<get_context::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_id, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view this room.",
@@ -2975,7 +2936,7 @@ pub fn get_context_route(
 
     let events_before = db
         .rooms
-        .pdus_until(&user_id, &body.room_id, base_token)
+        .pdus_until(&sender_id, &body.room_id, base_token)
         .take(
             u32::try_from(body.limit).map_err(|_| {
                 Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
@@ -2985,14 +2946,7 @@ pub fn get_context_route(
         .filter_map(|r| r.ok()) // Remove buggy events
         .collect::<Vec<_>>();
 
-    let start_token = events_before.last().map_or(Ok(None), |(_, e)| {
-        Ok::<_, Error>(Some(
-            db.rooms
-                .get_pdu_count(&e.event_id)?
-                .ok_or_else(|| Error::bad_database("Can't find count from event in db."))?
-                .to_string(),
-        ))
-    })?;
+    let start_token = events_before.last().map(|(count, _)| count.to_string());
 
     let events_before = events_before
         .into_iter()
@@ -3001,7 +2955,7 @@ pub fn get_context_route(
 
     let events_after = db
         .rooms
-        .pdus_after(&user_id, &body.room_id, base_token)
+        .pdus_after(&sender_id, &body.room_id, base_token)
         .take(
             u32::try_from(body.limit).map_err(|_| {
                 Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
@@ -3011,15 +2965,7 @@ pub fn get_context_route(
         .filter_map(|r| r.ok()) // Remove buggy events
         .collect::<Vec<_>>();
 
-    let end_token = if let Some(last_event) = events_after.last() {
-        Some(
-            utils::u64_from_bytes(&last_event.0)
-                .map_err(|_| Error::bad_database("Invalid pdu id in db."))?
-                .to_string(),
-        )
-    } else {
-        None
-    };
+    let end_token = events_after.last().map(|(count, _)| count.to_string());
 
     let events_after = events_after
         .into_iter()
@@ -3044,16 +2990,15 @@ pub fn get_context_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_room_id>/messages", data = "<body>")
+    get("/_matrix/client/r0/rooms/<_>/messages", data = "<body>")
 )]
 pub fn get_message_events_route(
     db: State<'_, Database>,
     body: Ruma<get_message_events::Request>,
-    _room_id: String,
 ) -> ConduitResult<get_message_events::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(user_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_id, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view this room.",
@@ -3066,7 +3011,7 @@ pub fn get_message_events_route(
         .parse()
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from` value."))?;
 
-    let to = body.to.as_ref().map(|t| t.as_bytes());
+    let to = body.to.as_ref().map(|t| t.parse());
 
     // Use limit or else 10
     let limit = body
@@ -3078,21 +3023,13 @@ pub fn get_message_events_route(
         get_message_events::Direction::Forward => {
             let events_after = db
                 .rooms
-                .pdus_after(&user_id, &body.room_id, from)
+                .pdus_after(&sender_id, &body.room_id, from)
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
-                .take_while(|(k, _)| Some(&**k) != to) // Stop at `to`
+                .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
                 .collect::<Vec<_>>();
 
-            let end_token = if let Some(last_event) = events_after.last() {
-                Some(
-                    utils::u64_from_bytes(&last_event.0)
-                        .map_err(|_| Error::bad_database("Invalid pdu id in db."))?
-                        .to_string(),
-                )
-            } else {
-                None
-            };
+            let end_token = events_after.last().map(|(count, _)| count.to_string());
 
             let events_after = events_after
                 .into_iter()
@@ -3110,21 +3047,13 @@ pub fn get_message_events_route(
         get_message_events::Direction::Backward => {
             let events_before = db
                 .rooms
-                .pdus_until(&user_id, &body.room_id, from)
+                .pdus_until(&sender_id, &body.room_id, from)
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
-                .take_while(|(k, _)| Some(&**k) != to) // Stop at `to`
+                .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
                 .collect::<Vec<_>>();
 
-            let start_token = if let Some(last_event) = events_before.last() {
-                Some(
-                    utils::u64_from_bytes(&last_event.0)
-                        .map_err(|_| Error::bad_database("Invalid pdu id in db."))?
-                        .to_string(),
-                )
-            } else {
-                None
-            };
+            let start_token = events_before.last().map(|(count, _)| count.to_string());
 
             let events_before = events_before
                 .into_iter()
@@ -3161,24 +3090,22 @@ pub fn publicised_groups_route() -> ConduitResult<create_message_event::Response
 #[cfg_attr(
     feature = "conduit_bin",
     put(
-        "/_matrix/client/r0/sendToDevice/<_event_type>/<_txn_id>",
+        "/_matrix/client/r0/sendToDevice/<_>/<_>",
         data = "<body>"
     )
 )]
 pub fn send_event_to_device_route(
     db: State<'_, Database>,
     body: Ruma<send_event_to_device::Request>,
-    _event_type: String,
-    _txn_id: String,
 ) -> ConduitResult<send_event_to_device::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     for (target_user_id, map) in &body.messages {
         for (target_device_id_maybe, event) in map {
             match target_device_id_maybe {
                 to_device::DeviceIdOrAllDevices::DeviceId(target_device_id) => {
                     db.users.add_to_device_event(
-                        user_id,
+                        sender_id,
                         &target_user_id,
                         &target_device_id,
                         &body.event_type,
@@ -3192,7 +3119,7 @@ pub fn send_event_to_device_route(
                 to_device::DeviceIdOrAllDevices::AllDevices => {
                     for target_device_id in db.users.all_device_ids(&target_user_id) {
                         db.users.add_to_device_event(
-                            user_id,
+                            sender_id,
                             &target_user_id,
                             &target_device_id?,
                             &body.event_type,
@@ -3307,11 +3234,11 @@ pub fn get_devices_route(
     db: State<'_, Database>,
     body: Ruma<get_devices::Request>,
 ) -> ConduitResult<get_devices::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let devices = db
         .users
-        .all_devices_metadata(user_id)
+        .all_devices_metadata(sender_id)
         .filter_map(|r| r.ok()) // Filter out buggy devices
         .collect::<Vec<device::Device>>();
 
@@ -3327,11 +3254,11 @@ pub fn get_device_route(
     body: Ruma<get_device::Request>,
     _device_id: String,
 ) -> ConduitResult<get_device::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let device = db
         .users
-        .get_device_metadata(&user_id, &body.body.device_id)?
+        .get_device_metadata(&sender_id, &body.body.device_id)?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
 
     Ok(get_device::Response { device }.into())
@@ -3346,17 +3273,17 @@ pub fn update_device_route(
     body: Ruma<update_device::Request>,
     _device_id: String,
 ) -> ConduitResult<update_device::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut device = db
         .users
-        .get_device_metadata(&user_id, &body.body.device_id)?
+        .get_device_metadata(&sender_id, &body.body.device_id)?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
 
     device.display_name = body.display_name.clone();
 
     db.users
-        .update_device_metadata(&user_id, &body.body.device_id, &device)?;
+        .update_device_metadata(&sender_id, &body.body.device_id, &device)?;
 
     Ok(update_device::Response.into())
 }
@@ -3370,7 +3297,7 @@ pub fn delete_device_route(
     body: Ruma<delete_device::Request>,
     _device_id: String,
 ) -> ConduitResult<delete_device::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     // UIAA
@@ -3386,7 +3313,7 @@ pub fn delete_device_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &user_id,
+            &sender_id,
             &device_id,
             auth,
             &uiaainfo,
@@ -3399,11 +3326,11 @@ pub fn delete_device_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
+        db.uiaa.create(&sender_id, &device_id, &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
-    db.users.remove_device(&user_id, &body.body.device_id)?;
+    db.users.remove_device(&sender_id, &body.body.device_id)?;
 
     Ok(delete_device::Response.into())
 }
@@ -3416,7 +3343,7 @@ pub fn delete_devices_route(
     db: State<'_, Database>,
     body: Ruma<delete_devices::Request>,
 ) -> ConduitResult<delete_devices::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     // UIAA
@@ -3432,7 +3359,7 @@ pub fn delete_devices_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &user_id,
+            &sender_id,
             &device_id,
             auth,
             &uiaainfo,
@@ -3445,12 +3372,12 @@ pub fn delete_devices_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
+        db.uiaa.create(&sender_id, &device_id, &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
     for device_id in &body.devices {
-        db.users.remove_device(&user_id, &device_id)?
+        db.users.remove_device(&sender_id, &device_id)?
     }
 
     Ok(delete_devices::Response.into())
@@ -3464,7 +3391,7 @@ pub fn upload_signing_keys_route(
     db: State<'_, Database>,
     body: Ruma<upload_signing_keys::Request>,
 ) -> ConduitResult<upload_signing_keys::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
     // UIAA
@@ -3480,7 +3407,7 @@ pub fn upload_signing_keys_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &user_id,
+            &sender_id,
             &device_id,
             auth,
             &uiaainfo,
@@ -3493,13 +3420,13 @@ pub fn upload_signing_keys_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&user_id, &device_id, &uiaainfo)?;
+        db.uiaa.create(&sender_id, &device_id, &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
     if let Some(master_key) = &body.master_key {
         db.users.add_cross_signing_keys(
-            user_id,
+            sender_id,
             &master_key,
             &body.self_signing_key,
             &body.user_signing_key,
@@ -3518,7 +3445,7 @@ pub fn upload_signatures_route(
     db: State<'_, Database>,
     body: Ruma<upload_signatures::Request>,
 ) -> ConduitResult<upload_signatures::Response> {
-    let sender_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     for (user_id, signed_keys) in &body.signed_keys {
         for (key_id, signed_key) in signed_keys {
@@ -3581,22 +3508,19 @@ pub fn set_pushers_route() -> ConduitResult<get_pushers::Response> {
 #[cfg_attr(
     feature = "conduit_bin",
     put(
-        "/_matrix/client/r0/user/<_user_id>/rooms/<_room_id>/tags/<_tag>",
+        "/_matrix/client/r0/user/<_>/rooms/<_>/tags/<_>",
         data = "<body>"
     )
 )]
 pub fn update_tag_route(
     db: State<'_, Database>,
-    _user_id: String,
-    _room_id: String,
-    _tag: String,
     body: Ruma<create_tag::Request>,
 ) -> ConduitResult<create_tag::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
         .account_data
-        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), user_id, EventType::Tag)?
+        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_id, EventType::Tag)?
         .unwrap_or_else(|| ruma::events::tag::TagEvent {
             content: ruma::events::tag::TagEventContent {
                 tags: BTreeMap::new(),
@@ -3609,7 +3533,7 @@ pub fn update_tag_route(
 
     db.account_data.update(
         Some(&body.room_id),
-        user_id,
+        sender_id,
         EventType::Tag,
         &tags_event,
         &db.globals,
@@ -3621,22 +3545,19 @@ pub fn update_tag_route(
 #[cfg_attr(
     feature = "conduit_bin",
     delete(
-        "/_matrix/client/r0/user/<_user_id>/rooms/<_room_id>/tags/<_tag>",
+        "/_matrix/client/r0/user/<_>/rooms/<_>/tags/<_>",
         data = "<body>"
     )
 )]
 pub fn delete_tag_route(
     db: State<'_, Database>,
-    _user_id: String,
-    _room_id: String,
-    _tag: String,
     body: Ruma<delete_tag::Request>,
 ) -> ConduitResult<delete_tag::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
         .account_data
-        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), user_id, EventType::Tag)?
+        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_id, EventType::Tag)?
         .unwrap_or_else(|| ruma::events::tag::TagEvent {
             content: ruma::events::tag::TagEventContent {
                 tags: BTreeMap::new(),
@@ -3646,7 +3567,7 @@ pub fn delete_tag_route(
 
     db.account_data.update(
         Some(&body.room_id),
-        user_id,
+        sender_id,
         EventType::Tag,
         &tags_event,
         &db.globals,
@@ -3658,22 +3579,20 @@ pub fn delete_tag_route(
 #[cfg_attr(
     feature = "conduit_bin",
     get(
-        "/_matrix/client/r0/user/<_user_id>/rooms/<_room_id>/tags",
+        "/_matrix/client/r0/user/<_>/rooms/<_>/tags",
         data = "<body>"
     )
 )]
 pub fn get_tags_route(
     db: State<'_, Database>,
-    _user_id: String,
-    _room_id: String,
     body: Ruma<get_tags::Request>,
 ) -> ConduitResult<get_tags::Response> {
-    let user_id = body.user_id.as_ref().expect("user is authenticated");
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     Ok(get_tags::Response {
         tags: db
             .account_data
-            .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), user_id, EventType::Tag)?
+            .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_id, EventType::Tag)?
             .unwrap_or_else(|| ruma::events::tag::TagEvent {
                 content: ruma::events::tag::TagEventContent {
                     tags: BTreeMap::new(),
@@ -3686,9 +3605,8 @@ pub fn get_tags_route(
 }
 
 #[cfg(feature = "conduit_bin")]
-#[options("/<_segments..>")]
+#[options("/<_..>")]
 pub fn options_route(
-    _segments: rocket::http::uri::Segments<'_>,
 ) -> ConduitResult<send_event_to_device::Response> {
     Ok(send_event_to_device::Response.into())
 }

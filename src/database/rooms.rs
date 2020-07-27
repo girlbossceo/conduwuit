@@ -666,7 +666,7 @@ impl Rooms {
         user_id: &UserId,
         room_id: &RoomId,
         until: u64,
-    ) -> impl Iterator<Item = Result<(IVec, PduEvent)>> {
+    ) -> impl Iterator<Item = Result<(u64, PduEvent)>> {
         // Create the first part of the full pdu id
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
@@ -677,6 +677,7 @@ impl Rooms {
         let current: &[u8] = &current;
 
         let user_id = user_id.clone();
+        let prefixlen = prefix.len();
         self.pduid_pdu
             .range(..current)
             .rev()
@@ -688,7 +689,11 @@ impl Rooms {
                 if pdu.sender != user_id {
                     pdu.unsigned.remove("transaction_id");
                 }
-                Ok((k, pdu))
+                Ok((
+                    utils::u64_from_bytes(&k[prefixlen..])
+                        .map_err(|_| Error::bad_database("Invalid pdu id in db."))?,
+                    pdu,
+                ))
             })
     }
 
@@ -699,7 +704,7 @@ impl Rooms {
         user_id: &UserId,
         room_id: &RoomId,
         from: u64,
-    ) -> impl Iterator<Item = Result<(IVec, PduEvent)>> {
+    ) -> impl Iterator<Item = Result<(u64, PduEvent)>> {
         // Create the first part of the full pdu id
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
@@ -710,6 +715,7 @@ impl Rooms {
         let current: &[u8] = &current;
 
         let user_id = user_id.clone();
+        let prefixlen = prefix.len();
         self.pduid_pdu
             .range(current..)
             .filter_map(|r| r.ok())
@@ -720,7 +726,11 @@ impl Rooms {
                 if pdu.sender != user_id {
                     pdu.unsigned.remove("transaction_id");
                 }
-                Ok((k, pdu))
+                Ok((
+                    utils::u64_from_bytes(&k[prefixlen..])
+                        .map_err(|_| Error::bad_database("Invalid pdu id in db."))?,
+                    pdu,
+                ))
             })
     }
 
@@ -919,7 +929,7 @@ impl Rooms {
             })
     }
 
-    /// Returns an iterator over all left members of a room.
+    /// Returns an iterator over all rooms this user joined.
     pub fn rooms_joined(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
         self.userroomid_joined
             .scan_prefix(user_id.to_string())

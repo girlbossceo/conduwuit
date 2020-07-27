@@ -12,7 +12,9 @@ use directories::ProjectDirs;
 use log::info;
 use std::fs::remove_dir_all;
 
-use rocket::Config;
+use futures::StreamExt;
+use rocket::{futures, Config};
+use ruma::{DeviceId, UserId};
 
 pub struct Database {
     pub globals: globals::Globals,
@@ -123,5 +125,78 @@ impl Database {
             },
             _db: db,
         })
+    }
+
+    pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> () {
+        let mut userid_prefix = user_id.to_string().as_bytes().to_vec();
+        userid_prefix.push(0xff);
+        let mut userdeviceid_prefix = userid_prefix.clone();
+        userdeviceid_prefix.extend_from_slice(device_id.as_bytes());
+        userdeviceid_prefix.push(0xff);
+
+        let mut futures = futures::stream::FuturesUnordered::new();
+
+        futures.push(self.users.keychangeid_userid.watch_prefix(b""));
+
+        // Return when *any* user changed his key
+        // TODO: only send for user they share a room with
+        futures.push(
+            self.users
+                .todeviceid_events
+                .watch_prefix(&userdeviceid_prefix),
+        );
+
+        // TODO: only send for user they share a room with
+        futures.push(self.global_edus.presenceid_presence.watch_prefix(b""));
+
+        futures.push(self.rooms.userroomid_joined.watch_prefix(&userid_prefix));
+        futures.push(self.rooms.userroomid_invited.watch_prefix(&userid_prefix));
+        futures.push(self.rooms.userroomid_left.watch_prefix(&userid_prefix));
+
+        // Events for rooms we are in
+        for room_id in self.rooms.rooms_joined(user_id).filter_map(|r| r.ok()) {
+            let mut roomid_prefix = room_id.to_string().as_bytes().to_vec();
+            roomid_prefix.push(0xff);
+
+            // PDUs
+            futures.push(self.rooms.pduid_pdu.watch_prefix(&roomid_prefix));
+
+            // EDUs
+            futures.push(
+                self.rooms
+                    .edus
+                    .roomid_lastroomactiveupdate
+                    .watch_prefix(&roomid_prefix),
+            );
+
+            futures.push(
+                self.rooms
+                    .edus
+                    .roomlatestid_roomlatest
+                    .watch_prefix(&roomid_prefix),
+            );
+
+            // Room account data
+            let mut roomuser_prefix = roomid_prefix.clone();
+            roomuser_prefix.extend_from_slice(&userid_prefix);
+
+            futures.push(
+                self.account_data
+                    .roomuserdataid_accountdata
+                    .watch_prefix(&roomuser_prefix),
+            );
+        }
+
+        let mut globaluserdata_prefix = vec![0xff];
+        globaluserdata_prefix.extend_from_slice(&userid_prefix);
+
+        futures.push(
+            self.account_data
+                .roomuserdataid_accountdata
+                .watch_prefix(&globaluserdata_prefix),
+        );
+
+        // Wait until one of them finds something
+        futures.next().await;
     }
 }

@@ -13,7 +13,7 @@ use {
         http::Status,
         response::{self, Responder},
         tokio::io::AsyncReadExt,
-        Outcome::*,
+        outcome::Outcome::*,
         Request, State,
     },
     ruma::api::Endpoint,
@@ -24,7 +24,7 @@ use {
 /// first.
 pub struct Ruma<T> {
     pub body: T,
-    pub user_id: Option<UserId>,
+    pub sender_id: Option<UserId>,
     pub device_id: Option<Box<DeviceId>>,
     pub json_body: Option<Box<serde_json::value::RawValue>>, // This is None when body is not a valid string
 }
@@ -94,7 +94,7 @@ impl<'a, T: Endpoint> FromTransformedData<'a> for Ruma<T> {
             match T::try_from(http_request) {
                 Ok(t) => Success(Ruma {
                     body: t,
-                    user_id,
+                    sender_id: user_id,
                     device_id,
                     // TODO: Can we avoid parsing it again? (We only need this for append_pdu)
                     json_body: utils::string_from_bytes(&body)
