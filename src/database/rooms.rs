@@ -319,7 +319,12 @@ impl Rooms {
                 Some,
             );
 
+            // Is the event allowed?
             if !match event_type {
+                EventType::RoomEncryption => {
+                    // Don't allow encryption events when it's disabled
+                    !globals.encryption_disabled()
+                }
                 EventType::RoomMember => {
                     let target_user_id = UserId::try_from(&**state_key).map_err(|_| {
                         Error::BadRequest(

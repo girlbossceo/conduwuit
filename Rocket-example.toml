@@ -1,6 +1,7 @@
 [global]
 server_name = "your.server.name"
 #registration_disabled = true
+#encryption_disabled = true
 
 # Default path is in this user's data
 #database_path = "/home/timo/MyConduitServer"
@@ -8,6 +9,7 @@ server_name = "your.server.name"
 port = 14004
 address = "0.0.0.0"
 
+# Not necessary when using a reverse proxy
 #[global.tls]
 #certs = "/etc/letsencrypt/live/your.server.name/fullchain.pem"
 #key = "/etc/letsencrypt/live/your.server.name/privkey.pem"
