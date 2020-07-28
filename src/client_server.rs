@@ -622,17 +622,14 @@ pub fn get_global_account_data_route(
 
     let data = db
         .account_data
-        .get::<ruma::events::AnyBasicEvent>(
+        .get::<Raw<ruma::events::AnyBasicEvent>>(
             None,
             sender_id,
             EventType::try_from(&body.event_type).expect("EventType::try_from can never fail"),
         )?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
-    Ok(get_global_account_data::Response {
-        account_data: Raw::from(data),
-    }
-    .into())
+    Ok(get_global_account_data::Response { account_data: data }.into())
 }
 
 #[cfg_attr(
