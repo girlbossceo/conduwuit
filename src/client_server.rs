@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{hash_map, BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
     time::{Duration, SystemTime},
 };
@@ -645,7 +645,7 @@ pub fn set_displayname_route(
     db.users
         .set_displayname(&sender_id, body.displayname.clone())?;
 
-    // Send a new membership event into all joined rooms
+    // Send a new membership event and presence update into all joined rooms
     for room_id in db.rooms.rooms_joined(&sender_id) {
         let room_id = room_id?;
         db.rooms.append_pdu(
@@ -675,27 +675,29 @@ pub fn set_displayname_route(
             None,
             &db.globals,
         )?;
-    }
 
-    // Presence update
-    db.global_edus.update_presence(
-        ruma::events::presence::PresenceEvent {
-            content: ruma::events::presence::PresenceEventContent {
-                avatar_url: db.users.avatar_url(&sender_id)?,
-                currently_active: None,
-                displayname: db.users.displayname(&sender_id)?,
-                last_active_ago: Some(
-                    utils::millis_since_unix_epoch()
-                        .try_into()
-                        .expect("time is valid"),
-                ),
-                presence: ruma::presence::PresenceState::Online,
-                status_msg: None,
+        // Presence update
+        db.rooms.edus.update_presence(
+            &sender_id,
+            &room_id,
+            ruma::events::presence::PresenceEvent {
+                content: ruma::events::presence::PresenceEventContent {
+                    avatar_url: db.users.avatar_url(&sender_id)?,
+                    currently_active: None,
+                    displayname: db.users.displayname(&sender_id)?,
+                    last_active_ago: Some(
+                        utils::millis_since_unix_epoch()
+                            .try_into()
+                            .expect("time is valid"),
+                    ),
+                    presence: ruma::presence::PresenceState::Online,
+                    status_msg: None,
+                },
+                sender: sender_id.clone(),
             },
-            sender: sender_id.clone(),
-        },
-        &db.globals,
-    )?;
+            &db.globals,
+        )?;
+    }
 
     Ok(set_display_name::Response.into())
 }
@@ -739,7 +741,7 @@ pub fn set_avatar_url_route(
     db.users
         .set_avatar_url(&sender_id, body.avatar_url.clone())?;
 
-    // Send a new membership event into all joined rooms
+    // Send a new membership event and presence update into all joined rooms
     for room_id in db.rooms.rooms_joined(&sender_id) {
         let room_id = room_id?;
         db.rooms.append_pdu(
@@ -769,27 +771,29 @@ pub fn set_avatar_url_route(
             None,
             &db.globals,
         )?;
-    }
 
-    // Presence update
-    db.global_edus.update_presence(
-        ruma::events::presence::PresenceEvent {
-            content: ruma::events::presence::PresenceEventContent {
-                avatar_url: db.users.avatar_url(&sender_id)?,
-                currently_active: None,
-                displayname: db.users.displayname(&sender_id)?,
-                last_active_ago: Some(
-                    utils::millis_since_unix_epoch()
-                        .try_into()
-                        .expect("time is valid"),
-                ),
-                presence: ruma::presence::PresenceState::Online,
-                status_msg: None,
+        // Presence update
+        db.rooms.edus.update_presence(
+            &sender_id,
+            &room_id,
+            ruma::events::presence::PresenceEvent {
+                content: ruma::events::presence::PresenceEventContent {
+                    avatar_url: db.users.avatar_url(&sender_id)?,
+                    currently_active: None,
+                    displayname: db.users.displayname(&sender_id)?,
+                    last_active_ago: Some(
+                        utils::millis_since_unix_epoch()
+                            .try_into()
+                            .expect("time is valid"),
+                    ),
+                    presence: ruma::presence::PresenceState::Online,
+                    status_msg: None,
+                },
+                sender: sender_id.clone(),
             },
-            sender: sender_id.clone(),
-        },
-        &db.globals,
-    )?;
+            &db.globals,
+        )?;
+    }
 
     Ok(set_avatar_url::Response.into())
 }
@@ -844,24 +848,30 @@ pub fn set_presence_route(
 ) -> ConduitResult<set_presence::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    db.global_edus.update_presence(
-        ruma::events::presence::PresenceEvent {
-            content: ruma::events::presence::PresenceEventContent {
-                avatar_url: db.users.avatar_url(&sender_id)?,
-                currently_active: None,
-                displayname: db.users.displayname(&sender_id)?,
-                last_active_ago: Some(
-                    utils::millis_since_unix_epoch()
-                        .try_into()
-                        .expect("time is valid"),
-                ),
-                presence: body.presence,
-                status_msg: body.status_msg.clone(),
+    for room_id in db.rooms.rooms_joined(&sender_id) {
+        let room_id = room_id?;
+
+        db.rooms.edus.update_presence(
+            &sender_id,
+            &room_id,
+            ruma::events::presence::PresenceEvent {
+                content: ruma::events::presence::PresenceEventContent {
+                    avatar_url: db.users.avatar_url(&sender_id)?,
+                    currently_active: None,
+                    displayname: db.users.displayname(&sender_id)?,
+                    last_active_ago: Some(
+                        utils::millis_since_unix_epoch()
+                            .try_into()
+                            .expect("time is valid"),
+                    ),
+                    presence: body.presence,
+                    status_msg: body.status_msg.clone(),
+                },
+                sender: sender_id.clone(),
             },
-            sender: sender_id.clone(),
-        },
-        &db.globals,
-    )?;
+            &db.globals,
+        )?;
+    }
 
     Ok(set_presence::Response.into())
 }
@@ -2492,6 +2502,9 @@ pub async fn sync_events_route(
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
 
+    // TODO: match body.set_presence {
+    db.rooms.edus.ping_presence(&sender_id)?;
+
     // Setup watchers, so if there's no response, we can wait for them
     let watcher = db.watch(sender_id, device_id);
 
@@ -2503,6 +2516,8 @@ pub async fn sync_events_route(
         .clone()
         .and_then(|string| string.parse().ok())
         .unwrap_or(0);
+
+    let mut presence_updates = HashMap::new();
 
     for room_id in db.rooms.rooms_joined(&sender_id) {
         let room_id = room_id?;
@@ -2735,6 +2750,40 @@ pub async fn sync_events_route(
         if !joined_room.is_empty() {
             joined_rooms.insert(room_id.clone(), joined_room);
         }
+
+        // Take presence updates from this room
+        for (user_id, presence) in
+            db.rooms
+                .edus
+                .presence_since(&room_id, since, &db.rooms, &db.globals)?
+        {
+            match presence_updates.entry(user_id) {
+                hash_map::Entry::Vacant(v) => {
+                    v.insert(presence);
+                }
+                hash_map::Entry::Occupied(mut o) => {
+                    let p = o.get_mut();
+
+                    // Update existing presence event with more info
+                    p.content.presence = presence.content.presence;
+                    if let Some(status_msg) = presence.content.status_msg {
+                        p.content.status_msg = Some(status_msg);
+                    }
+                    if let Some(last_active_ago) = presence.content.last_active_ago {
+                        p.content.last_active_ago = Some(last_active_ago);
+                    }
+                    if let Some(displayname) = presence.content.displayname {
+                        p.content.displayname = Some(displayname);
+                    }
+                    if let Some(avatar_url) = presence.content.avatar_url {
+                        p.content.avatar_url = Some(avatar_url);
+                    }
+                    if let Some(currently_active) = presence.content.currently_active {
+                        p.content.currently_active = Some(currently_active);
+                    }
+                }
+            }
+        }
     }
 
     let mut left_rooms = BTreeMap::new();
@@ -2818,23 +2867,9 @@ pub async fn sync_events_route(
             invite: invited_rooms,
         },
         presence: sync_events::Presence {
-            events: db
-                .global_edus
-                .presence_since(since)?
-                .map(|edu| {
-                    let mut edu = edu?
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("EDU in database is invalid."))?;
-                    if let Some(timestamp) = edu.content.last_active_ago {
-                        let mut last_active_ago = utils::millis_since_unix_epoch()
-                            .try_into()
-                            .expect("time is valid");
-                        last_active_ago -= timestamp;
-                        edu.content.last_active_ago = Some(last_active_ago);
-                    }
-                    Ok::<_, Error>(edu.into())
-                })
-                .filter_map(|edu| edu.ok()) // Filter out buggy events
+            events: presence_updates
+                .into_iter()
+                .map(|(_, v)| Raw::from(v))
                 .collect(),
         },
         account_data: sync_events::AccountData {
@@ -2878,8 +2913,8 @@ pub async fn sync_events_route(
         // Hang a few seconds so requests are not spammed
         // Stop hanging if new info arrives
         let mut duration = body.timeout.unwrap_or(Duration::default());
-        if duration.as_secs() > 10 {
-            duration = Duration::from_secs(10);
+        if duration.as_secs() > 30 {
+            duration = Duration::from_secs(30);
         }
         let mut delay = tokio::time::delay_for(duration);
         tokio::select! {

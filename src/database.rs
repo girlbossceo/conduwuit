@@ -1,5 +1,4 @@
 pub(self) mod account_data;
-pub(self) mod global_edus;
 pub(self) mod globals;
 pub(self) mod key_backups;
 pub(self) mod media;
@@ -22,7 +21,6 @@ pub struct Database {
     pub uiaa: uiaa::Uiaa,
     pub rooms: rooms::Rooms,
     pub account_data: account_data::AccountData,
-    pub global_edus: global_edus::GlobalEdus,
     pub media: media::Media,
     pub key_backups: key_backups::KeyBackups,
     pub _db: sled::Db,
@@ -93,6 +91,8 @@ impl Database {
                     roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest")?, // Read receipts
                     roomactiveid_userid: db.open_tree("roomactiveid_userid")?, // Typing notifs
                     roomid_lastroomactiveupdate: db.open_tree("roomid_lastroomactiveupdate")?,
+                    presenceid_presence: db.open_tree("presenceid_presence")?,
+                    userid_lastpresenceupdate: db.open_tree("userid_lastpresenceupdate")?,
                 },
                 pduid_pdu: db.open_tree("pduid_pdu")?,
                 eventid_pduid: db.open_tree("eventid_pduid")?,
@@ -111,9 +111,6 @@ impl Database {
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: db.open_tree("roomuserdataid_accountdata")?,
-            },
-            global_edus: global_edus::GlobalEdus {
-                presenceid_presence: db.open_tree("presenceid_presence")?, // Presence
             },
             media: media::Media {
                 mediaid_file: db.open_tree("mediaid_file")?,
@@ -145,9 +142,6 @@ impl Database {
                 .todeviceid_events
                 .watch_prefix(&userdeviceid_prefix),
         );
-
-        // TODO: only send for user they share a room with
-        futures.push(self.global_edus.presenceid_presence.watch_prefix(b""));
 
         futures.push(self.rooms.userroomid_joined.watch_prefix(&userid_prefix));
         futures.push(self.rooms.userroomid_invited.watch_prefix(&userid_prefix));

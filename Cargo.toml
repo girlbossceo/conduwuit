@@ -18,6 +18,7 @@ rocket = { git = "https://github.com/timokoesters/Rocket.git", branch = "empty_p
 
 tokio = "0.2.22" # Used for long polling
 ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"], rev = "d5d2d1d893fa12d27960e4c58d6c09b215d06e95" } # Used for matrix spec type definitions and helpers
+#ruma = { path = "../ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"] }
 sled = "0.32.0" # Used for storing data permanently
 log = "0.4.8" # Used for emitting log entries
 http = "0.2.1" # Used for rocket<->ruma conversions
