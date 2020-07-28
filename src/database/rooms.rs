@@ -2,7 +2,7 @@ mod edus;
 
 pub use edus::RoomEdus;
 
-use crate::{utils, Error, PduEvent, Result};
+use crate::{pdu::PduBuilder, utils, Error, PduEvent, Result};
 use log::error;
 use ruma::{
     api::client::error::ErrorKind,
@@ -250,18 +250,21 @@ impl Rooms {
     }
 
     /// Creates a new persisted data unit and adds it to a room.
-    #[allow(clippy::too_many_arguments, clippy::blocks_in_if_conditions)]
+    #[allow(clippy::blocks_in_if_conditions)]
     pub fn append_pdu(
         &self,
-        room_id: RoomId,
-        sender: UserId,
-        event_type: EventType,
-        content: serde_json::Value,
-        unsigned: Option<serde_json::Map<String, serde_json::Value>>,
-        state_key: Option<String>,
-        redacts: Option<EventId>,
+        pdu_builder: PduBuilder,
         globals: &super::globals::Globals,
     ) -> Result<EventId> {
+        let PduBuilder {
+            room_id,
+            sender,
+            event_type,
+            content,
+            unsigned,
+            state_key,
+            redacts,
+        } = pdu_builder;
         // TODO: Make sure this isn't called twice in parallel
         let prev_events = self.get_pdu_leaves(&room_id)?;
 
@@ -623,7 +626,7 @@ impl Rooms {
         let mut first_pdu_id = prefix.clone();
         first_pdu_id.extend_from_slice(&(since + 1).to_be_bytes());
 
-        let mut last_pdu_id = prefix.clone();
+        let mut last_pdu_id = prefix;
         last_pdu_id.extend_from_slice(&u64::MAX.to_be_bytes());
 
         let user_id = user_id.clone();
