@@ -4,7 +4,9 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::{utils, ConduitResult, Database, Error, Ruma};
+use crate::{
+    database::media::FileMeta, pdu::PduBuilder, utils, ConduitResult, Database, Error, Ruma,
+};
 use keys::{upload_signatures, upload_signing_keys};
 use log::warn;
 
@@ -3273,7 +3275,11 @@ pub fn get_content_route(
     _server_name: String,
     _media_id: String,
 ) -> ConduitResult<get_content::Response> {
-    if let Some((filename, content_type, file)) = db
+    if let Some(FileMeta {
+        filename,
+        content_type,
+        file,
+    }) = db
         .media
         .get(format!("mxc://{}/{}", body.server_name, body.media_id))?
     {
@@ -3301,7 +3307,9 @@ pub fn get_content_thumbnail_route(
     _server_name: String,
     _media_id: String,
 ) -> ConduitResult<get_content_thumbnail::Response> {
-    if let Some((_, content_type, file)) = db.media.get_thumbnail(
+    if let Some(FileMeta {
+        content_type, file, ..
+    }) = db.media.get_thumbnail(
         format!("mxc://{}/{}", body.server_name, body.media_id),
         body.width
             .try_into()

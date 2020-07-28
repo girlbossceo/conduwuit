@@ -1,7 +1,11 @@
 use crate::{utils, Error, Result};
 use std::mem;
 
-pub type FileMeta = (Option<String>, String, Vec<u8>);
+pub struct FileMeta {
+    pub filename: Option<String>,
+    pub content_type: String,
+    pub file: Vec<u8>,
+}
 
 pub struct Media {
     pub(super) mediaid_file: sled::Tree, // MediaId = MXC + WidthHeight + Filename + ContentType
@@ -61,7 +65,11 @@ impl Media {
                 })?)
             };
 
-            Ok(Some((filename, content_type, file.to_vec())))
+            Ok(Some(FileMeta {
+                filename,
+                content_type,
+                file: file.to_vec(),
+            }))
         } else {
             Ok(None)
         }
@@ -107,7 +115,11 @@ impl Media {
                 )
             };
 
-            Ok(Some((filename, content_type, file.to_vec())))
+            Ok(Some(FileMeta {
+                filename,
+                content_type,
+                file: file.to_vec(),
+            }))
         } else if let Some(r) = self.mediaid_file.scan_prefix(&original_prefix).next() {
             // Generate a thumbnail
             let (key, file) = r?;
@@ -154,7 +166,11 @@ impl Media {
 
                 self.mediaid_file.insert(thumbnail_key, &*thumbnail_bytes)?;
 
-                Ok(Some((filename, content_type, thumbnail_bytes)))
+                Ok(Some(FileMeta {
+                    filename,
+                    content_type,
+                    file: thumbnail_bytes.to_vec(),
+                }))
             } else {
                 Ok(None)
             }

@@ -6,7 +6,7 @@ pub mod push_rules;
 mod ruma_wrapper;
 mod utils;
 
-pub use database::Database;
+pub use database::{media::FileMeta, Database};
 pub use error::{Error, Result};
 pub use pdu::PduEvent;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};

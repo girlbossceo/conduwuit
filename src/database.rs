@@ -1,7 +1,7 @@
 pub(self) mod account_data;
 pub(self) mod globals;
 pub(self) mod key_backups;
-pub(self) mod media;
+pub(crate) mod media;
 pub(self) mod rooms;
 pub(self) mod uiaa;
 pub(self) mod users;
