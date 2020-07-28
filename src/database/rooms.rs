@@ -7,6 +7,7 @@ use log::error;
 use ruma::{
     api::client::error::ErrorKind,
     events::{
+        ignored_user_list,
         room::{
             join_rules, member,
             power_levels::{self, PowerLevelsEventContent},
@@ -255,6 +256,7 @@ impl Rooms {
         &self,
         pdu_builder: PduBuilder,
         globals: &super::globals::Globals,
+        account_data: &super::account_data::AccountData,
     ) -> Result<EventId> {
         let PduBuilder {
             room_id,
@@ -411,6 +413,43 @@ impl Rooms {
                                 || join_rules == join_rules::JoinRule::Public
                         }
                     } else if target_membership == member::MembershipState::Invite {
+                        // we want to know if the sender is ignored by the receiver
+                        let is_ignored = if let Ok(Some(ignored)) =
+                            account_data.get::<ignored_user_list::IgnoredUserListEventContent>(
+                                None,            // we cannot use the provided room_id it's the invite room
+                                &target_user_id, // receiver
+                                EventType::IgnoredUserList,
+                            ) {
+                            ignored.ignored_users.contains(&sender)
+                        } else {
+                            false
+                        };
+
+                        if is_ignored {
+                            let mut event =
+                                serde_json::from_value::<Raw<member::MemberEventContent>>(content)
+                                    .expect("from_value::<Raw<..>> cannot fail")
+                                    .deserialize()
+                                    .map_err(|_| {
+                                        Error::bad_database("Invalid member event in database.")
+                                    })?;
+
+                            event.membership = member::MembershipState::Leave;
+
+                            return self.append_pdu(
+                                room_id,
+                                target_user_id.clone(),
+                                EventType::RoomMember,
+                                serde_json::to_value(event)
+                                    .expect("event is valid, we just created it"),
+                                None,
+                                Some(target_user_id.to_string()),
+                                None,
+                                globals,
+                                account_data,
+                            );
+                        }
+
                         if let Some(third_party_invite_json) = content.get("third_party_invite") {
                             if current_membership == member::MembershipState::Ban {
                                 false
