@@ -890,7 +890,7 @@ pub fn upload_keys_route(
     if let Some(one_time_keys) = &body.one_time_keys {
         for (key_key, key_value) in one_time_keys {
             db.users
-                .add_one_time_key(sender_id, device_id, key_key, key_value)?;
+                .add_one_time_key(sender_id, device_id, key_key, key_value, &db.globals)?;
         }
     }
 
@@ -1002,7 +1002,7 @@ pub fn claim_keys_route(
         for (device_id, key_algorithm) in map {
             if let Some(one_time_keys) =
                 db.users
-                    .take_one_time_key(user_id, device_id, key_algorithm)?
+                    .take_one_time_key(user_id, device_id, key_algorithm, &db.globals)?
             {
                 let mut c = BTreeMap::new();
                 c.insert(one_time_keys.0, one_time_keys.1);
@@ -2912,7 +2912,11 @@ pub async fn sync_events_route(
             changed: device_list_updates.into_iter().collect(),
             left: Vec::new(), // TODO
         },
-        device_one_time_keys_count: Default::default(), // TODO
+        device_one_time_keys_count: if db.users.last_one_time_keys_update(sender_id)? > since {
+            db.users.count_one_time_keys(sender_id, device_id)?
+        } else {
+            BTreeMap::new()
+        },
         to_device: sync_events::ToDevice {
             events: db.users.get_to_device_events(sender_id, device_id)?,
         },

@@ -22,6 +22,7 @@ pub struct Users {
     pub(super) token_userdeviceid: sled::Tree,
 
     pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + AlgorithmAndDeviceId
+    pub(super) userid_lastonetimekeyupdate: sled::Tree, // LastOneTimeKeyUpdate = Count
     pub(super) keychangeid_userid: sled::Tree,       // KeyChangeId = RoomId + Count
     pub(super) keyid_key: sled::Tree,                // KeyId = UserId + KeyId (depends on key type)
     pub(super) userid_masterkeyid: sled::Tree,
@@ -270,6 +271,7 @@ impl Users {
         device_id: &DeviceId,
         one_time_key_key: &AlgorithmAndDeviceId,
         one_time_key_value: &OneTimeKey,
+        globals: &super::globals::Globals,
     ) -> Result<()> {
         let mut key = user_id.to_string().as_bytes().to_vec();
         key.push(0xff);
@@ -294,7 +296,24 @@ impl Users {
                 .expect("OneTimeKey::to_string always works"),
         )?;
 
+        self.userid_lastonetimekeyupdate.insert(
+            &user_id.to_string().as_bytes(),
+            &globals.next_count()?.to_be_bytes(),
+        )?;
+
         Ok(())
+    }
+
+    pub fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
+        self
+            .userid_lastonetimekeyupdate
+            .get(&user_id.to_string().as_bytes())?
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("Count in roomid_lastroomactiveupdate is invalid.")
+                })
+            })
+            .unwrap_or(Ok(0))
     }
 
     pub fn take_one_time_key(
@@ -302,6 +321,7 @@ impl Users {
         user_id: &UserId,
         device_id: &DeviceId,
         key_algorithm: &KeyAlgorithm,
+        globals: &super::globals::Globals,
     ) -> Result<Option<(AlgorithmAndDeviceId, OneTimeKey)>> {
         let mut prefix = user_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
@@ -310,6 +330,11 @@ impl Users {
         prefix.push(b'"'); // Annoying quotation mark
         prefix.extend_from_slice(key_algorithm.to_string().as_bytes());
         prefix.push(b':');
+
+        self.userid_lastonetimekeyupdate.insert(
+            &user_id.to_string().as_bytes(),
+            &globals.next_count()?.to_be_bytes(),
+        )?;
 
         self.onetimekeyid_onetimekeys
             .scan_prefix(&prefix)

@@ -75,6 +75,7 @@ impl Database {
                 userdeviceid_metadata: db.open_tree("userdeviceid_metadata")?,
                 token_userdeviceid: db.open_tree("token_userdeviceid")?,
                 onetimekeyid_onetimekeys: db.open_tree("onetimekeyid_onetimekeys")?,
+                userid_lastonetimekeyupdate: db.open_tree("userid_lastonetimekeyupdate")?,
                 keychangeid_userid: db.open_tree("devicekeychangeid_userid")?,
                 keyid_key: db.open_tree("keyid_key")?,
                 userid_masterkeyid: db.open_tree("userid_masterkeyid")?,
