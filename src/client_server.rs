@@ -67,11 +67,12 @@ use ruma::{
         unversioned::get_supported_versions,
     },
     events::{
+        custom::CustomEventContent,
         room::{
             canonical_alias, guest_access, history_visibility, join_rules, member, name, redaction,
             topic,
         },
-        AnyEphemeralRoomEvent, AnyEvent, AnySyncEphemeralRoomEvent, EventType,
+        AnyEphemeralRoomEvent, AnyEvent, AnySyncEphemeralRoomEvent, BasicEvent, EventType,
     },
     Raw, RoomAliasId, RoomId, RoomVersionId, UserId,
 };
@@ -601,8 +602,13 @@ pub fn set_global_account_data_route(
     db.account_data.update(
         None,
         user_id,
-        EventType::Custom(event_type),
-        &content,
+        event_type.clone().into(),
+        &BasicEvent {
+            content: CustomEventContent {
+                event_type,
+                json: content,
+            },
+        },
         &db.globals,
     )?;
 
