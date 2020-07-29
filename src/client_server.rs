@@ -3243,8 +3243,8 @@ pub fn get_message_events_route(
                 .collect::<Vec<_>>();
 
             Ok(get_message_events::Response {
-                start: Some(body.from.clone()),
-                end: start_token,
+                start: start_token,
+                end: Some(body.from.clone()),
                 chunk: events_before,
                 state: Vec::new(),
             }

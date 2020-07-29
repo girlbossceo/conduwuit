@@ -355,13 +355,12 @@ impl Rooms {
                             .membership)
                         })?;
 
-                    let member_content =
+                    let target_membership =
                         serde_json::from_value::<Raw<member::MemberEventContent>>(content.clone())
                             .expect("Raw::from_value always works.")
                             .deserialize()
-                            .map_err(|_| Error::bad_database("Invalid Member event in db."))?;
-
-                    let target_membership = member_content.membership;
+                            .map_err(|_| Error::bad_database("Invalid Member event in db."))?
+                            .membership;
 
                     let target_power = power_levels.users.get(&target_user_id).map_or_else(
                         || {
@@ -464,18 +463,6 @@ impl Rooms {
                         false
                     };
 
-                    if authorized {
-                        // Update our membership info
-                        self.update_membership(
-                            &room_id,
-                            &target_user_id,
-                            member_content,
-                            &sender,
-                            account_data,
-                            globals,
-                        )?;
-                    }
-
                     authorized
                 }
                 EventType::RoomCreate => prev_events.is_empty(),
@@ -533,7 +520,7 @@ impl Rooms {
                 .expect("time is valid"),
             kind: event_type.clone(),
             content: content.clone(),
-            state_key,
+            state_key: state_key.clone(),
             prev_events,
             depth: depth
                 .try_into()
@@ -606,6 +593,35 @@ impl Rooms {
 
                 self.redact_pdu(&redact_id)?;
             }
+            EventType::RoomMember => {
+                if let Some(state_key) = state_key {
+                    // if the state_key fails
+                    let target_user_id = UserId::try_from(state_key).map_err(|_| {
+                        Error::BadRequest(
+                            ErrorKind::InvalidParam,
+                            "State key of member event does not contain user id.",
+                        )
+                    })?;
+                    // Update our membership info, we do this here incase a user is invited
+                    // and imediatly leaves we need the DB to record the invite event for auth
+                    self.update_membership(
+                        &room_id,
+                        &target_user_id,
+                        serde_json::from_value::<member::MemberEventContent>(content).map_err(
+                            |_| {
+                                Error::BadRequest(
+                                    ErrorKind::InvalidParam,
+                                    "Invalid redaction event content.",
+                                )
+                            },
+                        )?,
+                        &sender,
+                        account_data,
+                        globals,
+                    )?;
+                }
+            }
+            _ => {}
         }
         self.edus.room_read_set(&room_id, &sender, index)?;
 
@@ -751,12 +767,12 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         user_id: &UserId,
-        mut member_event: member::MemberEventContent,
+        mut member_content: member::MemberEventContent,
         sender: &UserId,
         account_data: &super::account_data::AccountData,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        let membership = member_event.membership;
+        let membership = member_content.membership;
         let mut userroom_id = user_id.to_string().as_bytes().to_vec();
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.to_string().as_bytes());
@@ -776,22 +792,24 @@ impl Rooms {
             member::MembershipState::Invite => {
                 // We want to know if the sender is ignored by the receiver
                 let is_ignored = account_data
-                    .get::<ignored_user_list::IgnoredUserListEventContent>(
+                    .get::<ignored_user_list::IgnoredUserListEvent>(
                         None,     // Ignored users are in global account data
                         &user_id, // Receiver
                         EventType::IgnoredUserList,
                     )?
-                    .map_or(false, |ignored| ignored.ignored_users.contains(&sender));
+                    .map_or(false, |ignored| {
+                        ignored.content.ignored_users.contains(&sender)
+                    });
 
                 if is_ignored {
-                    member_event.membership = member::MembershipState::Leave;
+                    member_content.membership = member::MembershipState::Leave;
 
                     return self
                         .append_pdu(
                             room_id.clone(),
                             user_id.clone(),
                             EventType::RoomMember,
-                            serde_json::to_value(member_event)
+                            serde_json::to_value(member_content)
                                 .expect("event is valid, we just created it"),
                             None,
                             Some(user_id.to_string()),
