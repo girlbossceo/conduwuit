@@ -4,7 +4,7 @@ use ruma::{
         error::ErrorKind,
         r0::backup::{BackupAlgorithm, KeyData, Sessions},
     },
-    {RoomId, UserId},
+    RoomId, UserId,
 };
 use std::{collections::BTreeMap, convert::TryFrom};
 

@@ -4,8 +4,7 @@ use ruma::{
     events::{AnyEvent as EduEvent, EventType},
     Raw, RoomId, UserId,
 };
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use sled::IVec;
 use std::{collections::HashMap, convert::TryFrom};
 
