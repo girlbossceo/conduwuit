@@ -1,10 +1,10 @@
-pub(self) mod account_data;
-pub(self) mod globals;
-pub(self) mod key_backups;
-pub(crate) mod media;
-pub(self) mod rooms;
-pub(self) mod uiaa;
-pub(self) mod users;
+pub mod account_data;
+pub mod globals;
+pub mod key_backups;
+pub mod media;
+pub mod rooms;
+pub mod uiaa;
+pub mod users;
 
 use crate::{Error, Result};
 use directories::ProjectDirs;
