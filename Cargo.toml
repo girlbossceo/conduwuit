@@ -13,8 +13,12 @@ edition = "2018"
 
 [dependencies]
 # TODO: This can become optional as soon as proper configs are supported
-rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "8d779caa22c63b15a6c3ceb75d8f6d4971b2eb67", features = ["tls"], optional = false } # Used to handle requests
-ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"], rev = "e047c647ddcb368e7eb1e05ae8823a9494273457" } # Used for matrix spec type definitions and helpers
+#rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "8d779caa22c63b15a6c3ceb75d8f6d4971b2eb67", features = ["tls"] } # Used to handle requests
+rocket = { git = "https://github.com/timokoesters/Rocket.git", branch = "empty_parameters", features = ["tls"] }
+
+tokio = "0.2.22" # Used for long polling
+ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"], rev = "d5d2d1d893fa12d27960e4c58d6c09b215d06e95" } # Used for matrix spec type definitions and helpers
+#ruma = { path = "../ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"] }
 sled = "0.32.0" # Used for storing data permanently
 log = "0.4.8" # Used for emitting log entries
 http = "0.2.1" # Used for rocket<->ruma conversions

@@ -79,39 +79,99 @@ impl PduEvent {
     }
 
     pub fn to_sync_room_event(&self) -> Raw<AnySyncRoomEvent> {
-        let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<AnySyncRoomEvent>(&json)
-            .map(Raw::from)
-            .expect("AnySyncRoomEvent can always be built from a full PDU event")
+        let mut json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "event_id": self.event_id,
+            "sender": self.sender,
+            "origin_server_ts": self.origin_server_ts,
+            "unsigned": self.unsigned,
+        });
+
+        if let Some(state_key) = &self.state_key {
+            json["state_key"] = json!(state_key);
+        }
+        if let Some(redacts) = &self.redacts {
+            json["redacts"] = json!(redacts);
+        }
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
     }
+
     pub fn to_room_event(&self) -> Raw<AnyRoomEvent> {
-        let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<AnyRoomEvent>(&json)
-            .map(Raw::from)
-            .expect("AnyRoomEvent can always be built from a full PDU event")
+        let mut json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "event_id": self.event_id,
+            "sender": self.sender,
+            "origin_server_ts": self.origin_server_ts,
+            "unsigned": self.unsigned,
+            "room_id": self.room_id,
+        });
+
+        if let Some(state_key) = &self.state_key {
+            json["state_key"] = json!(state_key);
+        }
+        if let Some(redacts) = &self.redacts {
+            json["redacts"] = json!(redacts);
+        }
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
     }
+
     pub fn to_state_event(&self) -> Raw<AnyStateEvent> {
-        let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<AnyStateEvent>(&json)
-            .map(Raw::from)
-            .expect("AnyStateEvent can always be built from a full PDU event")
+        let json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "event_id": self.event_id,
+            "sender": self.sender,
+            "origin_server_ts": self.origin_server_ts,
+            "unsigned": self.unsigned,
+            "room_id": self.room_id,
+            "state_key": self.state_key,
+        });
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
     }
+
     pub fn to_sync_state_event(&self) -> Raw<AnySyncStateEvent> {
-        let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<AnySyncStateEvent>(&json)
-            .map(Raw::from)
-            .expect("AnySyncStateEvent can always be built from a full PDU event")
+        let json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "event_id": self.event_id,
+            "sender": self.sender,
+            "origin_server_ts": self.origin_server_ts,
+            "unsigned": self.unsigned,
+            "state_key": self.state_key,
+        });
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
     }
+
     pub fn to_stripped_state_event(&self) -> Raw<AnyStrippedStateEvent> {
-        let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<AnyStrippedStateEvent>(&json)
-            .map(Raw::from)
-            .expect("AnyStrippedStateEvent can always be built from a full PDU event")
+        let json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "sender": self.sender,
+            "state_key": self.state_key,
+        });
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
     }
+
     pub fn to_member_event(&self) -> Raw<StateEvent<MemberEventContent>> {
-        let json = serde_json::to_string(&self).expect("PDUs are always valid");
-        serde_json::from_str::<StateEvent<MemberEventContent>>(&json)
-            .map(Raw::from)
-            .expect("StateEvent<MemberEventContent> can always be built from a full PDU event")
+        let json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "event_id": self.event_id,
+            "sender": self.sender,
+            "origin_server_ts": self.origin_server_ts,
+            "redacts": self.redacts,
+            "unsigned": self.unsigned,
+            "room_id": self.room_id,
+            "state_key": self.state_key,
+        });
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
     }
 }

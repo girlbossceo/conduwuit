@@ -36,7 +36,6 @@ Current state appears in timeline in private history
 Current state appears in timeline in private history with many messages before
 Deleted tags appear in an incremental v2 /sync
 Deleting a non-existent alias should return a 404
-Device messages over federation wake up /sync
 Device messages wake up /sync
 Events come down the correct room
 GET /device/{deviceId}
@@ -120,6 +119,6 @@ User in shared private room does appear in user directory
 User is offline if they set_presence=offline in their sync
 Users with sufficient power-level can delete other's aliases
 Version responds 200 OK with valid structure
-Wildcard device messages over federation wake up /sync
+We should see our own leave event when rejecting an invite, even if history_visibility is restricted (riot-web/3462)
 Wildcard device messages wake up /sync
 query for user with no keys returns empty key dict

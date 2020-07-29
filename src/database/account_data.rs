@@ -1,5 +1,6 @@
 use crate::{utils, Error, Result};
 use ruma::{
+    api::client::error::ErrorKind,
     events::{AnyEvent as EduEvent, EventType},
     Raw, RoomId, UserId,
 };
@@ -19,7 +20,7 @@ impl AccountData {
         room_id: Option<&RoomId>,
         user_id: &UserId,
         event_type: EventType,
-        event: &T,
+        data: &T,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let mut prefix = room_id
@@ -42,10 +43,16 @@ impl AccountData {
         key.push(0xff);
         key.extend_from_slice(event_type.to_string().as_bytes());
 
-        self.roomuserdataid_accountdata.insert(
-            key,
-            &*serde_json::to_string(&event).expect("Map::to_string always works"),
-        )?;
+        let json = serde_json::to_value(data).expect("all types here can be serialized"); // TODO: maybe add error handling
+        if json.get("type").is_none() || json.get("content").is_none() {
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Account data doesn't have all required fields.",
+            ));
+        }
+
+        self.roomuserdataid_accountdata
+            .insert(key, &*json.to_string())?;
 
         Ok(())
     }
@@ -60,7 +67,7 @@ impl AccountData {
         self.find_event(room_id, user_id, &kind)
             .map(|r| {
                 let (_, v) = r?;
-                serde_json::from_slice(&v).map_err(|_| Error::BadDatabase("could not deserialize"))
+                serde_json::from_slice(&v).map_err(|_| Error::bad_database("could not deserialize"))
             })
             .transpose()
     }
