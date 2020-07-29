@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map, BTreeMap, HashMap},
+    collections::{hash_map, BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     time::{Duration, SystemTime},
 };
@@ -898,7 +898,7 @@ pub fn upload_keys_route(
         // This check is needed to assure that signatures are kept
         if db.users.get_device_keys(sender_id, device_id)?.is_none() {
             db.users
-                .add_device_keys(sender_id, device_id, device_keys, &db.globals)?;
+                .add_device_keys(sender_id, device_id, device_keys, &db.rooms, &db.globals)?;
         }
     }
 
@@ -2518,20 +2518,41 @@ pub async fn sync_events_route(
         .unwrap_or(0);
 
     let mut presence_updates = HashMap::new();
+    let mut device_list_updates = HashSet::new();
 
     for room_id in db.rooms.rooms_joined(&sender_id) {
         let room_id = room_id?;
 
-        let mut pdus = db
+        let mut non_timeline_pdus = db
             .rooms
             .pdus_since(&sender_id, &room_id, since)?
-            .filter_map(|r| r.ok()) // Filter out buggy events
+            .filter_map(|r| r.ok()); // Filter out buggy events
+
+        // Take the last 10 events for the timeline
+        let timeline_pdus = non_timeline_pdus
+            .by_ref()
+            .rev()
+            .take(10)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
             .collect::<Vec<_>>();
+
+        // They /sync response doesn't always return all messages, so we say the output is
+        // limited unless there are events in non_timeline_pdus
+        //let mut limited = false;
+
+        let mut state_pdus = Vec::new();
+        for pdu in non_timeline_pdus {
+            if pdu.state_key.is_some() {
+                state_pdus.push(pdu);
+            }
+        }
 
         let mut send_member_count = false;
         let mut joined_since_last_sync = false;
         let mut send_notification_counts = false;
-        for pdu in &pdus {
+        for pdu in db.rooms.pdus_since(&sender_id, &room_id, since)?.filter_map(|r| r.ok()) {
             send_notification_counts = true;
             if pdu.kind == EventType::RoomMember {
                 send_member_count = true;
@@ -2544,8 +2565,8 @@ pub async fn sync_events_route(
                     .map_err(|_| Error::bad_database("Invalid PDU in database."))?;
                     if content.membership == ruma::events::room::member::MembershipState::Join {
                         joined_since_last_sync = true;
-                        // Both send_member_count and joined_since_last_sync are set. There's nothing more
-                        // to do
+                        // Both send_member_count and joined_since_last_sync are set. There's
+                        // nothing more to do
                         break;
                     }
                 }
@@ -2574,7 +2595,7 @@ pub async fn sync_events_route(
                         let content = serde_json::from_value::<
                             Raw<ruma::events::room::member::MemberEventContent>,
                         >(pdu.content.clone())
-                        .map_err(|_| Error::bad_database("Invalid member event in database."))?
+                        .expect("Raw::from_value always works")
                         .deserialize()
                         .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
@@ -2592,7 +2613,7 @@ pub async fn sync_events_route(
                                     .content
                                     .clone(),
                             )
-                            .map_err(|_| Error::bad_database("Invalid member event in database."))?
+                            .expect("Raw::from_value always works")
                             .deserialize()
                             .map_err(|_| {
                                 Error::bad_database("Invalid member event in database.")
@@ -2659,15 +2680,7 @@ pub async fn sync_events_route(
             None
         };
 
-        // They /sync response doesn't always return all messages, so we say the output is
-        // limited unless there are enough events
-        let mut limited = true;
-        pdus = pdus.split_off(pdus.len().checked_sub(10).unwrap_or_else(|| {
-            limited = false;
-            0
-        }));
-
-        let prev_batch = pdus.first().map_or(Ok::<_, Error>(None), |e| {
+        let prev_batch = timeline_pdus.first().map_or(Ok::<_, Error>(None), |e| {
             Ok(Some(
                 db.rooms
                     .get_pdu_count(&e.event_id)?
@@ -2676,7 +2689,7 @@ pub async fn sync_events_route(
             ))
         })?;
 
-        let room_events = pdus
+        let room_events = timeline_pdus
             .into_iter()
             .map(|pdu| pdu.to_sync_room_event())
             .collect::<Vec<_>>();
@@ -2728,7 +2741,7 @@ pub async fn sync_events_route(
                 notification_count,
             },
             timeline: sync_events::Timeline {
-                limited: limited || joined_since_last_sync,
+                limited: false || joined_since_last_sync,
                 prev_batch,
                 events: room_events,
             },
@@ -2750,6 +2763,13 @@ pub async fn sync_events_route(
         if !joined_room.is_empty() {
             joined_rooms.insert(room_id.clone(), joined_room);
         }
+
+        // Look for device list updates in this room
+        device_list_updates.extend(
+            db.users
+                .keys_changed(&room_id, since)
+                .filter_map(|r| r.ok()),
+        );
 
         // Take presence updates from this room
         for (user_id, presence) in
@@ -2885,14 +2905,7 @@ pub async fn sync_events_route(
                 .collect::<Vec<_>>(),
         },
         device_lists: sync_events::DeviceLists {
-            changed: if since != 0 {
-                db.users
-                    .keys_changed(since)
-                    .filter_map(|u| u.ok())
-                    .collect() // Filter out buggy events
-            } else {
-                Vec::new()
-            },
+            changed: device_list_updates.into_iter().collect(),
             left: Vec::new(), // TODO
         },
         device_one_time_keys_count: Default::default(), // TODO
@@ -3450,6 +3463,7 @@ pub fn upload_signing_keys_route(
             &master_key,
             &body.self_signing_key,
             &body.user_signing_key,
+            &db.rooms,
             &db.globals,
         )?;
     }
@@ -3500,8 +3514,14 @@ pub fn upload_signatures_route(
                         ))?
                         .to_owned(),
                 );
-                db.users
-                    .sign_key(&user_id, &key_id, signature, &sender_id, &db.globals)?;
+                db.users.sign_key(
+                    &user_id,
+                    &key_id,
+                    signature,
+                    &sender_id,
+                    &db.rooms,
+                    &db.globals,
+                )?;
             }
         }
     }

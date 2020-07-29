@@ -611,44 +611,29 @@ impl Rooms {
         self.pdus_since(user_id, room_id, 0)
     }
 
-    /// Returns an iterator over all events in a room that happened after the event with id `since`.
+    /// Returns an iterator over all events in a room that happened after the event with id `since`
+    /// in reverse-chronological order.
     pub fn pdus_since(
         &self,
         user_id: &UserId,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<impl Iterator<Item = Result<PduEvent>>> {
-        // Create the first part of the full pdu id
-        let mut pdu_id = room_id.to_string().as_bytes().to_vec();
-        pdu_id.push(0xff);
-        pdu_id.extend_from_slice(&(since).to_be_bytes());
-
-        self.pdus_since_pduid(user_id, room_id, &pdu_id)
-    }
-
-    /// Returns an iterator over all events in a room that happened after the event with id `since`.
-    pub fn pdus_since_pduid(
-        &self,
-        user_id: &UserId,
-        room_id: &RoomId,
-        pdu_id: &[u8],
-    ) -> Result<impl Iterator<Item = Result<PduEvent>>> {
-        // Create the first part of the full pdu id
+    ) -> Result<impl DoubleEndedIterator<Item = Result<PduEvent>>> {
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
+
+        // Skip the first pdu if it's exactly at since, because we sent that last time
+        let mut first_pdu_id = prefix.clone();
+        first_pdu_id.extend_from_slice(&(since+1).to_be_bytes());
+
+        let mut last_pdu_id = prefix.clone();
+        last_pdu_id.extend_from_slice(&u64::MAX.to_be_bytes());
 
         let user_id = user_id.clone();
         Ok(self
             .pduid_pdu
-            .range(pdu_id..)
-            // Skip the first pdu if it's exactly at since, because we sent that last time
-            .skip(if self.pduid_pdu.get(pdu_id)?.is_some() {
-                1
-            } else {
-                0
-            })
+            .range(first_pdu_id..last_pdu_id)
             .filter_map(|r| r.ok())
-            .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(move |(_, v)| {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;

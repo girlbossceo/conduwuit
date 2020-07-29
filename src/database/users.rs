@@ -9,7 +9,7 @@ use ruma::{
         },
     },
     events::{AnyToDeviceEvent, EventType},
-    DeviceId, Raw, UserId,
+    DeviceId, Raw, UserId, RoomId,
 };
 use std::{collections::BTreeMap, convert::TryFrom, mem, time::SystemTime};
 
@@ -22,7 +22,7 @@ pub struct Users {
     pub(super) token_userdeviceid: sled::Tree,
 
     pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + AlgorithmAndDeviceId
-    pub(super) keychangeid_userid: sled::Tree,       // KeyChangeId = Count
+    pub(super) keychangeid_userid: sled::Tree,       // KeyChangeId = RoomId + Count
     pub(super) keyid_key: sled::Tree,                // KeyId = UserId + KeyId (depends on key type)
     pub(super) userid_masterkeyid: sled::Tree,
     pub(super) userid_selfsigningkeyid: sled::Tree,
@@ -371,6 +371,7 @@ impl Users {
         user_id: &UserId,
         device_id: &DeviceId,
         device_keys: &DeviceKeys,
+        rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
@@ -382,8 +383,15 @@ impl Users {
             &*serde_json::to_string(&device_keys).expect("DeviceKeys::to_string always works"),
         )?;
 
-        self.keychangeid_userid
-            .insert(globals.next_count()?.to_be_bytes(), &*user_id.to_string())?;
+        let count = globals.next_count()?.to_be_bytes();
+        for room_id in rooms.rooms_joined(&user_id) {
+            let mut key = room_id?.to_string().as_bytes().to_vec();
+            key.push(0xff);
+            key.extend_from_slice(&count);
+
+            self.keychangeid_userid
+                .insert(key, &*user_id.to_string())?;
+        }
 
         Ok(())
     }
@@ -394,6 +402,7 @@ impl Users {
         master_key: &CrossSigningKey,
         self_signing_key: &Option<CrossSigningKey>,
         user_signing_key: &Option<CrossSigningKey>,
+        rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         // TODO: Check signatures
@@ -482,8 +491,15 @@ impl Users {
                 .insert(&*user_id.to_string(), user_signing_key_key)?;
         }
 
-        self.keychangeid_userid
-            .insert(globals.next_count()?.to_be_bytes(), &*user_id.to_string())?;
+        let count = globals.next_count()?.to_be_bytes();
+        for room_id in rooms.rooms_joined(&user_id) {
+            let mut key = room_id?.to_string().as_bytes().to_vec();
+            key.push(0xff);
+            key.extend_from_slice(&count);
+
+            self.keychangeid_userid
+                .insert(key, &*user_id.to_string())?;
+        }
 
         Ok(())
     }
@@ -494,6 +510,7 @@ impl Users {
         key_id: &str,
         signature: (String, String),
         sender_id: &UserId,
+        rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let mut key = target_id.to_string().as_bytes().to_vec();
@@ -525,19 +542,33 @@ impl Users {
                 .expect("CrossSigningKey::to_string always works"),
         )?;
 
-        self.keychangeid_userid
-            .insert(globals.next_count()?.to_be_bytes(), &*target_id.to_string())?;
+        // TODO: Should we notify about this change?
+        let count = globals.next_count()?.to_be_bytes();
+        for room_id in rooms.rooms_joined(&target_id) {
+            let mut key = room_id?.to_string().as_bytes().to_vec();
+            key.push(0xff);
+            key.extend_from_slice(&count);
+
+            self.keychangeid_userid
+                .insert(key, &*target_id.to_string())?;
+        }
 
         Ok(())
     }
 
-    pub fn keys_changed(&self, since: u64) -> impl Iterator<Item = Result<UserId>> {
+    pub fn keys_changed(&self, room_id: &RoomId, since: u64) -> impl Iterator<Item = Result<UserId>> {
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+        let mut start = prefix.clone();
+        start.extend_from_slice(&(since + 1).to_be_bytes());
+
         self.keychangeid_userid
-            .range((since + 1).to_be_bytes()..)
-            .values()
-            .map(|bytes| {
+            .range(start..)
+            .filter_map(|r| r.ok())
+            .take_while(move |(k, _)| k.starts_with(&prefix))
+            .map(|(_, bytes)| {
                 Ok(
-                    UserId::try_from(utils::string_from_bytes(&bytes?).map_err(|_| {
+                    UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
                         Error::bad_database(
                             "User ID in devicekeychangeid_userid is invalid unicode.",
                         )
