@@ -9,7 +9,7 @@ use ruma::{
         },
     },
     events::{AnyToDeviceEvent, EventType},
-    DeviceId, Raw, UserId, RoomId,
+    DeviceId, Raw, RoomId, UserId,
 };
 use std::{collections::BTreeMap, convert::TryFrom, mem, time::SystemTime};
 
@@ -389,8 +389,7 @@ impl Users {
             key.push(0xff);
             key.extend_from_slice(&count);
 
-            self.keychangeid_userid
-                .insert(key, &*user_id.to_string())?;
+            self.keychangeid_userid.insert(key, &*user_id.to_string())?;
         }
 
         Ok(())
@@ -497,8 +496,7 @@ impl Users {
             key.push(0xff);
             key.extend_from_slice(&count);
 
-            self.keychangeid_userid
-                .insert(key, &*user_id.to_string())?;
+            self.keychangeid_userid.insert(key, &*user_id.to_string())?;
         }
 
         Ok(())
@@ -556,14 +554,23 @@ impl Users {
         Ok(())
     }
 
-    pub fn keys_changed(&self, room_id: &RoomId, since: u64) -> impl Iterator<Item = Result<UserId>> {
+    pub fn keys_changed(
+        &self,
+        room_id: &RoomId,
+        from: u64,
+        to: Option<u64>,
+    ) -> impl Iterator<Item = Result<UserId>> {
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
+
         let mut start = prefix.clone();
-        start.extend_from_slice(&(since + 1).to_be_bytes());
+        start.extend_from_slice(&(from + 1).to_be_bytes());
+
+        let mut end = prefix.clone();
+        end.extend_from_slice(&to.unwrap_or(u64::MAX).to_be_bytes());
 
         self.keychangeid_userid
-            .range(start..)
+            .range(start..end)
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(_, bytes)| {

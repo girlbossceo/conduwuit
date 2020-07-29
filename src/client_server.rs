@@ -35,7 +35,7 @@ use ruma::{
                 set_room_visibility,
             },
             filter::{self, create_filter, get_filter},
-            keys::{self, claim_keys, get_keys, upload_keys},
+            keys::{self, claim_keys, get_key_changes, get_keys, upload_keys},
             media::{create_content, get_content, get_content_thumbnail, get_media_config},
             membership::{
                 ban_user, forget_room, get_member_events, invite_user, join_room_by_id,
@@ -2552,7 +2552,11 @@ pub async fn sync_events_route(
         let mut send_member_count = false;
         let mut joined_since_last_sync = false;
         let mut send_notification_counts = false;
-        for pdu in db.rooms.pdus_since(&sender_id, &room_id, since)?.filter_map(|r| r.ok()) {
+        for pdu in db
+            .rooms
+            .pdus_since(&sender_id, &room_id, since)?
+            .filter_map(|r| r.ok())
+        {
             send_notification_counts = true;
             if pdu.kind == EventType::RoomMember {
                 send_member_count = true;
@@ -2767,7 +2771,7 @@ pub async fn sync_events_route(
         // Look for device list updates in this room
         device_list_updates.extend(
             db.users
-                .keys_changed(&room_id, since)
+                .keys_changed(&room_id, since, None)
                 .filter_map(|r| r.ok()),
         );
 
@@ -3527,6 +3531,39 @@ pub fn upload_signatures_route(
     }
 
     Ok(upload_signatures::Response.into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/keys/changes", data = "<body>")
+)]
+pub fn get_key_changes_route(
+    db: State<'_, Database>,
+    body: Ruma<get_key_changes::Request>,
+) -> ConduitResult<get_key_changes::Response> {
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+
+    let mut device_list_updates = HashSet::new();
+    for room_id in db.rooms.rooms_joined(sender_id).filter_map(|r| r.ok()) {
+        device_list_updates.extend(
+            db.users
+                .keys_changed(
+                    &room_id,
+                    body.from.parse().map_err(|_| {
+                        Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`.")
+                    })?,
+                    Some(body.to.parse().map_err(|_| {
+                        Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`.")
+                    })?),
+                )
+                .filter_map(|r| r.ok()),
+        );
+    }
+    Ok(get_key_changes::Response {
+        changed: device_list_updates.into_iter().collect(),
+        left: Vec::new(), // TODO
+    }
+    .into())
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/pushers"))]

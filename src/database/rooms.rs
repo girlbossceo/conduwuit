@@ -611,8 +611,8 @@ impl Rooms {
         self.pdus_since(user_id, room_id, 0)
     }
 
-    /// Returns an iterator over all events in a room that happened after the event with id `since`
-    /// in reverse-chronological order.
+    /// Returns a double-ended iterator over all events in a room that happened after the event with id `since`
+    /// in chronological order.
     pub fn pdus_since(
         &self,
         user_id: &UserId,
@@ -624,7 +624,7 @@ impl Rooms {
 
         // Skip the first pdu if it's exactly at since, because we sent that last time
         let mut first_pdu_id = prefix.clone();
-        first_pdu_id.extend_from_slice(&(since+1).to_be_bytes());
+        first_pdu_id.extend_from_slice(&(since + 1).to_be_bytes());
 
         let mut last_pdu_id = prefix.clone();
         last_pdu_id.extend_from_slice(&u64::MAX.to_be_bytes());

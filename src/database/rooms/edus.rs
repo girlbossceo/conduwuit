@@ -352,7 +352,8 @@ impl RoomEdus {
                         .ok()?,
                 ))
             })
-            .take_while(|(_, timestamp)| current_timestamp - timestamp > 5 * 60_000) // 5 Minutes
+            .take_while(|(_, timestamp)| current_timestamp - timestamp > 5 * 60_000)
+        // 5 Minutes
         {
             self.userid_lastpresenceupdate.remove(&user_id_bytes)?;
 

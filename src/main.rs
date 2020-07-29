@@ -108,6 +108,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::options_route,
                 client_server::upload_signing_keys_route,
                 client_server::upload_signatures_route,
+                client_server::get_key_changes_route,
                 client_server::pushers_route,
                 client_server::set_pushers_route,
                 //server_server::well_known_server,
