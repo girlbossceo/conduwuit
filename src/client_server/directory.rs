@@ -1,12 +1,15 @@
 use super::State;
 use crate::{ConduitResult, Database, Error, Result, Ruma};
 use ruma::{
-    api::client::r0::{
-        directory::{
-            self, get_public_rooms, get_public_rooms_filtered, get_room_visibility,
-            set_room_visibility,
+    api::client::{
+        error::ErrorKind,
+        r0::{
+            directory::{
+                self, get_public_rooms, get_public_rooms_filtered, get_room_visibility,
+                set_room_visibility,
+            },
+            room,
         },
-        room,
     },
     events::{
         room::{avatar, canonical_alias, guest_access, history_visibility, name, topic},
@@ -20,65 +23,39 @@ use rocket::{get, post, put};
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/publicRooms", data = "<body>")
-)]
-pub async fn get_public_rooms_route(
-    db: State<'_, Database>,
-    body: Ruma<get_public_rooms::Request>,
-) -> ConduitResult<get_public_rooms::Response> {
-    let Ruma {
-        body:
-            get_public_rooms::Request {
-                limit,
-                server,
-                since,
-            },
-        sender_id,
-        device_id,
-        json_body,
-    } = body;
-
-    let get_public_rooms_filtered::Response {
-        chunk,
-        prev_batch,
-        next_batch,
-        total_room_count_estimate,
-    } = get_public_rooms_filtered_route(
-        db,
-        Ruma {
-            body: get_public_rooms_filtered::Request {
-                filter: None,
-                limit,
-                room_network: get_public_rooms_filtered::RoomNetwork::Matrix,
-                server,
-                since,
-            },
-            sender_id,
-            device_id,
-            json_body,
-        },
-    )
-    .await?
-    .0;
-
-    Ok(get_public_rooms::Response {
-        chunk,
-        prev_batch,
-        next_batch,
-        total_room_count_estimate,
-    }
-    .into())
-}
-
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/publicRooms", data = "<_body>")
+    post("/_matrix/client/r0/publicRooms", data = "<body>")
 )]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
-    _body: Ruma<get_public_rooms_filtered::Request>,
+    body: Ruma<get_public_rooms_filtered::Request>,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
-    let mut chunk =
+    let limit = body.limit.map_or(10, u64::from);
+    let mut since = 0_u64;
+
+    if let Some(s) = &body.since {
+        let mut characters = s.chars();
+        let backwards = match characters.next() {
+            Some('n') => false,
+            Some('p') => true,
+            _ => {
+                return Err(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "Invalid `since` token",
+                ))
+            }
+        };
+
+        since = characters
+            .collect::<String>()
+            .parse()
+            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `since` token."))?;
+
+        if backwards {
+            since = since.saturating_sub(limit);
+        }
+    }
+
+    let mut all_rooms =
         db.rooms
             .public_rooms()
             .map(|room_id| {
@@ -190,10 +167,10 @@ pub async fn get_public_rooms_filtered_route(
             // We need to collect all, so we can sort by member count
             .collect::<Vec<_>>();
 
-    chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
+    all_rooms.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 
     /*
-    chunk.extend_from_slice(
+    all_rooms.extend_from_slice(
         &server_server::send_request(
             &db,
             "privacytools.io".to_owned(),
@@ -212,13 +189,83 @@ pub async fn get_public_rooms_filtered_route(
     );
     */
 
-    let total_room_count_estimate = (chunk.len() as u32).into();
+    let total_room_count_estimate = (all_rooms.len() as u32).into();
+
+    let chunk = all_rooms
+        .into_iter()
+        .skip(since as usize)
+        .take(limit as usize)
+        .collect::<Vec<_>>();
+
+    let prev_batch = if since == 0 {
+        None
+    } else {
+        Some(format!("p{}", since))
+    };
+
+    let next_batch = if chunk.len() < limit as usize {
+        None
+    } else {
+        Some(format!("n{}", since + limit))
+    };
 
     Ok(get_public_rooms_filtered::Response {
         chunk,
-        prev_batch: None,
-        next_batch: None,
+        prev_batch,
+        next_batch,
         total_room_count_estimate: Some(total_room_count_estimate),
+    }
+    .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/publicRooms", data = "<body>")
+)]
+pub async fn get_public_rooms_route(
+    db: State<'_, Database>,
+    body: Ruma<get_public_rooms::Request>,
+) -> ConduitResult<get_public_rooms::Response> {
+    let Ruma {
+        body:
+            get_public_rooms::Request {
+                limit,
+                server,
+                since,
+            },
+        sender_id,
+        device_id,
+        json_body,
+    } = body;
+
+    let get_public_rooms_filtered::Response {
+        chunk,
+        prev_batch,
+        next_batch,
+        total_room_count_estimate,
+    } = get_public_rooms_filtered_route(
+        db,
+        Ruma {
+            body: get_public_rooms_filtered::Request {
+                filter: None,
+                limit,
+                room_network: get_public_rooms_filtered::RoomNetwork::Matrix,
+                server,
+                since,
+            },
+            sender_id,
+            device_id,
+            json_body,
+        },
+    )
+    .await?
+    .0;
+
+    Ok(get_public_rooms::Response {
+        chunk,
+        prev_batch,
+        next_batch,
+        total_room_count_estimate,
     }
     .into())
 }
