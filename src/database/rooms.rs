@@ -596,14 +596,10 @@ impl Rooms {
             EventType::RoomMember => {
                 if let Some(state_key) = state_key {
                     // if the state_key fails
-                    let target_user_id = UserId::try_from(state_key).map_err(|_| {
-                        Error::BadRequest(
-                            ErrorKind::InvalidParam,
-                            "State key of member event does not contain user id.",
-                        )
-                    })?;
+                    let target_user_id = UserId::try_from(state_key)
+                        .expect("This state_key was previously validated");
                     // Update our membership info, we do this here incase a user is invited
-                    // and imediatly leaves we need the DB to record the invite event for auth
+                    // and immediately leaves we need the DB to record the invite event for auth
                     self.update_membership(
                         &room_id,
                         &target_user_id,
