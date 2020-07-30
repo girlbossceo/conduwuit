@@ -487,6 +487,7 @@ pub fn deactivate_route(
                 redacts: None,
             },
             &db.globals,
+            &db.account_data,
         )?;
     }
 
@@ -695,6 +696,7 @@ pub fn set_displayname_route(
                 redacts: None,
             },
             &db.globals,
+            &db.account_data,
         )?;
 
         // Presence update
@@ -797,6 +799,7 @@ pub fn set_avatar_url_route(
                 redacts: None,
             },
             &db.globals,
+            &db.account_data,
         )?;
 
         // Presence update
@@ -1318,6 +1321,7 @@ pub fn create_room_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     // 2. Let the room creator join
@@ -1339,6 +1343,7 @@ pub fn create_room_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     // Figure out preset. We need it for power levels and preset specific events
@@ -1387,6 +1392,7 @@ pub fn create_room_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     // 4. Events set by preset
@@ -1412,6 +1418,7 @@ pub fn create_room_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     // 4.2 History Visibility
@@ -1429,6 +1436,7 @@ pub fn create_room_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     // 4.3 Guest Access
@@ -1454,6 +1462,7 @@ pub fn create_room_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     // 5. Events listed in initial_state
@@ -1481,6 +1490,7 @@ pub fn create_room_route(
                 redacts: None,
             },
             &db.globals,
+            &db.account_data,
         )?;
     }
 
@@ -1502,6 +1512,7 @@ pub fn create_room_route(
                 redacts: None,
             },
             &db.globals,
+            &db.account_data,
         )?;
     }
 
@@ -1520,6 +1531,7 @@ pub fn create_room_route(
                 redacts: None,
             },
             &db.globals,
+            &db.account_data,
         )?;
     }
 
@@ -1543,6 +1555,7 @@ pub fn create_room_route(
                 redacts: None,
             },
             &db.globals,
+            &db.account_data,
         )?;
     }
 
@@ -1602,6 +1615,7 @@ pub fn redact_event_route(
             redacts: Some(body.event_id.clone()),
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     Ok(redact_event::Response { event_id }.into())
@@ -1696,6 +1710,7 @@ pub fn join_room_by_id_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     Ok(join_room_by_id::Response {
@@ -1775,6 +1790,7 @@ pub fn leave_room_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     Ok(leave_room::Response.into())
@@ -1821,6 +1837,7 @@ pub fn kick_user_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     Ok(kick_user::Response.into())
@@ -1913,6 +1930,7 @@ pub fn ban_user_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     Ok(ban_user::Response.into())
@@ -1958,6 +1976,7 @@ pub fn unban_user_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     Ok(unban_user::Response.into())
@@ -2007,6 +2026,7 @@ pub fn invite_user_route(
                 redacts: None,
             },
             &db.globals,
+            &db.account_data,
         )?;
 
         Ok(invite_user::Response.into())
@@ -2396,6 +2416,7 @@ pub fn create_message_event_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     Ok(create_message_event::Response { event_id }.into())
@@ -2461,6 +2482,7 @@ pub fn create_state_event_for_key_route(
             redacts: None,
         },
         &db.globals,
+        &db.account_data,
     )?;
 
     Ok(create_state_event_for_key::Response { event_id }.into())
