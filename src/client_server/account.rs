@@ -121,6 +121,28 @@ pub fn register_route(
     // Create user
     db.users.create(&user_id, &password)?;
 
+    // Initial data
+    db.account_data.update(
+        None,
+        &user_id,
+        EventType::PushRules,
+        &ruma::events::push_rules::PushRulesEvent {
+            content: ruma::events::push_rules::PushRulesEventContent {
+                global: crate::push_rules::default_pushrules(&user_id),
+            },
+        },
+        &db.globals,
+    )?;
+
+    if body.inhibit_login {
+        return Ok(register::Response {
+            access_token: None,
+            user_id,
+            device_id: None,
+        }
+        .into());
+    }
+
     // Generate new device id if the user didn't specify one
     let device_id = body
         .device_id
@@ -136,19 +158,6 @@ pub fn register_route(
         &device_id,
         &token,
         body.initial_device_display_name.clone(),
-    )?;
-
-    // Initial data
-    db.account_data.update(
-        None,
-        &user_id,
-        EventType::PushRules,
-        &ruma::events::push_rules::PushRulesEvent {
-            content: ruma::events::push_rules::PushRulesEventContent {
-                global: crate::push_rules::default_pushrules(&user_id),
-            },
-        },
-        &db.globals,
     )?;
 
     Ok(register::Response {
