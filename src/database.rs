@@ -126,15 +126,16 @@ impl Database {
     }
 
     pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) {
-        let mut userid_prefix = user_id.to_string().as_bytes().to_vec();
+        let userid_bytes = user_id.to_string().as_bytes().to_vec();
+
+        let mut userid_prefix = userid_bytes.clone();
         userid_prefix.push(0xff);
+
         let mut userdeviceid_prefix = userid_prefix.clone();
         userdeviceid_prefix.extend_from_slice(device_id.as_bytes());
         userdeviceid_prefix.push(0xff);
 
         let mut futures = futures::stream::FuturesUnordered::new();
-
-        futures.push(self.users.keychangeid_userid.watch_prefix(b""));
 
         // Return when *any* user changed his key
         // TODO: only send for user they share a room with
@@ -171,6 +172,9 @@ impl Database {
                     .watch_prefix(&roomid_prefix),
             );
 
+            // Key changes
+            futures.push(self.users.keychangeid_userid.watch_prefix(&roomid_prefix));
+
             // Room account data
             let mut roomuser_prefix = roomid_prefix.clone();
             roomuser_prefix.extend_from_slice(&userid_prefix);
@@ -189,6 +193,16 @@ impl Database {
             self.account_data
                 .roomuserdataid_accountdata
                 .watch_prefix(&globaluserdata_prefix),
+        );
+
+        // More key changes (used when user is not joined to any rooms)
+        futures.push(self.users.keychangeid_userid.watch_prefix(&userid_prefix));
+
+        // One time keys
+        futures.push(
+            self.users
+                .userid_lastonetimekeyupdate
+                .watch_prefix(&userid_bytes),
         );
 
         // Wait until one of them finds something
