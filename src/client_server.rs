@@ -2262,39 +2262,42 @@ pub fn search_users_route(
     db: State<'_, Database>,
     body: Ruma<search_users::Request>,
 ) -> ConduitResult<search_users::Response> {
-    Ok(search_users::Response {
-        results: db
-            .users
-            .iter()
-            .filter_map(|user_id| {
-                // Filter out buggy users (they should not exist, but you never know...)
-                let user_id = user_id.ok()?;
-                if db.users.is_deactivated(&user_id).ok()? {
-                    return None;
-                }
+    let limit = if let Some(limit) = body.limit {
+        u64::from(limit)
+    } else {
+        10
+    } as usize;
 
-                let user = search_users::User {
-                    user_id: user_id.clone(),
-                    display_name: db.users.displayname(&user_id).ok()?,
-                    avatar_url: db.users.avatar_url(&user_id).ok()?,
-                };
+    let mut users = db.users.iter().filter_map(|user_id| {
+        // Filter out buggy users (they should not exist, but you never know...)
+        let user_id = user_id.ok()?;
+        if db.users.is_deactivated(&user_id).ok()? {
+            return None;
+        }
 
-                if !user.user_id.to_string().contains(&body.search_term)
-                    && user
-                        .display_name
-                        .as_ref()
-                        .filter(|name| name.contains(&body.search_term))
-                        .is_none()
-                {
-                    return None;
-                }
+        let user = search_users::User {
+            user_id: user_id.clone(),
+            display_name: db.users.displayname(&user_id).ok()?,
+            avatar_url: db.users.avatar_url(&user_id).ok()?,
+        };
 
-                Some(user)
-            })
-            .collect(),
-        limited: false,
-    }
-    .into())
+        if !user.user_id.to_string().contains(&body.search_term)
+            && user
+                .display_name
+                .as_ref()
+                .filter(|name| name.contains(&body.search_term))
+                .is_none()
+        {
+            return None;
+        }
+
+        Some(user)
+    });
+
+    let results = users.by_ref().take(limit).collect();
+    let limited = users.next().is_some();
+
+    Ok(search_users::Response { results, limited }.into())
 }
 
 #[cfg_attr(
