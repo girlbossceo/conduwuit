@@ -42,7 +42,7 @@ impl Uiaa {
                 .map(|session| {
                     Ok::<_, Error>(self.get_uiaa_session(&user_id, &device_id, session)?)
                 })
-                .unwrap_or(Ok(uiaainfo.clone()))?;
+                .unwrap_or_else(|| Ok(uiaainfo.clone()))?;
 
             // Find out what the user completed
             match &**kind {

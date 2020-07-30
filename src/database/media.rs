@@ -1,6 +1,12 @@
 use crate::{utils, Error, Result};
 use std::mem;
 
+pub struct FileMeta {
+    pub filename: Option<String>,
+    pub content_type: String,
+    pub file: Vec<u8>,
+}
+
 pub struct Media {
     pub(super) mediaid_file: sled::Tree, // MediaId = MXC + WidthHeight + Filename + ContentType
 }
@@ -29,7 +35,7 @@ impl Media {
     }
 
     /// Downloads a file.
-    pub fn get(&self, mxc: String) -> Result<Option<(Option<String>, String, Vec<u8>)>> {
+    pub fn get(&self, mxc: String) -> Result<Option<FileMeta>> {
         let mut prefix = mxc.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(&0_u32.to_be_bytes()); // Width = 0 if it's not a thumbnail
@@ -59,19 +65,18 @@ impl Media {
                 })?)
             };
 
-            Ok(Some((filename, content_type, file.to_vec())))
+            Ok(Some(FileMeta {
+                filename,
+                content_type,
+                file: file.to_vec(),
+            }))
         } else {
             Ok(None)
         }
     }
 
     /// Downloads a file's thumbnail.
-    pub fn get_thumbnail(
-        &self,
-        mxc: String,
-        width: u32,
-        height: u32,
-    ) -> Result<Option<(Option<String>, String, Vec<u8>)>> {
+    pub fn get_thumbnail(&self, mxc: String, width: u32, height: u32) -> Result<Option<FileMeta>> {
         let mut main_prefix = mxc.as_bytes().to_vec();
         main_prefix.push(0xff);
 
@@ -110,7 +115,11 @@ impl Media {
                 )
             };
 
-            Ok(Some((filename, content_type, file.to_vec())))
+            Ok(Some(FileMeta {
+                filename,
+                content_type,
+                file: file.to_vec(),
+            }))
         } else if let Some(r) = self.mediaid_file.scan_prefix(&original_prefix).next() {
             // Generate a thumbnail
             let (key, file) = r?;
@@ -157,7 +166,11 @@ impl Media {
 
                 self.mediaid_file.insert(thumbnail_key, &*thumbnail_bytes)?;
 
-                Ok(Some((filename, content_type, thumbnail_bytes)))
+                Ok(Some(FileMeta {
+                    filename,
+                    content_type,
+                    file: thumbnail_bytes.to_vec(),
+                }))
             } else {
                 Ok(None)
             }

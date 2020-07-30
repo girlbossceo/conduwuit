@@ -502,7 +502,7 @@ impl Users {
                 ));
             }
 
-            let mut user_signing_key_key = prefix.clone();
+            let mut user_signing_key_key = prefix;
             user_signing_key_key.extend_from_slice(user_signing_key_id.as_bytes());
 
             self.keyid_key.insert(

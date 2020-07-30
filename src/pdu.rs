@@ -175,3 +175,15 @@ impl PduEvent {
         serde_json::from_value(json).expect("Raw::from_value always works")
     }
 }
+
+/// Build the start of a PDU in order to add it to the `Database`.
+#[derive(Debug)]
+pub struct PduBuilder {
+    pub room_id: RoomId,
+    pub sender: UserId,
+    pub event_type: EventType,
+    pub content: serde_json::Value,
+    pub unsigned: Option<serde_json::Map<String, serde_json::Value>>,
+    pub state_key: Option<String>,
+    pub redacts: Option<EventId>,
+}

@@ -1,10 +1,10 @@
-pub(self) mod account_data;
-pub(self) mod globals;
-pub(self) mod key_backups;
-pub(self) mod media;
-pub(self) mod rooms;
-pub(self) mod uiaa;
-pub(self) mod users;
+pub mod account_data;
+pub mod globals;
+pub mod key_backups;
+pub mod media;
+pub mod rooms;
+pub mod uiaa;
+pub mod users;
 
 use crate::{Error, Result};
 use directories::ProjectDirs;
@@ -125,7 +125,7 @@ impl Database {
         })
     }
 
-    pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> () {
+    pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) {
         let mut userid_prefix = user_id.to_string().as_bytes().to_vec();
         userid_prefix.push(0xff);
         let mut userdeviceid_prefix = userid_prefix.clone();
