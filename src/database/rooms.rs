@@ -388,7 +388,7 @@ impl Rooms {
                                 .join_rule)
                             })?;
 
-                    let authorized = if target_membership == member::MembershipState::Join {
+                    if target_membership == member::MembershipState::Join {
                         let mut prev_events = prev_events.iter();
                         let prev_event = self
                             .get_pdu(prev_events.next().ok_or(Error::BadRequest(
@@ -461,14 +461,11 @@ impl Rooms {
                         }
                     } else {
                         false
-                    };
-
-                    authorized
+                    }
                 }
                 EventType::RoomCreate => prev_events.is_empty(),
                 // Not allow any of the following events if the sender is not joined.
                 _ if sender_membership != member::MembershipState::Join => false,
-
                 _ => {
                     // TODO
                     sender_power.unwrap_or(&power_levels.users_default)
@@ -576,22 +573,24 @@ impl Rooms {
             self.roomstateid_pdu.insert(key, &*pdu_json.to_string())?;
         }
 
-        if let EventType::RoomRedaction = event_type {
-            if let Some(redact_id) = &redacts {
-                // TODO: Reason
-                let _reason =
-                    serde_json::from_value::<Raw<redaction::RedactionEventContent>>(content)
-                        .expect("Raw::from_value always works.")
-                        .deserialize()
-                        .map_err(|_| {
-                            Error::BadRequest(
-                                ErrorKind::InvalidParam,
-                                "Invalid redaction event content.",
-                            )
-                        })?
-                        .reason;
+        match event_type {
+            EventType::RoomRedaction => {
+                if let Some(redact_id) = &redacts {
+                    // TODO: Reason
+                    let _reason =
+                        serde_json::from_value::<Raw<redaction::RedactionEventContent>>(content)
+                            .expect("Raw::from_value always works.")
+                            .deserialize()
+                            .map_err(|_| {
+                                Error::BadRequest(
+                                    ErrorKind::InvalidParam,
+                                    "Invalid redaction event content.",
+                                )
+                            })?
+                            .reason;
 
-                self.redact_pdu(&redact_id)?;
+                    self.redact_pdu(&redact_id)?;
+                }
             }
             EventType::RoomMember => {
                 if let Some(state_key) = state_key {
@@ -800,20 +799,22 @@ impl Rooms {
                 if is_ignored {
                     member_content.membership = member::MembershipState::Leave;
 
-                    return self
-                        .append_pdu(
-                            room_id.clone(),
-                            user_id.clone(),
-                            EventType::RoomMember,
-                            serde_json::to_value(member_content)
+                    self.append_pdu(
+                        PduBuilder {
+                            room_id: room_id.clone(),
+                            sender: user_id.clone(),
+                            event_type: EventType::RoomMember,
+                            content: serde_json::to_value(member_content)
                                 .expect("event is valid, we just created it"),
-                            None,
-                            Some(user_id.to_string()),
-                            None,
-                            globals,
-                            account_data,
-                        )
-                        .map(|_| ());
+                            unsigned: None,
+                            state_key: Some(user_id.to_string()),
+                            redacts: None,
+                        },
+                        globals,
+                        account_data,
+                    )?;
+
+                    return Ok(());
                 }
                 self.userroomid_invited.insert(&userroom_id, &[])?;
                 self.roomuserid_invited.insert(&roomuser_id, &[])?;
