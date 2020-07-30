@@ -9,7 +9,7 @@ use ruma::{
         },
     },
     events::{AnyToDeviceEvent, EventType},
-    DeviceId, Raw, RoomId, UserId,
+    DeviceId, Raw, UserId,
 };
 use std::{collections::BTreeMap, convert::TryFrom, mem, time::SystemTime};
 
@@ -23,7 +23,7 @@ pub struct Users {
 
     pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + AlgorithmAndDeviceId
     pub(super) userid_lastonetimekeyupdate: sled::Tree, // LastOneTimeKeyUpdate = Count
-    pub(super) keychangeid_userid: sled::Tree,       // KeyChangeId = RoomId + Count
+    pub(super) keychangeid_userid: sled::Tree,       // KeyChangeId = UserId/RoomId + Count
     pub(super) keyid_key: sled::Tree,                // KeyId = UserId + KeyId (depends on key type)
     pub(super) userid_masterkeyid: sled::Tree,
     pub(super) userid_selfsigningkeyid: sled::Tree,
@@ -305,8 +305,7 @@ impl Users {
     }
 
     pub fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
-        self
-            .userid_lastonetimekeyupdate
+        self.userid_lastonetimekeyupdate
             .get(&user_id.to_string().as_bytes())?
             .map(|bytes| {
                 utils::u64_from_bytes(&bytes).map_err(|_| {
@@ -417,6 +416,11 @@ impl Users {
             self.keychangeid_userid.insert(key, &*user_id.to_string())?;
         }
 
+        let mut key = user_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&count);
+        self.keychangeid_userid.insert(key, &*user_id.to_string())?;
+
         Ok(())
     }
 
@@ -524,6 +528,11 @@ impl Users {
             self.keychangeid_userid.insert(key, &*user_id.to_string())?;
         }
 
+        let mut key = user_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&count);
+        self.keychangeid_userid.insert(key, &*user_id.to_string())?;
+
         Ok(())
     }
 
@@ -576,16 +585,22 @@ impl Users {
                 .insert(key, &*target_id.to_string())?;
         }
 
+        let mut key = target_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&count);
+        self.keychangeid_userid
+            .insert(key, &*target_id.to_string())?;
+
         Ok(())
     }
 
     pub fn keys_changed(
         &self,
-        room_id: &RoomId,
+        user_or_room_id: &str,
         from: u64,
         to: Option<u64>,
     ) -> impl Iterator<Item = Result<UserId>> {
-        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_or_room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         let mut start = prefix.clone();

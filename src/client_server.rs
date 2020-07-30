@@ -672,7 +672,11 @@ pub fn set_displayname_route(
                     displayname: body.displayname.clone(),
                     ..serde_json::from_value::<Raw<_>>(
                         db.rooms
-                            .room_state_get(&room_id, &EventType::RoomMember, &sender_id.to_string())?
+                            .room_state_get(
+                                &room_id,
+                                &EventType::RoomMember,
+                                &sender_id.to_string(),
+                            )?
                             .ok_or_else(|| {
                                 Error::bad_database(
                                     "Tried to send displayname update for user not in the room.",
@@ -770,7 +774,11 @@ pub fn set_avatar_url_route(
                     avatar_url: body.avatar_url.clone(),
                     ..serde_json::from_value::<Raw<_>>(
                         db.rooms
-                            .room_state_get(&room_id, &EventType::RoomMember, &sender_id.to_string())?
+                            .room_state_get(
+                                &room_id,
+                                &EventType::RoomMember,
+                                &sender_id.to_string(),
+                            )?
                             .ok_or_else(|| {
                                 Error::bad_database(
                                     "Tried to send avatar url update for user not in the room.",
@@ -1884,12 +1892,11 @@ pub fn ban_user_route(
                 third_party_invite: None,
             }),
             |event| {
-                let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
-                    event.content,
-                )
-                .expect("Raw::from_value always works")
-                .deserialize()
-                .map_err(|_| Error::bad_database("Invalid member event in database."))?;
+                let mut event =
+                    serde_json::from_value::<Raw<member::MemberEventContent>>(event.content)
+                        .expect("Raw::from_value always works")
+                        .deserialize()
+                        .map_err(|_| Error::bad_database("Invalid member event in database."))?;
                 event.membership = ruma::events::room::member::MembershipState::Ban;
                 Ok(event)
             },
@@ -2211,6 +2218,7 @@ pub async fn get_public_rooms_filtered_route(
             Ok::<_, Error>(chunk)
         })
         .filter_map(|r| r.ok()) // Filter out buggy rooms
+        // We need to collect all, so we can sort by member count
         .collect::<Vec<_>>();
 
     chunk.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
@@ -2618,6 +2626,13 @@ pub async fn sync_events_route(
     let mut presence_updates = HashMap::new();
     let mut device_list_updates = HashSet::new();
 
+    // Look for device list updates of this account
+    device_list_updates.extend(
+        db.users
+            .keys_changed(&sender_id.to_string(), since, None)
+            .filter_map(|r| r.ok()),
+    );
+
     for room_id in db.rooms.rooms_joined(&sender_id) {
         let room_id = room_id?;
 
@@ -2869,7 +2884,7 @@ pub async fn sync_events_route(
         // Look for device list updates in this room
         device_list_updates.extend(
             db.users
-                .keys_changed(&room_id, since, None)
+                .keys_changed(&room_id.to_string(), since, None)
                 .filter_map(|r| r.ok()),
         );
 
@@ -3652,11 +3667,28 @@ pub fn get_key_changes_route(
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut device_list_updates = HashSet::new();
+
+    device_list_updates.extend(
+        db.users
+            .keys_changed(
+                &sender_id.to_string(),
+                body.from
+                    .parse()
+                    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
+                Some(
+                    body.to
+                        .parse()
+                        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?,
+                ),
+            )
+            .filter_map(|r| r.ok()),
+    );
+
     for room_id in db.rooms.rooms_joined(sender_id).filter_map(|r| r.ok()) {
         device_list_updates.extend(
             db.users
                 .keys_changed(
-                    &room_id,
+                    &room_id.to_string(),
                     body.from.parse().map_err(|_| {
                         Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`.")
                     })?,
