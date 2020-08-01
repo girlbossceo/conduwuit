@@ -7,6 +7,10 @@
 # Alpine build image to build Conduits statically compiled binary
 FROM alpine:3.12 as builder
 
+# Specifies if the local project is build or if the git master branch
+# is build.
+ARG LOCAL=false
+
 # Add 'edge'-repository to get Rust 1.45
 RUN sed -i \
 	-e 's|v3\.12|edge|' \
@@ -17,10 +21,15 @@ RUN apk add --no-cache \
         cargo \
         openssl-dev
 
-# Copy project from current folder and build it
+
+# Copy project files from current folder
 COPY . .
-RUN cargo install --path .
-#RUN cargo install --git "https://git.koesters.xyz/timo/conduit.git"
+# Build it from local files or from official git repository
+RUN if [[ $LOCAL == "true" ]]; then \
+        cargo install --path . ; \
+    else \
+        cargo install --git "https://git.koesters.xyz/timo/conduit.git" ; \
+    fi
 
 ########################## RUNTIME IMAGE ##########################
 # Create new stage with a minimal image for the actual

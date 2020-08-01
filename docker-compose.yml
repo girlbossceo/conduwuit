@@ -12,10 +12,13 @@ services:
         environment:
             ROCKET_SERVER_NAME: example.com  # replace with your own name
             ### Uncomment and change values as needed
-            #ROCKET_LOG: normal
-            #ROCKET_REGISTRATION_DISABLED: 'true'
-            #ROCKET_DATABASE_PATH: /data/sled
-            #ROCKET_WORKERS: 10
+            # ROCKET_LOG: normal
+            # ROCKET_PORT: 14004
+            # ROCKET_REGISTRATION_DISABLED: 'true'
+            # ROCKET_ENCRYPTION_DISABLED: 'true'
+            # ROCKET_DATABASE_PATH: /srv/conduit/.local/share/conduit
+            # ROCKET_WORKERS: 10
+            # ROCKET_MAX_REQUEST_SIZE: 20_000_000  # in bytes, ~20 MB
 
 volumes:
     db:
