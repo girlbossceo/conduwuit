@@ -8,7 +8,7 @@ services:
         ports:
             - 14004:14004
         volumes:
-            - db:/data/sled
+            - db:/srv/conduit/.local/share/conduit
         environment:
             ROCKET_SERVER_NAME: example.com  # replace with your own name
             ### Uncomment and change values as needed
