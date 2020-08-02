@@ -1,17 +1,17 @@
-# Conduit
+# Conduit - Behind Traefik Reverse Proxy
 version: '3'
 
 services:
     homeserver:
         image: conduit_homeserver:latest
         restart: unless-stopped
-        ports:
-            - 8448:8000
         volumes:
             - db:/srv/conduit/.local/share/conduit
             ### Uncomment if you want to use Rocket.toml to configure Conduit
             ### Note: Set env vars will override Rocket.toml values
             # - ./Rocket.toml:/srv/conduit/Rocket.toml
+        networks:
+            - proxy
         environment:
             ROCKET_SERVER_NAME: localhost:8000  # replace with your own name
             ### Uncomment and change values as desired
@@ -30,12 +30,18 @@ services:
     # element-web:
     #     image: vectorim/riot-web:latest
     #     restart: unless-stopped
-    #     ports:
-    #         - 8009:80
     #     volumes:
     #         - ./element_config.json:/app/config.json
+    #     networks:
+    #         - proxy
     #     depends_on:
     #         - homeserver
 
 volumes:
     db:
+
+networks:
+    # This is the network Traefik listens to, if you network has a different
+    # name, don't forget to change it here and in the docker-compose.override.yml
+    proxy:
+        external: true
