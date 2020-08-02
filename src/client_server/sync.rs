@@ -84,8 +84,8 @@ pub async fn sync_events_route(
         for pdu in db
             .rooms
             .pdus_since(&sender_id, &room_id, since)?
-            .filter_map(|r| r.ok())
         {
+            let pdu = pdu?;
             send_notification_counts = true;
             if pdu.kind == EventType::RoomMember {
                 send_member_count = true;
@@ -395,8 +395,8 @@ pub async fn sync_events_route(
         for pdu in db
             .rooms
             .pdus_since(&sender_id, &room_id, since)?
-            .filter_map(|r| r.ok())
         {
+            let pdu = pdu?;
             if pdu.kind == EventType::RoomMember {
                 if pdu.state_key == Some(sender_id.to_string()) {
                     let content = serde_json::from_value::<
