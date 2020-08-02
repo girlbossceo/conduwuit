@@ -3,7 +3,17 @@ version: '3'
 
 services:
     homeserver:
+        ### If you already built the Conduit image with 'docker build', then you are ready to
+        ### go. Otherwise, you need to comment the 'image' line and uncomment the 'build' lines
+        ### and run: CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml) docker-compose up -d
         image: conduit_homeserver:latest
+        # build:
+        #     context: .
+        #     args:
+        #         CREATED:
+        #         VERSION:
+        #         LOCAL: "false"
+        #         GIT_REF: HEAD
         restart: unless-stopped
         ports:
             - 8448:8000
@@ -16,7 +26,7 @@ services:
             ROCKET_SERVER_NAME: localhost:8000  # replace with your own name
             ### Uncomment and change values as desired
             # ROCKET_LOG: normal  # Available levels are: off, debug, normal, critical
-            # ROCKET_PORT: 14004
+            # ROCKET_PORT: 8000
             # ROCKET_REGISTRATION_DISABLED: 'true'
             # ROCKET_ENCRYPTION_DISABLED: 'true'
             # ROCKET_DATABASE_PATH: /srv/conduit/.local/share/conduit
