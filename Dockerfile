@@ -7,9 +7,11 @@
 # Alpine build image to build Conduits statically compiled binary
 FROM alpine:3.12 as builder
 
-# Specifies if the local project is build or if the git master branch
-# is build.
+# Specifies if the local project is build or if Conduit gets build
+# from the official git repository. Defaults to the git repo.
 ARG LOCAL=false
+# Specifies which revision/commit is build. Defaults to HEAD
+ARG GIT_REF=HEAD
 
 # Add 'edge'-repository to get Rust 1.45
 RUN sed -i \
@@ -24,11 +26,11 @@ RUN apk add --no-cache \
 
 # Copy project files from current folder
 COPY . .
-# Build it from local files or from official git repository
+# Build it from the copied local files or from the official git repository
 RUN if [[ $LOCAL == "true" ]]; then \
         cargo install --path . ; \
     else \
-        cargo install --git "https://git.koesters.xyz/timo/conduit.git" ; \
+        cargo install --git "https://git.koesters.xyz/timo/conduit.git" --rev ${GIT_REF}; \
     fi
 
 ########################## RUNTIME IMAGE ##########################
@@ -43,7 +45,7 @@ ARG GIT_REF=HEAD
 # Labels according to https://github.com/opencontainers/image-spec/blob/master/annotations.md
 # including a custom label specifying the build command
 LABEL org.opencontainers.image.created=${CREATED} \
-      org.opencontainers.image.authors="Conduit Contributors, weasy@hotmail.de" \
+      org.opencontainers.image.authors="Conduit Contributors" \
       org.opencontainers.image.title="Conduit" \
       org.opencontainers.image.version=${VERSION} \
       org.opencontainers.image.vendor="Conduit Contributors" \
@@ -54,17 +56,16 @@ LABEL org.opencontainers.image.created=${CREATED} \
       org.opencontainers.image.documentation.="" \
       org.opencontainers.image.licenses="AGPL-3.0" \
       org.opencontainers.image.ref.name="" \
-      org.label-schema.docker.build="docker build . -t conduit:latest --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)"\
-      maintainer="weasy@hotmail.de"
+      org.label-schema.docker.build="docker build . -t conduit_homeserver:latest --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)" \
+      maintainer="Weasy666"
 
-
-EXPOSE 14004
+# Standard port on which Rocket launches
+EXPOSE 8000
 
 # Copy config files from context and the binary from
 # the "builder" stage to the current stage into folder
 # /srv/conduit and create data folder for database
 RUN mkdir -p /srv/conduit/.local/share/conduit
-
 COPY --from=builder /root/.cargo/bin/conduit /srv/conduit/
 
 # Add www-data user and group with UID 82, as used by alpine
@@ -77,13 +78,17 @@ RUN set -x ; \
 # Change ownership of Conduit files to www-data user and group
 RUN chown -cR www-data:www-data /srv/conduit
 
+# Install packages needed to run Conduit
 RUN apk add --no-cache \
         ca-certificates \
         libgcc
 
+# Create a volume for the database, to persist its contents
 VOLUME ["/srv/conduit/.local/share/conduit"]
 
 # Set user to www-data
 USER www-data
+# Set container home directory
 WORKDIR /srv/conduit
+# Run Conduit
 ENTRYPOINT [ "/srv/conduit/conduit" ]

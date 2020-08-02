@@ -2,17 +2,20 @@
 version: '3'
 
 services:
-    conduit:
+    homeserver:
         image: conduit_homeserver
         restart: unless-stopped
         ports:
-            - 14004:14004
+            - 14004:8000
         volumes:
             - db:/srv/conduit/.local/share/conduit
+            ### Uncomment if you want to use Rocket.toml to configure Conduit
+            ### Note: Set env vars will override Rocket.toml values
+            # - ./Rocket.toml:/srv/conduit/Rocket.toml
         environment:
-            ROCKET_SERVER_NAME: example.com  # replace with your own name
-            ### Uncomment and change values as needed
-            # ROCKET_LOG: normal
+            ROCKET_SERVER_NAME: localhost:8000  # replace with your own name
+            ### Uncomment and change values as desired
+            # ROCKET_LOG: normal  # Available levels are: off, debug, normal, critical
             # ROCKET_PORT: 14004
             # ROCKET_REGISTRATION_DISABLED: 'true'
             # ROCKET_ENCRYPTION_DISABLED: 'true'
