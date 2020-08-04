@@ -4,7 +4,7 @@
 
 
 ##########################  BUILD IMAGE  ##########################
-# Alpine build image to build Conduits statically compiled binary
+# Alpine build image to build Conduit's statically compiled binary
 FROM alpine:3.12 as builder
 
 # Specifies if the local project is build or if Conduit gets build
@@ -51,7 +51,7 @@ LABEL org.opencontainers.image.created=${CREATED} \
       org.opencontainers.image.vendor="Conduit Contributors" \
       org.opencontainers.image.description="A Matrix homeserver written in Rust" \
       org.opencontainers.image.url="https://conduit.rs/" \
-      org.opencontainers.image.revision=$GIT_REF \
+      org.opencontainers.image.revision=${GIT_REF} \
       org.opencontainers.image.source="https://git.koesters.xyz/timo/conduit.git" \
       org.opencontainers.image.documentation.="" \
       org.opencontainers.image.licenses="AGPL-3.0" \
