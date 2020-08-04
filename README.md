@@ -21,6 +21,9 @@ Yes! Just open a Matrix client (<https://app.element.io> or Element Android for 
 You just have to clone the repo, build it with `cargo build --release` and call the binary (target/release/conduit) from somewhere like a systemd script.
 It's explained in more detail [here](https://git.koesters.xyz/timo/conduit/wiki/Deploy).
 
+Or you can just build the docker image and run it with docker or docker-compose.
+It's explained in more details [here](https://git.koesters.xyz/timo/conduit/wiki/Docker) or in the [README](docker/README.md) in the docker folder.
+
 #### What is it build on?
 
 - [Ruma](https://www.ruma.io): Useful structures for endpoint requests and responses that can be (de)serialized
