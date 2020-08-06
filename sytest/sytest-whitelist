@@ -89,6 +89,7 @@ POST /rooms/:room_id/join can join a room
 POST /rooms/:room_id/leave can leave a room
 POST /rooms/:room_id/state/m.room.name sets name
 POST /rooms/:room_id/state/m.room.topic sets topic
+POST /rooms/:room_id/upgrade can upgrade a room version
 POSTed media can be thumbnailed
 PUT /device/{deviceId} gives a 404 for unknown devices
 PUT /device/{deviceId} updates device fields

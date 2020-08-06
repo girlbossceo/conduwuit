@@ -112,6 +112,7 @@ impl Database {
 
                 userroomid_joined: db.open_tree("userroomid_joined")?,
                 roomuserid_joined: db.open_tree("roomuserid_joined")?,
+                roomuseroncejoinedids: db.open_tree("roomuseroncejoinedids")?,
                 userroomid_invited: db.open_tree("userroomid_invited")?,
                 roomuserid_invited: db.open_tree("roomuserid_invited")?,
                 userroomid_left: db.open_tree("userroomid_left")?,
