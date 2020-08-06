@@ -1,3 +1,4 @@
+use crate::Error;
 use argon2::{Config, Variant};
 use cmp::Ordering;
 use rand::prelude::*;
@@ -89,4 +90,9 @@ pub fn common_elements(
             })
             .all(|b| b)
     }))
+}
+
+pub fn deserialize<'de, T: serde::Deserialize<'de>>(val: &'de sled::IVec) -> Result<T, Error> {
+    serde_json::from_slice::<T>(val.as_ref())
+        .map_err(|_| Error::bad_database("PDU in db is invalid."))
 }
