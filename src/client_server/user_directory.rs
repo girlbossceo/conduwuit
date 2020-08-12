@@ -11,13 +11,9 @@ use rocket::post;
 )]
 pub fn search_users_route(
     db: State<'_, Database>,
-    body: Ruma<search_users::Request>,
+    body: Ruma<search_users::IncomingRequest>,
 ) -> ConduitResult<search_users::Response> {
-    let limit = if let Some(limit) = body.limit {
-        u64::from(limit)
-    } else {
-        10
-    } as usize;
+    let limit = u64::from(body.limit) as usize;
 
     let mut users = db.users.iter().filter_map(|user_id| {
         // Filter out buggy users (they should not exist, but you never know...)

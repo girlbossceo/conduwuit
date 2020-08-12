@@ -16,7 +16,7 @@ use {
         tokio::io::AsyncReadExt,
         Request, State,
     },
-    ruma::api::Endpoint,
+    ruma::api::IncomingRequest,
     std::io::Cursor,
 };
 
@@ -30,7 +30,7 @@ pub struct Ruma<T> {
 }
 
 #[cfg(feature = "conduit_bin")]
-impl<'a, T: Endpoint> FromTransformedData<'a> for Ruma<T> {
+impl<'a, T: IncomingRequest> FromTransformedData<'a> for Ruma<T> {
     type Error = (); // TODO: Better error handling
     type Owned = Data;
     type Borrowed = Self::Owned;

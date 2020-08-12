@@ -23,7 +23,7 @@ use rocket::{get, post};
 )]
 pub fn join_room_by_id_route(
     db: State<'_, Database>,
-    body: Ruma<join_room_by_id::Request>,
+    body: Ruma<join_room_by_id::IncomingRequest>,
 ) -> ConduitResult<join_room_by_id::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -76,7 +76,7 @@ pub fn join_room_by_id_or_alias_route(
         sender_id: body.sender_id.clone(),
         device_id: body.device_id.clone(),
         json_body: None,
-        body: join_room_by_id::Request {
+        body: join_room_by_id::IncomingRequest {
             room_id,
             third_party_signed: body.third_party_signed.clone(),
         },
@@ -94,7 +94,7 @@ pub fn join_room_by_id_or_alias_route(
 )]
 pub fn leave_room_route(
     db: State<'_, Database>,
-    body: Ruma<leave_room::Request>,
+    body: Ruma<leave_room::IncomingRequest>,
 ) -> ConduitResult<leave_room::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 

@@ -4,8 +4,8 @@ use ruma::{
     api::client::{
         error::ErrorKind,
         r0::state::{
-            create_state_event_for_empty_key, create_state_event_for_key, get_state_events,
-            get_state_events_for_empty_key, get_state_events_for_key,
+            get_state_events, get_state_events_for_empty_key, get_state_events_for_key,
+            send_state_event_for_empty_key, send_state_event_for_key,
         },
     },
     events::{room::canonical_alias, EventType},
@@ -19,10 +19,10 @@ use rocket::{get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/state/<_>/<_>", data = "<body>")
 )]
-pub fn create_state_event_for_key_route(
+pub fn send_state_event_for_key_route(
     db: State<'_, Database>,
-    body: Ruma<create_state_event_for_key::Request>,
-) -> ConduitResult<create_state_event_for_key::Response> {
+    body: Ruma<send_state_event_for_key::IncomingRequest>,
+) -> ConduitResult<send_state_event_for_key::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let content = serde_json::from_str::<serde_json::Value>(
@@ -78,21 +78,21 @@ pub fn create_state_event_for_key_route(
         &db.account_data,
     )?;
 
-    Ok(create_state_event_for_key::Response { event_id }.into())
+    Ok(send_state_event_for_key::Response { event_id }.into())
 }
 
 #[cfg_attr(
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/state/<_>", data = "<body>")
 )]
-pub fn create_state_event_for_empty_key_route(
+pub fn send_state_event_for_empty_key_route(
     db: State<'_, Database>,
-    body: Ruma<create_state_event_for_empty_key::Request>,
-) -> ConduitResult<create_state_event_for_empty_key::Response> {
-    // This just calls create_state_event_for_key_route
+    body: Ruma<send_state_event_for_empty_key::IncomingRequest>,
+) -> ConduitResult<send_state_event_for_empty_key::Response> {
+    // This just calls send_state_event_for_key_route
     let Ruma {
         body:
-            create_state_event_for_empty_key::Request {
+            send_state_event_for_empty_key::IncomingRequest {
                 room_id,
                 event_type,
                 data,
@@ -102,11 +102,11 @@ pub fn create_state_event_for_empty_key_route(
         json_body,
     } = body;
 
-    Ok(create_state_event_for_empty_key::Response {
-        event_id: create_state_event_for_key_route(
+    Ok(send_state_event_for_empty_key::Response {
+        event_id: send_state_event_for_key_route(
             db,
             Ruma {
-                body: create_state_event_for_key::Request {
+                body: send_state_event_for_key::IncomingRequest {
                     room_id,
                     event_type,
                     data,

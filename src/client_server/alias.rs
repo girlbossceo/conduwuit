@@ -14,7 +14,7 @@ use rocket::{delete, get, put};
 )]
 pub fn create_alias_route(
     db: State<'_, Database>,
-    body: Ruma<create_alias::Request>,
+    body: Ruma<create_alias::IncomingRequest>,
 ) -> ConduitResult<create_alias::Response> {
     if db.rooms.id_from_alias(&body.room_alias)?.is_some() {
         return Err(Error::Conflict("Alias already exists."));
@@ -32,7 +32,7 @@ pub fn create_alias_route(
 )]
 pub fn delete_alias_route(
     db: State<'_, Database>,
-    body: Ruma<delete_alias::Request>,
+    body: Ruma<delete_alias::IncomingRequest>,
 ) -> ConduitResult<delete_alias::Response> {
     db.rooms.set_alias(&body.room_alias, None, &db.globals)?;
 
@@ -45,7 +45,7 @@ pub fn delete_alias_route(
 )]
 pub fn get_alias_route(
     db: State<'_, Database>,
-    body: Ruma<get_alias::Request>,
+    body: Ruma<get_alias::IncomingRequest>,
 ) -> ConduitResult<get_alias::Response> {
     if body.room_alias.server_name() != db.globals.server_name() {
         todo!("ask remote server");

@@ -5,11 +5,12 @@ use ruma::{
         error::ErrorKind,
         r0::{
             device::Device,
-            keys::{AlgorithmAndDeviceId, CrossSigningKey, DeviceKeys, KeyAlgorithm, OneTimeKey},
+            keys::{CrossSigningKey, OneTimeKey},
         },
     },
+    encryption::DeviceKeys,
     events::{AnyToDeviceEvent, EventType},
-    DeviceId, Raw, UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, Raw, UserId,
 };
 use std::{collections::BTreeMap, convert::TryFrom, mem, time::SystemTime};
 
@@ -21,7 +22,7 @@ pub struct Users {
     pub(super) userdeviceid_metadata: sled::Tree, // This is also used to check if a device exists
     pub(super) token_userdeviceid: sled::Tree,
 
-    pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + AlgorithmAndDeviceId
+    pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + DeviceKeyId
     pub(super) userid_lastonetimekeyupdate: sled::Tree, // LastOneTimeKeyUpdate = Count
     pub(super) keychangeid_userid: sled::Tree,       // KeyChangeId = UserId/RoomId + Count
     pub(super) keyid_key: sled::Tree,                // KeyId = UserId + KeyId (depends on key type)
@@ -269,7 +270,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-        one_time_key_key: &AlgorithmAndDeviceId,
+        one_time_key_key: &DeviceKeyId,
         one_time_key_value: &OneTimeKey,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -282,11 +283,11 @@ impl Users {
         assert!(self.userdeviceid_metadata.get(&key)?.is_some());
 
         key.push(0xff);
-        // TODO: Use AlgorithmAndDeviceId::to_string when it's available (and update everything,
+        // TODO: Use DeviceKeyId::to_string when it's available (and update everything,
         // because there are no wrapping quotation marks anymore)
         key.extend_from_slice(
             &serde_json::to_string(one_time_key_key)
-                .expect("AlgorithmAndDeviceId::to_string always works")
+                .expect("DeviceKeyId::to_string always works")
                 .as_bytes(),
         );
 
@@ -319,9 +320,9 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-        key_algorithm: &KeyAlgorithm,
+        key_algorithm: &DeviceKeyAlgorithm,
         globals: &super::globals::Globals,
-    ) -> Result<Option<(AlgorithmAndDeviceId, OneTimeKey)>> {
+    ) -> Result<Option<(DeviceKeyId, OneTimeKey)>> {
         let mut prefix = user_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(device_id.as_bytes());
@@ -361,7 +362,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-    ) -> Result<BTreeMap<KeyAlgorithm, UInt>> {
+    ) -> Result<BTreeMap<DeviceKeyAlgorithm, UInt>> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
@@ -374,13 +375,13 @@ impl Users {
             .keys()
             .map(|bytes| {
                 Ok::<_, Error>(
-                    serde_json::from_slice::<AlgorithmAndDeviceId>(
+                    serde_json::from_slice::<DeviceKeyId>(
                         &*bytes?.rsplit(|&b| b == 0xff).next().ok_or_else(|| {
                             Error::bad_database("OneTimeKey ID in db is invalid.")
                         })?,
                     )
-                    .map_err(|_| Error::bad_database("AlgorithmAndDeviceID in db is invalid."))?
-                    .0,
+                    .map_err(|_| Error::bad_database("DeviceKeyId in db is invalid."))?
+                    .algorithm(),
                 )
             })
         {

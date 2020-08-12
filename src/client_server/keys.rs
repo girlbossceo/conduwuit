@@ -1,15 +1,17 @@
-use super::State;
-use super::SESSION_ID_LENGTH;
+use super::{State, SESSION_ID_LENGTH};
 use crate::{utils, ConduitResult, Database, Error, Ruma};
-use ruma::api::client::{
-    error::ErrorKind,
-    r0::{
-        keys::{
-            self, claim_keys, get_key_changes, get_keys, upload_keys, upload_signatures,
-            upload_signing_keys,
+use ruma::{
+    api::client::{
+        error::ErrorKind,
+        r0::{
+            keys::{
+                claim_keys, get_key_changes, get_keys, upload_keys, upload_signatures,
+                upload_signing_keys,
+            },
+            uiaa::{AuthFlow, UiaaInfo},
         },
-        uiaa::{AuthFlow, UiaaInfo},
     },
+    encryption::UnsignedDeviceInfo,
 };
 use std::collections::{BTreeMap, HashSet};
 
@@ -54,7 +56,7 @@ pub fn upload_keys_route(
 )]
 pub fn get_keys_route(
     db: State<'_, Database>,
-    body: Ruma<get_keys::Request>,
+    body: Ruma<get_keys::IncomingRequest>,
 ) -> ConduitResult<get_keys::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -76,7 +78,7 @@ pub fn get_keys_route(
                             Error::bad_database("all_device_keys contained nonexistent device.")
                         })?;
 
-                    keys.unsigned = Some(keys::UnsignedDeviceInfo {
+                    keys.unsigned = Some(UnsignedDeviceInfo {
                         device_display_name: metadata.display_name,
                     });
 
@@ -95,7 +97,7 @@ pub fn get_keys_route(
                         ),
                     )?;
 
-                    keys.unsigned = Some(keys::UnsignedDeviceInfo {
+                    keys.unsigned = Some(UnsignedDeviceInfo {
                         device_display_name: metadata.display_name,
                     });
 
@@ -278,7 +280,7 @@ pub fn upload_signatures_route(
 )]
 pub fn get_key_changes_route(
     db: State<'_, Database>,
-    body: Ruma<get_key_changes::Request>,
+    body: Ruma<get_key_changes::IncomingRequest>,
 ) -> ConduitResult<get_key_changes::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
