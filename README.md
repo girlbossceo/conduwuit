@@ -4,7 +4,7 @@
 [![Liberapay](https://img.shields.io/liberapay/receives/timokoesters?logo=liberapay)](https://liberapay.com/timokoesters)
 [![Matrix](https://img.shields.io/matrix/conduit:koesters.xyz?server_fqdn=matrix.koesters.xyz&logo=matrix)](https://matrix.to/#/#conduit:koesters.xyz)
 
-#### What is the goal
+#### What is the goal?
 
 A fast Matrix homeserver that's easy to set up and just works. You can install it on a mini-computer like the Raspberry Pi to host Matrix for your family, friends or company.
 
@@ -18,8 +18,14 @@ Yes! Just open a Matrix client (<https://app.element.io> or Element Android for 
 
 #### How can I deploy my own?
 
-You just have to clone the repo, build it with `cargo build --release` and call the binary (target/release/conduit) from somewhere like a systemd script.
-It's explained in more detail [here](https://git.koesters.xyz/timo/conduit/wiki/Deploy).
+##### From source
+
+Clone the repo, build it with `cargo build --release` and call the binary
+(target/release/conduit) from somewhere like a systemd script. [Read more](DEPLOY_FROM_SOURCE.md)
+
+##### Using Docker
+
+Build the docker image and run it with docker or docker-compose. [Read more](docker/README.md)
 
 #### What is it build on?
 
