@@ -2,7 +2,7 @@ use super::State;
 use crate::{pdu::PduBuilder, ConduitResult, Database, Error, Ruma};
 use ruma::api::client::{
     error::ErrorKind,
-    r0::message::{create_message_event, get_message_events},
+    r0::message::{get_message_events, send_message_event},
 };
 use std::convert::TryInto;
 
@@ -13,10 +13,10 @@ use rocket::{get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/send/<_>/<_>", data = "<body>")
 )]
-pub fn create_message_event_route(
+pub fn send_message_event_route(
     db: State<'_, Database>,
-    body: Ruma<create_message_event::Request>,
-) -> ConduitResult<create_message_event::Response> {
+    body: Ruma<send_message_event::IncomingRequest>,
+) -> ConduitResult<send_message_event::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let mut unsigned = serde_json::Map::new();
@@ -41,7 +41,7 @@ pub fn create_message_event_route(
         &db.account_data,
     )?;
 
-    Ok(create_message_event::Response { event_id }.into())
+    Ok(send_message_event::Response { event_id }.into())
 }
 
 #[cfg_attr(

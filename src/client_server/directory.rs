@@ -27,7 +27,7 @@ use rocket::{get, post, put};
 )]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
-    body: Ruma<get_public_rooms_filtered::Request>,
+    body: Ruma<get_public_rooms_filtered::IncomingRequest>,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
     let limit = body.limit.map_or(10, u64::from);
     let mut since = 0_u64;
@@ -224,11 +224,11 @@ pub async fn get_public_rooms_filtered_route(
 )]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
-    body: Ruma<get_public_rooms::Request>,
+    body: Ruma<get_public_rooms::IncomingRequest>,
 ) -> ConduitResult<get_public_rooms::Response> {
     let Ruma {
         body:
-            get_public_rooms::Request {
+            get_public_rooms::IncomingRequest {
                 limit,
                 server,
                 since,
@@ -246,7 +246,7 @@ pub async fn get_public_rooms_route(
     } = get_public_rooms_filtered_route(
         db,
         Ruma {
-            body: get_public_rooms_filtered::Request {
+            body: get_public_rooms_filtered::IncomingRequest {
                 filter: None,
                 limit,
                 room_network: get_public_rooms_filtered::RoomNetwork::Matrix,
