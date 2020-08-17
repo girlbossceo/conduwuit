@@ -54,7 +54,7 @@ LABEL org.opencontainers.image.created=${CREATED} \
       org.opencontainers.image.revision=${GIT_REF} \
       org.opencontainers.image.source="https://git.koesters.xyz/timo/conduit.git" \
       org.opencontainers.image.documentation.="" \
-      org.opencontainers.image.licenses="AGPL-3.0" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.ref.name="" \
       org.label-schema.docker.build="docker build . -t conduit_homeserver:latest --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)" \
       maintainer="Weasy666"
