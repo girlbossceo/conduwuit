@@ -23,7 +23,7 @@ Description=Conduit
 After=network.target
 
 [Service]
-Environment="ROCKET_SERVER_NAME=conduit.rs" # EDIT THIS
+Environment="ROCKET_SERVER_NAME=YOURSERVERNAME.HERE" # EDIT THIS
 
 Environment="ROCKET_PORT=14004" # Reverse proxy port
 
