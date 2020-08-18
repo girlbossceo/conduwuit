@@ -354,7 +354,7 @@ pub fn deactivate_route(
             third_party_invite: None,
         };
 
-        db.rooms.append_pdu(
+        db.rooms.build_and_append_pdu(
             PduBuilder {
                 room_id: room_id.clone(),
                 sender: sender_id.clone(),
