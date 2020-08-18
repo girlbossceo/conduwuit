@@ -94,5 +94,5 @@ pub fn common_elements(
 
 pub fn deserialize<'de, T: serde::Deserialize<'de>>(val: &'de sled::IVec) -> Result<T, Error> {
     serde_json::from_slice::<T>(val.as_ref())
-        .map_err(|_| Error::bad_database("PDU in db is invalid."))
+        .map_err(|_| Error::bad_database("Found invalid bytes as PDU in db."))
 }
