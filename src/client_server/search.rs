@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 )]
 pub fn search_events_route(
     db: State<'_, Database>,
-    body: Ruma<search_events::Request>,
+    body: Ruma<search_events::IncomingRequest>,
 ) -> ConduitResult<search_events::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -56,7 +56,8 @@ pub fn search_events_route(
                 result: db
                     .rooms
                     .get_pdu_from_id(&result)?
-                    .map(|pdu| pdu.to_room_event()),
+                    // TODO this is an awkward type conversion see method
+                    .map(|pdu| pdu.to_any_event()),
             })
         })
         .filter_map(|r| r.ok())
@@ -70,17 +71,15 @@ pub fn search_events_route(
         Some((skip + limit).to_string())
     };
 
-    Ok(search_events::Response {
-        search_categories: ResultCategories {
-            room_events: Some(ResultRoomEvents {
-                count: uint!(0),         // TODO
-                groups: BTreeMap::new(), // TODO
-                next_batch,
-                results,
-                state: BTreeMap::new(), // TODO
-                highlights: search.1,
-            }),
-        },
-    }
+    Ok(search_events::Response::new(ResultCategories {
+        room_events: Some(ResultRoomEvents {
+            count: uint!(0),         // TODO
+            groups: BTreeMap::new(), // TODO
+            next_batch,
+            results,
+            state: BTreeMap::new(), // TODO
+            highlights: search.1,
+        }),
+    })
     .into())
 }
