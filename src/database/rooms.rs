@@ -75,23 +75,23 @@ impl StateStore for Rooms {
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "PDU via room_id and event_id not found in the db.".to_owned())?;
 
-        utils::deserialize(
+        serde_json::from_slice(
             &self
                 .pduid_pdu
                 .get(pid)
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| "PDU via pduid not found in db.".to_owned())?,
         )
+        .map_err(|e| e.to_string())
         .and_then(|pdu: StateEvent| {
             // conduit's PDU's always contain a room_id but some
             // of ruma's do not so this must be an Option
             if pdu.room_id() == Some(room_id) {
                 Ok(pdu)
             } else {
-                Err(Error::bad_database("Found PDU for incorrect room in db."))
+                Err("Found PDU for incorrect room in db.".into())
             }
         })
-        .map_err(|e| e.to_string())
     }
 }
 
@@ -1207,8 +1207,7 @@ impl Rooms {
                     let roomid_index = key
                         .iter()
                         .enumerate()
-                        .filter(|(_, &b)| b == 0xff)
-                        .nth(0)
+                        .find(|(_, &b)| b == 0xff)
                         .ok_or_else(|| Error::bad_database("Invalid userroomid_joined in db."))?
                         .0
                         + 1; // +1 because the room id starts AFTER the separator

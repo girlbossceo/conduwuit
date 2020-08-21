@@ -149,15 +149,7 @@ pub async fn sync_events_route(
             device_list_updates.extend(
                 db.rooms
                     .room_members(&room_id)
-                    .filter_map(|user_id| {
-                        Some(
-                            UserId::try_from(user_id.ok()?.clone())
-                                .map_err(|_| {
-                                    Error::bad_database("Invalid member event state key in db.")
-                                })
-                                .ok()?,
-                        )
-                    })
+                    .filter_map(|user_id| Some(user_id.ok()?))
                     .filter(|user_id| {
                         // Don't send key updates from the sender to the sender
                         sender_id != user_id
@@ -491,9 +483,7 @@ pub async fn sync_events_route(
     }
 
     for user_id in left_encrypted_users {
-        // If the user doesn't share an encrypted room with the target anymore, we need to tell
-        // them
-        if db
+        let user_target_encrypted = db
             .rooms
             .get_shared_rooms(vec![sender_id.clone(), user_id.clone()])
             .filter_map(|r| r.ok())
@@ -505,8 +495,10 @@ pub async fn sync_events_route(
                         .is_some(),
                 )
             })
-            .all(|encrypted| !encrypted)
-        {
+            .all(|encrypted| !encrypted);
+        // If the user doesn't share an encrypted room with the target anymore, we need to tell
+        // them
+        if user_target_encrypted {
             device_list_left.insert(user_id);
         }
     }
