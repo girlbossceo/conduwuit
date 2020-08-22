@@ -86,14 +86,20 @@ pub fn register_route(
 
     let is_guest = matches!(body.kind, Some(RegistrationKind::Guest));
 
+    let mut missing_username = false;
+
     // Validate user id
     let user_id = UserId::parse_with_server_name(
         if is_guest {
             utils::random_string(GUEST_NAME_LENGTH)
         } else {
-            body.username.clone().ok_or_else(|| {
-                Error::BadRequest(ErrorKind::MissingParam, "Missing username field.")
-            })?
+            body.username.clone().unwrap_or_else(|| {
+                // If the user didn't send a username field, that means the client is just trying
+                // the get an UIAA error to see available flows
+                missing_username = true;
+                // Just give the user a random name. He won't be able to register with it anyway.
+                utils::random_string(GUEST_NAME_LENGTH)
+            })
         }
         .to_lowercase(),
         db.globals.server_name(),
@@ -106,7 +112,7 @@ pub fn register_route(
     ))?;
 
     // Check if username is creative enough
-    if db.users.exists(&user_id)? {
+    if !missing_username && db.users.exists(&user_id)? {
         return Err(Error::BadRequest(
             ErrorKind::UserInUse,
             "Desired user ID is already taken.",
@@ -136,6 +142,10 @@ pub fn register_route(
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
         db.uiaa.create(&user_id, "".into(), &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
+    }
+
+    if missing_username {
+        return Err(Error::BadRequest(ErrorKind::MissingParam, "Missing username field."));
     }
 
     let password = if is_guest {
