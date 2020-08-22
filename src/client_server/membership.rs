@@ -497,7 +497,7 @@ async fn join_room_by_id_helper(
             .collect::<Result<BTreeMap<EventId, StateEvent>, _>>()
             .map_err(|_| Error::bad_database("Invalid PDU found in db."))?;
 
-        let _auth_chain = send_join_response
+        let auth_chain = send_join_response
             .room_state
             .auth_chain
             .iter()
@@ -505,16 +505,54 @@ async fn join_room_by_id_helper(
             .map(StateEvent::Full)
             .collect::<Vec<_>>();
 
-        // TODO make StateResolution's methods free functions ? or no self param ?
-        let sorted_events_ids = state_res::StateResolution::reverse_topological_power_sort(
+        let power_events = event_map
+            .values()
+            .filter(|pdu| pdu.is_power_event())
+            .map(|pdu| pdu.event_id())
+            .collect::<Vec<_>>();
+
+        // TODO these events are not guaranteed to be sorted but they are resolved, do
+        // we need the auth_chain
+        let sorted_power_events = state_res::StateResolution::reverse_topological_power_sort(
             &room_id,
-            &event_map.keys().cloned().collect::<Vec<_>>(),
+            &power_events,
             &mut event_map,
             &db.rooms,
-            &[], // TODO auth_diff: is this none since we have a set of resolved events we only want to sort
+            &auth_chain // if we only use it here just build this list in the first place
+                .iter()
+                .map(|pdu| pdu.event_id())
+                .collect::<Vec<_>>(),
         );
 
-        for ev_id in &sorted_events_ids {
+        // TODO we may be able to skip this since they are resolved according to spec
+        let resolved_power = state_res::StateResolution::iterative_auth_check(
+            room_id,
+            &RoomVersionId::Version6,
+            &sorted_power_events,
+            &BTreeMap::new(), // unconflicted events
+            &mut event_map,
+            &db.rooms,
+        )
+        .expect("iterative auth check failed on resolved events");
+        // TODO do we need to dedup them
+
+        let events_to_sort = event_map
+            .keys()
+            .filter(|id| !sorted_power_events.contains(id))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let power_level = resolved_power.get(&(EventType::RoomPowerLevels, Some("".into())));
+
+        let sorted_event_ids = state_res::StateResolution::mainline_sort(
+            room_id,
+            &events_to_sort,
+            power_level,
+            &mut event_map,
+            &db.rooms,
+        );
+
+        for ev_id in &sorted_event_ids {
             // this is a `state_res::StateEvent` that holds a `ruma::Pdu`
             let pdu = event_map
                 .get(ev_id)
