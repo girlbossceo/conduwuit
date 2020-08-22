@@ -145,7 +145,10 @@ pub fn register_route(
     }
 
     if missing_username {
-        return Err(Error::BadRequest(ErrorKind::MissingParam, "Missing username field."));
+        return Err(Error::BadRequest(
+            ErrorKind::MissingParam,
+            "Missing username field.",
+        ));
     }
 
     let password = if is_guest {

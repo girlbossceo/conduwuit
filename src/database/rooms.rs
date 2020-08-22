@@ -965,6 +965,7 @@ impl Rooms {
             self.tokenids
                 .scan_prefix(&prefix2)
                 .keys()
+                .rev() // Newest pdus first
                 .filter_map(|r| r.ok())
                 .map(|key| {
                     let pduid_index = key
@@ -983,7 +984,14 @@ impl Rooms {
                 .filter_map(|r| r.ok())
         });
 
-        Ok((utils::common_elements(iterators).unwrap(), words))
+        Ok((
+            utils::common_elements(iterators, |a, b| {
+                // We compare b with a because we reversed the iterator earlier
+                b.cmp(a)
+            })
+            .unwrap(),
+            words,
+        ))
     }
 
     pub fn get_shared_rooms<'a>(
@@ -1015,7 +1023,8 @@ impl Rooms {
                 .filter_map(|r| r.ok())
         });
 
-        utils::common_elements(iterators)
+        // We use the default compare function because keys are sorted correctly (not reversed)
+        utils::common_elements(iterators, Ord::cmp)
             .expect("users is not empty")
             .map(|bytes| {
                 RoomId::try_from(utils::string_from_bytes(&*bytes).map_err(|_| {

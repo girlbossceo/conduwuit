@@ -1,7 +1,9 @@
 use argon2::{Config, Variant};
+use cmp::Ordering;
 use rand::prelude::*;
 use sled::IVec;
 use std::{
+    cmp,
     convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -63,6 +65,7 @@ pub fn calculate_hash(password: &str) -> Result<String, argon2::Error> {
 
 pub fn common_elements(
     mut iterators: impl Iterator<Item = impl Iterator<Item = IVec>>,
+    check_order: impl Fn(&IVec, &IVec) -> Ordering,
 ) -> Option<impl Iterator<Item = IVec>> {
     let first_iterator = iterators.next()?;
     let mut other_iterators = iterators.map(|i| i.peekable()).collect::<Vec<_>>();
@@ -72,12 +75,13 @@ pub fn common_elements(
             .iter_mut()
             .map(|it| {
                 while let Some(element) = it.peek() {
-                    if element > target {
-                        return false;
-                    } else if element == target {
-                        return true;
-                    } else {
-                        it.next();
+                    match check_order(element, target) {
+                        Ordering::Greater => return false, // We went too far
+                        Ordering::Equal => return true,    // Element is in both iters
+                        Ordering::Less => {
+                            // Keep searching
+                            it.next();
+                        }
                     }
                 }
 
