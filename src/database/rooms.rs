@@ -11,7 +11,6 @@ use ruma::{
         room::{
             join_rules, member,
             power_levels::{self, PowerLevelsEventContent},
-            redaction,
         },
         EventType,
     },
@@ -566,7 +565,7 @@ impl Rooms {
         self.eventid_pduid
             .insert(pdu.event_id.to_string(), pdu_id.clone())?;
 
-        if let Some(state_key) = pdu.state_key {
+        if let Some(state_key) = &pdu.state_key {
             let mut key = room_id.to_string().as_bytes().to_vec();
             key.push(0xff);
             key.extend_from_slice(pdu.kind.to_string().as_bytes());
@@ -578,20 +577,7 @@ impl Rooms {
         match event_type {
             EventType::RoomRedaction => {
                 if let Some(redact_id) = &redacts {
-                    // TODO: Reason
-                    let _reason =
-                        serde_json::from_value::<Raw<redaction::RedactionEventContent>>(content)
-                            .expect("Raw::from_value always works.")
-                            .deserialize()
-                            .map_err(|_| {
-                                Error::BadRequest(
-                                    ErrorKind::InvalidParam,
-                                    "Invalid redaction event content.",
-                                )
-                            })?
-                            .reason;
-
-                    self.redact_pdu(&redact_id)?;
+                    self.redact_pdu(&redact_id, &pdu)?;
                 }
             }
             EventType::RoomMember => {
@@ -758,12 +744,12 @@ impl Rooms {
     }
 
     /// Replace a PDU with the redacted form.
-    pub fn redact_pdu(&self, event_id: &EventId) -> Result<()> {
+    pub fn redact_pdu(&self, event_id: &EventId, reason: &PduEvent) -> Result<()> {
         if let Some(pdu_id) = self.get_pdu_id(event_id)? {
             let mut pdu = self
                 .get_pdu_from_id(&pdu_id)?
                 .ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
-            pdu.redact()?;
+            pdu.redact(&reason)?;
             self.replace_pdu(&pdu_id, &pdu)?;
             Ok(())
         } else {
