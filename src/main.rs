@@ -1,13 +1,13 @@
 #![warn(rust_2018_idioms)]
 
-pub mod push_rules;
+pub mod client_server;
+pub mod server_server;
 
-mod client_server;
 mod database;
 mod error;
 mod pdu;
+mod push_rules;
 mod ruma_wrapper;
-//mod server_server;
 mod utils;
 
 pub use database::Database;
@@ -26,7 +26,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_supported_versions_route,
                 client_server::get_register_available_route,
                 client_server::register_route,
-                client_server::get_login_route,
+                client_server::get_login_types_route,
                 client_server::login_route,
                 client_server::whoami_route,
                 client_server::logout_route,
@@ -90,6 +90,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::sync_events_route,
                 client_server::get_context_route,
                 client_server::get_message_events_route,
+                client_server::search_events_route,
                 client_server::turn_server_route,
                 client_server::send_event_to_device_route,
                 client_server::get_media_config_route,
@@ -110,10 +111,12 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_key_changes_route,
                 client_server::get_pushers_route,
                 client_server::set_pushers_route,
-                //server_server::well_known_server,
-                //server_server::get_server_version,
-                //server_server::get_server_keys,
-                //server_server::get_server_keys_deprecated,
+                server_server::well_known_server,
+                server_server::get_server_version,
+                server_server::get_server_keys,
+                server_server::get_server_keys_deprecated,
+                server_server::get_public_rooms_route,
+                server_server::send_transaction_message_route,
             ],
         )
         .attach(AdHoc::on_attach("Config", |mut rocket| async {

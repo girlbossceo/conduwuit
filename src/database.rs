@@ -104,6 +104,8 @@ impl Database {
                 aliasid_alias: db.open_tree("alias_roomid")?,
                 publicroomids: db.open_tree("publicroomids")?,
 
+                tokenids: db.open_tree("tokenids")?,
+
                 userroomid_joined: db.open_tree("userroomid_joined")?,
                 roomuserid_joined: db.open_tree("roomuserid_joined")?,
                 userroomid_invited: db.open_tree("userroomid_invited")?,
@@ -127,7 +129,6 @@ impl Database {
 
     pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) {
         let userid_bytes = user_id.to_string().as_bytes().to_vec();
-
         let mut userid_prefix = userid_bytes.clone();
         userid_prefix.push(0xff);
 
@@ -151,7 +152,8 @@ impl Database {
 
         // Events for rooms we are in
         for room_id in self.rooms.rooms_joined(user_id).filter_map(|r| r.ok()) {
-            let mut roomid_prefix = room_id.to_string().as_bytes().to_vec();
+            let roomid_bytes = room_id.to_string().as_bytes().to_vec();
+            let mut roomid_prefix = roomid_bytes.clone();
             roomid_prefix.push(0xff);
 
             // PDUs
@@ -162,7 +164,7 @@ impl Database {
                 self.rooms
                     .edus
                     .roomid_lastroomactiveupdate
-                    .watch_prefix(&roomid_prefix),
+                    .watch_prefix(&roomid_bytes),
             );
 
             futures.push(

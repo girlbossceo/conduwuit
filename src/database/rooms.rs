@@ -35,6 +35,8 @@ pub struct Rooms {
     pub(super) aliasid_alias: sled::Tree, // AliasId = RoomId + Count
     pub(super) publicroomids: sled::Tree,
 
+    pub(super) tokenids: sled::Tree, // TokenId = RoomId + Token + PduId
+
     pub(super) userroomid_joined: sled::Tree,
     pub(super) roomuserid_joined: sled::Tree,
     pub(super) userroomid_invited: sled::Tree,
@@ -562,7 +564,7 @@ impl Rooms {
         self.pduid_pdu.insert(&pdu_id, &*pdu_json.to_string())?;
 
         self.eventid_pduid
-            .insert(pdu.event_id.to_string(), pdu_id)?;
+            .insert(pdu.event_id.to_string(), pdu_id.clone())?;
 
         if let Some(state_key) = pdu.state_key {
             let mut key = room_id.to_string().as_bytes().to_vec();
@@ -614,6 +616,21 @@ impl Rooms {
                         account_data,
                         globals,
                     )?;
+                }
+            }
+            EventType::RoomMessage => {
+                if let Some(body) = content.get("body").and_then(|b| b.as_str()) {
+                    for word in body
+                        .split_terminator(|c: char| !c.is_alphanumeric())
+                        .map(str::to_lowercase)
+                    {
+                        let mut key = room_id.to_string().as_bytes().to_vec();
+                        key.push(0xff);
+                        key.extend_from_slice(word.as_bytes());
+                        key.push(0xff);
+                        key.extend_from_slice(&pdu_id);
+                        self.tokenids.insert(key, &[])?;
+                    }
                 }
             }
             _ => {}
@@ -926,6 +943,95 @@ impl Rooms {
                 .map_err(|_| Error::bad_database("Room ID in publicroomids is invalid."))?,
             )
         })
+    }
+
+    pub fn search_pdus<'a>(
+        &'a self,
+        room_id: &RoomId,
+        search_string: &str,
+    ) -> Result<(impl Iterator<Item = IVec> + 'a, Vec<String>)> {
+        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+
+        let words = search_string
+            .split_terminator(|c: char| !c.is_alphanumeric())
+            .map(str::to_lowercase)
+            .collect::<Vec<_>>();
+
+        let iterators = words.clone().into_iter().map(move |word| {
+            let mut prefix2 = prefix.clone();
+            prefix2.extend_from_slice(word.as_bytes());
+            prefix2.push(0xff);
+            self.tokenids
+                .scan_prefix(&prefix2)
+                .keys()
+                .rev() // Newest pdus first
+                .filter_map(|r| r.ok())
+                .map(|key| {
+                    let pduid_index = key
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, &b)| b == 0xff)
+                        .nth(1)
+                        .ok_or_else(|| Error::bad_database("Invalid tokenid in db."))?
+                        .0
+                        + 1; // +1 because the pdu id starts AFTER the separator
+
+                    let pdu_id = key.subslice(pduid_index, key.len() - pduid_index);
+
+                    Ok::<_, Error>(pdu_id)
+                })
+                .filter_map(|r| r.ok())
+        });
+
+        Ok((
+            utils::common_elements(iterators, |a, b| {
+                // We compare b with a because we reversed the iterator earlier
+                b.cmp(a)
+            })
+            .unwrap(),
+            words,
+        ))
+    }
+
+    pub fn get_shared_rooms<'a>(
+        &'a self,
+        users: Vec<UserId>,
+    ) -> impl Iterator<Item = Result<RoomId>> + 'a {
+        let iterators = users.into_iter().map(move |user_id| {
+            let mut prefix = user_id.as_bytes().to_vec();
+            prefix.push(0xff);
+
+            self.userroomid_joined
+                .scan_prefix(&prefix)
+                .keys()
+                .filter_map(|r| r.ok())
+                .map(|key| {
+                    let roomid_index = key
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, &b)| b == 0xff)
+                        .nth(0)
+                        .ok_or_else(|| Error::bad_database("Invalid userroomid_joined in db."))?
+                        .0
+                        + 1; // +1 because the room id starts AFTER the separator
+
+                    let room_id = key.subslice(roomid_index, key.len() - roomid_index);
+
+                    Ok::<_, Error>(room_id)
+                })
+                .filter_map(|r| r.ok())
+        });
+
+        // We use the default compare function because keys are sorted correctly (not reversed)
+        utils::common_elements(iterators, Ord::cmp)
+            .expect("users is not empty")
+            .map(|bytes| {
+                RoomId::try_from(utils::string_from_bytes(&*bytes).map_err(|_| {
+                    Error::bad_database("Invalid RoomId bytes in userroomid_joined")
+                })?)
+                .map_err(|_| Error::bad_database("Invalid RoomId in userroomid_joined."))
+            })
     }
 
     /// Returns an iterator over all joined members of a room.

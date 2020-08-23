@@ -1,8 +1,11 @@
 use super::State;
-use crate::{ConduitResult, Database, Error, Ruma};
-use ruma::api::client::{
-    error::ErrorKind,
-    r0::alias::{create_alias, delete_alias, get_alias},
+use crate::{server_server, ConduitResult, Database, Error, Ruma};
+use ruma::api::{
+    client::{
+        error::ErrorKind,
+        r0::alias::{create_alias, delete_alias, get_alias},
+    },
+    federation,
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -43,12 +46,25 @@ pub fn delete_alias_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/directory/room/<_>", data = "<body>")
 )]
-pub fn get_alias_route(
+pub async fn get_alias_route(
     db: State<'_, Database>,
     body: Ruma<get_alias::IncomingRequest>,
 ) -> ConduitResult<get_alias::Response> {
     if body.room_alias.server_name() != db.globals.server_name() {
-        todo!("ask remote server");
+        let response = server_server::send_request(
+            &db,
+            body.room_alias.server_name().to_string(),
+            federation::query::get_room_information::v1::Request {
+                room_alias: body.room_alias.to_string(),
+            },
+        )
+        .await?;
+
+        return Ok(get_alias::Response {
+            room_id: response.room_id,
+            servers: response.servers,
+        }
+        .into());
     }
 
     let room_id = db

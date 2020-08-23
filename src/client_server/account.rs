@@ -15,11 +15,18 @@ use ruma::{
     UserId,
 };
 
+use register::RegistrationKind;
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};
 
 const GUEST_NAME_LENGTH: usize = 10;
 
+/// # `GET /_matrix/client/r0/register/available`
+///
+/// Checks if a username is valid and available on this server.
+///
+/// - Returns true if no user or appservice on this server claimed this username
+/// - This will not reserve the username, so the username might become invalid when trying to register
 #[cfg_attr(
     feature = "conduit_bin",
     get("/_matrix/client/r0/register/available", data = "<body>")
@@ -53,6 +60,15 @@ pub fn get_register_available_route(
     Ok(get_username_availability::Response { available: true }.into())
 }
 
+/// # `POST /_matrix/client/r0/register`
+///
+/// Register an account on this homeserver.
+///
+/// - Returns the device id and access_token unless `inhibit_login` is true
+/// - When registering a guest account, all parameters except initial_device_display_name will be
+/// ignored
+/// - Creates a new account and a device for it
+/// - The account will be populated with default account data
 #[cfg_attr(
     feature = "conduit_bin",
     post("/_matrix/client/r0/register", data = "<body>")
@@ -68,12 +84,24 @@ pub fn register_route(
         ));
     }
 
+    let is_guest = matches!(body.kind, Some(RegistrationKind::Guest));
+
+    let mut missing_username = false;
+
     // Validate user id
     let user_id = UserId::parse_with_server_name(
-        body.username
-            .clone()
-            .unwrap_or_else(|| utils::random_string(GUEST_NAME_LENGTH))
-            .to_lowercase(),
+        if is_guest {
+            utils::random_string(GUEST_NAME_LENGTH)
+        } else {
+            body.username.clone().unwrap_or_else(|| {
+                // If the user didn't send a username field, that means the client is just trying
+                // the get an UIAA error to see available flows
+                missing_username = true;
+                // Just give the user a random name. He won't be able to register with it anyway.
+                utils::random_string(GUEST_NAME_LENGTH)
+            })
+        }
+        .to_lowercase(),
         db.globals.server_name(),
     )
     .ok()
@@ -84,7 +112,7 @@ pub fn register_route(
     ))?;
 
     // Check if username is creative enough
-    if db.users.exists(&user_id)? {
+    if !missing_username && db.users.exists(&user_id)? {
         return Err(Error::BadRequest(
             ErrorKind::UserInUse,
             "Desired user ID is already taken.",
@@ -116,7 +144,19 @@ pub fn register_route(
         return Err(Error::Uiaa(uiaainfo));
     }
 
-    let password = body.password.clone().unwrap_or_default();
+    if missing_username {
+        return Err(Error::BadRequest(
+            ErrorKind::MissingParam,
+            "Missing username field.",
+        ));
+    }
+
+    let password = if is_guest {
+        None
+    } else {
+        body.password.clone()
+    }
+    .unwrap_or_default();
 
     // Create user
     db.users.create(&user_id, &password)?;
@@ -134,7 +174,7 @@ pub fn register_route(
         &db.globals,
     )?;
 
-    if body.inhibit_login {
+    if !is_guest && body.inhibit_login {
         return Ok(register::Response {
             access_token: None,
             user_id,
@@ -144,10 +184,12 @@ pub fn register_route(
     }
 
     // Generate new device id if the user didn't specify one
-    let device_id = body
-        .device_id
-        .clone()
-        .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
+    let device_id = if is_guest {
+        None
+    } else {
+        body.device_id.clone()
+    }
+    .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
 
     // Generate new token for the device
     let token = utils::random_string(TOKEN_LENGTH);
@@ -168,6 +210,13 @@ pub fn register_route(
     .into())
 }
 
+/// # `POST /_matrix/client/r0/account/password`
+///
+/// Changes the password of this account.
+///
+/// - Invalidates all other access tokens if logout_devices is true
+/// - Deletes all other devices and most of their data (to-device events, last seen, etc.) if
+/// logout_devices is true
 #[cfg_attr(
     feature = "conduit_bin",
     post("/_matrix/client/r0/account/password", data = "<body>")
@@ -225,6 +274,11 @@ pub fn change_password_route(
     Ok(change_password::Response.into())
 }
 
+/// # `GET _matrix/client/r0/account/whoami`
+///
+/// Get user_id of this account.
+///
+/// - Also works for Application Services
 #[cfg_attr(
     feature = "conduit_bin",
     get("/_matrix/client/r0/account/whoami", data = "<body>")
@@ -237,6 +291,14 @@ pub fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Respon
     .into())
 }
 
+/// # `POST /_matrix/client/r0/account/deactivate`
+///
+/// Deactivate this user's account
+///
+/// - Leaves all rooms and rejects all invitations
+/// - Invalidates all access tokens
+/// - Deletes all devices
+/// - Removes ability to log in again
 #[cfg_attr(
     feature = "conduit_bin",
     post("/_matrix/client/r0/account/deactivate", data = "<body>")

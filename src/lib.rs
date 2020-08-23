@@ -4,6 +4,7 @@ mod error;
 mod pdu;
 mod push_rules;
 mod ruma_wrapper;
+pub mod server_server;
 mod utils;
 
 pub use database::Database;
