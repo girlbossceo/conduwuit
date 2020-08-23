@@ -88,10 +88,11 @@ impl Database {
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {
-                    roomuserid_lastread: db.open_tree("roomuserid_lastread")?, // "Private" read receipt
-                    roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest")?, // Read receipts
-                    roomactiveid_userid: db.open_tree("roomactiveid_userid")?, // Typing notifs
-                    roomid_lastroomactiveupdate: db.open_tree("roomid_lastroomactiveupdate")?,
+                    readreceiptid_readreceipt: db.open_tree("readreceiptid_readreceipt")?,
+                    roomuserid_privateread: db.open_tree("roomuserid_privateread")?, // "Private" read receipt
+                    roomuserid_lastprivatereadupdate: db.open_tree("roomid_lastprivatereadupdate")?,
+                    typingid_userid: db.open_tree("typingid_userid")?,
+                    roomid_lasttypingupdate: db.open_tree("roomid_lasttypingupdate")?,
                     presenceid_presence: db.open_tree("presenceid_presence")?,
                     userid_lastpresenceupdate: db.open_tree("userid_lastpresenceupdate")?,
                 },
@@ -163,14 +164,14 @@ impl Database {
             futures.push(
                 self.rooms
                     .edus
-                    .roomid_lastroomactiveupdate
+                    .roomid_lasttypingupdate
                     .watch_prefix(&roomid_bytes),
             );
 
             futures.push(
                 self.rooms
                     .edus
-                    .roomlatestid_roomlatest
+                    .readreceiptid_readreceipt
                     .watch_prefix(&roomid_prefix),
             );
 

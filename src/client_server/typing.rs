@@ -16,7 +16,7 @@ pub fn create_typing_event_route(
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     if body.typing {
-        db.rooms.edus.roomactive_add(
+        db.rooms.edus.typing_add(
             &sender_id,
             &body.room_id,
             body.timeout.map(|d| d.as_millis() as u64).unwrap_or(30000)
@@ -26,7 +26,7 @@ pub fn create_typing_event_route(
     } else {
         db.rooms
             .edus
-            .roomactive_remove(&sender_id, &body.room_id, &db.globals)?;
+            .typing_remove(&sender_id, &body.room_id, &db.globals)?;
     }
 
     Ok(create_typing_event::Response.into())
