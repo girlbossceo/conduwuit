@@ -216,9 +216,7 @@ pub async fn get_public_rooms_route(
                 limit,
                 since,
             },
-        sender_id,
-        device_id,
-        json_body,
+        ..
     } = body;
 
     let client::r0::directory::get_public_rooms_filtered::Response {
@@ -226,20 +224,13 @@ pub async fn get_public_rooms_route(
         prev_batch,
         next_batch,
         total_room_count_estimate,
-    } = client_server::get_public_rooms_filtered_route(
-        db,
-        Ruma {
-            body: client::r0::directory::get_public_rooms_filtered::IncomingRequest {
-                filter: None,
-                limit,
-                room_network: ruma::directory::RoomNetwork::Matrix,
-                server: None,
-                since,
-            },
-            sender_id,
-            device_id,
-            json_body,
-        },
+    } = client_server::get_public_rooms_filtered_helper(
+        &db,
+        None,
+        limit,
+        since.as_deref(),
+        None,
+        Some(ruma::directory::RoomNetwork::Matrix),
     )
     .await?
     .0;

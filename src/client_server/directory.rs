@@ -14,7 +14,7 @@ use ruma::{
         },
         federation,
     },
-    directory::PublicRoomsChunk,
+    directory::{Filter, PublicRoomsChunk, RoomNetwork},
     events::{
         room::{avatar, canonical_alias, guest_access, history_visibility, name, topic},
         EventType,
@@ -33,17 +33,123 @@ pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms_filtered::IncomingRequest>,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
-    if let Some(other_server) = body
-        .server
+    let Ruma {
+        body:
+            get_public_rooms_filtered::IncomingRequest {
+                limit,
+                server,
+                since,
+                filter,
+                room_network,
+            },
+        ..
+    } = body;
+    get_public_rooms_filtered_helper(
+        &db,
+        server.as_deref(),
+        limit,
+        since.as_deref(),
+        filter,             // This is not used yet
+        Some(room_network), // This is not used
+    )
+    .await
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/publicRooms", data = "<body>")
+)]
+pub async fn get_public_rooms_route(
+    db: State<'_, Database>,
+    body: Ruma<get_public_rooms::IncomingRequest>,
+) -> ConduitResult<get_public_rooms::Response> {
+    let Ruma {
+        body:
+            get_public_rooms::IncomingRequest {
+                limit,
+                server,
+                since,
+            },
+        ..
+    } = body;
+
+    let get_public_rooms_filtered::Response {
+        chunk,
+        prev_batch,
+        next_batch,
+        total_room_count_estimate,
+    } = get_public_rooms_filtered_helper(
+        &db,
+        server.as_deref(),
+        limit,
+        since.as_deref(),
+        None, // This is not used
+        None, // This is not used
+    )
+    .await?
+    .0;
+
+    Ok(get_public_rooms::Response {
+        chunk,
+        prev_batch,
+        next_batch,
+        total_room_count_estimate,
+    }
+    .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
+)]
+pub async fn set_room_visibility_route(
+    db: State<'_, Database>,
+    body: Ruma<set_room_visibility::Request>,
+) -> ConduitResult<set_room_visibility::Response> {
+    match body.visibility {
+        room::Visibility::Public => db.rooms.set_public(&body.room_id, true)?,
+        room::Visibility::Private => db.rooms.set_public(&body.room_id, false)?,
+    }
+
+    Ok(set_room_visibility::Response.into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
+)]
+pub async fn get_room_visibility_route(
+    db: State<'_, Database>,
+    body: Ruma<get_room_visibility::Request>,
+) -> ConduitResult<get_room_visibility::Response> {
+    Ok(get_room_visibility::Response {
+        visibility: if db.rooms.is_public_room(&body.room_id)? {
+            room::Visibility::Public
+        } else {
+            room::Visibility::Private
+        },
+    }
+    .into())
+}
+
+pub async fn get_public_rooms_filtered_helper(
+    db: &Database,
+    server: Option<&str>,
+    limit: Option<js_int::UInt>,
+    since: Option<&str>,
+    _filter: Option<Filter>,
+    _network: Option<RoomNetwork>,
+) -> ConduitResult<get_public_rooms_filtered::Response> {
+    if let Some(other_server) = server
         .clone()
-        .filter(|server| server != db.globals.server_name().as_str())
+        .filter(|server| *server != db.globals.server_name().as_str())
     {
         let response = server_server::send_request(
             &db,
-            other_server,
+            other_server.to_owned(),
             federation::directory::get_public_rooms::v1::Request {
-                limit: body.limit,
-                since: body.since.as_deref(),
+                limit,
+                since: since.as_deref(),
                 room_network: ruma::directory::RoomNetwork::Matrix,
             },
         )
@@ -73,10 +179,10 @@ pub async fn get_public_rooms_filtered_route(
         .into());
     }
 
-    let limit = body.limit.map_or(10, u64::from);
-    let mut since = 0_u64;
+    let limit = limit.map_or(10, u64::from);
+    let mut num_since = 0_u64;
 
-    if let Some(s) = &body.since {
+    if let Some(s) = &since {
         let mut characters = s.chars();
         let backwards = match characters.next() {
             Some('n') => false,
@@ -89,13 +195,13 @@ pub async fn get_public_rooms_filtered_route(
             }
         };
 
-        since = characters
+        num_since = characters
             .collect::<String>()
             .parse()
             .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `since` token."))?;
 
         if backwards {
-            since = since.saturating_sub(limit);
+            num_since = num_since.saturating_sub(limit);
         }
     }
 
@@ -217,20 +323,20 @@ pub async fn get_public_rooms_filtered_route(
 
     let chunk = all_rooms
         .into_iter()
-        .skip(since as usize)
+        .skip(num_since as usize)
         .take(limit as usize)
         .collect::<Vec<_>>();
 
-    let prev_batch = if since == 0 {
+    let prev_batch = if num_since == 0 {
         None
     } else {
-        Some(format!("p{}", since))
+        Some(format!("p{}", num_since))
     };
 
     let next_batch = if chunk.len() < limit as usize {
         None
     } else {
-        Some(format!("n{}", since + limit))
+        Some(format!("n{}", num_since + limit))
     };
 
     Ok(get_public_rooms_filtered::Response {
@@ -238,92 +344,6 @@ pub async fn get_public_rooms_filtered_route(
         prev_batch,
         next_batch,
         total_room_count_estimate: Some(total_room_count_estimate),
-    }
-    .into())
-}
-
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/publicRooms", data = "<body>")
-)]
-pub async fn get_public_rooms_route(
-    db: State<'_, Database>,
-    body: Ruma<get_public_rooms::IncomingRequest>,
-) -> ConduitResult<get_public_rooms::Response> {
-    let Ruma {
-        body:
-            get_public_rooms::IncomingRequest {
-                limit,
-                server,
-                since,
-            },
-        sender_id,
-        device_id,
-        json_body,
-    } = body;
-
-    let get_public_rooms_filtered::Response {
-        chunk,
-        prev_batch,
-        next_batch,
-        total_room_count_estimate,
-    } = get_public_rooms_filtered_route(
-        db,
-        Ruma {
-            body: get_public_rooms_filtered::IncomingRequest {
-                filter: None,
-                limit,
-                room_network: ruma::directory::RoomNetwork::Matrix,
-                server,
-                since,
-            },
-            sender_id,
-            device_id,
-            json_body,
-        },
-    )
-    .await?
-    .0;
-
-    Ok(get_public_rooms::Response {
-        chunk,
-        prev_batch,
-        next_batch,
-        total_room_count_estimate,
-    }
-    .into())
-}
-
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
-)]
-pub async fn set_room_visibility_route(
-    db: State<'_, Database>,
-    body: Ruma<set_room_visibility::Request>,
-) -> ConduitResult<set_room_visibility::Response> {
-    match body.visibility {
-        room::Visibility::Public => db.rooms.set_public(&body.room_id, true)?,
-        room::Visibility::Private => db.rooms.set_public(&body.room_id, false)?,
-    }
-
-    Ok(set_room_visibility::Response.into())
-}
-
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
-)]
-pub async fn get_room_visibility_route(
-    db: State<'_, Database>,
-    body: Ruma<get_room_visibility::Request>,
-) -> ConduitResult<get_room_visibility::Response> {
-    Ok(get_room_visibility::Response {
-        visibility: if db.rooms.is_public_room(&body.room_id)? {
-            room::Visibility::Public
-        } else {
-            room::Visibility::Private
-        },
     }
     .into())
 }

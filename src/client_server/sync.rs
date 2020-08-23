@@ -415,15 +415,7 @@ pub async fn sync_events_route(
             device_list_left.extend(
                 db.rooms
                     .room_members(&room_id)
-                    .filter_map(|user_id| {
-                        Some(
-                            UserId::try_from(user_id.ok()?.clone())
-                                .map_err(|_| {
-                                    Error::bad_database("Invalid member event state key in db.")
-                                })
-                                .ok()?,
-                        )
-                    })
+                    .filter_map(|user_id| Some(user_id.ok()?))
                     .filter(|user_id| {
                         // Don't send key updates from the sender to the sender
                         sender_id != user_id
