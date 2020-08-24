@@ -17,6 +17,7 @@ Can invite users to invite-only rooms
 Can list tags for a room
 Can logout all devices
 Can logout current device
+Can re-join room if re-invited
 Can read configuration endpoint
 Can recv a device message using /sync
 Can recv device messages until they are acknowledged
@@ -113,7 +114,6 @@ Typing events appear in incremental sync
 Typing events appear in initial sync
 Uninvited users cannot join the room
 User appears in user directory
-User directory correctly update on display name change
 User in dir while user still shares private rooms
 User in shared private room does appear in user directory
 User is offline if they set_presence=offline in their sync
