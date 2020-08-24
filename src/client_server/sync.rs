@@ -81,7 +81,12 @@ pub async fn sync_events_route(
             .rev()
             .collect::<Vec<_>>();
 
-        let send_notification_counts = !timeline_pdus.is_empty();
+        let send_notification_counts = !timeline_pdus.is_empty()
+            || db
+                .rooms
+                .edus
+                .last_privateread_update(&sender_id, &room_id)?
+                > since;
 
         // They /sync response doesn't always return all messages, so we say the output is
         // limited unless there are events in non_timeline_pdus
@@ -242,7 +247,7 @@ pub async fn sync_events_route(
         };
 
         let notification_count = if send_notification_counts {
-            if let Some(last_read) = db.rooms.edus.room_read_get(&room_id, &sender_id)? {
+            if let Some(last_read) = db.rooms.edus.private_read_get(&room_id, &sender_id)? {
                 Some(
                     (db.rooms
                         .pdus_since(&sender_id, &room_id, last_read)?
@@ -280,20 +285,15 @@ pub async fn sync_events_route(
         let mut edus = db
             .rooms
             .edus
-            .roomlatests_since(&room_id, since)?
+            .readreceipts_since(&room_id, since)?
             .filter_map(|r| r.ok()) // Filter out buggy events
             .collect::<Vec<_>>();
 
-        if db
-            .rooms
-            .edus
-            .last_roomactive_update(&room_id, &db.globals)?
-            > since
-        {
+        if db.rooms.edus.last_typing_update(&room_id, &db.globals)? > since {
             edus.push(
                 serde_json::from_str(
                     &serde_json::to_string(&AnySyncEphemeralRoomEvent::Typing(
-                        db.rooms.edus.roomactives_all(&room_id)?,
+                        db.rooms.edus.typings_all(&room_id)?,
                     ))
                     .expect("event is valid, we just created it"),
                 )

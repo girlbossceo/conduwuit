@@ -621,7 +621,7 @@ impl Rooms {
             }
             _ => {}
         }
-        self.edus.room_read_set(&room_id, &sender, index)?;
+        self.edus.private_read_set(&room_id, &sender, index, &globals)?;
 
         Ok(pdu.event_id)
     }
