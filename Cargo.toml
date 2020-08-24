@@ -1,7 +1,7 @@
 [package]
 name = "conduit"
 description = "A Matrix homeserver written in Rust"
-license = "AGPL-3.0-only"
+license = "Apache-2.0"
 authors = ["timokoesters <timo@koesters.xyz>"]
 homepage = "https://conduit.rs"
 repository = "https://git.koesters.xyz/timo/conduit"
