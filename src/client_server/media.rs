@@ -36,8 +36,12 @@ pub fn create_content_route(
         db.globals.server_name(),
         utils::random_string(MXC_LENGTH)
     );
-    db.media
-        .create(mxc.clone(), &body.filename.as_deref(), &body.content_type, &body.file)?;
+    db.media.create(
+        mxc.clone(),
+        &body.filename.as_deref(),
+        &body.content_type,
+        &body.file,
+    )?;
 
     Ok(create_content::Response { content_uri: mxc }.into())
 }
@@ -55,19 +59,17 @@ pub async fn get_content_route(
     _server_name: String,
     _media_id: String,
 ) -> ConduitResult<get_content::Response> {
-        let mxc = format!(
-            "mxc://{}/{}",
-            db.globals.server_name(),
-            utils::random_string(MXC_LENGTH)
-        );
+    let mxc = format!(
+        "mxc://{}/{}",
+        db.globals.server_name(),
+        utils::random_string(MXC_LENGTH)
+    );
 
     if let Some(FileMeta {
         filename,
         content_type,
         file,
-    }) = db
-        .media
-        .get(&mxc)?
+    }) = db.media.get(&mxc)?
     {
         Ok(get_content::Response {
             file,
