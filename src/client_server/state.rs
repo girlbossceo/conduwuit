@@ -76,7 +76,7 @@ pub fn send_state_event_for_empty_key_route(
             &body.content,
             json,
             &body.room_id,
-            None,
+            Some("".into()),
         )?
         .0
         .event_id,
