@@ -53,10 +53,10 @@ LABEL org.opencontainers.image.created=${CREATED} \
       org.opencontainers.image.url="https://conduit.rs/" \
       org.opencontainers.image.revision=${GIT_REF} \
       org.opencontainers.image.source="https://git.koesters.xyz/timo/conduit.git" \
-      org.opencontainers.image.documentation.="" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.documentation="" \
       org.opencontainers.image.ref.name="" \
-      org.label-schema.docker.build="docker build . -t conduit_homeserver:latest --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)" \
+      org.label-schema.docker.build="docker build . -t matrixconduit/matrix-conduit:latest --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)" \
       maintainer="Weasy666"
 
 # Standard port on which Rocket launches
@@ -81,10 +81,14 @@ RUN chown -cR www-data:www-data /srv/conduit
 # Install packages needed to run Conduit
 RUN apk add --no-cache \
         ca-certificates \
+        curl \
         libgcc
 
 # Create a volume for the database, to persist its contents
 VOLUME ["/srv/conduit/.local/share/conduit"]
+
+# Test if Conduit is still alive, uses the same endpoint as Element
+HEALTHCHECK --start-period=2s CMD curl --fail -s http://localhost:8000/_matrix/client/versions || curl -k --fail -s https://localhost:8000/_matrix/client/versions || exit 1
 
 # Set user to www-data
 USER www-data
