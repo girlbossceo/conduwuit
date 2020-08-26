@@ -63,26 +63,11 @@ pub async fn get_public_rooms_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms::IncomingRequest>,
 ) -> ConduitResult<get_public_rooms::Response> {
-    let Ruma {
-        body:
-            get_public_rooms::IncomingRequest {
-                limit,
-                server,
-                since,
-            },
-        ..
-    } = body;
-
-    let get_public_rooms_filtered::Response {
-        chunk,
-        prev_batch,
-        next_batch,
-        total_room_count_estimate,
-    } = get_public_rooms_filtered_helper(
+    let response = get_public_rooms_filtered_helper(
         &db,
-        server.as_deref(),
-        limit,
-        since.as_deref(),
+        body.body.server.as_deref(),
+        body.body.limit,
+        body.body.since.as_deref(),
         None, // This is not used
         None, // This is not used
     )
@@ -90,10 +75,10 @@ pub async fn get_public_rooms_route(
     .0;
 
     Ok(get_public_rooms::Response {
-        chunk,
-        prev_batch,
-        next_batch,
-        total_room_count_estimate,
+        chunk: response.chunk,
+        prev_batch: response.prev_batch,
+        next_batch: response.next_batch,
+        total_room_count_estimate: response.total_room_count_estimate,
     }
     .into())
 }

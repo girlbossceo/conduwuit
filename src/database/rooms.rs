@@ -4,7 +4,6 @@ pub use edus::RoomEdus;
 
 use crate::{pdu::PduBuilder, utils, Error, PduEvent, Result};
 use log::error;
-// TODO if ruma-signatures re-exports `use ruma::signatures::digest;`
 use ring::digest;
 use ruma::{
     api::client::error::ErrorKind,
@@ -96,9 +95,9 @@ impl StateStore for Rooms {
 }
 
 impl Rooms {
-    /// Builds a `StateMap` by iterating over all keys that start
-    /// with `state_hash`, this gives the full state at event "x".
-    pub fn get_statemap_by_hash(&self, state_hash: StateHashId) -> Result<StateMap<EventId>> {
+    /// Builds a StateMap by iterating over all keys that start
+    /// with state_hash, this gives the full state for the given state_hash.
+    pub fn state_full(&self, state_hash: StateHashId) -> Result<StateMap<EventId>> {
         self.stateid_pduid
             .scan_prefix(&state_hash)
             .values()
@@ -242,8 +241,6 @@ impl Rooms {
     /// Generate a new StateHash.
     ///
     /// A unique hash made from hashing the current states pduid's.
-    /// Because `append_state_pdu` handles the empty state db case it does not
-    /// have to be here.
     fn new_state_hash_id(&self, room_id: &RoomId) -> Result<StateHashId> {
         // Use hashed roomId as the first StateHash key for first state event in room
         if self
@@ -281,7 +278,7 @@ impl Rooms {
 
     /// Checks if a room exists.
     pub fn exists(&self, room_id: &RoomId) -> Result<bool> {
-        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         // Look for PDUs in that room.
@@ -300,7 +297,7 @@ impl Rooms {
         let mut hashmap = HashMap::new();
         for pdu in
             self.roomstateid_pduid
-                .scan_prefix(&room_id.to_string().as_bytes())
+                .scan_prefix(&room_id.as_bytes())
                 .values()
                 .map(|value| {
                     Ok::<_, Error>(
@@ -322,13 +319,13 @@ impl Rooms {
         Ok(hashmap)
     }
 
-    /// Returns the all state entries for this type.
+    /// Returns all state entries for this type.
     pub fn room_state_type(
         &self,
         room_id: &RoomId,
         event_type: &EventType,
     ) -> Result<HashMap<String, PduEvent>> {
-        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(&event_type.to_string().as_bytes());
 
@@ -357,7 +354,7 @@ impl Rooms {
         Ok(hashmap)
     }
 
-    /// Returns a single PDU in `room_id` with key (`event_type`, `state_key`).
+    /// Returns a single PDU from `room_id` with key (`event_type`, `state_key`).
     pub fn room_state_get(
         &self,
         room_id: &RoomId,
@@ -459,7 +456,7 @@ impl Rooms {
 
     /// Returns the leaf pdus of a room.
     pub fn get_pdu_leaves(&self, room_id: &RoomId) -> Result<Vec<EventId>> {
-        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         let mut events = Vec::new();
@@ -582,7 +579,7 @@ impl Rooms {
                         .split_terminator(|c: char| !c.is_alphanumeric())
                         .map(str::to_lowercase)
                     {
-                        let mut key = pdu.room_id.to_string().as_bytes().to_vec();
+                        let mut key = pdu.room_id.as_bytes().to_vec();
                         key.push(0xff);
                         key.extend_from_slice(word.as_bytes());
                         key.push(0xff);
@@ -752,7 +749,10 @@ impl Rooms {
                         })
                         .collect::<Result<StateMap<_>>>()?,
                 )
-                .ok_or(Error::Conflict("Found incoming PDU with invalid data."))?,
+                .map_err(|e| {
+                    log::error!("{}", e);
+                    Error::Conflict("Found incoming PDU with invalid data.")
+                })?,
                 EventType::RoomCreate => prev_events.is_empty(),
                 // Not allow any of the following events if the sender is not joined.
                 _ if sender_membership != member::MembershipState::Join => false,
@@ -982,13 +982,13 @@ impl Rooms {
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let membership = member_content.membership;
-        let mut userroom_id = user_id.to_string().as_bytes().to_vec();
+        let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
-        userroom_id.extend_from_slice(room_id.to_string().as_bytes());
+        userroom_id.extend_from_slice(room_id.as_bytes());
 
-        let mut roomuser_id = room_id.to_string().as_bytes().to_vec();
+        let mut roomuser_id = room_id.as_bytes().to_vec();
         roomuser_id.push(0xff);
-        roomuser_id.extend_from_slice(user_id.to_string().as_bytes());
+        roomuser_id.extend_from_slice(user_id.as_bytes());
 
         match &membership {
             member::MembershipState::Join => {
@@ -1051,9 +1051,9 @@ impl Rooms {
 
     /// Makes a user forget a room.
     pub fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> {
-        let mut userroom_id = user_id.to_string().as_bytes().to_vec();
+        let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
-        userroom_id.extend_from_slice(room_id.to_string().as_bytes());
+        userroom_id.extend_from_slice(room_id.as_bytes());
 
         self.userroomid_left.remove(userroom_id)?;
 
@@ -1069,8 +1069,8 @@ impl Rooms {
         if let Some(room_id) = room_id {
             // New alias
             self.alias_roomid
-                .insert(alias.alias(), &*room_id.to_string())?;
-            let mut aliasid = room_id.to_string().as_bytes().to_vec();
+                .insert(alias.alias(), room_id.as_bytes())?;
+            let mut aliasid = room_id.as_bytes().to_vec();
             aliasid.extend_from_slice(&globals.next_count()?.to_be_bytes());
             self.aliasid_alias.insert(aliasid, &*alias.alias())?;
         } else {
@@ -1105,7 +1105,7 @@ impl Rooms {
     }
 
     pub fn room_aliases(&self, room_id: &RoomId) -> impl Iterator<Item = Result<RoomAliasId>> {
-        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.aliasid_alias
@@ -1119,16 +1119,16 @@ impl Rooms {
 
     pub fn set_public(&self, room_id: &RoomId, public: bool) -> Result<()> {
         if public {
-            self.publicroomids.insert(room_id.to_string(), &[])?;
+            self.publicroomids.insert(room_id.as_bytes(), &[])?;
         } else {
-            self.publicroomids.remove(room_id.to_string())?;
+            self.publicroomids.remove(room_id.as_bytes())?;
         }
 
         Ok(())
     }
 
     pub fn is_public_room(&self, room_id: &RoomId) -> Result<bool> {
-        Ok(self.publicroomids.contains_key(room_id.to_string())?)
+        Ok(self.publicroomids.contains_key(room_id.as_bytes())?)
     }
 
     pub fn public_rooms(&self) -> impl Iterator<Item = Result<RoomId>> {
@@ -1147,7 +1147,7 @@ impl Rooms {
         room_id: &RoomId,
         search_string: &str,
     ) -> Result<(impl Iterator<Item = IVec> + 'a, Vec<String>)> {
-        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         let words = search_string
@@ -1233,7 +1233,7 @@ impl Rooms {
     /// Returns an iterator over all joined members of a room.
     pub fn room_members(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
         self.roomuserid_joined
-            .scan_prefix(room_id.to_string())
+            .scan_prefix(room_id.as_bytes())
             .keys()
             .map(|key| {
                 Ok(UserId::try_from(
@@ -1254,7 +1254,7 @@ impl Rooms {
     /// Returns an iterator over all invited members of a room.
     pub fn room_members_invited(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
         self.roomuserid_invited
-            .scan_prefix(room_id.to_string())
+            .scan_prefix(room_id.as_bytes())
             .keys()
             .map(|key| {
                 Ok(UserId::try_from(
@@ -1275,7 +1275,7 @@ impl Rooms {
     /// Returns an iterator over all rooms this user joined.
     pub fn rooms_joined(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
         self.userroomid_joined
-            .scan_prefix(user_id.to_string())
+            .scan_prefix(user_id.as_bytes())
             .keys()
             .map(|key| {
                 Ok(RoomId::try_from(
@@ -1296,7 +1296,7 @@ impl Rooms {
     /// Returns an iterator over all rooms a user was invited to.
     pub fn rooms_invited(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
         self.userroomid_invited
-            .scan_prefix(&user_id.to_string())
+            .scan_prefix(&user_id.as_bytes())
             .keys()
             .map(|key| {
                 Ok(RoomId::try_from(
@@ -1317,7 +1317,7 @@ impl Rooms {
     /// Returns an iterator over all rooms a user left.
     pub fn rooms_left(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
         self.userroomid_left
-            .scan_prefix(&user_id.to_string())
+            .scan_prefix(&user_id.as_bytes())
             .keys()
             .map(|key| {
                 Ok(RoomId::try_from(
@@ -1336,25 +1336,25 @@ impl Rooms {
     }
 
     pub fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-        let mut userroom_id = user_id.to_string().as_bytes().to_vec();
+        let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
-        userroom_id.extend_from_slice(room_id.to_string().as_bytes());
+        userroom_id.extend_from_slice(room_id.as_bytes());
 
         Ok(self.userroomid_joined.get(userroom_id)?.is_some())
     }
 
     pub fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-        let mut userroom_id = user_id.to_string().as_bytes().to_vec();
+        let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
-        userroom_id.extend_from_slice(room_id.to_string().as_bytes());
+        userroom_id.extend_from_slice(room_id.as_bytes());
 
         Ok(self.userroomid_invited.get(userroom_id)?.is_some())
     }
 
     pub fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-        let mut userroom_id = user_id.to_string().as_bytes().to_vec();
+        let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
-        userroom_id.extend_from_slice(room_id.to_string().as_bytes());
+        userroom_id.extend_from_slice(room_id.as_bytes());
 
         Ok(self.userroomid_left.get(userroom_id)?.is_some())
     }

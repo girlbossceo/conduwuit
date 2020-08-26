@@ -483,12 +483,12 @@ async fn join_room_by_id_helper(
         .await?;
 
         dbg!(&send_join_response);
-        // todo!("Take send_join_response and 'create' the room using that data");
 
         let mut event_map = send_join_response
             .room_state
             .state
             .iter()
+            .chain(send_join_response.room_state.auth_chain.iter())
             .map(|pdu| {
                 pdu.deserialize()
                     .map(StateEvent::Full)
@@ -496,14 +496,6 @@ async fn join_room_by_id_helper(
             })
             .collect::<Result<BTreeMap<EventId, StateEvent>, _>>()
             .map_err(|_| Error::bad_database("Invalid PDU found in db."))?;
-
-        let auth_chain = send_join_response
-            .room_state
-            .auth_chain
-            .iter()
-            .flat_map(|pdu| pdu.deserialize().ok())
-            .map(StateEvent::Full)
-            .collect::<Vec<_>>();
 
         let power_events = event_map
             .values()
@@ -518,9 +510,11 @@ async fn join_room_by_id_helper(
             &power_events,
             &mut event_map,
             &db.rooms,
-            &auth_chain // if we only use it here just build this list in the first place
+            &send_join_response
+                .room_state
+                .auth_chain
                 .iter()
-                .map(|pdu| pdu.event_id())
+                .filter_map(|pdu| Some(StateEvent::Full(pdu.deserialize().ok()?).event_id()))
                 .collect::<Vec<_>>(),
         );
 

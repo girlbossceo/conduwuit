@@ -1,5 +1,5 @@
 use super::State;
-use crate::{pdu::PduBuilder, ConduitResult, Database, Error, Ruma};
+use crate::{pdu::PduBuilder, ConduitResult, Database, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -9,7 +9,7 @@ use ruma::{
         },
     },
     events::{AnyStateEventContent, EventContent},
-    RoomId, UserId,
+    EventId, RoomId, UserId,
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -33,13 +33,16 @@ pub fn send_state_event_for_key_route(
     )
     .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
 
-    send_state_event_for_key_helper(
-        &db,
-        sender_id,
-        &body.content,
-        content,
-        &body.room_id,
-        Some(body.state_key.clone()),
+    Ok(
+        send_state_event_for_key::Response::new(send_state_event_for_key_helper(
+            &db,
+            sender_id,
+            &body.content,
+            content,
+            &body.room_id,
+            Some(body.state_key.clone()),
+        )?)
+        .into(),
     )
 }
 
@@ -67,8 +70,8 @@ pub fn send_state_event_for_empty_key_route(
     )
     .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
 
-    Ok(send_state_event_for_empty_key::Response::new(
-        send_state_event_for_key_helper(
+    Ok(
+        send_state_event_for_empty_key::Response::new(send_state_event_for_key_helper(
             &db,
             sender_id
                 .as_ref()
@@ -77,11 +80,9 @@ pub fn send_state_event_for_empty_key_route(
             json,
             &body.room_id,
             Some("".into()),
-        )?
-        .0
-        .event_id,
+        )?)
+        .into(),
     )
-    .into())
 }
 
 #[cfg_attr(
@@ -183,7 +184,7 @@ pub fn send_state_event_for_key_helper(
     json: serde_json::Value,
     room_id: &RoomId,
     state_key: Option<String>,
-) -> ConduitResult<send_state_event_for_key::Response> {
+) -> Result<EventId> {
     let sender_id = sender;
 
     if let AnyStateEventContent::RoomCanonicalAlias(canonical_alias) = content {
@@ -224,5 +225,5 @@ pub fn send_state_event_for_key_helper(
         &db.account_data,
     )?;
 
-    Ok(send_state_event_for_key::Response::new(event_id).into())
+    Ok(event_id)
 }

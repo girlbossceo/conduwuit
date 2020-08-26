@@ -475,7 +475,7 @@ pub async fn sync_events_route(
     }
 
     for user_id in left_encrypted_users {
-        let user_target_encrypted = db
+        let still_share_encrypted_room = db
             .rooms
             .get_shared_rooms(vec![sender_id.clone(), user_id.clone()])
             .filter_map(|r| r.ok())
@@ -490,7 +490,7 @@ pub async fn sync_events_route(
             .all(|encrypted| !encrypted);
         // If the user doesn't share an encrypted room with the target anymore, we need to tell
         // them
-        if user_target_encrypted {
+        if still_share_encrypted_room {
             device_list_left.insert(user_id);
         }
     }
