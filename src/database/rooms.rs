@@ -19,13 +19,12 @@ use ruma::{
     EventId, Raw, RoomAliasId, RoomId, UserId,
 };
 use sled::IVec;
-use state_res::{event_auth, Requester, StateEvent, StateMap, StateStore};
+use state_res::{event_auth, Error as StateError, Requester, StateEvent, StateMap, StateStore};
 
 use std::{
     collections::{BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
     mem,
-    result::Result as StdResult,
 };
 
 /// The unique identifier of each state group.
@@ -67,28 +66,32 @@ pub struct Rooms {
 }
 
 impl StateStore for Rooms {
-    fn get_event(&self, room_id: &RoomId, event_id: &EventId) -> StdResult<StateEvent, String> {
+    fn get_event(&self, room_id: &RoomId, event_id: &EventId) -> state_res::Result<StateEvent> {
         let pid = self
             .eventid_pduid
             .get(event_id.as_bytes())
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| "PDU via room_id and event_id not found in the db.".to_owned())?;
+            .map_err(StateError::custom)?
+            .ok_or_else(|| {
+                StateError::NotFound("PDU via room_id and event_id not found in the db.".into())
+            })?;
 
         serde_json::from_slice(
             &self
                 .pduid_pdu
                 .get(pid)
-                .map_err(|e| e.to_string())?
-                .ok_or_else(|| "PDU via pduid not found in db.".to_owned())?,
+                .map_err(StateError::custom)?
+                .ok_or_else(|| StateError::NotFound("PDU via pduid not found in db.".into()))?,
         )
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
         .and_then(|pdu: StateEvent| {
             // conduit's PDU's always contain a room_id but some
             // of ruma's do not so this must be an Option
             if pdu.room_id() == Some(room_id) {
                 Ok(pdu)
             } else {
-                Err("Found PDU for incorrect room in db.".into())
+                Err(StateError::NotFound(
+                    "Found PDU for incorrect room in db.".into(),
+                ))
             }
         })
     }
@@ -732,27 +735,37 @@ impl Rooms {
                     // Don't allow encryption events when it's disabled
                     !globals.encryption_disabled()
                 }
-                EventType::RoomMember => event_auth::is_membership_change_allowed(
-                    // TODO this is a bit of a hack but not sure how to have a type
-                    // declared in `state_res` crate easily convert to/from conduit::PduEvent
-                    Requester {
-                        prev_event_ids: prev_events.to_owned(),
-                        room_id: &room_id,
-                        content: &content,
-                        state_key: Some(state_key.to_owned()),
-                        sender: &sender,
-                    },
-                    &auth_events
-                        .iter()
-                        .map(|((ty, key), pdu)| {
-                            Ok(((ty.clone(), key.clone()), pdu.convert_for_state_res()?))
-                        })
-                        .collect::<Result<StateMap<_>>>()?,
-                )
-                .map_err(|e| {
-                    log::error!("{}", e);
-                    Error::Conflict("Found incoming PDU with invalid data.")
-                })?,
+                EventType::RoomMember => {
+                    let prev_event = self
+                        .get_pdu(prev_events.iter().next().ok_or(Error::BadRequest(
+                            ErrorKind::Unknown,
+                            "Membership can't be the first event",
+                        ))?)?
+                        .map(|pdu| pdu.convert_for_state_res())
+                        .transpose()?;
+                    event_auth::valid_membership_change(
+                        // TODO this is a bit of a hack but not sure how to have a type
+                        // declared in `state_res` crate easily convert to/from conduit::PduEvent
+                        Requester {
+                            prev_event_ids: prev_events.to_owned(),
+                            room_id: &room_id,
+                            content: &content,
+                            state_key: Some(state_key.to_owned()),
+                            sender: &sender,
+                        },
+                        prev_event.as_ref(),
+                        &auth_events
+                            .iter()
+                            .map(|((ty, key), pdu)| {
+                                Ok(((ty.clone(), key.clone()), pdu.convert_for_state_res()?))
+                            })
+                            .collect::<Result<StateMap<_>>>()?,
+                    )
+                    .map_err(|e| {
+                        log::error!("{}", e);
+                        Error::Conflict("Found incoming PDU with invalid data.")
+                    })?
+                }
                 EventType::RoomCreate => prev_events.is_empty(),
                 // Not allow any of the following events if the sender is not joined.
                 _ if sender_membership != member::MembershipState::Join => false,

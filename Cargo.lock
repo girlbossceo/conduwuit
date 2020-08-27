@@ -2070,7 +2070,7 @@ checksum = "7345c971d1ef21ffdbd103a75990a15eb03604fc8b8852ca8cb418ee1a099028"
 [[package]]
 name = "state-res"
 version = "0.1.0"
-source = "git+https://github.com/ruma/state-res?branch=spec-comp#17958665f6592af3ef478024fd1d75c384a30e7f"
+source = "git+https://github.com/ruma/state-res?branch=spec-comp#394d26744a6586ccdc01838964bb27dab289eee5"
 dependencies = [
  "itertools",
  "js_int",
