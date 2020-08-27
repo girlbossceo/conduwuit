@@ -37,6 +37,28 @@ impl KeyBackups {
         Ok(version)
     }
 
+    pub fn delete_backup(&self, user_id: &UserId, version: &str) -> Result<()> {
+        let mut key = user_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&version.as_bytes());
+
+        self.backupid_algorithm.remove(&key)?;
+        self.backupid_etag.remove(&key)?;
+
+        key.push(0xff);
+
+        for outdated_key in self
+            .backupkeyid_backup
+            .scan_prefix(&key)
+            .keys()
+            .filter_map(|r| r.ok())
+        {
+            self.backupkeyid_backup.remove(outdated_key)?;
+        }
+
+        Ok(())
+    }
+
     pub fn update_backup(
         &self,
         user_id: &UserId,
@@ -163,6 +185,7 @@ impl KeyBackups {
         let mut prefix = user_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(version.as_bytes());
+        prefix.push(0xff);
 
         let mut rooms = BTreeMap::<RoomId, Sessions>::new();
 
@@ -203,5 +226,136 @@ impl KeyBackups {
         }
 
         Ok(rooms)
+    }
+
+    pub fn get_room(
+        &self,
+        user_id: &UserId,
+        version: &str,
+        room_id: &RoomId,
+    ) -> BTreeMap<String, KeyData> {
+        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        prefix.push(0xff);
+        prefix.extend_from_slice(version.as_bytes());
+        prefix.push(0xff);
+        prefix.extend_from_slice(room_id.as_bytes());
+        prefix.push(0xff);
+
+        self.backupkeyid_backup
+            .scan_prefix(&prefix)
+            .map(|r| {
+                let (key, value) = r?;
+                let mut parts = key.rsplit(|&b| b == 0xff);
+
+                let session_id =
+                    utils::string_from_bytes(&parts.next().ok_or_else(|| {
+                        Error::bad_database("backupkeyid_backup key is invalid.")
+                    })?)
+                    .map_err(|_| {
+                        Error::bad_database("backupkeyid_backup session_id is invalid.")
+                    })?;
+
+                let key_data = serde_json::from_slice(&value).map_err(|_| {
+                    Error::bad_database("KeyData in backupkeyid_backup is invalid.")
+                })?;
+
+                Ok::<_, Error>((session_id, key_data))
+            })
+            .filter_map(|r| r.ok())
+            .collect()
+    }
+
+    pub fn get_session(
+        &self,
+        user_id: &UserId,
+        version: &str,
+        room_id: &RoomId,
+        session_id: &str,
+    ) -> Result<Option<KeyData>> {
+        let mut key = user_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(version.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(room_id.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(session_id.as_bytes());
+
+        self.backupkeyid_backup
+            .get(&key)?
+            .map(|value| {
+                serde_json::from_slice(&value)
+                    .map_err(|_| Error::bad_database("KeyData in backupkeyid_backup is invalid."))
+            })
+            .transpose()
+    }
+
+    pub fn delete_all_keys(&self, user_id: &UserId, version: &str) -> Result<()> {
+        let mut key = user_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&version.as_bytes());
+        key.push(0xff);
+
+        for outdated_key in self
+            .backupkeyid_backup
+            .scan_prefix(&key)
+            .keys()
+            .filter_map(|r| r.ok())
+        {
+            self.backupkeyid_backup.remove(outdated_key)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn delete_room_keys(
+        &self,
+        user_id: &UserId,
+        version: &str,
+        room_id: &RoomId,
+    ) -> Result<()> {
+        let mut key = user_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&version.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(&room_id.as_bytes());
+        key.push(0xff);
+
+        for outdated_key in self
+            .backupkeyid_backup
+            .scan_prefix(&key)
+            .keys()
+            .filter_map(|r| r.ok())
+        {
+            self.backupkeyid_backup.remove(outdated_key)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn delete_room_key(
+        &self,
+        user_id: &UserId,
+        version: &str,
+        room_id: &RoomId,
+        session_id: &str,
+    ) -> Result<()> {
+        let mut key = user_id.to_string().as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&version.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(&room_id.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(&session_id.as_bytes());
+
+        for outdated_key in self
+            .backupkeyid_backup
+            .scan_prefix(&key)
+            .keys()
+            .filter_map(|r| r.ok())
+        {
+            self.backupkeyid_backup.remove(outdated_key)?;
+        }
+
+        Ok(())
     }
 }
