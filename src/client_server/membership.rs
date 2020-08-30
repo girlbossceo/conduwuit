@@ -497,17 +497,18 @@ async fn join_room_by_id_helper(
             .collect::<Result<BTreeMap<EventId, StateEvent>, _>>()
             .map_err(|_| Error::bad_database("Invalid PDU found in db."))?;
 
-        let power_events = event_map
+        let control_events = event_map
             .values()
             .filter(|pdu| pdu.is_power_event())
             .map(|pdu| pdu.event_id())
             .collect::<Vec<_>>();
 
-        // TODO these events are not guaranteed to be sorted but they are resolved, do
-        // we need the auth_chain
-        let sorted_power_events = state_res::StateResolution::reverse_topological_power_sort(
+        // These events are not guaranteed to be sorted but they are resolved according to spec
+        // we auth them anyways to weed out faulty/malicious server. The following is basically the
+        // full state resolution algorithm.
+        let sorted_control_events = state_res::StateResolution::reverse_topological_power_sort(
             &room_id,
-            &power_events,
+            &control_events,
             &mut event_map,
             &db.rooms,
             &send_join_response
@@ -518,26 +519,31 @@ async fn join_room_by_id_helper(
                 .collect::<Vec<_>>(),
         );
 
-        // TODO we may be able to skip this since they are resolved according to spec
-        let resolved_power = state_res::StateResolution::iterative_auth_check(
+        // Auth check each event against the "partial" state created by the preceding events
+        let resolved_control_events = state_res::StateResolution::iterative_auth_check(
             room_id,
             &RoomVersionId::Version6,
-            &sorted_power_events,
-            &BTreeMap::new(), // unconflicted events
+            &sorted_control_events,
+            &BTreeMap::new(), // We have no "clean/resolved" events to add (these extend the `resolved_control_events`)
             &mut event_map,
             &db.rooms,
         )
         .expect("iterative auth check failed on resolved events");
-        // TODO do we need to dedup them
 
+        // This removes the control events that failed auth, leaving the resolved
+        // to be mainline sorted
         let events_to_sort = event_map
             .keys()
-            .filter(|id| !sorted_power_events.contains(id))
+            .filter(|id| {
+                !sorted_control_events.contains(id)
+                    || resolved_control_events.values().any(|rid| *id == rid)
+            })
             .cloned()
             .collect::<Vec<_>>();
 
-        let power_level = resolved_power.get(&(EventType::RoomPowerLevels, Some("".into())));
-
+        let power_level =
+            resolved_control_events.get(&(EventType::RoomPowerLevels, Some("".into())));
+        // Sort the remaining non control events
         let sorted_event_ids = state_res::StateResolution::mainline_sort(
             room_id,
             &events_to_sort,
@@ -546,7 +552,22 @@ async fn join_room_by_id_helper(
             &db.rooms,
         );
 
-        for ev_id in &sorted_event_ids {
+        let resolved_events = state_res::StateResolution::iterative_auth_check(
+            room_id,
+            &RoomVersionId::Version6,
+            &sorted_event_ids,
+            &resolved_control_events,
+            &mut event_map,
+            &db.rooms,
+        )
+        .expect("iterative auth check failed on resolved events");
+
+        // filter the events that failed the auth check keeping the remaining events
+        // sorted correctly
+        for ev_id in sorted_event_ids
+            .iter()
+            .filter(|id| resolved_events.values().any(|rid| rid == *id))
+        {
             // this is a `state_res::StateEvent` that holds a `ruma::Pdu`
             let pdu = event_map
                 .get(ev_id)
