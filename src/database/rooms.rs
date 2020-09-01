@@ -804,7 +804,6 @@ impl Rooms {
                     .predecessor
                     {
                         // Copy user settings from predecessor to the current room:
-
                         // - Push rules
                         //
                         // TODO: finish this once push rules are implemented.
@@ -829,37 +828,27 @@ impl Rooms {
                         //     )
                         //     .ok();
 
-                        // - Tags
-                        if let Some(basic_event) = account_data.get::<ruma::events::tag::TagEvent>(
+                        // Copy old tags to new room
+                        if let Some(tag_event) = account_data.get::<ruma::events::tag::TagEvent>(
                             Some(&predecessor.room_id),
                             user_id,
                             EventType::Tag,
                         )? {
-                            let tag_event_content = basic_event.content;
-
                             account_data
-                                .update(
-                                    Some(room_id),
-                                    user_id,
-                                    EventType::Tag,
-                                    &tag_event_content,
-                                    globals,
-                                )
+                                .update(Some(room_id), user_id, EventType::Tag, &tag_event, globals)
                                 .ok();
                         };
 
-                        // - Direct chat
-                        if let Some(basic_event) = account_data
+                        // Copy direct chat flag
+                        if let Some(mut direct_event) = account_data
                             .get::<ruma::events::direct::DirectEvent>(
-                                None,
-                                user_id,
-                                EventType::Direct,
-                            )?
-                        {
-                            let mut direct_event_content = basic_event.content;
+                            None,
+                            user_id,
+                            EventType::Direct,
+                        )? {
                             let mut room_ids_updated = false;
 
-                            for room_ids in direct_event_content.0.values_mut() {
+                            for room_ids in direct_event.content.0.values_mut() {
                                 if room_ids.iter().any(|r| r == &predecessor.room_id) {
                                     room_ids.push(room_id.clone());
                                     room_ids_updated = true;
@@ -867,15 +856,13 @@ impl Rooms {
                             }
 
                             if room_ids_updated {
-                                account_data
-                                    .update(
-                                        None,
-                                        user_id,
-                                        EventType::Direct,
-                                        &direct_event_content,
-                                        globals,
-                                    )
-                                    .ok();
+                                account_data.update(
+                                    None,
+                                    user_id,
+                                    EventType::Direct,
+                                    &direct_event,
+                                    globals,
+                                )?;
                             }
                         };
                     }
