@@ -38,6 +38,7 @@ pub struct Rooms {
 
     pub(super) userroomid_joined: sled::Tree,
     pub(super) roomuserid_joined: sled::Tree,
+    pub(super) roomuseroncejoinedids: sled::Tree,
     pub(super) userroomid_invited: sled::Tree,
     pub(super) roomuserid_invited: sled::Tree,
     pub(super) userroomid_left: sled::Tree,
@@ -782,6 +783,91 @@ impl Rooms {
 
         match &membership {
             member::MembershipState::Join => {
+                // Check if the user never joined this room
+                if !self.once_joined(&user_id, &room_id)? {
+                    // Add the user ID to the join list then
+                    self.roomuseroncejoinedids.insert(&userroom_id, &[])?;
+
+                    // Check if the room has a predecessor
+                    if let Some(predecessor) = serde_json::from_value::<
+                        Raw<ruma::events::room::create::CreateEventContent>,
+                    >(
+                        self.room_state_get(&room_id, &EventType::RoomCreate, "")?
+                            .ok_or_else(|| {
+                                Error::bad_database("Found room without m.room.create event.")
+                            })?
+                            .content,
+                    )
+                    .expect("Raw::from_value always works")
+                    .deserialize()
+                    .map_err(|_| Error::bad_database("Invalid room event in database."))?
+                    .predecessor
+                    {
+                        // Copy user settings from predecessor to the current room:
+                        // - Push rules
+                        //
+                        // TODO: finish this once push rules are implemented.
+                        //
+                        // let mut push_rules_event_content = account_data
+                        //     .get::<ruma::events::push_rules::PushRulesEvent>(
+                        //         None,
+                        //         user_id,
+                        //         EventType::PushRules,
+                        //     )?;
+                        //
+                        // NOTE: find where `predecessor.room_id` match
+                        //       and update to `room_id`.
+                        //
+                        // account_data
+                        //     .update(
+                        //         None,
+                        //         user_id,
+                        //         EventType::PushRules,
+                        //         &push_rules_event_content,
+                        //         globals,
+                        //     )
+                        //     .ok();
+
+                        // Copy old tags to new room
+                        if let Some(tag_event) = account_data.get::<ruma::events::tag::TagEvent>(
+                            Some(&predecessor.room_id),
+                            user_id,
+                            EventType::Tag,
+                        )? {
+                            account_data
+                                .update(Some(room_id), user_id, EventType::Tag, &tag_event, globals)
+                                .ok();
+                        };
+
+                        // Copy direct chat flag
+                        if let Some(mut direct_event) = account_data
+                            .get::<ruma::events::direct::DirectEvent>(
+                            None,
+                            user_id,
+                            EventType::Direct,
+                        )? {
+                            let mut room_ids_updated = false;
+
+                            for room_ids in direct_event.content.0.values_mut() {
+                                if room_ids.iter().any(|r| r == &predecessor.room_id) {
+                                    room_ids.push(room_id.clone());
+                                    room_ids_updated = true;
+                                }
+                            }
+
+                            if room_ids_updated {
+                                account_data.update(
+                                    None,
+                                    user_id,
+                                    EventType::Direct,
+                                    &direct_event,
+                                    globals,
+                                )?;
+                            }
+                        };
+                    }
+                }
+
                 self.userroomid_joined.insert(&userroom_id, &[])?;
                 self.roomuserid_joined.insert(&roomuser_id, &[])?;
                 self.userroomid_invited.remove(&userroom_id)?;
@@ -1042,6 +1128,27 @@ impl Rooms {
             })
     }
 
+    /// Returns an iterator over all User IDs who ever joined a room.
+    pub fn room_useroncejoined(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
+        self.roomuseroncejoinedids
+            .scan_prefix(room_id.to_string())
+            .keys()
+            .map(|key| {
+                Ok(UserId::try_from(
+                    utils::string_from_bytes(
+                        &key?
+                            .rsplit(|&b| b == 0xff)
+                            .next()
+                            .expect("rsplit always returns an element"),
+                    )
+                    .map_err(|_| {
+                        Error::bad_database("User ID in room_useroncejoined is invalid unicode.")
+                    })?,
+                )
+                .map_err(|_| Error::bad_database("User ID in room_useroncejoined is invalid."))?)
+            })
+    }
+
     /// Returns an iterator over all invited members of a room.
     pub fn room_members_invited(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
         self.roomuserid_invited
@@ -1124,6 +1231,14 @@ impl Rooms {
                 )
                 .map_err(|_| Error::bad_database("Room ID in userroomid_left is invalid."))?)
             })
+    }
+
+    pub fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+        let mut userroom_id = user_id.to_string().as_bytes().to_vec();
+        userroom_id.push(0xff);
+        userroom_id.extend_from_slice(room_id.to_string().as_bytes());
+
+        Ok(self.roomuseroncejoinedids.get(userroom_id)?.is_some())
     }
 
     pub fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {

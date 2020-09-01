@@ -118,6 +118,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_key_changes_route,
                 client_server::get_pushers_route,
                 client_server::set_pushers_route,
+                client_server::upgrade_room_route,
                 server_server::well_known_server,
                 server_server::get_server_version,
                 server_server::get_server_keys,
