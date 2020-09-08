@@ -18,7 +18,7 @@ use rocket::{get, put};
 )]
 pub fn send_message_event_route(
     db: State<'_, Database>,
-    body: Ruma<send_message_event::IncomingRequest>,
+    body: Ruma<send_message_event::Request<'_>>,
 ) -> ConduitResult<send_message_event::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -53,7 +53,7 @@ pub fn send_message_event_route(
 )]
 pub fn get_message_events_route(
     db: State<'_, Database>,
-    body: Ruma<get_message_events::IncomingRequest>,
+    body: Ruma<get_message_events::Request<'_>>,
 ) -> ConduitResult<get_message_events::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -96,7 +96,7 @@ pub fn get_message_events_route(
                 .collect::<Vec<_>>();
 
             let mut resp = get_message_events::Response::new();
-            resp.start = Some(body.from.clone());
+            resp.start = Some(body.from.to_owned());
             resp.end = end_token;
             resp.chunk = events_after;
             resp.state = Vec::new();
@@ -120,7 +120,7 @@ pub fn get_message_events_route(
                 .collect::<Vec<_>>();
 
             let mut resp = get_message_events::Response::new();
-            resp.start = Some(body.from.clone());
+            resp.start = Some(body.from.to_owned());
             resp.end = start_token;
             resp.chunk = events_before;
             resp.state = Vec::new();

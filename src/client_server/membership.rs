@@ -32,7 +32,7 @@ use rocket::{get, post};
 )]
 pub async fn join_room_by_id_route(
     db: State<'_, Database>,
-    body: Ruma<join_room_by_id::IncomingRequest>,
+    body: Ruma<join_room_by_id::Request<'_>>,
 ) -> ConduitResult<join_room_by_id::Response> {
     join_room_by_id_helper(
         &db,
@@ -49,7 +49,7 @@ pub async fn join_room_by_id_route(
 )]
 pub async fn join_room_by_id_or_alias_route(
     db: State<'_, Database>,
-    body: Ruma<join_room_by_id_or_alias::IncomingRequest>,
+    body: Ruma<join_room_by_id_or_alias::Request<'_>>,
 ) -> ConduitResult<join_room_by_id_or_alias::Response> {
     let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
         Ok(room_id) => room_id,
@@ -81,7 +81,7 @@ pub async fn join_room_by_id_or_alias_route(
 )]
 pub fn leave_room_route(
     db: State<'_, Database>,
-    body: Ruma<leave_room::IncomingRequest>,
+    body: Ruma<leave_room::Request<'_>>,
 ) -> ConduitResult<leave_room::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -127,11 +127,11 @@ pub fn leave_room_route(
 )]
 pub fn invite_user_route(
     db: State<'_, Database>,
-    body: Ruma<invite_user::Request>,
+    body: Ruma<invite_user::Request<'_>>,
 ) -> ConduitResult<invite_user::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if let invite_user::InvitationRecipient::UserId { user_id } = &body.recipient {
+    if let invite_user::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 room_id: body.room_id.clone(),
@@ -165,7 +165,7 @@ pub fn invite_user_route(
 )]
 pub fn kick_user_route(
     db: State<'_, Database>,
-    body: Ruma<kick_user::IncomingRequest>,
+    body: Ruma<kick_user::Request<'_>>,
 ) -> ConduitResult<kick_user::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -212,7 +212,7 @@ pub fn kick_user_route(
 )]
 pub fn ban_user_route(
     db: State<'_, Database>,
-    body: Ruma<ban_user::IncomingRequest>,
+    body: Ruma<ban_user::Request<'_>>,
 ) -> ConduitResult<ban_user::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -267,7 +267,7 @@ pub fn ban_user_route(
 )]
 pub fn unban_user_route(
     db: State<'_, Database>,
-    body: Ruma<unban_user::IncomingRequest>,
+    body: Ruma<unban_user::Request<'_>>,
 ) -> ConduitResult<unban_user::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -313,7 +313,7 @@ pub fn unban_user_route(
 )]
 pub fn forget_room_route(
     db: State<'_, Database>,
-    body: Ruma<forget_room::IncomingRequest>,
+    body: Ruma<forget_room::Request<'_>>,
 ) -> ConduitResult<forget_room::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -348,7 +348,7 @@ pub fn joined_rooms_route(
 )]
 pub fn get_member_events_route(
     db: State<'_, Database>,
-    body: Ruma<get_member_events::Request>,
+    body: Ruma<get_member_events::Request<'_>>,
 ) -> ConduitResult<get_member_events::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -376,7 +376,7 @@ pub fn get_member_events_route(
 )]
 pub fn joined_members_route(
     db: State<'_, Database>,
-    body: Ruma<joined_members::Request>,
+    body: Ruma<joined_members::Request<'_>>,
 ) -> ConduitResult<joined_members::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -422,9 +422,9 @@ async fn join_room_by_id_helper(
             &db,
             room_id.server_name().to_string(),
             federation::membership::create_join_event_template::v1::Request {
-                room_id: room_id.clone(),
-                user_id: sender_id.clone(),
-                ver: vec![RoomVersionId::Version5, RoomVersionId::Version6],
+                room_id,
+                user_id: sender_id,
+                ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
             },
         )
         .await?;
@@ -474,8 +474,8 @@ async fn join_room_by_id_helper(
             &db,
             room_id.server_name().to_string(),
             federation::membership::create_join_event::v1::Request {
-                room_id: room_id.clone(),
-                event_id,
+                room_id,
+                event_id: &event_id,
                 pdu_stub: serde_json::from_value(join_event_stub_value)
                     .expect("we just created this event"),
             },

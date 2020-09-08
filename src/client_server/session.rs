@@ -36,7 +36,7 @@ pub fn get_login_types_route() -> ConduitResult<get_login_types::Response> {
 )]
 pub fn login_route(
     db: State<'_, Database>,
-    body: Ruma<login::IncomingRequest>,
+    body: Ruma<login::Request<'_>>,
 ) -> ConduitResult<login::Response> {
     // Validate login method
     let user_id =

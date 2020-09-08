@@ -31,7 +31,7 @@ use std::{
 )]
 pub async fn sync_events_route(
     db: State<'_, Database>,
-    body: Ruma<sync_events::IncomingRequest>,
+    body: Ruma<sync_events::Request<'_>>,
 ) -> ConduitResult<sync_events::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");

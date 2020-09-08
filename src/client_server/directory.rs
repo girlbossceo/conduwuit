@@ -14,7 +14,7 @@ use ruma::{
         },
         federation,
     },
-    directory::{Filter, PublicRoomsChunk, RoomNetwork},
+    directory::{IncomingFilter, PublicRoomsChunk, IncomingRoomNetwork},
     events::{
         room::{avatar, canonical_alias, guest_access, history_visibility, name, topic},
         EventType,
@@ -31,7 +31,7 @@ use rocket::{get, post, put};
 )]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
-    body: Ruma<get_public_rooms_filtered::IncomingRequest>,
+    body: Ruma<get_public_rooms_filtered::Request<'_>>,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
     let Ruma {
         body:
@@ -61,7 +61,7 @@ pub async fn get_public_rooms_filtered_route(
 )]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
-    body: Ruma<get_public_rooms::IncomingRequest>,
+    body: Ruma<get_public_rooms::Request<'_>>,
 ) -> ConduitResult<get_public_rooms::Response> {
     let response = get_public_rooms_filtered_helper(
         &db,
@@ -89,7 +89,7 @@ pub async fn get_public_rooms_route(
 )]
 pub async fn set_room_visibility_route(
     db: State<'_, Database>,
-    body: Ruma<set_room_visibility::Request>,
+    body: Ruma<set_room_visibility::Request<'_>>,
 ) -> ConduitResult<set_room_visibility::Response> {
     match body.visibility {
         room::Visibility::Public => db.rooms.set_public(&body.room_id, true)?,
@@ -105,7 +105,7 @@ pub async fn set_room_visibility_route(
 )]
 pub async fn get_room_visibility_route(
     db: State<'_, Database>,
-    body: Ruma<get_room_visibility::Request>,
+    body: Ruma<get_room_visibility::Request<'_>>,
 ) -> ConduitResult<get_room_visibility::Response> {
     Ok(get_room_visibility::Response {
         visibility: if db.rooms.is_public_room(&body.room_id)? {
@@ -122,8 +122,8 @@ pub async fn get_public_rooms_filtered_helper(
     server: Option<&str>,
     limit: Option<js_int::UInt>,
     since: Option<&str>,
-    _filter: Option<Filter>,
-    _network: Option<RoomNetwork>,
+    _filter: Option<IncomingFilter>,
+    _network: Option<IncomingRoomNetwork>,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
     if let Some(other_server) = server
         .clone()

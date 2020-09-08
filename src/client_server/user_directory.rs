@@ -11,7 +11,7 @@ use rocket::post;
 )]
 pub fn search_users_route(
     db: State<'_, Database>,
-    body: Ruma<search_users::IncomingRequest>,
+    body: Ruma<search_users::Request<'_>>,
 ) -> ConduitResult<search_users::Response> {
     let limit = u64::from(body.limit) as usize;
 

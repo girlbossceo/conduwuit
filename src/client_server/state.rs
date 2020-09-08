@@ -21,7 +21,7 @@ use rocket::{get, put};
 )]
 pub fn send_state_event_for_key_route(
     db: State<'_, Database>,
-    body: Ruma<send_state_event_for_key::IncomingRequest>,
+    body: Ruma<send_state_event_for_key::Request<'_>>,
 ) -> ConduitResult<send_state_event_for_key::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -40,7 +40,7 @@ pub fn send_state_event_for_key_route(
             &body.content,
             content,
             &body.room_id,
-            Some(body.state_key.clone()),
+            Some(body.state_key.to_owned()),
         )?)
         .into(),
     )
@@ -52,7 +52,7 @@ pub fn send_state_event_for_key_route(
 )]
 pub fn send_state_event_for_empty_key_route(
     db: State<'_, Database>,
-    body: Ruma<send_state_event_for_empty_key::IncomingRequest>,
+    body: Ruma<send_state_event_for_empty_key::Request<'_>>,
 ) -> ConduitResult<send_state_event_for_empty_key::Response> {
     // This just calls send_state_event_for_key_route
     let Ruma {

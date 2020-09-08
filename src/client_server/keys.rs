@@ -11,7 +11,7 @@ use ruma::{
             uiaa::{AuthFlow, UiaaInfo},
         },
     },
-    encryption::UnsignedDeviceInfo,
+    encryption::IncomingUnsignedDeviceInfo,
 };
 use std::collections::{BTreeMap, HashSet};
 
@@ -24,7 +24,7 @@ use rocket::{get, post};
 )]
 pub fn upload_keys_route(
     db: State<'_, Database>,
-    body: Ruma<upload_keys::Request>,
+    body: Ruma<upload_keys::Request<'_>>,
 ) -> ConduitResult<upload_keys::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
@@ -56,7 +56,7 @@ pub fn upload_keys_route(
 )]
 pub fn get_keys_route(
     db: State<'_, Database>,
-    body: Ruma<get_keys::IncomingRequest>,
+    body: Ruma<get_keys::Request<'_>>,
 ) -> ConduitResult<get_keys::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -78,9 +78,9 @@ pub fn get_keys_route(
                             Error::bad_database("all_device_keys contained nonexistent device.")
                         })?;
 
-                    keys.unsigned = Some(UnsignedDeviceInfo {
+                    keys.unsigned = IncomingUnsignedDeviceInfo {
                         device_display_name: metadata.display_name,
-                    });
+                    };
 
                     container.insert(device_id, keys);
                 }
@@ -97,9 +97,9 @@ pub fn get_keys_route(
                         ),
                     )?;
 
-                    keys.unsigned = Some(UnsignedDeviceInfo {
+                    keys.unsigned = IncomingUnsignedDeviceInfo {
                         device_display_name: metadata.display_name,
-                    });
+                    };
 
                     container.insert(device_id.clone(), keys);
                 }
@@ -167,7 +167,7 @@ pub fn claim_keys_route(
 )]
 pub fn upload_signing_keys_route(
     db: State<'_, Database>,
-    body: Ruma<upload_signing_keys::IncomingRequest>,
+    body: Ruma<upload_signing_keys::Request<'_>>,
 ) -> ConduitResult<upload_signing_keys::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
@@ -280,7 +280,7 @@ pub fn upload_signatures_route(
 )]
 pub fn get_key_changes_route(
     db: State<'_, Database>,
-    body: Ruma<get_key_changes::IncomingRequest>,
+    body: Ruma<get_key_changes::Request<'_>>,
 ) -> ConduitResult<get_key_changes::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 

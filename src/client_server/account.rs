@@ -33,7 +33,7 @@ const GUEST_NAME_LENGTH: usize = 10;
 )]
 pub fn get_register_available_route(
     db: State<'_, Database>,
-    body: Ruma<get_username_availability::Request>,
+    body: Ruma<get_username_availability::Request<'_>>,
 ) -> ConduitResult<get_username_availability::Response> {
     // Validate user id
     let user_id = UserId::parse_with_server_name(body.username.clone(), db.globals.server_name())
@@ -75,7 +75,7 @@ pub fn get_register_available_route(
 )]
 pub fn register_route(
     db: State<'_, Database>,
-    body: Ruma<register::IncomingRequest>,
+    body: Ruma<register::Request<'_>>,
 ) -> ConduitResult<register::Response> {
     if db.globals.registration_disabled() {
         return Err(Error::BadRequest(
@@ -84,7 +84,7 @@ pub fn register_route(
         ));
     }
 
-    let is_guest = matches!(body.kind, Some(RegistrationKind::Guest));
+    let is_guest = body.kind == RegistrationKind::Guest;
 
     let mut missing_username = false;
 
@@ -223,7 +223,7 @@ pub fn register_route(
 )]
 pub fn change_password_route(
     db: State<'_, Database>,
-    body: Ruma<change_password::IncomingRequest>,
+    body: Ruma<change_password::Request<'_>>,
 ) -> ConduitResult<change_password::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
@@ -305,7 +305,7 @@ pub fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Respon
 )]
 pub fn deactivate_route(
     db: State<'_, Database>,
-    body: Ruma<deactivate::IncomingRequest>,
+    body: Ruma<deactivate::Request<'_>>,
 ) -> ConduitResult<deactivate::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");

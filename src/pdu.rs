@@ -255,7 +255,7 @@ impl PduEvent {
 }
 
 /// Build the start of a PDU in order to add it to the `Database`.
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct PduBuilder {
     pub room_id: RoomId,
     pub sender: UserId,

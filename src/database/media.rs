@@ -16,7 +16,7 @@ impl Media {
     pub fn create(
         &self,
         mxc: String,
-        filename: Option<&String>,
+        filename: &Option<String>,
         content_type: &str,
         file: &[u8],
     ) -> Result<()> {
@@ -25,7 +25,7 @@ impl Media {
         key.extend_from_slice(&0_u32.to_be_bytes()); // Width = 0 if it's not a thumbnail
         key.extend_from_slice(&0_u32.to_be_bytes()); // Height = 0 if it's not a thumbnail
         key.push(0xff);
-        key.extend_from_slice(filename.map(|f| f.as_bytes()).unwrap_or_default());
+        key.extend_from_slice(filename.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
         key.push(0xff);
         key.extend_from_slice(content_type.as_bytes());
 

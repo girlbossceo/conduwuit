@@ -12,7 +12,7 @@ use rocket::get;
 )]
 pub fn get_context_route(
     db: State<'_, Database>,
-    body: Ruma<get_context::IncomingRequest>,
+    body: Ruma<get_context::Request<'_>>,
 ) -> ConduitResult<get_context::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 

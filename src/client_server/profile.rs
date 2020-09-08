@@ -21,7 +21,7 @@ use std::convert::TryInto;
 )]
 pub fn set_displayname_route(
     db: State<'_, Database>,
-    body: Ruma<set_display_name::Request>,
+    body: Ruma<set_display_name::Request<'_>>,
 ) -> ConduitResult<set_display_name::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -98,7 +98,7 @@ pub fn set_displayname_route(
 )]
 pub fn get_displayname_route(
     db: State<'_, Database>,
-    body: Ruma<get_display_name::Request>,
+    body: Ruma<get_display_name::Request<'_>>,
 ) -> ConduitResult<get_display_name::Response> {
     Ok(get_display_name::Response {
         displayname: db.users.displayname(&body.user_id)?,
@@ -112,7 +112,7 @@ pub fn get_displayname_route(
 )]
 pub fn set_avatar_url_route(
     db: State<'_, Database>,
-    body: Ruma<set_avatar_url::Request>,
+    body: Ruma<set_avatar_url::Request<'_>>,
 ) -> ConduitResult<set_avatar_url::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -201,7 +201,7 @@ pub fn set_avatar_url_route(
 )]
 pub fn get_avatar_url_route(
     db: State<'_, Database>,
-    body: Ruma<get_avatar_url::Request>,
+    body: Ruma<get_avatar_url::Request<'_>>,
 ) -> ConduitResult<get_avatar_url::Response> {
     Ok(get_avatar_url::Response {
         avatar_url: db.users.avatar_url(&body.user_id)?,
@@ -215,7 +215,7 @@ pub fn get_avatar_url_route(
 )]
 pub fn get_profile_route(
     db: State<'_, Database>,
-    body: Ruma<get_profile::Request>,
+    body: Ruma<get_profile::Request<'_>>,
 ) -> ConduitResult<get_profile::Response> {
     let avatar_url = db.users.avatar_url(&body.user_id)?;
     let displayname = db.users.displayname(&body.user_id)?;

@@ -27,7 +27,7 @@ pub fn get_media_config_route(
 )]
 pub fn create_content_route(
     db: State<'_, Database>,
-    body: Ruma<create_content::Request>,
+    body: Ruma<create_content::Request<'_>>,
 ) -> ConduitResult<create_content::Response> {
     let mxc = format!(
         "mxc://{}/{}",
@@ -36,7 +36,7 @@ pub fn create_content_route(
     );
     db.media.create(
         mxc.clone(),
-        body.filename.as_ref(),
+        &body.filename,
         &body.content_type,
         &body.file,
     )?;
@@ -53,7 +53,7 @@ pub fn create_content_route(
 )]
 pub fn get_content_route(
     db: State<'_, Database>,
-    body: Ruma<get_content::IncomingRequest>,
+    body: Ruma<get_content::Request<'_>>,
     _server_name: String,
     _media_id: String,
 ) -> ConduitResult<get_content::Response> {
@@ -85,7 +85,7 @@ pub fn get_content_route(
 )]
 pub fn get_content_thumbnail_route(
     db: State<'_, Database>,
-    body: Ruma<get_content_thumbnail::IncomingRequest>,
+    body: Ruma<get_content_thumbnail::Request<'_>>,
     _server_name: String,
     _media_id: String,
 ) -> ConduitResult<get_content_thumbnail::Response> {

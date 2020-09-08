@@ -207,7 +207,7 @@ pub fn get_server_keys_deprecated(db: State<'_, Database>) -> Json<String> {
 )]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
-    body: Ruma<get_public_rooms::v1::IncomingRequest>,
+    body: Ruma<get_public_rooms::v1::Request<'_>>,
 ) -> ConduitResult<get_public_rooms::v1::Response> {
     let Ruma {
         body:
@@ -230,7 +230,7 @@ pub async fn get_public_rooms_route(
         limit,
         since.as_deref(),
         None,
-        Some(ruma::directory::RoomNetwork::Matrix),
+        Some(ruma::directory::IncomingRoomNetwork::Matrix),
     )
     .await?
     .0;
@@ -264,7 +264,7 @@ pub async fn get_public_rooms_route(
 )]
 pub fn send_transaction_message_route<'a>(
     _db: State<'a, Database>,
-    body: Ruma<send_transaction_message::v1::IncomingRequest>,
+    body: Ruma<send_transaction_message::v1::Request<'_>>,
 ) -> ConduitResult<send_transaction_message::v1::Response> {
     dbg!(&*body);
     Ok(send_transaction_message::v1::Response {

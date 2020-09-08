@@ -7,7 +7,7 @@ use rocket::{get, post};
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/user/<_>/filter/<_>"))]
 pub fn get_filter_route() -> ConduitResult<get_filter::Response> {
     // TODO
-    Ok(get_filter::Response::new(filter::FilterDefinition {
+    Ok(get_filter::Response::new(filter::IncomingFilterDefinition {
         event_fields: None,
         event_format: None,
         account_data: None,

@@ -14,7 +14,7 @@ use rocket::put;
 )]
 pub fn redact_event_route(
     db: State<'_, Database>,
-    body: Ruma<redact_event::Request>,
+    body: Ruma<redact_event::Request<'_>>,
 ) -> ConduitResult<redact_event::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 

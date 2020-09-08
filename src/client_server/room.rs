@@ -22,7 +22,7 @@ use rocket::{get, post};
 )]
 pub fn create_room_route(
     db: State<'_, Database>,
-    body: Ruma<create_room::Request>,
+    body: Ruma<create_room::Request<'_>>,
 ) -> ConduitResult<create_room::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -48,11 +48,8 @@ pub fn create_room_route(
         })?;
 
     let mut content = ruma::events::room::create::CreateEventContent::new(sender_id.clone());
-    content.federate = body.creation_content.as_ref().map_or(true, |c| c.federate);
-    content.predecessor = body
-        .creation_content
-        .as_ref()
-        .and_then(|c| c.predecessor.clone());
+    content.federate = body.creation_content.federate;
+    content.predecessor = body.creation_content.predecessor.clone();
     content.room_version = RoomVersionId::Version6;
 
     // 1. The room create event
@@ -80,7 +77,7 @@ pub fn create_room_route(
                 membership: member::MembershipState::Join,
                 displayname: db.users.displayname(&sender_id)?,
                 avatar_url: db.users.avatar_url(&sender_id)?,
-                is_direct: body.is_direct,
+                is_direct: Some(body.is_direct),
                 third_party_invite: None,
             })
             .expect("event is valid, we just created it"),
@@ -137,8 +134,7 @@ pub fn create_room_route(
     // 4. Events set by preset
 
     // Figure out preset. We need it for preset specific events
-    let visibility = body.visibility.unwrap_or(room::Visibility::Private);
-    let preset = body.preset.unwrap_or_else(|| match visibility {
+    let preset = body.preset.unwrap_or_else(|| match body.visibility {
         room::Visibility::Private => create_room::RoomPreset::PrivateChat,
         room::Visibility::Public => create_room::RoomPreset::PublicChat,
     });
@@ -213,32 +209,19 @@ pub fn create_room_route(
     )?;
 
     // 5. Events listed in initial_state
-    for create_room::InitialStateEvent {
-        event_type,
-        state_key,
-        content,
-    } in &body.initial_state
-    {
+    for event in &body.initial_state {
+        let pdu_builder = serde_json::from_str::<PduBuilder>(
+            &serde_json::to_string(&event).expect("AnyInitialStateEvent::to_string always works"),
+        ).map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event."))?;
+
         // Silently skip encryption events if they are not allowed
-        if event_type == &EventType::RoomEncryption && db.globals.encryption_disabled() {
+        if pdu_builder.event_type == EventType::RoomEncryption && db.globals.encryption_disabled()
+        {
             continue;
         }
 
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                room_id: room_id.clone(),
-                sender: sender_id.clone(),
-                event_type: event_type.clone(),
-                content: serde_json::from_str(content.get()).map_err(|_| {
-                    Error::BadRequest(ErrorKind::BadJson, "Invalid initial_state content.")
-                })?,
-                unsigned: None,
-                state_key: state_key.clone(),
-                redacts: None,
-            },
-            &db.globals,
-            &db.account_data,
-        )?;
+        db.rooms
+            .build_and_append_pdu(pdu_builder, &db.globals, &db.account_data)?;
     }
 
     // 6. Events implied by name and topic
@@ -293,7 +276,7 @@ pub fn create_room_route(
                     membership: member::MembershipState::Invite,
                     displayname: db.users.displayname(&user)?,
                     avatar_url: db.users.avatar_url(&user)?,
-                    is_direct: body.is_direct,
+                    is_direct: Some(body.is_direct),
                     third_party_invite: None,
                 })
                 .expect("event is valid, we just created it"),
@@ -311,7 +294,7 @@ pub fn create_room_route(
         db.rooms.set_alias(&alias, Some(&room_id), &db.globals)?;
     }
 
-    if let Some(room::Visibility::Public) = body.visibility {
+    if body.visibility == room::Visibility::Public {
         db.rooms.set_public(&room_id, true)?;
     }
 
@@ -324,7 +307,7 @@ pub fn create_room_route(
 )]
 pub fn get_room_event_route(
     db: State<'_, Database>,
-    body: Ruma<get_room_event::Request>,
+    body: Ruma<get_room_event::Request<'_>>,
 ) -> ConduitResult<get_room_event::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
