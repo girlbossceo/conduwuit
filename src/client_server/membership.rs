@@ -502,8 +502,10 @@ async fn join_room_by_id_helper(
                     .ok_or_else(|| Error::BadServerResponse("PDU is not an object."))?
                     .insert("event_id".to_owned(), event_id.to_string().into());
 
+                dbg!(&value);
+
                 serde_json::from_value::<StateEvent>(value)
-                    .map(|ev| (event_id, Arc::new(ev)))
+                    .map(|ev| (dbg!(&ev).event_id().clone(), Arc::new(ev)))
                     .map_err(|e| {
                         warn!("{}", e);
                         Error::BadServerResponse("Invalid PDU bytes in send_join response.")
@@ -520,19 +522,14 @@ async fn join_room_by_id_helper(
         // These events are not guaranteed to be sorted but they are resolved according to spec
         // we auth them anyways to weed out faulty/malicious server. The following is basically the
         // full state resolution algorithm.
+        let event_ids = event_map.keys().cloned().collect::<Vec<_>>();
+
         let sorted_control_events = state_res::StateResolution::reverse_topological_power_sort(
             &room_id,
             &control_events,
             &mut event_map,
             &db.rooms,
-            &send_join_response
-                .room_state
-                .auth_chain
-                .iter()
-                .filter_map(|pdu| {
-                    Some(StateEvent::Full(pdu.deserialize().ok()?).event_id().clone())
-                })
-                .collect::<Vec<_>>(),
+            &event_ids,
         );
 
         // Auth check each event against the "partial" state created by the preceding events
