@@ -1,16 +1,19 @@
 use crate::{client_server, ConduitResult, Database, Error, Result, Ruma};
 use http::header::{HeaderValue, AUTHORIZATION};
 use rocket::{get, post, put, response::content::Json, State};
-use ruma::api::{
-    client,
-    federation::{
-        directory::get_public_rooms,
-        discovery::{
-            get_server_keys, get_server_version::v1 as get_server_version, ServerKey, VerifyKey,
+use ruma::{
+    api::{
+        client,
+        federation::{
+            directory::get_public_rooms,
+            discovery::{
+                get_server_keys, get_server_version::v1 as get_server_version, ServerKey, VerifyKey,
+            },
+            transactions::send_transaction_message,
         },
-        transactions::send_transaction_message,
+        OutgoingRequest,
     },
-    OutgoingRequest,
+    EventId,
 };
 use serde_json::json;
 use std::{
@@ -264,10 +267,29 @@ pub async fn get_public_rooms_route(
     put("/_matrix/federation/v1/send/<_>", data = "<body>")
 )]
 pub fn send_transaction_message_route<'a>(
-    _db: State<'a, Database>,
+    db: State<'a, Database>,
     body: Ruma<send_transaction_message::v1::Request<'_>>,
 ) -> ConduitResult<send_transaction_message::v1::Response> {
     dbg!(&*body);
+    for pdu in &body.pdus {
+        let mut value = serde_json::to_value(pdu).expect("all ruma pdus are json values");
+        let event_id = EventId::try_from(&*format!(
+            "${}",
+            ruma::signatures::reference_hash(&value).expect("ruma can calculate reference hashes")
+        ))
+        .expect("ruma's reference hashes are valid event ids");
+
+        value
+            .as_object_mut()
+            .expect("ruma pdus are json objects")
+            .insert("event_id".to_owned(), event_id.to_string().into());
+
+        db.rooms.append_pdu(
+            serde_json::from_value(value).expect("all ruma pdus are conduit pdus"),
+            &db.globals,
+            &db.account_data,
+        )?;
+    }
     Ok(send_transaction_message::v1::Response {
         pdus: BTreeMap::new(),
     }
