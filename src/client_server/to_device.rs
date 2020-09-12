@@ -17,6 +17,16 @@ pub fn send_event_to_device_route(
     body: Ruma<send_event_to_device::Request<'_>>,
 ) -> ConduitResult<send_event_to_device::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
+    // Check if this is a new transaction id
+    if db
+        .transaction_ids
+        .existing_txnid(sender_id, device_id, &body.txn_id)?
+        .is_some()
+    {
+        return Ok(send_event_to_device::Response.into());
+    }
 
     for (target_user_id, map) in &body.messages {
         for (target_device_id_maybe, event) in map {
@@ -51,6 +61,10 @@ pub fn send_event_to_device_route(
             }
         }
     }
+
+    // Save transaction id with empty data
+    db.transaction_ids
+        .add_txnid(sender_id, device_id, &body.txn_id, &[])?;
 
     Ok(send_event_to_device::Response.into())
 }

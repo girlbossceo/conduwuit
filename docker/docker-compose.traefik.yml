@@ -3,18 +3,19 @@ version: '3'
 
 services:
     homeserver:
-        ### If you already built the Conduit image with 'docker build', then you can uncomment the
-        ### 'image' line and comment out the 'build' option.
-        # image: conduit_homeserver:latest
-        ### If you want meaningful labels in you built Conduit image, you should run docker-compose like this:
+        ### If you already built the Conduit image with 'docker build' or want to use the Docker Hub image,
+        ### then you are ready to go.
+        image: matrixconduit/matrix-conduit:latest
+        ### If you want to build a fresh image from the sources, then comment the image line and uncomment the
+        ### build lines. If you want meaningful labels in your built Conduit image, you should run docker-compose like this:
         ### CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml) docker-compose up -d
-        build:
-            context: .
-            args:
-                CREATED:
-                VERSION:
-                LOCAL: false
-                GIT_REF: HEAD
+        # build:
+        #     context: .
+        #     args:
+        #         CREATED:
+        #         VERSION:
+        #         LOCAL: 'false'
+        #         GIT_REF: HEAD
         restart: unless-stopped
         volumes:
             - db:/srv/conduit/.local/share/conduit

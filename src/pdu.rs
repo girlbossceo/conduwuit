@@ -34,7 +34,7 @@ pub struct PduEvent {
 }
 
 impl PduEvent {
-    pub fn redact(&mut self) -> Result<()> {
+    pub fn redact(&mut self, reason: &PduEvent) -> Result<()> {
         self.unsigned.clear();
 
         let allowed: &[&str] = match self.kind {
@@ -70,7 +70,9 @@ impl PduEvent {
 
         self.unsigned.insert(
             "redacted_because".to_owned(),
-            json!({"content": {}, "type": "m.room.redaction"}),
+            serde_json::to_string(reason)
+                .expect("PduEvent::to_string always works")
+                .into(),
         );
 
         self.content = new_content.into();

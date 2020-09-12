@@ -217,11 +217,8 @@ pub fn get_profile_route(
     db: State<'_, Database>,
     body: Ruma<get_profile::Request<'_>>,
 ) -> ConduitResult<get_profile::Response> {
-    let avatar_url = db.users.avatar_url(&body.user_id)?;
-    let displayname = db.users.displayname(&body.user_id)?;
-
-    if avatar_url.is_none() && displayname.is_none() {
-        // Return 404 if we don't have a profile for this id
+    if !db.users.exists(&body.user_id)? {
+        // Return 404 if this user doesn't exist
         return Err(Error::BadRequest(
             ErrorKind::NotFound,
             "Profile was not found.",
@@ -229,8 +226,8 @@ pub fn get_profile_route(
     }
 
     Ok(get_profile::Response {
-        avatar_url,
-        displayname,
+        avatar_url: db.users.avatar_url(&body.user_id)?,
+        displayname: db.users.displayname(&body.user_id)?,
     }
     .into())
 }

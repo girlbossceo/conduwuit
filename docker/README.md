@@ -28,10 +28,10 @@ ARG GIT_REF=HEAD
 To build the image you can use the following command
 
 ``` bash
-docker build . -t conduit_homeserver:latest --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)
+docker build . -t matrixconduit/matrix-conduit:latest --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)
 ```
 
-which also will tag the resulting image as `conduit_homeserver:latest`.
+which also will tag the resulting image as `matrixconduit/matrix-conduit:latest`.
 **Note:** it ommits the two optional `build-arg`s.
 
 
@@ -40,7 +40,7 @@ which also will tag the resulting image as `conduit_homeserver:latest`.
 After building the image you can simply run it with
 
 ``` bash
-docker run conduit_homeserver:latest -p 8448:8000 -v db:/srv/conduit/.local/share/conduit -e ROCKET_SERVER_NAME="localhost:8000"
+docker run -d matrixconduit/matrix-conduit:latest -p 8448:8000 -v db:/srv/conduit/.local/share/conduit -e ROCKET_SERVER_NAME="localhost:8000"
 ```
 
 For detached mode, you also need to use the `-d` flag. You can pass in more env vars as are shown here, for an overview of possible values, you can take a look at the `docker-compose.yml` file.
@@ -49,7 +49,7 @@ If you just want to test Conduit for a short time, you can use the `--rm` flag, 
 
 ## Docker-compose
 
-If the docker command is not for you or your setup, you can also use one of the provided `docker-compose` files. Depending on your proxy setup, use the `docker-compose.traefik.yml` including `docker-compose.override.traefik.yml` or the normal `docker-compose.yml` for every other reverse proxy.
+If the docker command is not for you or your setup, you can also use one of the provided `docker-compose` files. Depending on your proxy setup, use the [`docker-compose.traefik.yml`](docker-compose.traefik.yml) including [`docker-compose.override.traefik.yml`](docker-compose.override.traefik.yml) or the normal [`docker-compose.yml`](../docker-compose.yml) for every other reverse proxy.
 
 
 ### Build

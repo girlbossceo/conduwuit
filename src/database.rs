@@ -3,6 +3,7 @@ pub mod globals;
 pub mod key_backups;
 pub mod media;
 pub mod rooms;
+pub mod transaction_ids;
 pub mod uiaa;
 pub mod users;
 
@@ -23,6 +24,7 @@ pub struct Database {
     pub account_data: account_data::AccountData,
     pub media: media::Media,
     pub key_backups: key_backups::KeyBackups,
+    pub transaction_ids: transaction_ids::TransactionIds,
     pub _db: sled::Db,
 }
 
@@ -88,10 +90,12 @@ impl Database {
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {
-                    roomuserid_lastread: db.open_tree("roomuserid_lastread")?, // "Private" read receipt
-                    roomlatestid_roomlatest: db.open_tree("roomlatestid_roomlatest")?, // Read receipts
-                    roomactiveid_userid: db.open_tree("roomactiveid_userid")?, // Typing notifs
-                    roomid_lastroomactiveupdate: db.open_tree("roomid_lastroomactiveupdate")?,
+                    readreceiptid_readreceipt: db.open_tree("readreceiptid_readreceipt")?,
+                    roomuserid_privateread: db.open_tree("roomuserid_privateread")?, // "Private" read receipt
+                    roomuserid_lastprivatereadupdate: db
+                        .open_tree("roomid_lastprivatereadupdate")?,
+                    typingid_userid: db.open_tree("typingid_userid")?,
+                    roomid_lasttypingupdate: db.open_tree("roomid_lasttypingupdate")?,
                     presenceid_presence: db.open_tree("presenceid_presence")?,
                     userid_lastpresenceupdate: db.open_tree("userid_lastpresenceupdate")?,
                 },
@@ -107,6 +111,7 @@ impl Database {
 
                 userroomid_joined: db.open_tree("userroomid_joined")?,
                 roomuserid_joined: db.open_tree("roomuserid_joined")?,
+                roomuseroncejoinedids: db.open_tree("roomuseroncejoinedids")?,
                 userroomid_invited: db.open_tree("userroomid_invited")?,
                 roomuserid_invited: db.open_tree("roomuserid_invited")?,
                 userroomid_left: db.open_tree("userroomid_left")?,
@@ -125,6 +130,9 @@ impl Database {
                 backupid_algorithm: db.open_tree("backupid_algorithm")?,
                 backupid_etag: db.open_tree("backupid_etag")?,
                 backupkeyid_backup: db.open_tree("backupkeyid_backupmetadata")?,
+            },
+            transaction_ids: transaction_ids::TransactionIds {
+                userdevicetxnid_response: db.open_tree("userdevicetxnid_response")?,
             },
             _db: db,
         })
@@ -166,14 +174,14 @@ impl Database {
             futures.push(
                 self.rooms
                     .edus
-                    .roomid_lastroomactiveupdate
+                    .roomid_lasttypingupdate
                     .watch_prefix(&roomid_bytes),
             );
 
             futures.push(
                 self.rooms
                     .edus
-                    .roomlatestid_roomlatest
+                    .readreceiptid_readreceipt
                     .watch_prefix(&roomid_prefix),
             );
 

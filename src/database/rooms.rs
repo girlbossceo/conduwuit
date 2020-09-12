@@ -12,7 +12,6 @@ use ruma::{
         room::{
             member,
             power_levels::{self, PowerLevelsEventContent},
-            redaction,
         },
         EventType,
     },
@@ -47,6 +46,7 @@ pub struct Rooms {
 
     pub(super) userroomid_joined: sled::Tree,
     pub(super) roomuserid_joined: sled::Tree,
+    pub(super) roomuseroncejoinedids: sled::Tree,
     pub(super) userroomid_invited: sled::Tree,
     pub(super) roomuserid_invited: sled::Tree,
     pub(super) userroomid_left: sled::Tree,
@@ -477,30 +477,16 @@ impl Rooms {
             self.append_to_state(&pdu_id, &pdu)?;
         }
 
-        match &pdu.kind {
+        match pdu.kind {
             EventType::RoomRedaction => {
                 if let Some(redact_id) = &pdu.redacts {
-                    // TODO: Reason
-                    let _reason = serde_json::from_value::<Raw<redaction::RedactionEventContent>>(
-                        pdu.content,
-                    )
-                    .expect("Raw::from_value always works.")
-                    .deserialize()
-                    .map_err(|_| {
-                        Error::BadRequest(
-                            ErrorKind::InvalidParam,
-                            "Invalid redaction event content.",
-                        )
-                    })?
-                    .reason;
-
-                    self.redact_pdu(&redact_id)?;
+                    self.redact_pdu(&redact_id, &pdu)?;
                 }
             }
             EventType::RoomMember => {
-                if let Some(state_key) = pdu.state_key.as_ref() {
+                if let Some(state_key) = pdu.state_key {
                     // if the state_key fails
-                    let target_user_id = UserId::try_from(state_key.as_str())
+                    let target_user_id = UserId::try_from(state_key)
                         .expect("This state_key was previously validated");
                     // Update our membership info, we do this here incase a user is invited
                     // and immediately leaves we need the DB to record the invite event for auth
@@ -527,7 +513,7 @@ impl Rooms {
                         .split_terminator(|c: char| !c.is_alphanumeric())
                         .map(str::to_lowercase)
                     {
-                        let mut key = pdu.room_id.as_bytes().to_vec();
+                        let mut key = pdu.room_id.to_string().as_bytes().to_vec();
                         key.push(0xff);
                         key.extend_from_slice(word.as_bytes());
                         key.push(0xff);
@@ -538,7 +524,9 @@ impl Rooms {
             }
             _ => {}
         }
-        self.edus.room_read_set(&pdu.room_id, &pdu.sender, index)?;
+
+        self.edus
+            .private_read_set(&pdu.room_id, &pdu.sender, index, &globals)?;
 
         Ok(pdu.event_id)
     }
@@ -922,12 +910,12 @@ impl Rooms {
     }
 
     /// Replace a PDU with the redacted form.
-    pub fn redact_pdu(&self, event_id: &EventId) -> Result<()> {
+    pub fn redact_pdu(&self, event_id: &EventId, reason: &PduEvent) -> Result<()> {
         if let Some(pdu_id) = self.get_pdu_id(event_id)? {
             let mut pdu = self
                 .get_pdu_from_id(&pdu_id)?
                 .ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
-            pdu.redact()?;
+            pdu.redact(&reason)?;
             self.replace_pdu(&pdu_id, &pdu)?;
             Ok(())
         } else {
@@ -959,6 +947,91 @@ impl Rooms {
 
         match &membership {
             member::MembershipState::Join => {
+                // Check if the user never joined this room
+                if !self.once_joined(&user_id, &room_id)? {
+                    // Add the user ID to the join list then
+                    self.roomuseroncejoinedids.insert(&userroom_id, &[])?;
+
+                    // Check if the room has a predecessor
+                    if let Some(predecessor) = serde_json::from_value::<
+                        Raw<ruma::events::room::create::CreateEventContent>,
+                    >(
+                        self.room_state_get(&room_id, &EventType::RoomCreate, "")?
+                            .ok_or_else(|| {
+                                Error::bad_database("Found room without m.room.create event.")
+                            })?
+                            .content,
+                    )
+                    .expect("Raw::from_value always works")
+                    .deserialize()
+                    .map_err(|_| Error::bad_database("Invalid room event in database."))?
+                    .predecessor
+                    {
+                        // Copy user settings from predecessor to the current room:
+                        // - Push rules
+                        //
+                        // TODO: finish this once push rules are implemented.
+                        //
+                        // let mut push_rules_event_content = account_data
+                        //     .get::<ruma::events::push_rules::PushRulesEvent>(
+                        //         None,
+                        //         user_id,
+                        //         EventType::PushRules,
+                        //     )?;
+                        //
+                        // NOTE: find where `predecessor.room_id` match
+                        //       and update to `room_id`.
+                        //
+                        // account_data
+                        //     .update(
+                        //         None,
+                        //         user_id,
+                        //         EventType::PushRules,
+                        //         &push_rules_event_content,
+                        //         globals,
+                        //     )
+                        //     .ok();
+
+                        // Copy old tags to new room
+                        if let Some(tag_event) = account_data.get::<ruma::events::tag::TagEvent>(
+                            Some(&predecessor.room_id),
+                            user_id,
+                            EventType::Tag,
+                        )? {
+                            account_data
+                                .update(Some(room_id), user_id, EventType::Tag, &tag_event, globals)
+                                .ok();
+                        };
+
+                        // Copy direct chat flag
+                        if let Some(mut direct_event) = account_data
+                            .get::<ruma::events::direct::DirectEvent>(
+                            None,
+                            user_id,
+                            EventType::Direct,
+                        )? {
+                            let mut room_ids_updated = false;
+
+                            for room_ids in direct_event.content.0.values_mut() {
+                                if room_ids.iter().any(|r| r == &predecessor.room_id) {
+                                    room_ids.push(room_id.clone());
+                                    room_ids_updated = true;
+                                }
+                            }
+
+                            if room_ids_updated {
+                                account_data.update(
+                                    None,
+                                    user_id,
+                                    EventType::Direct,
+                                    &direct_event,
+                                    globals,
+                                )?;
+                            }
+                        };
+                    }
+                }
+
                 self.userroomid_joined.insert(&userroom_id, &[])?;
                 self.roomuserid_joined.insert(&roomuser_id, &[])?;
                 self.userroomid_invited.remove(&userroom_id)?;
@@ -1218,6 +1291,27 @@ impl Rooms {
             })
     }
 
+    /// Returns an iterator over all User IDs who ever joined a room.
+    pub fn room_useroncejoined(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
+        self.roomuseroncejoinedids
+            .scan_prefix(room_id.to_string())
+            .keys()
+            .map(|key| {
+                Ok(UserId::try_from(
+                    utils::string_from_bytes(
+                        &key?
+                            .rsplit(|&b| b == 0xff)
+                            .next()
+                            .expect("rsplit always returns an element"),
+                    )
+                    .map_err(|_| {
+                        Error::bad_database("User ID in room_useroncejoined is invalid unicode.")
+                    })?,
+                )
+                .map_err(|_| Error::bad_database("User ID in room_useroncejoined is invalid."))?)
+            })
+    }
+
     /// Returns an iterator over all invited members of a room.
     pub fn room_members_invited(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
         self.roomuserid_invited
@@ -1300,6 +1394,14 @@ impl Rooms {
                 )
                 .map_err(|_| Error::bad_database("Room ID in userroomid_left is invalid."))?)
             })
+    }
+
+    pub fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+        let mut userroom_id = user_id.to_string().as_bytes().to_vec();
+        userroom_id.push(0xff);
+        userroom_id.extend_from_slice(room_id.to_string().as_bytes());
+
+        Ok(self.roomuseroncejoinedids.get(userroom_id)?.is_some())
     }
 
     pub fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {

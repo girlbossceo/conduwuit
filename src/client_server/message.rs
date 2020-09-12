@@ -1,13 +1,14 @@
 use super::State;
-use crate::{pdu::PduBuilder, ConduitResult, Database, Error, Ruma};
+use crate::{pdu::PduBuilder, utils, ConduitResult, Database, Error, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
         r0::message::{get_message_events, send_message_event},
     },
     events::EventContent,
+    EventId,
 };
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};
@@ -21,6 +22,29 @@ pub fn send_message_event_route(
     body: Ruma<send_message_event::Request<'_>>,
 ) -> ConduitResult<send_message_event::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let device_id = body.device_id.as_ref().expect("user is authenticated");
+
+    // Check if this is a new transaction id
+    if let Some(response) = db
+        .transaction_ids
+        .existing_txnid(sender_id, device_id, &body.txn_id)?
+    {
+        // The client might have sent a txnid of the /sendToDevice endpoint
+        // This txnid has no response associated with it
+        if response.is_empty() {
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Tried to use txn id already used for an incompatible endpoint.",
+            ));
+        }
+
+        let event_id = EventId::try_from(
+            utils::string_from_bytes(&response)
+                .map_err(|_| Error::bad_database("Invalid txnid bytes in database."))?,
+        )
+        .map_err(|_| Error::bad_database("Invalid event id in txnid data."))?;
+        return Ok(send_message_event::Response { event_id }.into());
+    }
 
     let mut unsigned = serde_json::Map::new();
     unsigned.insert("transaction_id".to_owned(), body.txn_id.clone().into());
@@ -44,6 +68,9 @@ pub fn send_message_event_route(
         &db.globals,
         &db.account_data,
     )?;
+
+    db.transaction_ids
+        .add_txnid(sender_id, device_id, &body.txn_id, event_id.as_bytes())?;
 
     Ok(send_message_event::Response::new(event_id).into())
 }

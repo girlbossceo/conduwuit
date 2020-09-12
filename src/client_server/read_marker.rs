@@ -34,13 +34,14 @@ pub fn set_read_marker_route(
     )?;
 
     if let Some(event) = &body.read_receipt {
-        db.rooms.edus.room_read_set(
+        db.rooms.edus.private_read_set(
             &body.room_id,
             &sender_id,
             db.rooms.get_pdu_count(event)?.ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Event does not exist.",
             ))?,
+            &db.globals,
         )?;
 
         let mut user_receipts = BTreeMap::new();
@@ -58,7 +59,7 @@ pub fn set_read_marker_route(
             },
         );
 
-        db.rooms.edus.roomlatest_update(
+        db.rooms.edus.readreceipt_update(
             &sender_id,
             &body.room_id,
             AnyEvent::Ephemeral(AnyEphemeralRoomEvent::Receipt(

@@ -3,15 +3,15 @@ use crate::{pdu::PduBuilder, ConduitResult, Database, Error, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::room::{self, create_room, get_room_event},
+        r0::room::{self, create_room, get_room_event, upgrade_room},
     },
     events::{
         room::{guest_access, history_visibility, join_rules, member, name, topic},
         EventType,
     },
-    RoomAliasId, RoomId, RoomVersionId,
+    Raw, RoomAliasId, RoomId, RoomVersionId,
 };
-use std::{collections::BTreeMap, convert::TryFrom};
+use std::{cmp::max, collections::BTreeMap, convert::TryFrom};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};
@@ -331,4 +331,197 @@ pub fn get_room_event_route(
             .to_room_event(),
     }
     .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_room_id>/upgrade", data = "<body>")
+)]
+pub fn upgrade_room_route(
+    db: State<'_, Database>,
+    body: Ruma<upgrade_room::Request<'_>>,
+    _room_id: String,
+) -> ConduitResult<upgrade_room::Response> {
+    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+
+    // Validate the room version requested
+    let new_version =
+        RoomVersionId::try_from(body.new_version.clone()).expect("invalid room version id");
+
+    if !matches!(
+        new_version,
+        RoomVersionId::Version5 | RoomVersionId::Version6
+    ) {
+        return Err(Error::BadRequest(
+            ErrorKind::UnsupportedRoomVersion,
+            "This server does not support that room version.",
+        ));
+    }
+
+    // Create a replacement room
+    let replacement_room = RoomId::new(db.globals.server_name());
+
+    // Send a m.room.tombstone event to the old room to indicate that it is not intended to be used any further
+    // Fail if the sender does not have the required permissions
+    let tombstone_event_id = db.rooms.build_and_append_pdu(
+        PduBuilder {
+            event_type: EventType::RoomTombstone,
+            content: serde_json::to_value(ruma::events::room::tombstone::TombstoneEventContent {
+                body: "This room has been replaced".to_string(),
+                replacement_room: replacement_room.clone(),
+            })
+            .expect("event is valid, we just created it"),
+            unsigned: None,
+            state_key: Some("".to_owned()),
+            redacts: None,
+        },
+        sender_id,
+        &body.room_id,
+        &db.globals,
+        &db.account_data,
+    )?;
+
+    // Get the old room federations status
+    let federate = serde_json::from_value::<Raw<ruma::events::room::create::CreateEventContent>>(
+        db.rooms
+            .room_state_get(&body.room_id, &EventType::RoomCreate, "")?
+            .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
+            .content,
+    )
+    .expect("Raw::from_value always works")
+    .deserialize()
+    .map_err(|_| Error::bad_database("Invalid room event in database."))?
+    .federate;
+
+    // Use the m.room.tombstone event as the predecessor
+    let predecessor = Some(ruma::events::room::create::PreviousRoom::new(
+        body.room_id.clone(),
+        tombstone_event_id,
+    ));
+
+    // Send a m.room.create event containing a predecessor field and the applicable room_version
+    let mut create_event_content =
+        ruma::events::room::create::CreateEventContent::new(sender_id.clone());
+    create_event_content.federate = federate;
+    create_event_content.room_version = new_version;
+    create_event_content.predecessor = predecessor;
+
+    db.rooms.build_and_append_pdu(
+        PduBuilder {
+            event_type: EventType::RoomCreate,
+            content: serde_json::to_value(create_event_content)
+                .expect("event is valid, we just created it"),
+            unsigned: None,
+            state_key: Some("".to_owned()),
+            redacts: None,
+        },
+        sender_id,
+        &replacement_room,
+        &db.globals,
+        &db.account_data,
+    )?;
+
+    // Join the new room
+    db.rooms.build_and_append_pdu(
+        PduBuilder {
+            event_type: EventType::RoomMember,
+            content: serde_json::to_value(member::MemberEventContent {
+                membership: member::MembershipState::Join,
+                displayname: db.users.displayname(&sender_id)?,
+                avatar_url: db.users.avatar_url(&sender_id)?,
+                is_direct: None,
+                third_party_invite: None,
+            })
+            .expect("event is valid, we just created it"),
+            unsigned: None,
+            state_key: Some(sender_id.to_string()),
+            redacts: None,
+        },
+        sender_id,
+        &replacement_room,
+        &db.globals,
+        &db.account_data,
+    )?;
+
+    // Recommended transferable state events list from the specs
+    let transferable_state_events = vec![
+        EventType::RoomServerAcl,
+        EventType::RoomEncryption,
+        EventType::RoomName,
+        EventType::RoomAvatar,
+        EventType::RoomTopic,
+        EventType::RoomGuestAccess,
+        EventType::RoomHistoryVisibility,
+        EventType::RoomJoinRules,
+        EventType::RoomPowerLevels,
+    ];
+
+    // Replicate transferable state events to the new room
+    for event_type in transferable_state_events {
+        let event_content = match db.rooms.room_state_get(&body.room_id, &event_type, "")? {
+            Some(v) => v.content.clone(),
+            None => continue, // Skipping missing events.
+        };
+
+        db.rooms.build_and_append_pdu(
+            PduBuilder {
+                event_type,
+                content: event_content,
+                unsigned: None,
+                state_key: Some("".to_owned()),
+                redacts: None,
+            },
+            sender_id,
+            &replacement_room,
+            &db.globals,
+            &db.account_data,
+        )?;
+    }
+
+    // Moves any local aliases to the new room
+    for alias in db.rooms.room_aliases(&body.room_id).filter_map(|r| r.ok()) {
+        db.rooms
+            .set_alias(&alias, Some(&replacement_room), &db.globals)?;
+    }
+
+    // Get the old room power levels
+    let mut power_levels_event_content =
+        serde_json::from_value::<Raw<ruma::events::room::power_levels::PowerLevelsEventContent>>(
+            db.rooms
+                .room_state_get(&body.room_id, &EventType::RoomPowerLevels, "")?
+                .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
+                .content,
+        )
+        .expect("database contains invalid PDU")
+        .deserialize()
+        .map_err(|_| Error::bad_database("Invalid room event in database."))?;
+
+    // Setting events_default and invite to the greater of 50 and users_default + 1
+    let new_level = max(
+        50.into(),
+        power_levels_event_content.users_default + 1.into(),
+    );
+    power_levels_event_content.events_default = new_level;
+    power_levels_event_content.invite = new_level;
+
+    // Modify the power levels in the old room to prevent sending of events and inviting new users
+    db.rooms
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomPowerLevels,
+                content: serde_json::to_value(power_levels_event_content)
+                    .expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some("".to_owned()),
+                redacts: None,
+            },
+            sender_id,
+            &body.room_id,
+            &db.globals,
+            &db.account_data,
+        )
+        .ok();
+
+    // Return the replacement room id
+    Ok(upgrade_room::Response { replacement_room }.into())
 }

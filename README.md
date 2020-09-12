@@ -25,7 +25,14 @@ Clone the repo, build it with `cargo build --release` and call the binary
 
 ##### Using Docker
 
-Build the docker image and run it with docker or docker-compose. [Read more](docker/README.md)
+Pull and run the docker image with
+
+``` bash
+docker pull matrixconduit/matrix-conduit:latest
+docker run -d matrixconduit/matrix-conduit:latest -p 8448:8000 -v db:/srv/conduit/.local/share/conduit
+```
+
+Or build and run it with docker or docker-compose. [Read more](docker/README.md)
 
 #### What is it build on?
 
