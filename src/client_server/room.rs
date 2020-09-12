@@ -55,14 +55,14 @@ pub fn create_room_route(
     // 1. The room create event
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: room_id.clone(),
-            sender: sender_id.clone(),
             event_type: EventType::RoomCreate,
             content: serde_json::to_value(content).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some("".to_owned()),
             redacts: None,
         },
+        &sender_id,
+        &room_id,
         &db.globals,
         &db.account_data,
     )?;
@@ -70,8 +70,6 @@ pub fn create_room_route(
     // 2. Let the room creator join
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: room_id.clone(),
-            sender: sender_id.clone(),
             event_type: EventType::RoomMember,
             content: serde_json::to_value(member::MemberEventContent {
                 membership: member::MembershipState::Join,
@@ -85,6 +83,8 @@ pub fn create_room_route(
             state_key: Some(sender_id.to_string()),
             redacts: None,
         },
+        &sender_id,
+        &room_id,
         &db.globals,
         &db.account_data,
     )?;
@@ -119,14 +119,14 @@ pub fn create_room_route(
     };
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: room_id.clone(),
-            sender: sender_id.clone(),
             event_type: EventType::RoomPowerLevels,
             content: power_levels_content,
             unsigned: None,
             state_key: Some("".to_owned()),
             redacts: None,
         },
+        &sender_id,
+        &room_id,
         &db.globals,
         &db.account_data,
     )?;
@@ -142,8 +142,6 @@ pub fn create_room_route(
     // 4.1 Join Rules
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: room_id.clone(),
-            sender: sender_id.clone(),
             event_type: EventType::RoomJoinRules,
             content: match preset {
                 create_room::RoomPreset::PublicChat => serde_json::to_value(
@@ -160,6 +158,8 @@ pub fn create_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
+        &sender_id,
+        &room_id,
         &db.globals,
         &db.account_data,
     )?;
@@ -167,8 +167,6 @@ pub fn create_room_route(
     // 4.2 History Visibility
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: room_id.clone(),
-            sender: sender_id.clone(),
             event_type: EventType::RoomHistoryVisibility,
             content: serde_json::to_value(history_visibility::HistoryVisibilityEventContent::new(
                 history_visibility::HistoryVisibility::Shared,
@@ -178,6 +176,8 @@ pub fn create_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
+        &sender_id,
+        &room_id,
         &db.globals,
         &db.account_data,
     )?;
@@ -185,8 +185,6 @@ pub fn create_room_route(
     // 4.3 Guest Access
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: room_id.clone(),
-            sender: sender_id.clone(),
             event_type: EventType::RoomGuestAccess,
             content: match preset {
                 create_room::RoomPreset::PublicChat => {
@@ -204,6 +202,8 @@ pub fn create_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
+        &sender_id,
+        &room_id,
         &db.globals,
         &db.account_data,
     )?;
@@ -212,24 +212,27 @@ pub fn create_room_route(
     for event in &body.initial_state {
         let pdu_builder = serde_json::from_str::<PduBuilder>(
             &serde_json::to_string(&event).expect("AnyInitialStateEvent::to_string always works"),
-        ).map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event."))?;
+        )
+        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event."))?;
 
         // Silently skip encryption events if they are not allowed
-        if pdu_builder.event_type == EventType::RoomEncryption && db.globals.encryption_disabled()
-        {
+        if pdu_builder.event_type == EventType::RoomEncryption && db.globals.encryption_disabled() {
             continue;
         }
 
-        db.rooms
-            .build_and_append_pdu(pdu_builder, &db.globals, &db.account_data)?;
+        db.rooms.build_and_append_pdu(
+            pdu_builder,
+            &sender_id,
+            &room_id,
+            &db.globals,
+            &db.account_data,
+        )?;
     }
 
     // 6. Events implied by name and topic
     if let Some(name) = &body.name {
         db.rooms.build_and_append_pdu(
             PduBuilder {
-                room_id: room_id.clone(),
-                sender: sender_id.clone(),
                 event_type: EventType::RoomName,
                 content: serde_json::to_value(
                     name::NameEventContent::new(name.clone()).map_err(|_| {
@@ -241,6 +244,8 @@ pub fn create_room_route(
                 state_key: Some("".to_owned()),
                 redacts: None,
             },
+            &sender_id,
+            &room_id,
             &db.globals,
             &db.account_data,
         )?;
@@ -249,8 +254,6 @@ pub fn create_room_route(
     if let Some(topic) = &body.topic {
         db.rooms.build_and_append_pdu(
             PduBuilder {
-                room_id: room_id.clone(),
-                sender: sender_id.clone(),
                 event_type: EventType::RoomTopic,
                 content: serde_json::to_value(topic::TopicEventContent {
                     topic: topic.clone(),
@@ -260,6 +263,8 @@ pub fn create_room_route(
                 state_key: Some("".to_owned()),
                 redacts: None,
             },
+            &sender_id,
+            &room_id,
             &db.globals,
             &db.account_data,
         )?;
@@ -269,8 +274,6 @@ pub fn create_room_route(
     for user in &body.invite {
         db.rooms.build_and_append_pdu(
             PduBuilder {
-                room_id: room_id.clone(),
-                sender: sender_id.clone(),
                 event_type: EventType::RoomMember,
                 content: serde_json::to_value(member::MemberEventContent {
                     membership: member::MembershipState::Invite,
@@ -284,6 +287,8 @@ pub fn create_room_route(
                 state_key: Some(user.to_string()),
                 redacts: None,
             },
+            &sender_id,
+            &room_id,
             &db.globals,
             &db.account_data,
         )?;

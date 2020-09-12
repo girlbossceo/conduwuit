@@ -64,9 +64,7 @@ pub async fn get_alias_helper(
         let response = server_server::send_request(
             &db,
             room_alias.server_name().to_string(),
-            federation::query::get_room_information::v1::Request {
-                room_alias,
-            },
+            federation::query::get_room_information::v1::Request { room_alias },
         )
         .await?;
 

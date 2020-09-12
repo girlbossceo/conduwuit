@@ -20,8 +20,6 @@ pub fn redact_event_route(
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: body.room_id.clone(),
-            sender: sender_id.clone(),
             event_type: EventType::RoomRedaction,
             content: serde_json::to_value(redaction::RedactionEventContent {
                 reason: body.reason.clone(),
@@ -31,6 +29,8 @@ pub fn redact_event_route(
             state_key: None,
             redacts: Some(body.event_id.clone()),
         },
+        &sender_id,
+        &body.room_id,
         &db.globals,
         &db.account_data,
     )?;

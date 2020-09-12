@@ -27,11 +27,10 @@ pub fn send_message_event_route(
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: body.room_id.clone(),
-            sender: sender_id.clone(),
             event_type: body.content.event_type().into(),
             content: serde_json::from_str(
                 body.json_body
+                    .as_ref()
                     .ok_or(Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?
                     .get(),
             )
@@ -40,6 +39,8 @@ pub fn send_message_event_route(
             state_key: None,
             redacts: None,
         },
+        &sender_id,
+        &body.room_id,
         &db.globals,
         &db.account_data,
     )?;

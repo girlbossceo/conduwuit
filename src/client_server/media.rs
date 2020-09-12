@@ -34,12 +34,8 @@ pub fn create_content_route(
         db.globals.server_name(),
         utils::random_string(MXC_LENGTH)
     );
-    db.media.create(
-        mxc.clone(),
-        &body.filename,
-        &body.content_type,
-        &body.file,
-    )?;
+    db.media
+        .create(mxc.clone(), &body.filename, &body.content_type, &body.file)?;
 
     Ok(create_content::Response { content_uri: mxc }.into())
 }

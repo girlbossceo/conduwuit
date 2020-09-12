@@ -77,7 +77,7 @@ pub fn search_events_route(
 
     Ok(search_events::Response::new(ResultCategories {
         room_events: ResultRoomEvents {
-            count: None, // TODO? maybe not
+            count: None,             // TODO? maybe not
             groups: BTreeMap::new(), // TODO
             next_batch,
             results,

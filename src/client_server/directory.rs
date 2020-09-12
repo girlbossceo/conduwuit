@@ -14,7 +14,7 @@ use ruma::{
         },
         federation,
     },
-    directory::{IncomingFilter, PublicRoomsChunk, IncomingRoomNetwork},
+    directory::{IncomingFilter, IncomingRoomNetwork, PublicRoomsChunk},
     events::{
         room::{avatar, canonical_alias, guest_access, history_visibility, name, topic},
         EventType,

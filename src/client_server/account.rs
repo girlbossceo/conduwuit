@@ -356,14 +356,14 @@ pub fn deactivate_route(
 
         db.rooms.build_and_append_pdu(
             PduBuilder {
-                room_id: room_id.clone(),
-                sender: sender_id.clone(),
                 event_type: EventType::RoomMember,
                 content: serde_json::to_value(event).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some(sender_id.to_string()),
                 redacts: None,
             },
+            &sender_id,
+            &room_id,
             &db.globals,
             &db.account_data,
         )?;

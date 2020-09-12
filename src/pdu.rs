@@ -5,18 +5,17 @@ use ruma::{
         pdu::EventHash, room::member::MemberEventContent, AnyEvent, AnyRoomEvent, AnyStateEvent,
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
-    EventId, Raw, RoomId, ServerName, UserId,
+    EventId, Raw, RoomId, ServerKeyId, ServerName, UserId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{collections::HashMap, convert::TryFrom};
+use std::{collections::BTreeMap, convert::TryInto, sync::Arc, time::UNIX_EPOCH};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PduEvent {
     pub event_id: EventId,
     pub room_id: RoomId,
     pub sender: UserId,
-    pub origin: Box<ServerName>,
     pub origin_server_ts: UInt,
     #[serde(rename = "type")]
     pub kind: EventType,
@@ -31,7 +30,7 @@ pub struct PduEvent {
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
     pub unsigned: serde_json::Map<String, serde_json::Value>,
     pub hashes: EventHash,
-    pub signatures: HashMap<String, HashMap<String, String>>,
+    pub signatures: BTreeMap<Box<ServerName>, BTreeMap<ServerKeyId, String>>,
 }
 
 impl PduEvent {
@@ -199,66 +198,69 @@ impl PduEvent {
     }
 }
 
-impl TryFrom<&state_res::StateEvent> for PduEvent {
-    type Error = Error;
-    fn try_from(pdu: &state_res::StateEvent) -> Result<Self> {
-        serde_json::from_value(json!({
-            "event_id": pdu.event_id(),
-            "room_id": pdu.room_id(),
-            "sender": pdu.sender(),
-            "origin": pdu.origin(),
-            "origin_server_ts": pdu.origin_server_ts(),
-            "event_type": pdu.kind(),
-            "content": pdu.content(),
-            "state_key": pdu.state_key(),
-            "prev_events": pdu.prev_event_ids(),
-            "depth": pdu.depth(),
-            "auth_events": pdu.auth_events(),
-            "redacts": pdu.redacts(),
-            "unsigned": pdu.unsigned(),
-            "hashes": pdu.hashes(),
-            "signatures": pdu.signatures(),
-        }))
-        .map_err(|_| Error::bad_database("Failed to convert PDU to ruma::Pdu type."))
+impl From<&state_res::StateEvent> for PduEvent {
+    fn from(pdu: &state_res::StateEvent) -> Self {
+        Self {
+            event_id: pdu.event_id().clone(),
+            room_id: pdu.room_id().unwrap().clone(),
+            sender: pdu.sender().clone(),
+            origin_server_ts: (pdu
+                .origin_server_ts()
+                .duration_since(UNIX_EPOCH)
+                .expect("time is valid")
+                .as_millis() as u64)
+                .try_into()
+                .expect("time is valid"),
+            kind: pdu.kind(),
+            content: pdu.content().clone(),
+            state_key: pdu.state_key(),
+            prev_events: pdu.prev_event_ids(),
+            depth: pdu.depth().clone(),
+            auth_events: pdu.auth_events(),
+            redacts: pdu.redacts().cloned(),
+            unsigned: pdu.unsigned().clone().into_iter().collect(),
+            hashes: pdu.hashes().clone(),
+            signatures: pdu.signatures(),
+        }
     }
 }
 
 impl PduEvent {
-    pub fn convert_for_state_res(&self) -> Result<state_res::StateEvent> {
-        serde_json::from_value(json!({
-            "event_id": self.event_id,
-            "room_id": self.room_id,
-            "sender": self.sender,
-            "origin": self.origin,
-            "origin_server_ts": self.origin_server_ts,
-            "type": self.kind,
-            "content": self.content,
-            "state_key": self.state_key,
-            "prev_events": self.prev_events
-                .iter()
-                // TODO How do we create one of these
-                .map(|id| (id, EventHash { sha256: "hello".into() }))
-                .collect::<Vec<_>>(),
-            "depth": self.depth,
-            "auth_events": self.auth_events
-                .iter()
-                // TODO How do we create one of these
-                .map(|id| (id, EventHash { sha256: "hello".into() }))
-                .collect::<Vec<_>>(),
-            "redacts": self.redacts,
-            "unsigned": self.unsigned,
-            "hashes": self.hashes,
-            "signatures": self.signatures,
-        }))
-        .map_err(|_| Error::bad_database("Failed to convert PDU to ruma::Pdu type."))
+    pub fn convert_for_state_res(&self) -> Arc<state_res::StateEvent> {
+        Arc::new(
+            serde_json::from_value(json!({
+                "event_id": self.event_id,
+                "room_id": self.room_id,
+                "sender": self.sender,
+                "origin_server_ts": self.origin_server_ts,
+                "type": self.kind,
+                "content": self.content,
+                "state_key": self.state_key,
+                "prev_events": self.prev_events
+                    .iter()
+                    // TODO How do we create one of these
+                    .map(|id| (id, EventHash { sha256: "hello".into() }))
+                    .collect::<Vec<_>>(),
+                "depth": self.depth,
+                "auth_events": self.auth_events
+                    .iter()
+                    // TODO How do we create one of these
+                    .map(|id| (id, EventHash { sha256: "hello".into() }))
+                    .collect::<Vec<_>>(),
+                "redacts": self.redacts,
+                "unsigned": self.unsigned,
+                "hashes": self.hashes,
+                "signatures": self.signatures,
+            }))
+            .expect("all conduit PDUs are state events"),
+        )
     }
 }
 
 /// Build the start of a PDU in order to add it to the `Database`.
 #[derive(Debug, Deserialize)]
 pub struct PduBuilder {
-    pub room_id: RoomId,
-    pub sender: UserId,
+    #[serde(rename = "type")]
     pub event_type: EventType,
     pub content: serde_json::Value,
     pub unsigned: Option<serde_json::Map<String, serde_json::Value>>,

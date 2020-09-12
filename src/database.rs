@@ -97,7 +97,6 @@ impl Database {
                 },
                 pduid_pdu: db.open_tree("pduid_pdu")?,
                 eventid_pduid: db.open_tree("eventid_pduid")?,
-                roomstateid_pduid: db.open_tree("roomstateid_pduid")?,
                 roomid_pduleaves: db.open_tree("roomid_pduleaves")?,
 
                 alias_roomid: db.open_tree("alias_roomid")?,

@@ -213,14 +213,14 @@ pub fn send_state_event_for_key_helper(
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: room_id.clone(),
-            sender: sender_id.clone(),
             event_type: content.event_type().into(),
             content: json,
             unsigned: None,
             state_key,
             redacts: None,
         },
+        &sender_id,
+        &room_id,
         &db.globals,
         &db.account_data,
     )?;

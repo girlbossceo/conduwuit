@@ -33,8 +33,6 @@ pub fn set_displayname_route(
         let room_id = room_id?;
         db.rooms.build_and_append_pdu(
             PduBuilder {
-                room_id: room_id.clone(),
-                sender: sender_id.clone(),
                 event_type: EventType::RoomMember,
                 content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
                     displayname: body.displayname.clone(),
@@ -62,6 +60,8 @@ pub fn set_displayname_route(
                 state_key: Some(sender_id.to_string()),
                 redacts: None,
             },
+            &sender_id,
+            &room_id,
             &db.globals,
             &db.account_data,
         )?;
@@ -136,8 +136,6 @@ pub fn set_avatar_url_route(
         let room_id = room_id?;
         db.rooms.build_and_append_pdu(
             PduBuilder {
-                room_id: room_id.clone(),
-                sender: sender_id.clone(),
                 event_type: EventType::RoomMember,
                 content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
                     avatar_url: body.avatar_url.clone(),
@@ -165,6 +163,8 @@ pub fn set_avatar_url_route(
                 state_key: Some(sender_id.to_string()),
                 redacts: None,
             },
+            &sender_id,
+            &room_id,
             &db.globals,
             &db.account_data,
         )?;
