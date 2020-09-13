@@ -1634,7 +1634,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.0.1"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "ruma-api",
  "ruma-appservice-api",
@@ -1650,7 +1650,7 @@ dependencies = [
 [[package]]
 name = "ruma-api"
 version = "0.17.0-alpha.1"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "http",
  "percent-encoding",
@@ -1665,7 +1665,7 @@ dependencies = [
 [[package]]
 name = "ruma-api-macros"
 version = "0.17.0-alpha.1"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1676,7 +1676,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.2.0-alpha.1"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "ruma-api",
  "ruma-common",
@@ -1689,7 +1689,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.10.0-alpha.1"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "assign",
  "http",
@@ -1708,7 +1708,7 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.2.0"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "js_int",
  "ruma-api",
@@ -1722,7 +1722,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.22.0-alpha.1"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -1737,7 +1737,7 @@ dependencies = [
 [[package]]
 name = "ruma-events-macros"
 version = "0.22.0-alpha.1"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1748,7 +1748,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.0.3"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "js_int",
  "ruma-api",
@@ -1763,7 +1763,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers"
 version = "0.17.4"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "rand",
  "ruma-identifiers-macros",
@@ -1775,7 +1775,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-macros"
 version = "0.17.4"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1786,7 +1786,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.1.1"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "serde",
  "strum",
@@ -1795,7 +1795,7 @@ dependencies = [
 [[package]]
 name = "ruma-serde"
 version = "0.2.3"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "form_urlencoded",
  "itoa",
@@ -1807,7 +1807,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.6.0-dev.1"
-source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#63341000fbabce9b230b6665ce65c617944408fa"
+source = "git+https://github.com/timokoesters/ruma?branch=timo-fed-fixes#8d763abaecb13f4799a31ecf1e0da77d2bc956a6"
 dependencies = [
  "base64",
  "ring",
@@ -2072,7 +2072,7 @@ checksum = "7345c971d1ef21ffdbd103a75990a15eb03604fc8b8852ca8cb418ee1a099028"
 [[package]]
 name = "state-res"
 version = "0.1.0"
-source = "git+https://github.com/timokoesters/state-res?branch=spec-comp#0081081604b051d412a2365b68357e064c33320c"
+source = "git+https://github.com/timokoesters/state-res?branch=spec-comp#a9186476b748c901fbf4356414247a0b3ac01b5f"
 dependencies = [
  "itertools",
  "js_int",

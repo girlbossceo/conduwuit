@@ -221,6 +221,31 @@ impl Rooms {
     }
 
     /// Returns the full room state.
+    pub fn force_state(
+        &self,
+        room_id: &RoomId,
+        state: HashMap<(EventType, String), Vec<u8>>,
+    ) -> Result<()> {
+        let state_hash =
+            self.calculate_hash(&state.values().map(|pdu_id| &**pdu_id).collect::<Vec<_>>())?;
+        let mut prefix = state_hash.clone();
+        prefix.push(0xff);
+
+        for ((event_type, state_key), pdu_id) in state {
+            let mut state_id = prefix.clone();
+            state_id.extend_from_slice(&event_type.as_str().as_bytes());
+            state_id.push(0xff);
+            state_id.extend_from_slice(&state_key.as_bytes());
+            self.stateid_pduid.insert(state_id, pdu_id)?;
+        }
+
+        self.roomid_statehash
+            .insert(room_id.as_bytes(), &*state_hash)?;
+
+        Ok(())
+    }
+
+    /// Returns the full room state.
     pub fn room_state_full(
         &self,
         room_id: &RoomId,
@@ -446,10 +471,10 @@ impl Rooms {
     /// Creates a new persisted data unit and adds it to a room.
     pub fn append_pdu(
         &self,
-        pdu: PduEvent,
+        pdu: &PduEvent,
         globals: &super::globals::Globals,
         account_data: &super::account_data::AccountData,
-    ) -> Result<EventId> {
+    ) -> Result<Vec<u8>> {
         let mut pdu_json = serde_json::to_value(&pdu).expect("event is valid, we just created it");
         ruma::signatures::hash_and_sign_event(
             globals.server_name().as_str(),
@@ -473,10 +498,6 @@ impl Rooms {
         self.eventid_pduid
             .insert(pdu.event_id.as_bytes(), &*pdu_id)?;
 
-        if pdu.state_key.is_some() {
-            self.append_to_state(&pdu_id, &pdu)?;
-        }
-
         match pdu.kind {
             EventType::RoomRedaction => {
                 if let Some(redact_id) = &pdu.redacts {
@@ -484,23 +505,22 @@ impl Rooms {
                 }
             }
             EventType::RoomMember => {
-                if let Some(state_key) = pdu.state_key {
+                if let Some(state_key) = &pdu.state_key {
                     // if the state_key fails
-                    let target_user_id = UserId::try_from(state_key)
+                    let target_user_id = UserId::try_from(state_key.clone())
                         .expect("This state_key was previously validated");
                     // Update our membership info, we do this here incase a user is invited
                     // and immediately leaves we need the DB to record the invite event for auth
                     self.update_membership(
                         &pdu.room_id,
                         &target_user_id,
-                        serde_json::from_value::<member::MemberEventContent>(pdu.content).map_err(
-                            |_| {
-                                Error::BadRequest(
-                                    ErrorKind::InvalidParam,
-                                    "Invalid redaction event content.",
-                                )
-                            },
-                        )?,
+                        serde_json::from_value::<member::MemberEventContent>(pdu.content.clone())
+                            .map_err(|_| {
+                            Error::BadRequest(
+                                ErrorKind::InvalidParam,
+                                "Invalid redaction event content.",
+                            )
+                        })?,
                         &pdu.sender,
                         account_data,
                         globals,
@@ -528,7 +548,7 @@ impl Rooms {
         self.edus
             .private_read_set(&pdu.room_id, &pdu.sender, index, &globals)?;
 
-        Ok(pdu.event_id)
+        Ok(pdu_id)
     }
 
     /// Generates a new StateHash and associates it with the incoming event.
@@ -789,7 +809,13 @@ impl Rooms {
         ))
         .expect("ruma's reference hashes are valid event ids");
 
-        self.append_pdu(pdu, globals, account_data)
+        let pdu_id = self.append_pdu(&pdu, globals, account_data)?;
+
+        if pdu.state_key.is_some() {
+            self.append_to_state(&pdu_id, &pdu)?;
+        }
+
+        Ok(pdu.event_id)
     }
 
     /// Returns an iterator over all PDUs in a room.
@@ -953,19 +979,17 @@ impl Rooms {
                     self.roomuseroncejoinedids.insert(&userroom_id, &[])?;
 
                     // Check if the room has a predecessor
-                    if let Some(predecessor) = serde_json::from_value::<
-                        Raw<ruma::events::room::create::CreateEventContent>,
-                    >(
-                        self.room_state_get(&room_id, &EventType::RoomCreate, "")?
-                            .ok_or_else(|| {
-                                Error::bad_database("Found room without m.room.create event.")
-                            })?
-                            .content,
-                    )
-                    .expect("Raw::from_value always works")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Invalid room event in database."))?
-                    .predecessor
+                    if let Some(predecessor) = self
+                        .room_state_get(&room_id, &EventType::RoomCreate, "")?
+                        .and_then(|create| {
+                            serde_json::from_value::<
+                                Raw<ruma::events::room::create::CreateEventContent>,
+                            >(create.content)
+                            .expect("Raw::from_value always works")
+                            .deserialize()
+                            .ok()
+                        })
+                        .and_then(|content| content.predecessor)
                     {
                         // Copy user settings from predecessor to the current room:
                         // - Push rules

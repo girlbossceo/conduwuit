@@ -1,4 +1,4 @@
-use crate::{client_server, ConduitResult, Database, Error, Result, Ruma};
+use crate::{client_server, ConduitResult, Database, Error, PduEvent, Result, Ruma};
 use http::header::{HeaderValue, AUTHORIZATION};
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
@@ -270,9 +270,11 @@ pub fn send_transaction_message_route<'a>(
     db: State<'a, Database>,
     body: Ruma<send_transaction_message::v1::Request<'_>>,
 ) -> ConduitResult<send_transaction_message::v1::Response> {
-    dbg!(&*body);
+    //dbg!(&*body);
     for pdu in &body.pdus {
-        let mut value = serde_json::to_value(pdu).expect("all ruma pdus are json values");
+        let mut value = serde_json::from_str(pdu.json().get())
+            .expect("converting raw jsons to values always works");
+
         let event_id = EventId::try_from(&*format!(
             "${}",
             ruma::signatures::reference_hash(&value).expect("ruma can calculate reference hashes")
@@ -284,11 +286,11 @@ pub fn send_transaction_message_route<'a>(
             .expect("ruma pdus are json objects")
             .insert("event_id".to_owned(), event_id.to_string().into());
 
-        db.rooms.append_pdu(
-            serde_json::from_value(value).expect("all ruma pdus are conduit pdus"),
-            &db.globals,
-            &db.account_data,
-        )?;
+        let pdu =
+            serde_json::from_value::<PduEvent>(value).expect("all ruma pdus are conduit pdus");
+        if db.rooms.exists(&pdu.room_id)? {
+            db.rooms.append_pdu(&pdu, &db.globals, &db.account_data)?;
+        }
     }
     Ok(send_transaction_message::v1::Response {
         pdus: BTreeMap::new(),

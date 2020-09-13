@@ -2,7 +2,7 @@ use super::State;
 use crate::{
     client_server,
     pdu::{PduBuilder, PduEvent},
-    server_server, utils, ConduitResult, Database, Error, Ruma,
+    server_server, utils, ConduitResult, Database, Error, Result, Ruma,
 };
 use log::warn;
 use ruma::{
@@ -17,11 +17,14 @@ use ruma::{
         },
         federation,
     },
+    events::pdu::Pdu,
     events::{room::member, EventType},
     EventId, Raw, RoomId, RoomVersionId, UserId,
 };
 use state_res::StateEvent;
-use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
+use std::{
+    collections::BTreeMap, collections::HashMap, collections::HashSet, convert::TryFrom, sync::Arc,
+};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};
@@ -482,36 +485,49 @@ async fn join_room_by_id_helper(
         )
         .await?;
 
-        let mut event_map = send_join_response
+        let add_event_id = |pdu: &Raw<Pdu>| {
+            let mut value = serde_json::from_str(pdu.json().get())
+                .expect("converting raw jsons to values always works");
+            let event_id = EventId::try_from(&*format!(
+                "${}",
+                ruma::signatures::reference_hash(&value)
+                    .expect("ruma can calculate reference hashes")
+            ))
+            .expect("ruma's reference hashes are valid event ids");
+
+            value
+                .as_object_mut()
+                .ok_or_else(|| Error::BadServerResponse("PDU is not an object."))?
+                .insert("event_id".to_owned(), event_id.to_string().into());
+
+            Ok((event_id, value))
+        };
+
+        let room_state = send_join_response.room_state.state.iter().map(add_event_id);
+
+        let state_events = room_state
+            .clone()
+            .map(|pdu: Result<(EventId, serde_json::Value)>| Ok(pdu?.0))
+            .collect::<Result<HashSet<EventId>>>()?;
+
+        let auth_chain = send_join_response
             .room_state
-            .state
+            .auth_chain
             .iter()
-            .chain(send_join_response.room_state.auth_chain.iter())
-            .map(|pdu| {
-                let mut value = serde_json::from_str(pdu.json().get())
-                    .expect("converting raw jsons to values always works");
-                let event_id = EventId::try_from(&*format!(
-                    "${}",
-                    ruma::signatures::reference_hash(&value)
-                        .expect("ruma can calculate reference hashes")
-                ))
-                .expect("ruma's reference hashes are valid event ids");
+            .map(add_event_id);
 
-                value
-                    .as_object_mut()
-                    .ok_or_else(|| Error::BadServerResponse("PDU is not an object."))?
-                    .insert("event_id".to_owned(), event_id.to_string().into());
-
-                dbg!(&value);
-
+        let mut event_map = room_state
+            .chain(auth_chain)
+            .map(|r| {
+                let (event_id, value) = r?;
                 serde_json::from_value::<StateEvent>(value)
-                    .map(|ev| (dbg!(&ev).event_id().clone(), Arc::new(ev)))
+                    .map(|ev| (event_id, Arc::new(ev)))
                     .map_err(|e| {
                         warn!("{}", e);
                         Error::BadServerResponse("Invalid PDU bytes in send_join response.")
                     })
             })
-            .collect::<Result<BTreeMap<EventId, Arc<StateEvent>>, _>>()?;
+            .collect::<Result<BTreeMap<EventId, Arc<StateEvent>>>>()?;
 
         let control_events = event_map
             .values()
@@ -575,6 +591,8 @@ async fn join_room_by_id_helper(
         )
         .expect("iterative auth check failed on resolved events");
 
+        let mut state = HashMap::new();
+
         // filter the events that failed the auth check keeping the remaining events
         // sorted correctly
         for ev_id in sorted_event_ids
@@ -587,9 +605,22 @@ async fn join_room_by_id_helper(
                 .expect("Found event_id in sorted events that is not in resolved state");
 
             // We do not rebuild the PDU in this case only insert to DB
-            db.rooms
-                .append_pdu(PduEvent::from(&**pdu), &db.globals, &db.account_data)?;
+            let pdu_id =
+                db.rooms
+                    .append_pdu(&PduEvent::from(&**pdu), &db.globals, &db.account_data)?;
+
+            if state_events.contains(ev_id) {
+                state.insert(
+                    (
+                        pdu.kind(),
+                        pdu.state_key().expect("State events have a state key"),
+                    ),
+                    pdu_id,
+                );
+            }
         }
+
+        db.rooms.force_state(room_id, state)?;
     } else {
         let event = member::MemberEventContent {
             membership: member::MembershipState::Join,
