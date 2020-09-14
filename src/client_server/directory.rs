@@ -14,6 +14,7 @@ use ruma::{
         },
         federation,
     },
+    directory::Filter,
     directory::RoomNetwork,
     directory::{IncomingFilter, IncomingRoomNetwork, PublicRoomsChunk},
     events::{
@@ -112,7 +113,7 @@ pub async fn get_public_rooms_filtered_helper(
     server: Option<&ServerName>,
     limit: Option<js_int::UInt>,
     since: Option<&str>,
-    _filter: &IncomingFilter,
+    filter: &IncomingFilter,
     _network: &IncomingRoomNetwork,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
     if let Some(other_server) = server
@@ -122,9 +123,12 @@ pub async fn get_public_rooms_filtered_helper(
         let response = server_server::send_request(
             &db,
             other_server,
-            federation::directory::get_public_rooms::v1::Request {
+            federation::directory::get_public_rooms_filtered::v1::Request {
                 limit,
                 since: since.as_deref(),
+                filter: Filter {
+                    generic_search_term: filter.generic_search_term.as_deref(),
+                },
                 room_network: RoomNetwork::Matrix,
             },
         )
