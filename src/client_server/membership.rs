@@ -19,7 +19,7 @@ use ruma::{
     },
     events::pdu::Pdu,
     events::{room::member, EventType},
-    EventId, Raw, RoomId, RoomVersionId, UserId,
+    EventId, Raw, RoomId, RoomVersionId, ServerName, UserId,
 };
 use state_res::StateEvent;
 use std::{
@@ -41,6 +41,7 @@ pub async fn join_room_by_id_route(
         &db,
         body.sender_id.as_ref(),
         &body.room_id,
+        &[body.room_id.server_name().to_owned()],
         body.third_party_signed.as_ref(),
     )
     .await
@@ -54,13 +55,12 @@ pub async fn join_room_by_id_or_alias_route(
     db: State<'_, Database>,
     body: Ruma<join_room_by_id_or_alias::Request<'_>>,
 ) -> ConduitResult<join_room_by_id_or_alias::Response> {
-    let room_id = match RoomId::try_from(body.room_id_or_alias.clone()) {
-        Ok(room_id) => room_id,
+    let (servers, room_id) = match RoomId::try_from(body.room_id_or_alias.clone()) {
+        Ok(room_id) => (vec![room_id.server_name().to_owned()], room_id),
         Err(room_alias) => {
-            client_server::get_alias_helper(&db, &room_alias)
-                .await?
-                .0
-                .room_id
+            let response = client_server::get_alias_helper(&db, &room_alias).await?;
+
+            (response.0.servers, response.0.room_id)
         }
     };
 
@@ -69,6 +69,7 @@ pub async fn join_room_by_id_or_alias_route(
             &db,
             body.sender_id.as_ref(),
             &room_id,
+            &servers,
             body.third_party_signed.as_ref(),
         )
         .await?
@@ -415,22 +416,37 @@ async fn join_room_by_id_helper(
     db: &Database,
     sender_id: Option<&UserId>,
     room_id: &RoomId,
+    servers: &[Box<ServerName>],
     _third_party_signed: Option<&IncomingThirdPartySigned>,
 ) -> ConduitResult<join_room_by_id::Response> {
     let sender_id = sender_id.expect("user is authenticated");
 
     // Ask a remote server if we don't have this room
     if !db.rooms.exists(&room_id)? && room_id.server_name() != db.globals.server_name() {
-        let make_join_response = server_server::send_request(
-            &db,
-            room_id.server_name().to_string(),
-            federation::membership::create_join_event_template::v1::Request {
-                room_id,
-                user_id: sender_id,
-                ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
-            },
-        )
-        .await?;
+        let mut make_join_response_and_server = Err(Error::BadServerResponse(
+            "No server available to assist in joining.",
+        ));
+
+        for remote_server in servers {
+            let make_join_response = server_server::send_request(
+                &db,
+                remote_server,
+                federation::membership::create_join_event_template::v1::Request {
+                    room_id,
+                    user_id: sender_id,
+                    ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
+                },
+            )
+            .await;
+
+            make_join_response_and_server = make_join_response.map(|r| (r, remote_server));
+
+            if make_join_response_and_server.is_ok() {
+                break;
+            }
+        }
+
+        let (make_join_response, remote_server) = make_join_response_and_server?;
 
         let mut join_event_stub_value =
             serde_json::from_str::<serde_json::Value>(make_join_response.event.json().get())
@@ -475,7 +491,7 @@ async fn join_room_by_id_helper(
 
         let send_join_response = server_server::send_request(
             &db,
-            room_id.server_name().to_string(),
+            remote_server,
             federation::membership::create_join_event::v2::Request {
                 room_id,
                 event_id: &event_id,

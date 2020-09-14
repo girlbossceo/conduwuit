@@ -63,7 +63,7 @@ pub async fn get_alias_helper(
     if room_alias.server_name() != db.globals.server_name() {
         let response = server_server::send_request(
             &db,
-            room_alias.server_name().to_string(),
+            room_alias.server_name(),
             federation::query::get_room_information::v1::Request { room_alias },
         )
         .await?;
@@ -79,5 +79,5 @@ pub async fn get_alias_helper(
             "Room with alias not found.",
         ))?;
 
-    Ok(get_alias::Response::new(room_id, vec![db.globals.server_name().to_string()]).into())
+    Ok(get_alias::Response::new(room_id, vec![db.globals.server_name().to_owned()]).into())
 }

@@ -19,7 +19,7 @@ use ruma::{
         room::{avatar, canonical_alias, guest_access, history_visibility, name, topic},
         EventType,
     },
-    Raw,
+    Raw, ServerName,
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -65,9 +65,9 @@ pub async fn get_public_rooms_route(
 ) -> ConduitResult<get_public_rooms::Response> {
     let response = get_public_rooms_filtered_helper(
         &db,
-        body.body.server.as_deref(),
-        body.body.limit,
-        body.body.since.as_deref(),
+        body.server.as_deref(),
+        body.limit,
+        body.since.as_deref(),
         None, // This is not used
         None, // This is not used
     )
@@ -119,7 +119,7 @@ pub async fn get_room_visibility_route(
 
 pub async fn get_public_rooms_filtered_helper(
     db: &Database,
-    server: Option<&str>,
+    server: Option<&ServerName>,
     limit: Option<js_int::UInt>,
     since: Option<&str>,
     _filter: Option<IncomingFilter>,
@@ -131,7 +131,7 @@ pub async fn get_public_rooms_filtered_helper(
     {
         let response = server_server::send_request(
             &db,
-            other_server.to_owned(),
+            other_server,
             federation::directory::get_public_rooms::v1::Request {
                 limit,
                 since: since.as_deref(),

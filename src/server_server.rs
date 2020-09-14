@@ -13,7 +13,7 @@ use ruma::{
         },
         OutgoingRequest,
     },
-    EventId,
+    EventId, ServerName,
 };
 use serde_json::json;
 use std::{
@@ -44,16 +44,16 @@ pub async fn request_well_known(db: &crate::Database, destination: &str) -> Opti
 
 pub async fn send_request<T: OutgoingRequest>(
     db: &crate::Database,
-    destination: String,
+    destination: &ServerName,
     request: T,
 ) -> Result<T::IncomingResponse>
 where
     T: Debug,
 {
     let actual_destination = "https://".to_owned()
-        + &request_well_known(db, &destination)
+        + &request_well_known(db, &destination.as_str())
             .await
-            .unwrap_or(destination.clone() + ":8448");
+            .unwrap_or(destination.as_str().to_owned() + ":8448");
 
     let mut http_request = request
         .try_into_http_request(&actual_destination, Some(""))
@@ -82,7 +82,7 @@ where
         "origin".to_owned(),
         db.globals.server_name().as_str().into(),
     );
-    request_map.insert("destination".to_owned(), destination.into());
+    request_map.insert("destination".to_owned(), destination.as_str().into());
 
     let mut request_json = request_map.into();
     ruma::signatures::sign_json(
