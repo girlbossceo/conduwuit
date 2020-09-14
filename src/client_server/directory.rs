@@ -14,6 +14,7 @@ use ruma::{
         },
         federation,
     },
+    directory::RoomNetwork,
     directory::{IncomingFilter, IncomingRoomNetwork, PublicRoomsChunk},
     events::{
         room::{avatar, canonical_alias, guest_access, history_visibility, name, topic},
@@ -33,24 +34,13 @@ pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms_filtered::Request<'_>>,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
-    let Ruma {
-        body:
-            get_public_rooms_filtered::IncomingRequest {
-                limit,
-                server,
-                since,
-                filter,
-                room_network,
-            },
-        ..
-    } = body;
     get_public_rooms_filtered_helper(
         &db,
-        server.as_deref(),
-        limit,
-        since.as_deref(),
-        filter,             // This is not used yet
-        Some(room_network), // This is not used
+        body.server.as_deref(),
+        body.limit,
+        body.since.as_deref(),
+        &body.filter,
+        &body.room_network,
     )
     .await
 }
@@ -68,8 +58,8 @@ pub async fn get_public_rooms_route(
         body.server.as_deref(),
         body.limit,
         body.since.as_deref(),
-        None, // This is not used
-        None, // This is not used
+        &IncomingFilter::default(),
+        &IncomingRoomNetwork::Matrix,
     )
     .await?
     .0;
@@ -122,8 +112,8 @@ pub async fn get_public_rooms_filtered_helper(
     server: Option<&ServerName>,
     limit: Option<js_int::UInt>,
     since: Option<&str>,
-    _filter: Option<IncomingFilter>,
-    _network: Option<IncomingRoomNetwork>,
+    _filter: &IncomingFilter,
+    _network: &IncomingRoomNetwork,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
     if let Some(other_server) = server
         .clone()
@@ -135,7 +125,7 @@ pub async fn get_public_rooms_filtered_helper(
             federation::directory::get_public_rooms::v1::Request {
                 limit,
                 since: since.as_deref(),
-                room_network: ruma::directory::RoomNetwork::Matrix,
+                room_network: RoomNetwork::Matrix,
             },
         )
         .await?;

@@ -2,8 +2,8 @@ use crate::{client_server, ConduitResult, Database, Error, PduEvent, Result, Rum
 use http::header::{HeaderValue, AUTHORIZATION};
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
+    api::federation::directory::get_public_rooms_filtered,
     api::{
-        client,
         federation::{
             directory::get_public_rooms,
             discovery::{
@@ -13,6 +13,7 @@ use ruma::{
         },
         OutgoingRequest,
     },
+    directory::{IncomingFilter, IncomingRoomNetwork},
     EventId, ServerName,
 };
 use serde_json::json;
@@ -209,38 +210,24 @@ pub fn get_server_keys_deprecated(db: State<'_, Database>) -> Json<String> {
     feature = "conduit_bin",
     post("/_matrix/federation/v1/publicRooms", data = "<body>")
 )]
-pub async fn get_public_rooms_route(
+pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
-    body: Ruma<get_public_rooms::v1::Request<'_>>,
-) -> ConduitResult<get_public_rooms::v1::Response> {
-    let Ruma {
-        body:
-            get_public_rooms::v1::IncomingRequest {
-                room_network: _room_network, // TODO
-                limit,
-                since,
-            },
-        ..
-    } = body;
-
-    let client::r0::directory::get_public_rooms_filtered::Response {
-        chunk,
-        prev_batch,
-        next_batch,
-        total_room_count_estimate,
-    } = client_server::get_public_rooms_filtered_helper(
+    body: Ruma<get_public_rooms_filtered::v1::Request<'_>>,
+) -> ConduitResult<get_public_rooms_filtered::v1::Response> {
+    let response = client_server::get_public_rooms_filtered_helper(
         &db,
         None,
-        limit,
-        since.as_deref(),
-        None,
-        Some(ruma::directory::IncomingRoomNetwork::Matrix),
+        body.limit,
+        body.since.as_deref(),
+        &body.filter,
+        &body.room_network,
     )
     .await?
     .0;
 
-    Ok(get_public_rooms::v1::Response {
-        chunk: chunk
+    Ok(get_public_rooms_filtered::v1::Response {
+        chunk: response
+            .chunk
             .into_iter()
             .map(|c| {
                 // Convert ruma::api::federation::directory::get_public_rooms::v1::PublicRoomsChunk
@@ -255,9 +242,52 @@ pub async fn get_public_rooms_route(
             })
             .filter_map(|r| r.ok())
             .collect(),
-        prev_batch,
-        next_batch,
-        total_room_count_estimate,
+        prev_batch: response.prev_batch,
+        next_batch: response.next_batch,
+        total_room_count_estimate: response.total_room_count_estimate,
+    }
+    .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/federation/v1/publicRooms", data = "<body>")
+)]
+pub async fn get_public_rooms_route(
+    db: State<'_, Database>,
+    body: Ruma<get_public_rooms::v1::Request<'_>>,
+) -> ConduitResult<get_public_rooms::v1::Response> {
+    let response = client_server::get_public_rooms_filtered_helper(
+        &db,
+        None,
+        body.limit,
+        body.since.as_deref(),
+        &IncomingFilter::default(),
+        &IncomingRoomNetwork::Matrix,
+    )
+    .await?
+    .0;
+
+    Ok(get_public_rooms::v1::Response {
+        chunk: response
+            .chunk
+            .into_iter()
+            .map(|c| {
+                // Convert ruma::api::federation::directory::get_public_rooms::v1::PublicRoomsChunk
+                // to ruma::api::client::r0::directory::PublicRoomsChunk
+                Ok::<_, Error>(
+                    serde_json::from_str(
+                        &serde_json::to_string(&c)
+                            .expect("PublicRoomsChunk::to_string always works"),
+                    )
+                    .expect("federation and client-server PublicRoomsChunk are the same type"),
+                )
+            })
+            .filter_map(|r| r.ok())
+            .collect(),
+        prev_batch: response.prev_batch,
+        next_batch: response.next_batch,
+        total_room_count_estimate: response.total_room_count_estimate,
     }
     .into())
 }
