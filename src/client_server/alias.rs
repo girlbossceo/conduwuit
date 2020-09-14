@@ -62,7 +62,7 @@ pub async fn get_alias_helper(
 ) -> ConduitResult<get_alias::Response> {
     if room_alias.server_name() != db.globals.server_name() {
         let response = server_server::send_request(
-            &db,
+            &db.globals,
             room_alias.server_name(),
             federation::query::get_room_information::v1::Request { room_alias },
         )

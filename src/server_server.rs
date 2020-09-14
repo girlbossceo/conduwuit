@@ -24,9 +24,9 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-pub async fn request_well_known(db: &crate::Database, destination: &str) -> Option<String> {
+pub async fn request_well_known(globals: &crate::database::globals::Globals, destination: &str) -> Option<String> {
     let body: serde_json::Value = serde_json::from_str(
-        &db.globals
+        &globals
             .reqwest_client()
             .get(&format!(
                 "https://{}/.well-known/matrix/server",
@@ -44,7 +44,7 @@ pub async fn request_well_known(db: &crate::Database, destination: &str) -> Opti
 }
 
 pub async fn send_request<T: OutgoingRequest>(
-    db: &crate::Database,
+    globals: &crate::database::globals::Globals,
     destination: &ServerName,
     request: T,
 ) -> Result<T::IncomingResponse>
@@ -52,7 +52,7 @@ where
     T: Debug,
 {
     let actual_destination = "https://".to_owned()
-        + &request_well_known(db, &destination.as_str())
+        + &request_well_known(globals, &destination.as_str())
             .await
             .unwrap_or(destination.as_str().to_owned() + ":8448");
 
@@ -81,14 +81,14 @@ where
     );
     request_map.insert(
         "origin".to_owned(),
-        db.globals.server_name().as_str().into(),
+        globals.server_name().as_str().into(),
     );
     request_map.insert("destination".to_owned(), destination.as_str().into());
 
     let mut request_json = request_map.into();
     ruma::signatures::sign_json(
-        db.globals.server_name().as_str(),
-        db.globals.keypair(),
+        globals.server_name().as_str(),
+        globals.keypair(),
         &mut request_json,
     )
     .unwrap();
@@ -110,7 +110,7 @@ where
                 AUTHORIZATION,
                 HeaderValue::from_str(&format!(
                     "X-Matrix origin={},key=\"{}\",sig=\"{}\"",
-                    db.globals.server_name(),
+                    globals.server_name(),
                     s.0,
                     s.1
                 ))
@@ -122,7 +122,7 @@ where
     let reqwest_request = reqwest::Request::try_from(http_request)
         .expect("all http requests are valid reqwest requests");
 
-    let reqwest_response = db.globals.reqwest_client().execute(reqwest_request).await;
+    let reqwest_response = globals.reqwest_client().execute(reqwest_request).await;
 
     // Because reqwest::Response -> http::Response is complicated:
     match reqwest_response {
@@ -317,9 +317,9 @@ pub fn send_transaction_message_route<'a>(
             .insert("event_id".to_owned(), event_id.to_string().into());
 
         let pdu =
-            serde_json::from_value::<PduEvent>(value).expect("all ruma pdus are conduit pdus");
+            serde_json::from_value::<PduEvent>(value.clone()).expect("all ruma pdus are conduit pdus");
         if db.rooms.exists(&pdu.room_id)? {
-            db.rooms.append_pdu(&pdu, &db.globals, &db.account_data)?;
+            db.rooms.append_pdu(&pdu, &value, &db.globals, &db.account_data)?;
         }
     }
     Ok(send_transaction_message::v1::Response {

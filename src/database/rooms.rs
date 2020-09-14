@@ -2,11 +2,12 @@ mod edus;
 
 pub use edus::RoomEdus;
 
-use crate::{pdu::PduBuilder, utils, Error, PduEvent, Result};
+use crate::{pdu::PduBuilder, server_server, utils, Error, PduEvent, Result};
 use log::error;
 use ring::digest;
 use ruma::{
     api::client::error::ErrorKind,
+    api::federation,
     events::{
         ignored_user_list,
         room::{
@@ -15,7 +16,7 @@ use ruma::{
         },
         EventType,
     },
-    EventId, Raw, RoomAliasId, RoomId, UserId,
+    EventId, Raw, RoomAliasId, RoomId, ServerName, UserId,
 };
 use sled::IVec;
 use state_res::{event_auth, Error as StateError, Requester, StateEvent, StateMap, StateStore};
@@ -25,6 +26,7 @@ use std::{
     convert::{TryFrom, TryInto},
     mem,
     sync::Arc,
+    time::SystemTime,
 };
 
 /// The unique identifier of each state group.
@@ -44,6 +46,8 @@ pub struct Rooms {
 
     pub(super) tokenids: sled::Tree, // TokenId = RoomId + Token + PduId
 
+    /// Participating servers in a room.
+    pub(super) roomserverids: sled::Tree, // RoomServerId = RoomId + ServerName
     pub(super) userroomid_joined: sled::Tree,
     pub(super) roomuserid_joined: sled::Tree,
     pub(super) roomuseroncejoinedids: sled::Tree,
@@ -169,8 +173,7 @@ impl Rooms {
         Ok(events)
     }
 
-    // This fetches auth events from the current state using the
-    /// full `roomstateid_pdu` tree.
+    /// This fetches auth events from the current state.
     pub fn get_auth_events(
         &self,
         room_id: &RoomId,
@@ -472,17 +475,10 @@ impl Rooms {
     pub fn append_pdu(
         &self,
         pdu: &PduEvent,
+        pdu_json: &serde_json::Value,
         globals: &super::globals::Globals,
         account_data: &super::account_data::AccountData,
     ) -> Result<Vec<u8>> {
-        let mut pdu_json = serde_json::to_value(&pdu).expect("event is valid, we just created it");
-        ruma::signatures::hash_and_sign_event(
-            globals.server_name().as_str(),
-            globals.keypair(),
-            &mut pdu_json,
-        )
-        .expect("event is valid, we just created it");
-
         self.replace_pdu_leaves(&pdu.room_id, &pdu.event_id)?;
 
         // Increment the last index and use that
@@ -610,7 +606,7 @@ impl Rooms {
     }
 
     /// Creates a new persisted data unit and adds it to a room.
-    pub fn build_and_append_pdu(
+    pub async fn build_and_append_pdu(
         &self,
         pdu_builder: PduBuilder,
         sender: &UserId,
@@ -799,21 +795,58 @@ impl Rooms {
             signatures: BTreeMap::new(),
         };
 
+        // Hash and sign
+        let mut pdu_json = serde_json::to_value(&pdu).expect("event is valid, we just created it");
+        pdu_json
+            .as_object_mut()
+            .expect("json is object")
+            .remove("event_id");
+
+        ruma::signatures::hash_and_sign_event(
+            globals.server_name().as_str(),
+            globals.keypair(),
+            &mut pdu_json,
+        )
+        .expect("event is valid, we just created it");
+
         // Generate event id
         pdu.event_id = EventId::try_from(&*format!(
             "${}",
-            ruma::signatures::reference_hash(
-                &serde_json::to_value(&pdu).expect("event is valid, we just created it")
-            )
-            .expect("ruma can calculate reference hashes")
+            ruma::signatures::reference_hash(&pdu_json)
+                .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are valid event ids");
 
-        let pdu_id = self.append_pdu(&pdu, globals, account_data)?;
+        pdu_json
+            .as_object_mut()
+            .expect("json is object")
+            .insert("event_id".to_owned(), pdu.event_id.to_string().into());
+
+        let pdu_id = self.append_pdu(&pdu, &pdu_json, globals, account_data)?;
 
         if pdu.state_key.is_some() {
             self.append_to_state(&pdu_id, &pdu)?;
         }
+
+        pdu_json
+            .as_object_mut()
+            .expect("json is object")
+            .remove("event_id");
+
+        let response = server_server::send_request(
+            &globals,
+            "koesters.xyz".try_into().unwrap(),
+            federation::transactions::send_transaction_message::v1::Request {
+                origin: globals.server_name(),
+                pdus: &[serde_json::from_value(pdu_json).expect("Raw::from_value always works")],
+                edus: &[],
+                origin_server_ts: SystemTime::now(),
+                transaction_id: &utils::random_string(16),
+            },
+        )
+        .await;
+
+        let _ = dbg!(response);
 
         Ok(pdu.event_id)
     }
@@ -957,12 +990,17 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         user_id: &UserId,
-        mut member_content: member::MemberEventContent,
+        member_content: member::MemberEventContent,
         sender: &UserId,
         account_data: &super::account_data::AccountData,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let membership = member_content.membership;
+
+        let mut roomserver_id = room_id.as_bytes().to_vec();
+        roomserver_id.push(0xff);
+        roomserver_id.extend_from_slice(user_id.server_name().as_bytes());
+
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
@@ -1056,6 +1094,7 @@ impl Rooms {
                     }
                 }
 
+                self.roomserverids.insert(&roomserver_id, &[])?;
                 self.userroomid_joined.insert(&userroom_id, &[])?;
                 self.roomuserid_joined.insert(&roomuser_id, &[])?;
                 self.userroomid_invited.remove(&userroom_id)?;
@@ -1075,25 +1114,10 @@ impl Rooms {
                     });
 
                 if is_ignored {
-                    member_content.membership = member::MembershipState::Leave;
-
-                    self.build_and_append_pdu(
-                        PduBuilder {
-                            event_type: EventType::RoomMember,
-                            content: serde_json::to_value(member_content)
-                                .expect("event is valid, we just created it"),
-                            unsigned: None,
-                            state_key: Some(user_id.to_string()),
-                            redacts: None,
-                        },
-                        &user_id,
-                        &room_id,
-                        globals,
-                        account_data,
-                    )?;
-
                     return Ok(());
                 }
+
+                self.roomserverids.insert(&roomserver_id, &[])?;
                 self.userroomid_invited.insert(&userroom_id, &[])?;
                 self.roomuserid_invited.insert(&roomuser_id, &[])?;
                 self.userroomid_joined.remove(&userroom_id)?;
@@ -1101,6 +1125,14 @@ impl Rooms {
                 self.userroomid_left.remove(&userroom_id)?;
             }
             member::MembershipState::Leave | member::MembershipState::Ban => {
+                if self
+                    .room_members(room_id)
+                    .chain(self.room_members_invited(room_id))
+                    .filter_map(|r| r.ok())
+                    .all(|u| u.server_name() != user_id.server_name())
+                {
+                    self.roomserverids.remove(&roomserver_id)?;
+                }
                 self.userroomid_left.insert(&userroom_id, &[])?;
                 self.userroomid_joined.remove(&userroom_id)?;
                 self.roomuserid_joined.remove(&roomuser_id)?;
@@ -1295,9 +1327,33 @@ impl Rooms {
     }
 
     /// Returns an iterator over all joined members of a room.
+    pub fn room_servers(&self, room_id: &RoomId) -> impl Iterator<Item = Result<Box<ServerName>>> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        self.roomserverids.scan_prefix(prefix).keys().map(|key| {
+            Ok(Box::<ServerName>::try_from(
+                utils::string_from_bytes(
+                    &key?
+                        .rsplit(|&b| b == 0xff)
+                        .next()
+                        .expect("rsplit always returns an element"),
+                )
+                .map_err(|_| {
+                    Error::bad_database("Server name in roomserverids is invalid unicode.")
+                })?,
+            )
+            .map_err(|_| Error::bad_database("Server name in roomserverids is invalid."))?)
+        })
+    }
+
+    /// Returns an iterator over all joined members of a room.
     pub fn room_members(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
         self.roomuserid_joined
-            .scan_prefix(room_id.as_bytes())
+            .scan_prefix(prefix)
             .keys()
             .map(|key| {
                 Ok(UserId::try_from(
@@ -1317,8 +1373,11 @@ impl Rooms {
 
     /// Returns an iterator over all User IDs who ever joined a room.
     pub fn room_useroncejoined(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
         self.roomuseroncejoinedids
-            .scan_prefix(room_id.to_string())
+            .scan_prefix(prefix)
             .keys()
             .map(|key| {
                 Ok(UserId::try_from(
@@ -1338,8 +1397,11 @@ impl Rooms {
 
     /// Returns an iterator over all invited members of a room.
     pub fn room_members_invited(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
         self.roomuserid_invited
-            .scan_prefix(room_id.as_bytes())
+            .scan_prefix(prefix)
             .keys()
             .map(|key| {
                 Ok(UserId::try_from(
@@ -1380,8 +1442,11 @@ impl Rooms {
 
     /// Returns an iterator over all rooms a user was invited to.
     pub fn rooms_invited(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
+        let mut prefix = user_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
         self.userroomid_invited
-            .scan_prefix(&user_id.as_bytes())
+            .scan_prefix(prefix)
             .keys()
             .map(|key| {
                 Ok(RoomId::try_from(
@@ -1401,23 +1466,23 @@ impl Rooms {
 
     /// Returns an iterator over all rooms a user left.
     pub fn rooms_left(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
-        self.userroomid_left
-            .scan_prefix(&user_id.as_bytes())
-            .keys()
-            .map(|key| {
-                Ok(RoomId::try_from(
-                    utils::string_from_bytes(
-                        &key?
-                            .rsplit(|&b| b == 0xff)
-                            .next()
-                            .expect("rsplit always returns an element"),
-                    )
-                    .map_err(|_| {
-                        Error::bad_database("Room ID in userroomid_left is invalid unicode.")
-                    })?,
+        let mut prefix = user_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        self.userroomid_left.scan_prefix(prefix).keys().map(|key| {
+            Ok(RoomId::try_from(
+                utils::string_from_bytes(
+                    &key?
+                        .rsplit(|&b| b == 0xff)
+                        .next()
+                        .expect("rsplit always returns an element"),
                 )
-                .map_err(|_| Error::bad_database("Room ID in userroomid_left is invalid."))?)
-            })
+                .map_err(|_| {
+                    Error::bad_database("Room ID in userroomid_left is invalid unicode.")
+                })?,
+            )
+            .map_err(|_| Error::bad_database("Room ID in userroomid_left is invalid."))?)
+        })
     }
 
     pub fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {

@@ -83,7 +83,7 @@ pub async fn join_room_by_id_or_alias_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/leave", data = "<body>")
 )]
-pub fn leave_room_route(
+pub async fn leave_room_route(
     db: State<'_, Database>,
     body: Ruma<leave_room::Request<'_>>,
 ) -> ConduitResult<leave_room::Response> {
@@ -108,19 +108,21 @@ pub fn leave_room_route(
 
     event.membership = member::MembershipState::Leave;
 
-    db.rooms.build_and_append_pdu(
-        PduBuilder {
-            event_type: EventType::RoomMember,
-            content: serde_json::to_value(event).expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: Some(sender_id.to_string()),
-            redacts: None,
-        },
-        &sender_id,
-        &body.room_id,
-        &db.globals,
-        &db.account_data,
-    )?;
+    db.rooms
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomMember,
+                content: serde_json::to_value(event).expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(sender_id.to_string()),
+                redacts: None,
+            },
+            &sender_id,
+            &body.room_id,
+            &db.globals,
+            &db.account_data,
+        )
+        .await?;
 
     Ok(leave_room::Response::new().into())
 }
@@ -129,33 +131,35 @@ pub fn leave_room_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/invite", data = "<body>")
 )]
-pub fn invite_user_route(
+pub async fn invite_user_route(
     db: State<'_, Database>,
     body: Ruma<invite_user::Request<'_>>,
 ) -> ConduitResult<invite_user::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     if let invite_user::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Invite,
-                    displayname: db.users.displayname(&user_id)?,
-                    avatar_url: db.users.avatar_url(&user_id)?,
-                    is_direct: None,
-                    third_party_invite: None,
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(user_id.to_string()),
-                redacts: None,
-            },
-            &sender_id,
-            &body.room_id,
-            &db.globals,
-            &db.account_data,
-        )?;
+        db.rooms
+            .build_and_append_pdu(
+                PduBuilder {
+                    event_type: EventType::RoomMember,
+                    content: serde_json::to_value(member::MemberEventContent {
+                        membership: member::MembershipState::Invite,
+                        displayname: db.users.displayname(&user_id)?,
+                        avatar_url: db.users.avatar_url(&user_id)?,
+                        is_direct: None,
+                        third_party_invite: None,
+                    })
+                    .expect("event is valid, we just created it"),
+                    unsigned: None,
+                    state_key: Some(user_id.to_string()),
+                    redacts: None,
+                },
+                &sender_id,
+                &body.room_id,
+                &db.globals,
+                &db.account_data,
+            )
+            .await?;
 
         Ok(invite_user::Response.into())
     } else {
@@ -167,7 +171,7 @@ pub fn invite_user_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/kick", data = "<body>")
 )]
-pub fn kick_user_route(
+pub async fn kick_user_route(
     db: State<'_, Database>,
     body: Ruma<kick_user::Request<'_>>,
 ) -> ConduitResult<kick_user::Response> {
@@ -193,19 +197,21 @@ pub fn kick_user_route(
     event.membership = ruma::events::room::member::MembershipState::Leave;
     // TODO: reason
 
-    db.rooms.build_and_append_pdu(
-        PduBuilder {
-            event_type: EventType::RoomMember,
-            content: serde_json::to_value(event).expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: Some(body.user_id.to_string()),
-            redacts: None,
-        },
-        &sender_id,
-        &body.room_id,
-        &db.globals,
-        &db.account_data,
-    )?;
+    db.rooms
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomMember,
+                content: serde_json::to_value(event).expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(body.user_id.to_string()),
+                redacts: None,
+            },
+            &sender_id,
+            &body.room_id,
+            &db.globals,
+            &db.account_data,
+        )
+        .await?;
 
     Ok(kick_user::Response::new().into())
 }
@@ -214,7 +220,7 @@ pub fn kick_user_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/ban", data = "<body>")
 )]
-pub fn ban_user_route(
+pub async fn ban_user_route(
     db: State<'_, Database>,
     body: Ruma<ban_user::Request<'_>>,
 ) -> ConduitResult<ban_user::Response> {
@@ -248,19 +254,21 @@ pub fn ban_user_route(
             },
         )?;
 
-    db.rooms.build_and_append_pdu(
-        PduBuilder {
-            event_type: EventType::RoomMember,
-            content: serde_json::to_value(event).expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: Some(body.user_id.to_string()),
-            redacts: None,
-        },
-        &sender_id,
-        &body.room_id,
-        &db.globals,
-        &db.account_data,
-    )?;
+    db.rooms
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomMember,
+                content: serde_json::to_value(event).expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(body.user_id.to_string()),
+                redacts: None,
+            },
+            &sender_id,
+            &body.room_id,
+            &db.globals,
+            &db.account_data,
+        )
+        .await?;
 
     Ok(ban_user::Response::new().into())
 }
@@ -269,7 +277,7 @@ pub fn ban_user_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/unban", data = "<body>")
 )]
-pub fn unban_user_route(
+pub async fn unban_user_route(
     db: State<'_, Database>,
     body: Ruma<unban_user::Request<'_>>,
 ) -> ConduitResult<unban_user::Response> {
@@ -294,19 +302,21 @@ pub fn unban_user_route(
 
     event.membership = ruma::events::room::member::MembershipState::Leave;
 
-    db.rooms.build_and_append_pdu(
-        PduBuilder {
-            event_type: EventType::RoomMember,
-            content: serde_json::to_value(event).expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: Some(body.user_id.to_string()),
-            redacts: None,
-        },
-        &sender_id,
-        &body.room_id,
-        &db.globals,
-        &db.account_data,
-    )?;
+    db.rooms
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomMember,
+                content: serde_json::to_value(event).expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(body.user_id.to_string()),
+                redacts: None,
+            },
+            &sender_id,
+            &body.room_id,
+            &db.globals,
+            &db.account_data,
+        )
+        .await?;
 
     Ok(unban_user::Response::new().into())
 }
@@ -429,7 +439,7 @@ async fn join_room_by_id_helper(
 
         for remote_server in servers {
             let make_join_response = server_server::send_request(
-                &db,
+                &db.globals,
                 remote_server,
                 federation::membership::create_join_event_template::v1::Request {
                     room_id,
@@ -490,7 +500,7 @@ async fn join_room_by_id_helper(
         .expect("event is valid, we just created it");
 
         let send_join_response = server_server::send_request(
-            &db,
+            &db.globals,
             remote_server,
             federation::membership::create_join_event::v2::Request {
                 room_id,
@@ -621,9 +631,12 @@ async fn join_room_by_id_helper(
                 .expect("Found event_id in sorted events that is not in resolved state");
 
             // We do not rebuild the PDU in this case only insert to DB
-            let pdu_id =
-                db.rooms
-                    .append_pdu(&PduEvent::from(&**pdu), &db.globals, &db.account_data)?;
+            let pdu_id = db.rooms.append_pdu(
+                &PduEvent::from(&**pdu),
+                &serde_json::to_value(&**pdu).expect("PDU is valid value"),
+                &db.globals,
+                &db.account_data,
+            )?;
 
             if state_events.contains(ev_id) {
                 state.insert(
@@ -646,19 +659,22 @@ async fn join_room_by_id_helper(
             third_party_invite: None,
         };
 
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(event).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(sender_id.to_string()),
-                redacts: None,
-            },
-            &sender_id,
-            &room_id,
-            &db.globals,
-            &db.account_data,
-        )?;
+        db.rooms
+            .build_and_append_pdu(
+                PduBuilder {
+                    event_type: EventType::RoomMember,
+                    content: serde_json::to_value(event)
+                        .expect("event is valid, we just created it"),
+                    unsigned: None,
+                    state_key: Some(sender_id.to_string()),
+                    redacts: None,
+                },
+                &sender_id,
+                &room_id,
+                &db.globals,
+                &db.account_data,
+            )
+            .await?;
     }
 
     Ok(join_room_by_id::Response::new(room_id.clone()).into())

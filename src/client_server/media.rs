@@ -79,7 +79,7 @@ pub async fn get_content_route(
         .into())
     } else if body.allow_remote {
         let get_content_response = server_server::send_request(
-            &db,
+            &db.globals,
             body.server_name.as_ref(),
             get_content::Request {
                 allow_remote: false,
@@ -129,7 +129,7 @@ pub async fn get_content_thumbnail_route(
         Ok(get_content_thumbnail::Response { file, content_type }.into())
     } else if body.allow_remote {
         let get_thumbnail_response = server_server::send_request(
-            &db,
+            &db.globals,
             body.server_name.as_ref(),
             get_content_thumbnail::Request {
                 allow_remote: false,

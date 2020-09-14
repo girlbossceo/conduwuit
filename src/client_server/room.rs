@@ -20,7 +20,7 @@ use rocket::{get, post};
     feature = "conduit_bin",
     post("/_matrix/client/r0/createRoom", data = "<body>")
 )]
-pub fn create_room_route(
+pub async fn create_room_route(
     db: State<'_, Database>,
     body: Ruma<create_room::Request<'_>>,
 ) -> ConduitResult<create_room::Response> {
@@ -65,7 +65,7 @@ pub fn create_room_route(
         &room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     // 2. Let the room creator join
     db.rooms.build_and_append_pdu(
@@ -87,7 +87,7 @@ pub fn create_room_route(
         &room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     // 3. Power levels
     let mut users = BTreeMap::new();
@@ -129,7 +129,7 @@ pub fn create_room_route(
         &room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     // 4. Events set by preset
 
@@ -162,7 +162,7 @@ pub fn create_room_route(
         &room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     // 4.2 History Visibility
     db.rooms.build_and_append_pdu(
@@ -180,7 +180,7 @@ pub fn create_room_route(
         &room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     // 4.3 Guest Access
     db.rooms.build_and_append_pdu(
@@ -206,7 +206,7 @@ pub fn create_room_route(
         &room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     // 5. Events listed in initial_state
     for event in &body.initial_state {
@@ -226,7 +226,7 @@ pub fn create_room_route(
             &room_id,
             &db.globals,
             &db.account_data,
-        )?;
+        ).await?;
     }
 
     // 6. Events implied by name and topic
@@ -248,7 +248,7 @@ pub fn create_room_route(
             &room_id,
             &db.globals,
             &db.account_data,
-        )?;
+        ).await?;
     }
 
     if let Some(topic) = &body.topic {
@@ -267,7 +267,7 @@ pub fn create_room_route(
             &room_id,
             &db.globals,
             &db.account_data,
-        )?;
+        ).await?;
     }
 
     // 7. Events implied by invite (and TODO: invite_3pid)
@@ -291,7 +291,7 @@ pub fn create_room_route(
             &room_id,
             &db.globals,
             &db.account_data,
-        )?;
+        ).await?;
     }
 
     // Homeserver specific stuff
@@ -337,7 +337,7 @@ pub fn get_room_event_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_room_id>/upgrade", data = "<body>")
 )]
-pub fn upgrade_room_route(
+pub async fn upgrade_room_route(
     db: State<'_, Database>,
     body: Ruma<upgrade_room::Request<'_>>,
     _room_id: String,
@@ -379,7 +379,7 @@ pub fn upgrade_room_route(
         &body.room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     // Get the old room federations status
     let federate = serde_json::from_value::<Raw<ruma::events::room::create::CreateEventContent>>(
@@ -419,7 +419,7 @@ pub fn upgrade_room_route(
         &replacement_room,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     // Join the new room
     db.rooms.build_and_append_pdu(
@@ -441,7 +441,7 @@ pub fn upgrade_room_route(
         &replacement_room,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     // Recommended transferable state events list from the specs
     let transferable_state_events = vec![
@@ -475,7 +475,7 @@ pub fn upgrade_room_route(
             &replacement_room,
             &db.globals,
             &db.account_data,
-        )?;
+        ).await?;
     }
 
     // Moves any local aliases to the new room
@@ -505,7 +505,7 @@ pub fn upgrade_room_route(
     power_levels_event_content.invite = new_level;
 
     // Modify the power levels in the old room to prevent sending of events and inviting new users
-    db.rooms
+    let _ = db.rooms
         .build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomPowerLevels,
@@ -519,8 +519,7 @@ pub fn upgrade_room_route(
             &body.room_id,
             &db.globals,
             &db.account_data,
-        )
-        .ok();
+        ).await;
 
     // Return the replacement room id
     Ok(upgrade_room::Response { replacement_room }.into())

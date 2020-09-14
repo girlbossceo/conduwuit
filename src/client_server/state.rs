@@ -19,7 +19,7 @@ use rocket::{get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/state/<_>/<_>", data = "<body>")
 )]
-pub fn send_state_event_for_key_route(
+pub async fn send_state_event_for_key_route(
     db: State<'_, Database>,
     body: Ruma<send_state_event_for_key::Request<'_>>,
 ) -> ConduitResult<send_state_event_for_key::Response> {
@@ -41,7 +41,7 @@ pub fn send_state_event_for_key_route(
             content,
             &body.room_id,
             Some(body.state_key.to_owned()),
-        )?)
+        ).await?)
         .into(),
     )
 }
@@ -50,7 +50,7 @@ pub fn send_state_event_for_key_route(
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/state/<_>", data = "<body>")
 )]
-pub fn send_state_event_for_empty_key_route(
+pub async fn send_state_event_for_empty_key_route(
     db: State<'_, Database>,
     body: Ruma<send_state_event_for_empty_key::Request<'_>>,
 ) -> ConduitResult<send_state_event_for_empty_key::Response> {
@@ -80,7 +80,7 @@ pub fn send_state_event_for_empty_key_route(
             json,
             &body.room_id,
             Some("".into()),
-        )?)
+        ).await?)
         .into(),
     )
 }
@@ -177,7 +177,7 @@ pub fn get_state_events_for_empty_key_route(
     .into())
 }
 
-pub fn send_state_event_for_key_helper(
+pub async fn send_state_event_for_key_helper(
     db: &Database,
     sender: &UserId,
     content: &AnyStateEventContent,
@@ -223,7 +223,7 @@ pub fn send_state_event_for_key_helper(
         &room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     Ok(event_id)
 }

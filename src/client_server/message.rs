@@ -17,7 +17,7 @@ use rocket::{get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/send/<_>/<_>", data = "<body>")
 )]
-pub fn send_message_event_route(
+pub async fn send_message_event_route(
     db: State<'_, Database>,
     body: Ruma<send_message_event::Request<'_>>,
 ) -> ConduitResult<send_message_event::Response> {
@@ -67,7 +67,7 @@ pub fn send_message_event_route(
         &body.room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     db.transaction_ids
         .add_txnid(sender_id, device_id, &body.txn_id, event_id.as_bytes())?;

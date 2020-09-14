@@ -109,6 +109,7 @@ impl Database {
 
                 tokenids: db.open_tree("tokenids")?,
 
+                roomserverids: db.open_tree("roomserverids")?,
                 userroomid_joined: db.open_tree("userroomid_joined")?,
                 roomuserid_joined: db.open_tree("roomuserid_joined")?,
                 roomuseroncejoinedids: db.open_tree("roomuseroncejoinedids")?,

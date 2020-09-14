@@ -303,7 +303,7 @@ pub fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Respon
     feature = "conduit_bin",
     post("/_matrix/client/r0/account/deactivate", data = "<body>")
 )]
-pub fn deactivate_route(
+pub async fn deactivate_route(
     db: State<'_, Database>,
     body: Ruma<deactivate::Request<'_>>,
 ) -> ConduitResult<deactivate::Response> {
@@ -366,7 +366,7 @@ pub fn deactivate_route(
             &room_id,
             &db.globals,
             &db.account_data,
-        )?;
+        ).await?;
     }
 
     // Remove devices and mark account as deactivated

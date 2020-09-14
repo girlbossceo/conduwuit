@@ -6,7 +6,7 @@ use ruma::{
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
     EventId, Raw, RoomId, ServerKeyId, ServerName, UserId,
-};
+events::pdu::PduStub};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{collections::BTreeMap, convert::TryInto, sync::Arc, time::UNIX_EPOCH};
@@ -195,6 +195,31 @@ impl PduEvent {
             "room_id": self.room_id,
             "state_key": self.state_key,
         });
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
+    }
+
+    pub fn to_outgoing_federation_event(&self) -> Raw<PduStub> {
+        let mut json = json!({
+            "room_id": self.room_id,
+            "sender": self.sender,
+            "origin_server_ts": self.origin_server_ts,
+            "type": self.kind,
+            "content": self.content,
+            "prev_events": self.prev_events,
+            "depth": self.depth,
+            "auth_events": self.auth_events,
+            "unsigned": self.unsigned,
+            "hashes": self.hashes,
+            "signatures": self.signatures,
+        });
+
+        if let Some(state_key) = &self.state_key {
+            json["state_key"] = json!(state_key);
+        }
+        if let Some(redacts) = &self.redacts {
+            json["redacts"] = json!(redacts);
+        }
 
         serde_json::from_value(json).expect("Raw::from_value always works")
     }

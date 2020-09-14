@@ -121,7 +121,7 @@ pub async fn get_public_rooms_filtered_helper(
         .filter(|server| *server != db.globals.server_name().as_str())
     {
         let response = server_server::send_request(
-            &db,
+            &db.globals,
             other_server,
             federation::directory::get_public_rooms_filtered::v1::Request {
                 limit,

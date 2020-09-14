@@ -12,7 +12,7 @@ use rocket::put;
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/redact/<_>/<_>", data = "<body>")
 )]
-pub fn redact_event_route(
+pub async fn redact_event_route(
     db: State<'_, Database>,
     body: Ruma<redact_event::Request<'_>>,
 ) -> ConduitResult<redact_event::Response> {
@@ -33,7 +33,7 @@ pub fn redact_event_route(
         &body.room_id,
         &db.globals,
         &db.account_data,
-    )?;
+    ).await?;
 
     Ok(redact_event::Response { event_id }.into())
 }

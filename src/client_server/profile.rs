@@ -19,7 +19,7 @@ use std::convert::TryInto;
     feature = "conduit_bin",
     put("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
 )]
-pub fn set_displayname_route(
+pub async fn set_displayname_route(
     db: State<'_, Database>,
     body: Ruma<set_display_name::Request<'_>>,
 ) -> ConduitResult<set_display_name::Response> {
@@ -64,7 +64,7 @@ pub fn set_displayname_route(
             &room_id,
             &db.globals,
             &db.account_data,
-        )?;
+        ).await?;
 
         // Presence update
         db.rooms.edus.update_presence(
@@ -110,7 +110,7 @@ pub fn get_displayname_route(
     feature = "conduit_bin",
     put("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
 )]
-pub fn set_avatar_url_route(
+pub async fn set_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<set_avatar_url::Request<'_>>,
 ) -> ConduitResult<set_avatar_url::Response> {
@@ -167,7 +167,7 @@ pub fn set_avatar_url_route(
             &room_id,
             &db.globals,
             &db.account_data,
-        )?;
+        ).await?;
 
         // Presence update
         db.rooms.edus.update_presence(
