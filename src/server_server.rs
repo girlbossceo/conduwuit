@@ -62,14 +62,18 @@ where
 
     let mut http_request = request
         .try_into_http_request(&actual_destination, Some(""))
-        .unwrap();
+        .map_err(|e| {
+            warn!("{}: {}", actual_destination, e);
+            Error::BadServerResponse("Invalid destination")
+        })?;
 
     let mut request_map = serde_json::Map::new();
 
     if !http_request.body().is_empty() {
         request_map.insert(
             "content".to_owned(),
-            serde_json::from_slice(http_request.body()).unwrap(),
+            serde_json::from_slice(http_request.body())
+                .expect("body is valid json, we just created it"),
         );
     };
 
@@ -92,7 +96,7 @@ where
         globals.keypair(),
         &mut request_json,
     )
-    .unwrap();
+    .expect("our request json is what ruma expects");
 
     let signatures = request_json["signatures"]
         .as_object()
@@ -145,7 +149,11 @@ where
                 .into_iter()
                 .collect();
 
-            let response = T::IncomingResponse::try_from(http_response.body(body).unwrap());
+            let response = T::IncomingResponse::try_from(
+                http_response
+                    .body(body)
+                    .expect("reqwest body is valid http body"),
+            );
             response.map_err(|e| {
                 warn!("{}", e);
                 Error::BadServerResponse("Server returned bad response.")
