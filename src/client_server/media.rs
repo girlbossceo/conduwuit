@@ -48,22 +48,13 @@ pub fn create_content_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get(
-        "/_matrix/media/r0/download/<_server_name>/<_media_id>",
-        data = "<body>"
-    )
+    get("/_matrix/media/r0/download/<_>/<_>", data = "<body>")
 )]
 pub async fn get_content_route(
     db: State<'_, Database>,
     body: Ruma<get_content::Request<'_>>,
-    _server_name: String,
-    _media_id: String,
 ) -> ConduitResult<get_content::Response> {
-    let mxc = format!(
-        "mxc://{}/{}",
-        db.globals.server_name(),
-        utils::random_string(MXC_LENGTH)
-    );
+    let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
     if let Some(FileMeta {
         filename,
@@ -77,10 +68,10 @@ pub async fn get_content_route(
             content_disposition: filename.unwrap_or_default(), // TODO: Spec says this should be optional
         }
         .into())
-    } else if body.allow_remote {
+    } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
         let get_content_response = server_server::send_request(
             &db.globals,
-            body.server_name.as_ref(),
+            body.server_name.clone(),
             get_content::Request {
                 allow_remote: false,
                 server_name: &body.server_name,
@@ -104,21 +95,18 @@ pub async fn get_content_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get(
-        "/_matrix/media/r0/thumbnail/<_server_name>/<_media_id>",
-        data = "<body>"
-    )
+    get("/_matrix/media/r0/thumbnail/<_>/<_>", data = "<body>")
 )]
 pub async fn get_content_thumbnail_route(
     db: State<'_, Database>,
     body: Ruma<get_content_thumbnail::Request<'_>>,
-    _server_name: String,
-    _media_id: String,
 ) -> ConduitResult<get_content_thumbnail::Response> {
+    let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
+
     if let Some(FileMeta {
         content_type, file, ..
     }) = db.media.get_thumbnail(
-        format!("mxc://{}/{}", body.server_name, body.media_id),
+        mxc.clone(),
         body.width
             .try_into()
             .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
@@ -127,10 +115,10 @@ pub async fn get_content_thumbnail_route(
             .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
     )? {
         Ok(get_content_thumbnail::Response { file, content_type }.into())
-    } else if body.allow_remote {
+    } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
         let get_thumbnail_response = server_server::send_request(
             &db.globals,
-            body.server_name.as_ref(),
+            body.server_name.clone(),
             get_content_thumbnail::Request {
                 allow_remote: false,
                 height: body.height,
@@ -141,12 +129,6 @@ pub async fn get_content_thumbnail_route(
             },
         )
         .await?;
-
-        let mxc = format!(
-            "mxc://{}/{}",
-            db.globals.server_name(),
-            utils::random_string(MXC_LENGTH)
-        );
 
         db.media.upload_thumbnail(
             mxc,

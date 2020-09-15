@@ -1,9 +1,10 @@
 mod edus;
 
 pub use edus::RoomEdus;
+use rocket::futures;
 
 use crate::{pdu::PduBuilder, server_server, utils, Error, PduEvent, Result};
-use log::error;
+use log::{error, warn};
 use ring::digest;
 use ruma::{
     api::client::error::ErrorKind,
@@ -833,20 +834,35 @@ impl Rooms {
             .expect("json is object")
             .remove("event_id");
 
-        let response = server_server::send_request(
-            &globals,
-            "koesters.xyz".try_into().unwrap(),
-            federation::transactions::send_transaction_message::v1::Request {
-                origin: globals.server_name(),
-                pdus: &[serde_json::from_value(pdu_json).expect("Raw::from_value always works")],
-                edus: &[],
-                origin_server_ts: SystemTime::now(),
-                transaction_id: &utils::random_string(16),
-            },
-        )
-        .await;
+        let raw_json =
+            serde_json::from_value::<Raw<_>>(pdu_json).expect("Raw::from_value always works");
 
-        let _ = dbg!(response);
+        let pdus = &[raw_json];
+        let transaction_id = utils::random_string(16);
+
+        for result in futures::future::join_all(
+            self.room_servers(room_id)
+                .filter_map(|r| r.ok())
+                .filter(|server| &**server != globals.server_name())
+                .map(|server| {
+                    server_server::send_request(
+                        &globals,
+                        server,
+                        federation::transactions::send_transaction_message::v1::Request {
+                            origin: globals.server_name(),
+                            pdus,
+                            edus: &[],
+                            origin_server_ts: SystemTime::now(),
+                            transaction_id: &transaction_id,
+                        },
+                    )
+                }),
+        )
+        .await {
+            if let Err(e) = result {
+                warn!("{}", e);
+            }
+        }
 
         Ok(pdu.event_id)
     }

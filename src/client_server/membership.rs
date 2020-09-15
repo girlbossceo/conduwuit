@@ -440,7 +440,7 @@ async fn join_room_by_id_helper(
         for remote_server in servers {
             let make_join_response = server_server::send_request(
                 &db.globals,
-                remote_server,
+                remote_server.clone(),
                 federation::membership::create_join_event_template::v1::Request {
                     room_id,
                     user_id: sender_id,
@@ -501,7 +501,7 @@ async fn join_room_by_id_helper(
 
         let send_join_response = server_server::send_request(
             &db.globals,
-            remote_server,
+            remote_server.clone(),
             federation::membership::create_join_event::v2::Request {
                 room_id,
                 event_id: &event_id,

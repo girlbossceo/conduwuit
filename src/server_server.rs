@@ -1,5 +1,6 @@
 use crate::{client_server, ConduitResult, Database, Error, PduEvent, Result, Ruma};
 use http::header::{HeaderValue, AUTHORIZATION};
+use log::warn;
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
     api::federation::directory::get_public_rooms_filtered,
@@ -24,7 +25,10 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-pub async fn request_well_known(globals: &crate::database::globals::Globals, destination: &str) -> Option<String> {
+pub async fn request_well_known(
+    globals: &crate::database::globals::Globals,
+    destination: &str,
+) -> Option<String> {
     let body: serde_json::Value = serde_json::from_str(
         &globals
             .reqwest_client()
@@ -45,7 +49,7 @@ pub async fn request_well_known(globals: &crate::database::globals::Globals, des
 
 pub async fn send_request<T: OutgoingRequest>(
     globals: &crate::database::globals::Globals,
-    destination: &ServerName,
+    destination: Box<ServerName>,
     request: T,
 ) -> Result<T::IncomingResponse>
 where
@@ -79,10 +83,7 @@ where
             .to_string()
             .into(),
     );
-    request_map.insert(
-        "origin".to_owned(),
-        globals.server_name().as_str().into(),
-    );
+    request_map.insert("origin".to_owned(), globals.server_name().as_str().into());
     request_map.insert("destination".to_owned(), destination.as_str().into());
 
     let mut request_json = request_map.into();
@@ -144,10 +145,11 @@ where
                 .into_iter()
                 .collect();
 
-            Ok(
-                T::IncomingResponse::try_from(http_response.body(body).unwrap())
-                    .expect("TODO: error handle other server errors"),
-            )
+            let response = T::IncomingResponse::try_from(http_response.body(body).unwrap());
+            response.map_err(|e| {
+                warn!("{}", e);
+                Error::BadServerResponse("Server returned bad response.")
+            })
         }
         Err(e) => Err(e.into()),
     }
@@ -316,10 +318,11 @@ pub fn send_transaction_message_route<'a>(
             .expect("ruma pdus are json objects")
             .insert("event_id".to_owned(), event_id.to_string().into());
 
-        let pdu =
-            serde_json::from_value::<PduEvent>(value.clone()).expect("all ruma pdus are conduit pdus");
+        let pdu = serde_json::from_value::<PduEvent>(value.clone())
+            .expect("all ruma pdus are conduit pdus");
         if db.rooms.exists(&pdu.room_id)? {
-            db.rooms.append_pdu(&pdu, &value, &db.globals, &db.account_data)?;
+            db.rooms
+                .append_pdu(&pdu, &value, &db.globals, &db.account_data)?;
         }
     }
     Ok(send_transaction_message::v1::Response {
