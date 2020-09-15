@@ -29,8 +29,13 @@ pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
 
 pub fn generate_keypair(old: Option<&[u8]>) -> Option<Vec<u8>> {
     Some(old.map(|s| s.to_vec()).unwrap_or_else(|| {
-        ruma::signatures::Ed25519KeyPair::generate()
-            .expect("Ed25519KeyPair generation always works (?)")
+        let mut value = random_string(8).as_bytes().to_vec();
+        value.push(0xff);
+        value.extend_from_slice(
+            &ruma::signatures::Ed25519KeyPair::generate()
+                .expect("Ed25519KeyPair generation always works (?)"),
+        );
+        value
     }))
 }
 

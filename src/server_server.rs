@@ -17,7 +17,6 @@ use ruma::{
     directory::{IncomingFilter, IncomingRoomNetwork},
     EventId, ServerName,
 };
-use serde_json::json;
 use std::{
     collections::BTreeMap,
     convert::TryFrom,
@@ -58,7 +57,13 @@ where
     let actual_destination = "https://".to_owned()
         + &request_well_known(globals, &destination.as_str())
             .await
-            .unwrap_or(destination.as_str().to_owned() + ":8448");
+            .unwrap_or_else(|| {
+                let mut destination = destination.as_str().to_owned();
+                if destination.find(':').is_none() {
+                    destination += ":8448";
+                }
+                destination
+            });
 
     let mut http_request = request
         .try_into_http_request(&actual_destination, Some(""))

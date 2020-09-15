@@ -1,4 +1,5 @@
 use crate::{utils, Error, Result};
+use log::error;
 use ruma::ServerName;
 use std::{convert::TryInto, sync::Arc};
 
@@ -17,19 +18,43 @@ pub struct Globals {
 
 impl Globals {
     pub fn load(globals: sled::Tree, config: &rocket::Config) -> Result<Self> {
-        let keypair = Arc::new(
-            ruma::signatures::Ed25519KeyPair::new(
-                &*globals
-                    .update_and_fetch("keypair", utils::generate_keypair)?
-                    .expect("utils::generate_keypair always returns Some"),
-                "key1".to_owned(),
-            )
-            .map_err(|_| Error::bad_database("Private or public keys are invalid."))?,
-        );
+        let bytes = &*globals
+            .update_and_fetch("keypair", utils::generate_keypair)?
+            .expect("utils::generate_keypair always returns Some");
+
+        let mut parts = bytes.splitn(2, |&b| b == 0xff);
+
+        let keypair = utils::string_from_bytes(
+            // 1. version
+            parts
+                .next()
+                .expect("splitn always returns at least one element"),
+        )
+        .map_err(|_| Error::bad_database("Invalid version bytes in keypair."))
+        .and_then(|version| {
+            // 2. key
+            parts
+                .next()
+                .ok_or_else(|| Error::bad_database("Invalid keypair format in database."))
+                .map(|key| (version, key))
+        })
+        .and_then(|(version, key)| {
+            ruma::signatures::Ed25519KeyPair::new(&key, version)
+                .map_err(|_| Error::bad_database("Private or public keys are invalid."))
+        });
+
+        let keypair = match keypair {
+            Ok(k) => k,
+            Err(e) => {
+                error!("Keypair invalid. Deleting...");
+                globals.remove("keypair")?;
+                return Err(e);
+            }
+        };
 
         Ok(Self {
             globals,
-            keypair,
+            keypair: Arc::new(keypair),
             reqwest_client: reqwest::Client::new(),
             server_name: config
                 .get_str("server_name")
