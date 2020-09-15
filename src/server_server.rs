@@ -163,11 +163,6 @@ where
     }
 }
 
-#[cfg_attr(feature = "conduit_bin", get("/.well-known/matrix/server"))]
-pub fn well_known_server() -> Json<String> {
-    rocket::response::content::Json(json!({ "m.server": "pc.koesters.xyz:59003"}).to_string())
-}
-
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/federation/v1/version"))]
 pub fn get_server_version() -> ConduitResult<get_server_version::Response> {
     Ok(get_server_version::Response {
