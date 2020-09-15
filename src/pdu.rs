@@ -201,6 +201,9 @@ impl PduEvent {
     }
 
     pub fn to_outgoing_federation_event(&self) -> Raw<PduStub> {
+        let mut unsigned = self.unsigned.clone();
+        unsigned.remove("transaction_id");
+
         let mut json = json!({
             "room_id": self.room_id,
             "sender": self.sender,
@@ -210,7 +213,7 @@ impl PduEvent {
             "prev_events": self.prev_events,
             "depth": self.depth,
             "auth_events": self.auth_events,
-            "unsigned": self.unsigned,
+            "unsigned": unsigned,
             "hashes": self.hashes,
             "signatures": self.signatures,
         });

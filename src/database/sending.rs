@@ -36,6 +36,12 @@ impl Sending {
                         let pdu_id = parts.next().ok_or_else(|| Error::bad_database("Invalid serverpduid in db."))?;
                         let mut pdu_json = rooms.get_pdu_json_from_id(&pdu_id.into())?.ok_or_else(|| Error::bad_database("Event in serverpduids not found in db."))?;
 
+                        if let Some(unsigned) = pdu_json
+                            .as_object_mut()
+                            .expect("json is object")
+                            .get_mut("unsigned") {
+                                unsigned.as_object_mut().expect("unsigned is object").remove("transaction_id");
+                        }
                         pdu_json
                             .as_object_mut()
                             .expect("json is object")
