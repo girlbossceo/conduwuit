@@ -3,6 +3,7 @@ pub mod globals;
 pub mod key_backups;
 pub mod media;
 pub mod rooms;
+pub mod sending;
 pub mod transaction_ids;
 pub mod uiaa;
 pub mod users;
@@ -25,6 +26,7 @@ pub struct Database {
     pub media: media::Media,
     pub key_backups: key_backups::KeyBackups,
     pub transaction_ids: transaction_ids::TransactionIds,
+    pub sending: sending::Sending,
     pub _db: sled::Db,
 }
 
@@ -134,6 +136,9 @@ impl Database {
             },
             transaction_ids: transaction_ids::TransactionIds {
                 userdevicetxnid_response: db.open_tree("userdevicetxnid_response")?,
+            },
+            sending: sending::Sending {
+                serverpduids: db.open_tree("serverpduids")?,
             },
             _db: db,
         })

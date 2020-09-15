@@ -33,17 +33,18 @@ pub async fn send_state_event_for_key_route(
     )
     .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
 
-    Ok(
-        send_state_event_for_key::Response::new(send_state_event_for_key_helper(
+    Ok(send_state_event_for_key::Response::new(
+        send_state_event_for_key_helper(
             &db,
             sender_id,
             &body.content,
             content,
             &body.room_id,
             Some(body.state_key.to_owned()),
-        ).await?)
-        .into(),
+        )
+        .await?,
     )
+    .into())
 }
 
 #[cfg_attr(
@@ -70,8 +71,8 @@ pub async fn send_state_event_for_empty_key_route(
     )
     .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
 
-    Ok(
-        send_state_event_for_empty_key::Response::new(send_state_event_for_key_helper(
+    Ok(send_state_event_for_empty_key::Response::new(
+        send_state_event_for_key_helper(
             &db,
             sender_id
                 .as_ref()
@@ -80,9 +81,10 @@ pub async fn send_state_event_for_empty_key_route(
             json,
             &body.room_id,
             Some("".into()),
-        ).await?)
-        .into(),
+        )
+        .await?,
     )
+    .into())
 }
 
 #[cfg_attr(
@@ -211,19 +213,23 @@ pub async fn send_state_event_for_key_helper(
         }
     }
 
-    let event_id = db.rooms.build_and_append_pdu(
-        PduBuilder {
-            event_type: content.event_type().into(),
-            content: json,
-            unsigned: None,
-            state_key,
-            redacts: None,
-        },
-        &sender_id,
-        &room_id,
-        &db.globals,
-        &db.account_data,
-    ).await?;
+    let event_id = db
+        .rooms
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: content.event_type().into(),
+                content: json,
+                unsigned: None,
+                state_key,
+                redacts: None,
+            },
+            &sender_id,
+            &room_id,
+            &db.globals,
+            &db.sending,
+            &db.account_data,
+        )
+        .await?;
 
     Ok(event_id)
 }

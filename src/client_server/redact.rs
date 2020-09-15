@@ -18,22 +18,26 @@ pub async fn redact_event_route(
 ) -> ConduitResult<redact_event::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    let event_id = db.rooms.build_and_append_pdu(
-        PduBuilder {
-            event_type: EventType::RoomRedaction,
-            content: serde_json::to_value(redaction::RedactionEventContent {
-                reason: body.reason.clone(),
-            })
-            .expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: None,
-            redacts: Some(body.event_id.clone()),
-        },
-        &sender_id,
-        &body.room_id,
-        &db.globals,
-        &db.account_data,
-    ).await?;
+    let event_id = db
+        .rooms
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomRedaction,
+                content: serde_json::to_value(redaction::RedactionEventContent {
+                    reason: body.reason.clone(),
+                })
+                .expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: None,
+                redacts: Some(body.event_id.clone()),
+            },
+            &sender_id,
+            &body.room_id,
+            &db.globals,
+            &db.sending,
+            &db.account_data,
+        )
+        .await?;
 
     Ok(redact_event::Response { event_id }.into())
 }

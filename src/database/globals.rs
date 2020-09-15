@@ -1,12 +1,13 @@
 use crate::{utils, Error, Result};
 use ruma::ServerName;
-use std::convert::TryInto;
+use std::{convert::TryInto, sync::Arc};
 
 pub const COUNTER: &str = "c";
 
+#[derive(Clone)]
 pub struct Globals {
     pub(super) globals: sled::Tree,
-    keypair: ruma::signatures::Ed25519KeyPair,
+    keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     reqwest_client: reqwest::Client,
     server_name: Box<ServerName>,
     max_request_size: u32,
@@ -16,13 +17,15 @@ pub struct Globals {
 
 impl Globals {
     pub fn load(globals: sled::Tree, config: &rocket::Config) -> Result<Self> {
-        let keypair = ruma::signatures::Ed25519KeyPair::new(
-            &*globals
-                .update_and_fetch("keypair", utils::generate_keypair)?
-                .expect("utils::generate_keypair always returns Some"),
-            "key1".to_owned(),
-        )
-        .map_err(|_| Error::bad_database("Private or public keys are invalid."))?;
+        let keypair = Arc::new(
+            ruma::signatures::Ed25519KeyPair::new(
+                &*globals
+                    .update_and_fetch("keypair", utils::generate_keypair)?
+                    .expect("utils::generate_keypair always returns Some"),
+                "key1".to_owned(),
+            )
+            .map_err(|_| Error::bad_database("Private or public keys are invalid."))?,
+        );
 
         Ok(Self {
             globals,

@@ -1,14 +1,12 @@
 mod edus;
 
 pub use edus::RoomEdus;
-use rocket::futures;
 
-use crate::{pdu::PduBuilder, server_server, utils, Error, PduEvent, Result};
-use log::{error, warn};
+use crate::{pdu::PduBuilder, utils, Error, PduEvent, Result};
+use log::error;
 use ring::digest;
 use ruma::{
     api::client::error::ErrorKind,
-    api::federation,
     events::{
         ignored_user_list,
         room::{
@@ -27,7 +25,6 @@ use std::{
     convert::{TryFrom, TryInto},
     mem,
     sync::Arc,
-    time::SystemTime,
 };
 
 /// The unique identifier of each state group.
@@ -36,6 +33,7 @@ use std::{
 /// hashing the entire state.
 pub type StateHashId = Vec<u8>;
 
+#[derive(Clone)]
 pub struct Rooms {
     pub edus: edus::RoomEdus,
     pub(super) pduid_pdu: sled::Tree, // PduId = RoomId + Count
@@ -415,6 +413,16 @@ impl Rooms {
         })
     }
 
+    /// Returns the pdu.
+    pub fn get_pdu_json_from_id(&self, pdu_id: &IVec) -> Result<Option<serde_json::Value>> {
+        self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
+            Ok(Some(
+                serde_json::from_slice(&pdu)
+                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
+            ))
+        })
+    }
+
     /// Removes a pdu and creates a new one with the same id.
     fn replace_pdu(&self, pdu_id: &IVec, pdu: &PduEvent) -> Result<()> {
         if self.pduid_pdu.get(&pdu_id)?.is_some() {
@@ -613,6 +621,7 @@ impl Rooms {
         sender: &UserId,
         room_id: &RoomId,
         globals: &super::globals::Globals,
+        sending: &super::sending::Sending,
         account_data: &super::account_data::AccountData,
     ) -> Result<EventId> {
         let PduBuilder {
@@ -829,39 +838,12 @@ impl Rooms {
             self.append_to_state(&pdu_id, &pdu)?;
         }
 
-        pdu_json
-            .as_object_mut()
-            .expect("json is object")
-            .remove("event_id");
-
-        let raw_json =
-            serde_json::from_value::<Raw<_>>(pdu_json).expect("Raw::from_value always works");
-
-        let pdus = &[raw_json];
-        let transaction_id = utils::random_string(16);
-
-        for result in futures::future::join_all(
-            self.room_servers(room_id)
-                .filter_map(|r| r.ok())
-                .filter(|server| &**server != globals.server_name())
-                .map(|server| {
-                    server_server::send_request(
-                        &globals,
-                        server,
-                        federation::transactions::send_transaction_message::v1::Request {
-                            origin: globals.server_name(),
-                            pdus,
-                            edus: &[],
-                            origin_server_ts: SystemTime::now(),
-                            transaction_id: &transaction_id,
-                        },
-                    )
-                }),
-        )
-        .await {
-            if let Err(e) = result {
-                warn!("{}", e);
-            }
+        for server in self
+            .room_servers(room_id)
+            .filter_map(|r| r.ok())
+            .filter(|server| &**server != globals.server_name())
+        {
+            sending.send_pdu(server, &pdu_id)?;
         }
 
         Ok(pdu.event_id)

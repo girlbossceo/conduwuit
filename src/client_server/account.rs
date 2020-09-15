@@ -354,19 +354,23 @@ pub async fn deactivate_route(
             third_party_invite: None,
         };
 
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(event).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(sender_id.to_string()),
-                redacts: None,
-            },
-            &sender_id,
-            &room_id,
-            &db.globals,
-            &db.account_data,
-        ).await?;
+        db.rooms
+            .build_and_append_pdu(
+                PduBuilder {
+                    event_type: EventType::RoomMember,
+                    content: serde_json::to_value(event)
+                        .expect("event is valid, we just created it"),
+                    unsigned: None,
+                    state_key: Some(sender_id.to_string()),
+                    redacts: None,
+                },
+                &sender_id,
+                &room_id,
+                &db.globals,
+                &db.sending,
+                &db.account_data,
+            )
+            .await?;
     }
 
     // Remove devices and mark account as deactivated

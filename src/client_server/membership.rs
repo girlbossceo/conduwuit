@@ -120,6 +120,7 @@ pub async fn leave_room_route(
             &sender_id,
             &body.room_id,
             &db.globals,
+            &db.sending,
             &db.account_data,
         )
         .await?;
@@ -157,6 +158,7 @@ pub async fn invite_user_route(
                 &sender_id,
                 &body.room_id,
                 &db.globals,
+                &db.sending,
                 &db.account_data,
             )
             .await?;
@@ -209,6 +211,7 @@ pub async fn kick_user_route(
             &sender_id,
             &body.room_id,
             &db.globals,
+            &db.sending,
             &db.account_data,
         )
         .await?;
@@ -266,6 +269,7 @@ pub async fn ban_user_route(
             &sender_id,
             &body.room_id,
             &db.globals,
+            &db.sending,
             &db.account_data,
         )
         .await?;
@@ -314,6 +318,7 @@ pub async fn unban_user_route(
             &sender_id,
             &body.room_id,
             &db.globals,
+            &db.sending,
             &db.account_data,
         )
         .await?;
@@ -672,6 +677,7 @@ async fn join_room_by_id_helper(
                 &sender_id,
                 &room_id,
                 &db.globals,
+                &db.sending,
                 &db.account_data,
             )
             .await?;

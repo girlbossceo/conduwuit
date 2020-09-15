@@ -13,6 +13,7 @@ use std::{
     convert::{TryFrom, TryInto},
 };
 
+#[derive(Clone)]
 pub struct RoomEdus {
     pub(in super::super) readreceiptid_readreceipt: sled::Tree, // ReadReceiptId = RoomId + Count + UserId
     pub(in super::super) roomuserid_privateread: sled::Tree, // RoomUserId = Room + User, PrivateRead = Count

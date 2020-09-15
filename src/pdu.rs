@@ -1,12 +1,13 @@
 use crate::{Error, Result};
 use js_int::UInt;
 use ruma::{
+    events::pdu::PduStub,
     events::{
         pdu::EventHash, room::member::MemberEventContent, AnyEvent, AnyRoomEvent, AnyStateEvent,
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
     EventId, Raw, RoomId, ServerKeyId, ServerName, UserId,
-events::pdu::PduStub};
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{collections::BTreeMap, convert::TryInto, sync::Arc, time::UNIX_EPOCH};

@@ -1831,7 +1831,7 @@ checksum = "7345c971d1ef21ffdbd103a75990a15eb03604fc8b8852ca8cb418ee1a099028"
 [[package]]
 name = "state-res"
 version = "0.1.0"
-source = "git+https://github.com/timokoesters/state-res?branch=spec-comp#a9186476b748c901fbf4356414247a0b3ac01b5f"
+source = "git+https://github.com/timokoesters/state-res?branch=spec-comp#1d01b6e65b6afd50e65085fb40f1e7d2782f519e"
 dependencies = [
  "itertools",
  "js_int",
