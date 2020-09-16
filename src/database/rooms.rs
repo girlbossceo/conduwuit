@@ -356,17 +356,18 @@ impl Rooms {
     }
 
     /// Returns the `count` of this pdu's id.
+    pub fn pdu_count(&self, pdu_id: &[u8]) -> Result<u64> {
+        Ok(
+            utils::u64_from_bytes(&pdu_id[pdu_id.len() - mem::size_of::<u64>()..pdu_id.len()])
+                .map_err(|_| Error::bad_database("PDU has invalid count bytes."))?,
+        )
+    }
+
+    /// Returns the `count` of this pdu's id.
     pub fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<u64>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or(Ok(None), |pdu_id| {
-                Ok(Some(
-                    utils::u64_from_bytes(
-                        &pdu_id[pdu_id.len() - mem::size_of::<u64>()..pdu_id.len()],
-                    )
-                    .map_err(|_| Error::bad_database("PDU has invalid count bytes."))?,
-                ))
-            })
+            .map_or(Ok(None), |pdu_id| self.pdu_count(&pdu_id).map(Some))
     }
 
     /// Returns the json of a pdu.
@@ -860,7 +861,7 @@ impl Rooms {
         &self,
         user_id: &UserId,
         room_id: &RoomId,
-    ) -> Result<impl Iterator<Item = Result<PduEvent>>> {
+    ) -> Result<impl Iterator<Item = Result<(IVec, PduEvent)>>> {
         self.pdus_since(user_id, room_id, 0)
     }
 
@@ -871,7 +872,7 @@ impl Rooms {
         user_id: &UserId,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<impl DoubleEndedIterator<Item = Result<PduEvent>>> {
+    ) -> Result<impl DoubleEndedIterator<Item = Result<(IVec, PduEvent)>>> {
         let mut prefix = room_id.to_string().as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -887,13 +888,13 @@ impl Rooms {
             .pduid_pdu
             .range(first_pdu_id..last_pdu_id)
             .filter_map(|r| r.ok())
-            .map(move |(_, v)| {
+            .map(move |(pdu_id, v)| {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
                 if pdu.sender != user_id {
                     pdu.unsigned.remove("transaction_id");
                 }
-                Ok(pdu)
+                Ok((pdu_id, pdu))
             }))
     }
 

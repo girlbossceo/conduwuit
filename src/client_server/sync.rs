@@ -93,7 +93,7 @@ pub async fn sync_events_route(
         let mut limited = false;
 
         let mut state_pdus = Vec::new();
-        for pdu in non_timeline_pdus {
+        for (_, pdu) in non_timeline_pdus {
             if pdu.state_key.is_some() {
                 state_pdus.push(pdu);
             }
@@ -113,7 +113,7 @@ pub async fn sync_events_route(
             .rooms
             .pdus_since(&sender_id, &room_id, since)?
             .filter_map(|r| r.ok())
-            .filter_map(|pdu| Some((pdu.state_key.clone()?, pdu)))
+            .filter_map(|(_, pdu)| Some((pdu.state_key.clone()?, pdu)))
         {
             if pdu.kind == EventType::RoomMember {
                 send_member_count = true;
@@ -188,8 +188,8 @@ pub async fn sync_events_route(
                     .rooms
                     .all_pdus(&sender_id, &room_id)?
                     .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
-                    .filter(|pdu| pdu.kind == EventType::RoomMember)
-                    .map(|pdu| {
+                    .filter(|(_, pdu)| pdu.kind == EventType::RoomMember)
+                    .map(|(_, pdu)| {
                         let content = serde_json::from_value::<
                             Raw<ruma::events::room::member::MemberEventContent>,
                         >(pdu.content.clone())
@@ -244,7 +244,7 @@ pub async fn sync_events_route(
                     (db.rooms
                         .pdus_since(&sender_id, &room_id, last_read)?
                         .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-                        .filter(|pdu| {
+                        .filter(|(_, pdu)| {
                             matches!(
                                 pdu.kind.clone(),
                                 EventType::RoomMessage | EventType::RoomEncrypted
@@ -260,18 +260,15 @@ pub async fn sync_events_route(
             None
         };
 
-        let prev_batch = timeline_pdus.first().map_or(Ok::<_, Error>(None), |e| {
-            Ok(Some(
-                db.rooms
-                    .get_pdu_count(&e.event_id)?
-                    .ok_or_else(|| Error::bad_database("Can't find count from event in db."))?
-                    .to_string(),
-            ))
-        })?;
+        let prev_batch = timeline_pdus
+            .first()
+            .map_or(Ok::<_, Error>(None), |(pdu_id, _)| {
+                Ok(Some(db.rooms.pdu_count(pdu_id)?.to_string()))
+            })?;
 
         let room_events = timeline_pdus
             .into_iter()
-            .map(|pdu| pdu.to_sync_room_event())
+            .map(|(_, pdu)| pdu.to_sync_room_event())
             .collect::<Vec<_>>();
 
         let mut edus = db
@@ -380,7 +377,7 @@ pub async fn sync_events_route(
         let pdus = db.rooms.pdus_since(&sender_id, &room_id, since)?;
         let room_events = pdus
             .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-            .map(|pdu| pdu.to_sync_room_event())
+            .map(|(_, pdu)| pdu.to_sync_room_event())
             .collect();
 
         let left_room = sync_events::LeftRoom {
@@ -395,7 +392,7 @@ pub async fn sync_events_route(
 
         let mut left_since_last_sync = false;
         for pdu in db.rooms.pdus_since(&sender_id, &room_id, since)? {
-            let pdu = pdu?;
+            let (_, pdu) = pdu?;
             if pdu.kind == EventType::RoomMember && pdu.state_key == Some(sender_id.to_string()) {
                 let content = serde_json::from_value::<
                     Raw<ruma::events::room::member::MemberEventContent>,
@@ -438,7 +435,7 @@ pub async fn sync_events_route(
         let room_id = room_id?;
         let mut invited_since_last_sync = false;
         for pdu in db.rooms.pdus_since(&sender_id, &room_id, since)? {
-            let pdu = pdu?;
+            let (_, pdu) = pdu?;
             if pdu.kind == EventType::RoomMember && pdu.state_key == Some(sender_id.to_string()) {
                 let content = serde_json::from_value::<
                     Raw<ruma::events::room::member::MemberEventContent>,
