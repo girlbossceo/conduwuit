@@ -160,7 +160,7 @@ where
                     .expect("reqwest body is valid http body"),
             );
             response.map_err(|e| {
-                warn!("{}", e);
+                warn!("Server returned bad response: {:?}", e);
                 Error::BadServerResponse("Server returned bad response.")
             })
         }
