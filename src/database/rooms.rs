@@ -812,6 +812,12 @@ impl Rooms {
             .expect("json is object")
             .remove("event_id");
 
+        // Add origin because synapse likes that (and it's required in the spec)
+        pdu_json
+            .as_object_mut()
+            .expect("json is object")
+            .insert("origin".to_owned(), globals.server_name().as_str().into());
+
         ruma::signatures::hash_and_sign_event(
             globals.server_name().as_str(),
             globals.keypair(),

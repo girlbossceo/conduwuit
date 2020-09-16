@@ -42,6 +42,7 @@ impl Sending {
                             .get_mut("unsigned") {
                                 unsigned.as_object_mut().expect("unsigned is object").remove("transaction_id");
                         }
+
                         pdu_json
                             .as_object_mut()
                             .expect("json is object")
