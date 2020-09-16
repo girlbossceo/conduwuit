@@ -119,18 +119,6 @@ pub async fn set_avatar_url_route(
 ) -> ConduitResult<set_avatar_url::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if let Some(avatar_url) = &body.avatar_url {
-        if !avatar_url.starts_with("mxc://") {
-            return Err(Error::BadRequest(
-                ErrorKind::InvalidParam,
-                "avatar_url has to start with mxc://.",
-            ));
-        }
-
-        // TODO in the future when we can handle media uploads make sure that this url is our own server
-        // TODO also make sure this is valid mxc:// format (not only starting with it)
-    }
-
     db.users
         .set_avatar_url(&sender_id, body.avatar_url.clone())?;
 
