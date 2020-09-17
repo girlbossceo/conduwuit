@@ -447,6 +447,11 @@ impl Rooms {
         // This is also the next_batch/since value
         let index = globals.next_count()?;
 
+        // Mark as read first so the sending client doesn't get a notification even if appending
+        // fails
+        self.edus
+            .private_read_set(&pdu.room_id, &pdu.sender, index, &globals)?;
+
         let mut pdu_id = pdu.room_id.as_bytes().to_vec();
         pdu_id.push(0xff);
         pdu_id.extend_from_slice(&index.to_be_bytes());
@@ -503,9 +508,6 @@ impl Rooms {
             _ => {}
         }
 
-        self.edus
-            .private_read_set(&pdu.room_id, &pdu.sender, index, &globals)?;
-
         Ok(pdu_id)
     }
 
@@ -520,7 +522,7 @@ impl Rooms {
                 // Store state for event. The state does not include the event itself.
                 // Instead it's the state before the pdu, so the room's old state.
                 self.pduid_statehash
-                    .insert(dbg!(new_pdu_id), &old_state_hash)?;
+                    .insert(new_pdu_id, &old_state_hash)?;
                 if new_pdu.state_key.is_none() {
                     return Ok(old_state_hash);
                 }
