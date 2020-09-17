@@ -49,7 +49,10 @@ pub fn get_context_route(
         .filter_map(|r| r.ok()) // Remove buggy events
         .collect::<Vec<_>>();
 
-    let start_token = events_before.last().map(|(count, _)| count.to_string());
+    let start_token = events_before
+        .last()
+        .and_then(|(pdu_id, _)| db.rooms.pdu_count(pdu_id).ok())
+        .map(|count| count.to_string());
 
     let events_before = events_before
         .into_iter()
@@ -68,7 +71,10 @@ pub fn get_context_route(
         .filter_map(|r| r.ok()) // Remove buggy events
         .collect::<Vec<_>>();
 
-    let end_token = events_after.last().map(|(count, _)| count.to_string());
+    let end_token = events_after
+        .last()
+        .and_then(|(pdu_id, _)| db.rooms.pdu_count(pdu_id).ok())
+        .map(|count| count.to_string());
 
     let events_after = events_after
         .into_iter()

@@ -123,6 +123,7 @@ fn setup_rocket() -> rocket::Rocket {
                 server_server::get_server_keys,
                 server_server::get_server_keys_deprecated,
                 server_server::get_public_rooms_route,
+                server_server::get_public_rooms_filtered_route,
                 server_server::send_transaction_message_route,
             ],
         )

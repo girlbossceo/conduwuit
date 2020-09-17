@@ -329,8 +329,10 @@ pub fn send_transaction_message_route<'a>(
         let pdu = serde_json::from_value::<PduEvent>(value.clone())
             .expect("all ruma pdus are conduit pdus");
         if db.rooms.exists(&pdu.room_id)? {
-            db.rooms
+            let pdu_id = db
+                .rooms
                 .append_pdu(&pdu, &value, &db.globals, &db.account_data)?;
+            db.rooms.append_to_state(&pdu_id, &pdu)?;
         }
     }
     Ok(send_transaction_message::v1::Response {

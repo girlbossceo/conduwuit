@@ -601,8 +601,7 @@ async fn join_room_by_id_helper(
             .cloned()
             .collect::<Vec<_>>();
 
-        let power_level =
-            resolved_control_events.get(&(EventType::RoomPowerLevels, Some("".into())));
+        let power_level = resolved_control_events.get(&(EventType::RoomPowerLevels, "".into()));
         // Sort the remaining non control events
         let sorted_event_ids = state_res::StateResolution::mainline_sort(
             room_id,
@@ -644,13 +643,7 @@ async fn join_room_by_id_helper(
             )?;
 
             if state_events.contains(ev_id) {
-                state.insert(
-                    (
-                        pdu.kind(),
-                        pdu.state_key().expect("State events have a state key"),
-                    ),
-                    pdu_id,
-                );
+                state.insert((pdu.kind(), pdu.state_key()), pdu_id);
             }
         }
 

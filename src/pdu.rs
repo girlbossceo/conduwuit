@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::Error;
 use js_int::UInt;
 use ruma::{
     events::pdu::PduStub,
@@ -35,7 +35,7 @@ pub struct PduEvent {
 }
 
 impl PduEvent {
-    pub fn redact(&mut self, reason: &PduEvent) -> Result<()> {
+    pub fn redact(&mut self, reason: &PduEvent) -> crate::Result<()> {
         self.unsigned.clear();
 
         let allowed: &[&str] = match self.kind {
@@ -244,7 +244,7 @@ impl From<&state_res::StateEvent> for PduEvent {
                 .expect("time is valid"),
             kind: pdu.kind(),
             content: pdu.content().clone(),
-            state_key: pdu.state_key(),
+            state_key: Some(pdu.state_key()),
             prev_events: pdu.prev_event_ids(),
             depth: pdu.depth().clone(),
             auth_events: pdu.auth_events(),

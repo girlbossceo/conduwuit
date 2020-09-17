@@ -117,6 +117,12 @@ pub fn get_message_events_route(
                 .pdus_after(&sender_id, &body.room_id, from)
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
+                .filter_map(|(pdu_id, pdu)| {
+                    db.rooms
+                        .pdu_count(&pdu_id)
+                        .map(|pdu_count| (pdu_count, pdu))
+                        .ok()
+                })
                 .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
                 .collect::<Vec<_>>();
 
@@ -141,6 +147,12 @@ pub fn get_message_events_route(
                 .pdus_until(&sender_id, &body.room_id, from)
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
+                .filter_map(|(pdu_id, pdu)| {
+                    db.rooms
+                        .pdu_count(&pdu_id)
+                        .map(|pdu_count| (pdu_count, pdu))
+                        .ok()
+                })
                 .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
                 .collect::<Vec<_>>();
 
