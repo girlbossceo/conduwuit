@@ -603,7 +603,7 @@ impl Users {
                 .room_state_get(&room_id, &EventType::RoomEncryption, "")?
                 .is_none()
             {
-                return Ok(());
+                continue;
             }
 
             let mut key = room_id.to_string().as_bytes().to_vec();

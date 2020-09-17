@@ -521,8 +521,7 @@ impl Rooms {
             if let Some(old_state_hash) = self.roomid_statehash.get(new_pdu.room_id.as_bytes())? {
                 // Store state for event. The state does not include the event itself.
                 // Instead it's the state before the pdu, so the room's old state.
-                self.pduid_statehash
-                    .insert(new_pdu_id, &old_state_hash)?;
+                self.pduid_statehash.insert(new_pdu_id, &old_state_hash)?;
                 if new_pdu.state_key.is_none() {
                     return Ok(old_state_hash);
                 }

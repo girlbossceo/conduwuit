@@ -100,47 +100,61 @@ pub async fn sync_events_route(
             limited = true;
         }
 
+        // Database queries:
         let encrypted_room = db
             .rooms
             .room_state_get(&room_id, &EventType::RoomEncryption, "")?
             .is_some();
 
-        // Database queries:
+        // These type is Option<Option<_>>. The outer Option is None when there is no event between
+        // since and the current room state, meaning there should be no updates.
+        // The inner Option is None when there is an event, but there is no state hash associated
+        // with it. This can happen for the RoomCreate event, so all updates should arrive.
         let since_state_hash = db
             .rooms
-            .pdus_until(sender_id, &room_id, since)
+            .pdus_after(sender_id, &room_id, since) // - 1 So we can get the event at since
             .next()
-            .and_then(|pdu| pdu.ok())
-            .and_then(|pdu| db.rooms.pdu_state_hash(&pdu.0).ok()?);
+            .map(|pdu| db.rooms.pdu_state_hash(&pdu.ok()?.0).ok()?);
 
-        let since_members = since_state_hash
-            .as_ref()
-            .and_then(|state_hash| db.rooms.state_type(state_hash, &EventType::RoomMember).ok());
+        let since_members = since_state_hash.as_ref().map(|state_hash| {
+            state_hash.as_ref().and_then(|state_hash| {
+                db.rooms
+                    .state_type(&state_hash, &EventType::RoomMember)
+                    .ok()
+            })
+        });
 
-        let since_encryption = since_state_hash.as_ref().and_then(|state_hash| {
-            db.rooms
-                .state_get(&state_hash, &EventType::RoomEncryption, "")
-                .ok()
+        let since_encryption = since_state_hash.as_ref().map(|state_hash| {
+            state_hash.as_ref().and_then(|state_hash| {
+                db.rooms
+                    .state_get(&state_hash, &EventType::RoomEncryption, "")
+                    .ok()
+            })
         });
 
         let current_members = db.rooms.room_state_type(&room_id, &EventType::RoomMember)?;
 
         // Calculations:
-        let new_encrypted_room = encrypted_room && since_encryption.is_none();
+        let new_encrypted_room =
+            encrypted_room && since_encryption.map_or(false, |encryption| encryption.is_none());
 
-        let send_member_count = since_members.as_ref().map_or(true, |since_members| {
-            current_members.len() != since_members.len()
+        let send_member_count = since_members.as_ref().map_or(false, |since_members| {
+            since_members.as_ref().map_or(true, |since_members| {
+                current_members.len() != since_members.len()
+            })
         });
 
-        let since_sender_member = since_members.as_ref().and_then(|members| {
-            members.get(sender_id.as_str()).and_then(|pdu| {
-                serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
-                    pdu.content.clone(),
-                )
-                .expect("Raw::from_value always works")
-                .deserialize()
-                .map_err(|_| Error::bad_database("Invalid PDU in database."))
-                .ok()
+        let since_sender_member = since_members.as_ref().map(|since_members| {
+            since_members.as_ref().and_then(|members| {
+                members.get(sender_id.as_str()).and_then(|pdu| {
+                    serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
+                        pdu.content.clone(),
+                    )
+                    .expect("Raw::from_value always works")
+                    .deserialize()
+                    .map_err(|_| Error::bad_database("Invalid PDU in database."))
+                    .ok()
+                })
             })
         });
 
@@ -154,20 +168,29 @@ pub async fn sync_events_route(
                 .map_err(|_| Error::bad_database("Invalid PDU in database."))?
                 .membership;
 
-                let since_membership = since_members
-                    .as_ref()
-                    .and_then(|members| {
-                        members.get(&user_id).and_then(|since_member| {
-                            serde_json::from_value::<
-                                Raw<ruma::events::room::member::MemberEventContent>,
-                            >(since_member.content.clone())
-                            .expect("Raw::from_value always works")
-                            .deserialize()
-                            .map_err(|_| Error::bad_database("Invalid PDU in database."))
-                            .ok()
-                        })
-                    })
-                    .map_or(MembershipState::Leave, |member| member.membership);
+                let since_membership =
+                    since_members
+                        .as_ref()
+                        .map_or(MembershipState::Join, |members| {
+                            members
+                                .as_ref()
+                                .and_then(|members| {
+                                    members.get(&user_id).and_then(|since_member| {
+                                        serde_json::from_value::<
+                                            Raw<ruma::events::room::member::MemberEventContent>,
+                                        >(
+                                            since_member.content.clone()
+                                        )
+                                        .expect("Raw::from_value always works")
+                                        .deserialize()
+                                        .map_err(|_| {
+                                            Error::bad_database("Invalid PDU in database.")
+                                        })
+                                        .ok()
+                                    })
+                                })
+                                .map_or(MembershipState::Leave, |member| member.membership)
+                        });
 
                 let user_id = UserId::try_from(user_id)
                     .map_err(|_| Error::bad_database("Invalid UserId in member PDU."))?;
@@ -188,8 +211,9 @@ pub async fn sync_events_route(
             }
         }
 
-        let joined_since_last_sync =
-            since_sender_member.map_or(true, |member| member.membership != MembershipState::Join);
+        let joined_since_last_sync = since_sender_member.map_or(false, |member| {
+            member.map_or(true, |member| member.membership != MembershipState::Join)
+        });
 
         if joined_since_last_sync && encrypted_room || new_encrypted_room {
             // If the user is in a new encrypted room, give them all joined users
@@ -434,7 +458,7 @@ pub async fn sync_events_route(
 
         let since_member = db
             .rooms
-            .pdus_until(sender_id, &room_id, since)
+            .pdus_after(sender_id, &room_id, since)
             .next()
             .and_then(|pdu| pdu.ok())
             .and_then(|pdu| {
@@ -581,7 +605,7 @@ pub async fn sync_events_route(
             changed: device_list_updates.into_iter().collect(),
             left: device_list_left.into_iter().collect(),
         },
-        device_one_time_keys_count: if db.users.last_one_time_keys_update(sender_id)? > since {
+        device_one_time_keys_count: if db.users.last_one_time_keys_update(sender_id)? > since || since == 0 {
             db.users.count_one_time_keys(sender_id, device_id)?
         } else {
             BTreeMap::new()
