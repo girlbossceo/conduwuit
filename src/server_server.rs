@@ -161,6 +161,7 @@ where
 
     *reqwest_request.timeout_mut() = Some(Duration::from_secs(30));
 
+    let url = reqwest_request.url().clone();
     let reqwest_response = globals.reqwest_client().execute(reqwest_request).await;
 
     // Because reqwest::Response -> http::Response is complicated:
@@ -189,7 +190,10 @@ where
                     .expect("reqwest body is valid http body"),
             );
             response.map_err(|e| {
-                warn!("Server returned bad response: {:?}", e);
+                warn!(
+                    "Server returned bad response {} ({}): {:?}",
+                    destination, url, e
+                );
                 Error::BadServerResponse("Server returned bad response.")
             })
         }
