@@ -56,6 +56,8 @@ image = { version = "0.23.9", default-features = false, features = ["jpeg", "png
 base64 = "0.12.3"
 # Used when hashing the state
 ring = "0.16.15"
+# Used when querying the SRV record of other servers
+trust-dns-resolver = "0.19.5"
 
 [features]
 default = ["conduit_bin"]
