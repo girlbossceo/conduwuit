@@ -1,10 +1,10 @@
 use std::{collections::HashSet, convert::TryFrom, time::SystemTime};
 
-use crate::{server_server, utils, Error, Result};
+use crate::{server_server, utils, Error, PduEvent, Result};
 use federation::transactions::send_transaction_message;
 use log::warn;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
-use ruma::{api::federation, Raw, ServerName};
+use ruma::{api::federation, ServerName};
 use sled::IVec;
 use tokio::select;
 
@@ -83,49 +83,27 @@ impl Sending {
         (Box<ServerName>, send_transaction_message::v1::Response),
         (Box<ServerName>, Error),
     > {
-        let mut pdu_json = rooms
-            .get_pdu_json_from_id(&pdu_id)
-            .map_err(|e| (server.clone(), e))?
-            .ok_or_else(|| {
-                (
-                    server.clone(),
-                    Error::bad_database("Event in serverpduids not found in db."),
-                )
-            })?;
-
-        if let Some(unsigned) = pdu_json
-            .as_object_mut()
-            .expect("json is object")
-            .get_mut("unsigned")
-        {
-            unsigned
-                .as_object_mut()
-                .expect("unsigned is object")
-                .remove("transaction_id");
-        }
-
-        pdu_json
-            .as_object_mut()
-            .expect("json is object")
-            .remove("event_id");
-
-        let raw_json =
-            serde_json::from_value::<Raw<_>>(pdu_json).expect("Raw::from_value always works");
-
-        let globals = &globals;
-
-        let pdus = vec![raw_json];
-        let transaction_id = utils::random_string(16);
+        let pdu_json = PduEvent::to_outgoing_federation_event(
+            rooms
+                .get_pdu_json_from_id(&pdu_id)
+                .map_err(|e| (server.clone(), e))?
+                .ok_or_else(|| {
+                    (
+                        server.clone(),
+                        Error::bad_database("Event in serverpduids not found in db."),
+                    )
+                })?,
+        );
 
         server_server::send_request(
             &globals,
             server.clone(),
             send_transaction_message::v1::Request {
                 origin: globals.server_name(),
-                pdus: &pdus,
+                pdus: &[pdu_json],
                 edus: &[],
                 origin_server_ts: SystemTime::now(),
-                transaction_id: &transaction_id,
+                transaction_id: &utils::random_string(16),
             },
         )
         .await

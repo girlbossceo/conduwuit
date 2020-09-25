@@ -1,7 +1,6 @@
 use crate::Error;
 use js_int::UInt;
 use ruma::{
-    events::pdu::PduStub,
     events::{
         pdu::EventHash, room::member::MemberEventContent, AnyEvent, AnyRoomEvent, AnyStateEvent,
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
@@ -200,32 +199,26 @@ impl PduEvent {
         serde_json::from_value(json).expect("Raw::from_value always works")
     }
 
-    pub fn to_outgoing_federation_event(&self) -> Raw<PduStub> {
-        let mut unsigned = self.unsigned.clone();
-        unsigned.remove("transaction_id");
-
-        let mut json = json!({
-            "room_id": self.room_id,
-            "sender": self.sender,
-            "origin_server_ts": self.origin_server_ts,
-            "type": self.kind,
-            "content": self.content,
-            "prev_events": self.prev_events,
-            "depth": self.depth,
-            "auth_events": self.auth_events,
-            "unsigned": unsigned,
-            "hashes": self.hashes,
-            "signatures": self.signatures,
-        });
-
-        if let Some(state_key) = &self.state_key {
-            json["state_key"] = json!(state_key);
-        }
-        if let Some(redacts) = &self.redacts {
-            json["redacts"] = json!(redacts);
+    pub fn to_outgoing_federation_event(
+        mut pdu_json: serde_json::Value,
+    ) -> Raw<ruma::events::pdu::PduStub> {
+        if let Some(unsigned) = pdu_json
+            .as_object_mut()
+            .expect("json is object")
+            .get_mut("unsigned")
+        {
+            unsigned
+                .as_object_mut()
+                .expect("unsigned is object")
+                .remove("transaction_id");
         }
 
-        serde_json::from_value(json).expect("Raw::from_value always works")
+        pdu_json
+            .as_object_mut()
+            .expect("json is object")
+            .remove("event_id");
+
+        serde_json::from_value::<Raw<_>>(pdu_json).expect("Raw::from_value always works")
     }
 }
 

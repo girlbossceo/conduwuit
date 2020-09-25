@@ -3,13 +3,13 @@ use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::warn;
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
-    api::federation::directory::get_public_rooms_filtered,
     api::{
         federation::{
-            directory::get_public_rooms,
+            directory::{get_public_rooms, get_public_rooms_filtered},
             discovery::{
                 get_server_keys, get_server_version::v1 as get_server_version, ServerKey, VerifyKey,
             },
+            event::get_missing_events,
             transactions::send_transaction_message,
         },
         OutgoingRequest,
@@ -372,4 +372,47 @@ pub fn send_transaction_message_route<'a>(
         pdus: BTreeMap::new(),
     }
     .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/federation/v1/get_missing_events/<_>", data = "<body>")
+)]
+pub fn get_missing_events_route<'a>(
+    db: State<'a, Database>,
+    body: Ruma<get_missing_events::v1::Request<'_>>,
+) -> ConduitResult<get_missing_events::v1::Response> {
+    let mut queued_events = body.latest_events.clone();
+    let mut events = Vec::new();
+
+    let mut i = 0;
+    while i < queued_events.len() && events.len() < u64::from(body.limit) as usize {
+        if let Some(pdu) = db.rooms.get_pdu_json(&queued_events[i])? {
+            if body.earliest_events.contains(
+                &serde_json::from_value(
+                    pdu.get("event_id")
+                        .cloned()
+                        .ok_or_else(|| Error::bad_database("Event in db has no event_id field."))?,
+                )
+                .map_err(|_| Error::bad_database("Invalid event_id field in pdu in db."))?,
+            ) {
+                i += 1;
+                continue;
+            }
+            queued_events.extend_from_slice(
+                &serde_json::from_value::<Vec<EventId>>(
+                    pdu.get("prev_events").cloned().ok_or_else(|| {
+                        Error::bad_database("Invalid prev_events field of pdu in db.")
+                    })?,
+                )
+                .map_err(|_| Error::bad_database("Invalid prev_events content in pdu in db."))?,
+            );
+            events.push(PduEvent::to_outgoing_federation_event(pdu));
+        }
+        i += 1;
+    }
+
+    dbg!(&events);
+
+    Ok(get_missing_events::v1::Response { events }.into())
 }
