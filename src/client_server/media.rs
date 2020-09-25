@@ -9,7 +9,7 @@ use ruma::api::client::{
 use rocket::{get, post};
 use std::convert::TryInto;
 
-const MXC_LENGTH: usize = 256;
+const MXC_LENGTH: usize = 32;
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/media/r0/config"))]
 pub fn get_media_config_route(
