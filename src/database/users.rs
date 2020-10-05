@@ -57,6 +57,11 @@ impl Users {
         Ok(())
     }
 
+    /// Returns the number of users registered on this server.
+    pub fn count(&self) -> usize {
+        self.userid_password.iter().count()
+    }
+
     /// Find out which user an access token belongs to.
     pub fn find_from_token(&self, token: &str) -> Result<Option<(UserId, String)>> {
         self.token_userdeviceid

@@ -213,23 +213,20 @@ pub async fn send_state_event_for_key_helper(
         }
     }
 
-    let event_id = db
-        .rooms
-        .build_and_append_pdu(
-            PduBuilder {
-                event_type: content.event_type().into(),
-                content: json,
-                unsigned: None,
-                state_key,
-                redacts: None,
-            },
-            &sender_id,
-            &room_id,
-            &db.globals,
-            &db.sending,
-            &db.account_data,
-        )
-        .await?;
+    let event_id = db.rooms.build_and_append_pdu(
+        PduBuilder {
+            event_type: content.event_type().into(),
+            content: json,
+            unsigned: None,
+            state_key,
+            redacts: None,
+        },
+        &sender_id,
+        &room_id,
+        &db.globals,
+        &db.sending,
+        &db.account_data,
+    )?;
 
     Ok(event_id)
 }

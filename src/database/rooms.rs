@@ -10,7 +10,7 @@ use ruma::{
     events::{
         ignored_user_list,
         room::{
-            member,
+            member, message,
             power_levels::{self, PowerLevelsEventContent},
         },
         EventType,
@@ -440,6 +440,7 @@ impl Rooms {
         pdu_json: &serde_json::Value,
         globals: &super::globals::Globals,
         account_data: &super::account_data::AccountData,
+        sending: &super::sending::Sending,
     ) -> Result<Vec<u8>> {
         self.replace_pdu_leaves(&pdu.room_id, &pdu.event_id)?;
 
@@ -452,7 +453,8 @@ impl Rooms {
         self.edus
             .private_read_set(&pdu.room_id, &pdu.sender, index, &globals)?;
 
-        let mut pdu_id = pdu.room_id.as_bytes().to_vec();
+        let room_id = pdu.room_id.clone();
+        let mut pdu_id = room_id.as_bytes().to_vec();
         pdu_id.push(0xff);
         pdu_id.extend_from_slice(&index.to_be_bytes());
 
@@ -502,6 +504,45 @@ impl Rooms {
                         key.push(0xff);
                         key.extend_from_slice(&pdu_id);
                         self.tokenids.insert(key, &[])?;
+                    }
+
+                    if body.starts_with(&format!("@conduit:{}: ", globals.server_name()))
+                        && self
+                            .id_from_alias(
+                                &format!("#admins:{}", globals.server_name())
+                                    .try_into()
+                                    .expect("#admins:server_name is a valid room alias"),
+                            )?
+                            .as_ref()
+                            == Some(&pdu.room_id)
+                    {
+                        let mut parts = body.split_whitespace().skip(1);
+                        if let Some(command) = parts.next() {
+                            let args = parts.collect::<Vec<_>>();
+
+                            self.build_and_append_pdu(
+                                PduBuilder {
+                                    event_type: EventType::RoomMessage,
+                                    content: serde_json::to_value(
+                                        message::TextMessageEventContent {
+                                            body: format!("Command: {}, Args: {:?}", command, args),
+                                            formatted: None,
+                                            relates_to: None,
+                                        },
+                                    )
+                                    .expect("event is valid, we just created it"),
+                                    unsigned: None,
+                                    state_key: None,
+                                    redacts: None,
+                                },
+                                &UserId::try_from(format!("@conduit:{}", globals.server_name()))
+                                    .expect("@conduit:server_name is valid"),
+                                &room_id,
+                                &globals,
+                                &sending,
+                                &account_data,
+                            )?;
+                        }
                     }
                 }
             }
@@ -570,7 +611,7 @@ impl Rooms {
     }
 
     /// Creates a new persisted data unit and adds it to a room.
-    pub async fn build_and_append_pdu(
+    pub fn build_and_append_pdu(
         &self,
         pdu_builder: PduBuilder,
         sender: &UserId,
@@ -793,7 +834,7 @@ impl Rooms {
             .expect("json is object")
             .insert("event_id".to_owned(), pdu.event_id.to_string().into());
 
-        let pdu_id = self.append_pdu(&pdu, &pdu_json, globals, account_data)?;
+        let pdu_id = self.append_pdu(&pdu, &pdu_json, globals, account_data, sending)?;
 
         self.append_to_state(&pdu_id, &pdu)?;
 

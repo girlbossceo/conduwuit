@@ -108,22 +108,20 @@ pub async fn leave_room_route(
 
     event.membership = member::MembershipState::Leave;
 
-    db.rooms
-        .build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(event).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(sender_id.to_string()),
-                redacts: None,
-            },
-            &sender_id,
-            &body.room_id,
-            &db.globals,
-            &db.sending,
-            &db.account_data,
-        )
-        .await?;
+    db.rooms.build_and_append_pdu(
+        PduBuilder {
+            event_type: EventType::RoomMember,
+            content: serde_json::to_value(event).expect("event is valid, we just created it"),
+            unsigned: None,
+            state_key: Some(sender_id.to_string()),
+            redacts: None,
+        },
+        &sender_id,
+        &body.room_id,
+        &db.globals,
+        &db.sending,
+        &db.account_data,
+    )?;
 
     Ok(leave_room::Response::new().into())
 }
@@ -139,29 +137,27 @@ pub async fn invite_user_route(
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     if let invite_user::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
-        db.rooms
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: EventType::RoomMember,
-                    content: serde_json::to_value(member::MemberEventContent {
-                        membership: member::MembershipState::Invite,
-                        displayname: db.users.displayname(&user_id)?,
-                        avatar_url: db.users.avatar_url(&user_id)?,
-                        is_direct: None,
-                        third_party_invite: None,
-                    })
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some(user_id.to_string()),
-                    redacts: None,
-                },
-                &sender_id,
-                &body.room_id,
-                &db.globals,
-                &db.sending,
-                &db.account_data,
-            )
-            .await?;
+        db.rooms.build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomMember,
+                content: serde_json::to_value(member::MemberEventContent {
+                    membership: member::MembershipState::Invite,
+                    displayname: db.users.displayname(&user_id)?,
+                    avatar_url: db.users.avatar_url(&user_id)?,
+                    is_direct: None,
+                    third_party_invite: None,
+                })
+                .expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(user_id.to_string()),
+                redacts: None,
+            },
+            &sender_id,
+            &body.room_id,
+            &db.globals,
+            &db.sending,
+            &db.account_data,
+        )?;
 
         Ok(invite_user::Response.into())
     } else {
@@ -199,22 +195,20 @@ pub async fn kick_user_route(
     event.membership = ruma::events::room::member::MembershipState::Leave;
     // TODO: reason
 
-    db.rooms
-        .build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(event).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(body.user_id.to_string()),
-                redacts: None,
-            },
-            &sender_id,
-            &body.room_id,
-            &db.globals,
-            &db.sending,
-            &db.account_data,
-        )
-        .await?;
+    db.rooms.build_and_append_pdu(
+        PduBuilder {
+            event_type: EventType::RoomMember,
+            content: serde_json::to_value(event).expect("event is valid, we just created it"),
+            unsigned: None,
+            state_key: Some(body.user_id.to_string()),
+            redacts: None,
+        },
+        &sender_id,
+        &body.room_id,
+        &db.globals,
+        &db.sending,
+        &db.account_data,
+    )?;
 
     Ok(kick_user::Response::new().into())
 }
@@ -257,22 +251,20 @@ pub async fn ban_user_route(
             },
         )?;
 
-    db.rooms
-        .build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(event).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(body.user_id.to_string()),
-                redacts: None,
-            },
-            &sender_id,
-            &body.room_id,
-            &db.globals,
-            &db.sending,
-            &db.account_data,
-        )
-        .await?;
+    db.rooms.build_and_append_pdu(
+        PduBuilder {
+            event_type: EventType::RoomMember,
+            content: serde_json::to_value(event).expect("event is valid, we just created it"),
+            unsigned: None,
+            state_key: Some(body.user_id.to_string()),
+            redacts: None,
+        },
+        &sender_id,
+        &body.room_id,
+        &db.globals,
+        &db.sending,
+        &db.account_data,
+    )?;
 
     Ok(ban_user::Response::new().into())
 }
@@ -306,22 +298,20 @@ pub async fn unban_user_route(
 
     event.membership = ruma::events::room::member::MembershipState::Leave;
 
-    db.rooms
-        .build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(event).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(body.user_id.to_string()),
-                redacts: None,
-            },
-            &sender_id,
-            &body.room_id,
-            &db.globals,
-            &db.sending,
-            &db.account_data,
-        )
-        .await?;
+    db.rooms.build_and_append_pdu(
+        PduBuilder {
+            event_type: EventType::RoomMember,
+            content: serde_json::to_value(event).expect("event is valid, we just created it"),
+            unsigned: None,
+            state_key: Some(body.user_id.to_string()),
+            redacts: None,
+        },
+        &sender_id,
+        &body.room_id,
+        &db.globals,
+        &db.sending,
+        &db.account_data,
+    )?;
 
     Ok(unban_user::Response::new().into())
 }
@@ -640,6 +630,7 @@ async fn join_room_by_id_helper(
                 &serde_json::to_value(&**pdu).expect("PDU is valid value"),
                 &db.globals,
                 &db.account_data,
+                &db.sending,
             )?;
 
             if state_events.contains(ev_id) {
@@ -657,23 +648,20 @@ async fn join_room_by_id_helper(
             third_party_invite: None,
         };
 
-        db.rooms
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: EventType::RoomMember,
-                    content: serde_json::to_value(event)
-                        .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some(sender_id.to_string()),
-                    redacts: None,
-                },
-                &sender_id,
-                &room_id,
-                &db.globals,
-                &db.sending,
-                &db.account_data,
-            )
-            .await?;
+        db.rooms.build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomMember,
+                content: serde_json::to_value(event).expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(sender_id.to_string()),
+                redacts: None,
+            },
+            &sender_id,
+            &room_id,
+            &db.globals,
+            &db.sending,
+            &db.account_data,
+        )?;
     }
 
     Ok(join_room_by_id::Response::new(room_id.clone()).into())

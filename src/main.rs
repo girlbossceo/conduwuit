@@ -126,6 +126,7 @@ fn setup_rocket() -> rocket::Rocket {
                 server_server::get_public_rooms_filtered_route,
                 server_server::send_transaction_message_route,
                 server_server::get_missing_events_route,
+                server_server::get_profile_information_route,
             ],
         )
         .attach(AdHoc::on_attach("Config", |mut rocket| async {

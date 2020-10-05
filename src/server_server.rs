@@ -1,4 +1,5 @@
 use crate::{client_server, ConduitResult, Database, Error, PduEvent, Result, Ruma};
+use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::warn;
 use rocket::{get, post, put, response::content::Json, State};
@@ -10,6 +11,7 @@ use ruma::{
                 get_server_keys, get_server_version::v1 as get_server_version, ServerKey, VerifyKey,
             },
             event::get_missing_events,
+            query::get_profile_information,
             transactions::send_transaction_message,
         },
         OutgoingRequest,
@@ -362,9 +364,9 @@ pub fn send_transaction_message_route<'a>(
         let pdu = serde_json::from_value::<PduEvent>(value.clone())
             .expect("all ruma pdus are conduit pdus");
         if db.rooms.exists(&pdu.room_id)? {
-            let pdu_id = db
-                .rooms
-                .append_pdu(&pdu, &value, &db.globals, &db.account_data)?;
+            let pdu_id =
+                db.rooms
+                    .append_pdu(&pdu, &value, &db.globals, &db.account_data, &db.sending)?;
             db.rooms.append_to_state(&pdu_id, &pdu)?;
         }
     }
@@ -416,3 +418,59 @@ pub fn get_missing_events_route<'a>(
 
     Ok(get_missing_events::v1::Response { events }.into())
 }
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/federation/v1/query/profile", data = "<body>")
+)]
+pub fn get_profile_information_route<'a>(
+    db: State<'a, Database>,
+    body: Ruma<get_profile_information::v1::Request<'_>>,
+) -> ConduitResult<get_profile_information::v1::Response> {
+    let mut displayname = None;
+    let mut avatar_url = None;
+
+    match body.field {
+        Some(ProfileField::DisplayName) => displayname = db.users.displayname(&body.user_id)?,
+        Some(ProfileField::AvatarUrl) => avatar_url = db.users.avatar_url(&body.user_id)?,
+        None => {
+            displayname = db.users.displayname(&body.user_id)?;
+            avatar_url = db.users.avatar_url(&body.user_id)?;
+        }
+    }
+
+    Ok(get_profile_information::v1::Response {
+        displayname,
+        avatar_url,
+    }
+    .into())
+}
+
+/*
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/federation/v2/invite/<_>/<_>", data = "<body>")
+)]
+pub fn get_user_devices_route<'a>(
+    db: State<'a, Database>,
+    body: Ruma<membership::v1::Request<'_>>,
+) -> ConduitResult<get_profile_information::v1::Response> {
+    let mut displayname = None;
+    let mut avatar_url = None;
+
+    match body.field {
+        Some(ProfileField::DisplayName) => displayname = db.users.displayname(&body.user_id)?,
+        Some(ProfileField::AvatarUrl) => avatar_url = db.users.avatar_url(&body.user_id)?,
+        None => {
+            displayname = db.users.displayname(&body.user_id)?;
+            avatar_url = db.users.avatar_url(&body.user_id)?;
+        }
+    }
+
+    Ok(get_profile_information::v1::Response {
+        displayname,
+        avatar_url,
+    }
+    .into())
+}
+*/
