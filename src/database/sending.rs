@@ -28,6 +28,7 @@ impl Sending {
                 select! {
                     Some(server) = futures.next() => {
                         warn!("response: {:?}", &server);
+                        warn!("futures left: {}", &futures.len());
                         match server {
                             Ok((server, _response)) => {
                                 waiting_servers.remove(&server)

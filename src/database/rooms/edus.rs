@@ -11,6 +11,7 @@ use ruma::{
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
+    mem,
 };
 
 #[derive(Clone)]
@@ -228,9 +229,11 @@ impl RoomEdus {
                 let key = key?;
                 Ok::<_, Error>((
                     key.clone(),
-                    utils::u64_from_bytes(key.split(|&b| b == 0xff).nth(1).ok_or_else(|| {
-                        Error::bad_database("RoomTyping has invalid timestamp or delimiters.")
-                    })?)
+                    utils::u64_from_bytes(
+                        &key.splitn(2, |&b| b == 0xff).nth(1).ok_or_else(|| {
+                            Error::bad_database("RoomTyping has invalid timestamp or delimiters.")
+                        })?[0..mem::size_of::<u64>()],
+                    )
                     .map_err(|_| Error::bad_database("RoomTyping has invalid timestamp bytes."))?,
                 ))
             })
