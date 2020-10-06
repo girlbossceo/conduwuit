@@ -31,6 +31,7 @@ services:
             # ROCKET_PORT: 8000
             # ROCKET_REGISTRATION_DISABLED: 'true'
             # ROCKET_ENCRYPTION_DISABLED: 'true'
+            # ROCKET_FEDERATION_ENABLED: 'true'
             # ROCKET_DATABASE_PATH: /srv/conduit/.local/share/conduit
             # ROCKET_WORKERS: 10
             # ROCKET_MAX_REQUEST_SIZE: 20_000_000  # in bytes, ~20 MB

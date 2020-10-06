@@ -16,6 +16,8 @@ port = 14004
 # Note: existing rooms will continue to work
 #encryption_disabled = true
 
+#federation_enabled = true
+
 # Default path is in this user's data
 #database_path = "/home/timo/MyConduitServer"
 

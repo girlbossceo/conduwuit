@@ -14,6 +14,7 @@ pub struct Globals {
     max_request_size: u32,
     registration_disabled: bool,
     encryption_disabled: bool,
+    federation_enabled: bool,
 }
 
 impl Globals {
@@ -69,6 +70,7 @@ impl Globals {
                 .map_err(|_| Error::BadConfig("Invalid max_request_size."))?,
             registration_disabled: config.get_bool("registration_disabled").unwrap_or(false),
             encryption_disabled: config.get_bool("encryption_disabled").unwrap_or(false),
+            federation_enabled: config.get_bool("federation_enabled").unwrap_or(false),
         })
     }
 
@@ -113,5 +115,9 @@ impl Globals {
 
     pub fn encryption_disabled(&self) -> bool {
         self.encryption_disabled
+    }
+
+    pub fn federation_enabled(&self) -> bool {
+        self.federation_enabled
     }
 }
