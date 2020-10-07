@@ -199,7 +199,7 @@ impl PduEvent {
         serde_json::from_value(json).expect("Raw::from_value always works")
     }
 
-    pub fn to_outgoing_federation_event(
+    pub fn convert_to_outgoing_federation_event(
         mut pdu_json: serde_json::Value,
     ) -> Raw<ruma::events::pdu::PduStub> {
         if let Some(unsigned) = pdu_json
@@ -239,7 +239,7 @@ impl From<&state_res::StateEvent> for PduEvent {
             content: pdu.content().clone(),
             state_key: Some(pdu.state_key()),
             prev_events: pdu.prev_event_ids(),
-            depth: pdu.depth().clone(),
+            depth: *pdu.depth(),
             auth_events: pdu.auth_events(),
             redacts: pdu.redacts().cloned(),
             unsigned: pdu.unsigned().clone().into_iter().collect(),

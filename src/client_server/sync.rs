@@ -477,7 +477,7 @@ pub async fn sync_events_route(
             })
             .and_then(|pdu| {
                 serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
-                    pdu.content.clone(),
+                    pdu.content,
                 )
                 .expect("Raw::from_value always works")
                 .deserialize()

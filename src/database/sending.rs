@@ -84,7 +84,7 @@ impl Sending {
         (Box<ServerName>, send_transaction_message::v1::Response),
         (Box<ServerName>, Error),
     > {
-        let pdu_json = PduEvent::to_outgoing_federation_event(
+        let pdu_json = PduEvent::convert_to_outgoing_federation_event(
             rooms
                 .get_pdu_json_from_id(&pdu_id)
                 .map_err(|e| (server.clone(), e))?

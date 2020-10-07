@@ -438,7 +438,7 @@ pub fn get_missing_events_route<'a>(
                 )
                 .map_err(|_| Error::bad_database("Invalid prev_events content in pdu in db."))?,
             );
-            events.push(PduEvent::to_outgoing_federation_event(pdu));
+            events.push(PduEvent::convert_to_outgoing_federation_event(pdu));
         }
         i += 1;
     }
