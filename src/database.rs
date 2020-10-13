@@ -3,6 +3,7 @@ pub mod globals;
 pub mod key_backups;
 pub mod media;
 pub mod rooms;
+pub mod sending;
 pub mod transaction_ids;
 pub mod uiaa;
 pub mod users;
@@ -25,6 +26,7 @@ pub struct Database {
     pub media: media::Media,
     pub key_backups: key_backups::KeyBackups,
     pub transaction_ids: transaction_ids::TransactionIds,
+    pub sending: sending::Sending,
     pub _db: sled::Db,
 }
 
@@ -102,7 +104,6 @@ impl Database {
                 pduid_pdu: db.open_tree("pduid_pdu")?,
                 eventid_pduid: db.open_tree("eventid_pduid")?,
                 roomid_pduleaves: db.open_tree("roomid_pduleaves")?,
-                roomstateid_pdu: db.open_tree("roomstateid_pdu")?,
 
                 alias_roomid: db.open_tree("alias_roomid")?,
                 aliasid_alias: db.open_tree("alias_roomid")?,
@@ -110,12 +111,17 @@ impl Database {
 
                 tokenids: db.open_tree("tokenids")?,
 
+                roomserverids: db.open_tree("roomserverids")?,
                 userroomid_joined: db.open_tree("userroomid_joined")?,
                 roomuserid_joined: db.open_tree("roomuserid_joined")?,
                 roomuseroncejoinedids: db.open_tree("roomuseroncejoinedids")?,
                 userroomid_invited: db.open_tree("userroomid_invited")?,
                 roomuserid_invited: db.open_tree("roomuserid_invited")?,
                 userroomid_left: db.open_tree("userroomid_left")?,
+
+                stateid_pduid: db.open_tree("stateid_pduid")?,
+                pduid_statehash: db.open_tree("pduid_statehash")?,
+                roomid_statehash: db.open_tree("roomid_statehash")?,
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: db.open_tree("roomuserdataid_accountdata")?,
@@ -130,6 +136,9 @@ impl Database {
             },
             transaction_ids: transaction_ids::TransactionIds {
                 userdevicetxnid_response: db.open_tree("userdevicetxnid_response")?,
+            },
+            sending: sending::Sending {
+                serverpduids: db.open_tree("serverpduids")?,
             },
             _db: db,
         })
