@@ -12,7 +12,7 @@ use rocket::get;
 )]
 pub fn get_context_route(
     db: State<'_, Database>,
-    body: Ruma<get_context::Request>,
+    body: Ruma<get_context::Request<'_>>,
 ) -> ConduitResult<get_context::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -49,7 +49,10 @@ pub fn get_context_route(
         .filter_map(|r| r.ok()) // Remove buggy events
         .collect::<Vec<_>>();
 
-    let start_token = events_before.last().map(|(count, _)| count.to_string());
+    let start_token = events_before
+        .last()
+        .and_then(|(pdu_id, _)| db.rooms.pdu_count(pdu_id).ok())
+        .map(|count| count.to_string());
 
     let events_before = events_before
         .into_iter()
@@ -68,25 +71,28 @@ pub fn get_context_route(
         .filter_map(|r| r.ok()) // Remove buggy events
         .collect::<Vec<_>>();
 
-    let end_token = events_after.last().map(|(count, _)| count.to_string());
+    let end_token = events_after
+        .last()
+        .and_then(|(pdu_id, _)| db.rooms.pdu_count(pdu_id).ok())
+        .map(|count| count.to_string());
 
     let events_after = events_after
         .into_iter()
         .map(|(_, pdu)| pdu.to_room_event())
         .collect::<Vec<_>>();
 
-    Ok(get_context::Response {
-        start: start_token,
-        end: end_token,
-        events_before,
-        event: Some(base_event),
-        events_after,
-        state: db // TODO: State at event
-            .rooms
-            .room_state_full(&body.room_id)?
-            .values()
-            .map(|pdu| pdu.to_state_event())
-            .collect(),
-    }
-    .into())
+    let mut resp = get_context::Response::new();
+    resp.start = start_token;
+    resp.end = end_token;
+    resp.events_before = events_before;
+    resp.event = Some(base_event);
+    resp.events_after = events_after;
+    resp.state = db // TODO: State at event
+        .rooms
+        .room_state_full(&body.room_id)?
+        .values()
+        .map(|pdu| pdu.to_state_event())
+        .collect();
+
+    Ok(resp.into())
 }

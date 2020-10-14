@@ -70,14 +70,14 @@ where
         use ErrorKind::*;
         let (kind, status_code) = match self {
             Self::BadRequest(kind, _) => (
-                kind,
+                kind.clone(),
                 match kind {
                     Forbidden | GuestAccessForbidden | ThreepidAuthFailed | ThreepidDenied => {
                         StatusCode::FORBIDDEN
                     }
-                    Unauthorized | UnknownToken | MissingToken => StatusCode::UNAUTHORIZED,
+                    Unauthorized | UnknownToken { .. } | MissingToken => StatusCode::UNAUTHORIZED,
                     NotFound => StatusCode::NOT_FOUND,
-                    LimitExceeded => StatusCode::TOO_MANY_REQUESTS,
+                    LimitExceeded { .. } => StatusCode::TOO_MANY_REQUESTS,
                     UserDeactivated => StatusCode::FORBIDDEN,
                     TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
                     _ => StatusCode::BAD_REQUEST,

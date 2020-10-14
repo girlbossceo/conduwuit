@@ -1,6 +1,9 @@
 use crate::Error;
-use ruma::identifiers::{DeviceId, UserId};
-use std::{convert::TryInto, ops::Deref};
+use ruma::{
+    api::{Outgoing, OutgoingRequest},
+    identifiers::{DeviceId, UserId},
+};
+use std::{convert::TryFrom, convert::TryInto, ops::Deref};
 
 #[cfg(feature = "conduit_bin")]
 use {
@@ -16,21 +19,26 @@ use {
         tokio::io::AsyncReadExt,
         Request, State,
     },
-    ruma::api::IncomingRequest,
     std::io::Cursor,
 };
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
 /// first.
-pub struct Ruma<T> {
-    pub body: T,
+pub struct Ruma<T: Outgoing> {
+    pub body: T::Incoming,
     pub sender_id: Option<UserId>,
     pub device_id: Option<Box<DeviceId>>,
     pub json_body: Option<Box<serde_json::value::RawValue>>, // This is None when body is not a valid string
 }
 
 #[cfg(feature = "conduit_bin")]
-impl<'a, T: IncomingRequest> FromTransformedData<'a> for Ruma<T> {
+impl<'a, T: Outgoing + OutgoingRequest> FromTransformedData<'a> for Ruma<T>
+where
+    <T as Outgoing>::Incoming: TryFrom<http::request::Request<std::vec::Vec<u8>>> + std::fmt::Debug,
+    <<T as Outgoing>::Incoming as std::convert::TryFrom<
+        http::request::Request<std::vec::Vec<u8>>,
+    >>::Error: std::fmt::Debug,
+{
     type Error = (); // TODO: Better error handling
     type Owned = Data;
     type Borrowed = Self::Owned;
@@ -91,7 +99,7 @@ impl<'a, T: IncomingRequest> FromTransformedData<'a> for Ruma<T> {
             let http_request = http_request.body(body.clone()).unwrap();
             log::info!("{:?}", http_request);
 
-            match T::try_from(http_request) {
+            match <T as Outgoing>::Incoming::try_from(http_request) {
                 Ok(t) => Success(Ruma {
                     body: t,
                     sender_id: user_id,
@@ -110,8 +118,8 @@ impl<'a, T: IncomingRequest> FromTransformedData<'a> for Ruma<T> {
     }
 }
 
-impl<T> Deref for Ruma<T> {
-    type Target = T;
+impl<T: Outgoing> Deref for Ruma<T> {
+    type Target = T::Incoming;
 
     fn deref(&self) -> &Self::Target {
         &self.body

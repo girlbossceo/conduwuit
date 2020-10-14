@@ -5,10 +5,9 @@ use ruma::{
         error::ErrorKind,
         r0::config::{get_global_account_data, set_global_account_data},
     },
-    events::{custom::CustomEventContent, BasicEvent, EventType},
+    events::{custom::CustomEventContent, BasicEvent},
     Raw,
 };
-use std::convert::TryFrom;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};
@@ -19,7 +18,7 @@ use rocket::{get, put};
 )]
 pub fn set_global_account_data_route(
     db: State<'_, Database>,
-    body: Ruma<set_global_account_data::Request>,
+    body: Ruma<set_global_account_data::Request<'_>>,
 ) -> ConduitResult<set_global_account_data::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -50,17 +49,13 @@ pub fn set_global_account_data_route(
 )]
 pub fn get_global_account_data_route(
     db: State<'_, Database>,
-    body: Ruma<get_global_account_data::Request>,
+    body: Ruma<get_global_account_data::Request<'_>>,
 ) -> ConduitResult<get_global_account_data::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
     let data = db
         .account_data
-        .get::<Raw<ruma::events::AnyBasicEvent>>(
-            None,
-            sender_id,
-            EventType::try_from(&body.event_type).expect("EventType::try_from can never fail"),
-        )?
+        .get::<Raw<ruma::events::AnyBasicEvent>>(None, sender_id, body.event_type.clone().into())?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
     Ok(get_global_account_data::Response { account_data: data }.into())

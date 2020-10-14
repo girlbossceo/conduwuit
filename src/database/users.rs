@@ -8,7 +8,7 @@ use ruma::{
             keys::{CrossSigningKey, OneTimeKey},
         },
     },
-    encryption::DeviceKeys,
+    encryption::IncomingDeviceKeys,
     events::{AnyToDeviceEvent, EventType},
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, Raw, UserId,
 };
@@ -55,6 +55,11 @@ impl Users {
     pub fn create(&self, user_id: &UserId, password: &str) -> Result<()> {
         self.set_password(user_id, password)?;
         Ok(())
+    }
+
+    /// Returns the number of users registered on this server.
+    pub fn count(&self) -> usize {
+        self.userid_password.iter().count()
     }
 
     /// Find out which user an access token belongs to.
@@ -395,7 +400,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-        device_keys: &DeviceKeys,
+        device_keys: &IncomingDeviceKeys,
         rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -603,7 +608,7 @@ impl Users {
                 .room_state_get(&room_id, &EventType::RoomEncryption, "")?
                 .is_none()
             {
-                return Ok(());
+                continue;
             }
 
             let mut key = room_id.to_string().as_bytes().to_vec();
@@ -625,7 +630,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-    ) -> Result<Option<DeviceKeys>> {
+    ) -> Result<Option<IncomingDeviceKeys>> {
         let mut key = user_id.to_string().as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());

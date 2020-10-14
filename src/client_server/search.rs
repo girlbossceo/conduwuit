@@ -1,11 +1,10 @@
 use super::State;
 use crate::{ConduitResult, Database, Error, Ruma};
-use js_int::uint;
 use ruma::api::client::{error::ErrorKind, r0::search::search_events};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::post;
-use search_events::{ResultCategories, ResultRoomEvents, SearchResult};
+use search_events::{EventContextResult, ResultCategories, ResultRoomEvents, SearchResult};
 use std::collections::BTreeMap;
 
 #[cfg_attr(
@@ -14,7 +13,7 @@ use std::collections::BTreeMap;
 )]
 pub fn search_events_route(
     db: State<'_, Database>,
-    body: Ruma<search_events::Request>,
+    body: Ruma<search_events::Request<'_>>,
 ) -> ConduitResult<search_events::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -51,7 +50,13 @@ pub fn search_events_route(
         .0
         .map(|result| {
             Ok::<_, Error>(SearchResult {
-                context: None,
+                context: EventContextResult {
+                    end: None,
+                    events_after: Vec::new(),
+                    events_before: Vec::new(),
+                    profile_info: BTreeMap::new(),
+                    start: None,
+                },
                 rank: None,
                 result: db
                     .rooms
@@ -70,17 +75,15 @@ pub fn search_events_route(
         Some((skip + limit).to_string())
     };
 
-    Ok(search_events::Response {
-        search_categories: ResultCategories {
-            room_events: Some(ResultRoomEvents {
-                count: uint!(0),         // TODO
-                groups: BTreeMap::new(), // TODO
-                next_batch,
-                results,
-                state: BTreeMap::new(), // TODO
-                highlights: search.1,
-            }),
+    Ok(search_events::Response::new(ResultCategories {
+        room_events: ResultRoomEvents {
+            count: None,             // TODO? maybe not
+            groups: BTreeMap::new(), // TODO
+            next_batch,
+            results,
+            state: BTreeMap::new(), // TODO
+            highlights: search.1,
         },
-    }
+    })
     .into())
 }

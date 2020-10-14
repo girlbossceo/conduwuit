@@ -1,5 +1,6 @@
 use super::State;
 use crate::{utils, ConduitResult, Database, Ruma};
+use create_typing_event::Typing;
 use ruma::api::client::r0::typing::create_typing_event;
 
 #[cfg(feature = "conduit_bin")]
@@ -11,16 +12,15 @@ use rocket::put;
 )]
 pub fn create_typing_event_route(
     db: State<'_, Database>,
-    body: Ruma<create_typing_event::Request>,
+    body: Ruma<create_typing_event::Request<'_>>,
 ) -> ConduitResult<create_typing_event::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
-    if body.typing {
+    if let Typing::Yes(duration) = body.state {
         db.rooms.edus.typing_add(
             &sender_id,
             &body.room_id,
-            body.timeout.map(|d| d.as_millis() as u64).unwrap_or(30000)
-                + utils::millis_since_unix_epoch(),
+            duration.as_millis() as u64 + utils::millis_since_unix_epoch(),
             &db.globals,
         )?;
     } else {

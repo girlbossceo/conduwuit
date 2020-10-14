@@ -119,16 +119,20 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_pushers_route,
                 client_server::set_pushers_route,
                 client_server::upgrade_room_route,
-                server_server::well_known_server,
                 server_server::get_server_version,
                 server_server::get_server_keys,
                 server_server::get_server_keys_deprecated,
                 server_server::get_public_rooms_route,
+                server_server::get_public_rooms_filtered_route,
                 server_server::send_transaction_message_route,
+                server_server::get_missing_events_route,
+                server_server::get_profile_information_route,
             ],
         )
         .attach(AdHoc::on_attach("Config", |mut rocket| async {
             let data = Database::load_or_create(rocket.config().await).expect("valid config");
+
+            data.sending.start_handler(&data.globals, &data.rooms);
 
             Ok(rocket.manage(data))
         }))

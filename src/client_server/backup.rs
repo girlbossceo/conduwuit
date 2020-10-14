@@ -35,7 +35,7 @@ pub fn create_backup_route(
 )]
 pub fn update_backup_route(
     db: State<'_, Database>,
-    body: Ruma<update_backup::Request>,
+    body: Ruma<update_backup::Request<'_>>,
 ) -> ConduitResult<update_backup::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     db.key_backups
@@ -77,7 +77,7 @@ pub fn get_latest_backup_route(
 )]
 pub fn get_backup_route(
     db: State<'_, Database>,
-    body: Ruma<get_backup::Request>,
+    body: Ruma<get_backup::Request<'_>>,
 ) -> ConduitResult<get_backup::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let algorithm = db
@@ -92,7 +92,7 @@ pub fn get_backup_route(
         algorithm,
         count: (db.key_backups.count_keys(sender_id, &body.version)? as u32).into(),
         etag: db.key_backups.get_etag(sender_id, &body.version)?,
-        version: body.version.clone(),
+        version: body.version.to_owned(),
     }
     .into())
 }
@@ -119,7 +119,7 @@ pub fn delete_backup_route(
 )]
 pub fn add_backup_keys_route(
     db: State<'_, Database>,
-    body: Ruma<add_backup_keys::Request>,
+    body: Ruma<add_backup_keys::Request<'_>>,
 ) -> ConduitResult<add_backup_keys::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -205,7 +205,7 @@ pub fn add_backup_key_session_route(
 )]
 pub fn get_backup_keys_route(
     db: State<'_, Database>,
-    body: Ruma<get_backup_keys::Request>,
+    body: Ruma<get_backup_keys::Request<'_>>,
 ) -> ConduitResult<get_backup_keys::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
