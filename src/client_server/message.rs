@@ -5,6 +5,7 @@ use ruma::{
         error::ErrorKind,
         r0::message::{get_message_events, send_message_event},
     },
+    events::EventContent,
     EventId,
 };
 use std::convert::{TryFrom, TryInto};
@@ -16,9 +17,9 @@ use rocket::{get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/send/<_>/<_>", data = "<body>")
 )]
-pub fn send_message_event_route(
+pub async fn send_message_event_route(
     db: State<'_, Database>,
-    body: Ruma<send_message_event::IncomingRequest>,
+    body: Ruma<send_message_event::Request<'_>>,
 ) -> ConduitResult<send_message_event::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
     let device_id = body.device_id.as_ref().expect("user is authenticated");
@@ -48,11 +49,9 @@ pub fn send_message_event_route(
     let mut unsigned = serde_json::Map::new();
     unsigned.insert("transaction_id".to_owned(), body.txn_id.clone().into());
 
-    let event_id = db.rooms.append_pdu(
+    let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            room_id: body.room_id.clone(),
-            sender: sender_id.clone(),
-            event_type: body.event_type.clone(),
+            event_type: body.content.event_type().into(),
             content: serde_json::from_str(
                 body.json_body
                     .as_ref()
@@ -64,13 +63,17 @@ pub fn send_message_event_route(
             state_key: None,
             redacts: None,
         },
+        &sender_id,
+        &body.room_id,
         &db.globals,
+        &db.sending,
         &db.account_data,
     )?;
 
     db.transaction_ids
         .add_txnid(sender_id, device_id, &body.txn_id, event_id.as_bytes())?;
-    Ok(send_message_event::Response { event_id }.into())
+
+    Ok(send_message_event::Response::new(event_id).into())
 }
 
 #[cfg_attr(
@@ -79,7 +82,7 @@ pub fn send_message_event_route(
 )]
 pub fn get_message_events_route(
     db: State<'_, Database>,
-    body: Ruma<get_message_events::Request>,
+    body: Ruma<get_message_events::Request<'_>>,
 ) -> ConduitResult<get_message_events::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -111,6 +114,12 @@ pub fn get_message_events_route(
                 .pdus_after(&sender_id, &body.room_id, from)
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
+                .filter_map(|(pdu_id, pdu)| {
+                    db.rooms
+                        .pdu_count(&pdu_id)
+                        .map(|pdu_count| (pdu_count, pdu))
+                        .ok()
+                })
                 .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
                 .collect::<Vec<_>>();
 
@@ -121,13 +130,13 @@ pub fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect::<Vec<_>>();
 
-            Ok(get_message_events::Response {
-                start: Some(body.from.clone()),
-                end: end_token,
-                chunk: events_after,
-                state: Vec::new(),
-            }
-            .into())
+            let mut resp = get_message_events::Response::new();
+            resp.start = Some(body.from.to_owned());
+            resp.end = end_token;
+            resp.chunk = events_after;
+            resp.state = Vec::new();
+
+            Ok(resp.into())
         }
         get_message_events::Direction::Backward => {
             let events_before = db
@@ -135,6 +144,12 @@ pub fn get_message_events_route(
                 .pdus_until(&sender_id, &body.room_id, from)
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
+                .filter_map(|(pdu_id, pdu)| {
+                    db.rooms
+                        .pdu_count(&pdu_id)
+                        .map(|pdu_count| (pdu_count, pdu))
+                        .ok()
+                })
                 .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
                 .collect::<Vec<_>>();
 
@@ -145,13 +160,13 @@ pub fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect::<Vec<_>>();
 
-            Ok(get_message_events::Response {
-                start: Some(body.from.clone()),
-                end: start_token,
-                chunk: events_before,
-                state: Vec::new(),
-            }
-            .into())
+            let mut resp = get_message_events::Response::new();
+            resp.start = Some(body.from.to_owned());
+            resp.end = start_token;
+            resp.chunk = events_before;
+            resp.state = Vec::new();
+
+            Ok(resp.into())
         }
     }
 }

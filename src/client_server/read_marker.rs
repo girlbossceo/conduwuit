@@ -15,7 +15,7 @@ use std::{collections::BTreeMap, time::SystemTime};
 )]
 pub fn set_read_marker_route(
     db: State<'_, Database>,
-    body: Ruma<set_read_marker::Request>,
+    body: Ruma<set_read_marker::Request<'_>>,
 ) -> ConduitResult<set_read_marker::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
@@ -53,7 +53,7 @@ pub fn set_read_marker_route(
         );
         let mut receipt_content = BTreeMap::new();
         receipt_content.insert(
-            event.clone(),
+            event.to_owned(),
             ruma::events::receipt::Receipts {
                 read: Some(user_receipts),
             },

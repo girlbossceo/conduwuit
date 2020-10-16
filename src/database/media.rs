@@ -16,7 +16,7 @@ impl Media {
     pub fn create(
         &self,
         mxc: String,
-        filename: Option<&String>,
+        filename: &Option<&str>,
         content_type: &str,
         file: &[u8],
     ) -> Result<()> {
@@ -25,7 +25,31 @@ impl Media {
         key.extend_from_slice(&0_u32.to_be_bytes()); // Width = 0 if it's not a thumbnail
         key.extend_from_slice(&0_u32.to_be_bytes()); // Height = 0 if it's not a thumbnail
         key.push(0xff);
-        key.extend_from_slice(filename.map(|f| f.as_bytes()).unwrap_or_default());
+        key.extend_from_slice(filename.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
+        key.push(0xff);
+        key.extend_from_slice(content_type.as_bytes());
+
+        self.mediaid_file.insert(key, file)?;
+
+        Ok(())
+    }
+
+    /// Uploads or replaces a file thumbnail.
+    pub fn upload_thumbnail(
+        &self,
+        mxc: String,
+        filename: &Option<String>,
+        content_type: &str,
+        width: u32,
+        height: u32,
+        file: &[u8],
+    ) -> Result<()> {
+        let mut key = mxc.as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&width.to_be_bytes());
+        key.extend_from_slice(&height.to_be_bytes());
+        key.push(0xff);
+        key.extend_from_slice(filename.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
         key.push(0xff);
         key.extend_from_slice(content_type.as_bytes());
 
@@ -35,7 +59,7 @@ impl Media {
     }
 
     /// Downloads a file.
-    pub fn get(&self, mxc: String) -> Result<Option<FileMeta>> {
+    pub fn get(&self, mxc: &str) -> Result<Option<FileMeta>> {
         let mut prefix = mxc.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(&0_u32.to_be_bytes()); // Width = 0 if it's not a thumbnail

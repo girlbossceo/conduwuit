@@ -12,7 +12,7 @@ use rocket::put;
 )]
 pub fn set_presence_route(
     db: State<'_, Database>,
-    body: Ruma<set_presence::Request>,
+    body: Ruma<set_presence::Request<'_>>,
 ) -> ConduitResult<set_presence::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 

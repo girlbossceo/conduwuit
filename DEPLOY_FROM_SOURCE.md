@@ -27,7 +27,10 @@ Environment="ROCKET_SERVER_NAME=YOURSERVERNAME.HERE" # EDIT THIS
 
 Environment="ROCKET_PORT=14004" # Reverse proxy port
 
+#Environment="ROCKET_MAX_REQUEST_SIZE=20000000" # in bytes
 #Environment="ROCKET_REGISTRATION_DISABLED=true"
+#Environment="ROCKET_ENCRYPTION_DISABLED=true"
+#Environment="ROCKET_FEDERATION_ENABLED=true"
 #Environment="ROCKET_LOG=normal" # Detailed logging
 
 Environment="ROCKET_ENV=production"
