@@ -443,8 +443,6 @@ pub fn get_missing_events_route<'a>(
         i += 1;
     }
 
-    dbg!(&events);
-
     Ok(get_missing_events::v1::Response { events }.into())
 }
 
