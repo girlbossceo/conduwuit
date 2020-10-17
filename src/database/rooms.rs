@@ -483,7 +483,7 @@ impl Rooms {
                             .map_err(|_| {
                             Error::BadRequest(
                                 ErrorKind::InvalidParam,
-                                "Invalid redaction event content.",
+                                "Invalid member event content.",
                             )
                         })?,
                         &pdu.sender,

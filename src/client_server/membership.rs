@@ -22,9 +22,7 @@ use ruma::{
     EventId, Raw, RoomId, RoomVersionId, ServerName, UserId,
 };
 use state_res::StateEvent;
-use std::{
-    collections::BTreeMap, collections::HashMap, collections::HashSet, convert::TryFrom, sync::Arc,
-};
+use std::{collections::BTreeMap, collections::HashMap, collections::HashSet, convert::TryFrom, iter, sync::Arc};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};
@@ -474,6 +472,17 @@ async fn join_room_by_id_helper(
             "origin_server_ts".to_owned(),
             utils::millis_since_unix_epoch().into(),
         );
+        join_event_stub.insert(
+            "content".to_owned(),
+            serde_json::to_value(member::MemberEventContent {
+                membership: member::MembershipState::Join,
+                displayname: db.users.displayname(&sender_id)?,
+                avatar_url: db.users.avatar_url(&sender_id)?,
+                is_direct: None,
+                third_party_invite: None,
+            })
+            .expect("event is valid, we just created it"),
+        );
 
         // Generate event id
         let event_id = EventId::try_from(&*format!(
@@ -494,14 +503,20 @@ async fn join_room_by_id_helper(
         )
         .expect("event is valid, we just created it");
 
+        // Add event_id back
+        let join_event_stub = join_event_stub_value.as_object_mut().unwrap();
+        join_event_stub.insert("event_id".to_owned(), event_id.to_string().into());
+
+        // It has enough fields to be called a proper event now
+        let join_event = join_event_stub_value;
+
         let send_join_response = server_server::send_request(
             &db.globals,
             remote_server.clone(),
             federation::membership::create_join_event::v2::Request {
                 room_id,
                 event_id: &event_id,
-                pdu_stub: serde_json::from_value(join_event_stub_value)
-                    .expect("we just created this event"),
+                pdu_stub: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
             },
         )
         .await?;
@@ -529,6 +544,7 @@ async fn join_room_by_id_helper(
         let state_events = room_state
             .clone()
             .map(|pdu: Result<(EventId, serde_json::Value)>| Ok(pdu?.0))
+            .chain(iter::once(Ok(event_id.clone()))) // Add join event we just created
             .collect::<Result<HashSet<EventId>>>()?;
 
         let auth_chain = send_join_response
@@ -539,6 +555,7 @@ async fn join_room_by_id_helper(
 
         let mut event_map = room_state
             .chain(auth_chain)
+            .chain(iter::once(Ok((event_id, join_event)))) // Add join event we just created
             .map(|r| {
                 let (event_id, value) = r?;
                 serde_json::from_value::<StateEvent>(value)
