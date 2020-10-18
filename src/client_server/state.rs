@@ -8,7 +8,11 @@ use ruma::{
             send_state_event_for_empty_key, send_state_event_for_key,
         },
     },
-    events::{AnyStateEventContent, EventContent},
+    events::{
+        room::history_visibility::HistoryVisibility,
+        room::history_visibility::HistoryVisibilityEventContent, AnyStateEventContent,
+        EventContent, EventType,
+    },
     EventId, RoomId, UserId,
 };
 
@@ -97,11 +101,28 @@ pub fn get_state_events_route(
 ) -> ConduitResult<get_state_events::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
+    // Users not in the room should not be able to access the state unless history_visibility is
+    // WorldReadable
     if !db.rooms.is_joined(sender_id, &body.room_id)? {
-        return Err(Error::BadRequest(
-            ErrorKind::Forbidden,
-            "You don't have permission to view the room state.",
-        ));
+        if !matches!(
+            db.rooms
+                .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
+                .map(|event| {
+                    serde_json::from_value::<HistoryVisibilityEventContent>(event.content)
+                        .map_err(|_| {
+                            Error::bad_database(
+                                "Invalid room history visibility event in database.",
+                            )
+                        })
+                        .map(|e| e.history_visibility)
+                }),
+            Some(Ok(HistoryVisibility::WorldReadable))
+        ) {
+            return Err(Error::BadRequest(
+                ErrorKind::Forbidden,
+                "You don't have permission to view the room state.",
+            ));
+        }
     }
 
     Ok(get_state_events::Response {
@@ -125,11 +146,28 @@ pub fn get_state_events_for_key_route(
 ) -> ConduitResult<get_state_events_for_key::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
+    // Users not in the room should not be able to access the state unless history_visibility is
+    // WorldReadable
     if !db.rooms.is_joined(sender_id, &body.room_id)? {
-        return Err(Error::BadRequest(
-            ErrorKind::Forbidden,
-            "You don't have permission to view the room state.",
-        ));
+        if !matches!(
+            db.rooms
+                .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
+                .map(|event| {
+                    serde_json::from_value::<HistoryVisibilityEventContent>(event.content)
+                        .map_err(|_| {
+                            Error::bad_database(
+                                "Invalid room history visibility event in database.",
+                            )
+                        })
+                        .map(|e| e.history_visibility)
+                }),
+            Some(Ok(HistoryVisibility::WorldReadable))
+        ) {
+            return Err(Error::BadRequest(
+                ErrorKind::Forbidden,
+                "You don't have permission to view the room state.",
+            ));
+        }
     }
 
     let event = db
@@ -157,11 +195,28 @@ pub fn get_state_events_for_empty_key_route(
 ) -> ConduitResult<get_state_events_for_empty_key::Response> {
     let sender_id = body.sender_id.as_ref().expect("user is authenticated");
 
+    // Users not in the room should not be able to access the state unless history_visibility is
+    // WorldReadable
     if !db.rooms.is_joined(sender_id, &body.room_id)? {
-        return Err(Error::BadRequest(
-            ErrorKind::Forbidden,
-            "You don't have permission to view the room state.",
-        ));
+        if !matches!(
+            db.rooms
+                .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
+                .map(|event| {
+                    serde_json::from_value::<HistoryVisibilityEventContent>(event.content)
+                        .map_err(|_| {
+                            Error::bad_database(
+                                "Invalid room history visibility event in database.",
+                            )
+                        })
+                        .map(|e| e.history_visibility)
+                }),
+            Some(Ok(HistoryVisibility::WorldReadable))
+        ) {
+            return Err(Error::BadRequest(
+                ErrorKind::Forbidden,
+                "You don't have permission to view the room state.",
+            ));
+        }
     }
 
     let event = db
