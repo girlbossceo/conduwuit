@@ -40,7 +40,7 @@ which also will tag the resulting image as `matrixconduit/matrix-conduit:latest`
 After building the image you can simply run it with
 
 ``` bash
-docker run -d matrixconduit/matrix-conduit:latest -p 8448:8000 -v db:/srv/conduit/.local/share/conduit -e ROCKET_SERVER_NAME="localhost:8000"
+docker run -d -p 8448:8000 -v db:/srv/conduit/.local/share/conduit -e ROCKET_SERVER_NAME="localhost:8000" matrixconduit/matrix-conduit:latest
 ```
 
 For detached mode, you also need to use the `-d` flag. You can pass in more env vars as are shown here, for an overview of possible values, you can take a look at the `docker-compose.yml` file.

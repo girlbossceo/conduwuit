@@ -29,7 +29,7 @@ Pull and run the docker image with
 
 ``` bash
 docker pull matrixconduit/matrix-conduit:latest
-docker run -d matrixconduit/matrix-conduit:latest -p 8448:8000 -v db:/srv/conduit/.local/share/conduit
+docker run -d -p 8448:8000 -v db:/srv/conduit/.local/share/conduit matrixconduit/matrix-conduit:latest
 ```
 
 Or build and run it with docker or docker-compose. [Read more](docker/README.md)

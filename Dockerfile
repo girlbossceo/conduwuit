@@ -11,7 +11,7 @@ FROM alpine:3.12 as builder
 # from the official git repository. Defaults to the git repo.
 ARG LOCAL=false
 # Specifies which revision/commit is build. Defaults to HEAD
-ARG GIT_REF=HEAD
+ARG GIT_REF=origin/master
 
 # Add 'edge'-repository to get Rust 1.45
 RUN sed -i \
@@ -30,7 +30,7 @@ COPY . .
 RUN if [[ $LOCAL == "true" ]]; then \
         cargo install --path . ; \
     else \
-        cargo install --git "https://git.koesters.xyz/timo/conduit.git" --rev ${GIT_REF}; \
+        cargo install --git "https://github.com/timokoesters/conduit.git" --rev ${GIT_REF}; \
     fi
 
 ########################## RUNTIME IMAGE ##########################
