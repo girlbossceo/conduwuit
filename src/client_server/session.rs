@@ -117,10 +117,10 @@ pub fn logout_route(
     db: State<'_, Database>,
     body: Ruma<logout::Request>,
 ) -> ConduitResult<logout::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-    db.users.remove_device(&sender_id, device_id)?;
+    db.users.remove_device(&sender_user, sender_device)?;
 
     Ok(logout::Response::new().into())
 }
@@ -142,11 +142,11 @@ pub fn logout_all_route(
     db: State<'_, Database>,
     body: Ruma<logout_all::Request>,
 ) -> ConduitResult<logout_all::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    for device_id in db.users.all_device_ids(sender_id) {
+    for device_id in db.users.all_device_ids(sender_user) {
         if let Ok(device_id) = device_id {
-            db.users.remove_device(&sender_id, &device_id)?;
+            db.users.remove_device(&sender_user, &device_id)?;
         }
     }
 

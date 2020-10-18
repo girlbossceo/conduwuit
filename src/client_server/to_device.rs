@@ -16,13 +16,13 @@ pub fn send_event_to_device_route(
     db: State<'_, Database>,
     body: Ruma<send_event_to_device::Request<'_>>,
 ) -> ConduitResult<send_event_to_device::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
     // Check if this is a new transaction id
     if db
         .transaction_ids
-        .existing_txnid(sender_id, device_id, &body.txn_id)?
+        .existing_txnid(sender_user, sender_device, &body.txn_id)?
         .is_some()
     {
         return Ok(send_event_to_device::Response.into());
@@ -33,7 +33,7 @@ pub fn send_event_to_device_route(
             match target_device_id_maybe {
                 to_device::DeviceIdOrAllDevices::DeviceId(target_device_id) => {
                     db.users.add_to_device_event(
-                        sender_id,
+                        sender_user,
                         &target_user_id,
                         &target_device_id,
                         &body.event_type,
@@ -47,7 +47,7 @@ pub fn send_event_to_device_route(
                 to_device::DeviceIdOrAllDevices::AllDevices => {
                     for target_device_id in db.users.all_device_ids(&target_user_id) {
                         db.users.add_to_device_event(
-                            sender_id,
+                            sender_user,
                             &target_user_id,
                             &target_device_id?,
                             &body.event_type,
@@ -64,7 +64,7 @@ pub fn send_event_to_device_route(
 
     // Save transaction id with empty data
     db.transaction_ids
-        .add_txnid(sender_id, device_id, &body.txn_id, &[])?;
+        .add_txnid(sender_user, sender_device, &body.txn_id, &[])?;
 
     Ok(send_event_to_device::Response.into())
 }

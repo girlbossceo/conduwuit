@@ -14,11 +14,11 @@ pub fn create_typing_event_route(
     db: State<'_, Database>,
     body: Ruma<create_typing_event::Request<'_>>,
 ) -> ConduitResult<create_typing_event::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if let Typing::Yes(duration) = body.state {
         db.rooms.edus.typing_add(
-            &sender_id,
+            &sender_user,
             &body.room_id,
             duration.as_millis() as u64 + utils::millis_since_unix_epoch(),
             &db.globals,
@@ -26,7 +26,7 @@ pub fn create_typing_event_route(
     } else {
         db.rooms
             .edus
-            .typing_remove(&sender_id, &body.room_id, &db.globals)?;
+            .typing_remove(&sender_user, &body.room_id, &db.globals)?;
     }
 
     Ok(create_typing_event::Response.into())

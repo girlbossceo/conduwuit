@@ -24,7 +24,7 @@ pub async fn create_room_route(
     db: State<'_, Database>,
     body: Ruma<create_room::Request<'_>>,
 ) -> ConduitResult<create_room::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let room_id = RoomId::new(db.globals.server_name());
 
@@ -47,7 +47,7 @@ pub async fn create_room_route(
             }
         })?;
 
-    let mut content = ruma::events::room::create::CreateEventContent::new(sender_id.clone());
+    let mut content = ruma::events::room::create::CreateEventContent::new(sender_user.clone());
     content.federate = body.creation_content.federate;
     content.predecessor = body.creation_content.predecessor.clone();
     content.room_version = RoomVersionId::Version6;
@@ -61,7 +61,7 @@ pub async fn create_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &room_id,
         &db.globals,
         &db.sending,
@@ -74,17 +74,17 @@ pub async fn create_room_route(
             event_type: EventType::RoomMember,
             content: serde_json::to_value(member::MemberEventContent {
                 membership: member::MembershipState::Join,
-                displayname: db.users.displayname(&sender_id)?,
-                avatar_url: db.users.avatar_url(&sender_id)?,
+                displayname: db.users.displayname(&sender_user)?,
+                avatar_url: db.users.avatar_url(&sender_user)?,
                 is_direct: Some(body.is_direct),
                 third_party_invite: None,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,
-            state_key: Some(sender_id.to_string()),
+            state_key: Some(sender_user.to_string()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &room_id,
         &db.globals,
         &db.sending,
@@ -93,7 +93,7 @@ pub async fn create_room_route(
 
     // 3. Power levels
     let mut users = BTreeMap::new();
-    users.insert(sender_id.clone(), 100.into());
+    users.insert(sender_user.clone(), 100.into());
     for invite_ in &body.invite {
         users.insert(invite_.clone(), 100.into());
     }
@@ -127,7 +127,7 @@ pub async fn create_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &room_id,
         &db.globals,
         &db.sending,
@@ -161,7 +161,7 @@ pub async fn create_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &room_id,
         &db.globals,
         &db.sending,
@@ -180,7 +180,7 @@ pub async fn create_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &room_id,
         &db.globals,
         &db.sending,
@@ -207,7 +207,7 @@ pub async fn create_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &room_id,
         &db.globals,
         &db.sending,
@@ -228,7 +228,7 @@ pub async fn create_room_route(
 
         db.rooms.build_and_append_pdu(
             pdu_builder,
-            &sender_id,
+            &sender_user,
             &room_id,
             &db.globals,
             &db.sending,
@@ -251,7 +251,7 @@ pub async fn create_room_route(
                 state_key: Some("".to_owned()),
                 redacts: None,
             },
-            &sender_id,
+            &sender_user,
             &room_id,
             &db.globals,
             &db.sending,
@@ -271,7 +271,7 @@ pub async fn create_room_route(
                 state_key: Some("".to_owned()),
                 redacts: None,
             },
-            &sender_id,
+            &sender_user,
             &room_id,
             &db.globals,
             &db.sending,
@@ -296,7 +296,7 @@ pub async fn create_room_route(
                 state_key: Some(user.to_string()),
                 redacts: None,
             },
-            &sender_id,
+            &sender_user,
             &room_id,
             &db.globals,
             &db.sending,
@@ -324,9 +324,9 @@ pub fn get_room_event_route(
     db: State<'_, Database>,
     body: Ruma<get_room_event::Request<'_>>,
 ) -> ConduitResult<get_room_event::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(sender_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_user, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view this room.",
@@ -352,7 +352,7 @@ pub async fn upgrade_room_route(
     body: Ruma<upgrade_room::Request<'_>>,
     _room_id: String,
 ) -> ConduitResult<upgrade_room::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !matches!(
         body.new_version,
@@ -381,7 +381,7 @@ pub async fn upgrade_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
-        sender_id,
+        sender_user,
         &body.room_id,
         &db.globals,
         &db.sending,
@@ -408,7 +408,7 @@ pub async fn upgrade_room_route(
 
     // Send a m.room.create event containing a predecessor field and the applicable room_version
     let mut create_event_content =
-        ruma::events::room::create::CreateEventContent::new(sender_id.clone());
+        ruma::events::room::create::CreateEventContent::new(sender_user.clone());
     create_event_content.federate = federate;
     create_event_content.room_version = body.new_version.clone();
     create_event_content.predecessor = predecessor;
@@ -422,7 +422,7 @@ pub async fn upgrade_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
-        sender_id,
+        sender_user,
         &replacement_room,
         &db.globals,
         &db.sending,
@@ -435,17 +435,17 @@ pub async fn upgrade_room_route(
             event_type: EventType::RoomMember,
             content: serde_json::to_value(member::MemberEventContent {
                 membership: member::MembershipState::Join,
-                displayname: db.users.displayname(&sender_id)?,
-                avatar_url: db.users.avatar_url(&sender_id)?,
+                displayname: db.users.displayname(&sender_user)?,
+                avatar_url: db.users.avatar_url(&sender_user)?,
                 is_direct: None,
                 third_party_invite: None,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,
-            state_key: Some(sender_id.to_string()),
+            state_key: Some(sender_user.to_string()),
             redacts: None,
         },
-        sender_id,
+        sender_user,
         &replacement_room,
         &db.globals,
         &db.sending,
@@ -480,7 +480,7 @@ pub async fn upgrade_room_route(
                 state_key: Some("".to_owned()),
                 redacts: None,
             },
-            sender_id,
+            sender_user,
             &replacement_room,
             &db.globals,
             &db.sending,
@@ -524,7 +524,7 @@ pub async fn upgrade_room_route(
             state_key: Some("".to_owned()),
             redacts: None,
         },
-        sender_id,
+        sender_user,
         &body.room_id,
         &db.globals,
         &db.sending,

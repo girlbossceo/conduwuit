@@ -16,7 +16,7 @@ pub async fn redact_event_route(
     db: State<'_, Database>,
     body: Ruma<redact_event::Request<'_>>,
 ) -> ConduitResult<redact_event::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -29,7 +29,7 @@ pub async fn redact_event_route(
             state_key: None,
             redacts: Some(body.event_id.clone()),
         },
-        &sender_id,
+        &sender_user,
         &body.room_id,
         &db.globals,
         &db.sending,

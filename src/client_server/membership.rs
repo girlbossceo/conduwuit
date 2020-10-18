@@ -40,7 +40,7 @@ pub async fn join_room_by_id_route(
 ) -> ConduitResult<join_room_by_id::Response> {
     join_room_by_id_helper(
         &db,
-        body.sender_id.as_ref(),
+        body.sender_user.as_ref(),
         &body.room_id,
         &[body.room_id.server_name().to_owned()],
         body.third_party_signed.as_ref(),
@@ -68,7 +68,7 @@ pub async fn join_room_by_id_or_alias_route(
     Ok(join_room_by_id_or_alias::Response {
         room_id: join_room_by_id_helper(
             &db,
-            body.sender_id.as_ref(),
+            body.sender_user.as_ref(),
             &room_id,
             &servers,
             body.third_party_signed.as_ref(),
@@ -88,14 +88,14 @@ pub async fn leave_room_route(
     db: State<'_, Database>,
     body: Ruma<leave_room::Request<'_>>,
 ) -> ConduitResult<leave_room::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
         db.rooms
             .room_state_get(
                 &body.room_id,
                 &EventType::RoomMember,
-                &sender_id.to_string(),
+                &sender_user.to_string(),
             )?
             .ok_or(Error::BadRequest(
                 ErrorKind::BadState,
@@ -114,10 +114,10 @@ pub async fn leave_room_route(
             event_type: EventType::RoomMember,
             content: serde_json::to_value(event).expect("event is valid, we just created it"),
             unsigned: None,
-            state_key: Some(sender_id.to_string()),
+            state_key: Some(sender_user.to_string()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &body.room_id,
         &db.globals,
         &db.sending,
@@ -135,7 +135,7 @@ pub async fn invite_user_route(
     db: State<'_, Database>,
     body: Ruma<invite_user::Request<'_>>,
 ) -> ConduitResult<invite_user::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if let invite_user::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
         db.rooms.build_and_append_pdu(
@@ -153,7 +153,7 @@ pub async fn invite_user_route(
                 state_key: Some(user_id.to_string()),
                 redacts: None,
             },
-            &sender_id,
+            &sender_user,
             &body.room_id,
             &db.globals,
             &db.sending,
@@ -174,7 +174,7 @@ pub async fn kick_user_route(
     db: State<'_, Database>,
     body: Ruma<kick_user::Request<'_>>,
 ) -> ConduitResult<kick_user::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut event = serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
         db.rooms
@@ -204,7 +204,7 @@ pub async fn kick_user_route(
             state_key: Some(body.user_id.to_string()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &body.room_id,
         &db.globals,
         &db.sending,
@@ -222,7 +222,7 @@ pub async fn ban_user_route(
     db: State<'_, Database>,
     body: Ruma<ban_user::Request<'_>>,
 ) -> ConduitResult<ban_user::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     // TODO: reason
 
@@ -260,7 +260,7 @@ pub async fn ban_user_route(
             state_key: Some(body.user_id.to_string()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &body.room_id,
         &db.globals,
         &db.sending,
@@ -278,7 +278,7 @@ pub async fn unban_user_route(
     db: State<'_, Database>,
     body: Ruma<unban_user::Request<'_>>,
 ) -> ConduitResult<unban_user::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut event = serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
         db.rooms
@@ -307,7 +307,7 @@ pub async fn unban_user_route(
             state_key: Some(body.user_id.to_string()),
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &body.room_id,
         &db.globals,
         &db.sending,
@@ -325,9 +325,9 @@ pub fn forget_room_route(
     db: State<'_, Database>,
     body: Ruma<forget_room::Request<'_>>,
 ) -> ConduitResult<forget_room::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    db.rooms.forget(&body.room_id, &sender_id)?;
+    db.rooms.forget(&body.room_id, &sender_user)?;
 
     Ok(forget_room::Response::new().into())
 }
@@ -340,12 +340,12 @@ pub fn joined_rooms_route(
     db: State<'_, Database>,
     body: Ruma<joined_rooms::Request>,
 ) -> ConduitResult<joined_rooms::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     Ok(joined_rooms::Response {
         joined_rooms: db
             .rooms
-            .rooms_joined(&sender_id)
+            .rooms_joined(&sender_user)
             .filter_map(|r| r.ok())
             .collect(),
     }
@@ -360,9 +360,9 @@ pub fn get_member_events_route(
     db: State<'_, Database>,
     body: Ruma<get_member_events::Request<'_>>,
 ) -> ConduitResult<get_member_events::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(sender_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_user, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view this room.",
@@ -388,11 +388,11 @@ pub fn joined_members_route(
     db: State<'_, Database>,
     body: Ruma<joined_members::Request<'_>>,
 ) -> ConduitResult<joined_members::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !db
         .rooms
-        .is_joined(&sender_id, &body.room_id)
+        .is_joined(&sender_user, &body.room_id)
         .unwrap_or(false)
     {
         return Err(Error::BadRequest(
@@ -420,12 +420,12 @@ pub fn joined_members_route(
 
 async fn join_room_by_id_helper(
     db: &Database,
-    sender_id: Option<&UserId>,
+    sender_user: Option<&UserId>,
     room_id: &RoomId,
     servers: &[Box<ServerName>],
     _third_party_signed: Option<&IncomingThirdPartySigned>,
 ) -> ConduitResult<join_room_by_id::Response> {
-    let sender_id = sender_id.expect("user is authenticated");
+    let sender_user = sender_user.expect("user is authenticated");
 
     // Ask a remote server if we don't have this room
     if !db.rooms.exists(&room_id)? && room_id.server_name() != db.globals.server_name() {
@@ -439,7 +439,7 @@ async fn join_room_by_id_helper(
                 remote_server.clone(),
                 federation::membership::create_join_event_template::v1::Request {
                     room_id,
-                    user_id: sender_id,
+                    user_id: sender_user,
                     ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
                 },
             )
@@ -479,8 +479,8 @@ async fn join_room_by_id_helper(
             "content".to_owned(),
             serde_json::to_value(member::MemberEventContent {
                 membership: member::MembershipState::Join,
-                displayname: db.users.displayname(&sender_id)?,
-                avatar_url: db.users.avatar_url(&sender_id)?,
+                displayname: db.users.displayname(&sender_user)?,
+                avatar_url: db.users.avatar_url(&sender_user)?,
                 is_direct: None,
                 third_party_invite: None,
             })
@@ -668,8 +668,8 @@ async fn join_room_by_id_helper(
     } else {
         let event = member::MemberEventContent {
             membership: member::MembershipState::Join,
-            displayname: db.users.displayname(&sender_id)?,
-            avatar_url: db.users.avatar_url(&sender_id)?,
+            displayname: db.users.displayname(&sender_user)?,
+            avatar_url: db.users.avatar_url(&sender_user)?,
             is_direct: None,
             third_party_invite: None,
         };
@@ -679,10 +679,10 @@ async fn join_room_by_id_helper(
                 event_type: EventType::RoomMember,
                 content: serde_json::to_value(event).expect("event is valid, we just created it"),
                 unsigned: None,
-                state_key: Some(sender_id.to_string()),
+                state_key: Some(sender_user.to_string()),
                 redacts: None,
             },
-            &sender_id,
+            &sender_user,
             &room_id,
             &db.globals,
             &db.sending,

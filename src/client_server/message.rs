@@ -21,13 +21,13 @@ pub async fn send_message_event_route(
     db: State<'_, Database>,
     body: Ruma<send_message_event::Request<'_>>,
 ) -> ConduitResult<send_message_event::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
     // Check if this is a new transaction id
-    if let Some(response) = db
-        .transaction_ids
-        .existing_txnid(sender_id, device_id, &body.txn_id)?
+    if let Some(response) =
+        db.transaction_ids
+            .existing_txnid(sender_user, sender_device, &body.txn_id)?
     {
         // The client might have sent a txnid of the /sendToDevice endpoint
         // This txnid has no response associated with it
@@ -63,15 +63,19 @@ pub async fn send_message_event_route(
             state_key: None,
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &body.room_id,
         &db.globals,
         &db.sending,
         &db.account_data,
     )?;
 
-    db.transaction_ids
-        .add_txnid(sender_id, device_id, &body.txn_id, event_id.as_bytes())?;
+    db.transaction_ids.add_txnid(
+        sender_user,
+        sender_device,
+        &body.txn_id,
+        event_id.as_bytes(),
+    )?;
 
     Ok(send_message_event::Response::new(event_id).into())
 }
@@ -84,9 +88,9 @@ pub fn get_message_events_route(
     db: State<'_, Database>,
     body: Ruma<get_message_events::Request<'_>>,
 ) -> ConduitResult<get_message_events::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(sender_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_user, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view this room.",
@@ -111,7 +115,7 @@ pub fn get_message_events_route(
         get_message_events::Direction::Forward => {
             let events_after = db
                 .rooms
-                .pdus_after(&sender_id, &body.room_id, from)
+                .pdus_after(&sender_user, &body.room_id, from)
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
                 .filter_map(|(pdu_id, pdu)| {
@@ -141,7 +145,7 @@ pub fn get_message_events_route(
         get_message_events::Direction::Backward => {
             let events_before = db
                 .rooms
-                .pdus_until(&sender_id, &body.room_id, from)
+                .pdus_until(&sender_user, &body.room_id, from)
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
                 .filter_map(|(pdu_id, pdu)| {

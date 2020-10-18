@@ -14,19 +14,19 @@ pub fn set_presence_route(
     db: State<'_, Database>,
     body: Ruma<set_presence::Request<'_>>,
 ) -> ConduitResult<set_presence::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    for room_id in db.rooms.rooms_joined(&sender_id) {
+    for room_id in db.rooms.rooms_joined(&sender_user) {
         let room_id = room_id?;
 
         db.rooms.edus.update_presence(
-            &sender_id,
+            &sender_user,
             &room_id,
             ruma::events::presence::PresenceEvent {
                 content: ruma::events::presence::PresenceEventContent {
-                    avatar_url: db.users.avatar_url(&sender_id)?,
+                    avatar_url: db.users.avatar_url(&sender_user)?,
                     currently_active: None,
-                    displayname: db.users.displayname(&sender_id)?,
+                    displayname: db.users.displayname(&sender_user)?,
                     last_active_ago: Some(
                         utils::millis_since_unix_epoch()
                             .try_into()
@@ -35,7 +35,7 @@ pub fn set_presence_route(
                     presence: body.presence,
                     status_msg: body.status_msg.clone(),
                 },
-                sender: sender_id.clone(),
+                sender: sender_user.clone(),
             },
             &db.globals,
         )?;

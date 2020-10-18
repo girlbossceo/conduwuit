@@ -83,6 +83,7 @@ POST /register rejects registration of usernames with '|'
 POST /register rejects registration of usernames with '}'
 POST /register rejects registration of usernames with '£'
 POST /register rejects registration of usernames with 'é'
+POST /register returns the same device_id as that in the request
 POST /rooms/:room_id/ban can ban a user
 POST /rooms/:room_id/invite can send an invite
 POST /rooms/:room_id/join can join a room
@@ -116,6 +117,7 @@ Typing events appear in incremental sync
 Typing events appear in initial sync
 Uninvited users cannot join the room
 User appears in user directory
+User directory correctly update on display name change
 User in dir while user still shares private rooms
 User in shared private room does appear in user directory
 User is offline if they set_presence=offline in their sync

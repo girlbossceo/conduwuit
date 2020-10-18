@@ -489,8 +489,8 @@ pub fn change_password_route(
     db: State<'_, Database>,
     body: Ruma<change_password::Request<'_>>,
 ) -> ConduitResult<change_password::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
@@ -504,8 +504,8 @@ pub fn change_password_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &sender_id,
-            device_id,
+            &sender_user,
+            sender_device,
             auth,
             &uiaainfo,
             &db.users,
@@ -517,22 +517,22 @@ pub fn change_password_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&sender_id, &device_id, &uiaainfo)?;
+        db.uiaa.create(&sender_user, &sender_device, &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
-    db.users.set_password(&sender_id, &body.new_password)?;
+    db.users.set_password(&sender_user, &body.new_password)?;
 
     // TODO: Read logout_devices field when it's available and respect that, currently not supported in Ruma
     // See: https://github.com/ruma/ruma/issues/107
     // Logout all devices except the current one
     for id in db
         .users
-        .all_device_ids(&sender_id)
+        .all_device_ids(&sender_user)
         .filter_map(|id| id.ok())
-        .filter(|id| id != device_id)
+        .filter(|id| id != sender_device)
     {
-        db.users.remove_device(&sender_id, &id)?;
+        db.users.remove_device(&sender_user, &id)?;
     }
 
     Ok(change_password::Response.into())
@@ -548,9 +548,9 @@ pub fn change_password_route(
     get("/_matrix/client/r0/account/whoami", data = "<body>")
 )]
 pub fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     Ok(whoami::Response {
-        user_id: sender_id.clone(),
+        user_id: sender_user.clone(),
     }
     .into())
 }
@@ -571,8 +571,8 @@ pub async fn deactivate_route(
     db: State<'_, Database>,
     body: Ruma<deactivate::Request<'_>>,
 ) -> ConduitResult<deactivate::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
@@ -586,8 +586,8 @@ pub async fn deactivate_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &sender_id,
-            &device_id,
+            &sender_user,
+            &sender_device,
             auth,
             &uiaainfo,
             &db.users,
@@ -599,15 +599,15 @@ pub async fn deactivate_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&sender_id, &device_id, &uiaainfo)?;
+        db.uiaa.create(&sender_user, &sender_device, &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
     // Leave all joined rooms and reject all invitations
     for room_id in db
         .rooms
-        .rooms_joined(&sender_id)
-        .chain(db.rooms.rooms_invited(&sender_id))
+        .rooms_joined(&sender_user)
+        .chain(db.rooms.rooms_invited(&sender_user))
     {
         let room_id = room_id?;
         let event = member::MemberEventContent {
@@ -623,10 +623,10 @@ pub async fn deactivate_route(
                 event_type: EventType::RoomMember,
                 content: serde_json::to_value(event).expect("event is valid, we just created it"),
                 unsigned: None,
-                state_key: Some(sender_id.to_string()),
+                state_key: Some(sender_user.to_string()),
                 redacts: None,
             },
-            &sender_id,
+            &sender_user,
             &room_id,
             &db.globals,
             &db.sending,
@@ -635,7 +635,7 @@ pub async fn deactivate_route(
     }
 
     // Remove devices and mark account as deactivated
-    db.users.deactivate_account(&sender_id)?;
+    db.users.deactivate_account(&sender_user)?;
 
     Ok(deactivate::Response {
         id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,

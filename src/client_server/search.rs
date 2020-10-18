@@ -15,7 +15,7 @@ pub fn search_events_route(
     db: State<'_, Database>,
     body: Ruma<search_events::Request<'_>>,
 ) -> ConduitResult<search_events::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let search_criteria = body.search_categories.room_events.as_ref().unwrap();
     let filter = search_criteria.filter.as_ref().unwrap();
@@ -24,7 +24,7 @@ pub fn search_events_route(
 
     let limit = filter.limit.map_or(10, |l| u64::from(l) as usize);
 
-    if !db.rooms.is_joined(sender_id, &room_id)? {
+    if !db.rooms.is_joined(sender_user, &room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view this room.",

@@ -26,26 +26,40 @@ pub fn upload_keys_route(
     db: State<'_, Database>,
     body: Ruma<upload_keys::Request<'_>>,
 ) -> ConduitResult<upload_keys::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
     if let Some(one_time_keys) = &body.one_time_keys {
         for (key_key, key_value) in one_time_keys {
-            db.users
-                .add_one_time_key(sender_id, device_id, key_key, key_value, &db.globals)?;
+            db.users.add_one_time_key(
+                sender_user,
+                sender_device,
+                key_key,
+                key_value,
+                &db.globals,
+            )?;
         }
     }
 
     if let Some(device_keys) = &body.device_keys {
         // This check is needed to assure that signatures are kept
-        if db.users.get_device_keys(sender_id, device_id)?.is_none() {
-            db.users
-                .add_device_keys(sender_id, device_id, device_keys, &db.rooms, &db.globals)?;
+        if db
+            .users
+            .get_device_keys(sender_user, sender_device)?
+            .is_none()
+        {
+            db.users.add_device_keys(
+                sender_user,
+                sender_device,
+                device_keys,
+                &db.rooms,
+                &db.globals,
+            )?;
         }
     }
 
     Ok(upload_keys::Response {
-        one_time_key_counts: db.users.count_one_time_keys(sender_id, device_id)?,
+        one_time_key_counts: db.users.count_one_time_keys(sender_user, sender_device)?,
     }
     .into())
 }
@@ -58,7 +72,7 @@ pub fn get_keys_route(
     db: State<'_, Database>,
     body: Ruma<get_keys::Request<'_>>,
 ) -> ConduitResult<get_keys::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut master_keys = BTreeMap::new();
     let mut self_signing_keys = BTreeMap::new();
@@ -107,14 +121,14 @@ pub fn get_keys_route(
             }
         }
 
-        if let Some(master_key) = db.users.get_master_key(user_id, sender_id)? {
+        if let Some(master_key) = db.users.get_master_key(user_id, sender_user)? {
             master_keys.insert(user_id.clone(), master_key);
         }
-        if let Some(self_signing_key) = db.users.get_self_signing_key(user_id, sender_id)? {
+        if let Some(self_signing_key) = db.users.get_self_signing_key(user_id, sender_user)? {
             self_signing_keys.insert(user_id.clone(), self_signing_key);
         }
-        if user_id == sender_id {
-            if let Some(user_signing_key) = db.users.get_user_signing_key(sender_id)? {
+        if user_id == sender_user {
+            if let Some(user_signing_key) = db.users.get_user_signing_key(sender_user)? {
                 user_signing_keys.insert(user_id.clone(), user_signing_key);
             }
         }
@@ -169,8 +183,8 @@ pub fn upload_signing_keys_route(
     db: State<'_, Database>,
     body: Ruma<upload_signing_keys::Request<'_>>,
 ) -> ConduitResult<upload_signing_keys::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
     // UIAA
     let mut uiaainfo = UiaaInfo {
@@ -185,8 +199,8 @@ pub fn upload_signing_keys_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &sender_id,
-            &device_id,
+            &sender_user,
+            &sender_device,
             auth,
             &uiaainfo,
             &db.users,
@@ -198,13 +212,13 @@ pub fn upload_signing_keys_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&sender_id, &device_id, &uiaainfo)?;
+        db.uiaa.create(&sender_user, &sender_device, &uiaainfo)?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
     if let Some(master_key) = &body.master_key {
         db.users.add_cross_signing_keys(
-            sender_id,
+            sender_user,
             &master_key,
             &body.self_signing_key,
             &body.user_signing_key,
@@ -224,7 +238,7 @@ pub fn upload_signatures_route(
     db: State<'_, Database>,
     body: Ruma<upload_signatures::Request>,
 ) -> ConduitResult<upload_signatures::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     for (user_id, signed_keys) in &body.signed_keys {
         for (key_id, signed_key) in signed_keys {
@@ -234,7 +248,7 @@ pub fn upload_signatures_route(
                     ErrorKind::InvalidParam,
                     "Missing signatures field.",
                 ))?
-                .get(sender_id.to_string())
+                .get(sender_user.to_string())
                 .ok_or(Error::BadRequest(
                     ErrorKind::InvalidParam,
                     "Invalid user in signatures field.",
@@ -263,7 +277,7 @@ pub fn upload_signatures_route(
                     &user_id,
                     &key_id,
                     signature,
-                    &sender_id,
+                    &sender_user,
                     &db.rooms,
                     &db.globals,
                 )?;
@@ -282,14 +296,14 @@ pub fn get_key_changes_route(
     db: State<'_, Database>,
     body: Ruma<get_key_changes::Request<'_>>,
 ) -> ConduitResult<get_key_changes::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut device_list_updates = HashSet::new();
 
     device_list_updates.extend(
         db.users
             .keys_changed(
-                &sender_id.to_string(),
+                &sender_user.to_string(),
                 body.from
                     .parse()
                     .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
@@ -302,7 +316,7 @@ pub fn get_key_changes_route(
             .filter_map(|r| r.ok()),
     );
 
-    for room_id in db.rooms.rooms_joined(sender_id).filter_map(|r| r.ok()) {
+    for room_id in db.rooms.rooms_joined(sender_user).filter_map(|r| r.ok()) {
         device_list_updates.extend(
             db.users
                 .keys_changed(

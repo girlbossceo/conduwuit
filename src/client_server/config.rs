@@ -20,7 +20,7 @@ pub fn set_global_account_data_route(
     db: State<'_, Database>,
     body: Ruma<set_global_account_data::Request<'_>>,
 ) -> ConduitResult<set_global_account_data::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let content = serde_json::from_str::<serde_json::Value>(body.data.get())
         .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Data is invalid."))?;
@@ -29,7 +29,7 @@ pub fn set_global_account_data_route(
 
     db.account_data.update(
         None,
-        sender_id,
+        sender_user,
         event_type.clone().into(),
         &BasicEvent {
             content: CustomEventContent {
@@ -51,11 +51,11 @@ pub fn get_global_account_data_route(
     db: State<'_, Database>,
     body: Ruma<get_global_account_data::Request<'_>>,
 ) -> ConduitResult<get_global_account_data::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let data = db
         .account_data
-        .get::<Raw<ruma::events::AnyBasicEvent>>(None, sender_id, body.event_type.clone().into())?
+        .get::<Raw<ruma::events::AnyBasicEvent>>(None, sender_user, body.event_type.clone().into())?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
     Ok(get_global_account_data::Response { account_data: data }.into())

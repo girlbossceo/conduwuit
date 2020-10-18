@@ -17,11 +17,11 @@ pub fn update_tag_route(
     db: State<'_, Database>,
     body: Ruma<create_tag::Request<'_>>,
 ) -> ConduitResult<create_tag::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
         .account_data
-        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_id, EventType::Tag)?
+        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_user, EventType::Tag)?
         .unwrap_or_else(|| ruma::events::tag::TagEvent {
             content: ruma::events::tag::TagEventContent {
                 tags: BTreeMap::new(),
@@ -34,7 +34,7 @@ pub fn update_tag_route(
 
     db.account_data.update(
         Some(&body.room_id),
-        sender_id,
+        sender_user,
         EventType::Tag,
         &tags_event,
         &db.globals,
@@ -51,11 +51,11 @@ pub fn delete_tag_route(
     db: State<'_, Database>,
     body: Ruma<delete_tag::Request<'_>>,
 ) -> ConduitResult<delete_tag::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
         .account_data
-        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_id, EventType::Tag)?
+        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_user, EventType::Tag)?
         .unwrap_or_else(|| ruma::events::tag::TagEvent {
             content: ruma::events::tag::TagEventContent {
                 tags: BTreeMap::new(),
@@ -65,7 +65,7 @@ pub fn delete_tag_route(
 
     db.account_data.update(
         Some(&body.room_id),
-        sender_id,
+        sender_user,
         EventType::Tag,
         &tags_event,
         &db.globals,
@@ -82,12 +82,12 @@ pub fn get_tags_route(
     db: State<'_, Database>,
     body: Ruma<get_tags::Request<'_>>,
 ) -> ConduitResult<get_tags::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     Ok(get_tags::Response {
         tags: db
             .account_data
-            .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_id, EventType::Tag)?
+            .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_user, EventType::Tag)?
             .unwrap_or_else(|| ruma::events::tag::TagEvent {
                 content: ruma::events::tag::TagEventContent {
                     tags: BTreeMap::new(),
