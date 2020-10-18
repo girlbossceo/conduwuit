@@ -110,11 +110,11 @@ pub async fn sync_events_route(
         // since and the current room state, meaning there should be no updates.
         // The inner Option is None when there is an event, but there is no state hash associated
         // with it. This can happen for the RoomCreate event, so all updates should arrive.
-        let since_state_hash = db
-            .rooms
-            .pdus_after(sender_id, &room_id, since) // - 1 So we can get the event at since
-            .next()
-            .map(|pdu| db.rooms.pdu_state_hash(&pdu.ok()?.0).ok()?);
+        let first_pdu_after_since = db.rooms.pdus_after(sender_id, &room_id, since).next();
+
+        let since_state_hash = first_pdu_after_since
+            .as_ref()
+            .map(|pdu| db.rooms.pdu_state_hash(&pdu.as_ref().ok()?.0).ok()?);
 
         let since_members = since_state_hash.as_ref().map(|state_hash| {
             state_hash.as_ref().and_then(|state_hash| {
