@@ -14,9 +14,9 @@ pub fn get_context_route(
     db: State<'_, Database>,
     body: Ruma<get_context::Request<'_>>,
 ) -> ConduitResult<get_context::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if !db.rooms.is_joined(sender_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_user, &body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "You don't have permission to view this room.",
@@ -39,7 +39,7 @@ pub fn get_context_route(
 
     let events_before = db
         .rooms
-        .pdus_until(&sender_id, &body.room_id, base_token)
+        .pdus_until(&sender_user, &body.room_id, base_token)
         .take(
             u32::try_from(body.limit).map_err(|_| {
                 Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
@@ -61,7 +61,7 @@ pub fn get_context_route(
 
     let events_after = db
         .rooms
-        .pdus_after(&sender_id, &body.room_id, base_token)
+        .pdus_after(&sender_user, &body.room_id, base_token)
         .take(
             u32::try_from(body.limit).map_err(|_| {
                 Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")

@@ -27,7 +27,7 @@ pub async fn send_state_event_for_key_route(
     db: State<'_, Database>,
     body: Ruma<send_state_event_for_key::Request<'_>>,
 ) -> ConduitResult<send_state_event_for_key::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let content = serde_json::from_str::<serde_json::Value>(
         body.json_body
@@ -40,7 +40,7 @@ pub async fn send_state_event_for_key_route(
     Ok(send_state_event_for_key::Response::new(
         send_state_event_for_key_helper(
             &db,
-            sender_id,
+            sender_user,
             &body.content,
             content,
             &body.room_id,
@@ -62,8 +62,8 @@ pub async fn send_state_event_for_empty_key_route(
     // This just calls send_state_event_for_key_route
     let Ruma {
         body,
-        sender_id,
-        device_id: _,
+        sender_user,
+        sender_device: _,
         json_body,
     } = body;
 
@@ -78,7 +78,7 @@ pub async fn send_state_event_for_empty_key_route(
     Ok(send_state_event_for_empty_key::Response::new(
         send_state_event_for_key_helper(
             &db,
-            sender_id
+            sender_user
                 .as_ref()
                 .expect("no user for send state empty key rout"),
             &body.content,
@@ -99,11 +99,11 @@ pub fn get_state_events_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events::Request>,
 ) -> ConduitResult<get_state_events::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     // Users not in the room should not be able to access the state unless history_visibility is
     // WorldReadable
-    if !db.rooms.is_joined(sender_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_user, &body.room_id)? {
         if !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
@@ -144,11 +144,11 @@ pub fn get_state_events_for_key_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events_for_key::Request>,
 ) -> ConduitResult<get_state_events_for_key::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     // Users not in the room should not be able to access the state unless history_visibility is
     // WorldReadable
-    if !db.rooms.is_joined(sender_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_user, &body.room_id)? {
         if !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
@@ -193,11 +193,11 @@ pub fn get_state_events_for_empty_key_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events_for_empty_key::Request>,
 ) -> ConduitResult<get_state_events_for_empty_key::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     // Users not in the room should not be able to access the state unless history_visibility is
     // WorldReadable
-    if !db.rooms.is_joined(sender_id, &body.room_id)? {
+    if !db.rooms.is_joined(sender_user, &body.room_id)? {
         if !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
@@ -242,7 +242,7 @@ pub async fn send_state_event_for_key_helper(
     room_id: &RoomId,
     state_key: Option<String>,
 ) -> Result<EventId> {
-    let sender_id = sender;
+    let sender_user = sender;
 
     if let AnyStateEventContent::RoomCanonicalAlias(canonical_alias) = content {
         let mut aliases = canonical_alias.alt_aliases.clone();
@@ -276,7 +276,7 @@ pub async fn send_state_event_for_key_helper(
             state_key,
             redacts: None,
         },
-        &sender_id,
+        &sender_user,
         &room_id,
         &db.globals,
         &db.sending,

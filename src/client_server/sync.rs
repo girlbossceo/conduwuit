@@ -33,14 +33,14 @@ pub async fn sync_events_route(
     db: State<'_, Database>,
     body: Ruma<sync_events::Request<'_>>,
 ) -> ConduitResult<sync_events::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
-    let device_id = body.device_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
     // TODO: match body.set_presence {
-    db.rooms.edus.ping_presence(&sender_id)?;
+    db.rooms.edus.ping_presence(&sender_user)?;
 
     // Setup watchers, so if there's no response, we can wait for them
-    let watcher = db.watch(sender_id, device_id);
+    let watcher = db.watch(sender_user, sender_device);
 
     let next_batch = db.globals.current_count()?.to_string();
 
@@ -59,16 +59,16 @@ pub async fn sync_events_route(
     // Look for device list updates of this account
     device_list_updates.extend(
         db.users
-            .keys_changed(&sender_id.to_string(), since, None)
+            .keys_changed(&sender_user.to_string(), since, None)
             .filter_map(|r| r.ok()),
     );
 
-    for room_id in db.rooms.rooms_joined(&sender_id) {
+    for room_id in db.rooms.rooms_joined(&sender_user) {
         let room_id = room_id?;
 
         let mut non_timeline_pdus = db
             .rooms
-            .pdus_since(&sender_id, &room_id, since)?
+            .pdus_since(&sender_user, &room_id, since)?
             .filter_map(|r| r.ok()); // Filter out buggy events
 
         // Take the last 10 events for the timeline
@@ -85,7 +85,7 @@ pub async fn sync_events_route(
             || db
                 .rooms
                 .edus
-                .last_privateread_update(&sender_id, &room_id)?
+                .last_privateread_update(&sender_user, &room_id)?
                 > since;
 
         // They /sync response doesn't always return all messages, so we say the output is
@@ -110,7 +110,7 @@ pub async fn sync_events_route(
         // since and the current room state, meaning there should be no updates.
         // The inner Option is None when there is an event, but there is no state hash associated
         // with it. This can happen for the RoomCreate event, so all updates should arrive.
-        let first_pdu_after_since = db.rooms.pdus_after(sender_id, &room_id, since).next();
+        let first_pdu_after_since = db.rooms.pdus_after(sender_user, &room_id, since).next();
 
         let since_state_hash = first_pdu_after_since
             .as_ref()
@@ -146,7 +146,7 @@ pub async fn sync_events_route(
 
         let since_sender_member = since_members.as_ref().map(|since_members| {
             since_members.as_ref().and_then(|members| {
-                members.get(sender_id.as_str()).and_then(|pdu| {
+                members.get(sender_user.as_str()).and_then(|pdu| {
                     serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
                         pdu.content.clone(),
                     )
@@ -198,7 +198,7 @@ pub async fn sync_events_route(
                 match (since_membership, current_membership) {
                     (MembershipState::Leave, MembershipState::Join) => {
                         // A new user joined an encrypted room
-                        if !share_encrypted_room(&db, &sender_id, &user_id, &room_id) {
+                        if !share_encrypted_room(&db, &sender_user, &user_id, &room_id) {
                             device_list_updates.insert(user_id);
                         }
                     }
@@ -223,11 +223,11 @@ pub async fn sync_events_route(
                     .filter_map(|user_id| Some(user_id.ok()?))
                     .filter(|user_id| {
                         // Don't send key updates from the sender to the sender
-                        sender_id != user_id
+                        sender_user != user_id
                     })
                     .filter(|user_id| {
                         // Only send keys if the sender doesn't share an encrypted room with the target already
-                        !share_encrypted_room(&db, sender_id, user_id, &room_id)
+                        !share_encrypted_room(&db, sender_user, user_id, &room_id)
                     }),
             );
         }
@@ -252,7 +252,7 @@ pub async fn sync_events_route(
 
                 for hero in db
                     .rooms
-                    .all_pdus(&sender_id, &room_id)?
+                    .all_pdus(&sender_user, &room_id)?
                     .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
                     .filter(|(_, pdu)| pdu.kind == EventType::RoomMember)
                     .map(|(_, pdu)| {
@@ -287,7 +287,7 @@ pub async fn sync_events_route(
                     // Filter for possible heroes
                     .filter_map(|u| u)
                 {
-                    if heroes.contains(&hero) || hero == sender_id.as_str() {
+                    if heroes.contains(&hero) || hero == sender_user.as_str() {
                         continue;
                     }
 
@@ -305,10 +305,10 @@ pub async fn sync_events_route(
         };
 
         let notification_count = if send_notification_counts {
-            if let Some(last_read) = db.rooms.edus.private_read_get(&room_id, &sender_id)? {
+            if let Some(last_read) = db.rooms.edus.private_read_get(&room_id, &sender_user)? {
                 Some(
                     (db.rooms
-                        .pdus_since(&sender_id, &room_id, last_read)?
+                        .pdus_since(&sender_user, &room_id, last_read)?
                         .filter_map(|pdu| pdu.ok()) // Filter out buggy events
                         .filter(|(_, pdu)| {
                             matches!(
@@ -360,7 +360,7 @@ pub async fn sync_events_route(
             account_data: sync_events::AccountData {
                 events: db
                     .account_data
-                    .changes_since(Some(&room_id), &sender_id, since)?
+                    .changes_since(Some(&room_id), &sender_user, since)?
                     .into_iter()
                     .filter_map(|(_, v)| {
                         serde_json::from_str(v.json().get())
@@ -438,9 +438,9 @@ pub async fn sync_events_route(
     }
 
     let mut left_rooms = BTreeMap::new();
-    for room_id in db.rooms.rooms_left(&sender_id) {
+    for room_id in db.rooms.rooms_left(&sender_user) {
         let room_id = room_id?;
-        let pdus = db.rooms.pdus_since(&sender_id, &room_id, since)?;
+        let pdus = db.rooms.pdus_since(&sender_user, &room_id, since)?;
         let room_events = pdus
             .filter_map(|pdu| pdu.ok()) // Filter out buggy events
             .map(|(_, pdu)| pdu.to_sync_room_event())
@@ -458,7 +458,7 @@ pub async fn sync_events_route(
 
         let since_member = db
             .rooms
-            .pdus_after(sender_id, &room_id, since)
+            .pdus_after(sender_user, &room_id, since)
             .next()
             .and_then(|pdu| pdu.ok())
             .and_then(|pdu| {
@@ -470,7 +470,7 @@ pub async fn sync_events_route(
             })
             .and_then(|state_hash| {
                 db.rooms
-                    .state_get(&state_hash, &EventType::RoomMember, sender_id.as_str())
+                    .state_get(&state_hash, &EventType::RoomMember, sender_user.as_str())
                     .ok()?
                     .ok_or_else(|| Error::bad_database("State hash in db doesn't have a state."))
                     .ok()
@@ -495,12 +495,12 @@ pub async fn sync_events_route(
                     .filter_map(|user_id| Some(user_id.ok()?))
                     .filter(|user_id| {
                         // Don't send key updates from the sender to the sender
-                        sender_id != user_id
+                        sender_user != user_id
                     })
                     .filter(|user_id| {
                         // Only send if the sender doesn't share any encrypted room with the target
                         // anymore
-                        !share_encrypted_room(&db, sender_id, user_id, &room_id)
+                        !share_encrypted_room(&db, sender_user, user_id, &room_id)
                     }),
             );
         }
@@ -511,12 +511,12 @@ pub async fn sync_events_route(
     }
 
     let mut invited_rooms = BTreeMap::new();
-    for room_id in db.rooms.rooms_invited(&sender_id) {
+    for room_id in db.rooms.rooms_invited(&sender_user) {
         let room_id = room_id?;
         let mut invited_since_last_sync = false;
-        for pdu in db.rooms.pdus_since(&sender_id, &room_id, since)? {
+        for pdu in db.rooms.pdus_since(&sender_user, &room_id, since)? {
             let (_, pdu) = pdu?;
-            if pdu.kind == EventType::RoomMember && pdu.state_key == Some(sender_id.to_string()) {
+            if pdu.kind == EventType::RoomMember && pdu.state_key == Some(sender_user.to_string()) {
                 let content = serde_json::from_value::<
                     Raw<ruma::events::room::member::MemberEventContent>,
                 >(pdu.content.clone())
@@ -554,7 +554,7 @@ pub async fn sync_events_route(
     for user_id in left_encrypted_users {
         let still_share_encrypted_room = db
             .rooms
-            .get_shared_rooms(vec![sender_id.clone(), user_id.clone()])
+            .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])
             .filter_map(|r| r.ok())
             .filter_map(|other_room_id| {
                 Some(
@@ -574,7 +574,7 @@ pub async fn sync_events_route(
 
     // Remove all to-device events the device received *last time*
     db.users
-        .remove_to_device_events(sender_id, device_id, since)?;
+        .remove_to_device_events(sender_user, sender_device, since)?;
 
     let response = sync_events::Response {
         next_batch,
@@ -592,7 +592,7 @@ pub async fn sync_events_route(
         account_data: sync_events::AccountData {
             events: db
                 .account_data
-                .changes_since(None, &sender_id, since)?
+                .changes_since(None, &sender_user, since)?
                 .into_iter()
                 .filter_map(|(_, v)| {
                     serde_json::from_str(v.json().get())
@@ -605,15 +605,15 @@ pub async fn sync_events_route(
             changed: device_list_updates.into_iter().collect(),
             left: device_list_left.into_iter().collect(),
         },
-        device_one_time_keys_count: if db.users.last_one_time_keys_update(sender_id)? > since
+        device_one_time_keys_count: if db.users.last_one_time_keys_update(sender_user)? > since
             || since == 0
         {
-            db.users.count_one_time_keys(sender_id, device_id)?
+            db.users.count_one_time_keys(sender_user, sender_device)?
         } else {
             BTreeMap::new()
         },
         to_device: sync_events::ToDevice {
-            events: db.users.get_to_device_events(sender_id, device_id)?,
+            events: db.users.get_to_device_events(sender_user, sender_device)?,
         },
     };
 
@@ -644,12 +644,12 @@ pub async fn sync_events_route(
 
 fn share_encrypted_room(
     db: &Database,
-    sender_id: &UserId,
+    sender_user: &UserId,
     user_id: &UserId,
     ignore_room: &RoomId,
 ) -> bool {
     db.rooms
-        .get_shared_rooms(vec![sender_id.clone(), user_id.clone()])
+        .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])
         .filter_map(|r| r.ok())
         .filter(|room_id| room_id != ignore_room)
         .filter_map(|other_room_id| {

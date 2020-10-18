@@ -23,13 +23,13 @@ pub async fn set_displayname_route(
     db: State<'_, Database>,
     body: Ruma<set_display_name::Request<'_>>,
 ) -> ConduitResult<set_display_name::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
-        .set_displayname(&sender_id, body.displayname.clone())?;
+        .set_displayname(&sender_user, body.displayname.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
-    for room_id in db.rooms.rooms_joined(&sender_id) {
+    for room_id in db.rooms.rooms_joined(&sender_user) {
         let room_id = room_id?;
         db.rooms.build_and_append_pdu(
             PduBuilder {
@@ -41,7 +41,7 @@ pub async fn set_displayname_route(
                             .room_state_get(
                                 &room_id,
                                 &EventType::RoomMember,
-                                &sender_id.to_string(),
+                                &sender_user.to_string(),
                             )?
                             .ok_or_else(|| {
                                 Error::bad_database(
@@ -57,10 +57,10 @@ pub async fn set_displayname_route(
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
-                state_key: Some(sender_id.to_string()),
+                state_key: Some(sender_user.to_string()),
                 redacts: None,
             },
-            &sender_id,
+            &sender_user,
             &room_id,
             &db.globals,
             &db.sending,
@@ -69,13 +69,13 @@ pub async fn set_displayname_route(
 
         // Presence update
         db.rooms.edus.update_presence(
-            &sender_id,
+            &sender_user,
             &room_id,
             ruma::events::presence::PresenceEvent {
                 content: ruma::events::presence::PresenceEventContent {
-                    avatar_url: db.users.avatar_url(&sender_id)?,
+                    avatar_url: db.users.avatar_url(&sender_user)?,
                     currently_active: None,
-                    displayname: db.users.displayname(&sender_id)?,
+                    displayname: db.users.displayname(&sender_user)?,
                     last_active_ago: Some(
                         utils::millis_since_unix_epoch()
                             .try_into()
@@ -84,7 +84,7 @@ pub async fn set_displayname_route(
                     presence: ruma::presence::PresenceState::Online,
                     status_msg: None,
                 },
-                sender: sender_id.clone(),
+                sender: sender_user.clone(),
             },
             &db.globals,
         )?;
@@ -115,13 +115,13 @@ pub async fn set_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<set_avatar_url::Request<'_>>,
 ) -> ConduitResult<set_avatar_url::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
-        .set_avatar_url(&sender_id, body.avatar_url.clone())?;
+        .set_avatar_url(&sender_user, body.avatar_url.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
-    for room_id in db.rooms.rooms_joined(&sender_id) {
+    for room_id in db.rooms.rooms_joined(&sender_user) {
         let room_id = room_id?;
         db.rooms.build_and_append_pdu(
             PduBuilder {
@@ -133,7 +133,7 @@ pub async fn set_avatar_url_route(
                             .room_state_get(
                                 &room_id,
                                 &EventType::RoomMember,
-                                &sender_id.to_string(),
+                                &sender_user.to_string(),
                             )?
                             .ok_or_else(|| {
                                 Error::bad_database(
@@ -149,10 +149,10 @@ pub async fn set_avatar_url_route(
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
-                state_key: Some(sender_id.to_string()),
+                state_key: Some(sender_user.to_string()),
                 redacts: None,
             },
-            &sender_id,
+            &sender_user,
             &room_id,
             &db.globals,
             &db.sending,
@@ -161,13 +161,13 @@ pub async fn set_avatar_url_route(
 
         // Presence update
         db.rooms.edus.update_presence(
-            &sender_id,
+            &sender_user,
             &room_id,
             ruma::events::presence::PresenceEvent {
                 content: ruma::events::presence::PresenceEventContent {
-                    avatar_url: db.users.avatar_url(&sender_id)?,
+                    avatar_url: db.users.avatar_url(&sender_user)?,
                     currently_active: None,
-                    displayname: db.users.displayname(&sender_id)?,
+                    displayname: db.users.displayname(&sender_user)?,
                     last_active_ago: Some(
                         utils::millis_since_unix_epoch()
                             .try_into()
@@ -176,7 +176,7 @@ pub async fn set_avatar_url_route(
                     presence: ruma::presence::PresenceState::Online,
                     status_msg: None,
                 },
-                sender: sender_id.clone(),
+                sender: sender_user.clone(),
             },
             &db.globals,
         )?;

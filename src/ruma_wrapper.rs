@@ -26,8 +26,8 @@ use {
 /// first.
 pub struct Ruma<T: Outgoing> {
     pub body: T::Incoming,
-    pub sender_id: Option<UserId>,
-    pub device_id: Option<Box<DeviceId>>,
+    pub sender_user: Option<UserId>,
+    pub sender_device: Option<Box<DeviceId>>,
     pub json_body: Option<Box<serde_json::value::RawValue>>, // This is None when body is not a valid string
 }
 
@@ -61,7 +61,7 @@ where
                 .await
                 .expect("database was loaded");
 
-            let (user_id, device_id) = if T::METADATA.requires_authentication {
+            let (sender_user, sender_device) = if T::METADATA.requires_authentication {
                 // Get token from header or query value
                 let token = match request
                     .headers()
@@ -102,8 +102,8 @@ where
             match <T as Outgoing>::Incoming::try_from(http_request) {
                 Ok(t) => Success(Ruma {
                     body: t,
-                    sender_id: user_id,
-                    device_id,
+                    sender_user,
+                    sender_device,
                     // TODO: Can we avoid parsing it again? (We only need this for append_pdu)
                     json_body: utils::string_from_bytes(&body)
                         .ok()

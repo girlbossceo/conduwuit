@@ -17,7 +17,7 @@ pub fn set_read_marker_route(
     db: State<'_, Database>,
     body: Ruma<set_read_marker::Request<'_>>,
 ) -> ConduitResult<set_read_marker::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let fully_read_event = ruma::events::fully_read::FullyReadEvent {
         content: ruma::events::fully_read::FullyReadEventContent {
@@ -27,7 +27,7 @@ pub fn set_read_marker_route(
     };
     db.account_data.update(
         Some(&body.room_id),
-        &sender_id,
+        &sender_user,
         EventType::FullyRead,
         &fully_read_event,
         &db.globals,
@@ -36,7 +36,7 @@ pub fn set_read_marker_route(
     if let Some(event) = &body.read_receipt {
         db.rooms.edus.private_read_set(
             &body.room_id,
-            &sender_id,
+            &sender_user,
             db.rooms.get_pdu_count(event)?.ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Event does not exist.",
@@ -46,7 +46,7 @@ pub fn set_read_marker_route(
 
         let mut user_receipts = BTreeMap::new();
         user_receipts.insert(
-            sender_id.clone(),
+            sender_user.clone(),
             ruma::events::receipt::Receipt {
                 ts: Some(SystemTime::now()),
             },
@@ -60,7 +60,7 @@ pub fn set_read_marker_route(
         );
 
         db.rooms.edus.readreceipt_update(
-            &sender_id,
+            &sender_user,
             &body.room_id,
             AnyEvent::Ephemeral(AnyEphemeralRoomEvent::Receipt(
                 ruma::events::receipt::ReceiptEvent {

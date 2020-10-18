@@ -20,11 +20,11 @@ pub fn get_pushrules_all_route(
     db: State<'_, Database>,
     body: Ruma<get_pushrules_all::Request>,
 ) -> ConduitResult<get_pushrules_all::Response> {
-    let sender_id = body.sender_id.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event = db
         .account_data
-        .get::<ruma::events::push_rules::PushRulesEvent>(None, &sender_id, EventType::PushRules)?
+        .get::<ruma::events::push_rules::PushRulesEvent>(None, &sender_user, EventType::PushRules)?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
