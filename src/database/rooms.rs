@@ -438,25 +438,18 @@ impl Rooms {
         &self,
         pdu: &PduEvent,
         pdu_json: &serde_json::Value,
+        count: u64,
+        pdu_id: IVec,
         globals: &super::globals::Globals,
         account_data: &super::account_data::AccountData,
         sending: &super::sending::Sending,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<()> {
         self.replace_pdu_leaves(&pdu.room_id, &pdu.event_id)?;
-
-        // Increment the last index and use that
-        // This is also the next_batch/since value
-        let index = globals.next_count()?;
 
         // Mark as read first so the sending client doesn't get a notification even if appending
         // fails
         self.edus
-            .private_read_set(&pdu.room_id, &pdu.sender, index, &globals)?;
-
-        let room_id = pdu.room_id.clone();
-        let mut pdu_id = room_id.as_bytes().to_vec();
-        pdu_id.push(0xff);
-        pdu_id.extend_from_slice(&index.to_be_bytes());
+            .private_read_set(&pdu.room_id, &pdu.sender, count, &globals)?;
 
         self.pduid_pdu.insert(&pdu_id, &*pdu_json.to_string())?;
 
@@ -537,7 +530,7 @@ impl Rooms {
                                 },
                                 &UserId::try_from(format!("@conduit:{}", globals.server_name()))
                                     .expect("@conduit:server_name is valid"),
-                                &room_id,
+                                &pdu.room_id,
                                 &globals,
                                 &sending,
                                 &account_data,
@@ -549,7 +542,7 @@ impl Rooms {
             _ => {}
         }
 
-        Ok(pdu_id)
+        Ok(())
     }
 
     /// Generates a new StateHash and associates it with the incoming event.
@@ -834,9 +827,26 @@ impl Rooms {
             .expect("json is object")
             .insert("event_id".to_owned(), pdu.event_id.to_string().into());
 
-        let pdu_id = self.append_pdu(&pdu, &pdu_json, globals, account_data, sending)?;
+        // Increment the last index and use that
+        // This is also the next_batch/since value
+        let count = globals.next_count()?;
+        let mut pdu_id = room_id.as_bytes().to_vec();
+        pdu_id.push(0xff);
+        pdu_id.extend_from_slice(&count.to_be_bytes());
 
+        // We append to state before appending the pdu, so we don't have a moment in time with the
+        // pdu without it's state. This is okay because append_pdu can't fail.
         self.append_to_state(&pdu_id, &pdu)?;
+
+        self.append_pdu(
+            &pdu,
+            &pdu_json,
+            count,
+            pdu_id.clone().into(),
+            globals,
+            account_data,
+            sending,
+        )?;
 
         for server in self
             .room_servers(room_id)

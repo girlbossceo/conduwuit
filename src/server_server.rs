@@ -389,9 +389,19 @@ pub fn send_transaction_message_route<'a>(
         let pdu = serde_json::from_value::<PduEvent>(value.clone())
             .expect("all ruma pdus are conduit pdus");
         if db.rooms.exists(&pdu.room_id)? {
-            let pdu_id =
-                db.rooms
-                    .append_pdu(&pdu, &value, &db.globals, &db.account_data, &db.sending)?;
+            let count = db.globals.next_count()?;
+            let mut pdu_id = pdu.room_id.as_bytes().to_vec();
+            pdu_id.push(0xff);
+            pdu_id.extend_from_slice(&count.to_be_bytes());
+            db.rooms.append_pdu(
+                &pdu,
+                &value,
+                count,
+                pdu_id.clone().into(),
+                &db.globals,
+                &db.account_data,
+                &db.sending,
+            )?;
             db.rooms.append_to_state(&pdu_id, &pdu)?;
         }
     }

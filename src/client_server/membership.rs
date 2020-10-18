@@ -22,7 +22,10 @@ use ruma::{
     EventId, Raw, RoomId, RoomVersionId, ServerName, UserId,
 };
 use state_res::StateEvent;
-use std::{collections::BTreeMap, collections::HashMap, collections::HashSet, convert::TryFrom, iter, sync::Arc};
+use std::{
+    collections::BTreeMap, collections::HashMap, collections::HashSet, convert::TryFrom, iter,
+    sync::Arc,
+};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};
@@ -642,9 +645,15 @@ async fn join_room_by_id_helper(
                 .expect("Found event_id in sorted events that is not in resolved state");
 
             // We do not rebuild the PDU in this case only insert to DB
-            let pdu_id = db.rooms.append_pdu(
+            let count = db.globals.next_count()?;
+            let mut pdu_id = room_id.as_bytes().to_vec();
+            pdu_id.push(0xff);
+            pdu_id.extend_from_slice(&count.to_be_bytes());
+            db.rooms.append_pdu(
                 &PduEvent::from(&**pdu),
                 &serde_json::to_value(&**pdu).expect("PDU is valid value"),
+                count,
+                pdu_id.clone().into(),
                 &db.globals,
                 &db.account_data,
                 &db.sending,
