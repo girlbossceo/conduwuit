@@ -561,10 +561,10 @@ async fn join_room_by_id_helper(
             .chain(iter::once(Ok((event_id, join_event)))) // Add join event we just created
             .map(|r| {
                 let (event_id, value) = r?;
-                serde_json::from_value::<StateEvent>(value)
+                serde_json::from_value::<StateEvent>(value.clone())
                     .map(|ev| (event_id, Arc::new(ev)))
                     .map_err(|e| {
-                        warn!("{}", e);
+                        warn!("{}: {}", value, e);
                         Error::BadServerResponse("Invalid PDU bytes in send_join response.")
                     })
             })

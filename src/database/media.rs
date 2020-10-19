@@ -1,3 +1,5 @@
+use image::{imageops::FilterType, GenericImageView};
+
 use crate::{utils, Error, Result};
 use std::mem;
 
@@ -99,8 +101,34 @@ impl Media {
         }
     }
 
+    /// Returns width, height of the thumbnail and whether it should be cropped. Returns None when
+    /// the server should send the original file.
+    pub fn thumbnail_properties(&self, width: u32, height: u32) -> Option<(u32, u32, bool)> {
+        match (width, height) {
+            (0..=32, 0..=32) => Some((32, 32, true)),
+            (0..=96, 0..=96) => Some((96, 96, true)),
+            (0..=320, 0..=240) => Some((320, 240, false)),
+            (0..=640, 0..=480) => Some((640, 480, false)),
+            (0..=800, 0..=600) => Some((800, 600, false)),
+            _ => None,
+        }
+    }
+
     /// Downloads a file's thumbnail.
+    ///
+    /// Here's an example on how it works:
+    ///
+    /// - Client requests an image with width=567, height=567
+    /// - Server rounds that up to (800, 600), so it doesn't have to save too many thumbnails
+    /// - Server rounds that up again to (958, 600) to fix the aspect ratio (only for width,height>96)
+    /// - Server creates the thumbnail and sends it to the user
+    ///
+    /// For width,height <= 96 the server uses another thumbnailing algorithm which crops the image afterwards.
     pub fn get_thumbnail(&self, mxc: String, width: u32, height: u32) -> Result<Option<FileMeta>> {
+        let (width, height, crop) = self
+            .thumbnail_properties(width, height)
+            .unwrap_or((0, 0, false)); // 0, 0 because that's the original file
+
         let mut main_prefix = mxc.as_bytes().to_vec();
         main_prefix.push(0xff);
 
@@ -146,6 +174,7 @@ impl Media {
             }))
         } else if let Some(r) = self.mediaid_file.scan_prefix(&original_prefix).next() {
             // Generate a thumbnail
+
             let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
@@ -169,7 +198,55 @@ impl Media {
             };
 
             if let Ok(image) = image::load_from_memory(&file) {
-                let thumbnail = image.thumbnail(width, height);
+                let original_width = image.width();
+                let original_height = image.height();
+                if width > original_width || height > original_height {
+                    return Ok(Some(FileMeta {
+                        filename,
+                        content_type,
+                        file: file.to_vec(),
+                    }));
+                }
+
+                let thumbnail = if crop {
+                    image.resize_to_fill(width, height, FilterType::Triangle)
+                } else {
+                    let (exact_width, exact_height) = {
+                        // Copied from image::dynimage::resize_dimensions
+                        let ratio = u64::from(original_width) * u64::from(height);
+                        let nratio = u64::from(width) * u64::from(original_height);
+
+                        let use_width = nratio > ratio;
+                        let intermediate = if use_width {
+                            u64::from(original_height) * u64::from(width) / u64::from(width)
+                        } else {
+                            u64::from(original_width) * u64::from(height)
+                                / u64::from(original_height)
+                        };
+                        if use_width {
+                            if intermediate <= u64::from(::std::u32::MAX) {
+                                (width, intermediate as u32)
+                            } else {
+                                (
+                                    (u64::from(width) * u64::from(::std::u32::MAX) / intermediate)
+                                        as u32,
+                                    ::std::u32::MAX,
+                                )
+                            }
+                        } else if intermediate <= u64::from(::std::u32::MAX) {
+                            (intermediate as u32, height)
+                        } else {
+                            (
+                                ::std::u32::MAX,
+                                (u64::from(height) * u64::from(::std::u32::MAX) / intermediate)
+                                    as u32,
+                            )
+                        }
+                    };
+
+                    image.thumbnail_exact(exact_width, exact_height)
+                };
+
                 let mut thumbnail_bytes = Vec::new();
                 thumbnail.write_to(&mut thumbnail_bytes, image::ImageOutputFormat::Png)?;
 

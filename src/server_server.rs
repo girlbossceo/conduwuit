@@ -393,6 +393,7 @@ pub fn send_transaction_message_route<'a>(
             let mut pdu_id = pdu.room_id.as_bytes().to_vec();
             pdu_id.push(0xff);
             pdu_id.extend_from_slice(&count.to_be_bytes());
+            db.rooms.append_to_state(&pdu_id, &pdu)?;
             db.rooms.append_pdu(
                 &pdu,
                 &value,
@@ -402,7 +403,6 @@ pub fn send_transaction_message_route<'a>(
                 &db.account_data,
                 &db.sending,
             )?;
-            db.rooms.append_to_state(&pdu_id, &pdu)?;
         }
     }
     Ok(send_transaction_message::v1::Response {
