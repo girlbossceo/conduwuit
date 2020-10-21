@@ -90,6 +90,8 @@ pub async fn set_displayname_route(
         )?;
     }
 
+    db.flush().await?;
+
     Ok(set_display_name::Response.into())
 }
 
@@ -97,7 +99,7 @@ pub async fn set_displayname_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
 )]
-pub fn get_displayname_route(
+pub async fn get_displayname_route(
     db: State<'_, Database>,
     body: Ruma<get_display_name::Request<'_>>,
 ) -> ConduitResult<get_display_name::Response> {
@@ -182,6 +184,8 @@ pub async fn set_avatar_url_route(
         )?;
     }
 
+    db.flush().await?;
+
     Ok(set_avatar_url::Response.into())
 }
 
@@ -189,7 +193,7 @@ pub async fn set_avatar_url_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
 )]
-pub fn get_avatar_url_route(
+pub async fn get_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<get_avatar_url::Request<'_>>,
 ) -> ConduitResult<get_avatar_url::Response> {
@@ -203,7 +207,7 @@ pub fn get_avatar_url_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/profile/<_>", data = "<body>")
 )]
-pub fn get_profile_route(
+pub async fn get_profile_route(
     db: State<'_, Database>,
     body: Ruma<get_profile::Request<'_>>,
 ) -> ConduitResult<get_profile::Response> {

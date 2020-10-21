@@ -36,5 +36,7 @@ pub async fn redact_event_route(
         &db.account_data,
     )?;
 
+    db.flush().await?;
+
     Ok(redact_event::Response { event_id }.into())
 }

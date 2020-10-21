@@ -36,7 +36,7 @@ const GUEST_NAME_LENGTH: usize = 10;
     feature = "conduit_bin",
     get("/_matrix/client/r0/register/available", data = "<body>")
 )]
-pub fn get_register_available_route(
+pub async fn get_register_available_route(
     db: State<'_, Database>,
     body: Ruma<get_username_availability::Request<'_>>,
 ) -> ConduitResult<get_username_availability::Response> {
@@ -466,6 +466,8 @@ pub async fn register_route(
         )?;
     }
 
+    db.flush().await?;
+
     Ok(register::Response {
         access_token: Some(token),
         user_id,
@@ -485,7 +487,7 @@ pub async fn register_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/account/password", data = "<body>")
 )]
-pub fn change_password_route(
+pub async fn change_password_route(
     db: State<'_, Database>,
     body: Ruma<change_password::Request<'_>>,
 ) -> ConduitResult<change_password::Response> {
@@ -535,6 +537,8 @@ pub fn change_password_route(
         db.users.remove_device(&sender_user, &id)?;
     }
 
+    db.flush().await?;
+
     Ok(change_password::Response.into())
 }
 
@@ -547,7 +551,7 @@ pub fn change_password_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/account/whoami", data = "<body>")
 )]
-pub fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Response> {
+pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     Ok(whoami::Response {
         user_id: sender_user.clone(),
@@ -636,6 +640,8 @@ pub async fn deactivate_route(
 
     // Remove devices and mark account as deactivated
     db.users.deactivate_account(&sender_user)?;
+
+    db.flush().await?;
 
     Ok(deactivate::Response {
         id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,

@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
     feature = "conduit_bin",
     get("/_matrix/client/r0/thirdparty/protocols")
 )]
-pub fn get_protocols_route() -> ConduitResult<get_protocols::Response> {
+pub async fn get_protocols_route() -> ConduitResult<get_protocols::Response> {
     warn!("TODO: get_protocols_route");
     Ok(get_protocols::Response {
         protocols: BTreeMap::new(),

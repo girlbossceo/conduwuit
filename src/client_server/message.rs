@@ -77,6 +77,8 @@ pub async fn send_message_event_route(
         event_id.as_bytes(),
     )?;
 
+    db.flush().await?;
+
     Ok(send_message_event::Response::new(event_id).into())
 }
 
@@ -84,7 +86,7 @@ pub async fn send_message_event_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/messages", data = "<body>")
 )]
-pub fn get_message_events_route(
+pub async fn get_message_events_route(
     db: State<'_, Database>,
     body: Ruma<get_message_events::Request<'_>>,
 ) -> ConduitResult<get_message_events::Response> {

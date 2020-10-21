@@ -16,7 +16,7 @@ use rocket::{get, post, put};
     feature = "conduit_bin",
     get("/_matrix/client/r0/pushrules", data = "<body>")
 )]
-pub fn get_pushrules_all_route(
+pub async fn get_pushrules_all_route(
     db: State<'_, Database>,
     body: Ruma<get_pushrules_all::Request>,
 ) -> ConduitResult<get_pushrules_all::Response> {
@@ -40,11 +40,15 @@ pub fn get_pushrules_all_route(
     "/_matrix/client/r0/pushrules/<_>/<_>/<_>",
     //data = "<body>"
 ))]
-pub fn set_pushrule_route(//db: State<'_, Database>,
+pub async fn set_pushrule_route(
+    db: State<'_, Database>,
     //body: Ruma<set_pushrule::Request>,
 ) -> ConduitResult<set_pushrule::Response> {
     // TODO
     warn!("TODO: set_pushrule_route");
+
+    db.flush().await?;
+
     Ok(set_pushrule::Response.into())
 }
 
@@ -52,14 +56,19 @@ pub fn set_pushrule_route(//db: State<'_, Database>,
     feature = "conduit_bin",
     put("/_matrix/client/r0/pushrules/<_>/<_>/<_>/enabled")
 )]
-pub fn set_pushrule_enabled_route() -> ConduitResult<set_pushrule_enabled::Response> {
+pub async fn set_pushrule_enabled_route(
+    db: State<'_, Database>,
+) -> ConduitResult<set_pushrule_enabled::Response> {
     // TODO
     warn!("TODO: set_pushrule_enabled_route");
+
+    db.flush().await?;
+
     Ok(set_pushrule_enabled::Response.into())
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/pushers"))]
-pub fn get_pushers_route() -> ConduitResult<get_pushers::Response> {
+pub async fn get_pushers_route() -> ConduitResult<get_pushers::Response> {
     Ok(get_pushers::Response {
         pushers: Vec::new(),
     }
@@ -67,7 +76,9 @@ pub fn get_pushers_route() -> ConduitResult<get_pushers::Response> {
 }
 
 #[cfg_attr(feature = "conduit_bin", post("/_matrix/client/r0/pushers/set"))]
-pub fn set_pushers_route() -> ConduitResult<get_pushers::Response> {
+pub async fn set_pushers_route(db: State<'_, Database>) -> ConduitResult<get_pushers::Response> {
+    db.flush().await?;
+
     Ok(get_pushers::Response {
         pushers: Vec::new(),
     }

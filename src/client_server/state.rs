@@ -37,18 +37,19 @@ pub async fn send_state_event_for_key_route(
     )
     .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
 
-    Ok(send_state_event_for_key::Response::new(
-        send_state_event_for_key_helper(
-            &db,
-            sender_user,
-            &body.content,
-            content,
-            &body.room_id,
-            Some(body.state_key.to_owned()),
-        )
-        .await?,
+    let event_id = send_state_event_for_key_helper(
+        &db,
+        sender_user,
+        &body.content,
+        content,
+        &body.room_id,
+        Some(body.state_key.to_owned()),
     )
-    .into())
+    .await?;
+
+    db.flush().await?;
+
+    Ok(send_state_event_for_key::Response { event_id }.into())
 }
 
 #[cfg_attr(
@@ -75,27 +76,28 @@ pub async fn send_state_event_for_empty_key_route(
     )
     .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
 
-    Ok(send_state_event_for_empty_key::Response::new(
-        send_state_event_for_key_helper(
-            &db,
-            sender_user
-                .as_ref()
-                .expect("no user for send state empty key rout"),
-            &body.content,
-            json,
-            &body.room_id,
-            Some("".into()),
-        )
-        .await?,
+    let event_id = send_state_event_for_key_helper(
+        &db,
+        sender_user
+            .as_ref()
+            .expect("no user for send state empty key rout"),
+        &body.content,
+        json,
+        &body.room_id,
+        Some("".into()),
     )
-    .into())
+    .await?;
+
+    db.flush().await?;
+
+    Ok(send_state_event_for_empty_key::Response { event_id }.into())
 }
 
 #[cfg_attr(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/state", data = "<body>")
 )]
-pub fn get_state_events_route(
+pub async fn get_state_events_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events::Request>,
 ) -> ConduitResult<get_state_events::Response> {
@@ -140,7 +142,7 @@ pub fn get_state_events_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/state/<_>/<_>", data = "<body>")
 )]
-pub fn get_state_events_for_key_route(
+pub async fn get_state_events_for_key_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events_for_key::Request>,
 ) -> ConduitResult<get_state_events_for_key::Response> {
@@ -189,7 +191,7 @@ pub fn get_state_events_for_key_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/state/<_>", data = "<body>")
 )]
-pub fn get_state_events_for_empty_key_route(
+pub async fn get_state_events_for_empty_key_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events_for_empty_key::Request>,
 ) -> ConduitResult<get_state_events_for_empty_key::Response> {

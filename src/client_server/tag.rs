@@ -13,7 +13,7 @@ use rocket::{delete, get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/user/<_>/rooms/<_>/tags/<_>", data = "<body>")
 )]
-pub fn update_tag_route(
+pub async fn update_tag_route(
     db: State<'_, Database>,
     body: Ruma<create_tag::Request<'_>>,
 ) -> ConduitResult<create_tag::Response> {
@@ -40,6 +40,8 @@ pub fn update_tag_route(
         &db.globals,
     )?;
 
+    db.flush().await?;
+
     Ok(create_tag::Response.into())
 }
 
@@ -47,7 +49,7 @@ pub fn update_tag_route(
     feature = "conduit_bin",
     delete("/_matrix/client/r0/user/<_>/rooms/<_>/tags/<_>", data = "<body>")
 )]
-pub fn delete_tag_route(
+pub async fn delete_tag_route(
     db: State<'_, Database>,
     body: Ruma<delete_tag::Request<'_>>,
 ) -> ConduitResult<delete_tag::Response> {
@@ -71,6 +73,8 @@ pub fn delete_tag_route(
         &db.globals,
     )?;
 
+    db.flush().await?;
+
     Ok(delete_tag::Response.into())
 }
 
@@ -78,7 +82,7 @@ pub fn delete_tag_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/user/<_>/rooms/<_>/tags", data = "<body>")
 )]
-pub fn get_tags_route(
+pub async fn get_tags_route(
     db: State<'_, Database>,
     body: Ruma<get_tags::Request<'_>>,
 ) -> ConduitResult<get_tags::Response> {

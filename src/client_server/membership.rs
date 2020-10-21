@@ -65,17 +65,19 @@ pub async fn join_room_by_id_or_alias_route(
         }
     };
 
+    let join_room_response = join_room_by_id_helper(
+        &db,
+        body.sender_user.as_ref(),
+        &room_id,
+        &servers,
+        body.third_party_signed.as_ref(),
+    )
+    .await?;
+
+    db.flush().await?;
+
     Ok(join_room_by_id_or_alias::Response {
-        room_id: join_room_by_id_helper(
-            &db,
-            body.sender_user.as_ref(),
-            &room_id,
-            &servers,
-            body.third_party_signed.as_ref(),
-        )
-        .await?
-        .0
-        .room_id,
+        room_id: join_room_response.0.room_id,
     }
     .into())
 }
@@ -124,6 +126,8 @@ pub async fn leave_room_route(
         &db.account_data,
     )?;
 
+    db.flush().await?;
+
     Ok(leave_room::Response::new().into())
 }
 
@@ -159,6 +163,8 @@ pub async fn invite_user_route(
             &db.sending,
             &db.account_data,
         )?;
+
+        db.flush().await?;
 
         Ok(invite_user::Response.into())
     } else {
@@ -210,6 +216,8 @@ pub async fn kick_user_route(
         &db.sending,
         &db.account_data,
     )?;
+
+    db.flush().await?;
 
     Ok(kick_user::Response::new().into())
 }
@@ -267,6 +275,8 @@ pub async fn ban_user_route(
         &db.account_data,
     )?;
 
+    db.flush().await?;
+
     Ok(ban_user::Response::new().into())
 }
 
@@ -314,6 +324,8 @@ pub async fn unban_user_route(
         &db.account_data,
     )?;
 
+    db.flush().await?;
+
     Ok(unban_user::Response::new().into())
 }
 
@@ -321,13 +333,15 @@ pub async fn unban_user_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/forget", data = "<body>")
 )]
-pub fn forget_room_route(
+pub async fn forget_room_route(
     db: State<'_, Database>,
     body: Ruma<forget_room::Request<'_>>,
 ) -> ConduitResult<forget_room::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.rooms.forget(&body.room_id, &sender_user)?;
+
+    db.flush().await?;
 
     Ok(forget_room::Response::new().into())
 }
@@ -336,7 +350,7 @@ pub fn forget_room_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/joined_rooms", data = "<body>")
 )]
-pub fn joined_rooms_route(
+pub async fn joined_rooms_route(
     db: State<'_, Database>,
     body: Ruma<joined_rooms::Request>,
 ) -> ConduitResult<joined_rooms::Response> {
@@ -356,7 +370,7 @@ pub fn joined_rooms_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/members", data = "<body>")
 )]
-pub fn get_member_events_route(
+pub async fn get_member_events_route(
     db: State<'_, Database>,
     body: Ruma<get_member_events::Request<'_>>,
 ) -> ConduitResult<get_member_events::Response> {
@@ -384,7 +398,7 @@ pub fn get_member_events_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/joined_members", data = "<body>")
 )]
-pub fn joined_members_route(
+pub async fn joined_members_route(
     db: State<'_, Database>,
     body: Ruma<joined_members::Request<'_>>,
 ) -> ConduitResult<joined_members::Response> {

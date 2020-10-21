@@ -16,7 +16,7 @@ use rocket::{get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/user/<_>/account_data/<_>", data = "<body>")
 )]
-pub fn set_global_account_data_route(
+pub async fn set_global_account_data_route(
     db: State<'_, Database>,
     body: Ruma<set_global_account_data::Request<'_>>,
 ) -> ConduitResult<set_global_account_data::Response> {
@@ -40,6 +40,8 @@ pub fn set_global_account_data_route(
         &db.globals,
     )?;
 
+    db.flush().await?;
+
     Ok(set_global_account_data::Response.into())
 }
 
@@ -47,7 +49,7 @@ pub fn set_global_account_data_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/user/<_>/account_data/<_>", data = "<body>")
 )]
-pub fn get_global_account_data_route(
+pub async fn get_global_account_data_route(
     db: State<'_, Database>,
     body: Ruma<get_global_account_data::Request<'_>>,
 ) -> ConduitResult<get_global_account_data::Response> {
@@ -57,6 +59,8 @@ pub fn get_global_account_data_route(
         .account_data
         .get::<Raw<ruma::events::AnyBasicEvent>>(None, sender_user, body.event_type.clone().into())?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
+
+    db.flush().await?;
 
     Ok(get_global_account_data::Response { account_data: data }.into())
 }

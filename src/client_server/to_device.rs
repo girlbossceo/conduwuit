@@ -12,7 +12,7 @@ use rocket::put;
     feature = "conduit_bin",
     put("/_matrix/client/r0/sendToDevice/<_>/<_>", data = "<body>")
 )]
-pub fn send_event_to_device_route(
+pub async fn send_event_to_device_route(
     db: State<'_, Database>,
     body: Ruma<send_event_to_device::Request<'_>>,
 ) -> ConduitResult<send_event_to_device::Response> {
@@ -65,6 +65,8 @@ pub fn send_event_to_device_route(
     // Save transaction id with empty data
     db.transaction_ids
         .add_txnid(sender_user, sender_device, &body.txn_id, &[])?;
+
+    db.flush().await?;
 
     Ok(send_event_to_device::Response.into())
 }

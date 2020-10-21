@@ -16,7 +16,7 @@ use rocket::{get, post};
 /// Get the homeserver's supported login types. One of these should be used as the `type` field
 /// when logging in.
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/login"))]
-pub fn get_login_types_route() -> ConduitResult<get_login_types::Response> {
+pub async fn get_login_types_route() -> ConduitResult<get_login_types::Response> {
     Ok(get_login_types::Response::new(vec![get_login_types::LoginType::Password]).into())
 }
 
@@ -34,7 +34,7 @@ pub fn get_login_types_route() -> ConduitResult<get_login_types::Response> {
     feature = "conduit_bin",
     post("/_matrix/client/r0/login", data = "<body>")
 )]
-pub fn login_route(
+pub async fn login_route(
     db: State<'_, Database>,
     body: Ruma<login::Request<'_>>,
 ) -> ConduitResult<login::Response> {
@@ -93,6 +93,8 @@ pub fn login_route(
         body.initial_device_display_name.clone(),
     )?;
 
+    db.flush().await?;
+
     Ok(login::Response {
         user_id,
         access_token: token,
@@ -113,7 +115,7 @@ pub fn login_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/logout", data = "<body>")
 )]
-pub fn logout_route(
+pub async fn logout_route(
     db: State<'_, Database>,
     body: Ruma<logout::Request>,
 ) -> ConduitResult<logout::Response> {
@@ -121,6 +123,8 @@ pub fn logout_route(
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
     db.users.remove_device(&sender_user, sender_device)?;
+
+    db.flush().await?;
 
     Ok(logout::Response::new().into())
 }
@@ -138,7 +142,7 @@ pub fn logout_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/logout/all", data = "<body>")
 )]
-pub fn logout_all_route(
+pub async fn logout_all_route(
     db: State<'_, Database>,
     body: Ruma<logout_all::Request>,
 ) -> ConduitResult<logout_all::Response> {
@@ -149,6 +153,8 @@ pub fn logout_all_route(
             db.users.remove_device(&sender_user, &device_id)?;
         }
     }
+
+    db.flush().await?;
 
     Ok(logout_all::Response::new().into())
 }

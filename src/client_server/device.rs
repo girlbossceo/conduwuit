@@ -16,7 +16,7 @@ use rocket::{delete, get, post, put};
     feature = "conduit_bin",
     get("/_matrix/client/r0/devices", data = "<body>")
 )]
-pub fn get_devices_route(
+pub async fn get_devices_route(
     db: State<'_, Database>,
     body: Ruma<get_devices::Request>,
 ) -> ConduitResult<get_devices::Response> {
@@ -35,7 +35,7 @@ pub fn get_devices_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/devices/<_>", data = "<body>")
 )]
-pub fn get_device_route(
+pub async fn get_device_route(
     db: State<'_, Database>,
     body: Ruma<get_device::Request<'_>>,
 ) -> ConduitResult<get_device::Response> {
@@ -53,7 +53,7 @@ pub fn get_device_route(
     feature = "conduit_bin",
     put("/_matrix/client/r0/devices/<_>", data = "<body>")
 )]
-pub fn update_device_route(
+pub async fn update_device_route(
     db: State<'_, Database>,
     body: Ruma<update_device::Request<'_>>,
 ) -> ConduitResult<update_device::Response> {
@@ -69,6 +69,8 @@ pub fn update_device_route(
     db.users
         .update_device_metadata(&sender_user, &body.device_id, &device)?;
 
+    db.flush().await?;
+
     Ok(update_device::Response.into())
 }
 
@@ -76,7 +78,7 @@ pub fn update_device_route(
     feature = "conduit_bin",
     delete("/_matrix/client/r0/devices/<_>", data = "<body>")
 )]
-pub fn delete_device_route(
+pub async fn delete_device_route(
     db: State<'_, Database>,
     body: Ruma<delete_device::Request<'_>>,
 ) -> ConduitResult<delete_device::Response> {
@@ -115,6 +117,8 @@ pub fn delete_device_route(
 
     db.users.remove_device(&sender_user, &body.device_id)?;
 
+    db.flush().await?;
+
     Ok(delete_device::Response.into())
 }
 
@@ -122,7 +126,7 @@ pub fn delete_device_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/delete_devices", data = "<body>")
 )]
-pub fn delete_devices_route(
+pub async fn delete_devices_route(
     db: State<'_, Database>,
     body: Ruma<delete_devices::Request<'_>>,
 ) -> ConduitResult<delete_devices::Response> {
@@ -162,6 +166,8 @@ pub fn delete_devices_route(
     for device_id in &body.devices {
         db.users.remove_device(&sender_user, &device_id)?
     }
+
+    db.flush().await?;
 
     Ok(delete_devices::Response.into())
 }

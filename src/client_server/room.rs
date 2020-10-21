@@ -313,6 +313,8 @@ pub async fn create_room_route(
         db.rooms.set_public(&room_id, true)?;
     }
 
+    db.flush().await?;
+
     Ok(create_room::Response::new(room_id).into())
 }
 
@@ -320,7 +322,7 @@ pub async fn create_room_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/event/<_>", data = "<body>")
 )]
-pub fn get_room_event_route(
+pub async fn get_room_event_route(
     db: State<'_, Database>,
     body: Ruma<get_room_event::Request<'_>>,
 ) -> ConduitResult<get_room_event::Response> {
@@ -530,6 +532,8 @@ pub async fn upgrade_room_route(
         &db.sending,
         &db.account_data,
     )?;
+
+    db.flush().await?;
 
     // Return the replacement room id
     Ok(upgrade_room::Response { replacement_room }.into())

@@ -227,4 +227,9 @@ impl Database {
         // Wait until one of them finds something
         futures.next().await;
     }
+
+    pub async fn flush(&self) -> Result<()> {
+        self._db.flush_async().await?;
+        Ok(())
+    }
 }
