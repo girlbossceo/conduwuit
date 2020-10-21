@@ -186,7 +186,10 @@ where
             let body = reqwest_response
                 .bytes()
                 .await
-                .unwrap()
+                .unwrap_or_else(|e| {
+                    warn!("server error: {}", e);
+                    Vec::new().into()
+                }) // TODO: handle timeout
                 .into_iter()
                 .collect();
 

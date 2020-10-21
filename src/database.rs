@@ -149,7 +149,8 @@ impl Database {
                 userdevicetxnid_response: db.open_tree("userdevicetxnid_response")?,
             },
             sending: sending::Sending {
-                serverpduids: db.open_tree("serverpduids")?,
+                servernamepduids: db.open_tree("servernamepduids")?,
+                servercurrentpdus: db.open_tree("servercurrentpdus")?,
             },
             _db: db,
         })
