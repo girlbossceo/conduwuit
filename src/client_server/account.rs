@@ -14,8 +14,14 @@ use ruma::{
         },
     },
     events::{
-        room::canonical_alias, room::guest_access, room::history_visibility, room::join_rules,
-        room::member, room::name, room::topic, EventType,
+        room::canonical_alias,
+        room::guest_access,
+        room::history_visibility,
+        room::join_rules,
+        room::member,
+        room::name,
+        room::{message, topic},
+        EventType,
     },
     RoomAliasId, RoomId, RoomVersionId, UserId,
 };
@@ -459,6 +465,32 @@ pub async fn register_route(
                 redacts: None,
             },
             &user_id,
+            &room_id,
+            &db.globals,
+            &db.sending,
+            &db.account_data,
+        )?;
+
+        // Send welcome message
+        db.rooms.build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomMessage,
+                content: serde_json::to_value(message::MessageEventContent::Text(
+                    message::TextMessageEventContent {
+                        body: "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing `/join #conduit:matrix.org`. **Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.** Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
+                        formatted: Some(message::FormattedBody {
+                            format: message::MessageFormat::Html,
+                            body: "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing <code>/join #conduit:matrix.org</code>. <strong>Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.</strong> Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
+                        }),
+                        relates_to: None,
+                    },
+                ))
+                .expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: None,
+                redacts: None,
+            },
+            &conduit_user,
             &room_id,
             &db.globals,
             &db.sending,
