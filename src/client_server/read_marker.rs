@@ -13,7 +13,7 @@ use std::{collections::BTreeMap, time::SystemTime};
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/read_markers", data = "<body>")
 )]
-pub fn set_read_marker_route(
+pub async fn set_read_marker_route(
     db: State<'_, Database>,
     body: Ruma<set_read_marker::Request<'_>>,
 ) -> ConduitResult<set_read_marker::Response> {
@@ -71,5 +71,8 @@ pub fn set_read_marker_route(
             &db.globals,
         )?;
     }
+
+    db.flush().await?;
+
     Ok(set_read_marker::Response.into())
 }

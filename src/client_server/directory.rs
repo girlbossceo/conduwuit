@@ -87,6 +87,8 @@ pub async fn set_room_visibility_route(
         room::Visibility::Private => db.rooms.set_public(&body.room_id, false)?,
     }
 
+    db.flush().await?;
+
     Ok(set_room_visibility::Response.into())
 }
 

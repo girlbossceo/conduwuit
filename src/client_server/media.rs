@@ -14,7 +14,7 @@ use std::convert::TryInto;
 const MXC_LENGTH: usize = 32;
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/media/r0/config"))]
-pub fn get_media_config_route(
+pub async fn get_media_config_route(
     db: State<'_, Database>,
 ) -> ConduitResult<get_media_config::Response> {
     Ok(get_media_config::Response {
@@ -27,7 +27,7 @@ pub fn get_media_config_route(
     feature = "conduit_bin",
     post("/_matrix/media/r0/upload", data = "<body>")
 )]
-pub fn create_content_route(
+pub async fn create_content_route(
     db: State<'_, Database>,
     body: Ruma<create_content::Request<'_>>,
 ) -> ConduitResult<create_content::Response> {
@@ -42,6 +42,8 @@ pub fn create_content_route(
         &body.content_type,
         &body.file,
     )?;
+
+    db.flush().await?;
 
     Ok(create_content::Response { content_uri: mxc }.into())
 }

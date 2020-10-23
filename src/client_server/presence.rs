@@ -10,7 +10,7 @@ use rocket::put;
     feature = "conduit_bin",
     put("/_matrix/client/r0/presence/<_>/status", data = "<body>")
 )]
-pub fn set_presence_route(
+pub async fn set_presence_route(
     db: State<'_, Database>,
     body: Ruma<set_presence::Request<'_>>,
 ) -> ConduitResult<set_presence::Response> {
@@ -40,6 +40,8 @@ pub fn set_presence_route(
             &db.globals,
         )?;
     }
+
+    db.flush().await?;
 
     Ok(set_presence::Response.into())
 }

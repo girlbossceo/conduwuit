@@ -9,7 +9,7 @@ use rocket::post;
     feature = "conduit_bin",
     post("/_matrix/client/r0/user_directory/search", data = "<body>")
 )]
-pub fn search_users_route(
+pub async fn search_users_route(
     db: State<'_, Database>,
     body: Ruma<search_users::Request<'_>>,
 ) -> ConduitResult<search_users::Response> {

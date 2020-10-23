@@ -9,7 +9,7 @@ use rocket::get;
 ///
 /// Get information on this server's supported feature set and other relevent capabilities.
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/capabilities"))]
-pub fn get_capabilities_route() -> ConduitResult<get_capabilities::Response> {
+pub async fn get_capabilities_route() -> ConduitResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
     available.insert(
         RoomVersionId::Version5,

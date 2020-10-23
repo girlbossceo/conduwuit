@@ -17,7 +17,7 @@ use rocket::{delete, get, post, put};
     feature = "conduit_bin",
     post("/_matrix/client/unstable/room_keys/version", data = "<body>")
 )]
-pub fn create_backup_route(
+pub async fn create_backup_route(
     db: State<'_, Database>,
     body: Ruma<create_backup::Request>,
 ) -> ConduitResult<create_backup::Response> {
@@ -26,6 +26,8 @@ pub fn create_backup_route(
         .key_backups
         .create_backup(&sender_user, &body.algorithm, &db.globals)?;
 
+    db.flush().await?;
+
     Ok(create_backup::Response { version }.into())
 }
 
@@ -33,13 +35,15 @@ pub fn create_backup_route(
     feature = "conduit_bin",
     put("/_matrix/client/unstable/room_keys/version/<_>", data = "<body>")
 )]
-pub fn update_backup_route(
+pub async fn update_backup_route(
     db: State<'_, Database>,
     body: Ruma<update_backup::Request<'_>>,
 ) -> ConduitResult<update_backup::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     db.key_backups
         .update_backup(&sender_user, &body.version, &body.algorithm, &db.globals)?;
+
+    db.flush().await?;
 
     Ok(update_backup::Response.into())
 }
@@ -48,7 +52,7 @@ pub fn update_backup_route(
     feature = "conduit_bin",
     get("/_matrix/client/unstable/room_keys/version", data = "<body>")
 )]
-pub fn get_latest_backup_route(
+pub async fn get_latest_backup_route(
     db: State<'_, Database>,
     body: Ruma<get_latest_backup::Request>,
 ) -> ConduitResult<get_latest_backup::Response> {
@@ -75,7 +79,7 @@ pub fn get_latest_backup_route(
     feature = "conduit_bin",
     get("/_matrix/client/unstable/room_keys/version/<_>", data = "<body>")
 )]
-pub fn get_backup_route(
+pub async fn get_backup_route(
     db: State<'_, Database>,
     body: Ruma<get_backup::Request<'_>>,
 ) -> ConduitResult<get_backup::Response> {
@@ -101,13 +105,15 @@ pub fn get_backup_route(
     feature = "conduit_bin",
     delete("/_matrix/client/unstable/room_keys/version/<_>", data = "<body>")
 )]
-pub fn delete_backup_route(
+pub async fn delete_backup_route(
     db: State<'_, Database>,
     body: Ruma<delete_backup::Request>,
 ) -> ConduitResult<delete_backup::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.key_backups.delete_backup(&sender_user, &body.version)?;
+
+    db.flush().await?;
 
     Ok(delete_backup::Response.into())
 }
@@ -117,7 +123,7 @@ pub fn delete_backup_route(
     feature = "conduit_bin",
     put("/_matrix/client/unstable/room_keys/keys", data = "<body>")
 )]
-pub fn add_backup_keys_route(
+pub async fn add_backup_keys_route(
     db: State<'_, Database>,
     body: Ruma<add_backup_keys::Request<'_>>,
 ) -> ConduitResult<add_backup_keys::Response> {
@@ -136,6 +142,8 @@ pub fn add_backup_keys_route(
         }
     }
 
+    db.flush().await?;
+
     Ok(add_backup_keys::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
         etag: db.key_backups.get_etag(sender_user, &body.version)?,
@@ -148,7 +156,7 @@ pub fn add_backup_keys_route(
     feature = "conduit_bin",
     put("/_matrix/client/unstable/room_keys/keys/<_>", data = "<body>")
 )]
-pub fn add_backup_key_sessions_route(
+pub async fn add_backup_key_sessions_route(
     db: State<'_, Database>,
     body: Ruma<add_backup_key_sessions::Request>,
 ) -> ConduitResult<add_backup_key_sessions::Response> {
@@ -165,6 +173,8 @@ pub fn add_backup_key_sessions_route(
         )?
     }
 
+    db.flush().await?;
+
     Ok(add_backup_key_sessions::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
         etag: db.key_backups.get_etag(sender_user, &body.version)?,
@@ -177,7 +187,7 @@ pub fn add_backup_key_sessions_route(
     feature = "conduit_bin",
     put("/_matrix/client/unstable/room_keys/keys/<_>/<_>", data = "<body>")
 )]
-pub fn add_backup_key_session_route(
+pub async fn add_backup_key_session_route(
     db: State<'_, Database>,
     body: Ruma<add_backup_key_session::Request>,
 ) -> ConduitResult<add_backup_key_session::Response> {
@@ -192,6 +202,8 @@ pub fn add_backup_key_session_route(
         &db.globals,
     )?;
 
+    db.flush().await?;
+
     Ok(add_backup_key_session::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
         etag: db.key_backups.get_etag(sender_user, &body.version)?,
@@ -203,7 +215,7 @@ pub fn add_backup_key_session_route(
     feature = "conduit_bin",
     get("/_matrix/client/unstable/room_keys/keys", data = "<body>")
 )]
-pub fn get_backup_keys_route(
+pub async fn get_backup_keys_route(
     db: State<'_, Database>,
     body: Ruma<get_backup_keys::Request<'_>>,
 ) -> ConduitResult<get_backup_keys::Response> {
@@ -218,7 +230,7 @@ pub fn get_backup_keys_route(
     feature = "conduit_bin",
     get("/_matrix/client/unstable/room_keys/keys/<_>", data = "<body>")
 )]
-pub fn get_backup_key_sessions_route(
+pub async fn get_backup_key_sessions_route(
     db: State<'_, Database>,
     body: Ruma<get_backup_key_sessions::Request>,
 ) -> ConduitResult<get_backup_key_sessions::Response> {
@@ -235,7 +247,7 @@ pub fn get_backup_key_sessions_route(
     feature = "conduit_bin",
     get("/_matrix/client/unstable/room_keys/keys/<_>/<_>", data = "<body>")
 )]
-pub fn get_backup_key_session_route(
+pub async fn get_backup_key_session_route(
     db: State<'_, Database>,
     body: Ruma<get_backup_key_session::Request>,
 ) -> ConduitResult<get_backup_key_session::Response> {
@@ -252,7 +264,7 @@ pub fn get_backup_key_session_route(
     feature = "conduit_bin",
     delete("/_matrix/client/unstable/room_keys/keys", data = "<body>")
 )]
-pub fn delete_backup_keys_route(
+pub async fn delete_backup_keys_route(
     db: State<'_, Database>,
     body: Ruma<delete_backup_keys::Request>,
 ) -> ConduitResult<delete_backup_keys::Response> {
@@ -260,6 +272,8 @@ pub fn delete_backup_keys_route(
 
     db.key_backups
         .delete_all_keys(&sender_user, &body.version)?;
+
+    db.flush().await?;
 
     Ok(delete_backup_keys::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
@@ -272,7 +286,7 @@ pub fn delete_backup_keys_route(
     feature = "conduit_bin",
     delete("/_matrix/client/unstable/room_keys/keys/<_>", data = "<body>")
 )]
-pub fn delete_backup_key_sessions_route(
+pub async fn delete_backup_key_sessions_route(
     db: State<'_, Database>,
     body: Ruma<delete_backup_key_sessions::Request>,
 ) -> ConduitResult<delete_backup_key_sessions::Response> {
@@ -280,6 +294,8 @@ pub fn delete_backup_key_sessions_route(
 
     db.key_backups
         .delete_room_keys(&sender_user, &body.version, &body.room_id)?;
+
+    db.flush().await?;
 
     Ok(delete_backup_key_sessions::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
@@ -292,7 +308,7 @@ pub fn delete_backup_key_sessions_route(
     feature = "conduit_bin",
     delete("/_matrix/client/unstable/room_keys/keys/<_>/<_>", data = "<body>")
 )]
-pub fn delete_backup_key_session_route(
+pub async fn delete_backup_key_session_route(
     db: State<'_, Database>,
     body: Ruma<delete_backup_key_session::Request>,
 ) -> ConduitResult<delete_backup_key_session::Response> {
@@ -300,6 +316,8 @@ pub fn delete_backup_key_session_route(
 
     db.key_backups
         .delete_room_key(&sender_user, &body.version, &body.room_id, &body.session_id)?;
+
+    db.flush().await?;
 
     Ok(delete_backup_key_session::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),

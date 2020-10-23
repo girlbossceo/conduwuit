@@ -14,8 +14,14 @@ use ruma::{
         },
     },
     events::{
-        room::canonical_alias, room::guest_access, room::history_visibility, room::join_rules,
-        room::member, room::name, room::topic, EventType,
+        room::canonical_alias,
+        room::guest_access,
+        room::history_visibility,
+        room::join_rules,
+        room::member,
+        room::name,
+        room::{message, topic},
+        EventType,
     },
     RoomAliasId, RoomId, RoomVersionId, UserId,
 };
@@ -36,7 +42,7 @@ const GUEST_NAME_LENGTH: usize = 10;
     feature = "conduit_bin",
     get("/_matrix/client/r0/register/available", data = "<body>")
 )]
-pub fn get_register_available_route(
+pub async fn get_register_available_route(
     db: State<'_, Database>,
     body: Ruma<get_username_availability::Request<'_>>,
 ) -> ConduitResult<get_username_availability::Response> {
@@ -464,7 +470,35 @@ pub async fn register_route(
             &db.sending,
             &db.account_data,
         )?;
+
+        // Send welcome message
+        db.rooms.build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomMessage,
+                content: serde_json::to_value(message::MessageEventContent::Text(
+                    message::TextMessageEventContent {
+                        body: "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing `/join #conduit:matrix.org`. **Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.** Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
+                        formatted: Some(message::FormattedBody {
+                            format: message::MessageFormat::Html,
+                            body: "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing <code>/join #conduit:matrix.org</code>. <strong>Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.</strong> Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
+                        }),
+                        relates_to: None,
+                    },
+                ))
+                .expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: None,
+                redacts: None,
+            },
+            &conduit_user,
+            &room_id,
+            &db.globals,
+            &db.sending,
+            &db.account_data,
+        )?;
     }
+
+    db.flush().await?;
 
     Ok(register::Response {
         access_token: Some(token),
@@ -485,7 +519,7 @@ pub async fn register_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/account/password", data = "<body>")
 )]
-pub fn change_password_route(
+pub async fn change_password_route(
     db: State<'_, Database>,
     body: Ruma<change_password::Request<'_>>,
 ) -> ConduitResult<change_password::Response> {
@@ -535,6 +569,8 @@ pub fn change_password_route(
         db.users.remove_device(&sender_user, &id)?;
     }
 
+    db.flush().await?;
+
     Ok(change_password::Response.into())
 }
 
@@ -547,7 +583,7 @@ pub fn change_password_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/account/whoami", data = "<body>")
 )]
-pub fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Response> {
+pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     Ok(whoami::Response {
         user_id: sender_user.clone(),
@@ -636,6 +672,8 @@ pub async fn deactivate_route(
 
     // Remove devices and mark account as deactivated
     db.users.deactivate_account(&sender_user)?;
+
+    db.flush().await?;
 
     Ok(deactivate::Response {
         id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,

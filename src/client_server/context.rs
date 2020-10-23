@@ -10,7 +10,7 @@ use rocket::get;
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/context/<_>", data = "<body>")
 )]
-pub fn get_context_route(
+pub async fn get_context_route(
     db: State<'_, Database>,
     body: Ruma<get_context::Request<'_>>,
 ) -> ConduitResult<get_context::Response> {

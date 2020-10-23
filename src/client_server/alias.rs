@@ -18,7 +18,7 @@ use rocket::{delete, get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/directory/room/<_>", data = "<body>")
 )]
-pub fn create_alias_route(
+pub async fn create_alias_route(
     db: State<'_, Database>,
     body: Ruma<create_alias::Request<'_>>,
 ) -> ConduitResult<create_alias::Response> {
@@ -29,6 +29,8 @@ pub fn create_alias_route(
     db.rooms
         .set_alias(&body.room_alias, Some(&body.room_id), &db.globals)?;
 
+    db.flush().await?;
+
     Ok(create_alias::Response::new().into())
 }
 
@@ -36,11 +38,13 @@ pub fn create_alias_route(
     feature = "conduit_bin",
     delete("/_matrix/client/r0/directory/room/<_>", data = "<body>")
 )]
-pub fn delete_alias_route(
+pub async fn delete_alias_route(
     db: State<'_, Database>,
     body: Ruma<delete_alias::Request<'_>>,
 ) -> ConduitResult<delete_alias::Response> {
     db.rooms.set_alias(&body.room_alias, None, &db.globals)?;
+
+    db.flush().await?;
 
     Ok(delete_alias::Response::new().into())
 }
