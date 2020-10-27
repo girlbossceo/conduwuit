@@ -169,7 +169,7 @@ impl Rooms {
         state_hash: &StateHashId,
         event_type: &EventType,
         state_key: &str,
-    ) -> Result<Option<PduEvent>> {
+    ) -> Result<Option<(IVec, PduEvent)>> {
         let mut key = state_hash.to_vec();
         key.push(0xff);
         key.extend_from_slice(&event_type.to_string().as_bytes());
@@ -177,14 +177,15 @@ impl Rooms {
         key.extend_from_slice(&state_key.as_bytes());
 
         self.stateid_pduid.get(&key)?.map_or(Ok(None), |pdu_id| {
-            Ok::<_, Error>(Some(
+            Ok::<_, Error>(Some((
+                pdu_id.clone(),
                 serde_json::from_slice::<PduEvent>(
-                    &self.pduid_pdu.get(pdu_id)?.ok_or_else(|| {
+                    &self.pduid_pdu.get(&pdu_id)?.ok_or_else(|| {
                         Error::bad_database("PDU in state not found in database.")
                     })?,
                 )
                 .map_err(|_| Error::bad_database("Invalid PDU bytes in room state."))?,
-            ))
+            )))
         })
     }
 
@@ -216,7 +217,7 @@ impl Rooms {
 
         let mut events = StateMap::new();
         for (event_type, state_key) in auth_events {
-            if let Some(pdu) = self.room_state_get(room_id, &event_type, &state_key)? {
+            if let Some((_, pdu)) = self.room_state_get(room_id, &event_type, &state_key)? {
                 events.insert((event_type, state_key), pdu);
             }
         }
@@ -299,7 +300,7 @@ impl Rooms {
         room_id: &RoomId,
         event_type: &EventType,
         state_key: &str,
-    ) -> Result<Option<PduEvent>> {
+    ) -> Result<Option<(IVec, PduEvent)>> {
         if let Some(current_state_hash) = self.current_state_hash(room_id)? {
             self.state_get(&current_state_hash, event_type, state_key)
         } else {
@@ -653,7 +654,7 @@ impl Rooms {
                                 },
                         })
                     },
-                    |power_levels| {
+                    |(_, power_levels)| {
                         Ok(serde_json::from_value::<Raw<PowerLevelsEventContent>>(
                             power_levels.content,
                         )
@@ -664,15 +665,18 @@ impl Rooms {
                 )?;
             let sender_membership = self
                 .room_state_get(&room_id, &EventType::RoomMember, &sender.to_string())?
-                .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
-                    Ok(
-                        serde_json::from_value::<Raw<member::MemberEventContent>>(pdu.content)
-                            .expect("Raw::from_value always works.")
-                            .deserialize()
-                            .map_err(|_| Error::bad_database("Invalid Member event in db."))?
-                            .membership,
-                    )
-                })?;
+                .map_or(
+                    Ok::<_, Error>(member::MembershipState::Leave),
+                    |(_, pdu)| {
+                        Ok(
+                            serde_json::from_value::<Raw<member::MemberEventContent>>(pdu.content)
+                                .expect("Raw::from_value always works.")
+                                .deserialize()
+                                .map_err(|_| Error::bad_database("Invalid Member event in db."))?
+                                .membership,
+                        )
+                    },
+                )?;
 
             let sender_power = power_levels.users.get(&sender).map_or_else(
                 || {
@@ -759,7 +763,7 @@ impl Rooms {
 
         let mut unsigned = unsigned.unwrap_or_default();
         if let Some(state_key) = &state_key {
-            if let Some(prev_pdu) = self.room_state_get(&room_id, &event_type, &state_key)? {
+            if let Some((_, prev_pdu)) = self.room_state_get(&room_id, &event_type, &state_key)? {
                 unsigned.insert("prev_content".to_owned(), prev_pdu.content);
                 unsigned.insert(
                     "prev_sender".to_owned(),
@@ -1017,7 +1021,7 @@ impl Rooms {
                     // Check if the room has a predecessor
                     if let Some(predecessor) = self
                         .room_state_get(&room_id, &EventType::RoomCreate, "")?
-                        .and_then(|create| {
+                        .and_then(|(_, create)| {
                             serde_json::from_value::<
                                 Raw<ruma::events::room::create::CreateEventContent>,
                             >(create.content)

@@ -103,6 +103,7 @@ pub async fn leave_room_route(
                 ErrorKind::BadState,
                 "Cannot leave a room you are not a member of.",
             ))?
+            .1
             .content,
     )
     .expect("from_value::<Raw<..>> can never fail")
@@ -193,6 +194,7 @@ pub async fn kick_user_route(
                 ErrorKind::BadState,
                 "Cannot kick member that's not in the room.",
             ))?
+            .1
             .content,
     )
     .expect("Raw::from_value always works")
@@ -249,7 +251,7 @@ pub async fn ban_user_route(
                 is_direct: None,
                 third_party_invite: None,
             }),
-            |event| {
+            |(_, event)| {
                 let mut event =
                     serde_json::from_value::<Raw<member::MemberEventContent>>(event.content)
                         .expect("Raw::from_value always works")
@@ -301,6 +303,7 @@ pub async fn unban_user_route(
                 ErrorKind::BadState,
                 "Cannot unban a user who is not banned.",
             ))?
+            .1
             .content,
     )
     .expect("from_value::<Raw<..>> can never fail")
