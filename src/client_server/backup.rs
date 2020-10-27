@@ -107,7 +107,7 @@ pub async fn get_backup_route(
 )]
 pub async fn delete_backup_route(
     db: State<'_, Database>,
-    body: Ruma<delete_backup::Request>,
+    body: Ruma<delete_backup::Request<'_>>,
 ) -> ConduitResult<delete_backup::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -158,7 +158,7 @@ pub async fn add_backup_keys_route(
 )]
 pub async fn add_backup_key_sessions_route(
     db: State<'_, Database>,
-    body: Ruma<add_backup_key_sessions::Request>,
+    body: Ruma<add_backup_key_sessions::Request<'_>>,
 ) -> ConduitResult<add_backup_key_sessions::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -189,7 +189,7 @@ pub async fn add_backup_key_sessions_route(
 )]
 pub async fn add_backup_key_session_route(
     db: State<'_, Database>,
-    body: Ruma<add_backup_key_session::Request>,
+    body: Ruma<add_backup_key_session::Request<'_>>,
 ) -> ConduitResult<add_backup_key_session::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -232,7 +232,7 @@ pub async fn get_backup_keys_route(
 )]
 pub async fn get_backup_key_sessions_route(
     db: State<'_, Database>,
-    body: Ruma<get_backup_key_sessions::Request>,
+    body: Ruma<get_backup_key_sessions::Request<'_>>,
 ) -> ConduitResult<get_backup_key_sessions::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -249,13 +249,14 @@ pub async fn get_backup_key_sessions_route(
 )]
 pub async fn get_backup_key_session_route(
     db: State<'_, Database>,
-    body: Ruma<get_backup_key_session::Request>,
+    body: Ruma<get_backup_key_session::Request<'_>>,
 ) -> ConduitResult<get_backup_key_session::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let key_data =
-        db.key_backups
-            .get_session(&sender_user, &body.version, &body.room_id, &body.session_id)?;
+    let key_data = db
+        .key_backups
+        .get_session(&sender_user, &body.version, &body.room_id, &body.session_id)?
+        .ok_or_else(|| Error::BadDatabase("Backup key not found for this user's session"))?;
 
     Ok(get_backup_key_session::Response { key_data }.into())
 }
@@ -266,7 +267,7 @@ pub async fn get_backup_key_session_route(
 )]
 pub async fn delete_backup_keys_route(
     db: State<'_, Database>,
-    body: Ruma<delete_backup_keys::Request>,
+    body: Ruma<delete_backup_keys::Request<'_>>,
 ) -> ConduitResult<delete_backup_keys::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -288,7 +289,7 @@ pub async fn delete_backup_keys_route(
 )]
 pub async fn delete_backup_key_sessions_route(
     db: State<'_, Database>,
-    body: Ruma<delete_backup_key_sessions::Request>,
+    body: Ruma<delete_backup_key_sessions::Request<'_>>,
 ) -> ConduitResult<delete_backup_key_sessions::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -310,7 +311,7 @@ pub async fn delete_backup_key_sessions_route(
 )]
 pub async fn delete_backup_key_session_route(
     db: State<'_, Database>,
-    body: Ruma<delete_backup_key_session::Request>,
+    body: Ruma<delete_backup_key_session::Request<'_>>,
 ) -> ConduitResult<delete_backup_key_session::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

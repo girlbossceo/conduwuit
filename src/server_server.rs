@@ -17,11 +17,11 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
-    EventId, ServerName,
+    EventId, RoomVersionId, ServerName,
 };
 use std::{
     collections::BTreeMap,
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     fmt::Debug,
     time::{Duration, SystemTime},
 };
@@ -95,7 +95,7 @@ where
     let mut http_request = request
         .try_into_http_request(&actual_destination, Some(""))
         .map_err(|e| {
-            warn!("{}: {}", actual_destination, e);
+            warn!("failed to find destination {}: {}", actual_destination, e);
             Error::BadServerResponse("Invalid destination")
         })?;
 
@@ -122,13 +122,18 @@ where
     request_map.insert("origin".to_owned(), globals.server_name().as_str().into());
     request_map.insert("destination".to_owned(), destination.as_str().into());
 
-    let mut request_json = request_map.into();
+    let mut request_json =
+        serde_json::from_value(request_map.into()).expect("valid JSON is valid BTreeMap");
+
     ruma::signatures::sign_json(
         globals.server_name().as_str(),
         globals.keypair(),
         &mut request_json,
     )
     .expect("our request json is what ruma expects");
+
+    let request_json: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_slice(&serde_json::to_vec(&request_json).unwrap()).unwrap();
 
     let signatures = request_json["signatures"]
         .as_object()
@@ -234,7 +239,9 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
 
     let mut verify_keys = BTreeMap::new();
     verify_keys.insert(
-        format!("ed25519:{}", db.globals.keypair().version()),
+        format!("ed25519:{}", db.globals.keypair().version())
+            .try_into()
+            .expect("DB stores valid ServerKeyId's"),
         VerifyKey {
             key: base64::encode_config(db.globals.keypair().public_key(), base64::STANDARD_NO_PAD),
         },
@@ -259,7 +266,7 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
         &mut response,
     )
     .unwrap();
-    Json(response.to_string())
+    Json(ruma::serde::to_canonical_json_string(&response).expect("JSON is canonical"))
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server/<_>"))]
@@ -365,7 +372,7 @@ pub async fn get_public_rooms_route(
     feature = "conduit_bin",
     put("/_matrix/federation/v1/send/<_>", data = "<body>")
 )]
-pub fn send_transaction_message_route<'a>(
+pub async fn send_transaction_message_route<'a>(
     db: State<'a, Database>,
     body: Ruma<send_transaction_message::v1::Request<'_>>,
 ) -> ConduitResult<send_transaction_message::v1::Response> {
@@ -451,7 +458,7 @@ pub fn get_missing_events_route<'a>(
                 )
                 .map_err(|_| Error::bad_database("Invalid prev_events content in pdu in db."))?,
             );
-            events.push(PduEvent::convert_to_outgoing_federation_event(pdu));
+            events.push(serde_json::from_value(pdu).expect("Raw<..> is always valid"));
         }
         i += 1;
     }

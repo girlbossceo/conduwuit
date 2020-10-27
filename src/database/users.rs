@@ -8,7 +8,7 @@ use ruma::{
             keys::{CrossSigningKey, OneTimeKey},
         },
     },
-    encryption::IncomingDeviceKeys,
+    encryption::DeviceKeys,
     events::{AnyToDeviceEvent, EventType},
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, Raw, UserId,
 };
@@ -401,7 +401,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-        device_keys: &IncomingDeviceKeys,
+        device_keys: &DeviceKeys,
         rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -631,7 +631,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-    ) -> Result<Option<IncomingDeviceKeys>> {
+    ) -> Result<Option<DeviceKeys>> {
         let mut key = user_id.to_string().as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());

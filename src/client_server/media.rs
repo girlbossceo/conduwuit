@@ -39,7 +39,7 @@ pub async fn create_content_route(
     db.media.create(
         mxc.clone(),
         &body.filename.as_deref(),
-        &body.content_type,
+        body.content_type.as_deref().unwrap_or("img"), // TODO this is now optional handle
         &body.file,
     )?;
 
@@ -66,8 +66,8 @@ pub async fn get_content_route(
     {
         Ok(get_content::Response {
             file,
-            content_type,
-            content_disposition: filename.unwrap_or_default(), // TODO: Spec says this should be optional
+            content_type: Some(content_type),
+            content_disposition: filename,
         }
         .into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
@@ -84,8 +84,11 @@ pub async fn get_content_route(
 
         db.media.create(
             mxc,
-            &Some(&get_content_response.content_disposition),
-            &get_content_response.content_type,
+            &get_content_response.content_disposition.as_deref(),
+            get_content_response // TODO this is now optional handle
+                .content_type
+                .as_deref()
+                .unwrap_or("img"),
             &get_content_response.file,
         )?;
 
@@ -116,7 +119,11 @@ pub async fn get_content_thumbnail_route(
             .try_into()
             .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
     )? {
-        Ok(get_content_thumbnail::Response { file, content_type }.into())
+        Ok(get_content_thumbnail::Response {
+            file,
+            content_type: Some(content_type),
+        }
+        .into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
         let get_thumbnail_response = server_server::send_request(
             &db.globals,
@@ -135,7 +142,10 @@ pub async fn get_content_thumbnail_route(
         db.media.upload_thumbnail(
             mxc,
             &None,
-            &get_thumbnail_response.content_type,
+            get_thumbnail_response
+                .content_type
+                .as_deref()
+                .unwrap_or("img"), // TODO now optional, deal with it somehow
             body.width.try_into().expect("all UInts are valid u32s"),
             body.height.try_into().expect("all UInts are valid u32s"),
             &get_thumbnail_response.file,

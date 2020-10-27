@@ -15,7 +15,7 @@ use ruma::{
         },
         EventType,
     },
-    EventId, Raw, RoomAliasId, RoomId, ServerName, UserId,
+    EventId, Raw, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use sled::IVec;
 use state_res::{event_auth, Error as StateError, Requester, StateEvent, StateMap, StateStore};
@@ -196,7 +196,7 @@ impl Rooms {
         Ok(self.pduid_statehash.get(pdu_id)?)
     }
 
-    /// Returns the last state hash key added to the db.
+    /// Returns the last state hash key added to the db for the given room.
     pub fn current_state_hash(&self, room_id: &RoomId) -> Result<Option<StateHashId>> {
         Ok(self.roomid_statehash.get(room_id.as_bytes())?)
     }
@@ -249,7 +249,7 @@ impl Rooms {
             .is_some())
     }
 
-    /// Returns the full room state.
+    /// Force the creation of a new StateHash and insert it into the db.
     pub fn force_state(
         &self,
         room_id: &RoomId,
@@ -436,6 +436,7 @@ impl Rooms {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     /// Creates a new persisted data unit and adds it to a room.
     pub fn append_pdu(
         &self,
@@ -687,7 +688,7 @@ impl Rooms {
                 }
                 EventType::RoomMember => {
                     let prev_event = self
-                        .get_pdu(prev_events.iter().next().ok_or(Error::BadRequest(
+                        .get_pdu(prev_events.get(0).ok_or(Error::BadRequest(
                             ErrorKind::Unknown,
                             "Membership can't be the first event",
                         ))?)?
@@ -703,7 +704,7 @@ impl Rooms {
                             sender: &sender,
                         },
                         prev_event,
-                        None,
+                        None, // TODO: third party invite
                         &auth_events
                             .iter()
                             .map(|((ty, key), pdu)| {
@@ -761,7 +762,7 @@ impl Rooms {
         }
 
         let mut pdu = PduEvent {
-            event_id: EventId::try_from("$thiswillbefilledinlater").expect("we know this is valid"),
+            event_id: ruma::event_id!("$thiswillbefilledinlater"),
             room_id: room_id.clone(),
             sender: sender.clone(),
             origin_server_ts: utils::millis_since_unix_epoch()
@@ -787,37 +788,42 @@ impl Rooms {
         };
 
         // Hash and sign
-        let mut pdu_json = serde_json::to_value(&pdu).expect("event is valid, we just created it");
-        pdu_json
-            .as_object_mut()
-            .expect("json is object")
-            .remove("event_id");
+        let mut pdu_json: BTreeMap<String, ruma::serde::CanonicalJsonValue> =
+            serde_json::from_value(serde_json::json!(&pdu))
+                .expect("event is valid, we just created it");
+
+        pdu_json.remove("event_id");
 
         // Add origin because synapse likes that (and it's required in the spec)
-        pdu_json
-            .as_object_mut()
-            .expect("json is object")
-            .insert("origin".to_owned(), globals.server_name().as_str().into());
+        pdu_json.insert(
+            "origin".to_owned(),
+            serde_json::json!(globals.server_name())
+                .try_into()
+                .expect("server name is a valid CanonicalJsonValue"),
+        );
 
         ruma::signatures::hash_and_sign_event(
             globals.server_name().as_str(),
             globals.keypair(),
             &mut pdu_json,
+            &RoomVersionId::Version6,
         )
         .expect("event is valid, we just created it");
 
         // Generate event id
         pdu.event_id = EventId::try_from(&*format!(
             "${}",
-            ruma::signatures::reference_hash(&pdu_json)
+            ruma::signatures::reference_hash(&pdu_json, &RoomVersionId::Version6)
                 .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are valid event ids");
 
-        pdu_json
-            .as_object_mut()
-            .expect("json is object")
-            .insert("event_id".to_owned(), pdu.event_id.to_string().into());
+        pdu_json.insert(
+            "event_id".to_owned(),
+            serde_json::json!(pdu.event_id)
+                .try_into()
+                .expect("EventId is a valid CanonicalJsonValue"),
+        );
 
         // Increment the last index and use that
         // This is also the next_batch/since value
@@ -832,7 +838,7 @@ impl Rooms {
 
         self.append_pdu(
             &pdu,
-            &pdu_json,
+            &serde_json::json!(pdu_json), // TODO fixup CanonicalJsonValue
             count,
             pdu_id.clone().into(),
             globals,
