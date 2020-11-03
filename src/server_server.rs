@@ -20,7 +20,7 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
-    EventId, RoomVersionId, ServerName,
+    EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use std::{
     collections::BTreeMap,
@@ -412,19 +412,10 @@ pub async fn send_transaction_message_route<'a>(
                 "m.receipt" => {}
                 _ => {}
             },
-            Err(_err) => {
-                log::error!("{}", _err);
-                continue;
-            }
+            Err(_err) => continue,
         }
     }
-    // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we?
-    // SPEC:
-    // Servers MUST strictly enforce the JSON format specified in the appendices.
-    // This translates to a 400 M_BAD_JSON error on most endpoints, or discarding of
-    // events over federation. For example, the Federation API's /send endpoint would
-    // discard the event whereas the Client Server API's /send/{eventType} endpoint
-    // would return a M_BAD_JSON error.
+
     let mut resolved_map = BTreeMap::new();
     for pdu in &body.pdus {
         println!("LOOP");
@@ -437,16 +428,14 @@ pub async fn send_transaction_message_route<'a>(
             if !db.rooms.is_joined(&pdu.sender, &pdu.room_id)? {
                 // TODO: auth rules apply to all events, not only those with a state key
                 log::error!("Unauthorized {}", pdu.kind);
-                return Err(Error::BadRequest(
-                    ruma::api::client::error::ErrorKind::Forbidden,
-                    "Event is not authorized",
-                ));
+
+                resolved_map.insert(event_id, Err("User is not in this room".into()));
+                continue;
             }
 
             // TODO: We should be doing the same get_closest_parent thing here too?
             // same as for state events ~100 lines down
             let count = db.globals.next_count()?;
-
             let mut pdu_id = pdu.room_id.as_bytes().to_vec();
             pdu_id.push(0xff);
             pdu_id.extend_from_slice(&count.to_be_bytes());
@@ -677,7 +666,7 @@ pub async fn send_transaction_message_route<'a>(
         };
     }
 
-    Ok(send_transaction_message::v1::Response { pdus: resolved_map }.into())
+    Ok(dbg!(send_transaction_message::v1::Response { pdus: resolved_map }).into())
 }
 
 #[cfg_attr(

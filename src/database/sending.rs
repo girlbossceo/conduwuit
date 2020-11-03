@@ -73,7 +73,7 @@ impl Sending {
             loop {
                 select! {
                     Some(server) = futures.next() => {
-                        debug!("response: {:?}", &server);
+                        debug!("sending response: {:?}", &server);
                         match server {
                             Ok((server, _response)) => {
                                 let mut prefix = server.as_bytes().to_vec();
@@ -184,17 +184,29 @@ impl Sending {
         let pdu_jsons = pdu_ids
             .iter()
             .map(|pdu_id| {
-                Ok::<_, (Box<ServerName>, Error)>(PduEvent::convert_to_outgoing_federation_event(
-                    rooms
-                        .get_pdu_json_from_id(pdu_id)
-                        .map_err(|e| (server.clone(), e))?
-                        .ok_or_else(|| {
-                            (
-                                server.clone(),
-                                Error::bad_database("Event in servernamepduids not found in db."),
-                            )
-                        })?,
-                ))
+                Ok::<_, (Box<ServerName>, Error)>(
+                    // TODO: this was a PduStub
+                    // In order for sending to work these actually do have to be
+                    // PduStub but, since they are Raw<..> we can fake it.
+                    serde_json::from_str(
+                        PduEvent::convert_to_outgoing_federation_event(
+                            rooms
+                                .get_pdu_json_from_id(pdu_id)
+                                .map_err(|e| (server.clone(), e))?
+                                .ok_or_else(|| {
+                                    (
+                                        server.clone(),
+                                        Error::bad_database(
+                                            "Event in servernamepduids not found in db.",
+                                        ),
+                                    )
+                                })?,
+                        )
+                        .json()
+                        .get(),
+                    )
+                    .expect("Raw<..> is always valid"),
+                )
             })
             .filter_map(|r| r.ok())
             .collect::<Vec<_>>();
