@@ -383,7 +383,41 @@ pub async fn send_transaction_message_route<'a>(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    //dbg!(&*body);
+    for edu in &body.edus {
+        match serde_json::from_str::<send_transaction_message::v1::Edu>(edu.json().get()) {
+            Ok(edu) => match edu.edu_type.as_str() {
+                "m.typing" => {
+                    if let Some(typing) = edu.content.get("typing") {
+                        if typing.as_bool().unwrap_or_default() {
+                            db.rooms.edus.typing_add(
+                                &UserId::try_from(edu.content["user_id"].as_str().unwrap())
+                                    .unwrap(),
+                                &RoomId::try_from(edu.content["room_id"].as_str().unwrap())
+                                    .unwrap(),
+                                3000 + utils::millis_since_unix_epoch(),
+                                &db.globals,
+                            )?;
+                        } else {
+                            db.rooms.edus.typing_remove(
+                                &UserId::try_from(edu.content["user_id"].as_str().unwrap())
+                                    .unwrap(),
+                                &RoomId::try_from(edu.content["room_id"].as_str().unwrap())
+                                    .unwrap(),
+                                &db.globals,
+                            )?;
+                        }
+                    }
+                }
+                "m.presence" => {}
+                "m.receipt" => {}
+                _ => {}
+            },
+            Err(_err) => {
+                log::error!("{}", _err);
+                continue;
+            }
+        }
+    }
     // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we?
     // SPEC:
     // Servers MUST strictly enforce the JSON format specified in the appendices.
