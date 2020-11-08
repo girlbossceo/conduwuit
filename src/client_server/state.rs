@@ -9,9 +9,8 @@ use ruma::{
         },
     },
     events::{
-        room::history_visibility::HistoryVisibility,
-        room::history_visibility::HistoryVisibilityEventContent, AnyStateEventContent,
-        EventContent, EventType,
+        room::history_visibility::{HistoryVisibility, HistoryVisibilityEventContent},
+        AnyStateEventContent, EventContent, EventType,
     },
     EventId, RoomId, UserId,
 };
@@ -103,6 +102,7 @@ pub async fn get_state_events_route(
 ) -> ConduitResult<get_state_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    #[allow(clippy::blocks_in_if_conditions)]
     // Users not in the room should not be able to access the state unless history_visibility is
     // WorldReadable
     if !db.rooms.is_joined(sender_user, &body.room_id)?
@@ -148,6 +148,7 @@ pub async fn get_state_events_for_key_route(
 ) -> ConduitResult<get_state_events_for_key::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    #[allow(clippy::blocks_in_if_conditions)]
     // Users not in the room should not be able to access the state unless history_visibility is
     // WorldReadable
     if !db.rooms.is_joined(sender_user, &body.room_id)?
@@ -198,6 +199,7 @@ pub async fn get_state_events_for_empty_key_route(
 ) -> ConduitResult<get_state_events_for_empty_key::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    #[allow(clippy::blocks_in_if_conditions)]
     // Users not in the room should not be able to access the state unless history_visibility is
     // WorldReadable
     if !db.rooms.is_joined(sender_user, &body.room_id)?

@@ -15,13 +15,10 @@ use ruma::{
         },
     },
     events::{
-        room::canonical_alias,
-        room::guest_access,
-        room::history_visibility,
-        room::join_rules,
-        room::member,
-        room::name,
-        room::{message, topic},
+        room::{
+            canonical_alias, guest_access, history_visibility, join_rules, member, message, name,
+            topic,
+        },
         EventType,
     },
     RoomAliasId, RoomId, RoomVersionId, UserId,

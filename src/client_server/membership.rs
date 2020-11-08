@@ -17,15 +17,12 @@ use ruma::{
         },
         federation,
     },
-    events::pdu::Pdu,
-    events::{room::member, EventType},
+    events::{pdu::Pdu, room::member, EventType},
     EventId, Raw, RoomId, RoomVersionId, ServerName, UserId,
 };
 use state_res::StateEvent;
 use std::{
-    collections::BTreeMap,
-    collections::HashMap,
-    collections::HashSet,
+    collections::{BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     iter,
     sync::Arc,

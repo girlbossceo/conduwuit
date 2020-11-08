@@ -116,6 +116,7 @@ impl Sending {
                                 }
                             }
                             Err((_server, _e)) => {
+                                log::error!("server: {}\nerror: {}", _server, _e)
                                 // TODO: exponential backoff
                             }
                         };
@@ -131,7 +132,7 @@ impl Sending {
                                         .expect("splitn will always return 1 or more elements"),
                                 )
                                 .map_err(|_| Error::bad_database("ServerName in servernamepduid bytes are invalid."))
-                                .and_then(|server_str|Box::<ServerName>::try_from(server_str)
+                                .and_then(|server_str| Box::<ServerName>::try_from(server_str)
                                     .map_err(|_| Error::bad_database("ServerName in servernamepduid is invalid.")))
                                 .ok()
                                 .and_then(|server| parts
@@ -162,7 +163,7 @@ impl Sending {
         });
     }
 
-    pub fn send_pdu(&self, server: Box<ServerName>, pdu_id: &[u8]) -> Result<()> {
+    pub fn send_pdu(&self, server: &ServerName, pdu_id: &[u8]) -> Result<()> {
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pdu_id);

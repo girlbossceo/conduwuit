@@ -4,7 +4,10 @@ use ruma::{
     identifiers::{DeviceId, UserId},
     Outgoing,
 };
-use std::{convert::TryFrom, convert::TryInto, ops::Deref};
+use std::{
+    convert::{TryFrom, TryInto},
+    ops::Deref,
+};
 
 #[cfg(feature = "conduit_bin")]
 use {
