@@ -512,22 +512,16 @@ async fn join_room_by_id_helper(
 
         // TODO fixup CanonicalJsonValue
         // use that instead of serde_json::Map... maybe?
-        let mut canon_json_stub =
+        let mut canon_json_stub: BTreeMap<_, ruma::signatures::CanonicalJsonValue> =
             serde_json::from_value(join_event_stub_value).expect("json Value is canonical JSON");
-        // Generate event id
-        let event_id = EventId::try_from(&*format!(
-            "${}",
-            ruma::signatures::reference_hash(&canon_json_stub, &RoomVersionId::Version6)
-                .expect("ruma can calculate reference hashes")
-        ))
-        .expect("ruma's reference hashes are valid event ids");
 
         // We don't leave the event id into the pdu because that's only allowed in v1 or v2 rooms
         // let join_event_stub = join_event_stub_value.as_object_mut().unwrap();
         // join_event_stub.remove("event_id");
-
         canon_json_stub.remove("event_id");
 
+        // In order to create a compatible ref hash (EventID) the `hashes` field needs to be present
+        // who the hell knew...
         ruma::signatures::hash_and_sign_event(
             db.globals.server_name().as_str(),
             db.globals.keypair(),
@@ -535,6 +529,14 @@ async fn join_room_by_id_helper(
             &RoomVersionId::Version6,
         )
         .expect("event is valid, we just created it");
+
+        // Generate event id
+        let event_id = EventId::try_from(&*format!(
+            "${}",
+            ruma::signatures::reference_hash(&canon_json_stub, &RoomVersionId::Version6)
+                .expect("ruma can calculate reference hashes")
+        ))
+        .expect("ruma's reference hashes are valid event ids");
 
         // Add event_id back
         canon_json_stub.insert(
@@ -545,7 +547,7 @@ async fn join_room_by_id_helper(
         );
 
         // It has enough fields to be called a proper event now
-        let join_event = canon_json_stub;
+        let join_event = dbg!(canon_json_stub);
 
         let send_join_response = server_server::send_request(
             &db.globals,
@@ -606,7 +608,7 @@ async fn join_room_by_id_helper(
                     .map(|ev| (event_id, Arc::new(ev)))
                     .map_err(|e| {
                         warn!("{}: {}", value, e);
-                        Error::BadServerResponse("Invalid PDU bytes in send_join response.")
+                        Error::BadServerResponse("Invalid PDU in send_join response.")
                     })
             })
             .collect::<Result<BTreeMap<EventId, Arc<StateEvent>>>>()?;
