@@ -515,9 +515,7 @@ async fn join_room_by_id_helper(
         let mut canon_json_stub: BTreeMap<_, ruma::signatures::CanonicalJsonValue> =
             serde_json::from_value(join_event_stub_value).expect("json Value is canonical JSON");
 
-        // We don't leave the event id into the pdu because that's only allowed in v1 or v2 rooms
-        // let join_event_stub = join_event_stub_value.as_object_mut().unwrap();
-        // join_event_stub.remove("event_id");
+        // We don't leave the event id in the pdu because that's only allowed in v1 or v2 rooms
         canon_json_stub.remove("event_id");
 
         // In order to create a compatible ref hash (EventID) the `hashes` field needs to be present

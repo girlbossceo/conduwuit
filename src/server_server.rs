@@ -418,6 +418,7 @@ pub async fn send_transaction_message_route<'a>(
             }
         }
     }
+
     // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we?
     // SPEC:
     // Servers MUST strictly enforce the JSON format specified in the appendices.
@@ -427,42 +428,20 @@ pub async fn send_transaction_message_route<'a>(
     // would return a M_BAD_JSON error.
     let mut resolved_map = BTreeMap::new();
     for pdu in &body.pdus {
-        println!("LOOP");
         let (event_id, value) = process_incoming_pdu(pdu);
         let pdu = serde_json::from_value::<PduEvent>(value.clone())
             .expect("all ruma pdus are conduit pdus");
         let room_id = &pdu.room_id;
 
-        if value.get("state_key").is_none() {
-            if !db.rooms.is_joined(&pdu.sender, &pdu.room_id)? {
-                // TODO: auth rules apply to all events, not only those with a state key
-                log::error!("Unauthorized {}", pdu.kind);
-
-                resolved_map.insert(event_id, Err("User is not in this room".into()));
-                continue;
-            }
-
-            // TODO: We should be doing the same get_closest_parent thing here too?
-            // same as for state events ~100 lines down
-            let count = db.globals.next_count()?;
-            let mut pdu_id = pdu.room_id.as_bytes().to_vec();
-            pdu_id.push(0xff);
-            pdu_id.extend_from_slice(&count.to_be_bytes());
-            db.rooms.append_pdu(
-                &pdu,
-                &value,
-                count,
-                pdu_id.into(),
-                &db.globals,
-                &db.account_data,
-                &db.admin,
-            )?;
-
-            resolved_map.insert(event_id, Ok::<(), String>(()));
+        // If we have no idea about this room
+        // TODO: Does a server only send us events that we should know about or
+        // when everyone on this server leaves a room can we ignore those events?
+        if !db.rooms.exists(&pdu.room_id)? {
+            log::error!("Room does not exist on this server");
+            resolved_map.insert(event_id, Err("Room is unknown to this server".into()));
             continue;
         }
 
-        let now = std::time::Instant::now();
         let get_state_response = match send_request(
             &db.globals,
             body.body.origin.clone(),
@@ -482,11 +461,9 @@ pub async fn send_transaction_message_route<'a>(
             Err(err) => {
                 log::error!("Request failed: {}", err);
                 resolved_map.insert(event_id, Err(err.to_string()));
-                dbg!(now.elapsed());
                 continue;
             }
         };
-        dbg!(now.elapsed());
 
         let their_current_state = get_state_response
             .pdus
@@ -509,28 +486,10 @@ pub async fn send_transaction_message_route<'a>(
 
         if value.get("state_key").is_none() {
             if !db.rooms.is_joined(&pdu.sender, &pdu.room_id)? {
-                // TODO: auth rules apply to all events, not only those with a state key
                 log::error!("Sender is not joined {}", pdu.kind);
-
                 resolved_map.insert(event_id, Err("User is not in this room".into()));
                 continue;
             }
-
-            // // TODO: We should be doing the same get_closest_parent thing here too?
-            // // same as for state events ~100 lines down
-            // let count = db.globals.next_count()?;
-            // let mut pdu_id = pdu.room_id.as_bytes().to_vec();
-            // pdu_id.push(0xff);
-            // pdu_id.extend_from_slice(&count.to_be_bytes());
-            // db.rooms.append_pdu(
-            //     &pdu,
-            //     &value,
-            //     count,
-            //     pdu_id.into(),
-            //     &db.globals,
-            //     &db.account_data,
-            //     &db.sending,
-            // )?;
 
             // If the event is older than the last event in pduid_pdu Tree then find the
             // closest ancestor we know of and insert after the known ancestor by
@@ -538,11 +497,10 @@ pub async fn send_transaction_message_route<'a>(
             // pushing a single byte every time a simple append cannot be done.
             match db
                 .rooms
-                .get_closest_parent(&pdu.prev_events, &their_current_state)?
+                .get_closest_parent(room_id, &pdu.prev_events, &their_current_state)?
             {
                 Some(ClosestParent::Append) => {
                     let count = db.globals.next_count()?;
-                    dbg!(&count);
                     let mut pdu_id = room_id.as_bytes().to_vec();
                     pdu_id.push(0xff);
                     pdu_id.extend_from_slice(&count.to_be_bytes());
@@ -554,10 +512,12 @@ pub async fn send_transaction_message_route<'a>(
                         pdu_id.into(),
                         &db.globals,
                         &db.account_data,
-                        &db.sending,
+                        &db.admin,
                     )?;
                 }
                 Some(ClosestParent::Insert(old_count)) => {
+                    println!("INSERT PDU FOUND {}", old_count);
+
                     let count = old_count;
                     let mut pdu_id = room_id.as_bytes().to_vec();
                     pdu_id.push(0xff);
@@ -573,7 +533,7 @@ pub async fn send_transaction_message_route<'a>(
                         pdu_id.into(),
                         &db.globals,
                         &db.account_data,
-                        &db.sending,
+                        &db.admin,
                     )?;
                 }
                 _ => panic!("Not a sequential event or no parents found"),
@@ -615,13 +575,13 @@ pub async fn send_transaction_message_route<'a>(
                 // closest ancestor we know of and insert after the known ancestor by
                 // altering the known events pduid to = same roomID + same count bytes + 0x1
                 // pushing a single byte every time a simple append cannot be done.
-                match db
-                    .rooms
-                    .get_closest_parent(&pdu.prev_events, &their_current_state)?
-                {
+                match db.rooms.get_closest_parent(
+                    room_id,
+                    &pdu.prev_events,
+                    &their_current_state,
+                )? {
                     Some(ClosestParent::Append) => {
                         let count = db.globals.next_count()?;
-                        dbg!(&count);
                         let mut pdu_id = room_id.as_bytes().to_vec();
                         pdu_id.push(0xff);
                         pdu_id.extend_from_slice(&count.to_be_bytes());
@@ -633,11 +593,12 @@ pub async fn send_transaction_message_route<'a>(
                             pdu_id.into(),
                             &db.globals,
                             &db.account_data,
-                            &db.sending,
+                            &db.admin,
                         )?;
                     }
                     Some(ClosestParent::Insert(old_count)) => {
-                        println!("INSERT PDU FOUND {}", old_count);
+                        println!("INSERT STATE PDU FOUND {}", old_count);
+
                         let count = old_count;
                         let mut pdu_id = room_id.as_bytes().to_vec();
                         pdu_id.push(0xff);
@@ -653,7 +614,7 @@ pub async fn send_transaction_message_route<'a>(
                             pdu_id.into(),
                             &db.globals,
                             &db.account_data,
-                            &db.sending,
+                            &db.admin,
                         )?;
                     }
                     _ => panic!("Not a sequential event or no parents found"),

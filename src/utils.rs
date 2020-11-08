@@ -94,18 +94,3 @@ pub fn common_elements(
             .all(|b| b)
     }))
 }
-
-#[test]
-fn sled_tests() {
-    let db = sled::Config::new().temporary(true).open().unwrap();
-
-    db.insert(1_u64.to_be_bytes(), vec![10]).unwrap();
-    db.insert(2_u64.to_be_bytes(), vec![20]).unwrap();
-    db.insert(3_u64.to_be_bytes(), vec![30]).unwrap();
-
-    let mut key = 1_u64.to_be_bytes().to_vec();
-    key.push(1);
-    db.insert(key, vec![40]).unwrap();
-
-    println!("{:?}", db.iter().collect::<Result<Vec<_>, _>>().unwrap())
-}

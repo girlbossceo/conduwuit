@@ -221,7 +221,7 @@ dependencies = [
  "reqwest",
  "ring",
  "rocket",
- "ruma 0.0.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma",
  "rust-argon2",
  "serde",
  "serde_json",
@@ -1611,33 +1611,15 @@ source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a
 dependencies = [
  "assign",
  "js_int",
- "ruma-api 0.17.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-appservice-api 0.2.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-client-api 0.10.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-common 0.2.0 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-events 0.22.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-federation-api 0.0.3 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-identifiers 0.17.4 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-serde 0.2.3 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-signatures 0.6.0-dev.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
-]
-
-[[package]]
-name = "ruma"
-version = "0.0.1"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "assign",
- "js_int",
- "ruma-api 0.17.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-appservice-api 0.2.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-client-api 0.10.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-common 0.2.0 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-events 0.22.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-federation-api 0.0.3 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-identifiers 0.17.4 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-serde 0.2.3 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-signatures 0.6.0-dev.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-api",
+ "ruma-appservice-api",
+ "ruma-client-api",
+ "ruma-common",
+ "ruma-events",
+ "ruma-federation-api",
+ "ruma-identifiers",
+ "ruma-serde",
+ "ruma-signatures",
 ]
 
 [[package]]
@@ -1647,27 +1629,10 @@ source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a
 dependencies = [
  "http",
  "percent-encoding",
- "ruma-api-macros 0.17.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-common 0.2.0 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-identifiers 0.17.4 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-serde 0.2.3 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "serde",
- "serde_json",
- "strum",
- "thiserror",
-]
-
-[[package]]
-name = "ruma-api"
-version = "0.17.0-alpha.1"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "http",
- "percent-encoding",
- "ruma-api-macros 0.17.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-common 0.2.0 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-identifiers 0.17.4 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-serde 0.2.3 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-api-macros",
+ "ruma-common",
+ "ruma-identifiers",
+ "ruma-serde",
  "serde",
  "serde_json",
  "strum",
@@ -1686,38 +1651,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "ruma-api-macros"
-version = "0.17.0-alpha.1"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "ruma-appservice-api"
 version = "0.2.0-alpha.1"
 source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889#c15382ca41262058302959eac4029ab4a1ea5889"
 dependencies = [
- "ruma-api 0.17.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-common 0.2.0 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-events 0.22.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-identifiers 0.17.4 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "ruma-appservice-api"
-version = "0.2.0-alpha.1"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "ruma-api 0.17.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-common 0.2.0 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-events 0.22.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-identifiers 0.17.4 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-api",
+ "ruma-common",
+ "ruma-events",
+ "ruma-identifiers",
  "serde",
  "serde_json",
 ]
@@ -1732,31 +1673,11 @@ dependencies = [
  "js_int",
  "maplit",
  "percent-encoding",
- "ruma-api 0.17.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-common 0.2.0 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-events 0.22.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-identifiers 0.17.4 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-serde 0.2.3 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "serde",
- "serde_json",
- "strum",
-]
-
-[[package]]
-name = "ruma-client-api"
-version = "0.10.0-alpha.1"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "assign",
- "http",
- "js_int",
- "maplit",
- "percent-encoding",
- "ruma-api 0.17.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-common 0.2.0 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-events 0.22.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-identifiers 0.17.4 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-serde 0.2.3 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-api",
+ "ruma-common",
+ "ruma-events",
+ "ruma-identifiers",
+ "ruma-serde",
  "serde",
  "serde_json",
  "strum",
@@ -1768,23 +1689,9 @@ version = "0.2.0"
 source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889#c15382ca41262058302959eac4029ab4a1ea5889"
 dependencies = [
  "js_int",
- "ruma-common-macros 0.2.0 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-identifiers 0.17.4 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-serde 0.2.3 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "serde",
- "serde_json",
- "strum",
-]
-
-[[package]]
-name = "ruma-common"
-version = "0.2.0"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "js_int",
- "ruma-common-macros 0.2.0 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-identifiers 0.17.4 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-serde 0.2.3 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-common-macros",
+ "ruma-identifiers",
+ "ruma-serde",
  "serde",
  "serde_json",
  "strum",
@@ -1802,41 +1709,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "ruma-common-macros"
-version = "0.2.0"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "ruma-events"
 version = "0.22.0-alpha.1"
 source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889#c15382ca41262058302959eac4029ab4a1ea5889"
 dependencies = [
  "js_int",
- "ruma-common 0.2.0 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-events-macros 0.22.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-identifiers 0.17.4 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-serde 0.2.3 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "serde",
- "serde_json",
- "strum",
-]
-
-[[package]]
-name = "ruma-events"
-version = "0.22.0-alpha.1"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "js_int",
- "ruma-common 0.2.0 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-events-macros 0.22.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-identifiers 0.17.4 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-serde 0.2.3 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-common",
+ "ruma-events-macros",
+ "ruma-identifiers",
+ "ruma-serde",
  "serde",
  "serde_json",
  "strum",
@@ -1854,42 +1735,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "ruma-events-macros"
-version = "0.22.0-alpha.1"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "ruma-federation-api"
 version = "0.0.3"
 source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889#c15382ca41262058302959eac4029ab4a1ea5889"
 dependencies = [
  "js_int",
- "ruma-api 0.17.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-common 0.2.0 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-events 0.22.0-alpha.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-identifiers 0.17.4 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-serde 0.2.3 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "ruma-federation-api"
-version = "0.0.3"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "js_int",
- "ruma-api 0.17.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-common 0.2.0 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-events 0.22.0-alpha.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-identifiers 0.17.4 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-serde 0.2.3 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-api",
+ "ruma-common",
+ "ruma-events",
+ "ruma-identifiers",
+ "ruma-serde",
  "serde",
  "serde_json",
 ]
@@ -1898,23 +1753,11 @@ dependencies = [
 name = "ruma-identifiers"
 version = "0.17.4"
 source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889#c15382ca41262058302959eac4029ab4a1ea5889"
-dependencies = [
- "ruma-identifiers-macros 0.17.4 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-identifiers-validation 0.1.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-serde 0.2.3 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "serde",
- "strum",
-]
-
-[[package]]
-name = "ruma-identifiers"
-version = "0.17.4"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
 dependencies = [
  "rand",
- "ruma-identifiers-macros 0.17.4 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-identifiers-validation 0.1.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-serde 0.2.3 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-identifiers-macros",
+ "ruma-identifiers-validation",
+ "ruma-serde",
  "serde",
  "strum",
 ]
@@ -1926,18 +1769,7 @@ source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a
 dependencies = [
  "proc-macro2",
  "quote",
- "ruma-identifiers-validation 0.1.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "syn",
-]
-
-[[package]]
-name = "ruma-identifiers-macros"
-version = "0.17.4"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "proc-macro2",
- "quote",
- "ruma-identifiers-validation 0.1.1 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-identifiers-validation",
  "syn",
 ]
 
@@ -1945,15 +1777,6 @@ dependencies = [
 name = "ruma-identifiers-validation"
 version = "0.1.1"
 source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889#c15382ca41262058302959eac4029ab4a1ea5889"
-dependencies = [
- "serde",
- "strum",
-]
-
-[[package]]
-name = "ruma-identifiers-validation"
-version = "0.1.1"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
 dependencies = [
  "serde",
  "strum",
@@ -1972,39 +1795,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "ruma-serde"
-version = "0.2.3"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "form_urlencoded",
- "itoa",
- "js_int",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "ruma-signatures"
 version = "0.6.0-dev.1"
 source = "git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889#c15382ca41262058302959eac4029ab4a1ea5889"
 dependencies = [
  "base64",
  "ring",
- "ruma-identifiers 0.17.4 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "ruma-serde 0.2.3 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
- "serde_json",
- "untrusted",
-]
-
-[[package]]
-name = "ruma-signatures"
-version = "0.6.0-dev.1"
-source = "git+https://github.com/DevinR528/ruma?branch=unstable-join#424b138d84ccc47c0b212708a54f66bf88f7d57a"
-dependencies = [
- "base64",
- "ring",
- "ruma-identifiers 0.17.4 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
- "ruma-serde 0.2.3 (git+https://github.com/DevinR528/ruma?branch=unstable-join)",
+ "ruma-identifiers",
+ "ruma-serde",
  "serde_json",
  "untrusted",
 ]
@@ -2263,7 +2061,7 @@ dependencies = [
  "itertools",
  "js_int",
  "maplit",
- "ruma 0.0.1 (git+https://github.com/ruma/ruma?rev=c15382ca41262058302959eac4029ab4a1ea5889)",
+ "ruma",
  "serde",
  "serde_json",
  "thiserror",

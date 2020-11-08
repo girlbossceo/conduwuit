@@ -18,8 +18,8 @@ edition = "2018"
 rocket = { git = "https://github.com/timokoesters/Rocket.git", branch = "empty_parameters", default-features = false, features = ["tls"] }
 
 # Used for matrix spec type definitions and helpers
-#ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"], rev = "aff914050eb297bd82b8aafb12158c88a9e480e1" }
-ruma = { git = "https://github.com/DevinR528/ruma", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"], branch = "unstable-join" }
+ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks", "unstable-exhaustive-types"], rev = "c15382ca41262058302959eac4029ab4a1ea5889" }
+# ruma = { git = "https://github.com/DevinR528/ruma", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"], branch = "unstable-join" }
 # ruma = { path = "../ruma/ruma", features = ["unstable-exhaustive-types", "rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"] }
 
 # Used when doing state resolution
@@ -73,11 +73,3 @@ required-features = ["conduit_bin"]
 [lib]
 name = "conduit"
 path = "src/lib.rs"
-
-# [patch."https://github.com/timokoesters/ruma"]
-# ruma = { path = "../ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"] }
-# # ruma = { git = "https://github.com/ruma/ruma", rev = "64b9c646d15a359d62ab464a95176ff94adb2554", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"]}
-
-# [patch."https://github.com/ruma/state-res"]
-# state-res = { path = "../../state-res", features = ["unstable-pre-spec", "gen-eventid"] }
-# # state-res = { git = "https://github.com/ruma/state-res", branch = "timo-spec-comp" }

@@ -405,11 +405,12 @@ impl Rooms {
 
     pub fn get_closest_parent(
         &self,
+        room: &RoomId,
         incoming_prev_ids: &[EventId],
         their_state: &BTreeMap<EventId, Arc<StateEvent>>,
     ) -> Result<Option<ClosestParent>> {
-        match self.pduid_pdu.last()? {
-            Some(val)
+        match self.pduid_pdu.scan_prefix(room.as_bytes()).last() {
+            Some(Ok(val))
                 if incoming_prev_ids.contains(
                     &serde_json::from_slice::<PduEvent>(&val.1)
                         .map_err(|_| {
