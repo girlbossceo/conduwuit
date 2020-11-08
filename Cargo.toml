@@ -24,7 +24,7 @@ ruma = { git = "https://github.com/DevinR528/ruma", features = ["rand", "client-
 
 # Used when doing state resolution
 # state-res = { git = "https://github.com/timokoesters/state-res", branch = "spec-comp", features = ["unstable-pre-spec"] }
-state-res = { git = "https://github.com/ruma/state-res", branch = "timo-spec-comp", features = ["unstable-pre-spec"] }
+state-res = { git = "https://github.com/ruma/state-res", branch = "timo-spec-comp", features = ["unstable-pre-spec", "gen-eventid"] }
 # state-res = { path = "../../state-res", features = ["unstable-pre-spec"] }
 
 # Used for long polling
@@ -78,6 +78,6 @@ path = "src/lib.rs"
 # ruma = { path = "../ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"] }
 # # ruma = { git = "https://github.com/ruma/ruma", rev = "64b9c646d15a359d62ab464a95176ff94adb2554", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"]}
 
-[patch."https://github.com/ruma/state-res"]
-state-res = { path = "../../state-res", features = ["unstable-pre-spec"] }
-# state-res = { git = "https://github.com/ruma/state-res", branch = "timo-spec-comp" }
+# [patch."https://github.com/ruma/state-res"]
+# state-res = { path = "../../state-res", features = ["unstable-pre-spec", "gen-eventid"] }
+# # state-res = { git = "https://github.com/ruma/state-res", branch = "timo-spec-comp" }

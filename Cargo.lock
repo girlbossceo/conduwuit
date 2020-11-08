@@ -2258,6 +2258,7 @@ checksum = "7345c971d1ef21ffdbd103a75990a15eb03604fc8b8852ca8cb418ee1a099028"
 [[package]]
 name = "state-res"
 version = "0.1.0"
+source = "git+https://github.com/ruma/state-res?branch=timo-spec-comp#1cd1a16cdefabb126a781a50b3d5eb1fdb3d3afb"
 dependencies = [
  "itertools",
  "js_int",

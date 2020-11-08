@@ -35,6 +35,11 @@ use super::admin::AdminCommand;
 /// hashing the entire state.
 pub type StateHashId = IVec;
 
+pub enum ClosestParent {
+    Append,
+    Insert(u64),
+}
+
 #[derive(Clone)]
 pub struct Rooms {
     pub edus: edus::RoomEdus,
@@ -74,7 +79,10 @@ impl StateStore for Rooms {
             .get_pdu_id(event_id)
             .map_err(StateError::custom)?
             .ok_or_else(|| {
-                StateError::NotFound("PDU via room_id and event_id not found in the db.".into())
+                StateError::NotFound(format!(
+                    "PDU via room_id and event_id not found in the db.\n{}",
+                    event_id.as_str()
+                ))
             })?;
 
         serde_json::from_slice(
@@ -395,6 +403,47 @@ impl Rooms {
         }
     }
 
+    pub fn get_closest_parent(
+        &self,
+        incoming_prev_ids: &[EventId],
+        their_state: &BTreeMap<EventId, Arc<StateEvent>>,
+    ) -> Result<Option<ClosestParent>> {
+        match self.pduid_pdu.last()? {
+            Some(val)
+                if incoming_prev_ids.contains(
+                    &serde_json::from_slice::<PduEvent>(&val.1)
+                        .map_err(|_| {
+                            Error::bad_database("last DB entry contains invalid PDU bytes")
+                        })?
+                        .event_id,
+                ) =>
+            {
+                Ok(Some(ClosestParent::Append))
+            }
+            _ => {
+                let mut prev_ids = incoming_prev_ids.to_vec();
+                while let Some(id) = prev_ids.pop() {
+                    match self.get_pdu_id(&id)? {
+                        Some(pdu_id) => {
+                            return Ok(Some(ClosestParent::Insert(self.pdu_count(&pdu_id)?)));
+                        }
+                        None => {
+                            prev_ids.extend(their_state.get(&id).map_or(
+                                Err(Error::BadServerResponse(
+                                    "Failed to find previous event for PDU in state",
+                                )),
+                                // `prev_event_ids` will return an empty Vec instead of failing
+                                // so it works perfect for our use here
+                                |pdu| Ok(pdu.prev_event_ids()),
+                            )?);
+                        }
+                    }
+                }
+                Ok(None)
+            }
+        }
+    }
+
     /// Returns the leaf pdus of a room.
     pub fn get_pdu_leaves(&self, room_id: &RoomId) -> Result<Vec<EventId>> {
         let mut prefix = room_id.as_bytes().to_vec();
@@ -438,6 +487,9 @@ impl Rooms {
 
     #[allow(clippy::too_many_arguments)]
     /// Creates a new persisted data unit and adds it to a room.
+    ///
+    /// By this point the incoming event should be fully authenticated, no auth happens
+    /// in `append_pdu`.
     pub fn append_pdu(
         &self,
         pdu: &PduEvent,
@@ -554,6 +606,7 @@ impl Rooms {
                 self.stateid_pduid
                     .scan_prefix(&prefix)
                     .filter_map(|pdu| pdu.map_err(|e| error!("{}", e)).ok())
+                    // Chop the old state_hash out leaving behind the (EventType, StateKey)
                     .map(|(k, v)| (k.subslice(prefix.len(), k.len() - prefix.len()), v))
                     .collect::<HashMap<IVec, IVec>>()
             } else {
@@ -851,7 +904,7 @@ impl Rooms {
             .filter_map(|r| r.ok())
             .filter(|server| &**server != globals.server_name())
         {
-            sending.send_pdu(server, &pdu_id)?;
+            sending.send_pdu(&server, &pdu_id)?;
         }
 
         Ok(pdu.event_id)
