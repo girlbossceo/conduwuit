@@ -241,6 +241,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -264,6 +265,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -300,6 +302,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -319,6 +322,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -340,6 +344,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -359,6 +364,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -380,6 +386,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -398,6 +405,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -422,6 +430,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -447,6 +456,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
         db.rooms.build_and_append_pdu(
@@ -468,6 +478,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -494,6 +505,7 @@ pub async fn register_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -666,6 +678,7 @@ pub async fn deactivate_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }

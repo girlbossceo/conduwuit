@@ -7,6 +7,7 @@ use ruma::{
     DeviceId, UserId,
 };
 
+#[derive(Clone)]
 pub struct Uiaa {
     pub(super) userdeviceid_uiaainfo: sled::Tree, // User-interactive authentication
 }

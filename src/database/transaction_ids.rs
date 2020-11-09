@@ -2,6 +2,7 @@ use crate::Result;
 use ruma::{DeviceId, UserId};
 use sled::IVec;
 
+#[derive(Clone)]
 pub struct TransactionIds {
     pub(super) userdevicetxnid_response: sled::Tree, // Response can be empty (/sendToDevice) or the event id (/send)
 }

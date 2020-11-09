@@ -124,6 +124,7 @@ pub async fn leave_room_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -162,6 +163,7 @@ pub async fn invite_user_route(
             &body.room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -216,6 +218,7 @@ pub async fn kick_user_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -274,6 +277,7 @@ pub async fn ban_user_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -324,6 +328,7 @@ pub async fn unban_user_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -673,7 +678,7 @@ async fn join_room_by_id_helper(
                 pdu_id.clone().into(),
                 &db.globals,
                 &db.account_data,
-                &db.sending,
+                &db.admin,
             )?;
 
             if state_events.contains(ev_id) {
@@ -703,6 +708,7 @@ async fn join_room_by_id_helper(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }

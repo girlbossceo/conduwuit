@@ -27,6 +27,8 @@ use std::{
     sync::Arc,
 };
 
+use super::admin::AdminCommand;
+
 /// The unique identifier of each state group.
 ///
 /// This is created when a state group is added to the database by
@@ -443,7 +445,7 @@ impl Rooms {
         pdu_id: IVec,
         globals: &super::globals::Globals,
         account_data: &super::account_data::AccountData,
-        sending: &super::sending::Sending,
+        admin: &super::admin::Admin,
     ) -> Result<()> {
         self.replace_pdu_leaves(&pdu.room_id, &pdu.event_id)?;
 
@@ -514,28 +516,13 @@ impl Rooms {
                         if let Some(command) = parts.next() {
                             let args = parts.collect::<Vec<_>>();
 
-                            self.build_and_append_pdu(
-                                PduBuilder {
-                                    event_type: EventType::RoomMessage,
-                                    content: serde_json::to_value(
-                                        message::TextMessageEventContent {
-                                            body: format!("Command: {}, Args: {:?}", command, args),
-                                            formatted: None,
-                                            relates_to: None,
-                                        },
-                                    )
-                                    .expect("event is valid, we just created it"),
-                                    unsigned: None,
-                                    state_key: None,
-                                    redacts: None,
+                            admin.send(AdminCommand::SendTextMessage(
+                                message::TextMessageEventContent {
+                                    body: format!("Command: {}, Args: {:?}", command, args),
+                                    formatted: None,
+                                    relates_to: None,
                                 },
-                                &UserId::try_from(format!("@conduit:{}", globals.server_name()))
-                                    .expect("@conduit:server_name is valid"),
-                                &pdu.room_id,
-                                &globals,
-                                &sending,
-                                &account_data,
-                            )?;
+                            ));
                         }
                     }
                 }
@@ -612,6 +599,7 @@ impl Rooms {
         room_id: &RoomId,
         globals: &super::globals::Globals,
         sending: &super::sending::Sending,
+        admin: &super::admin::Admin,
         account_data: &super::account_data::AccountData,
     ) -> Result<EventId> {
         let PduBuilder {
@@ -849,7 +837,7 @@ impl Rooms {
             pdu_id.clone().into(),
             globals,
             account_data,
-            sending,
+            admin,
         )?;
 
         for server in self

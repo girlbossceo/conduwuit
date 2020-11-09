@@ -65,6 +65,7 @@ pub async fn set_displayname_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -160,6 +161,7 @@ pub async fn set_avatar_url_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 

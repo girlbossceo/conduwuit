@@ -65,6 +65,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -88,6 +89,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -131,6 +133,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -165,6 +168,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -184,6 +188,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -211,6 +216,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -232,6 +238,7 @@ pub async fn create_room_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -255,6 +262,7 @@ pub async fn create_room_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -275,6 +283,7 @@ pub async fn create_room_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -300,6 +309,7 @@ pub async fn create_room_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -387,6 +397,7 @@ pub async fn upgrade_room_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -429,6 +440,7 @@ pub async fn upgrade_room_route(
         &replacement_room,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -452,6 +464,7 @@ pub async fn upgrade_room_route(
         &replacement_room,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -487,6 +500,7 @@ pub async fn upgrade_room_route(
             &replacement_room,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -532,6 +546,7 @@ pub async fn upgrade_room_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 

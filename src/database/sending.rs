@@ -8,6 +8,7 @@ use ruma::{api::federation, ServerName};
 use sled::IVec;
 use tokio::select;
 
+#[derive(Clone)]
 pub struct Sending {
     /// The state for a given state hash.
     pub(super) servernamepduids: sled::Tree, // ServernamePduId = ServerName + PduId
@@ -54,7 +55,7 @@ impl Sending {
                     ))
                 })
                 .filter_map(|r| r.ok())
-                .filter(|pdu| !pdu.is_empty()) // Skip reservation key
+                .filter(|(_, pdu)| !pdu.is_empty()) // Skip reservation key
                 .take(50)
             // This should not contain more than 50 anyway
             {
