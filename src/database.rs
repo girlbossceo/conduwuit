@@ -1,4 +1,5 @@
 pub mod account_data;
+pub mod admin;
 pub mod globals;
 pub mod key_backups;
 pub mod media;
@@ -12,10 +13,14 @@ use crate::{Error, Result};
 use directories::ProjectDirs;
 use futures::StreamExt;
 use log::info;
-use rocket::{futures, Config};
+use rocket::{
+    futures::{self, channel::mpsc},
+    Config,
+};
 use ruma::{DeviceId, UserId};
 use std::{convert::TryFrom, fs::remove_dir_all};
 
+#[derive(Clone)]
 pub struct Database {
     pub globals: globals::Globals,
     pub users: users::Users,
@@ -26,6 +31,7 @@ pub struct Database {
     pub key_backups: key_backups::KeyBackups,
     pub transaction_ids: transaction_ids::TransactionIds,
     pub sending: sending::Sending,
+    pub admin: admin::Admin,
     pub _db: sled::Db,
 }
 
@@ -80,7 +86,9 @@ impl Database {
 
         info!("Opened sled database at {}", path);
 
-        Ok(Self {
+        let (admin_sender, admin_receiver) = mpsc::unbounded();
+
+        let db = Self {
             globals: globals::Globals::load(db.open_tree("global")?, config)?,
             users: users::Users {
                 userid_password: db.open_tree("userid_password")?,
@@ -149,10 +157,18 @@ impl Database {
                 userdevicetxnid_response: db.open_tree("userdevicetxnid_response")?,
             },
             sending: sending::Sending {
-                serverpduids: db.open_tree("serverpduids")?,
+                servernamepduids: db.open_tree("servernamepduids")?,
+                servercurrentpdus: db.open_tree("servercurrentpdus")?,
+            },
+            admin: admin::Admin {
+                sender: admin_sender,
             },
             _db: db,
-        })
+        };
+
+        db.admin.start_handler(db.clone(), admin_receiver);
+
+        Ok(db)
     }
 
     pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) {

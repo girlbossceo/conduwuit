@@ -9,6 +9,7 @@ pub struct FileMeta {
     pub file: Vec<u8>,
 }
 
+#[derive(Clone)]
 pub struct Media {
     pub(super) mediaid_file: sled::Tree, // MediaId = MXC + WidthHeight + Filename + ContentType
 }

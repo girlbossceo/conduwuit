@@ -440,23 +440,8 @@ pub async fn sync_events_route(
     let mut left_rooms = BTreeMap::new();
     for room_id in db.rooms.rooms_left(&sender_user) {
         let room_id = room_id?;
-        let pdus = db.rooms.pdus_since(&sender_user, &room_id, since)?;
-        let room_events = pdus
-            .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-            .map(|(_, pdu)| pdu.to_sync_room_event())
-            .collect();
 
-        let left_room = sync_events::LeftRoom {
-            account_data: sync_events::AccountData { events: Vec::new() },
-            timeline: sync_events::Timeline {
-                limited: false,
-                prev_batch: Some(next_batch.clone()),
-                events: room_events,
-            },
-            state: sync_events::State { events: Vec::new() },
-        };
-
-        let since_member = db
+        let since_member = if let Some(since_member) = db
             .rooms
             .pdus_after(sender_user, &room_id, since)
             .next()
@@ -475,20 +460,25 @@ pub async fn sync_events_route(
                     .ok_or_else(|| Error::bad_database("State hash in db doesn't have a state."))
                     .ok()
             })
-            .and_then(|pdu| {
+            .and_then(|(pdu_id, pdu)| {
                 serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
-                    pdu.content,
+                    pdu.content.clone(),
                 )
                 .expect("Raw::from_value always works")
                 .deserialize()
                 .map_err(|_| Error::bad_database("Invalid PDU in database."))
+                .map(|content| (pdu_id, pdu, content))
                 .ok()
-            });
+            }) {
+            since_member
+        } else {
+            // We couldn't find the since_member event. This is very weird - we better abort
+            continue;
+        };
 
-        let left_since_last_sync =
-            since_member.map_or(false, |member| member.membership == MembershipState::Join);
+        let left_since_last_sync = since_member.2.membership == MembershipState::Join;
 
-        if left_since_last_sync {
+        let left_room = if left_since_last_sync {
             device_list_left.extend(
                 db.rooms
                     .room_members(&room_id)
@@ -503,7 +493,35 @@ pub async fn sync_events_route(
                         !share_encrypted_room(&db, sender_user, user_id, &room_id)
                     }),
             );
-        }
+
+            let pdus = db.rooms.pdus_since(&sender_user, &room_id, since)?;
+            let mut room_events = pdus
+                .filter_map(|pdu| pdu.ok()) // Filter out buggy events
+                .take_while(|(pdu_id, _)| since_member.0 != pdu_id)
+                .map(|(_, pdu)| pdu.to_sync_room_event())
+                .collect::<Vec<_>>();
+            room_events.push(since_member.1.to_sync_room_event());
+
+            sync_events::LeftRoom {
+                account_data: sync_events::AccountData { events: Vec::new() },
+                timeline: sync_events::Timeline {
+                    limited: false,
+                    prev_batch: Some(next_batch.clone()),
+                    events: room_events,
+                },
+                state: sync_events::State { events: Vec::new() },
+            }
+        } else {
+            sync_events::LeftRoom {
+                account_data: sync_events::AccountData { events: Vec::new() },
+                timeline: sync_events::Timeline {
+                    limited: false,
+                    prev_batch: Some(next_batch.clone()),
+                    events: Vec::new(),
+                },
+                state: sync_events::State { events: Vec::new() },
+            }
+        };
 
         if !left_room.is_empty() {
             left_rooms.insert(room_id.clone(), left_room);

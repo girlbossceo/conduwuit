@@ -8,6 +8,7 @@ use ruma::{
 };
 use std::{collections::BTreeMap, convert::TryFrom};
 
+#[derive(Clone)]
 pub struct KeyBackups {
     pub(super) backupid_algorithm: sled::Tree, // BackupId = UserId + Version(Count)
     pub(super) backupid_etag: sled::Tree,      // BackupId = UserId + Version(Count)

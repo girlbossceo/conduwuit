@@ -27,6 +27,8 @@ use std::{
     sync::Arc,
 };
 
+use super::admin::AdminCommand;
+
 /// The unique identifier of each state group.
 ///
 /// This is created when a state group is added to the database by
@@ -169,7 +171,7 @@ impl Rooms {
         state_hash: &StateHashId,
         event_type: &EventType,
         state_key: &str,
-    ) -> Result<Option<PduEvent>> {
+    ) -> Result<Option<(IVec, PduEvent)>> {
         let mut key = state_hash.to_vec();
         key.push(0xff);
         key.extend_from_slice(&event_type.to_string().as_bytes());
@@ -177,14 +179,15 @@ impl Rooms {
         key.extend_from_slice(&state_key.as_bytes());
 
         self.stateid_pduid.get(&key)?.map_or(Ok(None), |pdu_id| {
-            Ok::<_, Error>(Some(
+            Ok::<_, Error>(Some((
+                pdu_id.clone(),
                 serde_json::from_slice::<PduEvent>(
-                    &self.pduid_pdu.get(pdu_id)?.ok_or_else(|| {
+                    &self.pduid_pdu.get(&pdu_id)?.ok_or_else(|| {
                         Error::bad_database("PDU in state not found in database.")
                     })?,
                 )
                 .map_err(|_| Error::bad_database("Invalid PDU bytes in room state."))?,
-            ))
+            )))
         })
     }
 
@@ -216,7 +219,7 @@ impl Rooms {
 
         let mut events = StateMap::new();
         for (event_type, state_key) in auth_events {
-            if let Some(pdu) = self.room_state_get(room_id, &event_type, &state_key)? {
+            if let Some((_, pdu)) = self.room_state_get(room_id, &event_type, &state_key)? {
                 events.insert((event_type, state_key), pdu);
             }
         }
@@ -299,7 +302,7 @@ impl Rooms {
         room_id: &RoomId,
         event_type: &EventType,
         state_key: &str,
-    ) -> Result<Option<PduEvent>> {
+    ) -> Result<Option<(IVec, PduEvent)>> {
         if let Some(current_state_hash) = self.current_state_hash(room_id)? {
             self.state_get(&current_state_hash, event_type, state_key)
         } else {
@@ -367,7 +370,7 @@ impl Rooms {
     }
 
     /// Returns the pdu.
-    pub fn get_pdu_json_from_id(&self, pdu_id: &IVec) -> Result<Option<serde_json::Value>> {
+    pub fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<serde_json::Value>> {
         self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
             Ok(Some(
                 serde_json::from_slice(&pdu)
@@ -442,7 +445,7 @@ impl Rooms {
         pdu_id: IVec,
         globals: &super::globals::Globals,
         account_data: &super::account_data::AccountData,
-        sending: &super::sending::Sending,
+        admin: &super::admin::Admin,
     ) -> Result<()> {
         self.replace_pdu_leaves(&pdu.room_id, &pdu.event_id)?;
 
@@ -513,28 +516,13 @@ impl Rooms {
                         if let Some(command) = parts.next() {
                             let args = parts.collect::<Vec<_>>();
 
-                            self.build_and_append_pdu(
-                                PduBuilder {
-                                    event_type: EventType::RoomMessage,
-                                    content: serde_json::to_value(
-                                        message::TextMessageEventContent {
-                                            body: format!("Command: {}, Args: {:?}", command, args),
-                                            formatted: None,
-                                            relates_to: None,
-                                        },
-                                    )
-                                    .expect("event is valid, we just created it"),
-                                    unsigned: None,
-                                    state_key: None,
-                                    redacts: None,
+                            admin.send(AdminCommand::SendTextMessage(
+                                message::TextMessageEventContent {
+                                    body: format!("Command: {}, Args: {:?}", command, args),
+                                    formatted: None,
+                                    relates_to: None,
                                 },
-                                &UserId::try_from(format!("@conduit:{}", globals.server_name()))
-                                    .expect("@conduit:server_name is valid"),
-                                &pdu.room_id,
-                                &globals,
-                                &sending,
-                                &account_data,
-                            )?;
+                            ));
                         }
                     }
                 }
@@ -611,6 +599,7 @@ impl Rooms {
         room_id: &RoomId,
         globals: &super::globals::Globals,
         sending: &super::sending::Sending,
+        admin: &super::admin::Admin,
         account_data: &super::account_data::AccountData,
     ) -> Result<EventId> {
         let PduBuilder {
@@ -653,7 +642,7 @@ impl Rooms {
                                 },
                         })
                     },
-                    |power_levels| {
+                    |(_, power_levels)| {
                         Ok(serde_json::from_value::<Raw<PowerLevelsEventContent>>(
                             power_levels.content,
                         )
@@ -664,15 +653,18 @@ impl Rooms {
                 )?;
             let sender_membership = self
                 .room_state_get(&room_id, &EventType::RoomMember, &sender.to_string())?
-                .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
-                    Ok(
-                        serde_json::from_value::<Raw<member::MemberEventContent>>(pdu.content)
-                            .expect("Raw::from_value always works.")
-                            .deserialize()
-                            .map_err(|_| Error::bad_database("Invalid Member event in db."))?
-                            .membership,
-                    )
-                })?;
+                .map_or(
+                    Ok::<_, Error>(member::MembershipState::Leave),
+                    |(_, pdu)| {
+                        Ok(
+                            serde_json::from_value::<Raw<member::MemberEventContent>>(pdu.content)
+                                .expect("Raw::from_value always works.")
+                                .deserialize()
+                                .map_err(|_| Error::bad_database("Invalid Member event in db."))?
+                                .membership,
+                        )
+                    },
+                )?;
 
             let sender_power = power_levels.users.get(&sender).map_or_else(
                 || {
@@ -759,7 +751,7 @@ impl Rooms {
 
         let mut unsigned = unsigned.unwrap_or_default();
         if let Some(state_key) = &state_key {
-            if let Some(prev_pdu) = self.room_state_get(&room_id, &event_type, &state_key)? {
+            if let Some((_, prev_pdu)) = self.room_state_get(&room_id, &event_type, &state_key)? {
                 unsigned.insert("prev_content".to_owned(), prev_pdu.content);
                 unsigned.insert(
                     "prev_sender".to_owned(),
@@ -845,7 +837,7 @@ impl Rooms {
             pdu_id.clone().into(),
             globals,
             account_data,
-            sending,
+            admin,
         )?;
 
         for server in self
@@ -1017,7 +1009,7 @@ impl Rooms {
                     // Check if the room has a predecessor
                     if let Some(predecessor) = self
                         .room_state_get(&room_id, &EventType::RoomCreate, "")?
-                        .and_then(|create| {
+                        .and_then(|(_, create)| {
                             serde_json::from_value::<
                                 Raw<ruma::events::room::create::CreateEventContent>,
                             >(create.content)

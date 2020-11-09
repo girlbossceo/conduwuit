@@ -186,7 +186,10 @@ where
             let body = reqwest_response
                 .bytes()
                 .await
-                .unwrap()
+                .unwrap_or_else(|e| {
+                    warn!("server error: {}", e);
+                    Vec::new().into()
+                }) // TODO: handle timeout
                 .into_iter()
                 .collect();
 
@@ -401,7 +404,7 @@ pub fn send_transaction_message_route<'a>(
                 pdu_id.clone().into(),
                 &db.globals,
                 &db.account_data,
-                &db.sending,
+                &db.admin,
             )?;
         }
     }

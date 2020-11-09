@@ -65,6 +65,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -88,6 +89,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -131,6 +133,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -165,6 +168,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -184,6 +188,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -211,6 +216,7 @@ pub async fn create_room_route(
         &room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -232,6 +238,7 @@ pub async fn create_room_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -255,6 +262,7 @@ pub async fn create_room_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -275,6 +283,7 @@ pub async fn create_room_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -300,6 +309,7 @@ pub async fn create_room_route(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -387,6 +397,7 @@ pub async fn upgrade_room_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -395,6 +406,7 @@ pub async fn upgrade_room_route(
         db.rooms
             .room_state_get(&body.room_id, &EventType::RoomCreate, "")?
             .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
+            .1
             .content,
     )
     .expect("Raw::from_value always works")
@@ -428,6 +440,7 @@ pub async fn upgrade_room_route(
         &replacement_room,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -451,6 +464,7 @@ pub async fn upgrade_room_route(
         &replacement_room,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -470,7 +484,7 @@ pub async fn upgrade_room_route(
     // Replicate transferable state events to the new room
     for event_type in transferable_state_events {
         let event_content = match db.rooms.room_state_get(&body.room_id, &event_type, "")? {
-            Some(v) => v.content.clone(),
+            Some((_, v)) => v.content.clone(),
             None => continue, // Skipping missing events.
         };
 
@@ -486,6 +500,7 @@ pub async fn upgrade_room_route(
             &replacement_room,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }
@@ -502,6 +517,7 @@ pub async fn upgrade_room_route(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomPowerLevels, "")?
                 .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
+                .1
                 .content,
         )
         .expect("database contains invalid PDU")
@@ -530,6 +546,7 @@ pub async fn upgrade_room_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 

@@ -14,6 +14,7 @@ use ruma::{
 };
 use std::{collections::BTreeMap, convert::TryFrom, mem, time::SystemTime};
 
+#[derive(Clone)]
 pub struct Users {
     pub(super) userid_password: sled::Tree,
     pub(super) userid_displayname: sled::Tree,

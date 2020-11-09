@@ -8,6 +8,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use sled::IVec;
 use std::{collections::HashMap, convert::TryFrom};
 
+#[derive(Clone)]
 pub struct AccountData {
     pub(super) roomuserdataid_accountdata: sled::Tree, // RoomUserDataId = Room + User + Count + Type
 }

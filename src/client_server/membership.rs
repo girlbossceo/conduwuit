@@ -103,6 +103,7 @@ pub async fn leave_room_route(
                 ErrorKind::BadState,
                 "Cannot leave a room you are not a member of.",
             ))?
+            .1
             .content,
     )
     .expect("from_value::<Raw<..>> can never fail")
@@ -123,6 +124,7 @@ pub async fn leave_room_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -161,6 +163,7 @@ pub async fn invite_user_route(
             &body.room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
 
@@ -193,6 +196,7 @@ pub async fn kick_user_route(
                 ErrorKind::BadState,
                 "Cannot kick member that's not in the room.",
             ))?
+            .1
             .content,
     )
     .expect("Raw::from_value always works")
@@ -214,6 +218,7 @@ pub async fn kick_user_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -249,7 +254,7 @@ pub async fn ban_user_route(
                 is_direct: None,
                 third_party_invite: None,
             }),
-            |event| {
+            |(_, event)| {
                 let mut event =
                     serde_json::from_value::<Raw<member::MemberEventContent>>(event.content)
                         .expect("Raw::from_value always works")
@@ -272,6 +277,7 @@ pub async fn ban_user_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -301,6 +307,7 @@ pub async fn unban_user_route(
                 ErrorKind::BadState,
                 "Cannot unban a user who is not banned.",
             ))?
+            .1
             .content,
     )
     .expect("from_value::<Raw<..>> can never fail")
@@ -321,6 +328,7 @@ pub async fn unban_user_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
@@ -670,7 +678,7 @@ async fn join_room_by_id_helper(
                 pdu_id.clone().into(),
                 &db.globals,
                 &db.account_data,
-                &db.sending,
+                &db.admin,
             )?;
 
             if state_events.contains(ev_id) {
@@ -700,6 +708,7 @@ async fn join_room_by_id_helper(
             &room_id,
             &db.globals,
             &db.sending,
+            &db.admin,
             &db.account_data,
         )?;
     }

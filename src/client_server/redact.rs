@@ -33,6 +33,7 @@ pub async fn redact_event_route(
         &body.room_id,
         &db.globals,
         &db.sending,
+        &db.admin,
         &db.account_data,
     )?;
 
