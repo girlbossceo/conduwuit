@@ -39,7 +39,7 @@ pub async fn create_content_route(
     db.media.create(
         mxc.clone(),
         &body.filename.as_deref(),
-        body.content_type.as_deref().unwrap_or("img"), // TODO this is now optional handle
+        &body.content_type.as_deref(), // TODO this is now optional handle
         &body.file,
     )?;
 
@@ -85,10 +85,7 @@ pub async fn get_content_route(
         db.media.create(
             mxc,
             &get_content_response.content_disposition.as_deref(),
-            get_content_response // TODO this is now optional handle
-                .content_type
-                .as_deref()
-                .unwrap_or("img"),
+            &get_content_response.content_type.as_deref(),
             &get_content_response.file,
         )?;
 
@@ -142,10 +139,7 @@ pub async fn get_content_thumbnail_route(
         db.media.upload_thumbnail(
             mxc,
             &None,
-            get_thumbnail_response
-                .content_type
-                .as_deref()
-                .unwrap_or("img"), // TODO now optional, deal with it somehow
+            &get_thumbnail_response.content_type,
             body.width.try_into().expect("all UInts are valid u32s"),
             body.height.try_into().expect("all UInts are valid u32s"),
             &get_thumbnail_response.file,

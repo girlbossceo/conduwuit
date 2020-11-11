@@ -419,7 +419,7 @@ pub async fn send_transaction_message_route<'a>(
         }
     }
 
-    // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we?
+    // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we anywhere?
     // SPEC:
     // Servers MUST strictly enforce the JSON format specified in the appendices.
     // This translates to a 400 M_BAD_JSON error on most endpoints, or discarding of
@@ -554,7 +554,7 @@ pub async fn send_transaction_message_route<'a>(
                 // TODO we may not want the auth events chained in here for resolution?
                 their_current_state
                     .iter()
-                    .map(|(_id, v)| ((v.kind(), v.state_key()), v.event_id().clone()))
+                    .map(|(_id, v)| ((v.kind(), v.state_key()), v.event_id()))
                     .collect::<BTreeMap<_, _>>(),
             ],
             Some(

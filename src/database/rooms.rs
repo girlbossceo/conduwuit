@@ -647,6 +647,7 @@ impl Rooms {
     }
 
     /// Creates a new persisted data unit and adds it to a room.
+    #[allow(clippy::too_many_arguments)]
     pub fn build_and_append_pdu(
         &self,
         pdu_builder: PduBuilder,

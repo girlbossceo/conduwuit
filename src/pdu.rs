@@ -225,7 +225,7 @@ impl PduEvent {
 impl From<&state_res::StateEvent> for PduEvent {
     fn from(pdu: &state_res::StateEvent) -> Self {
         Self {
-            event_id: pdu.event_id().clone(),
+            event_id: pdu.event_id(),
             room_id: pdu.room_id().unwrap().clone(),
             sender: pdu.sender().clone(),
             origin_server_ts: (pdu
@@ -260,17 +260,9 @@ impl PduEvent {
                 "type": self.kind,
                 "content": self.content,
                 "state_key": self.state_key,
-                "prev_events": self.prev_events
-                    .iter()
-                    // TODO How do we create one of these
-                    .map(|id| (id, EventHash { sha256: "hello".into() }))
-                    .collect::<Vec<_>>(),
+                "prev_events": self.prev_events,
                 "depth": self.depth,
-                "auth_events": self.auth_events
-                    .iter()
-                    // TODO How do we create one of these
-                    .map(|id| (id, EventHash { sha256: "hello".into() }))
-                    .collect::<Vec<_>>(),
+                "auth_events": self.auth_events,
                 "redacts": self.redacts,
                 "unsigned": self.unsigned,
                 "hashes": self.hashes,

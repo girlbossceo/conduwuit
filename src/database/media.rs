@@ -20,7 +20,7 @@ impl Media {
         &self,
         mxc: String,
         filename: &Option<&str>,
-        content_type: &str,
+        content_type: &Option<&str>,
         file: &[u8],
     ) -> Result<()> {
         let mut key = mxc.as_bytes().to_vec();
@@ -30,7 +30,12 @@ impl Media {
         key.push(0xff);
         key.extend_from_slice(filename.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
         key.push(0xff);
-        key.extend_from_slice(content_type.as_bytes());
+        key.extend_from_slice(
+            content_type
+                .as_ref()
+                .map(|c| c.as_bytes())
+                .unwrap_or_default(),
+        );
 
         self.mediaid_file.insert(key, file)?;
 
@@ -42,7 +47,7 @@ impl Media {
         &self,
         mxc: String,
         filename: &Option<String>,
-        content_type: &str,
+        content_type: &Option<String>,
         width: u32,
         height: u32,
         file: &[u8],
@@ -54,7 +59,12 @@ impl Media {
         key.push(0xff);
         key.extend_from_slice(filename.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
         key.push(0xff);
-        key.extend_from_slice(content_type.as_bytes());
+        key.extend_from_slice(
+            content_type
+                .as_ref()
+                .map(|c| c.as_bytes())
+                .unwrap_or_default(),
+        );
 
         self.mediaid_file.insert(key, file)?;
 
