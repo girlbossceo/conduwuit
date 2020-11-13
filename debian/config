@@ -4,20 +4,14 @@ set -e
 # Source debconf library.
 . /usr/share/debconf/confmodule
 
-CONDUIT_CONFIG_PATH=/etc/matrix-conduit
-CONDUIT_CONFIG_FILE="$CONDUIT_CONFIG_PATH/env"
-
-# Ask for the Matrix homeserver name and port.
+# Ask for the Matrix homeserver name, address and port.
 db_input high matrix-conduit/hostname || true
+db_go
+
+db_input low matrix-conduit/address || true
 db_go
 
 db_input medium matrix-conduit/port || true
 db_go
-
-# Update the values in the config.
-db_get matrix-conduit/hostname
-sed -i -e "s/^ROCKET_SERVER_NAME=.*/ROCKET_SERVER_NAME=\"$RET\"/" $CONDUIT_CONFIG_FILE
-db_get matrix-conduit/port
-sed -i -e "s/^ROCKET_PORT=.*/ROCKET_PORT=\"$RET\"/" $CONDUIT_CONFIG_FILE
 
 exit 0

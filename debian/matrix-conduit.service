@@ -9,7 +9,8 @@ Type=simple
 
 Environment="ROCKET_ENV=production"
 Environment="ROCKET_DATABASE_PATH=/var/lib/matrix-conduit"
-EnvironmentFile=/etc/matrix-conduit/env
+EnvironmentFile=/etc/matrix-conduit/debian
+EnvironmentFile=/etc/matrix-conduit/local
 
 ExecStart=/usr/sbin/matrix-conduit
 Restart=on-failure
