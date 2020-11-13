@@ -7,6 +7,33 @@ User=_matrix-conduit
 Group=_matrix-conduit
 Type=simple
 
+AmbientCapabilities=
+CapabilityBoundingSet=
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+PrivateDevices=yes
+PrivateMounts=yes
+PrivateTmp=yes
+PrivateUsers=yes
+RemoveIPC=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+StateDirectory=matrix-conduit
+
 Environment="ROCKET_ENV=production"
 Environment="ROCKET_DATABASE_PATH=/var/lib/matrix-conduit"
 EnvironmentFile=/etc/matrix-conduit/debian
