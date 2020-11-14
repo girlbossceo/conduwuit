@@ -26,6 +26,7 @@ use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
     fmt::Debug,
+    sync::Arc,
     time::{Duration, SystemTime},
 };
 use trust_dns_resolver::AsyncResolver;
@@ -551,7 +552,6 @@ pub async fn send_transaction_message_route<'a>(
                     .iter()
                     .map(|((ev, sk), v)| ((ev.clone(), sk.to_owned()), v.event_id.clone()))
                     .collect::<BTreeMap<_, _>>(),
-                // TODO we may not want the auth events chained in here for resolution?
                 their_current_state
                     .iter()
                     .map(|(_id, v)| ((v.kind(), v.state_key()), v.event_id()))
@@ -750,10 +750,10 @@ pub fn get_user_devices_route<'a>(
 
 /// Generates a correct eventId for the incoming pdu.
 ///
-/// Returns a `state_res::StateEvent` which can be converted freely and has accessor methods.
+/// Returns a tuple of the new `EventId` and the PDU with the eventId inserted as a `serde_json::Value`.
 fn process_incoming_pdu(pdu: &ruma::Raw<ruma::events::pdu::Pdu>) -> (EventId, serde_json::Value) {
-    let mut value = serde_json::from_str(pdu.json().get())
-        .expect("converting raw jsons to values always works");
+    let mut value =
+        serde_json::from_str(pdu.json().get()).expect("A Raw<...> is always valid JSON");
 
     let event_id = EventId::try_from(&*format!(
         "${}",

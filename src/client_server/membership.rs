@@ -545,7 +545,7 @@ async fn join_room_by_id_helper(
         );
 
         // It has enough fields to be called a proper event now
-        let join_event = dbg!(canon_json_stub);
+        let join_event = canon_json_stub;
 
         let send_join_response = server_server::send_request(
             &db.globals,
@@ -577,7 +577,7 @@ async fn join_room_by_id_helper(
                     .expect("a valid EventId can be converted to CanonicalJsonValue"),
             );
 
-            Ok((event_id, serde_json::json!(value))) // TODO CanonicalJsonValue fixup?
+            Ok((event_id, serde_json::json!(value)))
         };
 
         let room_state = send_join_response.room_state.state.iter().map(add_event_id);
@@ -602,7 +602,8 @@ async fn join_room_by_id_helper(
             )))) // Add join event we just created
             .map(|r| {
                 let (event_id, value) = r?;
-                serde_json::from_value::<StateEvent>(value.clone())
+                // TODO remove .clone when I remove debug logging
+                state_res::StateEvent::from_id_value(event_id.clone(), value.clone())
                     .map(|ev| (event_id, Arc::new(ev)))
                     .map_err(|e| {
                         warn!("{}: {}", value, e);
@@ -642,7 +643,9 @@ async fn join_room_by_id_helper(
         .expect("iterative auth check failed on resolved events");
 
         // This removes the control events that failed auth, leaving the resolved
-        // to be mainline sorted
+        // to be mainline sorted. In the actual `state_res::StateResolution::resolve`
+        // function both are removed since these are all events we don't know of
+        // we must keep track of everything to add to our DB.
         let events_to_sort = event_map
             .keys()
             .filter(|id| {
