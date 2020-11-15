@@ -519,7 +519,6 @@ async fn join_room_by_id_helper(
         canon_json_stub.remove("event_id");
 
         // In order to create a compatible ref hash (EventID) the `hashes` field needs to be present
-        // who the hell knew...
         ruma::signatures::hash_and_sign_event(
             db.globals.server_name().as_str(),
             db.globals.keypair(),
@@ -602,7 +601,6 @@ async fn join_room_by_id_helper(
             )))) // Add join event we just created
             .map(|r| {
                 let (event_id, value) = r?;
-                // TODO remove .clone when I remove debug logging
                 state_res::StateEvent::from_id_value(event_id.clone(), value.clone())
                     .map(|ev| (event_id, Arc::new(ev)))
                     .map_err(|e| {

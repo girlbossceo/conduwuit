@@ -4,7 +4,7 @@ use crate::{
 };
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
-use log::warn;
+use log::{error, warn};
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
     api::{
@@ -26,7 +26,6 @@ use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
     fmt::Debug,
-    sync::Arc,
     time::{Duration, SystemTime},
 };
 use trust_dns_resolver::AsyncResolver;
@@ -99,7 +98,7 @@ where
     let mut http_request = request
         .try_into_http_request(&actual_destination, Some(""))
         .map_err(|e| {
-            warn!("failed to find destination {}: {}", actual_destination, e);
+            warn!("Failed to find destination {}: {}", actual_destination, e);
             Error::BadServerResponse("Invalid destination")
         })?;
 
@@ -264,12 +263,14 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
         .body(),
     )
     .unwrap();
+
     ruma::signatures::sign_json(
         db.globals.server_name().as_str(),
         db.globals.keypair(),
         &mut response,
     )
     .unwrap();
+
     Json(ruma::serde::to_canonical_json_string(&response).expect("JSON is canonical"))
 }
 
@@ -413,8 +414,8 @@ pub async fn send_transaction_message_route<'a>(
                 "m.receipt" => {}
                 _ => {}
             },
-            Err(_err) => {
-                log::error!("{}", _err);
+            Err(err) => {
+                error!("{}", err);
                 continue;
             }
         }
@@ -434,11 +435,9 @@ pub async fn send_transaction_message_route<'a>(
             .expect("all ruma pdus are conduit pdus");
         let room_id = &pdu.room_id;
 
-        // If we have no idea about this room
-        // TODO: Does a server only send us events that we should know about or
-        // when everyone on this server leaves a room can we ignore those events?
+        // If we have no idea about this room skip the PDU
         if !db.rooms.exists(&pdu.room_id)? {
-            log::error!("Room does not exist on this server");
+            error!("Room does not exist on this server.");
             resolved_map.insert(event_id, Err("Room is unknown to this server".into()));
             continue;
         }
@@ -460,7 +459,7 @@ pub async fn send_transaction_message_route<'a>(
             // As an example a possible error
             // {"errcode":"M_FORBIDDEN","error":"Host not in room."}
             Err(err) => {
-                log::error!("Request failed: {}", err);
+                error!("Request failed: {}", err);
                 resolved_map.insert(event_id, Err(err.to_string()));
                 continue;
             }
@@ -487,7 +486,7 @@ pub async fn send_transaction_message_route<'a>(
 
         if value.get("state_key").is_none() {
             if !db.rooms.is_joined(&pdu.sender, &pdu.room_id)? {
-                log::error!("Sender is not joined {}", pdu.kind);
+                error!("Sender is not joined {}", pdu.kind);
                 resolved_map.insert(event_id, Err("User is not in this room".into()));
                 continue;
             }

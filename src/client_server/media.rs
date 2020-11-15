@@ -39,7 +39,7 @@ pub async fn create_content_route(
     db.media.create(
         mxc.clone(),
         &body.filename.as_deref(),
-        &body.content_type.as_deref(), // TODO this is now optional handle
+        &body.content_type.as_deref(),
         &body.file,
     )?;
 

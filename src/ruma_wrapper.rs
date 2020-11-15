@@ -67,27 +67,28 @@ where
 
             let (sender_user, sender_device) =
             // TODO: Do we need to matches! anything else here? ServerSignatures 
-                if matches!(T::METADATA.authentication, AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken) {
-                    // Get token from header or query value
-                    let token = match request
-                        .headers()
-                        .get_one("Authorization")
-                        .map(|s| s[7..].to_owned()) // Split off "Bearer "
-                        .or_else(|| request.get_query_value("access_token").and_then(|r| r.ok()))
-                    {
-                        // TODO: M_MISSING_TOKEN
-                        None => return Failure((Status::Unauthorized, ())),
-                        Some(token) => token,
-                    };
-
-                    // Check if token is valid
-                    match db.users.find_from_token(&token).unwrap() {
-                        // TODO: M_UNKNOWN_TOKEN
-                        None => return Failure((Status::Unauthorized, ())),
-                        Some((user_id, device_id)) => (Some(user_id), Some(device_id.into())),
+                match T::METADATA.authentication {
+                    AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
+                        // Get token from header or query value
+                        let token = match request
+                            .headers()
+                            .get_one("Authorization")
+                            .map(|s| s[7..].to_owned()) // Split off "Bearer "
+                            .or_else(|| request.get_query_value("access_token").and_then(|r| r.ok()))
+                        {
+                            // TODO: M_MISSING_TOKEN
+                            None => return Failure((Status::Unauthorized, ())),
+                            Some(token) => token,
+                        };
+    
+                        // Check if token is valid
+                        match db.users.find_from_token(&token).unwrap() {
+                            // TODO: M_UNKNOWN_TOKEN
+                            None => return Failure((Status::Unauthorized, ())),
+                            Some((user_id, device_id)) => (Some(user_id), Some(device_id.into())),
+                        }
                     }
-                } else {
-                    (None, None)
+                    _ => (None, None)
                 };
 
             let mut http_request = http::Request::builder()

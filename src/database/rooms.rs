@@ -35,6 +35,11 @@ use super::admin::AdminCommand;
 /// hashing the entire state.
 pub type StateHashId = IVec;
 
+/// An enum that represents the two valid states when searching
+/// for an events "parent".
+///
+/// An events parent is any event we are aware of that is part of
+/// the events `prev_events` array.
 pub enum ClosestParent {
     Append,
     Insert(u64),
@@ -80,7 +85,7 @@ impl StateStore for Rooms {
             .map_err(StateError::custom)?
             .ok_or_else(|| {
                 StateError::NotFound(format!(
-                    "PDU via room_id and event_id not found in the db.\n{}",
+                    "PDU via room_id and event_id not found in the db: {}",
                     event_id.as_str()
                 ))
             })?;
@@ -258,6 +263,8 @@ impl Rooms {
     }
 
     /// Force the creation of a new StateHash and insert it into the db.
+    ///
+    /// Whatever `state` is supplied to `force_state` __is__ the current room state snapshot.
     pub fn force_state(
         &self,
         room_id: &RoomId,
@@ -403,6 +410,12 @@ impl Rooms {
         }
     }
 
+    /// Recursively search for a PDU from our DB that is also in the
+    /// `prev_events` field of the incoming PDU.
+    ///
+    /// First we check if the last PDU inserted to the given room is a parent
+    /// if not we recursively check older `prev_events` to insert the incoming
+    /// event after.
     pub fn get_closest_parent(
         &self,
         room: &RoomId,

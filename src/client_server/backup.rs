@@ -256,7 +256,7 @@ pub async fn get_backup_key_session_route(
     let key_data = db
         .key_backups
         .get_session(&sender_user, &body.version, &body.room_id, &body.session_id)?
-        .ok_or_else(|| Error::BadDatabase("Backup key not found for this user's session"))?;
+        .ok_or_else(|| Error::bad_database("Backup key not found for this user's session."))?;
 
     Ok(get_backup_key_session::Response { key_data }.into())
 }

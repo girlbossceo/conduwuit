@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryFrom, time::SystemTime};
 
 use crate::{server_server, utils, Error, PduEvent, Result};
 use federation::transactions::send_transaction_message;
-use log::debug;
+use log::{debug, error};
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{api::federation, ServerName};
 use sled::IVec;
@@ -115,8 +115,8 @@ impl Sending {
                                     // servercurrentpdus with the prefix should be empty now
                                 }
                             }
-                            Err((_server, _e)) => {
-                                log::error!("server: {}\nerror: {}", _server, _e)
+                            Err((server, e)) => {
+                                error!("server: {}\nerror: {}", server, e)
                                 // TODO: exponential backoff
                             }
                         };
