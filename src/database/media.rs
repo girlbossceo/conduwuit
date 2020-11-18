@@ -5,7 +5,7 @@ use std::mem;
 
 pub struct FileMeta {
     pub filename: Option<String>,
-    pub content_type: String,
+    pub content_type: Option<String>,
     pub file: Vec<u8>,
 }
 
@@ -83,12 +83,14 @@ impl Media {
             let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
-            let content_type = utils::string_from_bytes(
-                parts
-                    .next()
-                    .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?,
-            )
-            .map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))?;
+            let content_type = parts
+                .next()
+                .map(|bytes| {
+                    Ok::<_, Error>(utils::string_from_bytes(bytes).map_err(|_| {
+                        Error::bad_database("Content type in mediaid_file is invalid unicode.")
+                    })?)
+                })
+                .transpose()?;
 
             let filename_bytes = parts
                 .next()
@@ -158,12 +160,14 @@ impl Media {
             let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
-            let content_type = utils::string_from_bytes(
-                parts
-                    .next()
-                    .ok_or_else(|| Error::bad_database("Invalid Media ID in db"))?,
-            )
-            .map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))?;
+            let content_type = parts
+                .next()
+                .map(|bytes| {
+                    Ok::<_, Error>(utils::string_from_bytes(bytes).map_err(|_| {
+                        Error::bad_database("Content type in mediaid_file is invalid unicode.")
+                    })?)
+                })
+                .transpose()?;
 
             let filename_bytes = parts
                 .next()
@@ -189,12 +193,14 @@ impl Media {
             let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
-            let content_type = utils::string_from_bytes(
-                parts
-                    .next()
-                    .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?,
-            )
-            .map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))?;
+            let content_type = parts
+                .next()
+                .map(|bytes| {
+                    Ok::<_, Error>(utils::string_from_bytes(bytes).map_err(|_| {
+                        Error::bad_database("Content type in mediaid_file is invalid unicode.")
+                    })?)
+                })
+                .transpose()?;
 
             let filename_bytes = parts
                 .next()

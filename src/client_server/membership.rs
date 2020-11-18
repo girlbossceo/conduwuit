@@ -510,8 +510,7 @@ async fn join_room_by_id_helper(
             .expect("event is valid, we just created it"),
         );
 
-        // TODO fixup CanonicalJsonValue
-        // use that instead of serde_json::Map... maybe?
+        // Convert `serde_json;:Value` to `CanonicalJsonObj` for hashing/signing
         let mut canon_json_stub: BTreeMap<_, ruma::signatures::CanonicalJsonValue> =
             serde_json::from_value(join_event_stub_value).expect("json Value is canonical JSON");
 

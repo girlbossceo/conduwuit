@@ -499,7 +499,6 @@ impl Rooms {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     /// Creates a new persisted data unit and adds it to a room.
     ///
     /// By this point the incoming event should be fully authenticated, no auth happens
@@ -856,9 +855,8 @@ impl Rooms {
         };
 
         // Hash and sign
-        let mut pdu_json: BTreeMap<String, ruma::serde::CanonicalJsonValue> =
-            serde_json::from_value(serde_json::json!(&pdu))
-                .expect("event is valid, we just created it");
+        let mut pdu_json =
+            utils::to_canonical_object(&pdu).expect("event is valid, we just created it");
 
         pdu_json.remove("event_id");
 

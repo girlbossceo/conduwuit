@@ -66,7 +66,7 @@ pub async fn get_content_route(
     {
         Ok(get_content::Response {
             file,
-            content_type: Some(content_type),
+            content_type,
             content_disposition: filename,
         }
         .into())
@@ -116,11 +116,7 @@ pub async fn get_content_thumbnail_route(
             .try_into()
             .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
     )? {
-        Ok(get_content_thumbnail::Response {
-            file,
-            content_type: Some(content_type),
-        }
-        .into())
+        Ok(get_content_thumbnail::Response { file, content_type }.into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
         let get_thumbnail_response = server_server::send_request(
             &db.globals,
