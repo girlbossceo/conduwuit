@@ -15,6 +15,7 @@ use ruma::{
         },
         EventType,
     },
+    serde::{to_canonical_value, CanonicalJsonObject},
     EventId, Raw, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use sled::IVec;
@@ -506,7 +507,7 @@ impl Rooms {
     pub fn append_pdu(
         &self,
         pdu: &PduEvent,
-        pdu_json: &serde_json::Value,
+        pdu_json: &CanonicalJsonObject,
         count: u64,
         pdu_id: IVec,
         globals: &super::globals::Globals,
@@ -520,7 +521,11 @@ impl Rooms {
         self.edus
             .private_read_set(&pdu.room_id, &pdu.sender, count, &globals)?;
 
-        self.pduid_pdu.insert(&pdu_id, &*pdu_json.to_string())?;
+        self.pduid_pdu.insert(
+            &pdu_id,
+            &*serde_json::to_string(pdu_json)
+                .expect("CanonicalJsonObject is always a valid String"),
+        )?;
 
         self.eventid_pduid
             .insert(pdu.event_id.as_bytes(), &*pdu_id)?;
@@ -863,8 +868,7 @@ impl Rooms {
         // Add origin because synapse likes that (and it's required in the spec)
         pdu_json.insert(
             "origin".to_owned(),
-            serde_json::json!(globals.server_name())
-                .try_into()
+            to_canonical_value(globals.server_name())
                 .expect("server name is a valid CanonicalJsonValue"),
         );
 
@@ -886,9 +890,7 @@ impl Rooms {
 
         pdu_json.insert(
             "event_id".to_owned(),
-            serde_json::json!(pdu.event_id)
-                .try_into()
-                .expect("EventId is a valid CanonicalJsonValue"),
+            to_canonical_value(&pdu.event_id).expect("EventId is a valid CanonicalJsonValue"),
         );
 
         // Increment the last index and use that
@@ -904,7 +906,7 @@ impl Rooms {
 
         self.append_pdu(
             &pdu,
-            &serde_json::json!(pdu_json), // TODO fixup CanonicalJsonValue
+            &pdu_json,
             count,
             pdu_id.clone().into(),
             globals,

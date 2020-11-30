@@ -18,12 +18,13 @@ use ruma::{
         federation,
     },
     events::{pdu::Pdu, room::member, EventType},
+    serde::{to_canonical_value, CanonicalJsonObject},
     EventId, Raw, RoomId, RoomVersionId, ServerName, UserId,
 };
 use state_res::StateEvent;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    convert::{TryFrom, TryInto},
+    convert::TryFrom,
     iter,
     sync::Arc,
 };
@@ -477,30 +478,25 @@ async fn join_room_by_id_helper(
 
         let (make_join_response, remote_server) = make_join_response_and_server?;
 
-        let mut join_event_stub_value =
-            serde_json::from_str::<serde_json::Value>(make_join_response.event.json().get())
+        let mut join_event_stub =
+            serde_json::from_str::<CanonicalJsonObject>(make_join_response.event.json().get())
                 .map_err(|_| {
                     Error::BadServerResponse("Invalid make_join event json received from server.")
                 })?;
 
-        let join_event_stub =
-            join_event_stub_value
-                .as_object_mut()
-                .ok_or(Error::BadServerResponse(
-                    "Invalid make join event object received from server.",
-                ))?;
-
         join_event_stub.insert(
             "origin".to_owned(),
-            db.globals.server_name().to_owned().to_string().into(),
+            to_canonical_value(db.globals.server_name())
+                .map_err(|_| Error::bad_database("Invalid server name found"))?,
         );
         join_event_stub.insert(
             "origin_server_ts".to_owned(),
-            utils::millis_since_unix_epoch().into(),
+            to_canonical_value(utils::millis_since_unix_epoch())
+                .expect("Timestamp is valid js_int value"),
         );
         join_event_stub.insert(
             "content".to_owned(),
-            serde_json::to_value(member::MemberEventContent {
+            to_canonical_value(member::MemberEventContent {
                 membership: member::MembershipState::Join,
                 displayname: db.users.displayname(&sender_user)?,
                 avatar_url: db.users.avatar_url(&sender_user)?,
@@ -510,18 +506,14 @@ async fn join_room_by_id_helper(
             .expect("event is valid, we just created it"),
         );
 
-        // Convert `serde_json;:Value` to `CanonicalJsonObj` for hashing/signing
-        let mut canon_json_stub: BTreeMap<_, ruma::signatures::CanonicalJsonValue> =
-            serde_json::from_value(join_event_stub_value).expect("json Value is canonical JSON");
-
         // We don't leave the event id in the pdu because that's only allowed in v1 or v2 rooms
-        canon_json_stub.remove("event_id");
+        join_event_stub.remove("event_id");
 
         // In order to create a compatible ref hash (EventID) the `hashes` field needs to be present
         ruma::signatures::hash_and_sign_event(
             db.globals.server_name().as_str(),
             db.globals.keypair(),
-            &mut canon_json_stub,
+            &mut join_event_stub,
             &RoomVersionId::Version6,
         )
         .expect("event is valid, we just created it");
@@ -529,21 +521,19 @@ async fn join_room_by_id_helper(
         // Generate event id
         let event_id = EventId::try_from(&*format!(
             "${}",
-            ruma::signatures::reference_hash(&canon_json_stub, &RoomVersionId::Version6)
+            ruma::signatures::reference_hash(&join_event_stub, &RoomVersionId::Version6)
                 .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are valid event ids");
 
         // Add event_id back
-        canon_json_stub.insert(
+        join_event_stub.insert(
             "event_id".to_owned(),
-            serde_json::json!(event_id)
-                .try_into()
-                .expect("EventId is a valid CanonicalJsonValue"),
+            to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
         );
 
         // It has enough fields to be called a proper event now
-        let join_event = canon_json_stub;
+        let join_event = join_event_stub;
 
         let send_join_response = server_server::send_request(
             &db.globals,
@@ -559,7 +549,7 @@ async fn join_room_by_id_helper(
         )
         .await?;
 
-        let add_event_id = |pdu: &Raw<Pdu>| -> Result<(EventId, serde_json::Value)> {
+        let add_event_id = |pdu: &Raw<Pdu>| -> Result<(EventId, CanonicalJsonObject)> {
             let mut value = serde_json::from_str(pdu.json().get())
                 .expect("converting raw jsons to values always works");
             let event_id = EventId::try_from(&*format!(
@@ -571,18 +561,18 @@ async fn join_room_by_id_helper(
 
             value.insert(
                 "event_id".to_owned(),
-                serde_json::from_value(serde_json::json!(event_id))
+                to_canonical_value(&event_id)
                     .expect("a valid EventId can be converted to CanonicalJsonValue"),
             );
 
-            Ok((event_id, serde_json::json!(value)))
+            Ok((event_id, value))
         };
 
         let room_state = send_join_response.room_state.state.iter().map(add_event_id);
 
         let state_events = room_state
             .clone()
-            .map(|pdu: Result<(EventId, serde_json::Value)>| Ok(pdu?.0))
+            .map(|pdu: Result<(EventId, CanonicalJsonObject)>| Ok(pdu?.0))
             .chain(iter::once(Ok(event_id.clone()))) // Add join event we just created
             .collect::<Result<HashSet<EventId>>>()?;
 
@@ -594,16 +584,13 @@ async fn join_room_by_id_helper(
 
         let mut event_map = room_state
             .chain(auth_chain)
-            .chain(iter::once(Ok((
-                event_id,
-                serde_json::to_value(join_event).unwrap(),
-            )))) // Add join event we just created
+            .chain(iter::once(Ok((event_id, join_event)))) // Add join event we just created
             .map(|r| {
                 let (event_id, value) = r?;
-                state_res::StateEvent::from_id_value(event_id.clone(), value.clone())
+                state_res::StateEvent::from_id_canon_obj(event_id.clone(), value.clone())
                     .map(|ev| (event_id, Arc::new(ev)))
                     .map_err(|e| {
-                        warn!("{}: {}", value, e);
+                        warn!("{:?}: {}", value, e);
                         Error::BadServerResponse("Invalid PDU in send_join response.")
                     })
             })
@@ -692,7 +679,7 @@ async fn join_room_by_id_helper(
             pdu_id.extend_from_slice(&count.to_be_bytes());
             db.rooms.append_pdu(
                 &PduEvent::from(&**pdu),
-                &serde_json::to_value(&**pdu).expect("PDU is valid value"),
+                &utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
                 count,
                 pdu_id.clone().into(),
                 &db.globals,

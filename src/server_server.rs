@@ -20,6 +20,7 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
+    serde::{to_canonical_value, CanonicalJsonObject},
     EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use std::{
@@ -431,12 +432,13 @@ pub async fn send_transaction_message_route<'a>(
     let mut resolved_map = BTreeMap::new();
     for pdu in &body.pdus {
         let (event_id, value) = process_incoming_pdu(pdu);
-        let pdu = serde_json::from_value::<PduEvent>(value.clone())
+        // TODO: this is an unfortunate conversion dance...
+        let pdu = serde_json::from_value::<PduEvent>(serde_json::to_value(&value).expect("msg"))
             .expect("all ruma pdus are conduit pdus");
         let room_id = &pdu.room_id;
 
         // If we have no idea about this room skip the PDU
-        if !db.rooms.exists(&pdu.room_id)? {
+        if !db.rooms.exists(room_id)? {
             error!("Room does not exist on this server.");
             resolved_map.insert(event_id, Err("Room is unknown to this server".into()));
             continue;
@@ -477,7 +479,7 @@ pub async fn send_transaction_message_route<'a>(
                         // When creating a StateEvent the event_id arg will be used
                         // over any found in the json and it will not use ruma::reference_hash
                         // to generate one
-                        state_res::StateEvent::from_id_value(event_id, json)
+                        state_res::StateEvent::from_id_canon_obj(event_id, json)
                             .expect("valid pdu json"),
                     ),
                 )
@@ -485,7 +487,7 @@ pub async fn send_transaction_message_route<'a>(
             .collect::<BTreeMap<_, _>>();
 
         if value.get("state_key").is_none() {
-            if !db.rooms.is_joined(&pdu.sender, &pdu.room_id)? {
+            if !db.rooms.is_joined(&pdu.sender, room_id)? {
                 error!("Sender is not joined {}", pdu.kind);
                 resolved_map.insert(event_id, Err("User is not in this room".into()));
                 continue;
@@ -750,7 +752,7 @@ pub fn get_user_devices_route<'a>(
 /// Generates a correct eventId for the incoming pdu.
 ///
 /// Returns a tuple of the new `EventId` and the PDU with the eventId inserted as a `serde_json::Value`.
-fn process_incoming_pdu(pdu: &ruma::Raw<ruma::events::pdu::Pdu>) -> (EventId, serde_json::Value) {
+fn process_incoming_pdu(pdu: &ruma::Raw<ruma::events::pdu::Pdu>) -> (EventId, CanonicalJsonObject) {
     let mut value =
         serde_json::from_str(pdu.json().get()).expect("A Raw<...> is always valid JSON");
 
@@ -763,13 +765,8 @@ fn process_incoming_pdu(pdu: &ruma::Raw<ruma::events::pdu::Pdu>) -> (EventId, se
 
     value.insert(
         "event_id".to_owned(),
-        serde_json::json!(event_id)
-            .try_into()
-            .expect("EventId is a valid CanonicalJsonValue"),
+        to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
     );
 
-    (
-        event_id,
-        serde_json::to_value(value).expect("JSON Value is a CanonicalJsonValue"),
-    )
+    (event_id, value)
 }

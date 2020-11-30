@@ -185,9 +185,7 @@ impl Sending {
             .iter()
             .map(|pdu_id| {
                 Ok::<_, (Box<ServerName>, Error)>(
-                    // TODO: this was a PduStub
-                    // In order for sending to work these actually do have to be
-                    // PduStub but, since they are Raw<..> we can fake it.
+                    // TODO: check room version and remove event_id if needed
                     serde_json::from_str(
                         PduEvent::convert_to_outgoing_federation_event(
                             rooms
