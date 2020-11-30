@@ -541,10 +541,7 @@ async fn join_room_by_id_helper(
             federation::membership::create_join_event::v2::Request {
                 room_id,
                 event_id: &event_id,
-                pdu_stub: PduEvent::convert_to_outgoing_federation_event(
-                    serde_json::to_value(&join_event)
-                        .expect("we just validated and ser/de this event"),
-                ),
+                pdu_stub: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
             },
         )
         .await?;

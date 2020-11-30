@@ -5,6 +5,7 @@ use ruma::{
         pdu::EventHash, room::member::MemberEventContent, AnyEvent, AnyRoomEvent, AnyStateEvent,
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
+    serde::{CanonicalJsonObject, CanonicalJsonValue},
     EventId, Raw, RoomId, ServerKeyId, ServerName, UserId,
 };
 use serde::{Deserialize, Serialize};
@@ -200,25 +201,25 @@ impl PduEvent {
     }
 
     pub fn convert_to_outgoing_federation_event(
-        mut pdu_json: serde_json::Value,
+        mut pdu_json: CanonicalJsonObject,
     ) -> Raw<ruma::events::pdu::PduStub> {
-        if let Some(unsigned) = pdu_json
-            .as_object_mut()
-            .expect("json is object")
-            .get_mut("unsigned")
-        {
-            unsigned
-                .as_object_mut()
-                .expect("unsigned is object")
-                .remove("transaction_id");
+        if let Some(CanonicalJsonValue::Object(unsigned)) = pdu_json.get_mut("unsigned") {
+            unsigned.remove("transaction_id");
         }
 
-        pdu_json
-            .as_object_mut()
-            .expect("json is object")
-            .remove("event_id");
+        pdu_json.remove("event_id");
 
-        serde_json::from_value::<Raw<_>>(pdu_json).expect("Raw::from_value always works")
+        // TODO: another option would be to convert it to a canonical string to validate size
+        // and return a Result<Raw<...>>
+        // serde_json::from_str::<Raw<_>>(
+        //     ruma::serde::to_canonical_json_string(pdu_json).expect("CanonicalJson is valid serde_json::Value"),
+        // )
+        // .expect("Raw::from_value always works")
+
+        serde_json::from_value::<Raw<_>>(
+            serde_json::to_value(pdu_json).expect("CanonicalJson is valid serde_json::Value"),
+        )
+        .expect("Raw::from_value always works")
     }
 }
 
