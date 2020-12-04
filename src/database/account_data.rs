@@ -2,7 +2,8 @@ use crate::{utils, Error, Result};
 use ruma::{
     api::client::error::ErrorKind,
     events::{AnyEvent as EduEvent, EventType},
-    Raw, RoomId, UserId,
+    serde::Raw,
+    RoomId, UserId,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use sled::IVec;

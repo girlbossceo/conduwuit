@@ -32,7 +32,7 @@ pub async fn set_presence_route(
                             .try_into()
                             .expect("time is valid"),
                     ),
-                    presence: body.presence,
+                    presence: body.presence.clone(),
                     status_msg: body.status_msg.clone(),
                 },
                 sender: sender_user.clone(),

@@ -15,8 +15,8 @@ use ruma::{
         },
         EventType,
     },
-    serde::{to_canonical_value, CanonicalJsonObject},
-    EventId, Raw, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
+    serde::{to_canonical_value, CanonicalJsonObject, Raw},
+    EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use sled::IVec;
 use state_res::{event_auth, Error as StateError, Requester, StateEvent, StateMap, StateStore};
@@ -102,7 +102,7 @@ impl StateStore for Rooms {
         .and_then(|pdu: StateEvent| {
             // conduit's PDU's always contain a room_id but some
             // of ruma's do not so this must be an Option
-            if pdu.room_id() == Some(room_id) {
+            if pdu.room_id() == room_id {
                 Ok(Arc::new(pdu))
             } else {
                 Err(StateError::NotFound(
@@ -278,7 +278,7 @@ impl Rooms {
 
         for ((event_type, state_key), pdu_id) in state {
             let mut state_id = prefix.clone();
-            state_id.extend_from_slice(&event_type.as_str().as_bytes());
+            state_id.extend_from_slice(&event_type.as_ref().as_bytes());
             state_id.push(0xff);
             state_id.extend_from_slice(&state_key.as_bytes());
             self.stateid_pduid.insert(state_id, pdu_id)?;
@@ -592,6 +592,7 @@ impl Rooms {
                                     body: format!("Command: {}, Args: {:?}", command, args),
                                     formatted: None,
                                     relates_to: None,
+                                    new_content: None,
                                 },
                             ));
                         }
@@ -633,7 +634,7 @@ impl Rooms {
 
         if let Some(state_key) = &new_pdu.state_key {
             let mut new_state = old_state;
-            let mut pdu_key = new_pdu.kind.as_str().as_bytes().to_vec();
+            let mut pdu_key = new_pdu.kind.as_ref().as_bytes().to_vec();
             pdu_key.push(0xff);
             pdu_key.extend_from_slice(state_key.as_bytes());
             new_state.insert(pdu_key.into(), new_pdu_id.into());

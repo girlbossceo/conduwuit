@@ -11,7 +11,8 @@ use ruma::{
         federation::{
             directory::{get_public_rooms, get_public_rooms_filtered},
             discovery::{
-                get_server_keys, get_server_version::v1 as get_server_version, ServerKey, VerifyKey,
+                get_server_keys, get_server_version::v1 as get_server_version, ServerSigningKeys,
+                VerifyKey,
             },
             event::get_missing_events,
             query::get_profile_information,
@@ -20,11 +21,11 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
-    EventId, RoomId, ServerName, UserId,
+    EventId, RoomId, ServerName, ServerSigningKeyId, UserId,
 };
 use std::{
     collections::BTreeMap,
-    convert::{TryFrom, TryInto},
+    convert::TryFrom,
     fmt::Debug,
     sync::Arc,
     time::{Duration, SystemTime},
@@ -243,16 +244,17 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
 
     let mut verify_keys = BTreeMap::new();
     verify_keys.insert(
-        format!("ed25519:{}", db.globals.keypair().version())
-            .try_into()
-            .expect("DB stores valid ServerKeyId's"),
+        ServerSigningKeyId::try_from(
+            format!("ed25519:{}", db.globals.keypair().version()).as_str(),
+        )
+        .expect("found invalid server signing keys in DB"),
         VerifyKey {
             key: base64::encode_config(db.globals.keypair().public_key(), base64::STANDARD_NO_PAD),
         },
     );
     let mut response = serde_json::from_slice(
         http::Response::try_from(get_server_keys::v2::Response {
-            server_key: ServerKey {
+            server_key: ServerSigningKeys {
                 server_name: db.globals.server_name().to_owned(),
                 verify_keys,
                 old_verify_keys: BTreeMap::new(),
@@ -430,7 +432,7 @@ pub async fn send_transaction_message_route<'a>(
     // would return a M_BAD_JSON error.
     let mut resolved_map = BTreeMap::new();
     for pdu in &body.pdus {
-        // Ruma/PduEvent/StateEvent satifies - 1. Is a valid event, otherwise it is dropped.
+        // Ruma/PduEvent/StateEvent satisfies - 1. Is a valid event, otherwise it is dropped.
 
         // state-res checks signatures - 2. Passes signature checks, otherwise event is dropped.
 
@@ -450,7 +452,7 @@ pub async fn send_transaction_message_route<'a>(
             continue;
         }
 
-        // If it is not a state event, we can skip state-res
+        // If it is not a state event, we can skip state-res... maybe
         if value.get("state_key").is_none() {
             if !db.rooms.is_joined(&pdu.sender, room_id)? {
                 warn!("Sender is not joined {}", pdu.kind);
@@ -679,7 +681,9 @@ pub fn get_profile_information_route<'a>(
     let mut displayname = None;
     let mut avatar_url = None;
 
-    match body.field {
+    match &body.field {
+        // TODO: what to do with custom
+        Some(ProfileField::_Custom(_s)) => {}
         Some(ProfileField::DisplayName) => displayname = db.users.displayname(&body.user_id)?,
         Some(ProfileField::AvatarUrl) => avatar_url = db.users.avatar_url(&body.user_id)?,
         None => {

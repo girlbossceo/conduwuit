@@ -3,7 +3,8 @@ use crate::{ConduitResult, Database, Error, Ruma};
 use ruma::{
     api::client::r0::sync::sync_events,
     events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
-    Raw, RoomId, UserId,
+    serde::Raw,
+    RoomId, UserId,
 };
 
 #[cfg(feature = "conduit_bin")]

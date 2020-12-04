@@ -20,7 +20,8 @@ use ruma::{
         room::{avatar, canonical_alias, guest_access, history_visibility, name, topic},
         EventType,
     },
-    Raw, ServerName,
+    serde::Raw,
+    ServerName,
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -83,7 +84,13 @@ pub async fn set_room_visibility_route(
 ) -> ConduitResult<set_room_visibility::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    match body.visibility {
+    match &body.visibility {
+        room::Visibility::_Custom(_s) => {
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Room visibility type is not supported.",
+            ));
+        }
         room::Visibility::Public => {
             db.rooms.set_public(&body.room_id, true)?;
             info!("{} made {} public", sender_user, body.room_id);
@@ -294,7 +301,9 @@ pub async fn get_public_rooms_filtered_helper(
                                 .url,
                             )
                         })
-                        .transpose()?,
+                        .transpose()?
+                        // url is now an Option<String> so we must flatten
+                        .flatten(),
                 };
                 Ok(chunk)
             })

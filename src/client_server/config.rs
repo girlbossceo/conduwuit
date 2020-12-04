@@ -6,7 +6,7 @@ use ruma::{
         r0::config::{get_global_account_data, set_global_account_data},
     },
     events::{custom::CustomEventContent, BasicEvent},
-    Raw,
+    serde::Raw,
 };
 
 #[cfg(feature = "conduit_bin")]

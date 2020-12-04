@@ -10,7 +10,8 @@ use ruma::{
     },
     encryption::DeviceKeys,
     events::{AnyToDeviceEvent, EventType},
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, Raw, UserId,
+    serde::Raw,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, UserId,
 };
 use std::{collections::BTreeMap, convert::TryFrom, mem, time::SystemTime};
 

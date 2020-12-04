@@ -10,7 +10,8 @@ use ruma::{
         room::{guest_access, history_visibility, join_rules, member, name, topic},
         EventType,
     },
-    Raw, RoomAliasId, RoomId, RoomVersionId,
+    serde::Raw,
+    RoomAliasId, RoomId, RoomVersionId,
 };
 use std::{cmp::max, collections::BTreeMap, convert::TryFrom};
 
@@ -141,10 +142,14 @@ pub async fn create_room_route(
     // 4. Events set by preset
 
     // Figure out preset. We need it for preset specific events
-    let preset = body.preset.unwrap_or_else(|| match body.visibility {
-        room::Visibility::Private => create_room::RoomPreset::PrivateChat,
-        room::Visibility::Public => create_room::RoomPreset::PublicChat,
-    });
+    let preset = body
+        .preset
+        .clone()
+        .unwrap_or_else(|| match &body.visibility {
+            room::Visibility::Private => create_room::RoomPreset::PrivateChat,
+            room::Visibility::Public => create_room::RoomPreset::PublicChat,
+            room::Visibility::_Custom(s) => create_room::RoomPreset::_Custom(s.into()),
+        });
 
     // 4.1 Join Rules
     db.rooms.build_and_append_pdu(

@@ -8,7 +8,7 @@ use ruma::{
         },
     },
     events::EventType,
-    Raw,
+    serde::Raw,
 };
 
 #[cfg(feature = "conduit_bin")]

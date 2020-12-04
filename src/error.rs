@@ -143,11 +143,7 @@ impl log::Log for ConduitLogger {
             }
 
             self.db.admin.send(AdminCommand::SendTextMessage(
-                message::TextMessageEventContent {
-                    body: output,
-                    formatted: None,
-                    relates_to: None,
-                },
+                message::TextMessageEventContent::plain(output),
             ));
         }
     }

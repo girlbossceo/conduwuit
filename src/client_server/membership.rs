@@ -18,8 +18,8 @@ use ruma::{
         federation,
     },
     events::{pdu::Pdu, room::member, EventType},
-    serde::{to_canonical_value, CanonicalJsonObject},
-    EventId, Raw, RoomId, RoomVersionId, ServerName, UserId,
+    serde::{to_canonical_value, CanonicalJsonObject, Raw},
+    EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use state_res::StateEvent;
 use std::{
@@ -541,7 +541,7 @@ async fn join_room_by_id_helper(
             federation::membership::create_join_event::v2::Request {
                 room_id,
                 event_id: &event_id,
-                pdu_stub: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+                pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
             },
         )
         .await?;

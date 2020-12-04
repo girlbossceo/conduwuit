@@ -492,6 +492,7 @@ pub async fn register_route(
                             body: "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing <code>/join #conduit:matrix.org</code>. <strong>Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.</strong> Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
                         }),
                         relates_to: None,
+                        new_content: None,
                     },
                 ))
                 .expect("event is valid, we just created it"),

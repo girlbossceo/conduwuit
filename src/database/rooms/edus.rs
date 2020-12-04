@@ -6,7 +6,8 @@ use ruma::{
         AnyEvent as EduEvent, SyncEphemeralRoomEvent,
     },
     presence::PresenceState,
-    Raw, RoomId, UserId,
+    serde::Raw,
+    RoomId, UserId,
 };
 use std::{
     collections::HashMap,

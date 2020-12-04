@@ -5,8 +5,8 @@ use ruma::{
         pdu::EventHash, room::member::MemberEventContent, AnyEvent, AnyRoomEvent, AnyStateEvent,
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
-    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue},
-    EventId, Raw, RoomId, RoomVersionId, ServerKeyId, ServerName, UserId,
+    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
+    EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -36,7 +36,7 @@ pub struct PduEvent {
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
     pub unsigned: serde_json::Map<String, serde_json::Value>,
     pub hashes: EventHash,
-    pub signatures: BTreeMap<Box<ServerName>, BTreeMap<ServerKeyId, String>>,
+    pub signatures: BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId, String>>,
 }
 
 impl PduEvent {
@@ -205,9 +205,10 @@ impl PduEvent {
         serde_json::from_value(json).expect("Raw::from_value always works")
     }
 
+    /// This does not return a full `Pdu` it is only to satisfy ruma's types.
     pub fn convert_to_outgoing_federation_event(
         mut pdu_json: CanonicalJsonObject,
-    ) -> Raw<ruma::events::pdu::PduStub> {
+    ) -> Raw<ruma::events::pdu::Pdu> {
         if let Some(CanonicalJsonValue::Object(unsigned)) = pdu_json.get_mut("unsigned") {
             unsigned.remove("transaction_id");
         }
@@ -232,7 +233,7 @@ impl From<&state_res::StateEvent> for PduEvent {
     fn from(pdu: &state_res::StateEvent) -> Self {
         Self {
             event_id: pdu.event_id(),
-            room_id: pdu.room_id().unwrap().clone(),
+            room_id: pdu.room_id().clone(),
             sender: pdu.sender().clone(),
             origin_server_ts: (pdu
                 .origin_server_ts()
@@ -288,7 +289,7 @@ impl PduEvent {
 ///
 /// Returns a tuple of the new `EventId` and the PDU with the eventId inserted as a `serde_json::Value`.
 pub(crate) fn process_incoming_pdu(
-    pdu: &ruma::Raw<ruma::events::pdu::Pdu>,
+    pdu: &Raw<ruma::events::pdu::Pdu>,
 ) -> (EventId, CanonicalJsonObject) {
     let mut value =
         serde_json::from_str(pdu.json().get()).expect("A Raw<...> is always valid JSON");

@@ -1,15 +1,18 @@
 use ruma::{
     push::{
-        Action, ConditionalPushRule, ConditionalPushRuleInit, PatternedPushRule,
-        PatternedPushRuleInit, PushCondition, RoomMemberCountIs, Ruleset, Tweak,
+        Action, ConditionalPushRule, ConditionalPushRuleInit, ContentPushRule, OverridePushRule,
+        PatternedPushRule, PatternedPushRuleInit, PushCondition, RoomMemberCountIs, Ruleset, Tweak,
+        UnderridePushRule,
     },
     UserId,
 };
 
 pub fn default_pushrules(user_id: &UserId) -> Ruleset {
     let mut rules = Ruleset::default();
-    rules.content = vec![contains_user_name_rule(&user_id)];
-    rules.override_ = vec![
+
+    rules.add(ContentPushRule(contains_user_name_rule(&user_id)));
+
+    for rule in vec![
         master_rule(),
         suppress_notices_rule(),
         invite_for_me_rule(),
@@ -17,14 +20,20 @@ pub fn default_pushrules(user_id: &UserId) -> Ruleset {
         contains_display_name_rule(),
         tombstone_rule(),
         roomnotif_rule(),
-    ];
-    rules.underride = vec![
+    ] {
+        rules.add(OverridePushRule(rule));
+    }
+
+    for rule in vec![
         call_rule(),
         encrypted_room_one_to_one_rule(),
         room_one_to_one_rule(),
         message_rule(),
         encrypted_rule(),
-    ];
+    ] {
+        rules.add(UnderridePushRule(rule));
+    }
+
     rules
 }
 

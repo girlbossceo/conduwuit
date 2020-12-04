@@ -3,7 +3,10 @@ use std::convert::{TryFrom, TryInto};
 use crate::pdu::PduBuilder;
 use log::warn;
 use rocket::futures::{channel::mpsc, stream::StreamExt};
-use ruma::{events::room::message, events::EventType, UserId};
+use ruma::{
+    events::{room::message, EventType},
+    UserId,
+};
 use tokio::select;
 
 pub enum AdminCommand {
