@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryFrom, time::SystemTime};
 
 use crate::{server_server, utils, Error, PduEvent, Result};
 use federation::transactions::send_transaction_message;
-use log::{debug, error};
+use log::{debug, warn};
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{api::federation, ServerName};
 use sled::IVec;
@@ -116,7 +116,7 @@ impl Sending {
                                 }
                             }
                             Err((server, e)) => {
-                                error!("server: {}\nerror: {}", server, e)
+                                warn!("Couldn't send transaction to {}: {}", server, e)
                                 // TODO: exponential backoff
                             }
                         };

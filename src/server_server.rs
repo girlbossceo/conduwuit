@@ -20,13 +20,13 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
-    serde::{to_canonical_value, CanonicalJsonObject},
-    EventId, RoomId, RoomVersionId, ServerName, UserId,
+    EventId, RoomId, ServerName, UserId,
 };
 use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
     fmt::Debug,
+    sync::Arc,
     time::{Duration, SystemTime},
 };
 use trust_dns_resolver::AsyncResolver;
@@ -415,8 +415,7 @@ pub async fn send_transaction_message_route<'a>(
                 "m.receipt" => {}
                 _ => {}
             },
-            Err(err) => {
-                error!("{}", err);
+            Err(_err) => {
                 continue;
             }
         }
@@ -431,19 +430,53 @@ pub async fn send_transaction_message_route<'a>(
     // would return a M_BAD_JSON error.
     let mut resolved_map = BTreeMap::new();
     for pdu in &body.pdus {
-        let (event_id, value) = process_incoming_pdu(pdu);
-        // TODO: this is an unfortunate conversion dance...
-        let pdu = serde_json::from_value::<PduEvent>(serde_json::to_value(&value).expect("msg"))
-            .expect("all ruma pdus are conduit pdus");
+        // Ruma/PduEvent/StateEvent satifies - 1. Is a valid event, otherwise it is dropped.
+
+        // state-res checks signatures - 2. Passes signature checks, otherwise event is dropped.
+
+        // 3. Passes hash checks, otherwise it is redacted before being processed further.
+        // TODO: redact event if hashing fails
+        let (event_id, value) = crate::pdu::process_incoming_pdu(pdu);
+
+        let pdu = serde_json::from_value::<PduEvent>(
+            serde_json::to_value(&value).expect("CanonicalJsonObj is a valid JsonValue"),
+        )
+        .expect("all ruma pdus are conduit pdus");
         let room_id = &pdu.room_id;
 
         // If we have no idea about this room skip the PDU
         if !db.rooms.exists(room_id)? {
-            error!("Room does not exist on this server.");
             resolved_map.insert(event_id, Err("Room is unknown to this server".into()));
             continue;
         }
 
+        // If it is not a state event, we can skip state-res
+        if value.get("state_key").is_none() {
+            if !db.rooms.is_joined(&pdu.sender, room_id)? {
+                warn!("Sender is not joined {}", pdu.kind);
+                resolved_map.insert(event_id, Err("User is not in this room".into()));
+                continue;
+            }
+
+            let count = db.globals.next_count()?;
+            let mut pdu_id = room_id.as_bytes().to_vec();
+            pdu_id.push(0xff);
+            pdu_id.extend_from_slice(&count.to_be_bytes());
+            db.rooms.append_pdu(
+                &pdu,
+                &value,
+                count,
+                pdu_id.into(),
+                &db.globals,
+                &db.account_data,
+                &db.admin,
+            )?;
+
+            resolved_map.insert(event_id, Ok::<(), String>(()));
+            continue;
+        }
+
+        // We have a state event so we need info for state-res
         let get_state_response = match send_request(
             &db.globals,
             body.body.origin.clone(),
@@ -461,7 +494,6 @@ pub async fn send_transaction_message_route<'a>(
             // As an example a possible error
             // {"errcode":"M_FORBIDDEN","error":"Host not in room."}
             Err(err) => {
-                error!("Request failed: {}", err);
                 resolved_map.insert(event_id, Err(err.to_string()));
                 continue;
             }
@@ -472,10 +504,10 @@ pub async fn send_transaction_message_route<'a>(
             .iter()
             .chain(get_state_response.auth_chain.iter()) // add auth events
             .map(|pdu| {
-                let (event_id, json) = process_incoming_pdu(pdu);
+                let (event_id, json) = crate::pdu::process_incoming_pdu(pdu);
                 (
                     event_id.clone(),
-                    std::sync::Arc::new(
+                    Arc::new(
                         // When creating a StateEvent the event_id arg will be used
                         // over any found in the json and it will not use ruma::reference_hash
                         // to generate one
@@ -486,65 +518,12 @@ pub async fn send_transaction_message_route<'a>(
             })
             .collect::<BTreeMap<_, _>>();
 
-        if value.get("state_key").is_none() {
-            if !db.rooms.is_joined(&pdu.sender, room_id)? {
-                error!("Sender is not joined {}", pdu.kind);
-                resolved_map.insert(event_id, Err("User is not in this room".into()));
-                continue;
-            }
-
-            // If the event is older than the last event in pduid_pdu Tree then find the
-            // closest ancestor we know of and insert after the known ancestor by
-            // altering the known events pduid to = same roomID + same count bytes + 0x1
-            // pushing a single byte every time a simple append cannot be done.
-            match db
-                .rooms
-                .get_closest_parent(room_id, &pdu.prev_events, &their_current_state)?
-            {
-                Some(ClosestParent::Append) => {
-                    let count = db.globals.next_count()?;
-                    let mut pdu_id = room_id.as_bytes().to_vec();
-                    pdu_id.push(0xff);
-                    pdu_id.extend_from_slice(&count.to_be_bytes());
-
-                    db.rooms.append_pdu(
-                        &pdu,
-                        &value,
-                        count,
-                        pdu_id.into(),
-                        &db.globals,
-                        &db.account_data,
-                        &db.admin,
-                    )?;
-                }
-                Some(ClosestParent::Insert(old_count)) => {
-                    println!("INSERT PDU FOUND {}", old_count);
-
-                    let count = old_count;
-                    let mut pdu_id = room_id.as_bytes().to_vec();
-                    pdu_id.push(0xff);
-                    pdu_id.extend_from_slice(&count.to_be_bytes());
-                    // Create a new count that is after old_count but before
-                    // the pdu appended after
-                    pdu_id.push(1);
-
-                    db.rooms.append_pdu(
-                        &pdu,
-                        &value,
-                        count,
-                        pdu_id.into(),
-                        &db.globals,
-                        &db.account_data,
-                        &db.admin,
-                    )?;
-                }
-                _ => panic!("Not a sequential event or no parents found"),
-            };
-            resolved_map.insert(event_id, Ok::<(), String>(()));
-            continue;
-        }
-
         let our_current_state = db.rooms.room_state_full(room_id)?;
+        // State resolution takes care of these checks
+        // 4. Passes authorization rules based on the event's auth events, otherwise it is rejected.
+        // 5. Passes authorization rules based on the state at the event, otherwise it is rejected.
+
+        // TODO: 6. Passes authorization rules based on the current state of the room, otherwise it is "soft failed".
         match state_res::StateResolution::resolve(
             room_id,
             &ruma::RoomVersionId::Version6,
@@ -576,7 +555,7 @@ pub async fn send_transaction_message_route<'a>(
                 // closest ancestor we know of and insert after the known ancestor by
                 // altering the known events pduid to = same roomID + same count bytes + 0x1
                 // pushing a single byte every time a simple append cannot be done.
-                match db.rooms.get_closest_parent(
+                match db.rooms.get_latest_pduid_before(
                     room_id,
                     &pdu.prev_events,
                     &their_current_state,
@@ -598,8 +577,6 @@ pub async fn send_transaction_message_route<'a>(
                         )?;
                     }
                     Some(ClosestParent::Insert(old_count)) => {
-                        println!("INSERT STATE PDU FOUND {}", old_count);
-
                         let count = old_count;
                         let mut pdu_id = room_id.as_bytes().to_vec();
                         pdu_id.push(0xff);
@@ -618,14 +595,16 @@ pub async fn send_transaction_message_route<'a>(
                             &db.admin,
                         )?;
                     }
-                    _ => panic!("Not a sequential event or no parents found"),
+                    _ => {
+                        error!("Not a sequential event or no parents found");
+                        continue;
+                    }
                 }
 
                 resolved_map.insert(event_id, Ok::<(), String>(()));
             }
             // If the eventId is not found in the resolved state auth has failed
             Ok(_) => {
-                // TODO have state_res give the actual auth error in this case
                 resolved_map.insert(
                     event_id,
                     Err("This event failed authentication, not found in resolved set".into()),
@@ -637,7 +616,7 @@ pub async fn send_transaction_message_route<'a>(
         };
     }
 
-    Ok(dbg!(send_transaction_message::v1::Response { pdus: resolved_map }).into())
+    Ok(send_transaction_message::v1::Response { pdus: resolved_map }.into())
 }
 
 #[cfg_attr(
@@ -748,25 +727,3 @@ pub fn get_user_devices_route<'a>(
     .into())
 }
 */
-
-/// Generates a correct eventId for the incoming pdu.
-///
-/// Returns a tuple of the new `EventId` and the PDU with the eventId inserted as a `serde_json::Value`.
-fn process_incoming_pdu(pdu: &ruma::Raw<ruma::events::pdu::Pdu>) -> (EventId, CanonicalJsonObject) {
-    let mut value =
-        serde_json::from_str(pdu.json().get()).expect("A Raw<...> is always valid JSON");
-
-    let event_id = EventId::try_from(&*format!(
-        "${}",
-        ruma::signatures::reference_hash(&value, &RoomVersionId::Version6)
-            .expect("ruma can calculate reference hashes")
-    ))
-    .expect("ruma's reference hashes are valid event ids");
-
-    value.insert(
-        "event_id".to_owned(),
-        to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
-    );
-
-    (event_id, value)
-}

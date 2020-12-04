@@ -41,7 +41,7 @@ pub type StateHashId = IVec;
 ///
 /// An events parent is any event we are aware of that is part of
 /// the events `prev_events` array.
-pub enum ClosestParent {
+pub(crate) enum ClosestParent {
     Append,
     Insert(u64),
 }
@@ -417,7 +417,7 @@ impl Rooms {
     /// First we check if the last PDU inserted to the given room is a parent
     /// if not we recursively check older `prev_events` to insert the incoming
     /// event after.
-    pub fn get_closest_parent(
+    pub(crate) fn get_latest_pduid_before(
         &self,
         room: &RoomId,
         incoming_prev_ids: &[EventId],
