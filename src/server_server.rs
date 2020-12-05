@@ -193,6 +193,8 @@ where
                 }
             }
 
+            let status = reqwest_response.status();
+
             let body = reqwest_response
                 .bytes()
                 .await
@@ -201,17 +203,27 @@ where
                     Vec::new().into()
                 }) // TODO: handle timeout
                 .into_iter()
-                .collect();
+                .collect::<Vec<_>>();
+
+            if status != 200 {
+                warn!(
+                    "Server returned bad response {} ({}): {} {:?}",
+                    destination,
+                    url,
+                    status,
+                    utils::string_from_bytes(&body)
+                );
+            }
 
             let response = T::IncomingResponse::try_from(
                 http_response
                     .body(body)
                     .expect("reqwest body is valid http body"),
             );
-            response.map_err(|e| {
+            response.map_err(|_| {
                 warn!(
-                    "Server returned bad response {} ({}): {:?}",
-                    destination, url, e
+                    "Server returned invalid response bytes {} ({})",
+                    destination, url
                 );
                 Error::BadServerResponse("Server returned bad response.")
             })
@@ -221,7 +233,9 @@ where
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/federation/v1/version"))]
-pub fn get_server_version(db: State<'_, Database>) -> ConduitResult<get_server_version::Response> {
+pub fn get_server_version_route(
+    db: State<'_, Database>,
+) -> ConduitResult<get_server_version::Response> {
     if !db.globals.federation_enabled() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -236,7 +250,7 @@ pub fn get_server_version(db: State<'_, Database>) -> ConduitResult<get_server_v
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server"))]
-pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
+pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
     if !db.globals.federation_enabled() {
         // TODO: Use proper types
         return Json("Federation is disabled.".to_owned());
@@ -278,8 +292,8 @@ pub fn get_server_keys(db: State<'_, Database>) -> Json<String> {
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server/<_>"))]
-pub fn get_server_keys_deprecated(db: State<'_, Database>) -> Json<String> {
-    get_server_keys(db)
+pub fn get_server_keys_deprecated_route(db: State<'_, Database>) -> Json<String> {
+    get_server_keys_route(db)
 }
 
 #[cfg_attr(
@@ -464,6 +478,9 @@ pub async fn send_transaction_message_route<'a>(
             let mut pdu_id = room_id.as_bytes().to_vec();
             pdu_id.push(0xff);
             pdu_id.extend_from_slice(&count.to_be_bytes());
+
+            db.rooms.append_to_state(&pdu_id, &pdu)?;
+
             db.rooms.append_pdu(
                 &pdu,
                 &value,

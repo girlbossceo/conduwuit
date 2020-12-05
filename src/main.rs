@@ -21,7 +21,7 @@ use rocket::{fairing::AdHoc, routes};
 
 fn setup_rocket() -> rocket::Rocket {
     // Force log level off, so we can use our own logger
-    std::env::set_var("ROCKET_LOG", "off");
+    std::env::set_var("ROCKET_LOG_LEVEL", "off");
 
     rocket::ignite()
         .mount(
@@ -123,9 +123,9 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_pushers_route,
                 client_server::set_pushers_route,
                 client_server::upgrade_room_route,
-                server_server::get_server_version,
-                server_server::get_server_keys,
-                server_server::get_server_keys_deprecated,
+                server_server::get_server_version_route,
+                server_server::get_server_keys_route,
+                server_server::get_server_keys_deprecated_route,
                 server_server::get_public_rooms_route,
                 server_server::get_public_rooms_filtered_route,
                 server_server::send_transaction_message_route,
@@ -133,8 +133,10 @@ fn setup_rocket() -> rocket::Rocket {
                 server_server::get_profile_information_route,
             ],
         )
-        .attach(AdHoc::on_attach("Config", |mut rocket| async {
-            let data = Database::load_or_create(rocket.config().await).expect("valid config");
+        .attach(AdHoc::on_attach("Config", |rocket| async {
+            let data =
+                Database::load_or_create(rocket.figment().extract().expect("config is valid"))
+                    .expect("config is valid");
 
             data.sending.start_handler(&data.globals, &data.rooms);
             log::set_boxed_logger(Box::new(ConduitLogger {

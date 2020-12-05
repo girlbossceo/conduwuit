@@ -1,7 +1,7 @@
-use crate::{utils, Error, Result};
+use crate::{database::Config, utils, Error, Result};
 use log::error;
 use ruma::ServerName;
-use std::{convert::TryInto, sync::Arc};
+use std::sync::Arc;
 
 pub const COUNTER: &str = "c";
 
@@ -10,15 +10,11 @@ pub struct Globals {
     pub(super) globals: sled::Tree,
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     reqwest_client: reqwest::Client,
-    server_name: Box<ServerName>,
-    max_request_size: u32,
-    registration_disabled: bool,
-    encryption_disabled: bool,
-    federation_enabled: bool,
+    config: Config,
 }
 
 impl Globals {
-    pub fn load(globals: sled::Tree, config: &rocket::Config) -> Result<Self> {
+    pub fn load(globals: sled::Tree, config: Config) -> Result<Self> {
         let bytes = &*globals
             .update_and_fetch("keypair", utils::generate_keypair)?
             .expect("utils::generate_keypair always returns Some");
@@ -57,20 +53,7 @@ impl Globals {
             globals,
             keypair: Arc::new(keypair),
             reqwest_client: reqwest::Client::new(),
-            server_name: config
-                .get_str("server_name")
-                .unwrap_or("localhost")
-                .to_string()
-                .try_into()
-                .map_err(|_| Error::bad_config("Invalid server_name."))?,
-            max_request_size: config
-                .get_int("max_request_size")
-                .unwrap_or(20 * 1024 * 1024) // Default to 20 MB
-                .try_into()
-                .map_err(|_| Error::bad_config("Invalid max_request_size."))?,
-            registration_disabled: config.get_bool("registration_disabled").unwrap_or(false),
-            encryption_disabled: config.get_bool("encryption_disabled").unwrap_or(false),
-            federation_enabled: config.get_bool("federation_enabled").unwrap_or(false),
+            config,
         })
     }
 
@@ -102,22 +85,22 @@ impl Globals {
     }
 
     pub fn server_name(&self) -> &ServerName {
-        self.server_name.as_ref()
+        self.config.server_name.as_ref()
     }
 
     pub fn max_request_size(&self) -> u32 {
-        self.max_request_size
+        self.config.max_request_size
     }
 
     pub fn registration_disabled(&self) -> bool {
-        self.registration_disabled
+        self.config.registration_disabled
     }
 
     pub fn encryption_disabled(&self) -> bool {
-        self.encryption_disabled
+        self.config.encryption_disabled
     }
 
     pub fn federation_enabled(&self) -> bool {
-        self.federation_enabled
+        self.config.federation_enabled
     }
 }

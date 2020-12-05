@@ -13,12 +13,39 @@ use crate::{Error, Result};
 use directories::ProjectDirs;
 use futures::StreamExt;
 use log::info;
-use rocket::{
-    futures::{self, channel::mpsc},
-    Config,
-};
-use ruma::{DeviceId, UserId};
-use std::{convert::TryFrom, fs::remove_dir_all};
+use rocket::futures::{self, channel::mpsc};
+use ruma::{DeviceId, ServerName, UserId};
+use serde::Deserialize;
+use std::{convert::TryInto, fs::remove_dir_all};
+
+#[derive(Clone, Deserialize)]
+pub struct Config {
+    #[serde(default = "default_server_name")]
+    server_name: Box<ServerName>,
+    database_path: Option<String>,
+    #[serde(default = "default_cache_capacity")]
+    cache_capacity: u64,
+    #[serde(default = "default_max_request_size")]
+    max_request_size: u32,
+    #[serde(default)]
+    registration_disabled: bool,
+    #[serde(default)]
+    encryption_disabled: bool,
+    #[serde(default)]
+    federation_enabled: bool,
+}
+
+fn default_server_name() -> Box<ServerName> {
+    "localhost".try_into().expect("")
+}
+
+fn default_cache_capacity() -> u64 {
+    1024 * 1024 * 1024
+}
+
+fn default_max_request_size() -> u32 {
+    20 * 1024 * 1024 // Default to 20 MB
+}
 
 #[derive(Clone)]
 pub struct Database {
@@ -49,19 +76,18 @@ impl Database {
     }
 
     /// Load an existing database or create a new one.
-    pub fn load_or_create(config: &Config) -> Result<Self> {
-        let server_name = config.get_str("server_name").unwrap_or("localhost");
-
+    pub fn load_or_create(config: Config) -> Result<Self> {
         let path = config
-            .get_str("database_path")
-            .map(|x| Ok::<_, Error>(x.to_owned()))
-            .unwrap_or_else(|_| {
+            .database_path
+            .clone()
+            .map(Ok::<_, Error>)
+            .unwrap_or_else(|| {
                 let path = ProjectDirs::from("xyz", "koesters", "conduit")
                     .ok_or_else(|| {
                         Error::bad_config("The OS didn't return a valid home directory path.")
                     })?
                     .data_dir()
-                    .join(server_name);
+                    .join(config.server_name.as_str());
 
                 Ok(path
                     .to_str()
@@ -71,15 +97,8 @@ impl Database {
 
         let db = sled::Config::default()
             .path(&path)
-            .cache_capacity(
-                u64::try_from(
-                    config
-                        .get_int("cache_capacity")
-                        .unwrap_or(1024 * 1024 * 1024),
-                )
-                .map_err(|_| Error::bad_config("Cache capacity needs to be a u64."))?,
-            )
-            .print_profile_on_drop(false)
+            .cache_capacity(config.cache_capacity)
+            .print_profile_on_drop(true)
             .open()?;
 
         info!("Opened sled database at {}", path);

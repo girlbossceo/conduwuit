@@ -49,8 +49,6 @@ impl Admin {
                     Some(event) = receiver.next() => {
                         match event {
                             AdminCommand::SendTextMessage(message) => {
-                                println!("{:?}", message);
-
                                 if let Some(conduit_room) = &conduit_room {
                                     db.rooms.build_and_append_pdu(
                                         PduBuilder {

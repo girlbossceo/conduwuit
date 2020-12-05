@@ -15,7 +15,8 @@ use {
     log::warn,
     rocket::{
         data::{
-            Data, FromDataFuture, FromTransformedData, Transform, TransformFuture, Transformed,
+            ByteUnit, Data, FromDataFuture, FromTransformedData, Transform, TransformFuture,
+            Transformed,
         },
         http::Status,
         outcome::Outcome::*,
@@ -97,7 +98,7 @@ where
             }
 
             let limit = db.globals.max_request_size();
-            let mut handle = data.open().take(limit.into());
+            let mut handle = data.open(ByteUnit::Byte(limit.into()));
             let mut body = Vec::new();
             handle.read_to_end(&mut body).await.unwrap();
 
