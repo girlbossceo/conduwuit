@@ -136,6 +136,7 @@ fn setup_rocket() -> rocket::Rocket {
         .attach(AdHoc::on_attach("Config", |rocket| async {
             let data =
                 Database::load_or_create(rocket.figment().extract().expect("config is valid"))
+                    .await
                     .expect("config is valid");
 
             data.sending.start_handler(&data.globals, &data.rooms);

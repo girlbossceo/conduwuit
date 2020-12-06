@@ -30,7 +30,6 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
-use trust_dns_resolver::AsyncResolver;
 
 pub async fn request_well_known(
     globals: &crate::database::globals::Globals,
@@ -66,36 +65,26 @@ where
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    let resolver = AsyncResolver::tokio_from_system_conf().await.map_err(|_| {
-        Error::bad_config("Failed to set up trust dns resolver with system config.")
-    })?;
+    let maybe_result = globals
+        .actual_destination_cache
+        .read()
+        .unwrap()
+        .get(&destination)
+        .cloned();
 
-    let mut host = None;
-
-    let actual_destination = "https://".to_owned()
-        + &if let Some(mut delegated_hostname) =
-            request_well_known(globals, &destination.as_str()).await
-        {
-            if let Ok(Some(srv)) = resolver
-                .srv_lookup(format!("_matrix._tcp.{}", delegated_hostname))
-                .await
-                .map(|srv| srv.iter().next().map(|result| result.target().to_string()))
-            {
-                host = Some(delegated_hostname);
-                srv.trim_end_matches('.').to_owned()
-            } else {
-                if delegated_hostname.find(':').is_none() {
-                    delegated_hostname += ":8448";
-                }
-                delegated_hostname
-            }
-        } else {
-            let mut destination = destination.as_str().to_owned();
-            if destination.find(':').is_none() {
-                destination += ":8448";
-            }
-            destination
-        };
+    let (actual_destination, host) = if let Some(result) = maybe_result {
+        println!("Loaded {} -> {:?}", destination, result);
+        result
+    } else {
+        let result = find_actual_destination(globals, &destination).await;
+        globals
+            .actual_destination_cache
+            .write()
+            .unwrap()
+            .insert(destination.clone(), result.clone());
+        println!("Saving {} -> {:?}", destination, result);
+        result
+    };
 
     let mut http_request = request
         .try_into_http_request(&actual_destination, Some(""))
@@ -230,6 +219,42 @@ where
         }
         Err(e) => Err(e.into()),
     }
+}
+
+/// Returns: actual_destination, host header
+async fn find_actual_destination(
+    globals: &crate::database::globals::Globals,
+    destination: &Box<ServerName>,
+) -> (String, Option<String>) {
+    let mut host = None;
+
+    let actual_destination = "https://".to_owned()
+        + &if let Some(mut delegated_hostname) =
+            request_well_known(globals, destination.as_str()).await
+        {
+            if let Ok(Some(srv)) = globals
+                .dns_resolver()
+                .srv_lookup(format!("_matrix._tcp.{}", delegated_hostname))
+                .await
+                .map(|srv| srv.iter().next().map(|result| result.target().to_string()))
+            {
+                host = Some(delegated_hostname);
+                srv.trim_end_matches('.').to_owned()
+            } else {
+                if delegated_hostname.find(':').is_none() {
+                    delegated_hostname += ":8448";
+                }
+                delegated_hostname
+            }
+        } else {
+            let mut destination = destination.as_str().to_owned();
+            if destination.find(':').is_none() {
+                destination += ":8448";
+            }
+            destination
+        };
+
+    (actual_destination, host)
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/federation/v1/version"))]

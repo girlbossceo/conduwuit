@@ -76,7 +76,7 @@ impl Database {
     }
 
     /// Load an existing database or create a new one.
-    pub fn load_or_create(config: Config) -> Result<Self> {
+    pub async fn load_or_create(config: Config) -> Result<Self> {
         let path = config
             .database_path
             .clone()
@@ -106,7 +106,7 @@ impl Database {
         let (admin_sender, admin_receiver) = mpsc::unbounded();
 
         let db = Self {
-            globals: globals::Globals::load(db.open_tree("global")?, config)?,
+            globals: globals::Globals::load(db.open_tree("global")?, config).await?,
             users: users::Users {
                 userid_password: db.open_tree("userid_password")?,
                 userid_displayname: db.open_tree("userid_displayname")?,
