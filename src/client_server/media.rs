@@ -45,7 +45,7 @@ pub async fn create_content_route(
 
     db.flush().await?;
 
-    Ok(create_content::Response { content_uri: mxc }.into())
+    Ok(create_content::Response { content_uri: mxc, blurhash: None }.into())
 }
 
 #[cfg_attr(
