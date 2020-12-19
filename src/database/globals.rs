@@ -4,6 +4,7 @@ use ruma::ServerName;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::time::Duration;
 use trust_dns_resolver::TokioAsyncResolver;
 
 pub const COUNTER: &str = "c";
@@ -54,11 +55,18 @@ impl Globals {
             }
         };
 
+        let reqwest_client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(60 * 3))
+            .pool_max_idle_per_host(1)
+            .build()
+            .unwrap();
+
         Ok(Self {
             globals,
             config,
             keypair: Arc::new(keypair),
-            reqwest_client: reqwest::Client::new(),
+            reqwest_client,
             dns_resolver: TokioAsyncResolver::tokio_from_system_conf()
                 .await
                 .map_err(|_| {

@@ -62,7 +62,8 @@ pub struct Rooms {
     /// Remember the state hash at events in the past.
     pub(super) pduid_statehash: sled::Tree,
     /// The state for a given state hash.
-    pub(super) stateid_pduid: sled::Tree, // StateId = StateHash + EventType + StateKey
+    pub(super) statekey_short: sled::Tree, // StateKey = EventType + StateKey, Short = Count
+    pub(super) stateid_pduid: sled::Tree, // StateId = StateHash + Short, PduId = Count (without roomid)
 }
 
 impl StateStore for Rooms {
@@ -106,21 +107,28 @@ impl StateStore for Rooms {
 impl Rooms {
     /// Builds a StateMap by iterating over all keys that start
     /// with state_hash, this gives the full state for the given state_hash.
-    pub fn state_full(&self, state_hash: &StateHashId) -> Result<StateMap<PduEvent>> {
+    pub fn state_full(
+        &self,
+        room_id: &RoomId,
+        state_hash: &StateHashId,
+    ) -> Result<StateMap<PduEvent>> {
         self.stateid_pduid
             .scan_prefix(&state_hash)
             .values()
-            .map(|pduid| {
-                self.pduid_pdu.get(&pduid?)?.map_or_else(
-                    || Err(Error::bad_database("Failed to find StateMap.")),
+            .map(|pduid_short| {
+                let mut pduid = room_id.as_bytes().to_vec();
+                pduid.push(0xff);
+                pduid.extend_from_slice(&pduid_short?);
+                self.pduid_pdu.get(&pduid)?.map_or_else(
+                    || Err(Error::bad_database("Failed to find PDU in state snapshot.")),
                     |b| {
                         serde_json::from_slice::<PduEvent>(&b)
                             .map_err(|_| Error::bad_database("Invalid PDU in db."))
                     },
                 )
             })
+            .filter_map(|r| r.ok())
             .map(|pdu| {
-                let pdu = pdu?;
                 Ok((
                     (
                         pdu.kind.clone(),
@@ -135,64 +143,45 @@ impl Rooms {
             .collect::<Result<StateMap<_>>>()
     }
 
-    /// Returns all state entries for this type.
-    pub fn state_type(
-        &self,
-        state_hash: &StateHashId,
-        event_type: &EventType,
-    ) -> Result<HashMap<String, PduEvent>> {
-        let mut prefix = state_hash.to_vec();
-        prefix.push(0xff);
-        prefix.extend_from_slice(&event_type.to_string().as_bytes());
-        prefix.push(0xff);
-
-        let mut hashmap = HashMap::new();
-        for pdu in self
-            .stateid_pduid
-            .scan_prefix(&prefix)
-            .values()
-            .map(|pdu_id| {
-                Ok::<_, Error>(
-                    serde_json::from_slice::<PduEvent>(&self.pduid_pdu.get(pdu_id?)?.ok_or_else(
-                        || Error::bad_database("PDU in state not found in database."),
-                    )?)
-                    .map_err(|_| Error::bad_database("Invalid PDU bytes in room state."))?,
-                )
-            })
-        {
-            let pdu = pdu?;
-            let state_key = pdu.state_key.clone().ok_or_else(|| {
-                Error::bad_database("Room state contains event without state_key.")
-            })?;
-            hashmap.insert(state_key, pdu);
-        }
-        Ok(hashmap)
-    }
-
     /// Returns a single PDU from `room_id` with key (`event_type`, `state_key`).
     pub fn state_get(
         &self,
+        room_id: &RoomId,
         state_hash: &StateHashId,
         event_type: &EventType,
         state_key: &str,
     ) -> Result<Option<(IVec, PduEvent)>> {
-        let mut key = state_hash.to_vec();
-        key.push(0xff);
-        key.extend_from_slice(&event_type.to_string().as_bytes());
+        let mut key = event_type.to_string().as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&state_key.as_bytes());
 
-        self.stateid_pduid.get(&key)?.map_or(Ok(None), |pdu_id| {
-            Ok::<_, Error>(Some((
-                pdu_id.clone(),
-                serde_json::from_slice::<PduEvent>(
-                    &self.pduid_pdu.get(&pdu_id)?.ok_or_else(|| {
-                        Error::bad_database("PDU in state not found in database.")
-                    })?,
-                )
-                .map_err(|_| Error::bad_database("Invalid PDU bytes in room state."))?,
-            )))
-        })
+        let short = self.statekey_short.get(&key)?;
+
+        if let Some(short) = short {
+            let mut stateid = state_hash.to_vec();
+            stateid.push(0xff);
+            stateid.extend_from_slice(&short);
+
+            self.stateid_pduid
+                .get(&stateid)?
+                .map_or(Ok(None), |pdu_id_short| {
+                    let mut pdu_id = room_id.as_bytes().to_vec();
+                    pdu_id.push(0xff);
+                    pdu_id.extend_from_slice(&pdu_id_short);
+
+                    Ok::<_, Error>(Some((
+                        pdu_id.clone().into(),
+                        serde_json::from_slice::<PduEvent>(
+                            &self.pduid_pdu.get(&pdu_id)?.ok_or_else(|| {
+                                Error::bad_database("PDU in state not found in database.")
+                            })?,
+                        )
+                        .map_err(|_| Error::bad_database("Invalid PDU bytes in room state."))?,
+                    )))
+                })
+        } else {
+            return Ok(None);
+        }
     }
 
     /// Returns the last state hash key added to the db.
@@ -260,6 +249,7 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         state: HashMap<(EventType, String), Vec<u8>>,
+        globals: &super::globals::Globals,
     ) -> Result<()> {
         let state_hash =
             self.calculate_hash(&state.values().map(|pdu_id| &**pdu_id).collect::<Vec<_>>())?;
@@ -267,11 +257,29 @@ impl Rooms {
         prefix.push(0xff);
 
         for ((event_type, state_key), pdu_id) in state {
+            let mut statekey = event_type.as_ref().as_bytes().to_vec();
+            statekey.push(0xff);
+            statekey.extend_from_slice(&state_key.as_bytes());
+
+            let short = match self.statekey_short.get(&statekey)? {
+                Some(short) => utils::u64_from_bytes(&short)
+                    .map_err(|_| Error::bad_database("Invalid short bytes in statekey_short."))?,
+                None => {
+                    let short = globals.next_count()?;
+                    self.statekey_short
+                        .insert(&statekey, &short.to_be_bytes())?;
+                    short
+                }
+            };
+
+            let pdu_id_short = pdu_id
+                .splitn(2, |&b| b == 0xff)
+                .nth(1)
+                .ok_or_else(|| Error::bad_database("Invalid pduid in state."))?;
+
             let mut state_id = prefix.clone();
-            state_id.extend_from_slice(&event_type.as_ref().as_bytes());
-            state_id.push(0xff);
-            state_id.extend_from_slice(&state_key.as_bytes());
-            self.stateid_pduid.insert(state_id, pdu_id)?;
+            state_id.extend_from_slice(&short.to_be_bytes());
+            self.stateid_pduid.insert(state_id, pdu_id_short)?;
         }
 
         self.roomid_statehash
@@ -283,22 +291,9 @@ impl Rooms {
     /// Returns the full room state.
     pub fn room_state_full(&self, room_id: &RoomId) -> Result<StateMap<PduEvent>> {
         if let Some(current_state_hash) = self.current_state_hash(room_id)? {
-            self.state_full(&current_state_hash)
+            self.state_full(&room_id, &current_state_hash)
         } else {
             Ok(BTreeMap::new())
-        }
-    }
-
-    /// Returns all state entries for this type.
-    pub fn room_state_type(
-        &self,
-        room_id: &RoomId,
-        event_type: &EventType,
-    ) -> Result<HashMap<String, PduEvent>> {
-        if let Some(current_state_hash) = self.current_state_hash(room_id)? {
-            self.state_type(&current_state_hash, event_type)
-        } else {
-            Ok(HashMap::new())
         }
     }
 
@@ -310,7 +305,7 @@ impl Rooms {
         state_key: &str,
     ) -> Result<Option<(IVec, PduEvent)>> {
         if let Some(current_state_hash) = self.current_state_hash(room_id)? {
-            self.state_get(&current_state_hash, event_type, state_key)
+            self.state_get(&room_id, &current_state_hash, event_type, state_key)
         } else {
             Ok(None)
         }
@@ -593,7 +588,12 @@ impl Rooms {
     /// This adds all current state events (not including the incoming event)
     /// to `stateid_pduid` and adds the incoming event to `pduid_statehash`.
     /// The incoming event is the `pdu_id` passed to this method.
-    pub fn append_to_state(&self, new_pdu_id: &[u8], new_pdu: &PduEvent) -> Result<StateHashId> {
+    pub fn append_to_state(
+        &self,
+        new_pdu_id: &[u8],
+        new_pdu: &PduEvent,
+        globals: &super::globals::Globals,
+    ) -> Result<StateHashId> {
         let old_state =
             if let Some(old_state_hash) = self.roomid_statehash.get(new_pdu.room_id.as_bytes())? {
                 // Store state for event. The state does not include the event itself.
@@ -608,7 +608,7 @@ impl Rooms {
                 self.stateid_pduid
                     .scan_prefix(&prefix)
                     .filter_map(|pdu| pdu.map_err(|e| error!("{}", e)).ok())
-                    // Chop the old state_hash out leaving behind the (EventType, StateKey)
+                    // Chop the old state_hash out leaving behind the short key (u64)
                     .map(|(k, v)| (k.subslice(prefix.len(), k.len() - prefix.len()), v))
                     .collect::<HashMap<IVec, IVec>>()
             } else {
@@ -620,7 +620,23 @@ impl Rooms {
             let mut pdu_key = new_pdu.kind.as_ref().as_bytes().to_vec();
             pdu_key.push(0xff);
             pdu_key.extend_from_slice(state_key.as_bytes());
-            new_state.insert(pdu_key.into(), new_pdu_id.into());
+
+            let short = match self.statekey_short.get(&pdu_key)? {
+                Some(short) => utils::u64_from_bytes(&short)
+                    .map_err(|_| Error::bad_database("Invalid short bytes in statekey_short."))?,
+                None => {
+                    let short = globals.next_count()?;
+                    self.statekey_short.insert(&pdu_key, &short.to_be_bytes())?;
+                    short
+                }
+            };
+
+            let new_pdu_id_short = new_pdu_id
+                .splitn(2, |&b| b == 0xff)
+                .nth(1)
+                .ok_or_else(|| Error::bad_database("Invalid pduid in state."))?;
+
+            new_state.insert((&short.to_be_bytes()).into(), new_pdu_id_short.into());
 
             let new_state_hash =
                 self.calculate_hash(&new_state.values().map(|b| &**b).collect::<Vec<_>>())?;
@@ -628,12 +644,10 @@ impl Rooms {
             let mut key = new_state_hash.to_vec();
             key.push(0xff);
 
-            // TODO: we could avoid writing to the DB on every state event by keeping
-            // track of the delta and write that every so often
-            for (key_without_prefix, pdu_id) in new_state {
+            for (short, short_pdu_id) in new_state {
                 let mut state_id = key.clone();
-                state_id.extend_from_slice(&key_without_prefix);
-                self.stateid_pduid.insert(&state_id, &pdu_id)?;
+                state_id.extend_from_slice(&short);
+                self.stateid_pduid.insert(&state_id, &short_pdu_id)?;
             }
 
             self.roomid_statehash
@@ -887,7 +901,7 @@ impl Rooms {
 
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.
-        self.append_to_state(&pdu_id, &pdu)?;
+        self.append_to_state(&pdu_id, &pdu, &globals)?;
 
         self.append_pdu(
             &pdu,

@@ -490,7 +490,7 @@ pub async fn send_transaction_message_route<'a>(
         pdu_id.push(0xff);
         pdu_id.extend_from_slice(&count.to_be_bytes());
 
-        db.rooms.append_to_state(&pdu_id, &pdu)?;
+        db.rooms.append_to_state(&pdu_id, &pdu, &db.globals)?;
 
         db.rooms.append_pdu(
             &pdu,

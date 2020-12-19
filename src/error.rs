@@ -121,7 +121,7 @@ impl log::Log for ConduitLogger {
     fn log(&self, record: &log::Record<'_>) {
         let output = format!("{} - {}", record.level(), record.args());
 
-        println!("{}", output);
+        eprintln!("{}", output);
 
         if self.enabled(record.metadata())
             && record

@@ -18,7 +18,7 @@ pub use pdu::PduEvent;
 pub use rocket::State;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
-use rocket::{fairing::AdHoc, routes};
+use rocket::{catch, catchers, fairing::AdHoc, routes, Request};
 
 fn setup_rocket() -> rocket::Rocket {
     // Force log level off, so we can use our own logger
@@ -70,6 +70,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_backup_key_sessions_route,
                 client_server::get_backup_keys_route,
                 client_server::set_read_marker_route,
+                client_server::set_receipt_route,
                 client_server::create_typing_event_route,
                 client_server::create_room_route,
                 client_server::redact_event_route,
@@ -134,6 +135,7 @@ fn setup_rocket() -> rocket::Rocket {
                 server_server::get_profile_information_route,
             ],
         )
+        .register(catchers![not_found_catcher])
         .attach(AdHoc::on_attach("Config", |rocket| async {
             let data =
                 Database::load_or_create(rocket.figment().extract().expect("config is valid"))
@@ -156,4 +158,9 @@ fn setup_rocket() -> rocket::Rocket {
 #[rocket::main]
 async fn main() {
     setup_rocket().launch().await.unwrap();
+}
+
+#[catch(404)]
+fn not_found_catcher(_req: &'_ Request<'_>) -> String {
+    "404 Not Found".to_owned()
 }

@@ -1,5 +1,5 @@
 use super::State;
-use crate::{appservice_server, server_server, ConduitResult, Database, Error, Ruma};
+use crate::{ConduitResult, Database, Error, Ruma};
 use ruma::{
     api::{
         appservice,
@@ -66,12 +66,14 @@ pub async fn get_alias_helper(
     room_alias: &RoomAliasId,
 ) -> ConduitResult<get_alias::Response> {
     if room_alias.server_name() != db.globals.server_name() {
-        let response = server_server::send_request(
-            &db.globals,
-            room_alias.server_name().to_owned(),
-            federation::query::get_room_information::v1::Request { room_alias },
-        )
-        .await?;
+        let response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                room_alias.server_name().to_owned(),
+                federation::query::get_room_information::v1::Request { room_alias },
+            )
+            .await?;
 
         return Ok(get_alias::Response::new(response.room_id, response.servers).into());
     }
@@ -81,13 +83,15 @@ pub async fn get_alias_helper(
         Some(r) => room_id = Some(r),
         None => {
             for (_id, registration) in db.appservice.iter_all().filter_map(|r| r.ok()) {
-                if appservice_server::send_request(
-                    &db.globals,
-                    registration,
-                    appservice::query::query_room_alias::v1::Request { room_alias },
-                )
-                .await
-                .is_ok()
+                if db
+                    .sending
+                    .send_appservice_request(
+                        &db.globals,
+                        registration,
+                        appservice::query::query_room_alias::v1::Request { room_alias },
+                    )
+                    .await
+                    .is_ok()
                 {
                     room_id = Some(db.rooms.id_from_alias(&room_alias)?.ok_or_else(|| {
                         Error::bad_config("Appservice lied to us. Room does not exist.")

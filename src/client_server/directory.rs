@@ -1,5 +1,5 @@
 use super::State;
-use crate::{server_server, ConduitResult, Database, Error, Result, Ruma};
+use crate::{ConduitResult, Database, Error, Result, Ruma};
 use log::info;
 use ruma::{
     api::{
@@ -133,19 +133,21 @@ pub async fn get_public_rooms_filtered_helper(
         .clone()
         .filter(|server| *server != db.globals.server_name().as_str())
     {
-        let response = server_server::send_request(
-            &db.globals,
-            other_server.to_owned(),
-            federation::directory::get_public_rooms_filtered::v1::Request {
-                limit,
-                since: since.as_deref(),
-                filter: Filter {
-                    generic_search_term: filter.generic_search_term.as_deref(),
+        let response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                other_server.to_owned(),
+                federation::directory::get_public_rooms_filtered::v1::Request {
+                    limit,
+                    since: since.as_deref(),
+                    filter: Filter {
+                        generic_search_term: filter.generic_search_term.as_deref(),
+                    },
+                    room_network: RoomNetwork::Matrix,
                 },
-                room_network: RoomNetwork::Matrix,
-            },
-        )
-        .await?;
+            )
+            .await?;
 
         return Ok(get_public_rooms_filtered::Response {
             chunk: response

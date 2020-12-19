@@ -1,7 +1,9 @@
 use super::State;
 use crate::{ConduitResult, Database, Error, Ruma};
 use ruma::{
-    api::client::{error::ErrorKind, r0::read_marker::set_read_marker},
+    api::client::{
+        error::ErrorKind, r0::capabilities::get_capabilities, r0::read_marker::set_read_marker,
+    },
     events::{AnyEphemeralRoomEvent, AnyEvent, EventType},
 };
 
@@ -71,6 +73,21 @@ pub async fn set_read_marker_route(
             &db.globals,
         )?;
     }
+
+    db.flush().await?;
+
+    Ok(set_read_marker::Response.into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/client/r0/rooms/<_>/receipt/<_>/<_>", data = "<body>")
+)]
+pub async fn set_receipt_route(
+    db: State<'_, Database>,
+    body: Ruma<get_capabilities::Request>,
+) -> ConduitResult<set_read_marker::Response> {
+    let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.flush().await?;
 

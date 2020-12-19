@@ -1,21 +1,29 @@
-use std::{collections::HashMap, convert::TryFrom, time::SystemTime};
+use std::{
+    collections::HashMap,
+    convert::TryFrom,
+    fmt::Debug,
+    sync::Arc,
+    time::{Duration, Instant, SystemTime},
+};
 
 use crate::{appservice_server, server_server, utils, Error, PduEvent, Result};
 use federation::transactions::send_transaction_message;
 use log::warn;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
-    api::{appservice, federation},
+    api::{appservice, federation, OutgoingRequest},
     ServerName,
 };
 use sled::IVec;
 use tokio::select;
+use tokio::sync::Semaphore;
 
 #[derive(Clone)]
 pub struct Sending {
     /// The state for a given state hash.
     pub(super) servernamepduids: sled::Tree, // ServernamePduId = (+)ServerName + PduId
     pub(super) servercurrentpdus: sled::Tree, // ServerCurrentPdus = (+)ServerName + PduId (pduid can be empty for reservation)
+    pub(super) maximum_requests: Arc<Semaphore>,
 }
 
 impl Sending {
@@ -40,35 +48,7 @@ impl Sending {
             for (server, pdu, is_appservice) in servercurrentpdus
                 .iter()
                 .filter_map(|r| r.ok())
-                .map(|(key, _)| {
-                    let mut parts = key.splitn(2, |&b| b == 0xff);
-                    let server = parts.next().expect("splitn always returns one element");
-                    let pdu = parts.next().ok_or_else(|| {
-                        Error::bad_database("Invalid bytes in servercurrentpdus.")
-                    })?;
-
-                    let server = utils::string_from_bytes(&server).map_err(|_| {
-                        Error::bad_database("Invalid server bytes in server_currenttransaction")
-                    })?;
-
-                    // Appservices start with a plus
-                    let (server, is_appservice) = if server.starts_with("+") {
-                        (&server[1..], true)
-                    } else {
-                        (&*server, false)
-                    };
-
-                    Ok::<_, Error>((
-                        Box::<ServerName>::try_from(server).map_err(|_| {
-                            Error::bad_database(
-                                "Invalid server string in server_currenttransaction",
-                            )
-                        })?,
-                        IVec::from(pdu),
-                        is_appservice,
-                    ))
-                })
-                .filter_map(|r| r.ok())
+                .filter_map(|(key, _)| Self::parse_servercurrentpdus(key).ok())
                 .filter(|(_, pdu, _)| !pdu.is_empty()) // Skip reservation key
                 .take(50)
             // This should not contain more than 50 anyway
@@ -89,6 +69,8 @@ impl Sending {
                     &appservice,
                 ));
             }
+
+            let mut last_failed_try: HashMap<Box<ServerName>, (u32, Instant)> = HashMap::new();
 
             let mut subscriber = servernamepduids.watch_prefix(b"");
             loop {
@@ -140,9 +122,24 @@ impl Sending {
                                     // servercurrentpdus with the prefix should be empty now
                                 }
                             }
-                            Err((server, _is_appservice, e)) => {
-                                warn!("Couldn't send transaction to {}: {}", server, e)
-                                // TODO: exponential backoff
+                            Err((server, is_appservice, e)) => {
+                                warn!("Couldn't send transaction to {}: {}", server, e);
+                                let mut prefix = if is_appservice {
+                                    "+".as_bytes().to_vec()
+                                } else {
+                                    Vec::new()
+                                };
+                                prefix.extend_from_slice(server.as_bytes());
+                                prefix.push(0xff);
+                                last_failed_try.insert(server.clone(), match last_failed_try.get(&server) {
+                                    Some(last_failed) => {
+                                        (last_failed.0+1, Instant::now())
+                                    },
+                                    None => {
+                                        (1, Instant::now())
+                                    }
+                                });
+                                servercurrentpdus.remove(&prefix).unwrap();
                             }
                         };
                     },
@@ -174,8 +171,19 @@ impl Sending {
                                     .ok()
                                     .map(|pdu_id| (server, is_appservice, pdu_id))
                                 )
-                                // TODO: exponential backoff
                                 .filter(|(server, is_appservice, _)| {
+                                    if last_failed_try.get(server).map_or(false, |(tries, instant)| {
+                                        // Fail if a request has failed recently (exponential backoff)
+                                        let mut min_elapsed_duration = Duration::from_secs(60) * *tries * *tries;
+                                        if min_elapsed_duration > Duration::from_secs(60*60*24) {
+                                            min_elapsed_duration = Duration::from_secs(60*60*24);
+                                        }
+
+                                        instant.elapsed() < min_elapsed_duration
+                                    }) {
+                                        return false;
+                                    }
+
                                     let mut prefix = if *is_appservice {
                                         "+".as_bytes().to_vec()
                                     } else {
@@ -307,5 +315,64 @@ impl Sending {
             .map(|_response| (server.clone(), is_appservice))
             .map_err(|e| (server, is_appservice, e))
         }
+    }
+
+    fn parse_servercurrentpdus(key: IVec) -> Result<(Box<ServerName>, IVec, bool)> {
+        let mut parts = key.splitn(2, |&b| b == 0xff);
+        let server = parts.next().expect("splitn always returns one element");
+        let pdu = parts
+            .next()
+            .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+
+        let server = utils::string_from_bytes(&server).map_err(|_| {
+            Error::bad_database("Invalid server bytes in server_currenttransaction")
+        })?;
+
+        // Appservices start with a plus
+        let (server, is_appservice) = if server.starts_with("+") {
+            (&server[1..], true)
+        } else {
+            (&*server, false)
+        };
+
+        Ok::<_, Error>((
+            Box::<ServerName>::try_from(server).map_err(|_| {
+                Error::bad_database("Invalid server string in server_currenttransaction")
+            })?,
+            IVec::from(pdu),
+            is_appservice,
+        ))
+    }
+
+    pub async fn send_federation_request<T: OutgoingRequest>(
+        &self,
+        globals: &crate::database::globals::Globals,
+        destination: Box<ServerName>,
+        request: T,
+    ) -> Result<T::IncomingResponse>
+    where
+        T: Debug,
+    {
+        let permit = self.maximum_requests.acquire().await;
+        let response = server_server::send_request(globals, destination, request).await;
+        drop(permit);
+
+        response
+    }
+
+    pub async fn send_appservice_request<T: OutgoingRequest>(
+        &self,
+        globals: &crate::database::globals::Globals,
+        registration: serde_yaml::Value,
+        request: T,
+    ) -> Result<T::IncomingResponse>
+    where
+        T: Debug,
+    {
+        let permit = self.maximum_requests.acquire().await;
+        let response = appservice_server::send_request(globals, registration, request).await;
+        drop(permit);
+
+        response
     }
 }

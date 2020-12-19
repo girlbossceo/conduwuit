@@ -2,7 +2,7 @@ use super::State;
 use crate::{
     client_server,
     pdu::{PduBuilder, PduEvent},
-    server_server, utils, ConduitResult, Database, Error, Result, Ruma,
+    utils, ConduitResult, Database, Error, Result, Ruma,
 };
 use log::warn;
 use ruma::{
@@ -401,9 +401,10 @@ pub async fn get_member_events_route(
     Ok(get_member_events::Response {
         chunk: db
             .rooms
-            .room_state_type(&body.room_id, &EventType::RoomMember)?
-            .values()
-            .map(|pdu| pdu.to_member_event())
+            .room_state_full(&body.room_id)?
+            .iter()
+            .filter(|(key, _)| key.0 == EventType::RoomMember)
+            .map(|(_, pdu)| pdu.to_member_event())
             .collect(),
     }
     .into())
@@ -463,16 +464,18 @@ async fn join_room_by_id_helper(
         ));
 
         for remote_server in servers {
-            let make_join_response = server_server::send_request(
-                &db.globals,
-                remote_server.clone(),
-                federation::membership::create_join_event_template::v1::Request {
-                    room_id,
-                    user_id: sender_user,
-                    ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
-                },
-            )
-            .await;
+            let make_join_response = db
+                .sending
+                .send_federation_request(
+                    &db.globals,
+                    remote_server.clone(),
+                    federation::membership::create_join_event_template::v1::Request {
+                        room_id,
+                        user_id: sender_user,
+                        ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
+                    },
+                )
+                .await;
 
             make_join_response_and_server = make_join_response.map(|r| (r, remote_server));
 
@@ -540,16 +543,18 @@ async fn join_room_by_id_helper(
         // It has enough fields to be called a proper event now
         let join_event = join_event_stub;
 
-        let send_join_response = server_server::send_request(
-            &db.globals,
-            remote_server.clone(),
-            federation::membership::create_join_event::v2::Request {
-                room_id,
-                event_id: &event_id,
-                pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
-            },
-        )
-        .await?;
+        let send_join_response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                remote_server.clone(),
+                federation::membership::create_join_event::v2::Request {
+                    room_id,
+                    event_id: &event_id,
+                    pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+                },
+            )
+            .await?;
 
         let add_event_id = |pdu: &Raw<Pdu>| -> Result<(EventId, CanonicalJsonObject)> {
             let mut value = serde_json::from_str(pdu.json().get())
@@ -694,7 +699,7 @@ async fn join_room_by_id_helper(
             }
         }
 
-        db.rooms.force_state(room_id, state)?;
+        db.rooms.force_state(room_id, state, &db.globals)?;
     } else {
         let event = member::MemberEventContent {
             membership: member::MembershipState::Join,

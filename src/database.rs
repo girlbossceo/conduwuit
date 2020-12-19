@@ -20,6 +20,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::{convert::TryInto, fs::remove_dir_all};
+use tokio::sync::Semaphore;
 
 #[derive(Clone, Deserialize)]
 pub struct Config {
@@ -30,6 +31,8 @@ pub struct Config {
     cache_capacity: u64,
     #[serde(default = "default_max_request_size")]
     max_request_size: u32,
+    #[serde(default = "default_max_concurrent_requests")]
+    max_concurrent_requests: u16,
     #[serde(default)]
     registration_disabled: bool,
     #[serde(default)]
@@ -39,7 +42,9 @@ pub struct Config {
 }
 
 fn default_server_name() -> Box<ServerName> {
-    "localhost".try_into().expect("")
+    "localhost"
+        .try_into()
+        .expect("localhost is valid servername")
 }
 
 fn default_cache_capacity() -> u64 {
@@ -48,6 +53,10 @@ fn default_cache_capacity() -> u64 {
 
 fn default_max_request_size() -> u32 {
     20 * 1024 * 1024 // Default to 20 MB
+}
+
+fn default_max_concurrent_requests() -> u16 {
+    4
 }
 
 #[derive(Clone)]
@@ -159,6 +168,7 @@ impl Database {
                 roomuserid_invited: db.open_tree("roomuserid_invited")?,
                 userroomid_left: db.open_tree("userroomid_left")?,
 
+                statekey_short: db.open_tree("statekey_short")?,
                 stateid_pduid: db.open_tree("stateid_pduid")?,
                 pduid_statehash: db.open_tree("pduid_statehash")?,
                 roomid_statehash: db.open_tree("roomid_statehash")?,
@@ -180,6 +190,7 @@ impl Database {
             sending: sending::Sending {
                 servernamepduids: db.open_tree("servernamepduids")?,
                 servercurrentpdus: db.open_tree("servercurrentpdus")?,
+                maximum_requests: Arc::new(Semaphore::new(10)),
             },
             admin: admin::Admin {
                 sender: admin_sender,
