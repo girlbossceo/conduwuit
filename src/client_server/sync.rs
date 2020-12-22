@@ -91,15 +91,7 @@ pub async fn sync_events_route(
 
         // They /sync response doesn't always return all messages, so we say the output is
         // limited unless there are events in non_timeline_pdus
-        let mut limited = false;
-
-        let mut state_pdus = Vec::new();
-        for (_, pdu) in non_timeline_pdus {
-            if pdu.state_key.is_some() {
-                state_pdus.push(pdu);
-            }
-            limited = true;
-        }
+        let limited = non_timeline_pdus.next().is_some();
 
         // Database queries:
 
@@ -342,7 +334,7 @@ pub async fn sync_events_route(
             })?;
 
         let room_events = timeline_pdus
-            .into_iter()
+            .iter()
             .map(|(_, pdu)| pdu.to_sync_room_event())
             .collect::<Vec<_>>();
 
@@ -392,7 +384,6 @@ pub async fn sync_events_route(
                 prev_batch,
                 events: room_events,
             },
-            // TODO: state before timeline
             state: sync_events::State {
                 events: if joined_since_last_sync {
                     db.rooms
@@ -401,7 +392,26 @@ pub async fn sync_events_route(
                         .map(|(_, pdu)| pdu.to_sync_state_event())
                         .collect()
                 } else {
-                    Vec::new()
+                    match since_state {
+                        None => Vec::new(),
+                        Some(Some(since_state)) => current_state
+                            .iter()
+                            .filter(|(key, value)| {
+                                since_state.get(key).map(|e| &e.event_id) != Some(&value.event_id)
+                            })
+                            .filter(|(_, value)| {
+                                !timeline_pdus.iter().any(|(_, timeline_pdu)| {
+                                    timeline_pdu.kind == value.kind
+                                        && timeline_pdu.state_key == value.state_key
+                                })
+                            })
+                            .map(|(_, pdu)| pdu.to_sync_state_event())
+                            .collect(),
+                        Some(None) => current_state
+                            .iter()
+                            .map(|(_, pdu)| pdu.to_sync_state_event())
+                            .collect(),
+                    }
                 },
             },
             ephemeral: sync_events::Ephemeral { events: edus },

@@ -494,7 +494,7 @@ pub async fn send_transaction_message_route<'a>(
 
         db.rooms.append_pdu(
             &pdu,
-            &value,
+            value,
             count,
             pdu_id.clone().into(),
             &db.globals,

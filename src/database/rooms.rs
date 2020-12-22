@@ -15,7 +15,7 @@ use ruma::{
         },
         EventType,
     },
-    serde::{to_canonical_value, CanonicalJsonObject, Raw},
+    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
     EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use sled::IVec;
@@ -444,13 +444,40 @@ impl Rooms {
     pub fn append_pdu(
         &self,
         pdu: &PduEvent,
-        pdu_json: &CanonicalJsonObject,
+        mut pdu_json: CanonicalJsonObject,
         count: u64,
         pdu_id: IVec,
         globals: &super::globals::Globals,
         account_data: &super::account_data::AccountData,
         admin: &super::admin::Admin,
     ) -> Result<()> {
+        // Make unsigned fields correct. This is not properly documented in the spec, but state
+        // events need to have previous content in the unsigned field, so clients can easily
+        // interpret things like membership changes
+        if let Some(state_key) = &pdu.state_key {
+            if let CanonicalJsonValue::Object(unsigned) = pdu_json
+                .entry("unsigned".to_owned())
+                .or_insert_with(|| CanonicalJsonValue::Object(Default::default()))
+            {
+                if let Some(prev_state_hash) = self.pdu_state_hash(&pdu_id).unwrap() {
+                    if let Some(prev_state) = self
+                        .state_get(&pdu.room_id, &prev_state_hash, &pdu.kind, &state_key)
+                        .unwrap()
+                    {
+                        unsigned.insert(
+                            "prev_content".to_owned(),
+                            CanonicalJsonValue::Object(
+                                utils::to_canonical_object(prev_state.1.content)
+                                    .expect("event is valid, we just created it"),
+                            ),
+                        );
+                    }
+                }
+            } else {
+                error!("Invalid unsigned type in pdu.");
+            }
+        }
+
         self.replace_pdu_leaves(&pdu.room_id, &pdu.event_id)?;
 
         // Mark as read first so the sending client doesn't get a notification even if appending
@@ -460,7 +487,7 @@ impl Rooms {
 
         self.pduid_pdu.insert(
             &pdu_id,
-            &*serde_json::to_string(pdu_json)
+            &*serde_json::to_string(&pdu_json)
                 .expect("CanonicalJsonObject is always a valid String"),
         )?;
 
@@ -905,7 +932,7 @@ impl Rooms {
 
         self.append_pdu(
             &pdu,
-            &pdu_json,
+            pdu_json,
             count,
             pdu_id.clone().into(),
             globals,
