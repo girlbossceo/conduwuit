@@ -1067,6 +1067,59 @@ fn append_state_soft(db: &Database, pdu: &PduEvent) -> Result<()> {
     Ok(())
 }
 
+fn forward_extremity_ids(db: &Database, room_id: &RoomId) -> Result<Vec<EventId>> {
+    todo!()
+}
+
+fn append_state(db: &Database, pdu: &PduEvent) -> Result<()> {
+    let count = db.globals.next_count()?;
+    let mut pdu_id = pdu.room_id.as_bytes().to_vec();
+    pdu_id.push(0xff);
+    pdu_id.extend_from_slice(&count.to_be_bytes());
+
+    db.rooms.append_to_state(&pdu_id, pdu, &db.globals)?;
+    db.rooms.append_pdu(
+        pdu,
+        &utils::to_canonical_object(pdu).expect("Pdu is valid canonical object"),
+        count,
+        pdu_id.clone().into(),
+        &db.globals,
+        &db.account_data,
+        &db.admin,
+    )?;
+
+    for appservice in db.appservice.iter_all().filter_map(|r| r.ok()) {
+        db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
+    }
+
+    Ok(())
+}
+
+/// TODO: This should not write to the current room state (roomid_statehash)
+fn append_state_soft(db: &Database, pdu: &PduEvent) -> Result<()> {
+    let count = db.globals.next_count()?;
+    let mut pdu_id = pdu.room_id.as_bytes().to_vec();
+    pdu_id.push(0xff);
+    pdu_id.extend_from_slice(&count.to_be_bytes());
+
+    db.rooms.append_to_state(&pdu_id, pdu, &db.globals)?;
+    db.rooms.append_pdu(
+        pdu,
+        &utils::to_canonical_object(pdu).expect("Pdu is valid canonical object"),
+        count,
+        pdu_id.clone().into(),
+        &db.globals,
+        &db.account_data,
+        &db.admin,
+    )?;
+
+    for appservice in db.appservice.iter_all().filter_map(|r| r.ok()) {
+        db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
+    }
+
+    Ok(())
+}
+
 #[cfg_attr(
     feature = "conduit_bin",
     post("/_matrix/federation/v1/get_missing_events/<_>", data = "<body>")
