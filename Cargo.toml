@@ -18,14 +18,14 @@ rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "1f1f44f33
 #rocket = { git = "https://github.com/timokoesters/Rocket.git", branch = "empty_parameters", default-features = false, features = ["tls"] }
 
 # Used for matrix spec type definitions and helpers
-ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks", "unstable-exhaustive-types"], rev = "ee814aa84934530d76f5e4b275d739805b49bdef" }
-# ruma = { git = "https://github.com/DevinR528/ruma", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"], branch = "unstable-join" }
+ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks", "unstable-exhaustive-types"], rev = "45d01011554f9d07739e9a5edf5498d8ac16f273" }
+# ruma = { git = "https://github.com/DevinR528/ruma", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"], branch = "verified-export" }
 # ruma = { path = "../ruma/ruma", features = ["unstable-exhaustive-types", "rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"] }
 
 # Used when doing state resolution
 # state-res = { git = "https://github.com/timokoesters/state-res", branch = "timo-spec-comp", features = ["unstable-pre-spec"] }
-state-res = { git = "https://github.com/ruma/state-res", branch = "timo-spec-comp", features = ["unstable-pre-spec", "gen-eventid"] }
-#state-res = { path = "../state-res", features = ["unstable-pre-spec", "gen-eventid"] }
+state-res = { git = "https://github.com/ruma/state-res", branch = "conflict", features = ["unstable-pre-spec", "gen-eventid"] }
+# state-res = { path = "../../state-res", features = ["unstable-pre-spec", "gen-eventid"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio
 tokio = { version = "0.2.23" }
