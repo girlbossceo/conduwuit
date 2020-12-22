@@ -190,7 +190,7 @@ async fn main() {
 }
 
 #[catch(404)]
-fn not_found_catcher(_req: &'_ Request<'_>) -> String {
+fn not_found_catcher(_: &Request<'_>) -> String {
     "404 Not Found".to_owned()
 }
 

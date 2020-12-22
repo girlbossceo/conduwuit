@@ -17,7 +17,7 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct PduEvent {
     pub event_id: EventId,
     pub room_id: RoomId,
