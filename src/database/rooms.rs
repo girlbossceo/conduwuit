@@ -4,6 +4,7 @@ pub use edus::RoomEdus;
 
 use crate::{pdu::PduBuilder, utils, Error, PduEvent, Result};
 use log::error;
+use regex::Regex;
 use ring::digest;
 use ruma::{
     api::client::error::ErrorKind,
@@ -949,7 +950,63 @@ impl Rooms {
         }
 
         for appservice in appservice.iter_all().filter_map(|r| r.ok()) {
-            sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
+            if let Some(namespaces) = appservice.1.get("namespaces") {
+                let users = namespaces
+                    .get("users")
+                    .and_then(|users| users.as_sequence())
+                    .map_or_else(
+                        || Vec::new(),
+                        |users| {
+                            users
+                                .iter()
+                                .map(|users| {
+                                    users
+                                        .get("regex")
+                                        .and_then(|regex| regex.as_str())
+                                        .and_then(|regex| Regex::new(regex).ok())
+                                })
+                                .filter_map(|o| o)
+                                .collect::<Vec<_>>()
+                        },
+                    );
+                let aliases = namespaces
+                    .get("aliases")
+                    .and_then(|users| users.get("regex"))
+                    .and_then(|regex| regex.as_str())
+                    .and_then(|regex| Regex::new(regex).ok());
+                let rooms = namespaces
+                    .get("rooms")
+                    .and_then(|rooms| rooms.as_sequence());
+
+                let room_aliases = self.room_aliases(&room_id);
+
+                let bridge_user_id = appservice
+                    .1
+                    .get("sender_localpart")
+                    .and_then(|string| string.as_str())
+                    .and_then(|string| {
+                        UserId::parse_with_server_name(string, globals.server_name()).ok()
+                    });
+
+                if bridge_user_id.map_or(false, |bridge_user_id| {
+                    self.is_joined(&bridge_user_id, room_id).unwrap_or(false)
+                }) || users.iter().any(|users| {
+                    dbg!(
+                        users.is_match(pdu.sender.as_str())
+                            || pdu.kind == EventType::RoomMember
+                                && pdu.state_key.as_ref().map_or(false, |state_key| dbg!(
+                                    users.is_match(dbg!(&state_key))
+                                ))
+                    )
+                }) || aliases.map_or(false, |aliases| {
+                    room_aliases
+                        .filter_map(|r| r.ok())
+                        .any(|room_alias| aliases.is_match(room_alias.as_str()))
+                }) || rooms.map_or(false, |rooms| rooms.contains(&room_id.as_str().into()))
+                {
+                    sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
+                }
+            }
         }
 
         Ok(pdu.event_id)

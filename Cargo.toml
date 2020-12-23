@@ -61,6 +61,8 @@ base64 = "0.13.0"
 ring = "0.16.19"
 # Used when querying the SRV record of other servers
 trust-dns-resolver = "0.19.6"
+# Used to find matching events for appservices
+regex = "1.4.2"
 
 [features]
 default = ["conduit_bin"]

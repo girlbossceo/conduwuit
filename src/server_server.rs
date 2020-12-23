@@ -28,9 +28,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-
-
-
 pub async fn send_request<T: OutgoingRequest>(
     globals: &crate::database::globals::Globals,
     destination: Box<ServerName>,
