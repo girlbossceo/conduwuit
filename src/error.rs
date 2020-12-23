@@ -34,7 +34,7 @@ pub enum Error {
         #[from]
         source: image::error::ImageError,
     },
-    #[error("Could not connect to server.")]
+    #[error("Could not connect to server: {source}")]
     ReqwestError {
         #[from]
         source: reqwest::Error,
