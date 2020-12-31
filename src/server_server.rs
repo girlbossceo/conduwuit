@@ -95,7 +95,7 @@ where
     ruma::signatures::sign_json(
         globals.server_name().as_str(),
         globals.keypair(),
-        &mut request_json,
+        dbg!(&mut request_json),
     )
     .expect("our request json is what ruma expects");
 

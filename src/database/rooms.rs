@@ -678,15 +678,19 @@ impl Rooms {
                 self.stateid_pduid.insert(&state_id, &short_pdu_id)?;
             }
 
-            self.roomid_statehash
-                .insert(new_pdu.room_id.as_bytes(), &*new_state_hash)?;
-
             Ok(new_state_hash)
         } else {
             Err(Error::bad_database(
                 "Tried to insert non-state event into room without a state.",
             ))
         }
+    }
+
+    pub fn set_room_state(&self, room_id: &RoomId, state_hash: &StateHashId) -> Result<()> {
+        self.roomid_statehash
+            .insert(room_id.as_bytes(), state_hash)?;
+
+        Ok(())
     }
 
     /// Creates a new persisted data unit and adds it to a room.
@@ -929,7 +933,7 @@ impl Rooms {
 
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.
-        self.append_to_state(&pdu_id, &pdu, &globals)?;
+        let statehashid = self.append_to_state(&pdu_id, &pdu, &globals)?;
 
         self.append_pdu(
             &pdu,
@@ -940,6 +944,10 @@ impl Rooms {
             account_data,
             admin,
         )?;
+
+        // We set the room state after inserting the pdu, so that we never have a moment in time
+        // where events in the current room state do not exist
+        self.set_room_state(&room_id, &statehashid)?;
 
         for server in self
             .room_servers(room_id)
@@ -991,13 +999,12 @@ impl Rooms {
                 if bridge_user_id.map_or(false, |bridge_user_id| {
                     self.is_joined(&bridge_user_id, room_id).unwrap_or(false)
                 }) || users.iter().any(|users| {
-                    dbg!(
-                        users.is_match(pdu.sender.as_str())
-                            || pdu.kind == EventType::RoomMember
-                                && pdu.state_key.as_ref().map_or(false, |state_key| dbg!(
-                                    users.is_match(dbg!(&state_key))
-                                ))
-                    )
+                    users.is_match(pdu.sender.as_str())
+                        || pdu.kind == EventType::RoomMember
+                            && pdu
+                                .state_key
+                                .as_ref()
+                                .map_or(false, |state_key| users.is_match(&state_key))
                 }) || aliases.map_or(false, |aliases| {
                     room_aliases
                         .filter_map(|r| r.ok())
