@@ -18,13 +18,14 @@ rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "1f1f44f33
 #rocket = { git = "https://github.com/timokoesters/Rocket.git", branch = "empty_parameters", default-features = false, features = ["tls"] }
 
 # Used for matrix spec type definitions and helpers
-ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks", "unstable-exhaustive-types"], rev = "45d01011554f9d07739e9a5edf5498d8ac16f273" }
+ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks", "unstable-exhaustive-types"], rev = "210b6dd823ba89c5a44c3c9d913d377c4b54c896" }
 # ruma = { git = "https://github.com/DevinR528/ruma", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"], branch = "verified-export" }
 # ruma = { path = "../ruma/ruma", features = ["unstable-exhaustive-types", "rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"] }
 
 # Used when doing state resolution
 # state-res = { git = "https://github.com/timokoesters/state-res", branch = "timo-spec-comp", features = ["unstable-pre-spec"] }
-state-res = { git = "https://github.com/ruma/state-res", branch = "conflict", features = ["unstable-pre-spec", "gen-eventid"] }
+# TODO: remove the gen-eventid feature
+state-res = { git = "https://github.com/ruma/state-res", branch = "event-trait", features = ["unstable-pre-spec", "gen-eventid"] }
 # state-res = { path = "../../state-res", features = ["unstable-pre-spec", "gen-eventid"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio
@@ -37,8 +38,7 @@ log = "0.4.11"
 http = "0.2.1"
 # Used to find data directory for default db path
 directories = "3.0.1"
-# Used for number types for ruma
-js_int = "0.1.9"
+
 # Used for ruma wrapper
 serde_json = { version = "1.0.60", features = ["raw_value"] }
 # Used for appservice registration files

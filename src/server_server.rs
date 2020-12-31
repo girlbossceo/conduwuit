@@ -20,12 +20,13 @@ use ruma::{
     directory::{IncomingFilter, IncomingRoomNetwork},
     EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
 };
-use state_res::StateMap;
+use state_res::{Event, StateMap};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryFrom,
     fmt::Debug,
     net::{IpAddr, SocketAddr},
+    sync::Arc,
     time::{Duration, SystemTime},
 };
 
@@ -610,17 +611,12 @@ pub async fn send_transaction_message_route<'a>(
             continue;
         }
 
-        // TODO: remove the need to convert to state_res
-        let event = pdu.convert_for_state_res();
+        let event = Arc::new(pdu.clone());
+
         let previous = pdu
             .prev_events
             .first()
-            .map(|id| {
-                db.rooms
-                    .get_pdu(id)
-                    .expect("todo")
-                    .map(|ev| ev.convert_for_state_res())
-            })
+            .map(|id| db.rooms.get_pdu(id).expect("todo").map(Arc::new))
             .flatten();
 
         // 4.
@@ -637,27 +633,32 @@ pub async fn send_transaction_message_route<'a>(
             previous.clone(),
             auth_events
                 .into_iter()
-                .map(|(k, v)| (k, v.convert_for_state_res()))
+                .map(|(k, v)| (k, Arc::new(v)))
                 .collect(),
             None,
         )
         .map_err(|_e| Error::Conflict("Auth check failed"))?
         {
             resolved_map.insert(
-                event.event_id(),
+                pdu.event_id,
                 Err("Event has failed auth check with auth events".into()),
             );
             continue;
         }
 
-        let mut previous_states = vec![];
+        let mut previous_states: Vec<StateMap<Arc<PduEvent>>> = vec![];
         for id in &pdu.prev_events {
             if let Some(id) = db.rooms.get_pdu_id(id)? {
                 let state_hash = db
                     .rooms
                     .pdu_state_hash(&id)?
                     .expect("found pdu with no statehash");
-                let state = db.rooms.state_full(&pdu.room_id, &state_hash)?;
+                let state = db
+                    .rooms
+                    .state_full(&pdu.room_id, &state_hash)?
+                    .into_iter()
+                    .map(|((et, sk), ev)| ((et, Some(sk)), Arc::new(ev)))
+                    .collect();
                 previous_states.push(state);
             } else {
                 // fetch the state
@@ -693,7 +694,7 @@ pub async fn send_transaction_message_route<'a>(
                     .into_iter()
                     .map(|map| {
                         map.into_iter()
-                            .map(|(k, v)| (k, v.event_id))
+                            .map(|(k, v)| (k, v.event_id.clone()))
                             .collect::<StateMap<_>>()
                     })
                     .collect::<Vec<_>>(),
@@ -702,7 +703,7 @@ pub async fn send_transaction_message_route<'a>(
             ) {
                 Ok(res) => res
                     .into_iter()
-                    .map(|(k, v)| (k, db.rooms.get_pdu(&v).unwrap().unwrap()))
+                    .map(|(k, v)| (k, Arc::new(db.rooms.get_pdu(&v).unwrap().unwrap())))
                     .collect(),
                 Err(e) => panic!("{:?}", e),
             }
@@ -712,17 +713,14 @@ pub async fn send_transaction_message_route<'a>(
             &RoomVersionId::Version6,
             &event,
             previous.clone(),
-            state_at_event
-                .into_iter()
-                .map(|(k, v)| (k, v.convert_for_state_res()))
-                .collect(),
+            state_at_event,
             None,
         )
         .map_err(|_e| Error::Conflict("Auth check failed"))?
         {
             // Event failed auth with state_at
             resolved_map.insert(
-                event.event_id(),
+                pdu.event_id,
                 Err("Event has failed auth check with state at the event".into()),
             );
             continue;
@@ -733,14 +731,20 @@ pub async fn send_transaction_message_route<'a>(
 
         // Gather the forward extremities and resolve
         let forward_extrems = forward_extremity_ids(&db, &pdu.room_id)?;
-        let mut fork_states = vec![];
+        let mut fork_states: Vec<StateMap<Arc<PduEvent>>> = vec![];
         for id in &forward_extrems {
             if let Some(id) = db.rooms.get_pdu_id(id)? {
                 let state_hash = db
                     .rooms
                     .pdu_state_hash(&id)?
                     .expect("found pdu with no statehash");
-                let state = db.rooms.state_full(&pdu.room_id, &state_hash)?;
+                let state = db
+                    .rooms
+                    .state_full(&pdu.room_id, &state_hash)?
+                    .into_iter()
+                    .map(|(k, v)| ((k.0, Some(k.1)), Arc::new(v)))
+                    .collect();
+
                 fork_states.push(state);
             } else {
                 // This is probably an error??
@@ -776,7 +780,7 @@ pub async fn send_transaction_message_route<'a>(
                     .into_iter()
                     .map(|map| {
                         map.into_iter()
-                            .map(|(k, v)| (k, v.event_id))
+                            .map(|(k, v)| (k, v.event_id.clone()))
                             .collect::<StateMap<_>>()
                     })
                     .collect::<Vec<_>>(),
@@ -785,7 +789,7 @@ pub async fn send_transaction_message_route<'a>(
             ) {
                 Ok(res) => res
                     .into_iter()
-                    .map(|(k, v)| (k, db.rooms.get_pdu(&v).unwrap().unwrap()))
+                    .map(|(k, v)| (k, Arc::new(db.rooms.get_pdu(&v).unwrap().unwrap())))
                     .collect(),
                 Err(e) => panic!("{:?}", e),
             }
@@ -795,20 +799,20 @@ pub async fn send_transaction_message_route<'a>(
             &RoomVersionId::Version6,
             &event,
             previous,
-            state_at_forks
-                .into_iter()
-                .map(|(k, v)| (k, v.convert_for_state_res()))
-                .collect(),
+            state_at_forks,
             None,
         )
         .map_err(|_e| Error::Conflict("Auth check failed"))?
         {
             // Soft fail
-            resolved_map.insert(event.event_id(), Err("Event has been soft failed".into()));
+            resolved_map.insert(
+                event.event_id().clone(),
+                Err("Event has been soft failed".into()),
+            );
         } else {
             append_state(&db, &pdu)?;
             // Event has passed all auth/stateres checks
-            resolved_map.insert(event.event_id(), Ok(()));
+            resolved_map.insert(event.event_id().clone(), Ok(()));
         }
     }
 

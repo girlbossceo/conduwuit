@@ -124,7 +124,7 @@ pub async fn get_room_visibility_route(
 pub async fn get_public_rooms_filtered_helper(
     db: &Database,
     server: Option<&ServerName>,
-    limit: Option<js_int::UInt>,
+    limit: Option<ruma::UInt>,
     since: Option<&str>,
     filter: &IncomingFilter,
     _network: &IncomingRoomNetwork,

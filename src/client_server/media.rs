@@ -131,7 +131,7 @@ pub async fn get_content_thumbnail_route(
                     allow_remote: false,
                     height: body.height,
                     width: body.width,
-                    method: body.method,
+                    method: body.method.clone(),
                     server_name: &body.server_name,
                     media_id: &body.media_id,
                 },
