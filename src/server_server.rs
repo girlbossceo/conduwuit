@@ -1,7 +1,7 @@
 use crate::{client_server, utils, ConduitResult, Database, Error, PduEvent, Result, Ruma};
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
-use log::warn;
+use log::{info, warn};
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
     api::{
@@ -95,7 +95,7 @@ where
     ruma::signatures::sign_json(
         globals.server_name().as_str(),
         globals.keypair(),
-        dbg!(&mut request_json),
+        &mut request_json,
     )
     .expect("our request json is what ruma expects");
 
@@ -161,18 +161,18 @@ where
                 .bytes()
                 .await
                 .unwrap_or_else(|e| {
-                    warn!("server error: {}", e);
+                    warn!("server error {}", e);
                     Vec::new().into()
                 }) // TODO: handle timeout
                 .into_iter()
                 .collect::<Vec<_>>();
 
             if status != 200 {
-                warn!(
-                    "Server returned bad response {} ({}): {} {:?}",
+                info!(
+                    "Server returned bad response {} {}\n{}\n{:?}",
                     destination,
-                    url,
                     status,
+                    url,
                     utils::string_from_bytes(&body)
                 );
             }
@@ -183,8 +183,8 @@ where
                     .expect("reqwest body is valid http body"),
             );
             response.map_err(|_| {
-                warn!(
-                    "Server returned invalid response bytes {} ({})",
+                info!(
+                    "Server returned invalid response bytes {}\n{}",
                     destination, url
                 );
                 Error::BadServerResponse("Server returned bad response.")

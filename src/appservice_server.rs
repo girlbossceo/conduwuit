@@ -78,10 +78,10 @@ where
 
             if status != 200 {
                 warn!(
-                    "Server returned bad response {} ({}): {} {:?}",
+                    "Appservice returned bad response {} {}\n{}\n{:?}",
                     destination,
-                    url,
                     status,
+                    url,
                     utils::string_from_bytes(&body)
                 );
             }
@@ -93,7 +93,7 @@ where
             );
             response.map_err(|_| {
                 warn!(
-                    "Server returned invalid response bytes {} ({})",
+                    "Appservice returned invalid response bytes {}\n{}",
                     destination, url
                 );
                 Error::BadServerResponse("Server returned bad response.")

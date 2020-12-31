@@ -18,15 +18,14 @@ use rocket::futures::{self, channel::mpsc};
 use ruma::{DeviceId, ServerName, UserId};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fs::remove_dir_all;
 use std::sync::{Arc, RwLock};
-use std::{convert::TryInto, fs::remove_dir_all};
 use tokio::sync::Semaphore;
 
 #[derive(Clone, Deserialize)]
 pub struct Config {
-    #[serde(default = "default_server_name")]
     server_name: Box<ServerName>,
-    database_path: Option<String>,
+    database_path: String,
     #[serde(default = "default_cache_capacity")]
     cache_capacity: u64,
     #[serde(default = "default_max_request_size")]
@@ -39,12 +38,6 @@ pub struct Config {
     encryption_disabled: bool,
     #[serde(default)]
     federation_enabled: bool,
-}
-
-fn default_server_name() -> Box<ServerName> {
-    "localhost"
-        .try_into()
-        .expect("localhost is valid servername")
 }
 
 fn default_cache_capacity() -> u64 {
@@ -90,31 +83,13 @@ impl Database {
 
     /// Load an existing database or create a new one.
     pub async fn load_or_create(config: Config) -> Result<Self> {
-        let path = config
-            .database_path
-            .clone()
-            .map(Ok::<_, Error>)
-            .unwrap_or_else(|| {
-                let path = ProjectDirs::from("xyz", "koesters", "conduit")
-                    .ok_or_else(|| {
-                        Error::bad_config("The OS didn't return a valid home directory path.")
-                    })?
-                    .data_dir()
-                    .join(config.server_name.as_str());
-
-                Ok(path
-                    .to_str()
-                    .ok_or_else(|| Error::bad_config("Database path contains invalid unicode."))?
-                    .to_owned())
-            })?;
-
         let db = sled::Config::default()
-            .path(&path)
+            .path(&config.database_path)
             .cache_capacity(config.cache_capacity)
-            .print_profile_on_drop(true)
+            .print_profile_on_drop(false)
             .open()?;
 
-        info!("Opened sled database at {}", path);
+        info!("Opened sled database at {}", config.database_path);
 
         let (admin_sender, admin_receiver) = mpsc::unbounded();
 

@@ -8,7 +8,7 @@ use std::{
 
 use crate::{appservice_server, server_server, utils, Error, PduEvent, Result};
 use federation::transactions::send_transaction_message;
-use log::warn;
+use log::info;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
     api::{appservice, federation, OutgoingRequest},
@@ -123,7 +123,7 @@ impl Sending {
                                 }
                             }
                             Err((server, is_appservice, e)) => {
-                                warn!("Couldn't send transaction to {}: {}", server, e);
+                                info!("Couldn't send transaction to {}\n{}", server, e);
                                 let mut prefix = if is_appservice {
                                     "+".as_bytes().to_vec()
                                 } else {

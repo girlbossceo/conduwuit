@@ -121,29 +121,45 @@ impl log::Log for ConduitLogger {
     fn log(&self, record: &log::Record<'_>) {
         let output = format!("{} - {}", record.level(), record.args());
 
-        eprintln!("{}", output);
-
         if self.enabled(record.metadata())
-            && record
+            && (record
                 .module_path()
                 .map_or(false, |path| path.starts_with("conduit::"))
+                || record
+                    .module_path()
+                    .map_or(true, |path| !path.starts_with("rocket::")) // Rockets logs are annoying
+                    && record.metadata().level() <= log::Level::Warn)
         {
+            let first_line = output
+                .lines()
+                .next()
+                .expect("lines always returns one item");
+
+            eprintln!("{}", output);
+
+            let mute_duration = match record.metadata().level() {
+                log::Level::Error => Duration::from_secs(60 * 5), // 5 minutes
+                log::Level::Warn => Duration::from_secs(60 * 60 * 24), // A day
+                _ => Duration::from_secs(60 * 60 * 24 * 7),       // A week
+            };
+
             if self
                 .last_logs
                 .read()
                 .unwrap()
-                .get(&output)
-                .map_or(false, |i| i.elapsed() < Duration::from_secs(60 * 30))
+                .get(first_line)
+                .map_or(false, |i| i.elapsed() < mute_duration)
+            // Don't post this log again for some time
             {
                 return;
             }
 
             if let Ok(mut_last_logs) = &mut self.last_logs.try_write() {
-                mut_last_logs.insert(output.clone(), Instant::now());
+                mut_last_logs.insert(first_line.to_owned(), Instant::now());
             }
 
             self.db.admin.send(AdminCommand::SendMessage(
-                message::MessageEventContent::text_plain(output),
+                message::MessageEventContent::notice_plain(output),
             ));
         }
     }

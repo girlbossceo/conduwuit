@@ -13,18 +13,32 @@ mod utils;
 
 pub use database::Database;
 pub use error::{ConduitLogger, Error, Result};
-use log::LevelFilter;
 pub use pdu::PduEvent;
 pub use rocket::State;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
+use log::LevelFilter;
+use rocket::figment::{
+    providers::{Env, Format, Toml},
+    Figment,
+};
 use rocket::{catch, catchers, fairing::AdHoc, routes, Request};
 
 fn setup_rocket() -> rocket::Rocket {
     // Force log level off, so we can use our own logger
-    std::env::set_var("ROCKET_LOG_LEVEL", "off");
+    std::env::set_var("CONDUIT_LOG_LEVEL", "off");
 
-    rocket::ignite()
+    let config =
+        Figment::from(rocket::Config::release_default())
+            .merge(
+                Toml::file(Env::var("CONDUIT_CONFIG").expect(
+                    "The CONDUIT_CONFIG env var needs to be set. Example: /etc/conduit.toml",
+                ))
+                .nested(),
+            )
+            .merge(Env::prefixed("CONDUIT_").global());
+
+    rocket::custom(config)
         .mount(
             "/",
             routes![
@@ -137,10 +151,13 @@ fn setup_rocket() -> rocket::Rocket {
         )
         .register(catchers![not_found_catcher])
         .attach(AdHoc::on_attach("Config", |rocket| async {
-            let data =
-                Database::load_or_create(rocket.figment().extract().expect("config is valid"))
-                    .await
-                    .expect("config is valid");
+            let config = rocket
+                .figment()
+                .extract()
+                .expect("It looks like your config is invalid. Please take a look at the error");
+            let data = Database::load_or_create(config)
+                .await
+                .expect("config is valid");
 
             data.sending
                 .start_handler(&data.globals, &data.rooms, &data.appservice);

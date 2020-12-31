@@ -43,7 +43,7 @@ impl Admin {
                 .unwrap();
 
             if conduit_room.is_none() {
-                warn!("Conduit instance does not have an #admins room. Logging to that room will not work.");
+                warn!("Conduit instance does not have an #admins room. Logging to that room will not work. Restart Conduit after creating a user to fix this.");
             }
 
             let send_message = |message: message::MessageEventContent| {

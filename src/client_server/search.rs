@@ -77,8 +77,8 @@ pub async fn search_events_route(
 
     Ok(search_events::Response::new(ResultCategories {
         room_events: ResultRoomEvents {
-            count: None,             // TODO? maybe not
-            groups: BTreeMap::new(), // TODO
+            count: Some((results.len() as u32).into()), // TODO: set this to none. Element shouldn't depend on it
+            groups: BTreeMap::new(),                    // TODO
             next_batch,
             results,
             state: BTreeMap::new(), // TODO
