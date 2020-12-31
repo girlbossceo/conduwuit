@@ -8,7 +8,10 @@ use ruma::{
     events::EventContent,
     EventId,
 };
-use std::convert::{TryFrom, TryInto};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};
@@ -46,7 +49,7 @@ pub async fn send_message_event_route(
         return Ok(send_message_event::Response { event_id }.into());
     }
 
-    let mut unsigned = serde_json::Map::new();
+    let mut unsigned = BTreeMap::new();
     unsigned.insert("transaction_id".to_owned(), body.txn_id.clone().into());
 
     let event_id = db.rooms.build_and_append_pdu(

@@ -20,7 +20,7 @@ use ruma::{
     EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use sled::IVec;
-use state_res::{event_auth, Error as StateError, Requester, StateEvent, StateMap, StateStore};
+use state_res::{event_auth, Error as StateError, Event, StateMap, StateStore};
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -67,12 +67,8 @@ pub struct Rooms {
     pub(super) stateid_pduid: sled::Tree, // StateId = StateHash + Short, PduId = Count (without roomid)
 }
 
-impl StateStore for Rooms {
-    fn get_event(
-        &self,
-        room_id: &RoomId,
-        event_id: &EventId,
-    ) -> state_res::Result<Arc<StateEvent>> {
+impl StateStore<PduEvent> for Rooms {
+    fn get_event(&self, room_id: &RoomId, event_id: &EventId) -> state_res::Result<Arc<PduEvent>> {
         let pid = self
             .get_pdu_id(event_id)
             .map_err(StateError::custom)?
@@ -91,7 +87,7 @@ impl StateStore for Rooms {
                 .ok_or_else(|| StateError::NotFound("PDU via pduid not found in db.".into()))?,
         )
         .map_err(Into::into)
-        .and_then(|pdu: StateEvent| {
+        .and_then(|pdu: PduEvent| {
             // conduit's PDU's always contain a room_id but some
             // of ruma's do not so this must be an Option
             if pdu.room_id() == room_id {
@@ -112,7 +108,7 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         state_hash: &StateHashId,
-    ) -> Result<StateMap<PduEvent>> {
+    ) -> Result<BTreeMap<(EventType, String), PduEvent>> {
         self.stateid_pduid
             .scan_prefix(&state_hash)
             .values()
@@ -141,7 +137,7 @@ impl Rooms {
                     pdu,
                 ))
             })
-            .collect::<Result<StateMap<_>>>()
+            .collect()
     }
 
     /// Returns a single PDU from `room_id` with key (`event_type`, `state_key`).
@@ -181,7 +177,7 @@ impl Rooms {
                     )))
                 })
         } else {
-            return Ok(None);
+            Ok(None)
         }
     }
 
@@ -205,7 +201,7 @@ impl Rooms {
         content: serde_json::Value,
     ) -> Result<StateMap<PduEvent>> {
         let auth_events = state_res::auth_types_for_event(
-            kind.clone(),
+            kind,
             sender,
             state_key.map(|s| s.to_string()),
             content,
@@ -213,7 +209,13 @@ impl Rooms {
 
         let mut events = StateMap::new();
         for (event_type, state_key) in auth_events {
-            if let Some((_, pdu)) = self.room_state_get(room_id, &event_type, &state_key)? {
+            if let Some((_, pdu)) = self.room_state_get(
+                room_id,
+                &event_type,
+                &state_key
+                    .as_deref()
+                    .expect("found a non state event in auth events"),
+            )? {
                 events.insert((event_type, state_key), pdu);
             }
         }
@@ -290,7 +292,10 @@ impl Rooms {
     }
 
     /// Returns the full room state.
-    pub fn room_state_full(&self, room_id: &RoomId) -> Result<StateMap<PduEvent>> {
+    pub fn room_state_full(
+        &self,
+        room_id: &RoomId,
+    ) -> Result<BTreeMap<(EventType, String), PduEvent>> {
         if let Some(current_state_hash) = self.current_state_hash(room_id)? {
             self.state_full(&room_id, &current_state_hash)
         } else {
@@ -795,23 +800,40 @@ impl Rooms {
                             ErrorKind::Unknown,
                             "Membership can't be the first event",
                         ))?)?
-                        .map(|pdu| pdu.convert_for_state_res());
+                        .map(Arc::new);
                     event_auth::valid_membership_change(
                         // TODO this is a bit of a hack but not sure how to have a type
                         // declared in `state_res` crate easily convert to/from conduit::PduEvent
-                        Requester {
-                            prev_event_ids: prev_events.to_owned(),
-                            room_id: &room_id,
-                            content: &content,
-                            state_key: Some(state_key.to_owned()),
-                            sender: &sender,
-                        },
+                        &Arc::new(PduEvent {
+                            event_id: ruma::event_id!("$thiswillbefilledinlater"),
+                            room_id: room_id.clone(),
+                            sender: sender.clone(),
+                            origin_server_ts: utils::millis_since_unix_epoch()
+                                .try_into()
+                                .expect("time is valid"),
+                            kind: event_type,
+                            content,
+                            state_key: Some(state_key.clone()),
+                            prev_events,
+                            depth: (prev_events.len() as u32).into(),
+                            auth_events: auth_events
+                                .into_iter()
+                                .map(|(_, pdu)| pdu.event_id)
+                                .collect(),
+                            redacts,
+                            unsigned: unsigned
+                                .map_or_else(BTreeMap::new, |m| m.into_iter().collect()),
+                            hashes: ruma::events::pdu::EventHash {
+                                sha256: "aaa".to_owned(),
+                            },
+                            signatures: BTreeMap::new(),
+                        }),
                         prev_event,
                         None, // TODO: third party invite
                         &auth_events
                             .iter()
                             .map(|((ty, key), pdu)| {
-                                Ok(((ty.clone(), key.clone()), pdu.convert_for_state_res()))
+                                Ok(((ty.clone(), key.clone()), Arc::new(pdu.clone())))
                             })
                             .collect::<Result<StateMap<_>>>()?,
                     )

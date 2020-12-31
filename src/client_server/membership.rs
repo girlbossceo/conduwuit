@@ -21,7 +21,7 @@ use ruma::{
     serde::{to_canonical_value, CanonicalJsonObject, Raw},
     EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
-use state_res::StateEvent;
+use state_res::Event;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     convert::TryFrom,
@@ -594,19 +594,19 @@ async fn join_room_by_id_helper(
             .chain(iter::once(Ok((event_id, join_event)))) // Add join event we just created
             .map(|r| {
                 let (event_id, value) = r?;
-                state_res::StateEvent::from_id_canon_obj(event_id.clone(), value.clone())
+                PduEvent::from_id_val(&event_id, value.clone())
                     .map(|ev| (event_id, Arc::new(ev)))
                     .map_err(|e| {
                         warn!("{:?}: {}", value, e);
                         Error::BadServerResponse("Invalid PDU in send_join response.")
                     })
             })
-            .collect::<Result<BTreeMap<EventId, Arc<StateEvent>>>>()?;
+            .collect::<Result<BTreeMap<EventId, Arc<PduEvent>>>>()?;
 
         let control_events = event_map
             .values()
-            .filter(|pdu| pdu.is_power_event())
-            .map(|pdu| pdu.event_id())
+            .filter(|pdu| state_res::is_power_event(pdu))
+            .map(|pdu| pdu.event_id.clone())
             .collect::<Vec<_>>();
 
         // These events are not guaranteed to be sorted but they are resolved according to spec
@@ -646,7 +646,8 @@ async fn join_room_by_id_helper(
             .cloned()
             .collect::<Vec<_>>();
 
-        let power_level = resolved_control_events.get(&(EventType::RoomPowerLevels, "".into()));
+        let power_level =
+            resolved_control_events.get(&(EventType::RoomPowerLevels, Some("".to_string())));
         // Sort the remaining non control events
         let sorted_event_ids = state_res::StateResolution::mainline_sort(
             room_id,
@@ -685,8 +686,13 @@ async fn join_room_by_id_helper(
             pdu_id.push(0xff);
             pdu_id.extend_from_slice(&count.to_be_bytes());
             db.rooms.append_pdu(
+<<<<<<< HEAD
                 &PduEvent::from(&**pdu),
                 utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
+=======
+                &pdu,
+                &utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
+>>>>>>> 6232d1f (Update state-res, use the new Event trait)
                 count,
                 pdu_id.clone().into(),
                 &db.globals,
@@ -695,7 +701,9 @@ async fn join_room_by_id_helper(
             )?;
 
             if state_events.contains(ev_id) {
-                state.insert((pdu.kind(), pdu.state_key()), pdu_id);
+                if let Some(key) = &pdu.state_key {
+                    state.insert((pdu.kind(), key.to_string()), pdu_id);
+                }
             }
         }
 
