@@ -86,7 +86,7 @@ pub async fn register_route(
     db: State<'_, Database>,
     body: Ruma<register::Request<'_>>,
 ) -> ConduitResult<register::Response> {
-    if db.globals.registration_disabled() {
+    if !db.globals.allow_registration() {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "Registration has been disabled.",

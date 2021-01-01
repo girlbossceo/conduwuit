@@ -33,11 +33,19 @@ pub struct Config {
     #[serde(default = "default_max_concurrent_requests")]
     max_concurrent_requests: u16,
     #[serde(default)]
-    registration_disabled: bool,
-    #[serde(default)]
-    encryption_disabled: bool,
-    #[serde(default)]
-    federation_disabled: bool,
+    allow_registration: bool,
+    #[serde(default = "true_fn")]
+    allow_encryption: bool,
+    #[serde(default = "false_fn")]
+    allow_federation: bool,
+}
+
+fn false_fn() -> bool {
+    false
+}
+
+fn true_fn() -> bool {
+    true
 }
 
 fn default_cache_capacity() -> u64 {

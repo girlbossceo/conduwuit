@@ -240,7 +240,7 @@ pub async fn create_room_route(
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event."))?;
 
         // Silently skip encryption events if they are not allowed
-        if pdu_builder.event_type == EventType::RoomEncryption && db.globals.encryption_disabled() {
+        if pdu_builder.event_type == EventType::RoomEncryption && !db.globals.allow_encryption() {
             continue;
         }
 

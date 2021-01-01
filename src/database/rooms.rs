@@ -786,8 +786,8 @@ impl Rooms {
             #[allow(clippy::blocks_in_if_conditions)]
             if !match event_type {
                 EventType::RoomEncryption => {
-                    // Don't allow encryption events when it's disabled
-                    !globals.encryption_disabled()
+                    // Only allow encryption events if it's allowed in the config
+                    globals.allow_encryption()
                 }
                 EventType::RoomMember => {
                     let prev_event = self

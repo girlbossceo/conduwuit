@@ -111,16 +111,16 @@ impl Globals {
         self.config.max_request_size
     }
 
-    pub fn registration_disabled(&self) -> bool {
-        self.config.registration_disabled
+    pub fn allow_registration(&self) -> bool {
+        self.config.allow_registration
     }
 
-    pub fn encryption_disabled(&self) -> bool {
-        self.config.encryption_disabled
+    pub fn allow_encryption(&self) -> bool {
+        self.config.allow_encryption
     }
 
-    pub fn federation_disabled(&self) -> bool {
-        self.config.federation_disabled
+    pub fn allow_federation(&self) -> bool {
+        self.config.allow_federation
     }
 
     pub fn dns_resolver(&self) -> &TokioAsyncResolver {

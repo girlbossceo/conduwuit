@@ -1,53 +1,42 @@
-# Deploy from source
+# Deploying Conduit
 
-## Prerequisites
+## Getting help
 
-Make sure you have `libssl-dev` and `pkg-config` installed and the [rust toolchain](https://rustup.rs) is available on at least on user.
+If you run into any problems while setting up Conduit, write an email to `support@conduit.rs`, ask us in `#conduit:matrix.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
 
+## Installing Conduit
 
-## Install Conduit
-
-You have to download the binary that fits your machine. Run `uname -m` to see what you need:
+You have to download the binary that fits your machine. Run `uname -m` to see
+what you need. Now copy the right url:
 - x84_64: `https://conduit.rs/master/x86_64/conduit-bin`
 - armv7: `https://conduit.rs/master/armv7/conduit-bin`
 - armv8: `https://conduit.rs/master/armv8/conduit-bin`
 - arm: `https://conduit.rs/master/arm/conduit-bin`
 
 ```bash
-$ sudo useradd -m conduit
-$ sudo -u conduit wget <url> -O /home/conduit/conduit-bin && chmod +x /home/conduit/conduit-bin
+$ sudo wget -O /usr/local/bin/conduit <url>
+$ sudo chmod +x /usr/local/bin/conduit
 ```
 
 
-## Setup systemd service
+## Setting up a systemd service
 
-In this guide, we set up a systemd service for Conduit, so it's easy to
-start/stop Conduit and set it to autostart when your server reboots. Paste the
+Now we'll set up a systemd service for Conduit, so it's easy to start/stop
+Conduit and set it to autostart when your server reboots. Simply paste the
 default systemd service you can find below into
-`/etc/systemd/system/conduit.service` and configure it to fit your setup.
+`/etc/systemd/system/conduit.service`.
 
 ```systemd
 [Unit]
-Description=Conduit
+Description=Conduit Matrix Server
 After=network.target
 
 [Service]
-Environment="ROCKET_SERVER_NAME=YOURSERVERNAME.HERE" # EDIT THIS
-
-Environment="ROCKET_PORT=14004" # Reverse proxy port
-
-#Environment="ROCKET_MAX_REQUEST_SIZE=20000000" # in bytes
-#Environment="ROCKET_REGISTRATION_DISABLED=true"
-#Environment="ROCKET_ENCRYPTION_DISABLED=true"
-#Environment="ROCKET_FEDERATION_ENABLED=true"
-#Environment="ROCKET_LOG=normal" # Detailed logging
-
-Environment="ROCKET_ENV=production"
-User=conduit
-Group=conduit
-Type=simple
+Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
+User=root
+Group=root
 Restart=always
-ExecStart=/home/conduit/conduit-bin
+ExecStart=/usr/local/bin/matrix-conduit
 
 [Install]
 WantedBy=multi-user.target
@@ -59,43 +48,106 @@ $ sudo systemctl daemon-reload
 ```
 
 
-## Setup Reverse Proxy
+## Creating the Conduit configuration file
 
-This depends on whether you use Apache, Nginx or something else. For Apache it looks like this (in /etc/apache2/sites-enabled/050-conduit.conf):
+Now we need to create the Conduit's config file in `/etc/matrix-conduit/conduit.toml`. Paste this in **and take a moment to read it. You need to change at least the server name.**
+```toml
+[global]
+# The server_name is the name of this server. It is used as a suffix for user
+# and room ids. Examples: matrix.org, conduit.rs
+# The Conduit server needs to be reachable at https://your.server.name/ on port
+# 443 (client-server) and 8448 (federation) OR you can create /.well-known
+# files to redirect requests. See
+# https://matrix.org/docs/spec/client_server/latest#get-well-known-matrix-client
+# and https://matrix.org/docs/spec/server_server/r0.1.4#get-well-known-matrix-server
+# for more information
+
+# YOU NEED TO EDIT THIS
+#server_name = "your.server.name"
+
+# This is the only directory where Conduit will save its data
+database_path = "/var/lib/matrix-conduit/conduit_db"
+
+# The port Conduit will be running on. You need to set up a reverse proxy in
+# your web server (e.g. apache or nginx), so all requests to /_matrix on port
+# 443 and 8448 will be forwarded to the Conduit instance running on this port
+port = 6167
+
+# Max size for uploads
+max_request_size = 20_000_000 # in bytes
+
+# Disabling registration means no new users will be able to register on this server
+allow_registration = false
+
+# Disable encryption, so no new encrypted rooms can be created
+# Note: existing rooms will continue to work
+allow_encryption = true
+allow_federation = true
+
+#cache_capacity = 1073741824 # in bytes, 1024 * 1024 * 1024
+#max_concurrent_requests = 4 # How many requests Conduit sends to other servers at the same time
+#workers = 4 # default: cpu core count * 2
+
+address = "127.0.0.1" # This makes sure Conduit can only be reached using the reverse proxy
 ```
-<VirtualHost *:443>
 
-ServerName conduit.koesters.xyz # EDIT THIS
+
+## Setting up the Reverse Proxy
+
+This depends on whether you use Apache, Nginx or another web server.
+
+### Apache
+
+Create `/etc/apache2/sites-enabled/050-conduit.conf` and copy-and-paste this:
+```
+Listen 8448
+
+<VirtualHost *:443 *:8448>
+
+ServerName your.server.name # EDIT THIS
 
 AllowEncodedSlashes NoDecode
-
-ServerAlias conduit.koesters.xyz # EDIT THIS
-
-ProxyPreserveHost On
-ProxyRequests off
-AllowEncodedSlashes NoDecode
-ProxyPass / http://localhost:14004/ nocanon
-ProxyPassReverse / http://localhost:14004/ nocanon
+ProxyPass /_matrix/ http://localhost:6167/
+ProxyPassReverse /_matrix/ http://localhost:6167/
 
 Include /etc/letsencrypt/options-ssl-apache.conf
-
-# EDIT THESE:
-SSLCertificateFile /etc/letsencrypt/live/conduit.koesters.xyz/fullchain.pem
-SSLCertificateKeyFile /etc/letsencrypt/live/conduit.koesters.xyz/privkey.pem
+SSLCertificateFile /etc/letsencrypt/live/your.server.name/fullchain.pem # EDIT THIS
+SSLCertificateKeyFile /etc/letsencrypt/live/your.server.name/privkey.pem # EDIT THIS
 </VirtualHost>
 ```
 
-Then run
+**You need to make some edits again.** When you are done, run
 ```bash
 $ sudo systemctl reload apache2
 ```
 
 
+### Nginx
+
+If you use Nginx and not Apache, add the following server section inside the
+http section of `/etc/nginx/nginx.conf`
+```
+server {
+    listen 443;
+    listen 8448;
+    server_name your.server.name; # EDIT THIS
+
+    location /_matrix/ {
+        proxy_pass http://localhost:6167/_matrix/;
+    }
+}
+```
+**You need to make some edits again.** When you are done, run
+```bash
+$ sudo systemctl reload nginx
+```
+
+
 ## SSL Certificate
 
-The easiest way to get an SSL certificate for the domain is to install `certbot` and run this:
+The easiest way to get an SSL certificate, if you don't have one already, is to install `certbot` and run this:
 ```bash
-$ sudo certbot -d conduit.koesters.xyz
+$ sudo certbot -d your.server.name
 ```
 
 
