@@ -37,7 +37,7 @@ pub struct Config {
     #[serde(default)]
     encryption_disabled: bool,
     #[serde(default)]
-    federation_enabled: bool,
+    federation_disabled: bool,
 }
 
 fn default_cache_capacity() -> u64 {

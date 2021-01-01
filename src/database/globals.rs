@@ -119,8 +119,8 @@ impl Globals {
         self.config.encryption_disabled
     }
 
-    pub fn federation_enabled(&self) -> bool {
-        self.config.federation_enabled
+    pub fn federation_disabled(&self) -> bool {
+        self.config.federation_disabled
     }
 
     pub fn dns_resolver(&self) -> &TokioAsyncResolver {
