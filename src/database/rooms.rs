@@ -802,32 +802,9 @@ impl Rooms {
                         ))?)?
                         .map(Arc::new);
                     event_auth::valid_membership_change(
-                        // TODO this is a bit of a hack but not sure how to have a type
-                        // declared in `state_res` crate easily convert to/from conduit::PduEvent
-                        &Arc::new(PduEvent {
-                            event_id: ruma::event_id!("$thiswillbefilledinlater"),
-                            room_id: room_id.clone(),
-                            sender: sender.clone(),
-                            origin_server_ts: utils::millis_since_unix_epoch()
-                                .try_into()
-                                .expect("time is valid"),
-                            kind: event_type,
-                            content,
-                            state_key: Some(state_key.clone()),
-                            prev_events,
-                            depth: (prev_events.len() as u32).into(),
-                            auth_events: auth_events
-                                .into_iter()
-                                .map(|(_, pdu)| pdu.event_id)
-                                .collect(),
-                            redacts,
-                            unsigned: unsigned
-                                .map_or_else(BTreeMap::new, |m| m.into_iter().collect()),
-                            hashes: ruma::events::pdu::EventHash {
-                                sha256: "aaa".to_owned(),
-                            },
-                            signatures: BTreeMap::new(),
-                        }),
+                        Some(state_key.as_str()),
+                        &sender,
+                        content.clone(),
                         prev_event,
                         None, // TODO: third party invite
                         &auth_events
