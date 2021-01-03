@@ -229,7 +229,7 @@ impl PduEvent {
 
     pub fn from_id_val(
         event_id: &EventId,
-        json: CanonicalJsonObject,
+        mut json: CanonicalJsonObject,
     ) -> Result<Self, serde_json::Error> {
         json.insert(
             "event_id".to_string(),
