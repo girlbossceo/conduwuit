@@ -1,4 +1,4 @@
-use crate::{client_server, pdu, utils, ConduitResult, Database, Error, PduEvent, Result, Ruma};
+use crate::{client_server, utils, ConduitResult, Database, Error, PduEvent, Result, Ruma};
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::{error, info, warn};
@@ -11,14 +11,13 @@ use ruma::{
                 get_server_keys, get_server_version::v1 as get_server_version, ServerSigningKeys,
                 VerifyKey,
             },
-            event::{get_event, get_missing_events, get_room_state, get_room_state_ids},
+            event::{get_event, get_missing_events, get_room_state_ids},
             query::get_profile_information,
             transactions::send_transaction_message,
         },
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
-    serde::Raw,
     signatures::{CanonicalJsonObject, PublicKeyMap},
     EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
 };
@@ -220,7 +219,7 @@ fn add_port_to_hostname(destination_str: String) -> String {
 /// Numbers in comments below refer to bullet points in linked section of specification
 async fn find_actual_destination(
     globals: &crate::database::globals::Globals,
-    destination: &Box<ServerName>,
+    destination: &ServerName,
 ) -> (String, Option<String>) {
     let mut host = None;
 
@@ -594,13 +593,14 @@ pub async fn send_transaction_message_route<'a>(
             continue;
         }
 
+        let server_name = body.body.origin.clone();
         let event = Arc::new(pdu.clone());
-
-        let previous = pdu
-            .prev_events
-            .first()
-            .map(|id| db.rooms.get_pdu(id).expect("todo").map(Arc::new))
-            .flatten();
+        // Fetch any unknown events or retrieve them from the DB
+        let previous =
+            match fetch_events(&db, server_name.clone(), &pub_key_map, &pdu.prev_events).await? {
+                mut evs if evs.len() == 1 => Some(Arc::new(evs.remove(0))),
+                _ => None,
+            };
 
         // 4. Passes authorization rules based on the event's auth events, otherwise it is rejected.
         // TODO: To me this sounds more like the auth_events should be get the pdu.auth_events not
@@ -616,14 +616,14 @@ pub async fn send_transaction_message_route<'a>(
 
         let mut event_map: state_res::EventMap<Arc<PduEvent>> = auth_events
             .iter()
-            .map(|(k, v)| (v.event_id().clone(), Arc::new(v.clone())))
+            .map(|(_k, v)| (v.event_id().clone(), Arc::new(v.clone())))
             .collect();
 
         if !state_res::event_auth::auth_check(
             &RoomVersionId::Version6,
             &event,
             previous.clone(),
-            auth_events
+            &auth_events
                 .into_iter()
                 .map(|(k, v)| (k, Arc::new(v)))
                 .collect(),
@@ -638,7 +638,6 @@ pub async fn send_transaction_message_route<'a>(
             continue;
         }
 
-        let server_name = body.body.origin.clone();
         let (state_at_event, incoming_auth_events): (StateMap<Arc<PduEvent>>, _) = match db
             .sending
             .send_federation_request(
@@ -652,8 +651,18 @@ pub async fn send_transaction_message_route<'a>(
             .await
         {
             Ok(res) => {
-                let state = fetch_events(&db, server_name.clone(), &pub_key_map, &res.pdu_ids)
-                    .await?
+                let state =
+                    fetch_events(&db, server_name.clone(), &pub_key_map, &res.pdu_ids).await?;
+                // Sanity check: there are no conflicting events in the state we received
+                let mut seen = BTreeSet::new();
+                for ev in &state {
+                    // If the key is already present
+                    if !seen.insert((&ev.kind, &ev.state_key)) {
+                        todo!("Server sent us an invalid state")
+                    }
+                }
+
+                let state = state
                     .into_iter()
                     .map(|pdu| ((pdu.kind.clone(), pdu.state_key.clone()), Arc::new(pdu)))
                     .collect();
@@ -677,8 +686,8 @@ pub async fn send_transaction_message_route<'a>(
             &RoomVersionId::Version6,
             &event,
             previous.clone(),
-            state_at_event.clone(), // TODO: could this be &state avoid .clone
-            None,                   // TODO: third party invite
+            &state_at_event,
+            None, // TODO: third party invite
         )
         .map_err(|_e| Error::Conflict("Auth check failed"))?
         {
@@ -760,7 +769,7 @@ pub async fn send_transaction_message_route<'a>(
             &RoomVersionId::Version6,
             &event,
             previous,
-            state_at_forks,
+            &state_at_forks,
             None,
         )
         .map_err(|_e| Error::Conflict("Auth check failed"))?
