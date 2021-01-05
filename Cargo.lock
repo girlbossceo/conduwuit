@@ -2065,7 +2065,7 @@ checksum = "3015a7d0a5fd5105c91c3710d42f9ccf0abfb287d62206484dcc67f9569a6483"
 [[package]]
 name = "state-res"
 version = "0.1.0"
-source = "git+https://github.com/ruma/state-res?branch=event-trait#bfadbdf57e26f26c2ea5b2ed50ce3e5f6fb914cd"
+source = "git+https://github.com/ruma/state-res?branch=event-trait#e5d32e44adb66c5932a81d2c8a8d840abd17c870"
 dependencies = [
  "itertools",
  "maplit",

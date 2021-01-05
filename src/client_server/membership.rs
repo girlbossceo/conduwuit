@@ -675,7 +675,6 @@ async fn join_room_by_id_helper(
             .iter()
             .filter(|id| resolved_events.values().any(|rid| rid == *id))
         {
-            // this is a `state_res::StateEvent` that holds a `ruma::Pdu`
             let pdu = event_map
                 .get(ev_id)
                 .expect("Found event_id in sorted events that is not in resolved state");

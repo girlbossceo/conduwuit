@@ -9,13 +9,15 @@ use trust_dns_resolver::TokioAsyncResolver;
 
 pub const COUNTER: &str = "c";
 
+pub type DestinationCache = Arc<RwLock<HashMap<Box<ServerName>, (String, Option<String>)>>>;
+
 #[derive(Clone)]
 pub struct Globals {
     pub(super) globals: sled::Tree,
     config: Config,
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     reqwest_client: reqwest::Client,
-    pub actual_destination_cache: Arc<RwLock<HashMap<Box<ServerName>, (String, Option<String>)>>>, // actual_destination, host
+    pub actual_destination_cache: DestinationCache, // actual_destination, host
     dns_resolver: TokioAsyncResolver,
 }
 

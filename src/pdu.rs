@@ -9,12 +9,7 @@ use ruma::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-    sync::Arc,
-    time::UNIX_EPOCH,
-};
+use std::{collections::BTreeMap, convert::TryFrom, time::UNIX_EPOCH};
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct PduEvent {
