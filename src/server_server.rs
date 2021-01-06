@@ -565,7 +565,7 @@ pub async fn send_transaction_message_route<'a>(
     for pdu in &body.pdus {
         // 1. Is a valid event, otherwise it is dropped.
         // Ruma/PduEvent/StateEvent satisfies this
-
+        // TODO: ruma may solve this but our `process_incoming_pdu` needs to return a Result then
         let (event_id, value) = crate::pdu::process_incoming_pdu(pdu);
 
         // 2. Passes signature checks, otherwise event is dropped.
@@ -741,16 +741,24 @@ pub async fn send_transaction_message_route<'a>(
             let auth_events = fork_states
                 .iter()
                 .map(|map| {
-                    db.rooms.auth_events_full(
-                        pdu.room_id(),
-                        &map.values()
-                            .map(|pdu| pdu.event_id().clone())
-                            .collect::<Vec<_>>(),
-                    )
+                    db.rooms
+                        .auth_events_full(
+                            pdu.room_id(),
+                            &map.values()
+                                .map(|pdu| pdu.event_id().clone())
+                                .collect::<Vec<_>>(),
+                        )
+                        .map(|pdus| pdus.into_iter().map(Arc::new).collect::<Vec<_>>())
                 })
-                .collect();
+                .collect::<Result<Vec<_>>>()?;
 
-            // Add as much as we can to the `event_map` (less DB hits)
+            // Add everything we will need to event_map
+            event_map.extend(
+                auth_events
+                    .iter()
+                    .map(|pdus| pdus.iter().map(|pdu| (pdu.event_id().clone(), pdu.clone())))
+                    .flatten(),
+            );
             event_map.extend(
                 incoming_auth_events
                     .into_iter()
@@ -773,7 +781,10 @@ pub async fn send_transaction_message_route<'a>(
                             .collect::<StateMap<_>>()
                     })
                     .collect::<Vec<_>>(),
-                &auth_events,
+                auth_events
+                    .into_iter()
+                    .map(|pdus| pdus.into_iter().map(|pdu| pdu.event_id().clone()).collect())
+                    .collect(),
                 &mut event_map,
             ) {
                 Ok(res) => res
