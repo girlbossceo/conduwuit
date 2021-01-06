@@ -67,40 +67,6 @@ pub struct Rooms {
     pub(super) stateid_pduid: sled::Tree, // StateId = StateHash + Short, PduId = Count (without roomid)
 }
 
-impl StateStore<PduEvent> for Rooms {
-    fn get_event(&self, room_id: &RoomId, event_id: &EventId) -> state_res::Result<Arc<PduEvent>> {
-        let pid = self
-            .get_pdu_id(event_id)
-            .map_err(StateError::custom)?
-            .ok_or_else(|| {
-                StateError::NotFound(format!(
-                    "PDU via room_id and event_id not found in the db: {}",
-                    event_id.as_str()
-                ))
-            })?;
-
-        serde_json::from_slice(
-            &self
-                .pduid_pdu
-                .get(pid)
-                .map_err(StateError::custom)?
-                .ok_or_else(|| StateError::NotFound("PDU via pduid not found in db.".into()))?,
-        )
-        .map_err(Into::into)
-        .and_then(|pdu: PduEvent| {
-            // conduit's PDU's always contain a room_id but some
-            // of ruma's do not so this must be an Option
-            if pdu.room_id() == room_id {
-                Ok(Arc::new(pdu))
-            } else {
-                Err(StateError::NotFound(
-                    "Found PDU for incorrect room in db.".into(),
-                ))
-            }
-        })
-    }
-}
-
 impl Rooms {
     /// Builds a StateMap by iterating over all keys that start
     /// with state_hash, this gives the full state for the given state_hash.
@@ -220,6 +186,72 @@ impl Rooms {
             }
         }
         Ok(events)
+    }
+
+    /// Returns a Vec of the related auth events to the given `event`.
+    ///
+    /// A recursive list of all the auth_events going back to `RoomCreate` for each event in `event_ids`.
+    pub fn auth_events_full(
+        &self,
+        room_id: &RoomId,
+        event_ids: &[EventId],
+    ) -> Result<Vec<PduEvent>> {
+        let mut result = BTreeMap::new();
+        let mut stack = event_ids.to_vec();
+
+        // DFS for auth event chain
+        while !stack.is_empty() {
+            let ev_id = stack.pop().unwrap();
+            if result.contains_key(&ev_id) {
+                continue;
+            }
+
+            if let Some(ev) = self.get_pdu(&ev_id)? {
+                stack.extend(ev.auth_events());
+                result.insert(ev.event_id().clone(), ev);
+            }
+        }
+
+        Ok(result.into_iter().map(|(_, v)| v).collect())
+    }
+
+    /// Returns a Vec<EventId> representing the difference in auth chains of the given `events`.
+    ///
+    /// Each inner `Vec` of `event_ids` represents a state set (state at each forward extremity).
+    pub fn auth_chain_diff(
+        &self,
+        room_id: &RoomId,
+        event_ids: Vec<Vec<EventId>>,
+    ) -> Result<Vec<EventId>> {
+        use std::collections::BTreeSet;
+
+        let mut chains = vec![];
+        for ids in event_ids {
+            // TODO state store `auth_event_ids` returns self in the event ids list
+            // when an event returns `auth_event_ids` self is not contained
+            let chain = self
+                .auth_events_full(room_id, &ids)?
+                .into_iter()
+                .map(|pdu| pdu.event_id)
+                .collect::<BTreeSet<_>>();
+            chains.push(chain);
+        }
+
+        if let Some(chain) = chains.first() {
+            let rest = chains.iter().skip(1).flatten().cloned().collect();
+            let common = chain.intersection(&rest).collect::<Vec<_>>();
+
+            Ok(chains
+                .iter()
+                .flatten()
+                .filter(|id| !common.contains(&id))
+                .cloned()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect())
+        } else {
+            Ok(vec![])
+        }
     }
 
     /// Generate a new StateHash.

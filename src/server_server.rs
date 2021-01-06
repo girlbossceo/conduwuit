@@ -603,7 +603,7 @@ pub async fn send_transaction_message_route<'a>(
             };
 
         // 4. Passes authorization rules based on the event's auth events, otherwise it is rejected.
-        // TODO: To me this sounds more like the auth_events should be get the pdu.auth_events not
+        // TODO: To me this sounds more like the auth_events should be "get the pdu.auth_events" not
         // the auth events that would be correct for this pdu. Put another way we should use the auth events
         // the pdu claims are its auth events
         let auth_events = db.rooms.get_auth_events(
@@ -637,50 +637,56 @@ pub async fn send_transaction_message_route<'a>(
             );
             continue;
         }
+        // End of step 4.
 
-        let (state_at_event, incoming_auth_events): (StateMap<Arc<PduEvent>>, _) = match db
-            .sending
-            .send_federation_request(
-                &db.globals,
-                server_name.clone(),
-                get_room_state_ids::v1::Request {
-                    room_id: pdu.room_id(),
-                    event_id: pdu.event_id(),
-                },
-            )
-            .await
-        {
-            Ok(res) => {
-                let state =
-                    fetch_events(&db, server_name.clone(), &pub_key_map, &res.pdu_ids).await?;
-                // Sanity check: there are no conflicting events in the state we received
-                let mut seen = BTreeSet::new();
-                for ev in &state {
-                    // If the key is already present
-                    if !seen.insert((&ev.kind, &ev.state_key)) {
-                        todo!("Server sent us an invalid state")
-                    }
-                }
-
-                let state = state
-                    .into_iter()
-                    .map(|pdu| ((pdu.kind.clone(), pdu.state_key.clone()), Arc::new(pdu)))
-                    .collect();
-
-                (
-                    state,
-                    fetch_events(&db, server_name.clone(), &pub_key_map, &res.auth_chain_ids)
-                        .await?,
+        // Step 5. event passes auth based on state at the event
+        let (state_at_event, incoming_auth_events): (StateMap<Arc<PduEvent>>, Vec<Arc<PduEvent>>) =
+            match db
+                .sending
+                .send_federation_request(
+                    &db.globals,
+                    server_name.clone(),
+                    get_room_state_ids::v1::Request {
+                        room_id: pdu.room_id(),
+                        event_id: pdu.event_id(),
+                    },
                 )
-            }
-            Err(_) => {
-                resolved_map.insert(
-                    event.event_id().clone(),
-                    Err("Fetching state for event failed".into()),
-                );
-                continue;
-            }
-        };
+                .await
+            {
+                Ok(res) => {
+                    let state =
+                        fetch_events(&db, server_name.clone(), &pub_key_map, &res.pdu_ids).await?;
+                    // Sanity check: there are no conflicting events in the state we received
+                    let mut seen = BTreeSet::new();
+                    for ev in &state {
+                        // If the key is already present
+                        if !seen.insert((&ev.kind, &ev.state_key)) {
+                            todo!("Server sent us an invalid state")
+                        }
+                    }
+
+                    let state = state
+                        .into_iter()
+                        .map(|pdu| ((pdu.kind.clone(), pdu.state_key.clone()), Arc::new(pdu)))
+                        .collect();
+
+                    (
+                        state,
+                        fetch_events(&db, server_name.clone(), &pub_key_map, &res.auth_chain_ids)
+                            .await?
+                            .into_iter()
+                            .map(Arc::new)
+                            .collect(),
+                    )
+                }
+                Err(_) => {
+                    resolved_map.insert(
+                        event.event_id().clone(),
+                        Err("Fetching state for event failed".into()),
+                    );
+                    continue;
+                }
+            };
 
         if !state_res::event_auth::auth_check(
             &RoomVersionId::Version6,
@@ -698,6 +704,7 @@ pub async fn send_transaction_message_route<'a>(
             );
             continue;
         }
+        // End of step 5.
 
         // The event could still be soft failed
         append_state_soft(&db, &pdu)?;
@@ -724,18 +731,30 @@ pub async fn send_transaction_message_route<'a>(
             }
         }
 
-        // 6.
+        // Step 6. event passes auth based on state of all forks and current room state
         let state_at_forks = if fork_states.is_empty() {
             // State is empty
             Default::default()
         } else if fork_states.len() == 1 {
             fork_states[0].clone()
         } else {
+            let auth_events = fork_states
+                .iter()
+                .map(|map| {
+                    db.rooms.auth_events_full(
+                        pdu.room_id(),
+                        &map.values()
+                            .map(|pdu| pdu.event_id().clone())
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .collect();
+
             // Add as much as we can to the `event_map` (less DB hits)
             event_map.extend(
                 incoming_auth_events
                     .into_iter()
-                    .map(|pdu| (pdu.event_id().clone(), Arc::new(pdu))),
+                    .map(|pdu| (pdu.event_id().clone(), pdu)),
             );
             event_map.extend(
                 state_at_event
@@ -754,8 +773,8 @@ pub async fn send_transaction_message_route<'a>(
                             .collect::<StateMap<_>>()
                     })
                     .collect::<Vec<_>>(),
+                &auth_events,
                 &mut event_map,
-                &db.rooms,
             ) {
                 Ok(res) => res
                     .into_iter()
