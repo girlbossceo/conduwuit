@@ -618,7 +618,6 @@ async fn join_room_by_id_helper(
             &room_id,
             &control_events,
             &mut event_map,
-            &db.rooms,
             &event_ids,
         );
 
@@ -629,7 +628,6 @@ async fn join_room_by_id_helper(
             &sorted_control_events,
             &BTreeMap::new(), // We have no "clean/resolved" events to add (these extend the `resolved_control_events`)
             &mut event_map,
-            &db.rooms,
         )
         .expect("iterative auth check failed on resolved events");
 
@@ -654,7 +652,6 @@ async fn join_room_by_id_helper(
             &events_to_sort,
             power_level,
             &mut event_map,
-            &db.rooms,
         );
 
         let resolved_events = state_res::StateResolution::iterative_auth_check(
@@ -663,7 +660,6 @@ async fn join_room_by_id_helper(
             &sorted_event_ids,
             &resolved_control_events,
             &mut event_map,
-            &db.rooms,
         )
         .expect("iterative auth check failed on resolved events");
 
