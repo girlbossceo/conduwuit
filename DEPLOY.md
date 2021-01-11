@@ -14,8 +14,8 @@ what you need. Now copy the right url:
 - arm: `https://conduit.rs/master/arm/conduit-bin`
 
 ```bash
-$ sudo wget -O /usr/local/bin/conduit <url>
-$ sudo chmod +x /usr/local/bin/conduit
+$ sudo wget -O /usr/local/bin/matrix-conduit <url>
+$ sudo chmod +x /usr/local/bin/matrix-conduit
 ```
 
 
