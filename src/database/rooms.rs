@@ -20,7 +20,7 @@ use ruma::{
     EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use sled::IVec;
-use state_res::{event_auth, Error as StateError, Event, StateMap, StateStore};
+use state_res::{event_auth, Event, StateMap};
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -193,7 +193,7 @@ impl Rooms {
     /// A recursive list of all the auth_events going back to `RoomCreate` for each event in `event_ids`.
     pub fn auth_events_full(
         &self,
-        room_id: &RoomId,
+        _room_id: &RoomId,
         event_ids: &[EventId],
     ) -> Result<Vec<PduEvent>> {
         let mut result = BTreeMap::new();
