@@ -1,4 +1,5 @@
 use crate::{client_server, utils, ConduitResult, Database, Error, PduEvent, Result, Ruma};
+use get_devices::v1::UserDevice;
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::{error, info, warn};
@@ -6,6 +7,7 @@ use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
     api::{
         federation::{
+            device::get_devices,
             directory::{get_public_rooms, get_public_rooms_filtered},
             discovery::{
                 get_server_keys, get_server_version::v1 as get_server_version, ServerSigningKeys,
@@ -18,13 +20,14 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
-    signatures::{CanonicalJsonObject, PublicKeyMap},
+    serde::to_canonical_value,
+    signatures::{CanonicalJsonObject, CanonicalJsonValue, PublicKeyMap},
     EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
 };
 use state_res::{Event, StateMap};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     fmt::Debug,
     net::{IpAddr, SocketAddr},
     sync::Arc,
@@ -519,6 +522,8 @@ pub async fn send_transaction_message_route<'a>(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
+    dbg!(&*body);
+
     for edu in &body.edus {
         match serde_json::from_str::<send_transaction_message::v1::Edu>(edu.json().get()) {
             Ok(edu) => match edu.edu_type.as_str() {
@@ -546,6 +551,7 @@ pub async fn send_transaction_message_route<'a>(
                 }
                 "m.presence" => {}
                 "m.receipt" => {}
+                "m.device_list_update" => {}
                 _ => {}
             },
             Err(_err) => {
@@ -565,21 +571,52 @@ pub async fn send_transaction_message_route<'a>(
     for pdu in &body.pdus {
         // 1. Is a valid event, otherwise it is dropped.
         // Ruma/PduEvent/StateEvent satisfies this
+        // We do not add the event_id field to the pdu here because of signature and hashes checks
         // TODO: ruma may solve this but our `process_incoming_pdu` needs to return a Result then
         let (event_id, value) = crate::pdu::process_incoming_pdu(pdu);
-
         // 2. Passes signature checks, otherwise event is dropped.
         // 3. Passes hash checks, otherwise it is redacted before being processed further.
-        let keys = db.globals.keypair();
-        let mut pub_key_set = BTreeMap::new();
-        pub_key_set.insert(
-            "ed25519:1".to_string(),
-            String::from_utf8(keys.public_key().to_vec()).expect("public key is valid utf8"),
-        );
+        let server_name = body.body.origin.clone();
         let mut pub_key_map = BTreeMap::new();
-        pub_key_map.insert("domain".to_string(), pub_key_set);
+        if let Some(sig) = value.get("signatures") {
+            match sig {
+                CanonicalJsonValue::Object(entity) => {
+                    for key in entity.keys() {
+                        // TODO: save this in a DB maybe...
+                        // fetch the public signing key
+                        let res = db
+                            .sending
+                            .send_federation_request(
+                                &db.globals,
+                                Box::<ServerName>::try_from(key.to_string()).unwrap(),
+                                get_server_keys::v2::Request::new(),
+                            )
+                            .await?;
 
-        let pdu = match signature_and_hash_check(&pub_key_map, value) {
+                        pub_key_map.insert(
+                            res.server_key.server_name.to_string(),
+                            res.server_key
+                                .verify_keys
+                                .into_iter()
+                                .map(|(k, v)| (k.to_string(), v.key))
+                                .collect(),
+                        );
+                    }
+                }
+                _ => {
+                    resolved_map.insert(
+                        event_id,
+                        Err("`signatures` is not a JSON object".to_string()),
+                    );
+                    continue;
+                }
+            }
+        } else {
+            resolved_map.insert(event_id, Err("No field `signatures` in JSON".to_string()));
+            continue;
+        }
+
+        let mut val = match signature_and_hash_check(&pub_key_map, value) {
             Ok(pdu) => pdu,
             Err(e) => {
                 resolved_map.insert(event_id, Err(e));
@@ -587,50 +624,75 @@ pub async fn send_transaction_message_route<'a>(
             }
         };
 
+        // Now that we have checked the signature and hashes we can add the eventID and convert
+        // to our PduEvent type
+        val.insert(
+            "event_id".to_owned(),
+            to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
+        );
+        let pdu = serde_json::from_value::<PduEvent>(
+            serde_json::to_value(val).expect("CanonicalJsonObj is a valid JsonValue"),
+        )
+        .expect("Pdu is valid Canonical JSON Map");
+
         // If we have no idea about this room skip the PDU
         if !db.rooms.exists(&pdu.room_id)? {
             resolved_map.insert(event_id, Err("Room is unknown to this server".into()));
             continue;
         }
 
-        let server_name = body.body.origin.clone();
         let event = Arc::new(pdu.clone());
-        // Fetch any unknown events or retrieve them from the DB
+        dbg!(&*event);
+        // Fetch any unknown prev_events or retrieve them from the DB
         let previous =
-            match fetch_events(&db, server_name.clone(), &pub_key_map, &pdu.prev_events).await? {
-                mut evs if evs.len() == 1 => Some(Arc::new(evs.remove(0))),
+            match fetch_events(&db, server_name.clone(), &pub_key_map, &pdu.prev_events).await {
+                Ok(mut evs) if evs.len() == 1 => Some(Arc::new(evs.remove(0))),
                 _ => None,
             };
 
         // 4. Passes authorization rules based on the event's auth events, otherwise it is rejected.
-        // TODO: To me this sounds more like the auth_events should be "get the pdu.auth_events" not
-        // the auth events that would be correct for this pdu. Put another way we should use the auth events
-        // the pdu claims are its auth events
-        let auth_events = db.rooms.get_auth_events(
-            &pdu.room_id,
-            &pdu.kind,
-            &pdu.sender,
-            pdu.state_key.as_deref(),
-            pdu.content.clone(),
-        )?;
+        // Recursively gather all auth events checking that the previous auth events are valid.
+        let auth_events: Vec<PduEvent> =
+            match fetch_check_auth_events(&db, server_name.clone(), &pub_key_map, &pdu.prev_events)
+                .await
+            {
+                Ok(events) => events,
+                Err(_) => {
+                    resolved_map.insert(
+                        pdu.event_id,
+                        Err("Failed to recursively gather auth events".into()),
+                    );
+                    continue;
+                }
+            };
 
         let mut event_map: state_res::EventMap<Arc<PduEvent>> = auth_events
             .iter()
-            .map(|(_k, v)| (v.event_id().clone(), Arc::new(v.clone())))
+            .map(|v| (v.event_id().clone(), Arc::new(v.clone())))
             .collect();
 
-        if !state_res::event_auth::auth_check(
+        // Check that the event passes auth based on the auth_events
+        let is_authed = state_res::event_auth::auth_check(
             &RoomVersionId::Version6,
             &event,
             previous.clone(),
-            &auth_events
-                .into_iter()
-                .map(|(k, v)| (k, Arc::new(v)))
-                .collect(),
+            &pdu.auth_events
+                .iter()
+                .map(|id| {
+                    event_map
+                        .get(id)
+                        .map(|pdu| ((pdu.kind(), pdu.state_key()), pdu.clone()))
+                        .ok_or_else(|| {
+                            Error::Conflict(
+                                "Auth event not found, event failed recursive auth checks.",
+                            )
+                        })
+                })
+                .collect::<Result<BTreeMap<_, _>>>()?,
             None, // TODO: third party invite
         )
-        .map_err(|_e| Error::Conflict("Auth check failed"))?
-        {
+        .map_err(|_e| Error::Conflict("Auth check failed"))?;
+        if !is_authed {
             resolved_map.insert(
                 pdu.event_id,
                 Err("Event has failed auth check with auth events".into()),
@@ -816,31 +878,92 @@ pub async fn send_transaction_message_route<'a>(
         }
     }
 
-    Ok(send_transaction_message::v1::Response { pdus: resolved_map }.into())
+    Ok(dbg!(send_transaction_message::v1::Response { pdus: resolved_map }).into())
 }
 
 fn signature_and_hash_check(
     pub_key_map: &ruma::signatures::PublicKeyMap,
     value: CanonicalJsonObject,
-) -> std::result::Result<PduEvent, String> {
-    let val = match ruma::signatures::verify_event(pub_key_map, &value, &RoomVersionId::Version6) {
-        Ok(ver) => {
-            if let ruma::signatures::Verified::Signatures = ver {
-                match ruma::signatures::redact(&value, &RoomVersionId::Version6) {
-                    Ok(obj) => obj,
-                    Err(_) => return Err("Redaction failed".into()),
+) -> std::result::Result<CanonicalJsonObject, String> {
+    Ok(
+        match ruma::signatures::verify_event(pub_key_map, &value, &RoomVersionId::Version6) {
+            Ok(ver) => {
+                if let ruma::signatures::Verified::Signatures = ver {
+                    error!("CONTENT HASH FAILED");
+                    match ruma::signatures::redact(&value, &RoomVersionId::Version6) {
+                        Ok(obj) => obj,
+                        Err(_) => return Err("Redaction failed".to_string()),
+                    }
+                } else {
+                    value
                 }
-            } else {
-                value
             }
-        }
-        Err(_e) => return Err("Signature verification failed".into()),
-    };
-
-    serde_json::from_value::<PduEvent>(
-        serde_json::to_value(val).expect("CanonicalJsonObj is a valid JsonValue"),
+            Err(_e) => {
+                return Err("Signature verification failed".to_string());
+            }
+        },
     )
-    .map_err(|_| "Deserialization failed for JSON value".into())
+}
+
+/// The check in `fetch_check_auth_events` is that a complete chain is found for the
+/// events `auth_events`. If the chain is found to have missing events it fails.
+async fn fetch_check_auth_events(
+    db: &Database,
+    origin: Box<ServerName>,
+    key_map: &PublicKeyMap,
+    event_ids: &[EventId],
+) -> Result<Vec<PduEvent>> {
+    let mut result = BTreeMap::new();
+    let mut stack = event_ids.to_vec();
+
+    // DFS for auth event chain
+    while !stack.is_empty() {
+        let ev_id = stack.pop().unwrap();
+        if result.contains_key(&ev_id) {
+            continue;
+        }
+
+        let ev = match db.rooms.get_pdu(&ev_id)? {
+            Some(pdu) => pdu,
+            None => match db
+                .sending
+                .send_federation_request(
+                    &db.globals,
+                    origin.clone(),
+                    get_event::v1::Request { event_id: &ev_id },
+                )
+                .await
+            {
+                Ok(res) => {
+                    let (event_id, value) = crate::pdu::process_incoming_pdu(&res.pdu);
+                    match signature_and_hash_check(key_map, value) {
+                        Ok(mut val) => {
+                            val.insert(
+                                "event_id".to_owned(),
+                                to_canonical_value(&event_id)
+                                    .expect("EventId is a valid CanonicalJsonValue"),
+                            );
+                            serde_json::from_value::<PduEvent>(
+                                serde_json::to_value(val)
+                                    .expect("CanonicalJsonObj is a valid JsonValue"),
+                            )
+                            .expect("Pdu is valid Canonical JSON Map")
+                        }
+                        Err(e) => {
+                            // TODO: I would assume we just keep going
+                            error!("{:?}", e);
+                            continue;
+                        }
+                    }
+                }
+                Err(_) => return Err(Error::BadServerResponse("Failed to fetch event")),
+            },
+        };
+        stack.extend(ev.auth_events());
+        result.insert(ev.event_id().clone(), ev);
+    }
+
+    Ok(result.into_iter().map(|(_, v)| v).collect())
 }
 
 /// TODO: this needs to add events to the DB in a way that does not
@@ -865,10 +988,21 @@ async fn fetch_events(
                 .await
             {
                 Ok(res) => {
-                    let (_, value) = crate::pdu::process_incoming_pdu(&res.pdu);
+                    let (event_id, value) = crate::pdu::process_incoming_pdu(&res.pdu);
                     match signature_and_hash_check(key_map, value) {
-                        Ok(pdu) => {
+                        Ok(mut val) => {
                             // TODO: add to our DB somehow?
+                            val.insert(
+                                "event_id".to_owned(),
+                                to_canonical_value(&event_id)
+                                    .expect("EventId is a valid CanonicalJsonValue"),
+                            );
+                            let pdu = serde_json::from_value::<PduEvent>(
+                                serde_json::to_value(val)
+                                    .expect("CanonicalJsonObj is a valid JsonValue"),
+                            )
+                            .expect("Pdu is valid Canonical JSON Map");
+
                             pdus.push(pdu);
                         }
                         Err(e) => {
@@ -898,7 +1032,7 @@ fn append_state(db: &Database, pdu: &PduEvent) -> Result<()> {
     db.rooms.append_to_state(&pdu_id, pdu, &db.globals)?;
     db.rooms.append_pdu(
         pdu,
-        &utils::to_canonical_object(pdu).expect("Pdu is valid canonical object"),
+        utils::to_canonical_object(pdu).expect("Pdu is valid canonical object"),
         count,
         pdu_id.clone().into(),
         &db.globals,

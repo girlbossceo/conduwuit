@@ -4,7 +4,7 @@ use ruma::{
         pdu::EventHash, room::member::MemberEventContent, AnyEvent, AnyRoomEvent, AnyStateEvent,
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
-    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
+    serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
     EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
@@ -286,12 +286,11 @@ impl state_res::Event for PduEvent {
 
 /// Generates a correct eventId for the incoming pdu.
 ///
-/// Returns a tuple of the new `EventId` and the PDU with the eventId inserted as a `serde_json::Value`.
+/// Returns a tuple of the new `EventId` and the PDU as a `BTreeMap<String, CanonicalJsonValue>`.
 pub(crate) fn process_incoming_pdu(
     pdu: &Raw<ruma::events::pdu::Pdu>,
 ) -> (EventId, CanonicalJsonObject) {
-    let mut value =
-        serde_json::from_str(pdu.json().get()).expect("A Raw<...> is always valid JSON");
+    let value = serde_json::from_str(pdu.json().get()).expect("A Raw<...> is always valid JSON");
 
     let event_id = EventId::try_from(&*format!(
         "${}",
@@ -299,11 +298,6 @@ pub(crate) fn process_incoming_pdu(
             .expect("ruma can calculate reference hashes")
     ))
     .expect("ruma's reference hashes are valid event ids");
-
-    value.insert(
-        "event_id".to_owned(),
-        to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
-    );
 
     (event_id, value)
 }

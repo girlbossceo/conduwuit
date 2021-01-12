@@ -681,13 +681,8 @@ async fn join_room_by_id_helper(
             pdu_id.push(0xff);
             pdu_id.extend_from_slice(&count.to_be_bytes());
             db.rooms.append_pdu(
-<<<<<<< HEAD
-                &PduEvent::from(&**pdu),
-                utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
-=======
                 &pdu,
-                &utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
->>>>>>> 6232d1f (Update state-res, use the new Event trait)
+                utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
                 count,
                 pdu_id.clone().into(),
                 &db.globals,
