@@ -287,7 +287,7 @@ impl state_res::Event for PduEvent {
 /// Generates a correct eventId for the incoming pdu.
 ///
 /// Returns a tuple of the new `EventId` and the PDU as a `BTreeMap<String, CanonicalJsonValue>`.
-pub(crate) fn process_incoming_pdu(
+pub(crate) fn gen_event_id_canonical_json(
     pdu: &Raw<ruma::events::pdu::Pdu>,
 ) -> (EventId, CanonicalJsonObject) {
     let value = serde_json::from_str(pdu.json().get()).expect("A Raw<...> is always valid JSON");

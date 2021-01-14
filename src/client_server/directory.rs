@@ -137,7 +137,7 @@ pub async fn get_public_rooms_filtered_helper(
             .sending
             .send_federation_request(
                 &db.globals,
-                other_server.to_owned(),
+                other_server,
                 federation::directory::get_public_rooms_filtered::v1::Request {
                     limit,
                     since: since.as_deref(),

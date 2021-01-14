@@ -303,7 +303,7 @@ impl Sending {
 
             server_server::send_request(
                 &globals,
-                server.clone(),
+                &*server,
                 send_transaction_message::v1::Request {
                     origin: globals.server_name(),
                     pdus: &pdu_jsons,
@@ -348,7 +348,7 @@ impl Sending {
     pub async fn send_federation_request<T: OutgoingRequest>(
         &self,
         globals: &crate::database::globals::Globals,
-        destination: Box<ServerName>,
+        destination: &ServerName,
         request: T,
     ) -> Result<T::IncomingResponse>
     where
