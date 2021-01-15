@@ -68,11 +68,7 @@ pub async fn send_message_event_route(
         },
         &sender_user,
         &body.room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     db.transaction_ids.add_txnid(
