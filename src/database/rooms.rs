@@ -65,6 +65,9 @@ pub struct Rooms {
     /// The state for a given state hash.
     pub(super) statekey_short: sled::Tree, // StateKey = EventType + StateKey, Short = Count
     pub(super) stateid_pduid: sled::Tree, // StateId = StateHash + Short, PduId = Count (without roomid)
+
+    /// Any pdu that has passed the steps up to auth with auth_events.
+    pub(super) eventid_outlierpdu: sled::Tree,
 }
 
 impl Rooms {
@@ -186,72 +189,6 @@ impl Rooms {
             }
         }
         Ok(events)
-    }
-
-    /// Returns a Vec of the related auth events to the given `event`.
-    ///
-    /// A recursive list of all the auth_events going back to `RoomCreate` for each event in `event_ids`.
-    pub fn auth_events_full(
-        &self,
-        _room_id: &RoomId,
-        event_ids: &[EventId],
-    ) -> Result<Vec<PduEvent>> {
-        let mut result = BTreeMap::new();
-        let mut stack = event_ids.to_vec();
-
-        // DFS for auth event chain
-        while !stack.is_empty() {
-            let ev_id = stack.pop().unwrap();
-            if result.contains_key(&ev_id) {
-                continue;
-            }
-
-            if let Some(ev) = self.get_pdu(&ev_id)? {
-                stack.extend(ev.auth_events());
-                result.insert(ev.event_id().clone(), ev);
-            }
-        }
-
-        Ok(result.into_iter().map(|(_, v)| v).collect())
-    }
-
-    /// Returns a Vec<EventId> representing the difference in auth chains of the given `events`.
-    ///
-    /// Each inner `Vec` of `event_ids` represents a state set (state at each forward extremity).
-    pub fn auth_chain_diff(
-        &self,
-        room_id: &RoomId,
-        event_ids: Vec<Vec<EventId>>,
-    ) -> Result<Vec<EventId>> {
-        use std::collections::BTreeSet;
-
-        let mut chains = vec![];
-        for ids in event_ids {
-            // TODO state store `auth_event_ids` returns self in the event ids list
-            // when an event returns `auth_event_ids` self is not contained
-            let chain = self
-                .auth_events_full(room_id, &ids)?
-                .into_iter()
-                .map(|pdu| pdu.event_id)
-                .collect::<BTreeSet<_>>();
-            chains.push(chain);
-        }
-
-        if let Some(chain) = chains.first() {
-            let rest = chains.iter().skip(1).flatten().cloned().collect();
-            let common = chain.intersection(&rest).collect::<Vec<_>>();
-
-            Ok(chains
-                .iter()
-                .flatten()
-                .filter(|id| !common.contains(&id))
-                .cloned()
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .collect())
-        } else {
-            Ok(vec![])
-        }
     }
 
     /// Generate a new StateHash.
@@ -475,6 +412,31 @@ impl Rooms {
         Ok(())
     }
 
+    /// Returns the pdu from the outlier tree.
+    pub fn get_pdu_outlier(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
+        self.eventid_outlierpdu
+            .get(event_id.as_bytes())?
+            .map_or(Ok(None), |pdu| {
+                Ok(Some(
+                    serde_json::from_slice(&pdu)
+                        .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
+                ))
+            })
+    }
+
+    /// Returns true if the event_id was previously inserted.
+    pub fn append_pdu_outlier(&self, event_id: &EventId, pdu: &PduEvent) -> Result<bool> {
+        log::info!("Number of outlier pdu's {}", self.eventid_outlierpdu.len());
+        let res = self
+            .eventid_outlierpdu
+            .insert(
+                event_id.as_bytes(),
+                &*serde_json::to_string(&pdu).expect("PduEvent is always a valid String"),
+            )
+            .map(|op| op.is_some())?;
+        Ok(res)
+    }
+
     /// Creates a new persisted data unit and adds it to a room.
     ///
     /// By this point the incoming event should be fully authenticated, no auth happens
@@ -515,6 +477,9 @@ impl Rooms {
                 error!("Invalid unsigned type in pdu.");
             }
         }
+
+        // We no longer keep this pdu as an outlier
+        self.eventid_outlierpdu.remove(pdu.event_id().as_bytes())?;
 
         self.replace_pdu_leaves(&pdu.room_id, &pdu.event_id)?;
 

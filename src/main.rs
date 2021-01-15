@@ -155,6 +155,7 @@ fn setup_rocket() -> rocket::Rocket {
                 .figment()
                 .extract()
                 .expect("It looks like your config is invalid. Please take a look at the error");
+
             let data = Database::load_or_create(config)
                 .await
                 .expect("config is valid");

@@ -22,7 +22,7 @@ use std::fs::remove_dir_all;
 use std::sync::{Arc, RwLock};
 use tokio::sync::Semaphore;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Config {
     server_name: Box<ServerName>,
     database_path: String,
@@ -102,7 +102,12 @@ impl Database {
         let (admin_sender, admin_receiver) = mpsc::unbounded();
 
         let db = Self {
-            globals: globals::Globals::load(db.open_tree("global")?, config).await?,
+            globals: globals::Globals::load(
+                db.open_tree("global")?,
+                db.open_tree("servertimeout_signingkey")?,
+                config,
+            )
+            .await?,
             users: users::Users {
                 userid_password: db.open_tree("userid_password")?,
                 userid_displayname: db.open_tree("userid_displayname")?,
@@ -155,6 +160,7 @@ impl Database {
                 stateid_pduid: db.open_tree("stateid_pduid")?,
                 pduid_statehash: db.open_tree("pduid_statehash")?,
                 roomid_statehash: db.open_tree("roomid_statehash")?,
+                eventid_outlierpdu: db.open_tree("eventid_outlierpdu")?,
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: db.open_tree("roomuserdataid_accountdata")?,
