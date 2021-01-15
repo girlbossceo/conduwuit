@@ -124,11 +124,7 @@ pub async fn leave_room_route(
         },
         &sender_user,
         &body.room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     db.flush().await?;
@@ -164,11 +160,7 @@ pub async fn invite_user_route(
             },
             &sender_user,
             &body.room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         db.flush().await?;
@@ -220,11 +212,7 @@ pub async fn kick_user_route(
         },
         &sender_user,
         &body.room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     db.flush().await?;
@@ -280,11 +268,7 @@ pub async fn ban_user_route(
         },
         &sender_user,
         &body.room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     db.flush().await?;
@@ -332,11 +316,7 @@ pub async fn unban_user_route(
         },
         &sender_user,
         &body.room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     db.flush().await?;
@@ -685,9 +665,7 @@ async fn join_room_by_id_helper(
                 utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
                 count,
                 pdu_id.clone().into(),
-                &db.globals,
-                &db.account_data,
-                &db.admin,
+                &db,
             )?;
 
             if state_events.contains(ev_id) {
@@ -717,11 +695,7 @@ async fn join_room_by_id_helper(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 

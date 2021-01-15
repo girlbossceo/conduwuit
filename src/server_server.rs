@@ -1113,9 +1113,7 @@ fn append_state(db: &Database, pdu: &PduEvent) -> Result<()> {
         utils::to_canonical_object(pdu).expect("Pdu is valid canonical object"),
         count,
         pdu_id.clone().into(),
-        &db.globals,
-        &db.account_data,
-        &db.admin,
+        &db,
     )?;
 
     // We set the room state after inserting the pdu, so that we never have a moment in time

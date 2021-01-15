@@ -2,7 +2,7 @@ mod edus;
 
 pub use edus::RoomEdus;
 
-use crate::{pdu::PduBuilder, utils, Error, PduEvent, Result};
+use crate::{pdu::PduBuilder, utils, Database, Error, PduEvent, Result};
 use log::error;
 use regex::Regex;
 use ring::digest;
@@ -447,9 +447,7 @@ impl Rooms {
         mut pdu_json: CanonicalJsonObject,
         count: u64,
         pdu_id: IVec,
-        globals: &super::globals::Globals,
-        account_data: &super::account_data::AccountData,
-        admin: &super::admin::Admin,
+        db: &Database,
     ) -> Result<()> {
         // Make unsigned fields correct. This is not properly documented in the spec, but state
         // events need to have previous content in the unsigned field, so clients can easily
@@ -486,7 +484,7 @@ impl Rooms {
         // Mark as read first so the sending client doesn't get a notification even if appending
         // fails
         self.edus
-            .private_read_set(&pdu.room_id, &pdu.sender, count, &globals)?;
+            .private_read_set(&pdu.room_id, &pdu.sender, count, &db.globals)?;
 
         self.pduid_pdu.insert(
             &pdu_id,
@@ -521,8 +519,8 @@ impl Rooms {
                             )
                         })?,
                         &pdu.sender,
-                        account_data,
-                        globals,
+                        &db.account_data,
+                        &db.globals,
                     )?;
                 }
             }
@@ -540,10 +538,10 @@ impl Rooms {
                         self.tokenids.insert(key, &[])?;
                     }
 
-                    if body.starts_with(&format!("@conduit:{}: ", globals.server_name()))
+                    if body.starts_with(&format!("@conduit:{}: ", db.globals.server_name()))
                         && self
                             .id_from_alias(
-                                &format!("#admins:{}", globals.server_name())
+                                &format!("#admins:{}", db.globals.server_name())
                                     .try_into()
                                     .expect("#admins:server_name is a valid room alias"),
                             )?
@@ -570,10 +568,11 @@ impl Rooms {
                                         );
                                         match parsed_config {
                                             Ok(yaml) => {
-                                                admin.send(AdminCommand::RegisterAppservice(yaml));
+                                                db.admin
+                                                    .send(AdminCommand::RegisterAppservice(yaml));
                                             }
                                             Err(e) => {
-                                                admin.send(AdminCommand::SendMessage(
+                                                db.admin.send(AdminCommand::SendMessage(
                                                     message::MessageEventContent::text_plain(
                                                         format!(
                                                             "Could not parse appservice config: {}",
@@ -584,7 +583,7 @@ impl Rooms {
                                             }
                                         }
                                     } else {
-                                        admin.send(AdminCommand::SendMessage(
+                                        db.admin.send(AdminCommand::SendMessage(
                                             message::MessageEventContent::text_plain(
                                                 "Expected code block in command body.",
                                             ),
@@ -592,10 +591,10 @@ impl Rooms {
                                     }
                                 }
                                 "list_appservices" => {
-                                    admin.send(AdminCommand::ListAppservices);
+                                    db.admin.send(AdminCommand::ListAppservices);
                                 }
                                 _ => {
-                                    admin.send(AdminCommand::SendMessage(
+                                    db.admin.send(AdminCommand::SendMessage(
                                         message::MessageEventContent::text_plain(format!(
                                             "Command: {}, Args: {:?}",
                                             command, args
@@ -696,17 +695,12 @@ impl Rooms {
     }
 
     /// Creates a new persisted data unit and adds it to a room.
-    #[allow(clippy::too_many_arguments)]
     pub fn build_and_append_pdu(
         &self,
         pdu_builder: PduBuilder,
         sender: &UserId,
         room_id: &RoomId,
-        globals: &super::globals::Globals,
-        sending: &super::sending::Sending,
-        admin: &super::admin::Admin,
-        account_data: &super::account_data::AccountData,
-        appservice: &super::appservice::Appservice,
+        db: &Database,
     ) -> Result<EventId> {
         let PduBuilder {
             event_type,
@@ -789,7 +783,7 @@ impl Rooms {
             if !match event_type {
                 EventType::RoomEncryption => {
                     // Only allow encryption events if it's allowed in the config
-                    globals.allow_encryption()
+                    db.globals.allow_encryption()
                 }
                 EventType::RoomMember => {
                     let prev_event = self
@@ -895,13 +889,13 @@ impl Rooms {
         // Add origin because synapse likes that (and it's required in the spec)
         pdu_json.insert(
             "origin".to_owned(),
-            to_canonical_value(globals.server_name())
+            to_canonical_value(db.globals.server_name())
                 .expect("server name is a valid CanonicalJsonValue"),
         );
 
         ruma::signatures::hash_and_sign_event(
-            globals.server_name().as_str(),
-            globals.keypair(),
+            db.globals.server_name().as_str(),
+            db.globals.keypair(),
             &mut pdu_json,
             &RoomVersionId::Version6,
         )
@@ -922,24 +916,16 @@ impl Rooms {
 
         // Increment the last index and use that
         // This is also the next_batch/since value
-        let count = globals.next_count()?;
+        let count = db.globals.next_count()?;
         let mut pdu_id = room_id.as_bytes().to_vec();
         pdu_id.push(0xff);
         pdu_id.extend_from_slice(&count.to_be_bytes());
 
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.
-        let statehashid = self.append_to_state(&pdu_id, &pdu, &globals)?;
+        let statehashid = self.append_to_state(&pdu_id, &pdu, &db.globals)?;
 
-        self.append_pdu(
-            &pdu,
-            pdu_json,
-            count,
-            pdu_id.clone().into(),
-            globals,
-            account_data,
-            admin,
-        )?;
+        self.append_pdu(&pdu, pdu_json, count, pdu_id.clone().into(), db)?;
 
         // We set the room state after inserting the pdu, so that we never have a moment in time
         // where events in the current room state do not exist
@@ -948,31 +934,28 @@ impl Rooms {
         for server in self
             .room_servers(room_id)
             .filter_map(|r| r.ok())
-            .filter(|server| &**server != globals.server_name())
+            .filter(|server| &**server != db.globals.server_name())
         {
-            sending.send_pdu(&server, &pdu_id)?;
+            db.sending.send_pdu(&server, &pdu_id)?;
         }
 
-        for appservice in appservice.iter_all().filter_map(|r| r.ok()) {
+        for appservice in db.appservice.iter_all().filter_map(|r| r.ok()) {
             if let Some(namespaces) = appservice.1.get("namespaces") {
                 let users = namespaces
                     .get("users")
                     .and_then(|users| users.as_sequence())
-                    .map_or_else(
-                        || Vec::new(),
-                        |users| {
-                            users
-                                .iter()
-                                .map(|users| {
-                                    users
-                                        .get("regex")
-                                        .and_then(|regex| regex.as_str())
-                                        .and_then(|regex| Regex::new(regex).ok())
-                                })
-                                .filter_map(|o| o)
-                                .collect::<Vec<_>>()
-                        },
-                    );
+                    .map_or_else(Vec::new, |users| {
+                        users
+                            .iter()
+                            .map(|users| {
+                                users
+                                    .get("regex")
+                                    .and_then(|regex| regex.as_str())
+                                    .and_then(|regex| Regex::new(regex).ok())
+                            })
+                            .filter_map(|o| o)
+                            .collect::<Vec<_>>()
+                    });
                 let aliases = namespaces
                     .get("aliases")
                     .and_then(|users| users.get("regex"))
@@ -989,25 +972,31 @@ impl Rooms {
                     .get("sender_localpart")
                     .and_then(|string| string.as_str())
                     .and_then(|string| {
-                        UserId::parse_with_server_name(string, globals.server_name()).ok()
+                        UserId::parse_with_server_name(string, db.globals.server_name()).ok()
                     });
 
-                if bridge_user_id.map_or(false, |bridge_user_id| {
-                    self.is_joined(&bridge_user_id, room_id).unwrap_or(false)
-                }) || users.iter().any(|users| {
+                let user_is_joined =
+                    |bridge_user_id| self.is_joined(&bridge_user_id, room_id).unwrap_or(false);
+                let matching_users = |users: &Regex| {
                     users.is_match(pdu.sender.as_str())
                         || pdu.kind == EventType::RoomMember
                             && pdu
                                 .state_key
                                 .as_ref()
                                 .map_or(false, |state_key| users.is_match(&state_key))
-                }) || aliases.map_or(false, |aliases| {
+                };
+                let matching_aliases = |aliases: Regex| {
                     room_aliases
                         .filter_map(|r| r.ok())
                         .any(|room_alias| aliases.is_match(room_alias.as_str()))
-                }) || rooms.map_or(false, |rooms| rooms.contains(&room_id.as_str().into()))
+                };
+
+                if bridge_user_id.map_or(false, user_is_joined)
+                    || users.iter().any(matching_users)
+                    || aliases.map_or(false, matching_aliases)
+                    || rooms.map_or(false, |rooms| rooms.contains(&room_id.as_str().into()))
                 {
-                    sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
+                    db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
                 }
             }
         }

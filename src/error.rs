@@ -121,10 +121,12 @@ impl log::Log for ConduitLogger {
     fn log(&self, record: &log::Record<'_>) {
         let output = format!("{} - {}", record.level(), record.args());
 
+        let match_mod_path =
+            |path: &str| path.starts_with("conduit::") || path.starts_with("state");
+
         if self.enabled(record.metadata())
-            && (record.module_path().map_or(false, |path| {
-                path.starts_with("conduit::") || path.starts_with("state")
-            }) || record
+            && (record.module_path().map_or(false, match_mod_path)
+                || record
                     .module_path()
                     .map_or(true, |path| !path.starts_with("rocket::")) // Rockets logs are annoying
                     && record.metadata().level() <= log::Level::Warn)

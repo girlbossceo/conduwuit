@@ -148,6 +148,15 @@ impl Sending {
                             let servernamepduid = key.clone();
                             let mut parts = servernamepduid.splitn(2, |&b| b == 0xff);
 
+                            let exponential_backoff = |(tries, instant): &(u32, Instant)| {
+                                // Fail if a request has failed recently (exponential backoff)
+                                let mut min_elapsed_duration = Duration::from_secs(60) * (*tries) * (*tries);
+                                if min_elapsed_duration > Duration::from_secs(60*60*24) {
+                                    min_elapsed_duration = Duration::from_secs(60*60*24);
+                                }
+
+                                instant.elapsed() < min_elapsed_duration
+                            };
                             if let Some((server, is_appservice, pdu_id)) = utils::string_from_bytes(
                                     parts
                                         .next()
@@ -172,15 +181,7 @@ impl Sending {
                                     .map(|pdu_id| (server, is_appservice, pdu_id))
                                 )
                                 .filter(|(server, is_appservice, _)| {
-                                    if last_failed_try.get(server).map_or(false, |(tries, instant)| {
-                                        // Fail if a request has failed recently (exponential backoff)
-                                        let mut min_elapsed_duration = Duration::from_secs(60) * *tries * *tries;
-                                        if min_elapsed_duration > Duration::from_secs(60*60*24) {
-                                            min_elapsed_duration = Duration::from_secs(60*60*24);
-                                        }
-
-                                        instant.elapsed() < min_elapsed_duration
-                                    }) {
+                                    if last_failed_try.get(server).map_or(false, exponential_backoff) {
                                         return false;
                                     }
 

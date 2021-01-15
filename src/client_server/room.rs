@@ -65,11 +65,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 2. Let the room creator join
@@ -90,11 +86,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 3. Power levels
@@ -135,11 +127,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 4. Events set by preset
@@ -175,11 +163,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 4.2 History Visibility
@@ -196,11 +180,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 4.3 Guest Access
@@ -225,11 +205,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 5. Events listed in initial_state
@@ -248,11 +224,7 @@ pub async fn create_room_route(
             pdu_builder,
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -273,11 +245,7 @@ pub async fn create_room_route(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -295,11 +263,7 @@ pub async fn create_room_route(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -322,11 +286,7 @@ pub async fn create_room_route(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -413,11 +373,7 @@ pub async fn upgrade_room_route(
         },
         sender_user,
         &body.room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // Get the old room federations status
@@ -457,11 +413,7 @@ pub async fn upgrade_room_route(
         },
         sender_user,
         &replacement_room,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // Join the new room
@@ -482,11 +434,7 @@ pub async fn upgrade_room_route(
         },
         sender_user,
         &replacement_room,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // Recommended transferable state events list from the specs
@@ -519,11 +467,7 @@ pub async fn upgrade_room_route(
             },
             sender_user,
             &replacement_room,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -566,11 +510,7 @@ pub async fn upgrade_room_route(
         },
         sender_user,
         &body.room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     db.flush().await?;
