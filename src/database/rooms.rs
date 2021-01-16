@@ -150,7 +150,7 @@ impl Rooms {
         }
     }
 
-    /// Returns the last state hash key added to the db.
+    /// Returns the state hash for this pdu.
     pub fn pdu_state_hash(&self, pdu_id: &[u8]) -> Result<Option<StateHashId>> {
         Ok(self.pduid_statehash.get(pdu_id)?)
     }
