@@ -251,7 +251,7 @@ impl Users {
     }
 
     /// Replaces the access token of one device.
-    fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
+    pub fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
         let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());

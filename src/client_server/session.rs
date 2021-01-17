@@ -77,7 +77,6 @@ pub async fn login_route(
 
     // Generate new device id if the user didn't specify one
     let device_id = body
-        .body
         .device_id
         .clone()
         .unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
@@ -85,14 +84,32 @@ pub async fn login_route(
     // Generate a new token for the device
     let token = utils::random_string(TOKEN_LENGTH);
 
-    // TODO: Don't always create a new device
-    // Add device
-    db.users.create_device(
-        &user_id,
-        &device_id,
-        &token,
-        body.initial_device_display_name.clone(),
-    )?;
+    let mut create_new_device = true;
+
+    // Only search db for existing device if one was provided in the request
+    match &body.device_id {
+        Some(_) => {
+            // Look to see if provided device_id already exists
+            if let Some(_) = db.users.all_device_ids(&user_id).find(|x| match x {
+                Ok(x) if **x == *device_id => true,
+                _ => false,
+            }) {
+                // Replace token for existing device
+                db.users.set_token(&user_id, &device_id, &token)?;
+                create_new_device = false;
+            }
+        }
+        _ => (),
+    };
+
+    if create_new_device {
+        db.users.create_device(
+            &user_id,
+            &device_id,
+            &token,
+            body.initial_device_display_name.clone(),
+        )?;
+    }
 
     info!("{} logged in", user_id);
 
