@@ -84,25 +84,17 @@ pub async fn login_route(
     // Generate a new token for the device
     let token = utils::random_string(TOKEN_LENGTH);
 
-    let mut create_new_device = true;
+    // Determine if device_id was provided and exists in the db for this user
+    let device_exists = body.device_id.as_ref().map_or(false, |device_id| {
+        db.users
+            .all_device_ids(&user_id)
+            .find(|x| x.as_ref().map_or(false, |v| v == device_id))
+            .is_some()
+    });
 
-    // Only search db for existing device if one was provided in the request
-    match &body.device_id {
-        Some(_) => {
-            // Look to see if provided device_id already exists
-            if let Some(_) = db.users.all_device_ids(&user_id).find(|x| match x {
-                Ok(x) if **x == *device_id => true,
-                _ => false,
-            }) {
-                // Replace token for existing device
-                db.users.set_token(&user_id, &device_id, &token)?;
-                create_new_device = false;
-            }
-        }
-        _ => (),
-    };
-
-    if create_new_device {
+    if device_exists {
+        db.users.set_token(&user_id, &device_id, &token)?;
+    } else {
         db.users.create_device(
             &user_id,
             &device_id,
