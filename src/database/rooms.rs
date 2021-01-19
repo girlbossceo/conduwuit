@@ -397,8 +397,11 @@ impl Rooms {
         Ok(events)
     }
 
-    /// Force an update to the leaves of a room.
-    pub fn force_pdu_leaves(&self, room_id: &RoomId, event_ids: &[EventId]) -> Result<()> {
+    /// Replace the leaves of a room.
+    ///
+    /// The provided `event_ids` become the new leaves, this enables an event having multiple
+    /// `prev_events`.
+    pub fn replace_pdu_leaves(&self, room_id: &RoomId, event_ids: &[EventId]) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -411,21 +414,6 @@ impl Rooms {
             key.extend_from_slice(event_id.as_bytes());
             self.roomid_pduleaves.insert(&key, event_id.as_bytes())?;
         }
-
-        Ok(())
-    }
-
-    /// Replace the leaves of a room with a new event.
-    pub fn replace_pdu_leaves(&self, room_id: &RoomId, event_id: &EventId) -> Result<()> {
-        let mut prefix = room_id.as_bytes().to_vec();
-        prefix.push(0xff);
-
-        for key in self.roomid_pduleaves.scan_prefix(&prefix).keys() {
-            self.roomid_pduleaves.remove(key?)?;
-        }
-
-        prefix.extend_from_slice(event_id.as_bytes());
-        self.roomid_pduleaves.insert(&prefix, event_id.as_bytes())?;
 
         Ok(())
     }
@@ -465,6 +453,7 @@ impl Rooms {
         mut pdu_json: CanonicalJsonObject,
         count: u64,
         pdu_id: IVec,
+        leaves: &[EventId],
         db: &Database,
     ) -> Result<()> {
         // Make unsigned fields correct. This is not properly documented in the spec, but state
@@ -497,7 +486,7 @@ impl Rooms {
         // We no longer keep this pdu as an outlier
         self.eventid_outlierpdu.remove(pdu.event_id().as_bytes())?;
 
-        self.replace_pdu_leaves(&pdu.room_id, &pdu.event_id)?;
+        self.replace_pdu_leaves(&pdu.room_id, leaves)?;
 
         // Mark as read first so the sending client doesn't get a notification even if appending
         // fails
@@ -943,7 +932,17 @@ impl Rooms {
         // pdu without it's state. This is okay because append_pdu can't fail.
         let statehashid = self.append_to_state(&pdu_id, &pdu, &db.globals)?;
 
-        self.append_pdu(&pdu, pdu_json, count, pdu_id.clone().into(), db)?;
+        // remove the
+        self.append_pdu(
+            &pdu,
+            pdu_json,
+            count,
+            pdu_id.clone().into(),
+            // Since this PDU references all pdu_leaves we can update the leaves
+            // of the room
+            &[pdu.event_id.clone()],
+            db,
+        )?;
 
         // We set the room state after inserting the pdu, so that we never have a moment in time
         // where events in the current room state do not exist
