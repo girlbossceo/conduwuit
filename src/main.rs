@@ -28,6 +28,11 @@ fn setup_rocket() -> rocket::Rocket {
     // Force log level off, so we can use our own logger
     std::env::set_var("CONDUIT_LOG_LEVEL", "off");
 
+    std::env::set_var(
+        "CONDUIT_CONFIG",
+        "/home/devinr/aprog/rust/__forks__/conduit/conduit.toml",
+    );
+
     let config =
         Figment::from(rocket::Config::release_default())
             .merge(
