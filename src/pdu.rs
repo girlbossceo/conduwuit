@@ -9,7 +9,7 @@ use ruma::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{collections::BTreeMap, convert::TryFrom, time::UNIX_EPOCH};
+use std::{cmp::Ordering, collections::BTreeMap, convert::TryFrom, time::UNIX_EPOCH};
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct PduEvent {
@@ -281,6 +281,25 @@ impl state_res::Event for PduEvent {
     }
     fn unsigned(&self) -> &BTreeMap<String, serde_json::Value> {
         &self.unsigned
+    }
+}
+
+// These impl's allow us to dedup state snapshots when resolving state
+// for incoming events (federation/send/{txn}).
+impl Eq for PduEvent {}
+impl PartialEq for PduEvent {
+    fn eq(&self, other: &Self) -> bool {
+        self.event_id == other.event_id
+    }
+}
+impl PartialOrd for PduEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.event_id.partial_cmp(&other.event_id)
+    }
+}
+impl Ord for PduEvent {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.event_id.cmp(&other.event_id)
     }
 }
 
