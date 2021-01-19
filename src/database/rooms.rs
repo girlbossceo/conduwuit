@@ -397,6 +397,24 @@ impl Rooms {
         Ok(events)
     }
 
+    /// Force an update to the leaves of a room.
+    pub fn force_pdu_leaves(&self, room_id: &RoomId, event_ids: &[EventId]) -> Result<()> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        for key in self.roomid_pduleaves.scan_prefix(&prefix).keys() {
+            self.roomid_pduleaves.remove(key?)?;
+        }
+
+        for event_id in event_ids.iter() {
+            let mut key = prefix.to_owned();
+            key.extend_from_slice(event_id.as_bytes());
+            self.roomid_pduleaves.insert(&key, event_id.as_bytes())?;
+        }
+
+        Ok(())
+    }
+
     /// Replace the leaves of a room with a new event.
     pub fn replace_pdu_leaves(&self, room_id: &RoomId, event_id: &EventId) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();
