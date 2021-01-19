@@ -24,7 +24,7 @@ use ruma::{
 };
 use state_res::{Event, EventMap, StateMap};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet},
     convert::TryFrom,
     fmt::Debug,
     future::Future,
@@ -1245,12 +1245,9 @@ fn append_state(db: &Database, pdu: &PduEvent, new_room_leaves: &[EventId]) -> R
         utils::to_canonical_object(pdu).expect("Pdu is valid canonical object"),
         count,
         pdu_id.clone().into(),
+        &new_room_leaves,
         &db,
     )?;
-
-    // If we update the room leaves after calling append_pdu it will stick since append_pdu
-    // calls replace_pdu_leaves with only the given event.
-    db.rooms.force_pdu_leaves(pdu.room_id(), new_room_leaves)?;
 
     // We set the room state after inserting the pdu, so that we never have a moment in time
     // where events in the current room state do not exist

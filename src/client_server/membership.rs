@@ -665,6 +665,8 @@ async fn join_room_by_id_helper(
                 utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
                 count,
                 pdu_id.clone().into(),
+                // TODO: can we simplify the DAG or should we copy it exactly??
+                &pdu.prev_events,
                 &db,
             )?;
 
