@@ -9,7 +9,7 @@ ARG SCCACHE_ENDPOINT
 ARG SCCACHE_S3_USE_SSL
 
 COPY . .
-RUN cargo build
+RUN test -e target/release/cond_test || cargo build --release --offline
 
 FROM valkum/docker-rust-ci:latest
 WORKDIR /workdir
