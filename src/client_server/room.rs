@@ -220,12 +220,8 @@ pub async fn create_room_route(
             continue;
         }
 
-        db.rooms.build_and_append_pdu(
-            pdu_builder,
-            &sender_user,
-            &room_id,
-            &db,
-        )?;
+        db.rooms
+            .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db)?;
     }
 
     // 6. Events implied by name and topic
