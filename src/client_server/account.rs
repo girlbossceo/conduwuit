@@ -659,3 +659,17 @@ pub async fn deactivate_route(
     }
     .into())
 }
+
+/*/
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/account/3pid", data = "<body>")
+)]
+pub async fn third_party_route(
+    body: Ruma<account::add_3pid::Request<'_>>,
+) -> ConduitResult<account::add_3pid::Response> {
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+    Ok(account::add_3pid::Response::default().into())
+}
+*/

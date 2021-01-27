@@ -531,6 +531,9 @@ impl Rooms {
         self.eventid_pduid
             .insert(pdu.event_id.as_bytes(), &*pdu_id)?;
 
+        // See if the event matches any known pushers
+        db.sending.send_push_pdu(&*pdu_id)?;
+
         match pdu.kind {
             EventType::RoomRedaction => {
                 if let Some(redact_id) = &pdu.redacts {

@@ -4,6 +4,7 @@ pub mod appservice;
 pub mod globals;
 pub mod key_backups;
 pub mod media;
+pub mod pusher;
 pub mod rooms;
 pub mod sending;
 pub mod transaction_ids;
@@ -17,9 +18,11 @@ use log::info;
 use rocket::futures::{self, channel::mpsc};
 use ruma::{DeviceId, ServerName, UserId};
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::fs::remove_dir_all;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    fs::remove_dir_all,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Semaphore;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -73,6 +76,7 @@ pub struct Database {
     pub sending: sending::Sending,
     pub admin: admin::Admin,
     pub appservice: appservice::Appservice,
+    pub pusher: pusher::PushData,
     pub _db: sled::Db,
 }
 
@@ -187,6 +191,7 @@ impl Database {
                 cached_registrations: Arc::new(RwLock::new(HashMap::new())),
                 id_appserviceregistrations: db.open_tree("id_appserviceregistrations")?,
             },
+            pusher: pusher::PushData::new(&db)?,
             _db: db,
         };
 
