@@ -4,10 +4,11 @@ use ruma::{
     api::federation::discovery::{ServerSigningKeys, VerifyKey},
     ServerName, ServerSigningKeyId,
 };
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::time::Duration;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 use trust_dns_resolver::TokioAsyncResolver;
 
 pub const COUNTER: &str = "c";

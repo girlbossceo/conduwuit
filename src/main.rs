@@ -18,11 +18,15 @@ pub use rocket::State;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
 use log::LevelFilter;
-use rocket::figment::{
-    providers::{Env, Format, Toml},
-    Figment,
+use rocket::{
+    catch, catchers,
+    fairing::AdHoc,
+    figment::{
+        providers::{Env, Format, Toml},
+        Figment,
+    },
+    routes, Request,
 };
-use rocket::{catch, catchers, fairing::AdHoc, routes, Request};
 
 fn setup_rocket() -> rocket::Rocket {
     // Force log level off, so we can use our own logger
@@ -143,6 +147,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_key_changes_route,
                 client_server::get_pushers_route,
                 client_server::set_pushers_route,
+                // client_server::third_party_route,
                 client_server::upgrade_room_route,
                 server_server::get_server_version_route,
                 server_server::get_server_keys_route,
@@ -165,8 +170,7 @@ fn setup_rocket() -> rocket::Rocket {
                 .await
                 .expect("config is valid");
 
-            data.sending
-                .start_handler(&data.globals, &data.rooms, &data.appservice);
+            data.sending.start_handler(&data);
             log::set_boxed_logger(Box::new(ConduitLogger {
                 db: data.clone(),
                 last_logs: Default::default(),
