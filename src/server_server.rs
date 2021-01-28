@@ -870,36 +870,20 @@ pub async fn send_transaction_message_route<'a>(
             }
         };
 
-        if !state_res::event_auth::auth_check(
-            &RoomVersionId::Version6,
+        // Add the event to the DB and update the forward extremities (via roomid_pduleaves).
+        append_incoming_pdu(
+            &db,
             &pdu,
-            single_prev,
-            &state_at_forks,
-            None,
-        )
-        .map_err(|_e| Error::Conflict("Auth check failed"))?
-        {
-            // Soft fail, we add the event as an outlier.
-            resolved_map.insert(
-                pdu.event_id().clone(),
-                Err("Event has been soft failed".into()),
-            );
-        } else {
-            // Add the event to the DB and update the forward extremities (via roomid_pduleaves).
-            append_incoming_pdu(
-                &db,
-                &pdu,
-                &extremities,
-                if update_state {
-                    Some(state_at_forks)
-                } else {
-                    None
-                },
-            )?;
+            &extremities,
+            if update_state {
+                Some(state_at_forks)
+            } else {
+                None
+            },
+        )?;
 
-            // Event has passed all auth/stateres checks
-            resolved_map.insert(pdu.event_id().clone(), Ok(()));
-        }
+        // Event has passed all auth/stateres checks
+        resolved_map.insert(pdu.event_id().clone(), Ok(()));
     }
 
     Ok(send_transaction_message::v1::Response { pdus: resolved_map }.into())
@@ -1210,8 +1194,7 @@ async fn calculate_forward_extremities(
 /// Update the room state to be the resolved state and add the fully auth'ed event
 /// to the DB.
 ///
-/// TODO: If we force the state we need to validate all events in that state
-/// any events we fetched from another server need to be fully verified?
+/// TODO: Since all these events passed state resolution can we trust them to add
 fn append_incoming_pdu(
     db: &Database,
     pdu: &PduEvent,
