@@ -496,7 +496,7 @@ pub async fn send_transaction_message_route<'a>(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    dbg!(&*body);
+    // dbg!(&*body);
 
     for edu in &body.edus {
         match serde_json::from_str::<send_transaction_message::v1::Edu>(edu.json().get()) {
@@ -1148,8 +1148,6 @@ async fn calculate_forward_extremities(
 
             fork_states.insert(state);
         } else {
-            error!("Forward extremity not found... {}", id);
-
             let res = db
                 .sending
                 .send_federation_request(
@@ -1188,7 +1186,7 @@ async fn calculate_forward_extremities(
         fork_states.insert(current_state);
     }
 
-    Ok((fork_states, dbg!(current_leaves)))
+    Ok((fork_states, current_leaves))
 }
 
 /// Update the room state to be the resolved state and add the fully auth'ed event
