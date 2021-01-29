@@ -182,7 +182,8 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db).await?;
+                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    break;
                 }
             }
             ".m.rule.invite_for_me" => {
@@ -201,7 +202,9 @@ pub async fn send_push_notice(
                                 _ => None,
                             })
                             .collect::<Vec<_>>();
-                        send_notice(unread, pushers, tweaks, pdu, db).await?;
+                        send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
+                            .await?;
+                        break;
                     }
                 }
             }
@@ -231,7 +234,9 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pushers, tweaks, pdu, db).await?;
+                            send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
+                                .await?;
+                            break;
                         }
                     }
                 }
@@ -255,7 +260,9 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pushers, tweaks, pdu, db).await?;
+                            send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
+                                .await?;
+                            break;
                         }
                     }
                 }
@@ -270,7 +277,8 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db).await?;
+                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    break;
                 }
             }
             ".m.rule.roomnotif" => {
@@ -307,7 +315,9 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pushers, tweaks, pdu, db).await?;
+                            send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
+                                .await?;
+                            break;
                         }
                     }
                 }
@@ -331,7 +341,9 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pushers, tweaks, pdu, db).await?;
+                            send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
+                                .await?;
+                            break;
                         }
                     }
                 }
@@ -346,7 +358,8 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db).await?;
+                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    break;
                 }
             }
             ".m.rule.encrypted_room_one_to_one" => {
@@ -361,7 +374,8 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db).await?;
+                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    break;
                 }
             }
             ".m.rule.room_one_to_one" => {
@@ -376,7 +390,8 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db).await?;
+                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    break;
                 }
             }
             ".m.rule.message" => {
@@ -389,7 +404,8 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db).await?;
+                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    break;
                 }
             }
             ".m.rule.encrypted" => {
@@ -402,12 +418,14 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db).await?;
+                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    break;
                 }
             }
             _ => {}
         }
     }
+
     Ok(())
 }
 
@@ -417,6 +435,7 @@ async fn send_notice(
     tweaks: Vec<Tweak>,
     event: &PduEvent,
     db: &Database,
+    name: &str,
 ) -> Result<()> {
     let (http, _emails): (Vec<&Pusher>, _) = pushers
         .iter()
@@ -436,10 +455,15 @@ async fn send_notice(
         };
 
         let mut device = Device::new(pusher.app_id.clone(), pusher.pushkey.clone());
-        device.data = Some(pusher.data.clone());
+        let mut data_minus_url = pusher.data.clone();
+        // The url must be stripped off according to spec
+        data_minus_url.url = None;
+        device.data = Some(data_minus_url);
 
-        // this is not done if "event_id_only" is the format
-        device.tweaks = tweaks.clone();
+        // Tweaks are only added if the format is NOT event_id_only
+        if !event_id_only {
+            device.tweaks = tweaks.clone();
+        }
 
         let d = &[device];
         let mut notifi = Notification::new(d);
@@ -459,12 +483,13 @@ async fn send_notice(
         }
 
         if event_id_only {
-            // send_request(
-            //     &db.globals,
-            //     &url,
-            //     send_event_notification::v1::Request::new(notifi),
-            // )
-            // .await?;
+            error!("SEND PUSH NOTICE `{}`", name);
+        // send_request(
+        //     &db.globals,
+        //     &url,
+        //     send_event_notification::v1::Request::new(notifi),
+        // )
+        // .await?;
         } else {
             notifi.sender = Some(&event.sender);
             notifi.event_type = Some(&event.kind);
@@ -474,8 +499,8 @@ async fn send_notice(
                 notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
             }
 
-            let name = db.users.displayname(&event.sender)?;
-            notifi.sender_display_name = name.as_deref();
+            let user_name = db.users.displayname(&event.sender)?;
+            notifi.sender_display_name = user_name.as_deref();
             let room_name = db
                 .rooms
                 .room_state_get(&event.room_id, &EventType::RoomName, "")?
@@ -486,12 +511,13 @@ async fn send_notice(
                 .flatten();
             notifi.room_name = room_name.as_deref();
 
-            send_request(
-                &db.globals,
-                &url,
-                send_event_notification::v1::Request::new(notifi),
-            )
-            .await?;
+            error!("SEND PUSH NOTICE Full `{}`", name);
+            // send_request(
+            //     &db.globals,
+            //     &url,
+            //     send_event_notification::v1::Request::new(notifi),
+            // )
+            // .await?;
         }
     }
 

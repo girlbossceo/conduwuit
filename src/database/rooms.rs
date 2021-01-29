@@ -27,10 +27,9 @@ use std::{
     convert::{TryFrom, TryInto},
     mem,
     sync::Arc,
-    time::Duration,
 };
 
-use super::{admin::AdminCommand, sending::Sending};
+use super::admin::AdminCommand;
 
 /// The unique identifier of each state group.
 ///

@@ -364,17 +364,33 @@ impl Sending {
                     .filter_map(|r| r.ok())
                     .collect::<Vec<_>>();
 
-                dbg!(&pdus);
-
                 for pdu in &pdus {
                     // Redacted events are not notification targets (we don't send push for them)
                     if pdu.unsigned.get("redacted_because").is_some() {
                         continue;
                     }
-                    for user in db.rooms.room_members(&pdu.room_id) {
-                        dbg!(&user);
 
+                    // Skip events that came from the admin room
+                    if db
+                        .rooms
+                        .room_aliases(&pdu.room_id)
+                        .any(|alias| match alias {
+                            Ok(a) => a.as_str().starts_with("#admins:"),
+                            _ => false,
+                        })
+                        || pdu.sender.as_str().starts_with("@conduit:")
+                    {
+                        continue;
+                    }
+
+                    for user in db.rooms.room_members(&pdu.room_id) {
                         let user = user.map_err(|e| (OutgoingKind::Push(id.clone()), e))?;
+
+                        // Don't notify the user of their own events
+                        if user == pdu.sender {
+                            continue;
+                        }
+
                         let pushers = db
                             .pusher
                             .get_pusher(&user)
@@ -409,10 +425,6 @@ impl Sending {
                             // Just return zero unread messages
                             uint!(0)
                         };
-
-                        dbg!(&pushers);
-
-                        // dbg!(&rules_for_user);
 
                         crate::database::pusher::send_push_notice(
                             &user,

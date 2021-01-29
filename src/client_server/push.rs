@@ -94,7 +94,10 @@ pub async fn get_pushrule_route(
     if let Some(rule) = rule {
         Ok(get_pushrule::Response { rule }.into())
     } else {
-        Err(Error::BadRequest(ErrorKind::NotFound, "Push rule not found.").into())
+        Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Push rule not found.",
+        ))
     }
 }
 
