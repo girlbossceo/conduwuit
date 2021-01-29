@@ -1,7 +1,6 @@
 use crate::{client_server, utils, ConduitResult, Database, Error, PduEvent, Result, Ruma};
-use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
-use log::{error, info, warn};
+use log::{info, warn};
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
     api::{
@@ -12,7 +11,7 @@ use ruma::{
                 VerifyKey,
             },
             event::{get_event, get_missing_events, get_room_state_ids},
-            query::get_profile_information,
+            query::get_profile_information::{self, v1::ProfileField},
             transactions::send_transaction_message,
         },
         OutgoingRequest,
@@ -222,7 +221,7 @@ fn add_port_to_hostname(destination_str: String) -> String {
 /// Returns: actual_destination, host header
 /// Implemented according to the specification at https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names
 /// Numbers in comments below refer to bullet points in linked section of specification
-async fn find_actual_destination(
+pub(crate) async fn find_actual_destination(
     globals: &crate::database::globals::Globals,
     destination: &ServerName,
 ) -> (String, Option<String>) {
