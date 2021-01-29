@@ -25,7 +25,7 @@ use ruma::{
 };
 use state_res::{Event, EventMap, StateMap};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     convert::TryFrom,
     fmt::Debug,
     future::Future,
@@ -839,7 +839,7 @@ pub async fn send_transaction_message_route<'a>(
                     .map(|(_, pdu)| (pdu.event_id().clone(), pdu)),
             );
 
-            match state_res::StateResolution::resolve(
+            let res = match state_res::StateResolution::resolve(
                 &pdu.room_id,
                 &RoomVersionId::Version6,
                 &fork_states
@@ -856,10 +856,7 @@ pub async fn send_transaction_message_route<'a>(
                     .collect(),
                 &mut auth_cache,
             ) {
-                Ok(res) => res
-                    .into_iter()
-                    .map(|(k, v)| (k, Arc::new(db.rooms.get_pdu(&v).unwrap().unwrap())))
-                    .collect(),
+                Ok(res) => res,
                 Err(_) => {
                     resolved_map.insert(
                         pdu.event_id().clone(),
@@ -867,7 +864,29 @@ pub async fn send_transaction_message_route<'a>(
                     );
                     continue 'main_pdu_loop;
                 }
+            };
+            let mut resolved = BTreeMap::new();
+            for (k, id) in res {
+                // We should know of the event but just incase
+                let pdu = match auth_cache.get(&id) {
+                    Some(pdu) => pdu.clone(),
+                    None => {
+                        match fetch_events(&db, server_name, &pub_key_map, &[id], &mut auth_cache)
+                            .await
+                            .map(|mut vec| vec.pop())
+                        {
+                            Ok(Some(aev)) => aev,
+                            _ => {
+                                resolved_map
+                                    .insert(event_id.clone(), Err("Failed to fetch event".into()));
+                                continue 'main_pdu_loop;
+                            }
+                        }
+                    }
+                };
+                resolved.insert(k, pdu);
             }
+            resolved
         };
 
         // Add the event to the DB and update the forward extremities (via roomid_pduleaves).
@@ -1199,36 +1218,66 @@ fn append_incoming_pdu(
     new_room_leaves: &[EventId],
     state: Option<StateMap<Arc<PduEvent>>>,
 ) -> Result<()> {
+    // Update the state of the room if needed
+    // We can tell if we need to do this based on wether state resolution took place or not
+    if let Some(state) = state {
+        let mut new_state = HashMap::new();
+        for ((ev_type, state_k), pdu) in state {
+            match db.rooms.get_pdu_id(pdu.event_id())? {
+                Some(pduid) => {
+                    new_state.insert(
+                        (
+                            ev_type,
+                            state_k.ok_or_else(|| {
+                                Error::Conflict("State contained non state event")
+                            })?,
+                        ),
+                        pduid.to_vec(),
+                    );
+                }
+                None => {
+                    let count = db.globals.next_count()?;
+                    let mut pdu_id = pdu.room_id.as_bytes().to_vec();
+                    pdu_id.push(0xff);
+                    pdu_id.extend_from_slice(&count.to_be_bytes());
+
+                    // TODO: can we use are current state if we just add this event to the end of our
+                    // pduid_pdu tree??
+                    let statehashid = db.rooms.append_to_state(&pdu_id, &pdu, &db.globals)?;
+
+                    db.rooms.append_pdu(
+                        &*pdu,
+                        utils::to_canonical_object(&*pdu).expect("Pdu is valid canonical object"),
+                        count,
+                        pdu_id.clone().into(),
+                        &new_room_leaves,
+                        &db,
+                    )?;
+                    // TODO: is this ok...
+                    db.rooms.set_room_state(&pdu.room_id, &statehashid)?;
+                    new_state.insert(
+                        (
+                            ev_type,
+                            state_k.ok_or_else(|| {
+                                Error::Conflict("State contained non state event")
+                            })?,
+                        ),
+                        pdu_id.to_vec(),
+                    );
+                }
+            }
+        }
+
+        info!("Force update of state for {:?}", pdu);
+
+        db.rooms
+            .force_state(pdu.room_id(), new_state, &db.globals)?;
+    }
+
     let count = db.globals.next_count()?;
     let mut pdu_id = pdu.room_id.as_bytes().to_vec();
     pdu_id.push(0xff);
     pdu_id.extend_from_slice(&count.to_be_bytes());
-
-    // Update the state of the room if needed
-    // We can tell if we need to do this based on wether state resolution took place or not
-    if let Some(state) = state {
-        let new = state
-            .into_iter()
-            .map(|((ev, k), pdu)| {
-                Ok((
-                    (
-                        ev,
-                        k.ok_or_else(|| Error::Conflict("State contained non state event"))?,
-                    ),
-                    db.rooms
-                        .get_pdu_id(pdu.event_id())
-                        .ok()
-                        .flatten()
-                        .ok_or_else(|| Error::Conflict("Resolved state contained unknown event"))?
-                        .to_vec(),
-                ))
-            })
-            .collect::<Result<_>>()?;
-
-        info!("Force update of state for {:?}", pdu);
-
-        db.rooms.force_state(pdu.room_id(), new, &db.globals)?;
-    }
 
     // We append to state before appending the pdu, so we don't have a moment in time with the
     // pdu without it's state. This is okay because append_pdu can't fail.
