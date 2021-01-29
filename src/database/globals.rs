@@ -27,11 +27,7 @@ pub struct Globals {
 }
 
 impl Globals {
-    pub async fn load(
-        globals: sled::Tree,
-        server_keys: sled::Tree,
-        config: Config,
-    ) -> Result<Self> {
+    pub fn load(globals: sled::Tree, server_keys: sled::Tree, config: Config) -> Result<Self> {
         let bytes = &*globals
             .update_and_fetch("keypair", utils::generate_keypair)?
             .expect("utils::generate_keypair always returns Some");
@@ -83,11 +79,9 @@ impl Globals {
             config,
             keypair: Arc::new(keypair),
             reqwest_client,
-            dns_resolver: TokioAsyncResolver::tokio_from_system_conf()
-                .await
-                .map_err(|_| {
-                    Error::bad_config("Failed to set up trust dns resolver with system config.")
-                })?,
+            dns_resolver: TokioAsyncResolver::tokio_from_system_conf().map_err(|_| {
+                Error::bad_config("Failed to set up trust dns resolver with system config.")
+            })?,
             actual_destination_cache: Arc::new(RwLock::new(HashMap::new())),
             jwt_decoding_key,
             servertimeout_signingkey: server_keys,

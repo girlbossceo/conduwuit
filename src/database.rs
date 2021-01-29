@@ -106,8 +106,7 @@ impl Database {
                 db.open_tree("global")?,
                 db.open_tree("servertimeout_signingkey")?,
                 config,
-            )
-            .await?,
+            )?,
             users: users::Users {
                 userid_password: db.open_tree("userid_password")?,
                 userid_displayname: db.open_tree("userid_displayname")?,
