@@ -27,9 +27,10 @@ use std::{
     convert::{TryFrom, TryInto},
     mem,
     sync::Arc,
+    time::Duration,
 };
 
-use super::admin::AdminCommand;
+use super::{admin::AdminCommand, sending::Sending};
 
 /// The unique identifier of each state group.
 ///
@@ -67,7 +68,7 @@ pub struct Rooms {
     pub(super) stateid_pduid: sled::Tree, // StateId = StateHash + Short, PduId = Count (without roomid)
 
     /// Any pdu that has passed the steps up to auth with auth_events.
-    pub(super) eventid_outlierpdu: sled::Tree,
+    pub(super) pduid_outlierpdu: sled::Tree,
 }
 
 impl Rooms {
@@ -85,13 +86,20 @@ impl Rooms {
                 let mut pduid = room_id.as_bytes().to_vec();
                 pduid.push(0xff);
                 pduid.extend_from_slice(&pduid_short?);
-                self.pduid_pdu.get(&pduid)?.map_or_else(
-                    || Err(Error::bad_database("Failed to find PDU in state snapshot.")),
-                    |b| {
-                        serde_json::from_slice::<PduEvent>(&b)
-                            .map_err(|_| Error::bad_database("Invalid PDU in db."))
-                    },
-                )
+                match self.pduid_pdu.get(&pduid)? {
+                    Some(b) => serde_json::from_slice::<PduEvent>(&b)
+                        .map_err(|_| Error::bad_database("Invalid PDU in db.")),
+                    None => self
+                        .pduid_outlierpdu
+                        .get(pduid)?
+                        .map(|b| {
+                            serde_json::from_slice::<PduEvent>(&b)
+                                .map_err(|_| Error::bad_database("Invalid PDU in db."))
+                        })
+                        .ok_or_else(|| {
+                            Error::bad_database("Event is not in pdu tree or outliers.")
+                        })?,
+                }
             })
             .filter_map(|r| r.ok())
             .map(|pdu| {
@@ -137,12 +145,20 @@ impl Rooms {
 
                     Ok::<_, Error>(Some((
                         pdu_id.clone().into(),
-                        serde_json::from_slice::<PduEvent>(
-                            &self.pduid_pdu.get(&pdu_id)?.ok_or_else(|| {
-                                Error::bad_database("PDU in state not found in database.")
-                            })?,
-                        )
-                        .map_err(|_| Error::bad_database("Invalid PDU bytes in room state."))?,
+                        match self.pduid_pdu.get(&pdu_id)? {
+                            Some(b) => serde_json::from_slice::<PduEvent>(&b)
+                                .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
+                            None => self
+                                .pduid_outlierpdu
+                                .get(pdu_id)?
+                                .map(|b| {
+                                    serde_json::from_slice::<PduEvent>(&b)
+                                        .map_err(|_| Error::bad_database("Invalid PDU in db."))
+                                })
+                                .ok_or_else(|| {
+                                    Error::bad_database("Event is not in pdu tree or outliers.")
+                                })??,
+                        },
                     )))
                 })
         } else {
@@ -307,9 +323,12 @@ impl Rooms {
             .get(event_id.as_bytes())?
             .map_or(Ok(None), |pdu_id| {
                 Ok(Some(
-                    serde_json::from_slice(&self.pduid_pdu.get(pdu_id)?.ok_or_else(|| {
-                        Error::bad_database("eventid_pduid points to nonexistent pdu.")
-                    })?)
+                    serde_json::from_slice(&match self.pduid_pdu.get(&pdu_id)? {
+                        Some(b) => b,
+                        None => self.pduid_outlierpdu.get(pdu_id)?.ok_or_else(|| {
+                            Error::bad_database("Event is not in pdu tree or outliers.")
+                        })?,
+                    })
                     .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
                 ))
             })
@@ -328,13 +347,17 @@ impl Rooms {
             .get(event_id.as_bytes())?
             .map_or(Ok(None), |pdu_id| {
                 Ok(Some(
-                    serde_json::from_slice(&self.pduid_pdu.get(pdu_id)?.ok_or_else(|| {
-                        Error::bad_database("eventid_pduid points to nonexistent pdu.")
-                    })?)
+                    serde_json::from_slice(&match self.pduid_pdu.get(&pdu_id)? {
+                        Some(b) => b,
+                        None => self.pduid_outlierpdu.get(pdu_id)?.ok_or_else(|| {
+                            Error::bad_database("Event is not in pdu tree or outliers.")
+                        })?,
+                    })
                     .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
                 ))
             })
     }
+
     /// Returns the pdu.
     pub fn get_pdu_from_id(&self, pdu_id: &IVec) -> Result<Option<PduEvent>> {
         self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
@@ -420,23 +443,27 @@ impl Rooms {
 
     /// Returns the pdu from the outlier tree.
     pub fn get_pdu_outlier(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
-        self.eventid_outlierpdu
-            .get(event_id.as_bytes())?
-            .map_or(Ok(None), |pdu| {
-                Ok(Some(
-                    serde_json::from_slice(&pdu)
-                        .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
-                ))
+        if let Some(id) = self.eventid_pduid.get(event_id.as_bytes())? {
+            self.pduid_outlierpdu.get(id)?.map_or(Ok(None), |pdu| {
+                serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
+        } else {
+            Ok(None)
+        }
     }
 
     /// Returns true if the event_id was previously inserted.
-    pub fn append_pdu_outlier(&self, event_id: &EventId, pdu: &PduEvent) -> Result<bool> {
-        log::info!("Number of outlier pdu's {}", self.eventid_outlierpdu.len());
+    pub fn append_pdu_outlier(&self, pdu_id: &[u8], pdu: &PduEvent) -> Result<bool> {
+        log::info!("Number of outlier pdu's {}", self.pduid_outlierpdu.len());
+
+        // we need to be able to find it by event_id
+        self.eventid_pduid
+            .insert(pdu.event_id.as_bytes(), &*pdu_id)?;
+
         let res = self
-            .eventid_outlierpdu
+            .pduid_outlierpdu
             .insert(
-                event_id.as_bytes(),
+                pdu_id,
                 &*serde_json::to_string(&pdu).expect("PduEvent is always a valid String"),
             )
             .map(|op| op.is_some())?;
@@ -484,7 +511,9 @@ impl Rooms {
         }
 
         // We no longer keep this pdu as an outlier
-        self.eventid_outlierpdu.remove(pdu.event_id().as_bytes())?;
+        if let Some(id) = self.eventid_pduid.remove(pdu.event_id().as_bytes())? {
+            self.pduid_outlierpdu.remove(id)?;
+        }
 
         self.replace_pdu_leaves(&pdu.room_id, leaves)?;
 
