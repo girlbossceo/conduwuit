@@ -768,9 +768,11 @@ pub async fn send_transaction_message_route<'a>(
         // find the leaves otherwise we would do this sooner
         append_incoming_pdu(&db, &pdu, &extremities, &state_at_event)?;
 
+        // This will create the state after any state snapshot it builds
+        // So current_state will have the incoming event inserted to it
         let mut fork_states = match build_forward_extremity_snapshots(
             &db,
-            pdu.room_id(),
+            pdu.clone(),
             server_name,
             current_state,
             &extremities,
@@ -1195,14 +1197,14 @@ pub(crate) async fn calculate_forward_extremities(
 /// and the sending server).
 pub(crate) async fn build_forward_extremity_snapshots(
     db: &Database,
-    room_id: &RoomId,
+    pdu: Arc<PduEvent>,
     origin: &ServerName,
-    current_state: StateMap<Arc<PduEvent>>,
+    mut current_state: StateMap<Arc<PduEvent>>,
     current_leaves: &[EventId],
     pub_key_map: &PublicKeyMap,
     auth_cache: &mut EventMap<Arc<PduEvent>>,
 ) -> Result<BTreeSet<StateMap<Arc<PduEvent>>>> {
-    let current_hash = db.rooms.current_state_hash(room_id)?;
+    let current_hash = db.rooms.current_state_hash(pdu.room_id())?;
 
     let mut includes_current_state = false;
     let mut fork_states = BTreeSet::new();
@@ -1219,7 +1221,7 @@ pub(crate) async fn build_forward_extremity_snapshots(
 
             let mut state_before = db
                 .rooms
-                .state_full(room_id, &state_hash)?
+                .state_full(pdu.room_id(), &state_hash)?
                 .into_iter()
                 .map(|(k, v)| ((k.0, Some(k.1)), Arc::new(v)))
                 .collect::<StateMap<_>>();
@@ -1238,7 +1240,7 @@ pub(crate) async fn build_forward_extremity_snapshots(
                     &db.globals,
                     origin,
                     get_room_state_ids::v1::Request {
-                        room_id,
+                        room_id: pdu.room_id(),
                         event_id: id,
                     },
                 )
@@ -1269,6 +1271,9 @@ pub(crate) async fn build_forward_extremity_snapshots(
 
     // This guarantees that our current room state is included
     if !includes_current_state && current_hash.is_some() {
+        error!("Did not include current state");
+        current_state.insert((pdu.kind(), pdu.state_key()), pdu);
+
         fork_states.insert(current_state);
     }
 
