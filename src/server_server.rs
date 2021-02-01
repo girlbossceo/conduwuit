@@ -18,7 +18,6 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
-    events::EventType,
     serde::to_canonical_value,
     signatures::{CanonicalJsonObject, CanonicalJsonValue, PublicKeyMap},
     EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
@@ -638,12 +637,8 @@ pub async fn send_transaction_message_route<'a>(
             None
         };
 
-        let count = db.globals.next_count()?;
-        let mut pdu_id = pdu.room_id.as_bytes().to_vec();
-        pdu_id.push(0xff);
-        pdu_id.extend_from_slice(&count.to_be_bytes());
         // 6. persist the event as an outlier.
-        db.rooms.append_pdu_outlier(&pdu_id, &pdu)?;
+        db.rooms.append_pdu_outlier(&pdu)?;
 
         // Step 9. fetch missing state by calling /state_ids at backwards extremities doing all
         // the checks in this list starting at 1. These are not timeline events.
@@ -1079,37 +1074,28 @@ pub(crate) async fn fetch_events(
 ) -> Result<Vec<Arc<PduEvent>>> {
     let mut pdus = vec![];
     for id in events {
+        // `get_pdu` checks the outliers tree for us
         let pdu = match db.rooms.get_pdu(&id)? {
             Some(pdu) => Arc::new(pdu),
-            None => match db.rooms.get_pdu_outlier(&id)? {
-                Some(pdu) => Arc::new(pdu),
-                None => match db
-                    .sending
-                    .send_federation_request(
-                        &db.globals,
-                        origin,
-                        get_event::v1::Request { event_id: &id },
-                    )
-                    .await
-                {
-                    Ok(res) => {
-                        let (event_id, value) = crate::pdu::gen_event_id_canonical_json(&res.pdu);
-                        let (pdu, _) =
-                            validate_event(db, value, event_id, key_map, origin, auth_cache)
-                                .await
-                                .map_err(|_| Error::Conflict("Authentication of event failed"))?;
+            None => match db
+                .sending
+                .send_federation_request(
+                    &db.globals,
+                    origin,
+                    get_event::v1::Request { event_id: &id },
+                )
+                .await
+            {
+                Ok(res) => {
+                    let (event_id, value) = crate::pdu::gen_event_id_canonical_json(&res.pdu);
+                    let (pdu, _) = validate_event(db, value, event_id, key_map, origin, auth_cache)
+                        .await
+                        .map_err(|_| Error::Conflict("Authentication of event failed"))?;
 
-                        // create the pduid for this event but stick it in the outliers DB
-                        let count = db.globals.next_count()?;
-                        let mut pdu_id = pdu.room_id.as_bytes().to_vec();
-                        pdu_id.push(0xff);
-                        pdu_id.extend_from_slice(&count.to_be_bytes());
-
-                        db.rooms.append_pdu_outlier(&pdu_id, &pdu)?;
-                        pdu
-                    }
-                    Err(_) => return Err(Error::BadServerResponse("Failed to fetch event")),
-                },
+                    db.rooms.append_pdu_outlier(&pdu)?;
+                    pdu
+                }
+                Err(_) => return Err(Error::BadServerResponse("Failed to fetch event")),
             },
         };
         pdus.push(pdu);
@@ -1193,7 +1179,7 @@ pub(crate) async fn calculate_forward_extremities(
 
 /// This should always be called after the incoming event has been appended to the DB.
 ///
-/// This guarentees that the incoming event will be in the state sets (at least our servers
+/// This guarantees that the incoming event will be in the state sets (at least our servers
 /// and the sending server).
 pub(crate) async fn build_forward_extremity_snapshots(
     db: &Database,
@@ -1303,7 +1289,18 @@ pub(crate) fn update_resolved_state(
                     );
                 }
                 None => {
-                    error!("We didn't append an event as an outlier\n{:?}", pdu);
+                    let mut pduid = pdu.room_id().as_bytes().to_vec();
+                    pduid.push(0xff);
+                    pduid.extend_from_slice(pdu.event_id().as_bytes());
+                    new_state.insert(
+                        (
+                            ev_type,
+                            state_k.ok_or_else(|| {
+                                Error::Conflict("State contained non state event")
+                            })?,
+                        ),
+                        pduid,
+                    );
                 }
             }
         }
