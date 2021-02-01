@@ -466,16 +466,7 @@ impl Rooms {
 
     /// Returns true if the event_id was previously inserted.
     pub fn append_pdu_outlier(&self, pdu: &PduEvent) -> Result<bool> {
-        log::info!(
-            "Number of outlier pdu's {:#?}",
-            self.eventid_outlierpdu
-                .iter()
-                .map(|pair| {
-                    let (_k, v) = pair.unwrap();
-                    serde_json::from_slice::<PduBuilder>(&v).unwrap()
-                })
-                .collect::<Vec<_>>()
-        );
+        log::info!("Number of outlier pdu's {}", self.eventid_outlierpdu.len());
 
         let mut key = pdu.room_id().as_bytes().to_vec();
         key.push(0xff);
