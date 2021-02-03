@@ -584,16 +584,16 @@ pub async fn change_password_route(
 
     db.users.set_password(&sender_user, &body.new_password)?;
 
-    // TODO: Read logout_devices field when it's available and respect that, currently not supported in Ruma
-    // See: https://github.com/ruma/ruma/issues/107
-    // Logout all devices except the current one
-    for id in db
-        .users
-        .all_device_ids(&sender_user)
-        .filter_map(|id| id.ok())
-        .filter(|id| id != sender_device)
-    {
-        db.users.remove_device(&sender_user, &id)?;
+    if body.logout_devices {
+        // Logout all devices except the current one
+        for id in db
+            .users
+            .all_device_ids(&sender_user)
+            .filter_map(|id| id.ok())
+            .filter(|id| id != sender_device)
+        {
+            db.users.remove_device(&sender_user, &id)?;
+        }
     }
 
     db.flush().await?;
