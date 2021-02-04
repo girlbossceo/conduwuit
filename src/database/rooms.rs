@@ -68,7 +68,9 @@ pub struct Rooms {
 
     /// RoomId + EventId -> outlier PDU.
     /// Any pdu that has passed the steps 1-8 in the incoming event /federation/send/txn.
-    pub(super) eventid_outlierpdu: sled::Tree,
+    pub(super) roomeventid_outlierpdu: sled::Tree,
+    /// RoomId + EventId -> Parent PDU EventId.
+    pub(super) prevevent_parent: sled::Tree,
 }
 
 impl Rooms {
@@ -92,7 +94,7 @@ impl Rooms {
                     Some(b) => serde_json::from_slice::<PduEvent>(&b)
                         .map_err(|_| Error::bad_database("Invalid PDU in db.")),
                     None => self
-                        .eventid_outlierpdu
+                        .roomeventid_outlierpdu
                         .get(pduid)?
                         .map(|b| {
                             serde_json::from_slice::<PduEvent>(&b)
@@ -120,8 +122,6 @@ impl Rooms {
     }
 
     /// Returns a single PDU from `room_id` with key (`event_type`, `state_key`).
-    ///
-    /// TODO: Should this check for outliers, it does now.
     pub fn state_get(
         &self,
         room_id: &RoomId,
@@ -153,7 +153,7 @@ impl Rooms {
                             Some(b) => serde_json::from_slice::<PduEvent>(&b)
                                 .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
                             None => self
-                                .eventid_outlierpdu
+                                .roomeventid_outlierpdu
                                 .get(pdu_id)?
                                 .map(|b| {
                                     serde_json::from_slice::<PduEvent>(&b)
@@ -203,7 +203,7 @@ impl Rooms {
                 &event_type,
                 &state_key
                     .as_deref()
-                    .expect("found a non state event in auth events"),
+                    .ok_or_else(|| Error::bad_database("Saved auth event with no state key."))?,
             )? {
                 events.insert((event_type, state_key), pdu);
             }
@@ -248,7 +248,7 @@ impl Rooms {
         let mut prefix = state_hash.to_vec();
         prefix.push(0xff);
 
-        for ((event_type, state_key), pdu_id) in state {
+        for ((event_type, state_key), id_long) in state {
             let mut statekey = event_type.as_ref().as_bytes().to_vec();
             statekey.push(0xff);
             statekey.extend_from_slice(&state_key.as_bytes());
@@ -266,7 +266,7 @@ impl Rooms {
 
             // Because of outliers this could also be an eventID but that
             // is handled by `state_full`
-            let pdu_id_short = pdu_id
+            let pdu_id_short = id_long
                 .splitn(2, |&b| b == 0xff)
                 .nth(1)
                 .ok_or_else(|| Error::bad_database("Invalid pduid in state."))?;
@@ -332,7 +332,7 @@ impl Rooms {
                     serde_json::from_slice(&match self.pduid_pdu.get(&pdu_id)? {
                         Some(b) => b,
                         None => self
-                            .eventid_outlierpdu
+                            .roomeventid_outlierpdu
                             .get(event_id.as_bytes())?
                             .ok_or_else(|| {
                                 Error::bad_database("Event is not in pdu tree or outliers.")
@@ -360,12 +360,10 @@ impl Rooms {
                 Ok(Some(
                     serde_json::from_slice(&match self.pduid_pdu.get(&pdu_id)? {
                         Some(b) => b,
-                        None => self
-                            .eventid_outlierpdu
-                            .get(event_id.as_bytes())?
-                            .ok_or_else(|| {
-                                Error::bad_database("Event is not in pdu tree or outliers.")
-                            })?,
+                        None => match self.roomeventid_outlierpdu.get(event_id.as_bytes())? {
+                            Some(b) => b,
+                            None => return Ok(None),
+                        },
                     })
                     .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
                 ))
@@ -373,6 +371,8 @@ impl Rooms {
     }
 
     /// Returns the pdu.
+    ///
+    /// This does __NOT__ check the outliers `Tree`.
     pub fn get_pdu_from_id(&self, pdu_id: &IVec) -> Result<Option<PduEvent>> {
         self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
             Ok(Some(
@@ -436,7 +436,7 @@ impl Rooms {
 
     /// Replace the leaves of a room.
     ///
-    /// The provided `event_ids` become the new leaves, this enables an event having multiple
+    /// The provided `event_ids` become the new leaves, this allows a room to have multiple
     /// `prev_events`.
     pub fn replace_pdu_leaves(&self, room_id: &RoomId, event_ids: &[EventId]) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();
@@ -455,31 +455,42 @@ impl Rooms {
         Ok(())
     }
 
+    pub fn is_pdu_referenced(&self, pdu: &PduEvent) -> Result<bool> {
+        let mut key = pdu.room_id().as_bytes().to_vec();
+        key.extend_from_slice(pdu.event_id().as_bytes());
+        self.prevevent_parent.contains_key(key).map_err(Into::into)
+    }
+
     /// Returns the pdu from the outlier tree.
     pub fn get_pdu_outlier(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
-        self.eventid_outlierpdu
+        self.roomeventid_outlierpdu
             .get(event_id.as_bytes())?
             .map_or(Ok(None), |pdu| {
                 serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
     }
 
-    /// Returns true if the event_id was previously inserted.
-    pub fn append_pdu_outlier(&self, pdu: &PduEvent) -> Result<bool> {
-        log::info!("Number of outlier pdu's {}", self.eventid_outlierpdu.len());
+    /// Append the PDU as an outlier.
+    ///
+    /// Any event given to this will be processed (state-res) on another thread.
+    pub fn append_pdu_outlier(&self, pdu: &PduEvent) -> Result<()> {
+        log::info!(
+            "Number of outlier pdu's {}",
+            self.roomeventid_outlierpdu.len()
+        );
 
         let mut key = pdu.room_id().as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pdu.event_id().as_bytes());
 
-        let res = self
-            .eventid_outlierpdu
-            .insert(
-                &key,
-                &*serde_json::to_string(&pdu).expect("PduEvent is always a valid String"),
-            )
-            .map(|op| op.is_some())?;
-        Ok(res)
+        self.eventid_pduid
+            .insert(pdu.event_id().as_bytes(), key.as_slice())?;
+
+        self.roomeventid_outlierpdu.insert(
+            &key,
+            &*serde_json::to_string(&pdu).expect("PduEvent is always a valid String"),
+        )?;
+        Ok(())
     }
 
     /// Creates a new persisted data unit and adds it to a room.
@@ -526,7 +537,15 @@ impl Rooms {
         let mut key = pdu.room_id().as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pdu.event_id().as_bytes());
-        self.eventid_outlierpdu.remove(key)?;
+        self.roomeventid_outlierpdu.remove(key)?;
+
+        // We must keep track of all events that have been referenced.
+        for leaf in leaves {
+            let mut key = pdu.room_id().as_bytes().to_vec();
+            key.extend_from_slice(leaf.as_bytes());
+            self.prevevent_parent
+                .insert(key, pdu.event_id().as_bytes())?;
+        }
 
         self.replace_pdu_leaves(&pdu.room_id, leaves)?;
 
@@ -541,6 +560,8 @@ impl Rooms {
                 .expect("CanonicalJsonObject is always a valid String"),
         )?;
 
+        // This also replaces the eventid of any outliers with the correct
+        // pduid, removing the place holder.
         self.eventid_pduid
             .insert(pdu.event_id.as_bytes(), &*pdu_id)?;
 

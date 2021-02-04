@@ -159,7 +159,8 @@ impl Database {
                 stateid_pduid: db.open_tree("stateid_pduid")?,
                 pduid_statehash: db.open_tree("pduid_statehash")?,
                 roomid_statehash: db.open_tree("roomid_statehash")?,
-                eventid_outlierpdu: db.open_tree("eventid_outlierpdu")?,
+                roomeventid_outlierpdu: db.open_tree("roomeventid_outlierpdu")?,
+                prevevent_parent: db.open_tree("prevevent_parent")?,
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: db.open_tree("roomuserdataid_accountdata")?,
