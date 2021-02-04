@@ -643,8 +643,6 @@ async fn join_room_by_id_helper(
         )
         .expect("iterative auth check failed on resolved events");
 
-        let mut state = HashMap::new();
-
         // filter the events that failed the auth check keeping the remaining events
         // sorted correctly
         for ev_id in sorted_event_ids
@@ -660,24 +658,20 @@ async fn join_room_by_id_helper(
             let mut pdu_id = room_id.as_bytes().to_vec();
             pdu_id.push(0xff);
             pdu_id.extend_from_slice(&count.to_be_bytes());
+
+            let hash = db.rooms.append_to_state(&pdu_id, &pdu, &db.globals)?;
+
             db.rooms.append_pdu(
                 &pdu,
                 utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
                 count,
                 pdu_id.clone().into(),
-                // TODO: can we simplify the DAG or should we copy it exactly??
                 &pdu.prev_events,
                 &db,
             )?;
 
-            if state_events.contains(ev_id) {
-                if let Some(key) = &pdu.state_key {
-                    state.insert((pdu.kind(), key.to_string()), pdu_id);
-                }
-            }
+            db.rooms.set_room_state(room_id, &hash)?;
         }
-
-        db.rooms.force_state(room_id, state, &db.globals)?;
     } else {
         let event = member::MemberEventContent {
             membership: member::MembershipState::Join,

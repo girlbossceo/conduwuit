@@ -971,6 +971,7 @@ fn validate_event<'a>(
                     }
                 }
                 Err(_e) => {
+                    error!("{}", _e);
                     return Err("Signature verification failed".to_string());
                 }
             };
@@ -988,7 +989,7 @@ fn validate_event<'a>(
 
         fetch_check_auth_events(db, origin, pub_key_map, &pdu.auth_events, auth_cache)
             .await
-            .map_err(|_| "Event failed auth chain check".to_string())?;
+            .map_err(|e| e.to_string())?;
 
         let pdu = Arc::new(pdu.clone());
 
@@ -1064,6 +1065,7 @@ async fn fetch_check_auth_events(
 /// Find the event and auth it. Once the event is validated (steps 1 - 8)
 /// it is appended to the outliers Tree.
 ///
+/// 0. Look in the auth_cache
 /// 1. Look in the main timeline (pduid_pdu tree)
 /// 2. Look at outlier pdu tree
 /// 3. Ask origin server over federation
@@ -1080,28 +1082,35 @@ pub(crate) async fn fetch_events(
 ) -> Result<Vec<Arc<PduEvent>>> {
     let mut pdus = vec![];
     for id in events {
-        // `get_pdu` checks the outliers tree for us
-        let pdu = match db.rooms.get_pdu(&id)? {
-            Some(pdu) => Arc::new(pdu),
-            None => match db
-                .sending
-                .send_federation_request(
-                    &db.globals,
-                    origin,
-                    get_event::v1::Request { event_id: &id },
-                )
-                .await
-            {
-                Ok(res) => {
-                    let (event_id, value) = crate::pdu::gen_event_id_canonical_json(&res.pdu);
-                    let (pdu, _) = validate_event(db, value, event_id, key_map, origin, auth_cache)
-                        .await
-                        .map_err(|_| Error::Conflict("Authentication of event failed"))?;
+        let pdu = match auth_cache.get(id) {
+            Some(pdu) => pdu.clone(),
+            // `get_pdu` checks the outliers tree for us
+            None => match db.rooms.get_pdu(&id)? {
+                Some(pdu) => Arc::new(pdu),
+                None => match db
+                    .sending
+                    .send_federation_request(
+                        &db.globals,
+                        origin,
+                        get_event::v1::Request { event_id: &id },
+                    )
+                    .await
+                {
+                    Ok(res) => {
+                        let (event_id, value) = crate::pdu::gen_event_id_canonical_json(&res.pdu);
+                        let (pdu, _) =
+                            validate_event(db, value, event_id, key_map, origin, auth_cache)
+                                .await
+                                .map_err(|e| {
+                                    error!("{:?}", e);
+                                    Error::Conflict("Authentication of event failed")
+                                })?;
 
-                    db.rooms.append_pdu_outlier(&pdu)?;
-                    pdu
-                }
-                Err(_) => return Err(Error::BadServerResponse("Failed to fetch event")),
+                        db.rooms.append_pdu_outlier(&pdu)?;
+                        pdu
+                    }
+                    Err(_) => return Err(Error::BadServerResponse("Failed to fetch event")),
+                },
             },
         };
         auth_cache.entry(id.clone()).or_insert_with(|| pdu.clone());
