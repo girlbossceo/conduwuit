@@ -117,8 +117,7 @@ pub async fn login_route(
     let device_exists = body.device_id.as_ref().map_or(false, |device_id| {
         db.users
             .all_device_ids(&user_id)
-            .find(|x| x.as_ref().map_or(false, |v| v == device_id))
-            .is_some()
+            .any(|x| x.as_ref().map_or(false, |v| v == device_id))
     });
 
     if device_exists {

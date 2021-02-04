@@ -99,6 +99,12 @@ checksum = "a4521f3e3d031370679b3b140beb36dfe4801b09ac77e30c61941f97df3ef28b"
 
 [[package]]
 name = "base64"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3441f0f7b02788e948e47f457ca01f1d7e6d92c693bc132c22b087d3141c03ff"
+
+[[package]]
+name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
@@ -172,7 +178,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "time 0.1.43",
- "winapi 0.3.9",
+ "winapi",
 ]
 
 [[package]]
@@ -185,7 +191,7 @@ checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 name = "conduit"
 version = "0.1.0"
 dependencies = [
- "base64",
+ "base64 0.13.0",
  "directories",
  "http",
  "image",
@@ -227,7 +233,7 @@ version = "0.15.0-dev"
 source = "git+https://github.com/SergioBenitez/cookie-rs.git?rev=1c3ca83#1c3ca838543b60a4448d279dc4b903cc7a2bc22a"
 dependencies = [
  "percent-encoding",
- "time 0.2.24",
+ "time 0.2.25",
  "version_check",
 ]
 
@@ -872,6 +878,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonwebtoken"
+version = "7.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afabcc15e437a6484fc4f12d0fd63068fe457bf93f1c148d3d9649c60b103f32"
+dependencies = [
+ "base64 0.12.3",
+ "pem",
+ "ring",
+ "serde",
+ "serde_json",
+ "simple_asn1",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1509,7 +1529,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd281b1030aa675fb90aa994d07187645bb3c8fc756ca766e7c3070b439de9de"
 dependencies = [
- "base64",
+ "base64 0.13.0",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -1584,8 +1604,8 @@ dependencies = [
  "rocket_http",
  "serde",
  "state",
- "time 0.2.24",
- "tokio 1.0.2",
+ "time 0.2.25",
+ "tokio",
  "ubyte",
  "version_check",
  "yansi",
@@ -1622,8 +1642,8 @@ dependencies = [
  "ref-cast",
  "smallvec",
  "state",
- "time 0.2.24",
- "tokio 1.0.2",
+ "time 0.2.25",
+ "tokio",
  "tokio-rustls",
  "uncased",
  "unicode-xid",
@@ -1819,7 +1839,7 @@ name = "ruma-signatures"
 version = "0.6.0-alpha.1"
 source = "git+https://github.com/ruma/ruma?rev=bba442580d6cd7ed990b2b63387eed2238cbadc8#bba442580d6cd7ed990b2b63387eed2238cbadc8"
 dependencies = [
- "base64",
+ "base64 0.13.0",
  "ring",
  "ruma-identifiers",
  "ruma-serde",
@@ -1833,7 +1853,7 @@ version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b18820d944b33caa75a71378964ac46f58517c92b6ae5f762636247c09e78fb"
 dependencies = [
- "base64",
+ "base64 0.13.0",
  "blake2b_simd",
  "constant_time_eq",
  "crossbeam-utils",
@@ -1854,7 +1874,7 @@ version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "064fd21ff87c6e87ed4506e68beb42459caa4a0e2eb144932e6776768556980b"
 dependencies = [
- "base64",
+ "base64 0.13.0",
  "log",
  "ring",
  "sct",
@@ -2187,6 +2207,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8208a331e1cb318dd5bd76951d2b8fc48ca38a69f5f4e4af1b6a9f8c6236915"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "time"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]

@@ -21,9 +21,9 @@ use ruma::{
     serde::{to_canonical_value, CanonicalJsonObject, Raw},
     EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
-use state_res::Event;
+// use state_res::Event;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     convert::TryFrom,
     iter,
     sync::Arc,
@@ -557,7 +557,7 @@ async fn join_room_by_id_helper(
 
         let room_state = send_join_response.room_state.state.iter().map(add_event_id);
 
-        let state_events = room_state
+        let _state_events = room_state
             .clone()
             .map(|pdu: Result<(EventId, CanonicalJsonObject)>| Ok(pdu?.0))
             .chain(iter::once(Ok(event_id.clone()))) // Add join event we just created

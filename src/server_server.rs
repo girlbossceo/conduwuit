@@ -800,8 +800,7 @@ pub async fn send_transaction_message_route<'a>(
             }
         };
 
-        // Make this the state after (since we appended_incoming_pdu this should agree with our servers
-        // current state).
+        // Make this the state after.
         let mut state_after = state_at_event.clone();
         state_after.insert((pdu.kind(), pdu.state_key()), pdu.clone());
         // Add the incoming event to the mix of state snapshots
