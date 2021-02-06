@@ -15,6 +15,7 @@ pub use database::Database;
 pub use error::{ConduitLogger, Error, Result};
 pub use pdu::PduEvent;
 pub use rocket::State;
+use ruma::api::client::error::ErrorKind;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
 use log::LevelFilter;
@@ -154,7 +155,13 @@ fn setup_rocket() -> rocket::Rocket {
                 server_server::get_profile_information_route,
             ],
         )
-        .register(catchers![not_found_catcher])
+        .register(catchers![
+            not_found_catcher,
+            forbidden_catcher,
+            unknown_token_catcher,
+            missing_token_catcher,
+            bad_json_catcher
+        ])
         .attach(AdHoc::on_attach("Config", |rocket| async {
             let config = rocket
                 .figment()
@@ -185,4 +192,27 @@ async fn main() {
 #[catch(404)]
 fn not_found_catcher(_req: &'_ Request<'_>) -> String {
     "404 Not Found".to_owned()
+}
+
+#[catch(580)]
+fn forbidden_catcher() -> Result<()> {
+    Err(Error::BadRequest(ErrorKind::Forbidden, "Forbidden."))
+}
+
+#[catch(581)]
+fn unknown_token_catcher() -> Result<()> {
+    Err(Error::BadRequest(
+        ErrorKind::UnknownToken { soft_logout: false },
+        "Unknown token.",
+    ))
+}
+
+#[catch(582)]
+fn missing_token_catcher() -> Result<()> {
+    Err(Error::BadRequest(ErrorKind::MissingToken, "Missing token."))
+}
+
+#[catch(583)]
+fn bad_json_catcher() -> Result<()> {
+    Err(Error::BadRequest(ErrorKind::BadJson, "Bad json."))
 }

@@ -1010,6 +1010,10 @@ impl Rooms {
                         .filter_map(|r| r.ok())
                         .any(|room_alias| aliases.is_match(room_alias.as_str()))
                 }) || rooms.map_or(false, |rooms| rooms.contains(&room_id.as_str().into()))
+                    || self
+                        .room_members(&room_id)
+                        .filter_map(|r| r.ok())
+                        .any(|member| users.iter().any(|regex| regex.is_match(member.as_str())))
                 {
                     sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
                 }

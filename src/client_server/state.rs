@@ -234,7 +234,7 @@ pub async fn get_state_events_for_empty_key_route(
         .1;
 
     Ok(get_state_events_for_empty_key::Response {
-        content: serde_json::value::to_raw_value(&event)
+        content: serde_json::value::to_raw_value(&event.content)
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
     .into())

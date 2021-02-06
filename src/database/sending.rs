@@ -8,7 +8,7 @@ use std::{
 
 use crate::{appservice_server, server_server, utils, Error, PduEvent, Result};
 use federation::transactions::send_transaction_message;
-use log::info;
+use log::{error, info};
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
     api::{appservice, federation, OutgoingRequest},
@@ -131,6 +131,7 @@ impl Sending {
                                 };
                                 prefix.extend_from_slice(server.as_bytes());
                                 prefix.push(0xff);
+
                                 last_failed_try.insert(server.clone(), match last_failed_try.get(&server) {
                                     Some(last_failed) => {
                                         (last_failed.0+1, Instant::now())

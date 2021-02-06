@@ -27,7 +27,7 @@ pub struct Config {
     server_name: Box<ServerName>,
     database_path: String,
     #[serde(default = "default_cache_capacity")]
-    cache_capacity: u64,
+    cache_capacity: u32,
     #[serde(default = "default_max_request_size")]
     max_request_size: u32,
     #[serde(default = "default_max_concurrent_requests")]
@@ -48,7 +48,7 @@ fn true_fn() -> bool {
     true
 }
 
-fn default_cache_capacity() -> u64 {
+fn default_cache_capacity() -> u32 {
     1024 * 1024 * 1024
 }
 
@@ -93,8 +93,7 @@ impl Database {
     pub async fn load_or_create(config: Config) -> Result<Self> {
         let db = sled::Config::default()
             .path(&config.database_path)
-            .cache_capacity(config.cache_capacity)
-            .print_profile_on_drop(false)
+            .cache_capacity(config.cache_capacity as u64)
             .open()?;
 
         info!("Opened sled database at {}", config.database_path);

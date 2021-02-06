@@ -557,7 +557,7 @@ pub async fn send_transaction_message_route<'a>(
         pdu_id.push(0xff);
         pdu_id.extend_from_slice(&count.to_be_bytes());
 
-        db.rooms.append_to_state(&pdu_id, &pdu, &db.globals)?;
+        let next_room_state = db.rooms.append_to_state(&pdu_id, &pdu, &db.globals)?;
 
         db.rooms.append_pdu(
             &pdu,
@@ -568,6 +568,8 @@ pub async fn send_transaction_message_route<'a>(
             &db.account_data,
             &db.admin,
         )?;
+
+        db.rooms.set_room_state(&room_id, &next_room_state)?;
 
         for appservice in db.appservice.iter_all().filter_map(|r| r.ok()) {
             db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
