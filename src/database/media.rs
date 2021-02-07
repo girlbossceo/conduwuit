@@ -5,7 +5,7 @@ use std::mem;
 
 pub struct FileMeta {
     pub filename: Option<String>,
-    pub content_type: String,
+    pub content_type: Option<String>,
     pub file: Vec<u8>,
 }
 
@@ -20,7 +20,7 @@ impl Media {
         &self,
         mxc: String,
         filename: &Option<&str>,
-        content_type: &str,
+        content_type: &Option<&str>,
         file: &[u8],
     ) -> Result<()> {
         let mut key = mxc.as_bytes().to_vec();
@@ -30,7 +30,12 @@ impl Media {
         key.push(0xff);
         key.extend_from_slice(filename.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
         key.push(0xff);
-        key.extend_from_slice(content_type.as_bytes());
+        key.extend_from_slice(
+            content_type
+                .as_ref()
+                .map(|c| c.as_bytes())
+                .unwrap_or_default(),
+        );
 
         self.mediaid_file.insert(key, file)?;
 
@@ -42,7 +47,7 @@ impl Media {
         &self,
         mxc: String,
         filename: &Option<String>,
-        content_type: &str,
+        content_type: &Option<String>,
         width: u32,
         height: u32,
         file: &[u8],
@@ -54,7 +59,12 @@ impl Media {
         key.push(0xff);
         key.extend_from_slice(filename.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
         key.push(0xff);
-        key.extend_from_slice(content_type.as_bytes());
+        key.extend_from_slice(
+            content_type
+                .as_ref()
+                .map(|c| c.as_bytes())
+                .unwrap_or_default(),
+        );
 
         self.mediaid_file.insert(key, file)?;
 
@@ -73,12 +83,14 @@ impl Media {
             let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
-            let content_type = utils::string_from_bytes(
-                parts
-                    .next()
-                    .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?,
-            )
-            .map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))?;
+            let content_type = parts
+                .next()
+                .map(|bytes| {
+                    Ok::<_, Error>(utils::string_from_bytes(bytes).map_err(|_| {
+                        Error::bad_database("Content type in mediaid_file is invalid unicode.")
+                    })?)
+                })
+                .transpose()?;
 
             let filename_bytes = parts
                 .next()
@@ -148,12 +160,14 @@ impl Media {
             let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
-            let content_type = utils::string_from_bytes(
-                parts
-                    .next()
-                    .ok_or_else(|| Error::bad_database("Invalid Media ID in db"))?,
-            )
-            .map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))?;
+            let content_type = parts
+                .next()
+                .map(|bytes| {
+                    Ok::<_, Error>(utils::string_from_bytes(bytes).map_err(|_| {
+                        Error::bad_database("Content type in mediaid_file is invalid unicode.")
+                    })?)
+                })
+                .transpose()?;
 
             let filename_bytes = parts
                 .next()
@@ -179,12 +193,14 @@ impl Media {
             let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
-            let content_type = utils::string_from_bytes(
-                parts
-                    .next()
-                    .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?,
-            )
-            .map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))?;
+            let content_type = parts
+                .next()
+                .map(|bytes| {
+                    Ok::<_, Error>(utils::string_from_bytes(bytes).map_err(|_| {
+                        Error::bad_database("Content type in mediaid_file is invalid unicode.")
+                    })?)
+                })
+                .transpose()?;
 
             let filename_bytes = parts
                 .next()
@@ -274,7 +290,12 @@ impl Media {
                     file: thumbnail_bytes.to_vec(),
                 }))
             } else {
-                Ok(None)
+                // Couldn't parse file to generate thumbnail, send original
+                Ok(Some(FileMeta {
+                    filename,
+                    content_type,
+                    file: file.to_vec(),
+                }))
             }
         } else {
             Ok(None)

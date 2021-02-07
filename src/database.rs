@@ -1,5 +1,6 @@
 pub mod account_data;
 pub mod admin;
+pub mod appservice;
 pub mod globals;
 pub mod key_backups;
 pub mod media;
@@ -13,12 +14,51 @@ use crate::{Error, Result};
 use directories::ProjectDirs;
 use futures::StreamExt;
 use log::info;
-use rocket::{
-    futures::{self, channel::mpsc},
-    Config,
-};
-use ruma::{DeviceId, UserId};
-use std::{convert::TryFrom, fs::remove_dir_all};
+use rocket::futures::{self, channel::mpsc};
+use ruma::{DeviceId, ServerName, UserId};
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::fs::remove_dir_all;
+use std::sync::{Arc, RwLock};
+use tokio::sync::Semaphore;
+
+#[derive(Clone, Deserialize)]
+pub struct Config {
+    server_name: Box<ServerName>,
+    database_path: String,
+    #[serde(default = "default_cache_capacity")]
+    cache_capacity: u32,
+    #[serde(default = "default_max_request_size")]
+    max_request_size: u32,
+    #[serde(default = "default_max_concurrent_requests")]
+    max_concurrent_requests: u16,
+    #[serde(default = "true_fn")]
+    allow_registration: bool,
+    #[serde(default = "true_fn")]
+    allow_encryption: bool,
+    #[serde(default = "false_fn")]
+    allow_federation: bool,
+}
+
+fn false_fn() -> bool {
+    false
+}
+
+fn true_fn() -> bool {
+    true
+}
+
+fn default_cache_capacity() -> u32 {
+    1024 * 1024 * 1024
+}
+
+fn default_max_request_size() -> u32 {
+    20 * 1024 * 1024 // Default to 20 MB
+}
+
+fn default_max_concurrent_requests() -> u16 {
+    4
+}
 
 #[derive(Clone)]
 pub struct Database {
@@ -32,6 +72,7 @@ pub struct Database {
     pub transaction_ids: transaction_ids::TransactionIds,
     pub sending: sending::Sending,
     pub admin: admin::Admin,
+    pub appservice: appservice::Appservice,
     pub _db: sled::Db,
 }
 
@@ -49,45 +90,18 @@ impl Database {
     }
 
     /// Load an existing database or create a new one.
-    pub fn load_or_create(config: &Config) -> Result<Self> {
-        let server_name = config.get_str("server_name").unwrap_or("localhost");
-
-        let path = config
-            .get_str("database_path")
-            .map(|x| Ok::<_, Error>(x.to_owned()))
-            .unwrap_or_else(|_| {
-                let path = ProjectDirs::from("xyz", "koesters", "conduit")
-                    .ok_or_else(|| {
-                        Error::bad_config("The OS didn't return a valid home directory path.")
-                    })?
-                    .data_dir()
-                    .join(server_name);
-
-                Ok(path
-                    .to_str()
-                    .ok_or_else(|| Error::bad_config("Database path contains invalid unicode."))?
-                    .to_owned())
-            })?;
-
+    pub async fn load_or_create(config: Config) -> Result<Self> {
         let db = sled::Config::default()
-            .path(&path)
-            .cache_capacity(
-                u64::try_from(
-                    config
-                        .get_int("cache_capacity")
-                        .unwrap_or(1024 * 1024 * 1024),
-                )
-                .map_err(|_| Error::bad_config("Cache capacity needs to be a u64."))?,
-            )
-            .print_profile_on_drop(false)
+            .path(&config.database_path)
+            .cache_capacity(config.cache_capacity as u64)
             .open()?;
 
-        info!("Opened sled database at {}", path);
+        info!("Opened sled database at {}", config.database_path);
 
         let (admin_sender, admin_receiver) = mpsc::unbounded();
 
         let db = Self {
-            globals: globals::Globals::load(db.open_tree("global")?, config)?,
+            globals: globals::Globals::load(db.open_tree("global")?, config).await?,
             users: users::Users {
                 userid_password: db.open_tree("userid_password")?,
                 userid_displayname: db.open_tree("userid_displayname")?,
@@ -136,6 +150,7 @@ impl Database {
                 roomuserid_invited: db.open_tree("roomuserid_invited")?,
                 userroomid_left: db.open_tree("userroomid_left")?,
 
+                statekey_short: db.open_tree("statekey_short")?,
                 stateid_pduid: db.open_tree("stateid_pduid")?,
                 pduid_statehash: db.open_tree("pduid_statehash")?,
                 roomid_statehash: db.open_tree("roomid_statehash")?,
@@ -157,9 +172,14 @@ impl Database {
             sending: sending::Sending {
                 servernamepduids: db.open_tree("servernamepduids")?,
                 servercurrentpdus: db.open_tree("servercurrentpdus")?,
+                maximum_requests: Arc::new(Semaphore::new(10)),
             },
             admin: admin::Admin {
                 sender: admin_sender,
+            },
+            appservice: appservice::Appservice {
+                cached_registrations: Arc::new(RwLock::new(HashMap::new())),
+                id_appserviceregistrations: db.open_tree("id_appserviceregistrations")?,
             },
             _db: db,
         };

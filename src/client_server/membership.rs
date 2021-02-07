@@ -2,7 +2,7 @@ use super::State;
 use crate::{
     client_server,
     pdu::{PduBuilder, PduEvent},
-    server_server, utils, ConduitResult, Database, Error, Result, Ruma,
+    utils, ConduitResult, Database, Error, Result, Ruma,
 };
 use log::warn;
 use ruma::{
@@ -17,13 +17,15 @@ use ruma::{
         },
         federation,
     },
-    events::pdu::Pdu,
-    events::{room::member, EventType},
-    EventId, Raw, RoomId, RoomVersionId, ServerName, UserId,
+    events::{pdu::Pdu, room::member, EventType},
+    serde::{to_canonical_value, CanonicalJsonObject, Raw},
+    EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use state_res::StateEvent;
 use std::{
-    collections::BTreeMap, collections::HashMap, collections::HashSet, convert::TryFrom, iter,
+    collections::{BTreeMap, HashMap, HashSet},
+    convert::TryFrom,
+    iter,
     sync::Arc,
 };
 
@@ -126,6 +128,7 @@ pub async fn leave_room_route(
         &db.sending,
         &db.admin,
         &db.account_data,
+        &db.appservice,
     )?;
 
     db.flush().await?;
@@ -165,6 +168,7 @@ pub async fn invite_user_route(
             &db.sending,
             &db.admin,
             &db.account_data,
+            &db.appservice,
         )?;
 
         db.flush().await?;
@@ -220,6 +224,7 @@ pub async fn kick_user_route(
         &db.sending,
         &db.admin,
         &db.account_data,
+        &db.appservice,
     )?;
 
     db.flush().await?;
@@ -279,6 +284,7 @@ pub async fn ban_user_route(
         &db.sending,
         &db.admin,
         &db.account_data,
+        &db.appservice,
     )?;
 
     db.flush().await?;
@@ -330,6 +336,7 @@ pub async fn unban_user_route(
         &db.sending,
         &db.admin,
         &db.account_data,
+        &db.appservice,
     )?;
 
     db.flush().await?;
@@ -394,9 +401,10 @@ pub async fn get_member_events_route(
     Ok(get_member_events::Response {
         chunk: db
             .rooms
-            .room_state_type(&body.room_id, &EventType::RoomMember)?
-            .values()
-            .map(|pdu| pdu.to_member_event())
+            .room_state_full(&body.room_id)?
+            .iter()
+            .filter(|(key, _)| key.0 == EventType::RoomMember)
+            .map(|(_, pdu)| pdu.to_member_event())
             .collect(),
     }
     .into())
@@ -456,16 +464,18 @@ async fn join_room_by_id_helper(
         ));
 
         for remote_server in servers {
-            let make_join_response = server_server::send_request(
-                &db.globals,
-                remote_server.clone(),
-                federation::membership::create_join_event_template::v1::Request {
-                    room_id,
-                    user_id: sender_user,
-                    ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
-                },
-            )
-            .await;
+            let make_join_response = db
+                .sending
+                .send_federation_request(
+                    &db.globals,
+                    remote_server.clone(),
+                    federation::membership::create_join_event_template::v1::Request {
+                        room_id,
+                        user_id: sender_user,
+                        ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
+                    },
+                )
+                .await;
 
             make_join_response_and_server = make_join_response.map(|r| (r, remote_server));
 
@@ -476,30 +486,25 @@ async fn join_room_by_id_helper(
 
         let (make_join_response, remote_server) = make_join_response_and_server?;
 
-        let mut join_event_stub_value =
-            serde_json::from_str::<serde_json::Value>(make_join_response.event.json().get())
+        let mut join_event_stub =
+            serde_json::from_str::<CanonicalJsonObject>(make_join_response.event.json().get())
                 .map_err(|_| {
                     Error::BadServerResponse("Invalid make_join event json received from server.")
                 })?;
 
-        let join_event_stub =
-            join_event_stub_value
-                .as_object_mut()
-                .ok_or(Error::BadServerResponse(
-                    "Invalid make join event object received from server.",
-                ))?;
-
         join_event_stub.insert(
             "origin".to_owned(),
-            db.globals.server_name().to_owned().to_string().into(),
+            to_canonical_value(db.globals.server_name())
+                .map_err(|_| Error::bad_database("Invalid server name found"))?,
         );
         join_event_stub.insert(
             "origin_server_ts".to_owned(),
-            utils::millis_since_unix_epoch().into(),
+            to_canonical_value(utils::millis_since_unix_epoch())
+                .expect("Timestamp is valid js_int value"),
         );
         join_event_stub.insert(
             "content".to_owned(),
-            serde_json::to_value(member::MemberEventContent {
+            to_canonical_value(member::MemberEventContent {
                 membership: member::MembershipState::Join,
                 displayname: db.users.displayname(&sender_user)?,
                 avatar_url: db.users.avatar_url(&sender_user)?,
@@ -509,57 +514,63 @@ async fn join_room_by_id_helper(
             .expect("event is valid, we just created it"),
         );
 
+        // We don't leave the event id in the pdu because that's only allowed in v1 or v2 rooms
+        join_event_stub.remove("event_id");
+
+        // In order to create a compatible ref hash (EventID) the `hashes` field needs to be present
+        ruma::signatures::hash_and_sign_event(
+            db.globals.server_name().as_str(),
+            db.globals.keypair(),
+            &mut join_event_stub,
+            &RoomVersionId::Version6,
+        )
+        .expect("event is valid, we just created it");
+
         // Generate event id
         let event_id = EventId::try_from(&*format!(
             "${}",
-            ruma::signatures::reference_hash(&join_event_stub_value)
+            ruma::signatures::reference_hash(&join_event_stub, &RoomVersionId::Version6)
                 .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are valid event ids");
 
-        // We don't leave the event id into the pdu because that's only allowed in v1 or v2 rooms
-        let join_event_stub = join_event_stub_value.as_object_mut().unwrap();
-        join_event_stub.remove("event_id");
-
-        ruma::signatures::hash_and_sign_event(
-            db.globals.server_name().as_str(),
-            db.globals.keypair(),
-            &mut join_event_stub_value,
-        )
-        .expect("event is valid, we just created it");
-
         // Add event_id back
-        let join_event_stub = join_event_stub_value.as_object_mut().unwrap();
-        join_event_stub.insert("event_id".to_owned(), event_id.to_string().into());
+        join_event_stub.insert(
+            "event_id".to_owned(),
+            to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
+        );
 
         // It has enough fields to be called a proper event now
-        let join_event = join_event_stub_value;
+        let join_event = join_event_stub;
 
-        let send_join_response = server_server::send_request(
-            &db.globals,
-            remote_server.clone(),
-            federation::membership::create_join_event::v2::Request {
-                room_id,
-                event_id: &event_id,
-                pdu_stub: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
-            },
-        )
-        .await?;
+        let send_join_response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                remote_server.clone(),
+                federation::membership::create_join_event::v2::Request {
+                    room_id,
+                    event_id: &event_id,
+                    pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+                },
+            )
+            .await?;
 
-        let add_event_id = |pdu: &Raw<Pdu>| {
+        let add_event_id = |pdu: &Raw<Pdu>| -> Result<(EventId, CanonicalJsonObject)> {
             let mut value = serde_json::from_str(pdu.json().get())
                 .expect("converting raw jsons to values always works");
             let event_id = EventId::try_from(&*format!(
                 "${}",
-                ruma::signatures::reference_hash(&value)
+                ruma::signatures::reference_hash(&value, &RoomVersionId::Version6)
                     .expect("ruma can calculate reference hashes")
             ))
             .expect("ruma's reference hashes are valid event ids");
 
-            value
-                .as_object_mut()
-                .ok_or_else(|| Error::BadServerResponse("PDU is not an object."))?
-                .insert("event_id".to_owned(), event_id.to_string().into());
+            value.insert(
+                "event_id".to_owned(),
+                to_canonical_value(&event_id)
+                    .expect("a valid EventId can be converted to CanonicalJsonValue"),
+            );
 
             Ok((event_id, value))
         };
@@ -568,7 +579,7 @@ async fn join_room_by_id_helper(
 
         let state_events = room_state
             .clone()
-            .map(|pdu: Result<(EventId, serde_json::Value)>| Ok(pdu?.0))
+            .map(|pdu: Result<(EventId, CanonicalJsonObject)>| Ok(pdu?.0))
             .chain(iter::once(Ok(event_id.clone()))) // Add join event we just created
             .collect::<Result<HashSet<EventId>>>()?;
 
@@ -583,11 +594,11 @@ async fn join_room_by_id_helper(
             .chain(iter::once(Ok((event_id, join_event)))) // Add join event we just created
             .map(|r| {
                 let (event_id, value) = r?;
-                serde_json::from_value::<StateEvent>(value.clone())
+                state_res::StateEvent::from_id_canon_obj(event_id.clone(), value.clone())
                     .map(|ev| (event_id, Arc::new(ev)))
                     .map_err(|e| {
-                        warn!("{}: {}", value, e);
-                        Error::BadServerResponse("Invalid PDU bytes in send_join response.")
+                        warn!("{:?}: {}", value, e);
+                        Error::BadServerResponse("Invalid PDU in send_join response.")
                     })
             })
             .collect::<Result<BTreeMap<EventId, Arc<StateEvent>>>>()?;
@@ -595,7 +606,7 @@ async fn join_room_by_id_helper(
         let control_events = event_map
             .values()
             .filter(|pdu| pdu.is_power_event())
-            .map(|pdu| pdu.event_id().clone())
+            .map(|pdu| pdu.event_id())
             .collect::<Vec<_>>();
 
         // These events are not guaranteed to be sorted but they are resolved according to spec
@@ -623,7 +634,9 @@ async fn join_room_by_id_helper(
         .expect("iterative auth check failed on resolved events");
 
         // This removes the control events that failed auth, leaving the resolved
-        // to be mainline sorted
+        // to be mainline sorted. In the actual `state_res::StateResolution::resolve`
+        // function both are removed since these are all events we don't know of
+        // we must keep track of everything to add to our DB.
         let events_to_sort = event_map
             .keys()
             .filter(|id| {
@@ -673,7 +686,7 @@ async fn join_room_by_id_helper(
             pdu_id.extend_from_slice(&count.to_be_bytes());
             db.rooms.append_pdu(
                 &PduEvent::from(&**pdu),
-                &serde_json::to_value(&**pdu).expect("PDU is valid value"),
+                utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
                 count,
                 pdu_id.clone().into(),
                 &db.globals,
@@ -686,7 +699,7 @@ async fn join_room_by_id_helper(
             }
         }
 
-        db.rooms.force_state(room_id, state)?;
+        db.rooms.force_state(room_id, state, &db.globals)?;
     } else {
         let event = member::MemberEventContent {
             membership: member::MembershipState::Join,
@@ -710,6 +723,7 @@ async fn join_room_by_id_helper(
             &db.sending,
             &db.admin,
             &db.account_data,
+            &db.appservice,
         )?;
     }
 

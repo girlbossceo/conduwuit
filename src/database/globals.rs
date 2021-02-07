@@ -1,24 +1,26 @@
-use crate::{utils, Error, Result};
+use crate::{database::Config, utils, Error, Result};
 use log::error;
 use ruma::ServerName;
-use std::{convert::TryInto, sync::Arc};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::RwLock;
+use std::time::Duration;
+use trust_dns_resolver::TokioAsyncResolver;
 
 pub const COUNTER: &str = "c";
 
 #[derive(Clone)]
 pub struct Globals {
     pub(super) globals: sled::Tree,
+    config: Config,
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     reqwest_client: reqwest::Client,
-    server_name: Box<ServerName>,
-    max_request_size: u32,
-    registration_disabled: bool,
-    encryption_disabled: bool,
-    federation_enabled: bool,
+    pub actual_destination_cache: Arc<RwLock<HashMap<Box<ServerName>, (String, Option<String>)>>>, // actual_destination, host
+    dns_resolver: TokioAsyncResolver,
 }
 
 impl Globals {
-    pub fn load(globals: sled::Tree, config: &rocket::Config) -> Result<Self> {
+    pub async fn load(globals: sled::Tree, config: Config) -> Result<Self> {
         let bytes = &*globals
             .update_and_fetch("keypair", utils::generate_keypair)?
             .expect("utils::generate_keypair always returns Some");
@@ -53,24 +55,24 @@ impl Globals {
             }
         };
 
+        let reqwest_client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(60 * 3))
+            .pool_max_idle_per_host(1)
+            .build()
+            .unwrap();
+
         Ok(Self {
             globals,
+            config,
             keypair: Arc::new(keypair),
-            reqwest_client: reqwest::Client::new(),
-            server_name: config
-                .get_str("server_name")
-                .unwrap_or("localhost")
-                .to_string()
-                .try_into()
-                .map_err(|_| Error::bad_config("Invalid server_name."))?,
-            max_request_size: config
-                .get_int("max_request_size")
-                .unwrap_or(20 * 1024 * 1024) // Default to 20 MB
-                .try_into()
-                .map_err(|_| Error::bad_config("Invalid max_request_size."))?,
-            registration_disabled: config.get_bool("registration_disabled").unwrap_or(false),
-            encryption_disabled: config.get_bool("encryption_disabled").unwrap_or(false),
-            federation_enabled: config.get_bool("federation_enabled").unwrap_or(false),
+            reqwest_client,
+            dns_resolver: TokioAsyncResolver::tokio_from_system_conf()
+                .await
+                .map_err(|_| {
+                    Error::bad_config("Failed to set up trust dns resolver with system config.")
+                })?,
+            actual_destination_cache: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -102,22 +104,26 @@ impl Globals {
     }
 
     pub fn server_name(&self) -> &ServerName {
-        self.server_name.as_ref()
+        self.config.server_name.as_ref()
     }
 
     pub fn max_request_size(&self) -> u32 {
-        self.max_request_size
+        self.config.max_request_size
     }
 
-    pub fn registration_disabled(&self) -> bool {
-        self.registration_disabled
+    pub fn allow_registration(&self) -> bool {
+        self.config.allow_registration
     }
 
-    pub fn encryption_disabled(&self) -> bool {
-        self.encryption_disabled
+    pub fn allow_encryption(&self) -> bool {
+        self.config.allow_encryption
     }
 
-    pub fn federation_enabled(&self) -> bool {
-        self.federation_enabled
+    pub fn allow_federation(&self) -> bool {
+        self.config.allow_federation
+    }
+
+    pub fn dns_resolver(&self) -> &TokioAsyncResolver {
+        &self.dns_resolver
     }
 }

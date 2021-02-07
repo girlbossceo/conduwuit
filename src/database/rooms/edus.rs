@@ -6,7 +6,8 @@ use ruma::{
         AnyEvent as EduEvent, SyncEphemeralRoomEvent,
     },
     presence::PresenceState,
-    Raw, RoomId, UserId,
+    serde::Raw,
+    RoomId, UserId,
 };
 use std::{
     collections::HashMap,
@@ -385,8 +386,6 @@ impl RoomEdus {
             .take_while(|(_, timestamp)| current_timestamp - timestamp > 5 * 60_000)
         // 5 Minutes
         {
-            self.userid_lastpresenceupdate.remove(&user_id_bytes)?;
-
             // Send new presence events to set the user offline
             let count = globals.next_count()?.to_be_bytes();
             let user_id = utils::string_from_bytes(&user_id_bytes)
@@ -420,6 +419,11 @@ impl RoomEdus {
                     .expect("PresenceEvent can be serialized"),
                 )?;
             }
+
+            self.userid_lastpresenceupdate.insert(
+                &user_id.to_string().as_bytes(),
+                &utils::millis_since_unix_epoch().to_be_bytes(),
+            )?;
         }
 
         Ok(())

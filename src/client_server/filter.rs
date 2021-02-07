@@ -9,10 +9,10 @@ pub async fn get_filter_route() -> ConduitResult<get_filter::Response> {
     // TODO
     Ok(get_filter::Response::new(filter::IncomingFilterDefinition {
         event_fields: None,
-        event_format: None,
-        account_data: None,
-        room: None,
-        presence: None,
+        event_format: filter::EventFormat::default(),
+        account_data: filter::IncomingFilter::default(),
+        room: filter::IncomingRoomFilter::default(),
+        presence: filter::IncomingFilter::default(),
     })
     .into())
 }

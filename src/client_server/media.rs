@@ -1,7 +1,5 @@
 use super::State;
-use crate::{
-    database::media::FileMeta, server_server, utils, ConduitResult, Database, Error, Ruma,
-};
+use crate::{database::media::FileMeta, utils, ConduitResult, Database, Error, Ruma};
 use ruma::api::client::{
     error::ErrorKind,
     r0::media::{create_content, get_content, get_content_thumbnail, get_media_config},
@@ -39,13 +37,17 @@ pub async fn create_content_route(
     db.media.create(
         mxc.clone(),
         &body.filename.as_deref(),
-        &body.content_type,
+        &body.content_type.as_deref(),
         &body.file,
     )?;
 
     db.flush().await?;
 
-    Ok(create_content::Response { content_uri: mxc }.into())
+    Ok(create_content::Response {
+        content_uri: mxc,
+        blurhash: None,
+    }
+    .into())
 }
 
 #[cfg_attr(
@@ -67,25 +69,27 @@ pub async fn get_content_route(
         Ok(get_content::Response {
             file,
             content_type,
-            content_disposition: filename.unwrap_or_default(), // TODO: Spec says this should be optional
+            content_disposition: filename,
         }
         .into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
-        let get_content_response = server_server::send_request(
-            &db.globals,
-            body.server_name.clone(),
-            get_content::Request {
-                allow_remote: false,
-                server_name: &body.server_name,
-                media_id: &body.media_id,
-            },
-        )
-        .await?;
+        let get_content_response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                body.server_name.clone(),
+                get_content::Request {
+                    allow_remote: false,
+                    server_name: &body.server_name,
+                    media_id: &body.media_id,
+                },
+            )
+            .await?;
 
         db.media.create(
             mxc,
-            &Some(&get_content_response.content_disposition),
-            &get_content_response.content_type,
+            &get_content_response.content_disposition.as_deref(),
+            &get_content_response.content_type.as_deref(),
             &get_content_response.file,
         )?;
 
@@ -118,19 +122,21 @@ pub async fn get_content_thumbnail_route(
     )? {
         Ok(get_content_thumbnail::Response { file, content_type }.into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
-        let get_thumbnail_response = server_server::send_request(
-            &db.globals,
-            body.server_name.clone(),
-            get_content_thumbnail::Request {
-                allow_remote: false,
-                height: body.height,
-                width: body.width,
-                method: body.method,
-                server_name: &body.server_name,
-                media_id: &body.media_id,
-            },
-        )
-        .await?;
+        let get_thumbnail_response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                body.server_name.clone(),
+                get_content_thumbnail::Request {
+                    allow_remote: false,
+                    height: body.height,
+                    width: body.width,
+                    method: body.method,
+                    server_name: &body.server_name,
+                    media_id: &body.media_id,
+                },
+            )
+            .await?;
 
         db.media.upload_thumbnail(
             mxc,

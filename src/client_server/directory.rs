@@ -1,5 +1,5 @@
 use super::State;
-use crate::{server_server, ConduitResult, Database, Error, Result, Ruma};
+use crate::{ConduitResult, Database, Error, Result, Ruma};
 use log::info;
 use ruma::{
     api::{
@@ -15,14 +15,13 @@ use ruma::{
         },
         federation,
     },
-    directory::Filter,
-    directory::RoomNetwork,
-    directory::{IncomingFilter, IncomingRoomNetwork, PublicRoomsChunk},
+    directory::{Filter, IncomingFilter, IncomingRoomNetwork, PublicRoomsChunk, RoomNetwork},
     events::{
         room::{avatar, canonical_alias, guest_access, history_visibility, name, topic},
         EventType,
     },
-    Raw, ServerName,
+    serde::Raw,
+    ServerName,
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -85,7 +84,13 @@ pub async fn set_room_visibility_route(
 ) -> ConduitResult<set_room_visibility::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    match body.visibility {
+    match &body.visibility {
+        room::Visibility::_Custom(_s) => {
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Room visibility type is not supported.",
+            ));
+        }
         room::Visibility::Public => {
             db.rooms.set_public(&body.room_id, true)?;
             info!("{} made {} public", sender_user, body.room_id);
@@ -128,19 +133,21 @@ pub async fn get_public_rooms_filtered_helper(
         .clone()
         .filter(|server| *server != db.globals.server_name().as_str())
     {
-        let response = server_server::send_request(
-            &db.globals,
-            other_server.to_owned(),
-            federation::directory::get_public_rooms_filtered::v1::Request {
-                limit,
-                since: since.as_deref(),
-                filter: Filter {
-                    generic_search_term: filter.generic_search_term.as_deref(),
+        let response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                other_server.to_owned(),
+                federation::directory::get_public_rooms_filtered::v1::Request {
+                    limit,
+                    since: since.as_deref(),
+                    filter: Filter {
+                        generic_search_term: filter.generic_search_term.as_deref(),
+                    },
+                    room_network: RoomNetwork::Matrix,
                 },
-                room_network: RoomNetwork::Matrix,
-            },
-        )
-        .await?;
+            )
+            .await?;
 
         return Ok(get_public_rooms_filtered::Response {
             chunk: response
@@ -296,7 +303,9 @@ pub async fn get_public_rooms_filtered_helper(
                                 .url,
                             )
                         })
-                        .transpose()?,
+                        .transpose()?
+                        // url is now an Option<String> so we must flatten
+                        .flatten(),
                 };
                 Ok(chunk)
             })

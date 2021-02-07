@@ -9,9 +9,8 @@ use ruma::{
         },
     },
     events::{
-        room::history_visibility::HistoryVisibility,
-        room::history_visibility::HistoryVisibilityEventContent, AnyStateEventContent,
-        EventContent, EventType,
+        room::history_visibility::{HistoryVisibility, HistoryVisibilityEventContent},
+        AnyStateEventContent, EventContent, EventType,
     },
     EventId, RoomId, UserId,
 };
@@ -64,8 +63,8 @@ pub async fn send_state_event_for_empty_key_route(
     let Ruma {
         body,
         sender_user,
-        sender_device: _,
         json_body,
+        ..
     } = body;
 
     let json = serde_json::from_str::<serde_json::Value>(
@@ -99,14 +98,15 @@ pub async fn send_state_event_for_empty_key_route(
 )]
 pub async fn get_state_events_route(
     db: State<'_, Database>,
-    body: Ruma<get_state_events::Request>,
+    body: Ruma<get_state_events::Request<'_>>,
 ) -> ConduitResult<get_state_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    #[allow(clippy::blocks_in_if_conditions)]
     // Users not in the room should not be able to access the state unless history_visibility is
     // WorldReadable
-    if !db.rooms.is_joined(sender_user, &body.room_id)? {
-        if !matches!(
+    if !db.rooms.is_joined(sender_user, &body.room_id)?
+        && !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
                 .map(|(_, event)| {
@@ -119,12 +119,12 @@ pub async fn get_state_events_route(
                         .map(|e| e.history_visibility)
                 }),
             Some(Ok(HistoryVisibility::WorldReadable))
-        ) {
-            return Err(Error::BadRequest(
-                ErrorKind::Forbidden,
-                "You don't have permission to view the room state.",
-            ));
-        }
+        )
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view the room state.",
+        ));
     }
 
     Ok(get_state_events::Response {
@@ -144,14 +144,15 @@ pub async fn get_state_events_route(
 )]
 pub async fn get_state_events_for_key_route(
     db: State<'_, Database>,
-    body: Ruma<get_state_events_for_key::Request>,
+    body: Ruma<get_state_events_for_key::Request<'_>>,
 ) -> ConduitResult<get_state_events_for_key::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    #[allow(clippy::blocks_in_if_conditions)]
     // Users not in the room should not be able to access the state unless history_visibility is
     // WorldReadable
-    if !db.rooms.is_joined(sender_user, &body.room_id)? {
-        if !matches!(
+    if !db.rooms.is_joined(sender_user, &body.room_id)?
+        && !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
                 .map(|(_, event)| {
@@ -164,12 +165,12 @@ pub async fn get_state_events_for_key_route(
                         .map(|e| e.history_visibility)
                 }),
             Some(Ok(HistoryVisibility::WorldReadable))
-        ) {
-            return Err(Error::BadRequest(
-                ErrorKind::Forbidden,
-                "You don't have permission to view the room state.",
-            ));
-        }
+        )
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view the room state.",
+        ));
     }
 
     let event = db
@@ -194,14 +195,15 @@ pub async fn get_state_events_for_key_route(
 )]
 pub async fn get_state_events_for_empty_key_route(
     db: State<'_, Database>,
-    body: Ruma<get_state_events_for_empty_key::Request>,
+    body: Ruma<get_state_events_for_empty_key::Request<'_>>,
 ) -> ConduitResult<get_state_events_for_empty_key::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    #[allow(clippy::blocks_in_if_conditions)]
     // Users not in the room should not be able to access the state unless history_visibility is
     // WorldReadable
-    if !db.rooms.is_joined(sender_user, &body.room_id)? {
-        if !matches!(
+    if !db.rooms.is_joined(sender_user, &body.room_id)?
+        && !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
                 .map(|(_, event)| {
@@ -214,12 +216,12 @@ pub async fn get_state_events_for_empty_key_route(
                         .map(|e| e.history_visibility)
                 }),
             Some(Ok(HistoryVisibility::WorldReadable))
-        ) {
-            return Err(Error::BadRequest(
-                ErrorKind::Forbidden,
-                "You don't have permission to view the room state.",
-            ));
-        }
+        )
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view the room state.",
+        ));
     }
 
     let event = db
@@ -232,7 +234,7 @@ pub async fn get_state_events_for_empty_key_route(
         .1;
 
     Ok(get_state_events_for_empty_key::Response {
-        content: serde_json::value::to_raw_value(&event)
+        content: serde_json::value::to_raw_value(&event.content)
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
     .into())
@@ -286,6 +288,7 @@ pub async fn send_state_event_for_key_helper(
         &db.sending,
         &db.admin,
         &db.account_data,
+        &db.appservice,
     )?;
 
     Ok(event_id)

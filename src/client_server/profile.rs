@@ -8,7 +8,7 @@ use ruma::{
         },
     },
     events::EventType,
-    Raw,
+    serde::Raw,
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -67,6 +67,7 @@ pub async fn set_displayname_route(
             &db.sending,
             &db.admin,
             &db.account_data,
+            &db.appservice,
         )?;
 
         // Presence update
@@ -163,6 +164,7 @@ pub async fn set_avatar_url_route(
             &db.sending,
             &db.admin,
             &db.account_data,
+            &db.appservice,
         )?;
 
         // Presence update

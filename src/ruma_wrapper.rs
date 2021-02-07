@@ -1,17 +1,22 @@
 use crate::Error;
 use ruma::{
-    api::{Outgoing, OutgoingRequest},
+    api::{AuthScheme, OutgoingRequest},
     identifiers::{DeviceId, UserId},
+    Outgoing,
 };
-use std::{convert::TryFrom, convert::TryInto, ops::Deref};
+use std::{
+    convert::{TryFrom, TryInto},
+    ops::Deref,
+};
 
 #[cfg(feature = "conduit_bin")]
 use {
     crate::utils,
-    log::warn,
+    log::{debug, warn},
     rocket::{
         data::{
-            Data, FromDataFuture, FromTransformedData, Transform, TransformFuture, Transformed,
+            ByteUnit, Data, FromDataFuture, FromTransformedData, Transform, TransformFuture,
+            Transformed,
         },
         http::Status,
         outcome::Outcome::*,
@@ -29,6 +34,7 @@ pub struct Ruma<T: Outgoing> {
     pub sender_user: Option<UserId>,
     pub sender_device: Option<Box<DeviceId>>,
     pub json_body: Option<Box<serde_json::value::RawValue>>, // This is None when body is not a valid string
+    pub from_appservice: bool,
 }
 
 #[cfg(feature = "conduit_bin")]
@@ -39,7 +45,7 @@ where
         http::request::Request<std::vec::Vec<u8>>,
     >>::Error: std::fmt::Debug,
 {
-    type Error = (); // TODO: Better error handling
+    type Error = ();
     type Owned = Data;
     type Borrowed = Self::Owned;
 
@@ -61,27 +67,75 @@ where
                 .await
                 .expect("database was loaded");
 
-            let (sender_user, sender_device) = if T::METADATA.requires_authentication {
-                // Get token from header or query value
-                let token = match request
-                    .headers()
-                    .get_one("Authorization")
-                    .map(|s| s[7..].to_owned()) // Split off "Bearer "
-                    .or_else(|| request.get_query_value("access_token").and_then(|r| r.ok()))
-                {
-                    // TODO: M_MISSING_TOKEN
-                    None => return Failure((Status::Unauthorized, ())),
-                    Some(token) => token,
-                };
+            // Get token from header or query value
+            let token = request
+                .headers()
+                .get_one("Authorization")
+                .map(|s| s[7..].to_owned()) // Split off "Bearer "
+                .or_else(|| request.get_query_value("access_token").and_then(|r| r.ok()));
 
-                // Check if token is valid
-                match db.users.find_from_token(&token).unwrap() {
-                    // TODO: M_UNKNOWN_TOKEN
-                    None => return Failure((Status::Unauthorized, ())),
-                    Some((user_id, device_id)) => (Some(user_id), Some(device_id.into())),
+            let (sender_user, sender_device, from_appservice) = if let Some((_id, registration)) =
+                db.appservice
+                    .iter_all()
+                    .filter_map(|r| r.ok())
+                    .find(|(_id, registration)| {
+                        registration
+                            .get("as_token")
+                            .and_then(|as_token| as_token.as_str())
+                            .map_or(false, |as_token| {
+                                dbg!(token.as_deref()) == dbg!(Some(as_token))
+                            })
+                    }) {
+                match T::METADATA.authentication {
+                    AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
+                        let user_id = request.get_query_value::<String>("user_id").map_or_else(
+                            || {
+                                UserId::parse_with_server_name(
+                                    registration
+                                        .get("sender_localpart")
+                                        .unwrap()
+                                        .as_str()
+                                        .unwrap(),
+                                    db.globals.server_name(),
+                                )
+                                .unwrap()
+                            },
+                            |string| {
+                                UserId::try_from(string.expect("parsing to string always works"))
+                                    .unwrap()
+                            },
+                        );
+
+                        if !db.users.exists(&user_id).unwrap() {
+                            // Forbidden
+                            return Failure((Status::raw(580), ()));
+                        }
+
+                        // TODO: Check if appservice is allowed to be that user
+                        (Some(user_id), None, true)
+                    }
+                    AuthScheme::ServerSignatures => (None, None, true),
+                    AuthScheme::None => (None, None, true),
                 }
             } else {
-                (None, None)
+                match T::METADATA.authentication {
+                    AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
+                        if let Some(token) = token {
+                            match db.users.find_from_token(&token).unwrap() {
+                                // Unknown Token
+                                None => return Failure((Status::raw(581), ())),
+                                Some((user_id, device_id)) => {
+                                    (Some(user_id), Some(device_id.into()), false)
+                                }
+                            }
+                        } else {
+                            // Missing Token
+                            return Failure((Status::raw(582), ()));
+                        }
+                    }
+                    AuthScheme::ServerSignatures => (None, None, false),
+                    AuthScheme::None => (None, None, false),
+                }
             };
 
             let mut http_request = http::Request::builder()
@@ -92,12 +146,12 @@ where
             }
 
             let limit = db.globals.max_request_size();
-            let mut handle = data.open().take(limit.into());
+            let mut handle = data.open(ByteUnit::Byte(limit.into()));
             let mut body = Vec::new();
             handle.read_to_end(&mut body).await.unwrap();
 
             let http_request = http_request.body(body.clone()).unwrap();
-            log::debug!("{:?}", http_request);
+            debug!("{:?}", http_request);
 
             match <T as Outgoing>::Incoming::try_from(http_request) {
                 Ok(t) => Success(Ruma {
@@ -108,10 +162,11 @@ where
                     json_body: utils::string_from_bytes(&body)
                         .ok()
                         .and_then(|s| serde_json::value::RawValue::from_string(s).ok()),
+                    from_appservice,
                 }),
                 Err(e) => {
                     warn!("{:?}", e);
-                    Failure((Status::BadRequest, ()))
+                    Failure((Status::raw(583), ()))
                 }
             }
         })
