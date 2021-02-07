@@ -1,6 +1,6 @@
 use crate::{utils, Error, Result};
 use http::header::{HeaderValue, CONTENT_TYPE};
-use log::{info, warn};
+use log::warn;
 use ruma::api::OutgoingRequest;
 use std::{
     convert::{TryFrom, TryInto},

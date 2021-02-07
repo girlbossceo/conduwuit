@@ -8,7 +8,7 @@ use std::{
 
 use crate::{appservice_server, server_server, utils, Error, PduEvent, Result};
 use federation::transactions::send_transaction_message;
-use log::{error, info};
+use log::info;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
     api::{appservice, federation, OutgoingRequest},

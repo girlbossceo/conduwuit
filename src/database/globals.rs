@@ -11,12 +11,13 @@ pub const COUNTER: &str = "c";
 
 #[derive(Clone)]
 pub struct Globals {
+    pub actual_destination_cache: Arc<RwLock<HashMap<Box<ServerName>, (String, Option<String>)>>>, // actual_destination, host
     pub(super) globals: sled::Tree,
     config: Config,
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     reqwest_client: reqwest::Client,
-    pub actual_destination_cache: Arc<RwLock<HashMap<Box<ServerName>, (String, Option<String>)>>>, // actual_destination, host
     dns_resolver: TokioAsyncResolver,
+    jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
 }
 
 impl Globals {
@@ -62,6 +63,11 @@ impl Globals {
             .build()
             .unwrap();
 
+        let jwt_decoding_key = config
+            .jwt_secret
+            .as_ref()
+            .map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()).into_static());
+
         Ok(Self {
             globals,
             config,
@@ -73,6 +79,7 @@ impl Globals {
                     Error::bad_config("Failed to set up trust dns resolver with system config.")
                 })?,
             actual_destination_cache: Arc::new(RwLock::new(HashMap::new())),
+            jwt_decoding_key,
         })
     }
 
@@ -125,5 +132,9 @@ impl Globals {
 
     pub fn dns_resolver(&self) -> &TokioAsyncResolver {
         &self.dns_resolver
+    }
+
+    pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey<'_>> {
+        self.jwt_decoding_key.as_ref()
     }
 }
