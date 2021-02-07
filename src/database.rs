@@ -38,6 +38,7 @@ pub struct Config {
     allow_encryption: bool,
     #[serde(default = "false_fn")]
     allow_federation: bool,
+    jwt_secret: Option<String>,
 }
 
 fn false_fn() -> bool {
