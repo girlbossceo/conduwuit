@@ -1,4 +1,4 @@
-#![warn(rust_2018_idioms)]
+// #![warn(rust_2018_idioms)]
 
 pub mod appservice_server;
 pub mod client_server;
