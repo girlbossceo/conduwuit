@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     convert::TryFrom,
-    fmt::{Debug, Display, Formatter},
+    fmt::Debug,
     sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
@@ -23,16 +23,6 @@ pub enum OutgoingKind {
     Appservice(Box<ServerName>),
     Push(Vec<u8>),
     Normal(Box<ServerName>),
-}
-
-impl Display for OutgoingKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OutgoingKind::Appservice(name) => f.write_str(name.as_str()),
-            OutgoingKind::Normal(name) => f.write_str(name.as_str()),
-            OutgoingKind::Push(_) => f.write_str("Push notification TODO"),
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -143,7 +133,7 @@ impl Sending {
                                 }
                             }
                             Err((outgoing_kind, e)) => {
-                                info!("Couldn't send transaction to {}\n{}", outgoing_kind, e);
+                                info!("Couldn't send transaction to {:?}\n{}", outgoing_kind, e);
                                 let mut prefix = match &outgoing_kind {
                                     OutgoingKind::Appservice(serv) => {
                                         let mut p = b"+".to_vec();
@@ -278,6 +268,8 @@ impl Sending {
         key.extend_from_slice(pdu_id);
         self.servernamepduids.insert(key, b"")?;
 
+        println!("AAAA");
+
         Ok(())
     }
 
@@ -306,7 +298,7 @@ impl Sending {
         pdu_ids: Vec<IVec>,
         db: &Database,
     ) -> std::result::Result<OutgoingKind, (OutgoingKind, Error)> {
-        match kind {
+        match dbg!(kind) {
             OutgoingKind::Appservice(server) => {
                 let pdu_jsons = pdu_ids
                     .iter()
@@ -364,22 +356,9 @@ impl Sending {
                     .filter_map(|r| r.ok())
                     .collect::<Vec<_>>();
 
-                for pdu in &pdus {
+                for pdu in dbg!(&pdus) {
                     // Redacted events are not notification targets (we don't send push for them)
                     if pdu.unsigned.get("redacted_because").is_some() {
-                        continue;
-                    }
-
-                    // Skip events that came from the admin room
-                    if db
-                        .rooms
-                        .room_aliases(&pdu.room_id)
-                        .any(|alias| match alias {
-                            Ok(a) => a.as_str().starts_with("#admins:"),
-                            _ => false,
-                        })
-                        || pdu.sender.as_str().starts_with("@conduit:")
-                    {
                         continue;
                     }
 
@@ -391,9 +370,7 @@ impl Sending {
                             continue;
                         }
 
-                        let pushers = db
-                            .pusher
-                            .get_pusher(&user)
+                        let pushers = dbg!(db.pusher.get_pusher(&user))
                             .map_err(|e| (OutgoingKind::Push(id.clone()), e))?;
 
                         let rules_for_user = db
@@ -426,15 +403,17 @@ impl Sending {
                             uint!(0)
                         };
 
-                        crate::database::pusher::send_push_notice(
-                            &user,
-                            unread,
-                            &pushers,
-                            rules_for_user,
-                            pdu,
-                            db,
+                        dbg!(
+                            crate::database::pusher::send_push_notice(
+                                &user,
+                                unread,
+                                &pushers,
+                                rules_for_user,
+                                pdu,
+                                db,
+                            )
+                            .await
                         )
-                        .await
                         .map_err(|e| (OutgoingKind::Push(id.clone()), e))?;
                     }
                 }

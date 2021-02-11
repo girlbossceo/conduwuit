@@ -35,7 +35,10 @@ impl PushData {
     }
 
     pub fn set_pusher(&self, sender: &UserId, pusher: Pusher) -> Result<()> {
+        println!("CCCCCCCCCCCCCCCCCCCCCc");
+        dbg!(&pusher);
         let mut key = sender.as_bytes().to_vec();
+        key.push(0xff);
         key.extend_from_slice(pusher.pushkey.as_bytes());
 
         // There are 2 kinds of pushers but the spec says: null deletes the pusher.
@@ -48,7 +51,7 @@ impl PushData {
         }
 
         self.senderkey_pusher.insert(
-            key,
+            dbg!(key),
             &*serde_json::to_string(&pusher).expect("Pusher is valid JSON string"),
         )?;
 
@@ -56,11 +59,16 @@ impl PushData {
     }
 
     pub fn get_pusher(&self, sender: &UserId) -> Result<Vec<Pusher>> {
+        let mut prefix = sender.as_bytes().to_vec();
+        prefix.push(0xff);
+
         self.senderkey_pusher
-            .scan_prefix(sender.as_bytes())
+            .scan_prefix(dbg!(prefix))
             .values()
-            .map(|push: std::result::Result<sled::IVec, _>| {
-                let push = push.map_err(|_| Error::bad_database("Invalid push bytes in db."))?;
+            .map(|push| {
+                println!("DDDDDDDDDDDDDDDDDDDDDDDDDD");
+                let push =
+                    dbg!(push).map_err(|_| Error::bad_database("Invalid push bytes in db."))?;
                 Ok(serde_json::from_slice(&*push)
                     .map_err(|_| Error::bad_database("Invalid Pusher in db."))?)
             })
@@ -85,14 +93,17 @@ where
             Error::BadServerResponse("Invalid destination")
         })?;
 
-    let mut reqwest_request = reqwest::Request::try_from(http_request)
+    let reqwest_request = reqwest::Request::try_from(http_request)
         .expect("all http requests are valid reqwest requests");
 
     // TODO: we could keep this very short and let expo backoff do it's thing...
-    *reqwest_request.timeout_mut() = Some(Duration::from_secs(5));
+    //*reqwest_request.timeout_mut() = Some(Duration::from_secs(5));
 
     let url = reqwest_request.url().clone();
-    let reqwest_response = globals.reqwest_client().execute(reqwest_request).await;
+    let reqwest_response = globals
+        .reqwest_client()
+        .execute(dbg!(reqwest_request))
+        .await;
 
     // Because reqwest::Response -> http::Response is complicated:
     match reqwest_response {
@@ -154,6 +165,12 @@ pub async fn send_push_notice(
     pdu: &PduEvent,
     db: &Database,
 ) -> Result<()> {
+    if let Some(msgtype) = pdu.content.get("msgtype").and_then(|b| b.as_str()) {
+        if msgtype == "m.notice" {
+            return Ok(());
+        }
+    }
+
     for rule in ruleset.into_iter() {
         // TODO: can actions contain contradictory Actions
         if rule
@@ -165,7 +182,7 @@ pub async fn send_push_notice(
             continue;
         }
 
-        match rule.rule_id.as_str() {
+        match dbg!(rule.rule_id.as_str()) {
             ".m.rule.master" => {}
             ".m.rule.suppress_notices" => {
                 if pdu.kind == EventType::RoomMessage
@@ -437,7 +454,8 @@ async fn send_notice(
     db: &Database,
     name: &str,
 ) -> Result<()> {
-    let (http, _emails): (Vec<&Pusher>, _) = pushers
+    println!("BBBBBBBBBBBBBBBr");
+    let (http, _emails): (Vec<&Pusher>, _) = dbg!(pushers)
         .iter()
         .partition(|pusher| pusher.kind == Some(PusherKind::Http));
 
@@ -445,7 +463,7 @@ async fn send_notice(
     // Two problems with this
     // 1. if "event_id_only" is the only format kind it seems we should never add more info
     // 2. can pusher/devices have conflicting formats
-    for pusher in http {
+    for pusher in dbg!(http) {
         let event_id_only = pusher.data.format == Some(PushFormat::EventIdOnly);
         let url = if let Some(url) = pusher.data.url.as_ref() {
             url
@@ -484,12 +502,12 @@ async fn send_notice(
 
         if event_id_only {
             error!("SEND PUSH NOTICE `{}`", name);
-        // send_request(
-        //     &db.globals,
-        //     &url,
-        //     send_event_notification::v1::Request::new(notifi),
-        // )
-        // .await?;
+            send_request(
+                &db.globals,
+                &url,
+                send_event_notification::v1::Request::new(notifi),
+            )
+            .await?;
         } else {
             notifi.sender = Some(&event.sender);
             notifi.event_type = Some(&event.kind);
@@ -512,12 +530,12 @@ async fn send_notice(
             notifi.room_name = room_name.as_deref();
 
             error!("SEND PUSH NOTICE Full `{}`", name);
-            // send_request(
-            //     &db.globals,
-            //     &url,
-            //     send_event_notification::v1::Request::new(notifi),
-            // )
-            // .await?;
+            send_request(
+                &db.globals,
+                &url,
+                send_event_notification::v1::Request::new(notifi),
+            )
+            .await?;
         }
     }
 

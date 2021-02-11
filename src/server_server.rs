@@ -1,6 +1,6 @@
 use crate::{client_server, utils, ConduitResult, Database, Error, PduEvent, Result, Ruma};
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
-use log::{info, warn};
+use log::{error, info, warn};
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
     api::{
@@ -17,7 +17,6 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
-    events::EventType,
     serde::to_canonical_value,
     signatures::{CanonicalJsonObject, CanonicalJsonValue, PublicKeyMap},
     EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,

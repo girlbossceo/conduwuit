@@ -1358,6 +1358,7 @@ impl Rooms {
             self.alias_roomid
                 .insert(alias.alias(), room_id.as_bytes())?;
             let mut aliasid = room_id.as_bytes().to_vec();
+            aliasid.push(0xff);
             aliasid.extend_from_slice(&globals.next_count()?.to_be_bytes());
             self.aliasid_alias.insert(aliasid, &*alias.alias())?;
         } else {
@@ -1370,7 +1371,10 @@ impl Rooms {
                     "Alias does not exist.",
                 ))?;
 
-            for key in self.aliasid_alias.scan_prefix(room_id).keys() {
+            let mut prefix = room_id.to_vec();
+            prefix.push(0xff);
+
+            for key in self.aliasid_alias.scan_prefix(prefix).keys() {
                 self.aliasid_alias.remove(key?)?;
             }
         }
