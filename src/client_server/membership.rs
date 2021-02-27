@@ -666,7 +666,7 @@ async fn join_room_by_id_helper(
                 utils::to_canonical_object(&**pdu).expect("Pdu is valid canonical object"),
                 count,
                 pdu_id.clone().into(),
-                &pdu.prev_events,
+                &[pdu.event_id.clone()],
                 &db,
             )?;
 
