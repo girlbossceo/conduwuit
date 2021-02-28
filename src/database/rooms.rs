@@ -63,8 +63,11 @@ pub struct Rooms {
     /// Remember the state hash at events in the past.
     pub(super) pduid_statehash: sled::Tree,
     /// The state for a given state hash.
-    pub(super) statekey_short: sled::Tree, // StateKey = EventType + StateKey, Short = Count
-    pub(super) stateid_pduid: sled::Tree, // StateId = StateHash + Short, PduId = Count (without roomid)
+    ///
+    /// StateKey = EventType + StateKey, Short = Count
+    pub(super) statekey_short: sled::Tree,
+    /// StateId = StateHash + Short, PduId = Count (without roomid)
+    pub(super) stateid_pduid: sled::Tree,
 
     /// RoomId + EventId -> outlier PDU.
     /// Any pdu that has passed the steps 1-8 in the incoming event /federation/send/txn.
@@ -583,11 +586,11 @@ impl Rooms {
                     let mut hash = hash?.to_vec();
                     hash.extend_from_slice(&short.to_be_bytes());
 
-                    let _ = self.stateid_pduid.compare_and_swap(
+                    let _ = dbg!(self.stateid_pduid.compare_and_swap(
                         hash,
                         Some(pdu.event_id().as_bytes()),
                         Some(pdu_id.as_ref()),
-                    )?;
+                    )?);
                 }
             }
         }
@@ -921,12 +924,12 @@ impl Rooms {
                         content.clone(),
                         prev_event,
                         None, // TODO: third party invite
-                        &auth_events
+                        dbg!(&auth_events
                             .iter()
                             .map(|((ty, key), pdu)| {
                                 Ok(((ty.clone(), key.clone()), Arc::new(pdu.clone())))
                             })
-                            .collect::<Result<StateMap<_>>>()?,
+                            .collect::<Result<StateMap<_>>>()?),
                     )
                     .map_err(|e| {
                         log::error!("{}", e);
