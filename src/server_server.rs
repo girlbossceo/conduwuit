@@ -28,6 +28,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+#[tracing::instrument(skip(globals))]
 pub async fn send_request<T: OutgoingRequest>(
     globals: &crate::database::globals::Globals,
     destination: Box<ServerName>,
@@ -194,6 +195,7 @@ where
     }
 }
 
+#[tracing::instrument]
 fn get_ip_with_port(destination_str: String) -> Option<String> {
     if destination_str.parse::<SocketAddr>().is_ok() {
         Some(destination_str)
@@ -204,6 +206,7 @@ fn get_ip_with_port(destination_str: String) -> Option<String> {
     }
 }
 
+#[tracing::instrument]
 fn add_port_to_hostname(destination_str: String) -> String {
     match destination_str.find(':') {
         None => destination_str.to_owned() + ":8448",
@@ -214,6 +217,7 @@ fn add_port_to_hostname(destination_str: String) -> String {
 /// Returns: actual_destination, host header
 /// Implemented according to the specification at https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names
 /// Numbers in comments below refer to bullet points in linked section of specification
+#[tracing::instrument(skip(globals))]
 async fn find_actual_destination(
     globals: &crate::database::globals::Globals,
     destination: &Box<ServerName>,
@@ -272,6 +276,7 @@ async fn find_actual_destination(
     (actual_destination, host)
 }
 
+#[tracing::instrument(skip(globals))]
 async fn query_srv_record<'a>(
     globals: &crate::database::globals::Globals,
     hostname: &'a str,
@@ -296,6 +301,7 @@ async fn query_srv_record<'a>(
     }
 }
 
+#[tracing::instrument(skip(globals))]
 pub async fn request_well_known(
     globals: &crate::database::globals::Globals,
     destination: &str,
@@ -319,6 +325,7 @@ pub async fn request_well_known(
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/federation/v1/version"))]
+#[tracing::instrument(skip(db))]
 pub fn get_server_version_route(
     db: State<'_, Database>,
 ) -> ConduitResult<get_server_version::Response> {
@@ -336,6 +343,7 @@ pub fn get_server_version_route(
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server"))]
+#[tracing::instrument(skip(db))]
 pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
     if !db.globals.allow_federation() {
         // TODO: Use proper types
@@ -378,6 +386,7 @@ pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server/<_>"))]
+#[tracing::instrument(skip(db))]
 pub fn get_server_keys_deprecated_route(db: State<'_, Database>) -> Json<String> {
     get_server_keys_route(db)
 }
@@ -386,6 +395,7 @@ pub fn get_server_keys_deprecated_route(db: State<'_, Database>) -> Json<String>
     feature = "conduit_bin",
     post("/_matrix/federation/v1/publicRooms", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms_filtered::v1::Request<'_>>,
@@ -433,6 +443,7 @@ pub async fn get_public_rooms_filtered_route(
     feature = "conduit_bin",
     get("/_matrix/federation/v1/publicRooms", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms::v1::Request<'_>>,
@@ -480,6 +491,7 @@ pub async fn get_public_rooms_route(
     feature = "conduit_bin",
     put("/_matrix/federation/v1/send/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn send_transaction_message_route<'a>(
     db: State<'a, Database>,
     body: Ruma<send_transaction_message::v1::Request<'_>>,
@@ -585,6 +597,7 @@ pub async fn send_transaction_message_route<'a>(
     feature = "conduit_bin",
     post("/_matrix/federation/v1/get_missing_events/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub fn get_missing_events_route<'a>(
     db: State<'a, Database>,
     body: Ruma<get_missing_events::v1::Request<'_>>,
@@ -630,6 +643,7 @@ pub fn get_missing_events_route<'a>(
     feature = "conduit_bin",
     get("/_matrix/federation/v1/query/profile", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub fn get_profile_information_route<'a>(
     db: State<'a, Database>,
     body: Ruma<get_profile_information::v1::Request<'_>>,

@@ -22,6 +22,7 @@ use rocket::{get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/state/<_>/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn send_state_event_for_key_route(
     db: State<'_, Database>,
     body: Ruma<send_state_event_for_key::Request<'_>>,
@@ -55,6 +56,7 @@ pub async fn send_state_event_for_key_route(
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/state/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn send_state_event_for_empty_key_route(
     db: State<'_, Database>,
     body: Ruma<send_state_event_for_empty_key::Request<'_>>,
@@ -96,6 +98,7 @@ pub async fn send_state_event_for_empty_key_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/state", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events::Request<'_>>,
@@ -142,6 +145,7 @@ pub async fn get_state_events_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/state/<_>/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_for_key_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events_for_key::Request<'_>>,
@@ -193,6 +197,7 @@ pub async fn get_state_events_for_key_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/state/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_for_empty_key_route(
     db: State<'_, Database>,
     body: Ruma<get_state_events_for_empty_key::Request<'_>>,

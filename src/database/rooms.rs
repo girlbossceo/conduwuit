@@ -108,6 +108,7 @@ impl StateStore for Rooms {
 impl Rooms {
     /// Builds a StateMap by iterating over all keys that start
     /// with state_hash, this gives the full state for the given state_hash.
+    #[tracing::instrument(skip(self))]
     pub fn state_full(
         &self,
         room_id: &RoomId,
@@ -145,6 +146,7 @@ impl Rooms {
     }
 
     /// Returns a single PDU from `room_id` with key (`event_type`, `state_key`).
+    #[tracing::instrument(skip(self))]
     pub fn state_get(
         &self,
         room_id: &RoomId,
@@ -186,11 +188,13 @@ impl Rooms {
     }
 
     /// Returns the last state hash key added to the db.
+    #[tracing::instrument(skip(self))]
     pub fn pdu_state_hash(&self, pdu_id: &[u8]) -> Result<Option<StateHashId>> {
         Ok(self.pduid_statehash.get(pdu_id)?)
     }
 
     /// Returns the last state hash key added to the db for the given room.
+    #[tracing::instrument(skip(self))]
     pub fn current_state_hash(&self, room_id: &RoomId) -> Result<Option<StateHashId>> {
         Ok(self.roomid_statehash.get(room_id.as_bytes())?)
     }
@@ -290,6 +294,7 @@ impl Rooms {
     }
 
     /// Returns the full room state.
+    #[tracing::instrument(skip(self))]
     pub fn room_state_full(&self, room_id: &RoomId) -> Result<StateMap<PduEvent>> {
         if let Some(current_state_hash) = self.current_state_hash(room_id)? {
             self.state_full(&room_id, &current_state_hash)
@@ -299,6 +304,7 @@ impl Rooms {
     }
 
     /// Returns a single PDU from `room_id` with key (`event_type`, `state_key`).
+    #[tracing::instrument(skip(self))]
     pub fn room_state_get(
         &self,
         room_id: &RoomId,
@@ -313,6 +319,7 @@ impl Rooms {
     }
 
     /// Returns the `count` of this pdu's id.
+    #[tracing::instrument(skip(self))]
     pub fn pdu_count(&self, pdu_id: &[u8]) -> Result<u64> {
         Ok(
             utils::u64_from_bytes(&pdu_id[pdu_id.len() - mem::size_of::<u64>()..pdu_id.len()])
@@ -1024,6 +1031,7 @@ impl Rooms {
     }
 
     /// Returns an iterator over all PDUs in a room.
+    #[tracing::instrument(skip(self))]
     pub fn all_pdus(
         &self,
         user_id: &UserId,
@@ -1034,6 +1042,7 @@ impl Rooms {
 
     /// Returns a double-ended iterator over all events in a room that happened after the event with id `since`
     /// in chronological order.
+    #[tracing::instrument(skip(self))]
     pub fn pdus_since(
         &self,
         user_id: &UserId,
@@ -1100,6 +1109,7 @@ impl Rooms {
 
     /// Returns an iterator over all events and their token in a room that happened after the event
     /// with id `from` in chronological order.
+    #[tracing::instrument(skip(self))]
     pub fn pdus_after(
         &self,
         user_id: &UserId,
@@ -1449,6 +1459,7 @@ impl Rooms {
         ))
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn get_shared_rooms<'a>(
         &'a self,
         users: Vec<UserId>,
@@ -1510,6 +1521,7 @@ impl Rooms {
     }
 
     /// Returns an iterator over all joined members of a room.
+    #[tracing::instrument(skip(self))]
     pub fn room_members(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
@@ -1558,6 +1570,7 @@ impl Rooms {
     }
 
     /// Returns an iterator over all invited members of a room.
+    #[tracing::instrument(skip(self))]
     pub fn room_members_invited(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
@@ -1582,6 +1595,7 @@ impl Rooms {
     }
 
     /// Returns an iterator over all rooms this user joined.
+    #[tracing::instrument(skip(self))]
     pub fn rooms_joined(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
         self.userroomid_joined
             .scan_prefix(user_id.as_bytes())
@@ -1603,6 +1617,7 @@ impl Rooms {
     }
 
     /// Returns an iterator over all rooms a user was invited to.
+    #[tracing::instrument(skip(self))]
     pub fn rooms_invited(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
@@ -1627,6 +1642,7 @@ impl Rooms {
     }
 
     /// Returns an iterator over all rooms a user left.
+    #[tracing::instrument(skip(self))]
     pub fn rooms_left(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);

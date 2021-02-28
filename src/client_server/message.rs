@@ -17,6 +17,7 @@ use rocket::{get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/rooms/<_>/send/<_>/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn send_message_event_route(
     db: State<'_, Database>,
     body: Ruma<send_message_event::Request<'_>>,
@@ -88,6 +89,7 @@ pub async fn send_message_event_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/messages", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_message_events_route(
     db: State<'_, Database>,
     body: Ruma<get_message_events::Request<'_>>,

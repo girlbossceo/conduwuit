@@ -16,6 +16,7 @@ use rocket::{get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/user/<_>/account_data/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn set_global_account_data_route(
     db: State<'_, Database>,
     body: Ruma<set_global_account_data::Request<'_>>,
@@ -49,6 +50,7 @@ pub async fn set_global_account_data_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/user/<_>/account_data/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_global_account_data_route(
     db: State<'_, Database>,
     body: Ruma<get_global_account_data::Request<'_>>,
