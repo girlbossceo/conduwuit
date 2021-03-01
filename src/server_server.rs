@@ -8,8 +8,8 @@ use ruma::{
         federation::{
             directory::{get_public_rooms, get_public_rooms_filtered},
             discovery::{
-                get_server_keys, get_server_version::v1 as get_server_version, ServerSigningKeys,
-                VerifyKey,
+                get_remote_server_keys, get_server_keys,
+                get_server_version::v1 as get_server_version, ServerSigningKeys, VerifyKey,
             },
             event::{get_event, get_missing_events, get_room_state_ids},
             query::get_profile_information,
@@ -575,7 +575,7 @@ pub async fn send_transaction_message_route<'a>(
                 return None;
             }
 
-            Some((event_id, value))
+            Some((event_id, room_id, value))
         })
         .collect::<Vec<_>>();
 
@@ -586,7 +586,7 @@ pub async fn send_transaction_message_route<'a>(
     // events over federation. For example, the Federation API's /send endpoint would
     // discard the event whereas the Client Server API's /send/{eventType} endpoint
     // would return a M_BAD_JSON error.
-    'main_pdu_loop: for (event_id, value) in pdus_to_resolve {
+    'main_pdu_loop: for (event_id, room_id, value) in pdus_to_resolve {
         let server_name = &body.body.origin;
         let mut pub_key_map = BTreeMap::new();
 
@@ -595,7 +595,7 @@ pub async fn send_transaction_message_route<'a>(
                 UserId::try_from(sender.as_str()).expect("All PDUs have a valid sender field");
             let origin = sender.server_name();
 
-            let keys = match fetch_signing_keys(&db, origin).await {
+            let keys = match fetch_signing_keys(&db, &room_id, origin).await {
                 Ok(keys) => keys,
                 Err(_) => {
                     resolved_map.insert(
@@ -1122,18 +1122,61 @@ pub(crate) async fn fetch_events(
 /// fetch them from the server and save to our DB.
 pub(crate) async fn fetch_signing_keys(
     db: &Database,
+    room_id: &RoomId,
     origin: &ServerName,
 ) -> Result<BTreeMap<ServerSigningKeyId, VerifyKey>> {
     match db.globals.signing_keys_for(origin)? {
         keys if !keys.is_empty() => Ok(keys),
         _ => {
-            let keys = db
+            match db
                 .sending
                 .send_federation_request(&db.globals, origin, get_server_keys::v2::Request::new())
                 .await
-                .map_err(|_| Error::BadServerResponse("Failed to request server keys"))?;
-            db.globals.add_signing_key(origin, &keys.server_key)?;
-            Ok(keys.server_key.verify_keys)
+            {
+                Ok(keys) => {
+                    db.globals.add_signing_key(origin, &keys.server_key)?;
+                    Ok(keys.server_key.verify_keys)
+                }
+                _ => {
+                    for server in db.rooms.room_servers(room_id) {
+                        let server = server?;
+                        if let Ok(keys) = db
+                            .sending
+                            .send_federation_request(
+                                &db.globals,
+                                &server,
+                                get_remote_server_keys::v2::Request::new(
+                                    &server,
+                                    SystemTime::now()
+                                        .checked_add(Duration::from_secs(3600))
+                                        .expect("SystemTime to large"),
+                                ),
+                            )
+                            .await
+                        {
+                            let keys: Vec<ServerSigningKeys> = keys.server_keys;
+                            let key = keys.into_iter().fold(None, |mut key, next| {
+                                if let Some(verified) = &key {
+                                    // rustc cannot elide this type for some reason
+                                    let v: &ServerSigningKeys = verified;
+                                    if v.verify_keys
+                                        .iter()
+                                        .zip(next.verify_keys.iter())
+                                        .all(|(a, b)| a.1.key == b.1.key)
+                                    {
+                                    }
+                                } else {
+                                    key = Some(next)
+                                }
+                                key
+                            });
+                        }
+                    }
+                    Err(Error::BadServerResponse(
+                        "Failed to find public key for server",
+                    ))
+                }
+            }
         }
     }
 }

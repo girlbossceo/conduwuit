@@ -1605,7 +1605,7 @@ impl Rooms {
             })
     }
 
-    /// Returns an iterator over all joined members of a room.
+    /// Returns an iterator of all servers participating in this room.
     pub fn room_servers(&self, room_id: &RoomId) -> impl Iterator<Item = Result<Box<ServerName>>> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
