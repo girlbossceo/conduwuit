@@ -1138,7 +1138,9 @@ pub(crate) async fn fetch_signing_keys(
                     Ok(keys.server_key.verify_keys)
                 }
                 _ => {
-                    for server in db.rooms.room_servers(room_id) {
+                    for server in db.rooms.room_servers(room_id).filter(
+                        |ser| matches!(ser, Ok(s) if db.globals.trusted_servers().contains(s)),
+                    ) {
                         let server = server?;
                         if let Ok(keys) = db
                             .sending
@@ -1154,8 +1156,9 @@ pub(crate) async fn fetch_signing_keys(
                             )
                             .await
                         {
+                            let mut trust = 0;
                             let keys: Vec<ServerSigningKeys> = keys.server_keys;
-                            let key = keys.into_iter().fold(None, |mut key, next| {
+                            let key = keys.iter().fold(None, |mut key, next| {
                                 if let Some(verified) = &key {
                                     // rustc cannot elide this type for some reason
                                     let v: &ServerSigningKeys = verified;
@@ -1164,12 +1167,19 @@ pub(crate) async fn fetch_signing_keys(
                                         .zip(next.verify_keys.iter())
                                         .all(|(a, b)| a.1.key == b.1.key)
                                     {
+                                        trust += 1;
                                     }
                                 } else {
-                                    key = Some(next)
+                                    key = Some(next.clone())
                                 }
                                 key
                             });
+
+                            if trust == (keys.len() - 1) && key.is_some() {
+                                let k = key.unwrap();
+                                db.globals.add_signing_key(origin, &k)?;
+                                return Ok(k.verify_keys);
+                            }
                         }
                     }
                     Err(Error::BadServerResponse(

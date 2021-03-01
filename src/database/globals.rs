@@ -139,6 +139,10 @@ impl Globals {
         self.config.allow_federation
     }
 
+    pub fn trusted_servers(&self) -> &[Box<ServerName>] {
+        &self.config.trusted_servers
+    }
+
     pub fn dns_resolver(&self) -> &TokioAsyncResolver {
         &self.dns_resolver
     }

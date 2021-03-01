@@ -39,6 +39,8 @@ pub struct Config {
     #[serde(default = "false_fn")]
     allow_federation: bool,
     jwt_secret: Option<String>,
+    #[serde(default = "Vec::new")]
+    trusted_servers: Vec<Box<ServerName>>,
 }
 
 fn false_fn() -> bool {
