@@ -90,7 +90,7 @@ fn setup_rocket() -> rocket::Rocket {
                 client_server::get_backup_key_sessions_route,
                 client_server::get_backup_keys_route,
                 client_server::set_read_marker_route,
-                client_server::set_receipt_route,
+                client_server::create_receipt_route,
                 client_server::create_typing_event_route,
                 client_server::create_room_route,
                 client_server::redact_event_route,
