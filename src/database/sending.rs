@@ -9,6 +9,7 @@ use std::{
 use crate::{appservice_server, server_server, utils, Error, PduEvent, Result};
 use federation::transactions::send_transaction_message;
 use log::info;
+use ring::digest;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
     api::{appservice, federation, OutgoingRequest},
@@ -229,6 +230,13 @@ impl Sending {
         Ok(())
     }
 
+    fn calculate_hash(keys: &[IVec]) -> Vec<u8> {
+        // We only hash the pdu's event ids, not the whole pdu
+        let bytes = keys.join(&0xff);
+        let hash = digest::digest(&digest::SHA256, &bytes);
+        hash.as_ref().to_owned()
+    }
+
     async fn handle_event(
         server: Box<ServerName>,
         is_appservice: bool,
@@ -266,7 +274,10 @@ impl Sending {
                     .unwrap(), // TODO: handle error
                 appservice::event::push_events::v1::Request {
                     events: &pdu_jsons,
-                    txn_id: &utils::random_string(16),
+                    txn_id: &base64::encode_config(
+                        Self::calculate_hash(&pdu_ids),
+                        base64::URL_SAFE_NO_PAD,
+                    ),
                 },
             )
             .await
@@ -309,7 +320,10 @@ impl Sending {
                     pdus: &pdu_jsons,
                     edus: &[],
                     origin_server_ts: SystemTime::now(),
-                    transaction_id: &utils::random_string(16),
+                    transaction_id: &base64::encode_config(
+                        Self::calculate_hash(&pdu_ids),
+                        base64::URL_SAFE_NO_PAD,
+                    ),
                 },
             )
             .await
