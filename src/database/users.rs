@@ -312,6 +312,7 @@ impl Users {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
         self.userid_lastonetimekeyupdate
             .get(&user_id.to_string().as_bytes())?
@@ -365,6 +366,7 @@ impl Users {
             .transpose()
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn count_one_time_keys(
         &self,
         user_id: &UserId,
@@ -564,6 +566,7 @@ impl Users {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn keys_changed(
         &self,
         user_or_room_id: &str,
@@ -739,6 +742,7 @@ impl Users {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn get_to_device_events(
         &self,
         user_id: &UserId,
@@ -761,6 +765,7 @@ impl Users {
         Ok(events)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn remove_to_device_events(
         &self,
         user_id: &UserId,

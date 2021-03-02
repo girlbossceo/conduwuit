@@ -1,13 +1,6 @@
-use std::{collections::HashMap, sync::RwLock, time::Duration, time::Instant};
-
 use log::error;
-use ruma::{
-    api::client::{error::ErrorKind, r0::uiaa::UiaaInfo},
-    events::room::message,
-};
+use ruma::api::client::{error::ErrorKind, r0::uiaa::UiaaInfo};
 use thiserror::Error;
-
-use crate::{database::admin::AdminCommand, Database};
 
 #[cfg(feature = "conduit_bin")]
 use {
@@ -106,63 +99,4 @@ where
         })
         .respond_to(r)
     }
-}
-
-pub struct ConduitLogger {
-    pub db: Database,
-    pub last_logs: RwLock<HashMap<String, Instant>>,
-}
-
-impl log::Log for ConduitLogger {
-    fn enabled(&self, _metadata: &log::Metadata<'_>) -> bool {
-        true
-    }
-
-    fn log(&self, record: &log::Record<'_>) {
-        let output = format!("{} - {}", record.level(), record.args());
-
-        if self.enabled(record.metadata())
-            && (record
-                .module_path()
-                .map_or(false, |path| path.starts_with("conduit::"))
-                || record
-                    .module_path()
-                    .map_or(true, |path| !path.starts_with("rocket::")) // Rockets logs are annoying
-                    && record.metadata().level() <= log::Level::Warn)
-        {
-            let first_line = output
-                .lines()
-                .next()
-                .expect("lines always returns one item");
-
-            eprintln!("{}", output);
-
-            let mute_duration = match record.metadata().level() {
-                log::Level::Error => Duration::from_secs(60 * 5), // 5 minutes
-                log::Level::Warn => Duration::from_secs(60 * 60 * 24), // A day
-                _ => Duration::from_secs(60 * 60 * 24 * 7),       // A week
-            };
-
-            if self
-                .last_logs
-                .read()
-                .unwrap()
-                .get(first_line)
-                .map_or(false, |i| i.elapsed() < mute_duration)
-            // Don't post this log again for some time
-            {
-                return;
-            }
-
-            if let Ok(mut_last_logs) = &mut self.last_logs.try_write() {
-                mut_last_logs.insert(first_line.to_owned(), Instant::now());
-            }
-
-            self.db.admin.send(AdminCommand::SendMessage(
-                message::MessageEventContent::notice_plain(output),
-            ));
-        }
-    }
-
-    fn flush(&self) {}
 }

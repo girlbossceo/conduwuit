@@ -31,6 +31,7 @@ use rocket::{get, post, put};
     feature = "conduit_bin",
     post("/_matrix/client/r0/publicRooms", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms_filtered::Request<'_>>,
@@ -50,6 +51,7 @@ pub async fn get_public_rooms_filtered_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/publicRooms", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms::Request<'_>>,
@@ -78,6 +80,7 @@ pub async fn get_public_rooms_route(
     feature = "conduit_bin",
     put("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn set_room_visibility_route(
     db: State<'_, Database>,
     body: Ruma<set_room_visibility::Request<'_>>,
@@ -107,6 +110,7 @@ pub async fn set_room_visibility_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_room_visibility_route(
     db: State<'_, Database>,
     body: Ruma<get_room_visibility::Request<'_>>,

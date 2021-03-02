@@ -19,6 +19,7 @@ use std::convert::TryInto;
     feature = "conduit_bin",
     put("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn set_displayname_route(
     db: State<'_, Database>,
     body: Ruma<set_display_name::Request<'_>>,
@@ -102,6 +103,7 @@ pub async fn set_displayname_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_displayname_route(
     db: State<'_, Database>,
     body: Ruma<get_display_name::Request<'_>>,
@@ -116,6 +118,7 @@ pub async fn get_displayname_route(
     feature = "conduit_bin",
     put("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn set_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<set_avatar_url::Request<'_>>,
@@ -199,6 +202,7 @@ pub async fn set_avatar_url_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_avatar_url_route(
     db: State<'_, Database>,
     body: Ruma<get_avatar_url::Request<'_>>,
@@ -213,6 +217,7 @@ pub async fn get_avatar_url_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/profile/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_profile_route(
     db: State<'_, Database>,
     body: Ruma<get_profile::Request<'_>>,

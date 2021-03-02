@@ -36,6 +36,7 @@ use rocket::{get, post};
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/join", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn join_room_by_id_route(
     db: State<'_, Database>,
     body: Ruma<join_room_by_id::Request<'_>>,
@@ -54,6 +55,7 @@ pub async fn join_room_by_id_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/join/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn join_room_by_id_or_alias_route(
     db: State<'_, Database>,
     body: Ruma<join_room_by_id_or_alias::Request<'_>>,
@@ -88,6 +90,7 @@ pub async fn join_room_by_id_or_alias_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/leave", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn leave_room_route(
     db: State<'_, Database>,
     body: Ruma<leave_room::Request<'_>>,
@@ -140,6 +143,7 @@ pub async fn leave_room_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/invite", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn invite_user_route(
     db: State<'_, Database>,
     body: Ruma<invite_user::Request<'_>>,
@@ -183,6 +187,7 @@ pub async fn invite_user_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/kick", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn kick_user_route(
     db: State<'_, Database>,
     body: Ruma<kick_user::Request<'_>>,
@@ -236,6 +241,7 @@ pub async fn kick_user_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/ban", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn ban_user_route(
     db: State<'_, Database>,
     body: Ruma<ban_user::Request<'_>>,
@@ -296,6 +302,7 @@ pub async fn ban_user_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/unban", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn unban_user_route(
     db: State<'_, Database>,
     body: Ruma<unban_user::Request<'_>>,
@@ -348,6 +355,7 @@ pub async fn unban_user_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/forget", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn forget_room_route(
     db: State<'_, Database>,
     body: Ruma<forget_room::Request<'_>>,
@@ -365,6 +373,7 @@ pub async fn forget_room_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/joined_rooms", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn joined_rooms_route(
     db: State<'_, Database>,
     body: Ruma<joined_rooms::Request>,
@@ -385,6 +394,7 @@ pub async fn joined_rooms_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/members", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_member_events_route(
     db: State<'_, Database>,
     body: Ruma<get_member_events::Request<'_>>,
@@ -414,6 +424,7 @@ pub async fn get_member_events_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/rooms/<_>/joined_members", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn joined_members_route(
     db: State<'_, Database>,
     body: Ruma<joined_members::Request<'_>>,

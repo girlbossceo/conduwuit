@@ -19,6 +19,7 @@ use rocket::{delete, get, put};
     feature = "conduit_bin",
     put("/_matrix/client/r0/directory/room/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn create_alias_route(
     db: State<'_, Database>,
     body: Ruma<create_alias::Request<'_>>,
@@ -39,6 +40,7 @@ pub async fn create_alias_route(
     feature = "conduit_bin",
     delete("/_matrix/client/r0/directory/room/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn delete_alias_route(
     db: State<'_, Database>,
     body: Ruma<delete_alias::Request<'_>>,
@@ -54,6 +56,7 @@ pub async fn delete_alias_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/directory/room/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_alias_route(
     db: State<'_, Database>,
     body: Ruma<get_alias::Request<'_>>,

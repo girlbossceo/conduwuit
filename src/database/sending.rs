@@ -235,6 +235,7 @@ impl Sending {
         });
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn send_pdu(&self, server: &ServerName, pdu_id: &[u8]) -> Result<()> {
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
@@ -244,6 +245,7 @@ impl Sending {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn send_pdu_appservice(&self, appservice_id: &str, pdu_id: &[u8]) -> Result<()> {
         let mut key = "+".as_bytes().to_vec();
         key.extend_from_slice(appservice_id.as_bytes());
@@ -254,6 +256,7 @@ impl Sending {
         Ok(())
     }
 
+    #[tracing::instrument]
     fn calculate_hash(keys: &[IVec]) -> Vec<u8> {
         // We only hash the pdu's event ids, not the whole pdu
         let bytes = keys.join(&0xff);
@@ -261,6 +264,7 @@ impl Sending {
         hash.as_ref().to_owned()
     }
 
+    #[tracing::instrument(skip(globals, rooms, appservice))]
     async fn handle_event(
         server: Box<ServerName>,
         is_appservice: bool,
@@ -397,6 +401,7 @@ impl Sending {
         ))
     }
 
+    #[tracing::instrument(skip(self, globals))]
     pub async fn send_federation_request<T: OutgoingRequest>(
         &self,
         globals: &crate::database::globals::Globals,
@@ -413,6 +418,7 @@ impl Sending {
         response
     }
 
+    #[tracing::instrument(skip(self, globals))]
     pub async fn send_appservice_request<T: OutgoingRequest>(
         &self,
         globals: &crate::database::globals::Globals,

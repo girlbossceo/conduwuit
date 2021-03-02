@@ -16,6 +16,7 @@ use std::{collections::BTreeMap, time::SystemTime};
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/read_markers", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn set_read_marker_route(
     db: State<'_, Database>,
     body: Ruma<set_read_marker::Request<'_>>,
@@ -84,6 +85,7 @@ pub async fn set_read_marker_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/rooms/<_>/receipt/<_>/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn create_receipt_route(
     db: State<'_, Database>,
     body: Ruma<create_receipt::Request<'_>>,

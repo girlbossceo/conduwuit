@@ -11,21 +11,23 @@ mod push_rules;
 mod ruma_wrapper;
 mod utils;
 
+use database::Config;
 pub use database::Database;
-pub use error::{ConduitLogger, Error, Result};
+pub use error::{Error, Result};
 pub use pdu::PduEvent;
 pub use rocket::State;
 use ruma::api::client::error::ErrorKind;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
-use log::LevelFilter;
 use rocket::figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
 use rocket::{catch, catchers, fairing::AdHoc, routes, Request};
+use tracing::span;
+use tracing_subscriber::{prelude::*, Registry};
 
-fn setup_rocket() -> rocket::Rocket {
+fn setup_rocket() -> (rocket::Rocket, Config) {
     // Force log level off, so we can use our own logger
     std::env::set_var("CONDUIT_LOG_LEVEL", "off");
 
@@ -39,7 +41,12 @@ fn setup_rocket() -> rocket::Rocket {
             )
             .merge(Env::prefixed("CONDUIT_").global());
 
-    rocket::custom(config)
+    let parsed_config = config
+        .extract::<Config>()
+        .expect("It looks like your config is invalid. Please take a look at the error");
+    let parsed_config2 = parsed_config.clone();
+
+    let rocket = rocket::custom(config)
         .mount(
             "/",
             routes![
@@ -163,30 +170,41 @@ fn setup_rocket() -> rocket::Rocket {
             bad_json_catcher
         ])
         .attach(AdHoc::on_attach("Config", |rocket| async {
-            let config = rocket
-                .figment()
-                .extract()
-                .expect("It looks like your config is invalid. Please take a look at the error");
-            let data = Database::load_or_create(config)
+            let data = Database::load_or_create(parsed_config2)
                 .await
                 .expect("config is valid");
 
             data.sending
                 .start_handler(&data.globals, &data.rooms, &data.appservice);
-            log::set_boxed_logger(Box::new(ConduitLogger {
-                db: data.clone(),
-                last_logs: Default::default(),
-            }))
-            .unwrap();
-            log::set_max_level(LevelFilter::Info);
 
             Ok(rocket.manage(data))
-        }))
+        }));
+
+    (rocket, parsed_config)
 }
 
 #[rocket::main]
 async fn main() {
-    setup_rocket().launch().await.unwrap();
+    let (rocket, config) = setup_rocket();
+
+    if config.allow_jaeger {
+        let (tracer, _uninstall) = opentelemetry_jaeger::new_pipeline()
+            .with_service_name("conduit")
+            .install()
+            .unwrap();
+        let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+        Registry::default().with(telemetry).try_init().unwrap();
+
+        let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
+        let _enter = root.enter();
+
+        rocket.launch().await.unwrap();
+    } else {
+        let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
+        let _enter = root.enter();
+
+        rocket.launch().await.unwrap();
+    }
 }
 
 #[catch(404)]
