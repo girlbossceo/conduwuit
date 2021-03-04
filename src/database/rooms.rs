@@ -183,7 +183,7 @@ impl Rooms {
                     )))
                 })
         } else {
-            return Ok(None);
+            Ok(None)
         }
     }
 
@@ -449,6 +449,7 @@ impl Rooms {
     ///
     /// By this point the incoming event should be fully authenticated, no auth happens
     /// in `append_pdu`.
+    #[allow(clippy::too_many_arguments)]
     pub fn append_pdu(
         &self,
         pdu: &PduEvent,
@@ -970,7 +971,7 @@ impl Rooms {
                     .get("users")
                     .and_then(|users| users.as_sequence())
                     .map_or_else(
-                        || Vec::new(),
+                        Vec::new,
                         |users| {
                             users
                                 .iter()
@@ -1002,7 +1003,7 @@ impl Rooms {
                     .and_then(|string| {
                         UserId::parse_with_server_name(string, globals.server_name()).ok()
                     });
-
+                #[allow(clippy::blocks_in_if_conditions)]
                 if bridge_user_id.map_or(false, |bridge_user_id| {
                     self.is_joined(&bridge_user_id, room_id).unwrap_or(false)
                 }) || users.iter().any(|users| {

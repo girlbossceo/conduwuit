@@ -9,9 +9,10 @@ use trust_dns_resolver::TokioAsyncResolver;
 
 pub const COUNTER: &str = "c";
 
+type WellKnownMap = HashMap<Box<ServerName>, (String, Option<String>)>;
 #[derive(Clone)]
 pub struct Globals {
-    pub actual_destination_cache: Arc<RwLock<HashMap<Box<ServerName>, (String, Option<String>)>>>, // actual_destination, host
+    pub actual_destination_cache: Arc<RwLock<WellKnownMap>>, // actual_destination, host
     pub(super) globals: sled::Tree,
     config: Config,
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,

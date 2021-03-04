@@ -102,7 +102,7 @@ impl Sending {
                         match response {
                             Ok((server, is_appservice)) => {
                                 let mut prefix = if is_appservice {
-                                    "+".as_bytes().to_vec()
+                                    b"+".to_vec()
                                 } else {
                                     Vec::new()
                                 };
@@ -148,7 +148,7 @@ impl Sending {
                             Err((server, is_appservice, e)) => {
                                 info!("Couldn't send transaction to {}\n{}", server, e);
                                 let mut prefix = if is_appservice {
-                                    "+".as_bytes().to_vec()
+                                    b"+".to_vec()
                                 } else {
                                     Vec::new()
                                 };
@@ -180,7 +180,7 @@ impl Sending {
                                 .map_err(|_| Error::bad_database("ServerName in servernamepduid bytes are invalid."))
                                 .map(|server_str| {
                                     // Appservices start with a plus
-                                    if server_str.starts_with("+") {
+                                    if server_str.starts_with('+') {
                                         (server_str[1..].to_owned(), true)
                                     } else {
                                         (server_str, false)
@@ -196,6 +196,7 @@ impl Sending {
                                     .map(|pdu_id| (server, is_appservice, pdu_id))
                                 )
                                 .filter(|(server, is_appservice, _)| {
+                                    #[allow(clippy::blocks_in_if_conditions)]
                                     if last_failed_try.get(server).map_or(false, |(tries, instant)| {
                                         // Fail if a request has failed recently (exponential backoff)
                                         let mut min_elapsed_duration = Duration::from_secs(60) * *tries * *tries;
@@ -209,7 +210,7 @@ impl Sending {
                                     }
 
                                     let mut prefix = if *is_appservice {
-                                        "+".as_bytes().to_vec()
+                                        b"+".to_vec()
                                     } else {
                                         Vec::new()
                                     };
@@ -247,7 +248,7 @@ impl Sending {
 
     #[tracing::instrument(skip(self))]
     pub fn send_pdu_appservice(&self, appservice_id: &str, pdu_id: &[u8]) -> Result<()> {
-        let mut key = "+".as_bytes().to_vec();
+        let mut key = b"+".to_vec();
         key.extend_from_slice(appservice_id.as_bytes());
         key.push(0xff);
         key.extend_from_slice(pdu_id);
@@ -385,7 +386,7 @@ impl Sending {
         })?;
 
         // Appservices start with a plus
-        let (server, is_appservice) = if server.starts_with("+") {
+        let (server, is_appservice) = if server.starts_with('+') {
             (&server[1..], true)
         } else {
             (&*server, false)
