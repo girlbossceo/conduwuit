@@ -2,6 +2,7 @@ use crate::{client_server, utils, ConduitResult, Database, Error, PduEvent, Resu
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::{info, warn};
+use regex::Regex;
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
     api::{
@@ -18,6 +19,7 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
+    events::EventType,
     EventId, RoomId, ServerName, ServerSigningKeyId, UserId,
 };
 use std::{
@@ -584,9 +586,70 @@ pub async fn send_transaction_message_route<'a>(
         db.rooms.set_room_state(&room_id, &next_room_state)?;
 
         for appservice in db.appservice.iter_all().filter_map(|r| r.ok()) {
-            db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
-        }
+            if let Some(namespaces) = appservice.1.get("namespaces") {
+                let users = namespaces
+                    .get("users")
+                    .and_then(|users| users.as_sequence())
+                    .map_or_else(
+                        || Vec::new(),
+                        |users| {
+                            users
+                                .iter()
+                                .map(|users| {
+                                    users
+                                        .get("regex")
+                                        .and_then(|regex| regex.as_str())
+                                        .and_then(|regex| Regex::new(regex).ok())
+                                })
+                                .filter_map(|o| o)
+                                .collect::<Vec<_>>()
+                        },
+                    );
+                let aliases = namespaces
+                    .get("aliases")
+                    .and_then(|users| users.get("regex"))
+                    .and_then(|regex| regex.as_str())
+                    .and_then(|regex| Regex::new(regex).ok());
+                let rooms = namespaces
+                    .get("rooms")
+                    .and_then(|rooms| rooms.as_sequence());
 
+                let room_aliases = db.rooms.room_aliases(&room_id);
+
+                let bridge_user_id = appservice
+                    .1
+                    .get("sender_localpart")
+                    .and_then(|string| string.as_str())
+                    .and_then(|string| {
+                        UserId::parse_with_server_name(string, db.globals.server_name()).ok()
+                    });
+
+                if bridge_user_id.map_or(false, |bridge_user_id| {
+                    db.rooms
+                        .is_joined(&bridge_user_id, room_id)
+                        .unwrap_or(false)
+                }) || users.iter().any(|users| {
+                    users.is_match(pdu.sender.as_str())
+                        || pdu.kind == EventType::RoomMember
+                            && pdu
+                                .state_key
+                                .as_ref()
+                                .map_or(false, |state_key| users.is_match(&state_key))
+                }) || aliases.map_or(false, |aliases| {
+                    room_aliases
+                        .filter_map(|r| r.ok())
+                        .any(|room_alias| aliases.is_match(room_alias.as_str()))
+                }) || rooms.map_or(false, |rooms| rooms.contains(&room_id.as_str().into()))
+                    || db
+                        .rooms
+                        .room_members(&room_id)
+                        .filter_map(|r| r.ok())
+                        .any(|member| users.iter().any(|regex| regex.is_match(member.as_str())))
+                {
+                    db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
+                }
+            }
+        }
         resolved_map.insert(event_id, Ok::<(), String>(()));
     }
 
