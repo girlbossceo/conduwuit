@@ -3,7 +3,7 @@ use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::{info, warn};
 use regex::Regex;
-use rocket::{get, post, put, response::content::Json, State};
+use rocket::{response::content::Json, State};
 use ruma::{
     api::{
         federation::{
@@ -28,6 +28,10 @@ use std::{
     fmt::Debug,
     net::{IpAddr, SocketAddr},
     time::{Duration, SystemTime},
+};
+#[cfg(feature = "conduit_bin")]
+use {
+    rocket::{get, post, put}
 };
 
 #[tracing::instrument(skip(globals))]
@@ -591,7 +595,7 @@ pub async fn send_transaction_message_route<'a>(
                     .get("users")
                     .and_then(|users| users.as_sequence())
                     .map_or_else(
-                        || Vec::new(),
+                        Vec::new,
                         |users| {
                             users
                                 .iter()
@@ -623,7 +627,7 @@ pub async fn send_transaction_message_route<'a>(
                     .and_then(|string| {
                         UserId::parse_with_server_name(string, db.globals.server_name()).ok()
                     });
-
+                #[allow(clippy::blocks_in_if_conditions)]
                 if bridge_user_id.map_or(false, |bridge_user_id| {
                     db.rooms
                         .is_joined(&bridge_user_id, room_id)

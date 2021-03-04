@@ -74,7 +74,7 @@ impl Sending {
             for ((server, is_appservice), pdus) in current_transactions {
                 // Create new reservation
                 let mut prefix = if is_appservice {
-                    "+".as_bytes().to_vec()
+                    b"+".to_vec()
                 } else {
                     Vec::new()
                 };
@@ -217,11 +217,9 @@ impl Sending {
                                     prefix.extend_from_slice(server.as_bytes());
                                     prefix.push(0xff);
 
-                                    if servercurrentpdus
+                                    servercurrentpdus
                                         .compare_and_swap(prefix, Option::<&[u8]>::None, Some(&[])) // Try to reserve
-                                        == Ok(Ok(())) { true } else {
-                                            false
-                                    }
+                                        == Ok(Ok(()))
                                 })
                             {
                                 servercurrentpdus.insert(&key, &[]).unwrap();

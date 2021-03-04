@@ -1,17 +1,17 @@
 use crate::Error;
 use ruma::{
-    api::{AuthScheme, OutgoingRequest},
     identifiers::{DeviceId, UserId},
     Outgoing,
 };
 use std::{
-    convert::{TryFrom, TryInto},
+    convert::{TryInto},
     ops::Deref,
 };
 
 #[cfg(feature = "conduit_bin")]
 use {
     crate::utils,
+    ruma::api::{AuthScheme, OutgoingRequest},
     log::{debug, warn},
     rocket::{
         data::{
@@ -25,6 +25,7 @@ use {
         Request, State,
     },
     std::io::Cursor,
+    std::convert::TryFrom, 
 };
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
