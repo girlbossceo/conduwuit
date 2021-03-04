@@ -65,3 +65,9 @@ Or build and run it with docker or docker-compose. [Read more](docker/README.md)
 
 Liberapay: <https://liberapay.com/timokoesters/>\
 Bitcoin: `bc1qnnykf986tw49ur7wx9rpw2tevpsztvar5x8w4n`
+
+
+#### Logo
+
+Lightning Bolt Logo: https://github.com/mozilla/fxemoji/blob/gh-pages/svgs/nature/u26A1-bolt.svg \
+Logo License: https://github.com/mozilla/fxemoji/blob/gh-pages/LICENSE.md
