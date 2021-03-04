@@ -24,6 +24,7 @@ use rocket::{get, post};
 /// Get the homeserver's supported login types. One of these should be used as the `type` field
 /// when logging in.
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/login"))]
+#[tracing::instrument]
 pub async fn get_login_types_route() -> ConduitResult<get_login_types::Response> {
     Ok(get_login_types::Response::new(vec![get_login_types::LoginType::Password]).into())
 }
@@ -42,6 +43,7 @@ pub async fn get_login_types_route() -> ConduitResult<get_login_types::Response>
     feature = "conduit_bin",
     post("/_matrix/client/r0/login", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn login_route(
     db: State<'_, Database>,
     body: Ruma<login::Request<'_>>,
@@ -155,6 +157,7 @@ pub async fn login_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/logout", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn logout_route(
     db: State<'_, Database>,
     body: Ruma<logout::Request>,
@@ -182,6 +185,7 @@ pub async fn logout_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/logout/all", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn logout_all_route(
     db: State<'_, Database>,
     body: Ruma<logout_all::Request>,

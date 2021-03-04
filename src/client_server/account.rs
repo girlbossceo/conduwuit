@@ -40,6 +40,7 @@ const GUEST_NAME_LENGTH: usize = 10;
     feature = "conduit_bin",
     get("/_matrix/client/r0/register/available", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_register_available_route(
     db: State<'_, Database>,
     body: Ruma<get_username_availability::Request<'_>>,
@@ -82,6 +83,7 @@ pub async fn get_register_available_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/register", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn register_route(
     db: State<'_, Database>,
     body: Ruma<register::Request<'_>>,
@@ -498,6 +500,7 @@ pub async fn register_route(
     feature = "conduit_bin",
     post("/_matrix/client/r0/account/password", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn change_password_route(
     db: State<'_, Database>,
     body: Ruma<change_password::Request<'_>>,
@@ -562,6 +565,7 @@ pub async fn change_password_route(
     feature = "conduit_bin",
     get("/_matrix/client/r0/account/whoami", data = "<body>")
 )]
+#[tracing::instrument(skip(body))]
 pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     Ok(whoami::Response {
@@ -582,6 +586,7 @@ pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::
     feature = "conduit_bin",
     post("/_matrix/client/r0/account/deactivate", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn deactivate_route(
     db: State<'_, Database>,
     body: Ruma<deactivate::Request<'_>>,

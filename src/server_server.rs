@@ -2,6 +2,7 @@ use crate::{client_server, utils, ConduitResult, Database, Error, PduEvent, Resu
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::{error, info, warn};
+use regex::Regex;
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
     api::{
@@ -18,6 +19,7 @@ use ruma::{
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
+    events::EventType,
     serde::to_canonical_value,
     signatures::{CanonicalJsonObject, CanonicalJsonValue, PublicKeyMap},
     EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
@@ -35,6 +37,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+#[tracing::instrument(skip(globals))]
 pub async fn send_request<T: OutgoingRequest>(
     globals: &crate::database::globals::Globals,
     destination: &ServerName,
@@ -201,6 +204,7 @@ where
     }
 }
 
+#[tracing::instrument]
 fn get_ip_with_port(destination_str: String) -> Option<String> {
     if destination_str.parse::<SocketAddr>().is_ok() {
         Some(destination_str)
@@ -211,6 +215,7 @@ fn get_ip_with_port(destination_str: String) -> Option<String> {
     }
 }
 
+#[tracing::instrument]
 fn add_port_to_hostname(destination_str: String) -> String {
     match destination_str.find(':') {
         None => destination_str.to_owned() + ":8448",
@@ -221,9 +226,10 @@ fn add_port_to_hostname(destination_str: String) -> String {
 /// Returns: actual_destination, host header
 /// Implemented according to the specification at https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names
 /// Numbers in comments below refer to bullet points in linked section of specification
+#[tracing::instrument(skip(globals))]
 async fn find_actual_destination(
     globals: &crate::database::globals::Globals,
-    destination: &ServerName,
+    destination: &'_ ServerName,
 ) -> (String, Option<String>) {
     let mut host = None;
 
@@ -279,9 +285,10 @@ async fn find_actual_destination(
     (actual_destination, host)
 }
 
+#[tracing::instrument(skip(globals))]
 async fn query_srv_record(
     globals: &crate::database::globals::Globals,
-    hostname: &str,
+    hostname: &'_ str,
 ) -> Option<String> {
     if let Ok(Some(host_port)) = globals
         .dns_resolver()
@@ -303,6 +310,7 @@ async fn query_srv_record(
     }
 }
 
+#[tracing::instrument(skip(globals))]
 pub async fn request_well_known(
     globals: &crate::database::globals::Globals,
     destination: &str,
@@ -326,6 +334,7 @@ pub async fn request_well_known(
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/federation/v1/version"))]
+#[tracing::instrument(skip(db))]
 pub fn get_server_version_route(
     db: State<'_, Database>,
 ) -> ConduitResult<get_server_version::Response> {
@@ -343,6 +352,7 @@ pub fn get_server_version_route(
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server"))]
+#[tracing::instrument(skip(db))]
 pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
     if !db.globals.allow_federation() {
         // TODO: Use proper types
@@ -385,6 +395,7 @@ pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
 }
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server/<_>"))]
+#[tracing::instrument(skip(db))]
 pub fn get_server_keys_deprecated_route(db: State<'_, Database>) -> Json<String> {
     get_server_keys_route(db)
 }
@@ -393,6 +404,7 @@ pub fn get_server_keys_deprecated_route(db: State<'_, Database>) -> Json<String>
     feature = "conduit_bin",
     post("/_matrix/federation/v1/publicRooms", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_filtered_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms_filtered::v1::Request<'_>>,
@@ -440,6 +452,7 @@ pub async fn get_public_rooms_filtered_route(
     feature = "conduit_bin",
     get("/_matrix/federation/v1/publicRooms", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_route(
     db: State<'_, Database>,
     body: Ruma<get_public_rooms::v1::Request<'_>>,
@@ -487,6 +500,7 @@ pub async fn get_public_rooms_route(
     feature = "conduit_bin",
     put("/_matrix/federation/v1/send/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn send_transaction_message_route<'a>(
     db: State<'a, Database>,
     body: Ruma<send_transaction_message::v1::Request<'_>>,
@@ -1428,7 +1442,67 @@ pub(crate) fn append_incoming_pdu(
     db.rooms.set_room_state(pdu.room_id(), &state_hash)?;
 
     for appservice in db.appservice.iter_all().filter_map(|r| r.ok()) {
-        db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
+        if let Some(namespaces) = appservice.1.get("namespaces") {
+            let users = namespaces
+                .get("users")
+                .and_then(|users| users.as_sequence())
+                .map_or_else(Vec::new, |users| {
+                    users
+                        .iter()
+                        .map(|users| {
+                            users
+                                .get("regex")
+                                .and_then(|regex| regex.as_str())
+                                .and_then(|regex| Regex::new(regex).ok())
+                        })
+                        .filter_map(|o| o)
+                        .collect::<Vec<_>>()
+                });
+            let aliases = namespaces
+                .get("aliases")
+                .and_then(|users| users.get("regex"))
+                .and_then(|regex| regex.as_str())
+                .and_then(|regex| Regex::new(regex).ok());
+            let rooms = namespaces
+                .get("rooms")
+                .and_then(|rooms| rooms.as_sequence());
+
+            let room_aliases = db.rooms.room_aliases(&pdu.room_id);
+
+            let bridge_user_id = appservice
+                .1
+                .get("sender_localpart")
+                .and_then(|string| string.as_str())
+                .and_then(|string| {
+                    UserId::parse_with_server_name(string, db.globals.server_name()).ok()
+                });
+
+            #[allow(clippy::blocks_in_if_conditions)]
+            if bridge_user_id.map_or(false, |bridge_user_id| {
+                db.rooms
+                    .is_joined(&bridge_user_id, &pdu.room_id)
+                    .unwrap_or(false)
+            }) || users.iter().any(|users| {
+                users.is_match(pdu.sender.as_str())
+                    || pdu.kind == EventType::RoomMember
+                        && pdu
+                            .state_key
+                            .as_ref()
+                            .map_or(false, |state_key| users.is_match(&state_key))
+            }) || aliases.map_or(false, |aliases| {
+                room_aliases
+                    .filter_map(|r| r.ok())
+                    .any(|room_alias| aliases.is_match(room_alias.as_str()))
+            }) || rooms.map_or(false, |rooms| rooms.contains(&pdu.room_id.as_str().into()))
+                || db
+                    .rooms
+                    .room_members(&pdu.room_id)
+                    .filter_map(|r| r.ok())
+                    .any(|member| users.iter().any(|regex| regex.is_match(member.as_str())))
+            {
+                db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
+            }
+        }
     }
 
     Ok(())
@@ -1438,6 +1512,7 @@ pub(crate) fn append_incoming_pdu(
     feature = "conduit_bin",
     post("/_matrix/federation/v1/get_missing_events/<_>", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub fn get_missing_events_route<'a>(
     db: State<'a, Database>,
     body: Ruma<get_missing_events::v1::Request<'_>>,
@@ -1483,6 +1558,7 @@ pub fn get_missing_events_route<'a>(
     feature = "conduit_bin",
     get("/_matrix/federation/v1/query/profile", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub fn get_profile_information_route<'a>(
     db: State<'a, Database>,
     body: Ruma<get_profile_information::v1::Request<'_>>,

@@ -38,6 +38,8 @@ pub struct Config {
     allow_encryption: bool,
     #[serde(default = "false_fn")]
     allow_federation: bool,
+    #[serde(default = "false_fn")]
+    pub allow_jaeger: bool,
     jwt_secret: Option<String>,
     #[serde(default = "Vec::new")]
     trusted_servers: Vec<Box<ServerName>>,

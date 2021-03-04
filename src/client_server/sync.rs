@@ -30,6 +30,7 @@ use std::{
     feature = "conduit_bin",
     get("/_matrix/client/r0/sync", data = "<body>")
 )]
+#[tracing::instrument(skip(db, body))]
 pub async fn sync_events_route(
     db: State<'_, Database>,
     body: Ruma<sync_events::Request<'_>>,
@@ -310,8 +311,7 @@ pub async fn sync_events_route(
             };
 
             let state_events = if joined_since_last_sync {
-                db.rooms
-                    .room_state_full(&room_id)?
+                current_state
                     .into_iter()
                     .map(|(_, pdu)| pdu.to_sync_state_event())
                     .collect()
@@ -709,6 +709,7 @@ pub async fn sync_events_route(
     Ok(response.into())
 }
 
+#[tracing::instrument(skip(db))]
 fn share_encrypted_room(
     db: &Database,
     sender_user: &UserId,

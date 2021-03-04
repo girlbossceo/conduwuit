@@ -8,7 +8,8 @@ use std::{
 
 use crate::{appservice_server, server_server, utils, Error, PduEvent, Result};
 use federation::transactions::send_transaction_message;
-use log::info;
+use log::{info, warn};
+use ring::digest;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
     api::{appservice, federation, OutgoingRequest},
@@ -35,6 +36,7 @@ impl Sending {
     ) {
         let servernamepduids = self.servernamepduids.clone();
         let servercurrentpdus = self.servercurrentpdus.clone();
+        let maximum_requests = self.maximum_requests.clone();
         let rooms = rooms.clone();
         let globals = globals.clone();
         let appservice = appservice.clone();
@@ -43,23 +45,43 @@ impl Sending {
             let mut futures = FuturesUnordered::new();
 
             // Retry requests we could not finish yet
-            let mut current_transactions = HashMap::new();
+            let mut current_transactions = HashMap::<(Box<ServerName>, bool), Vec<IVec>>::new();
 
-            for (server, pdu, is_appservice) in servercurrentpdus
+            for (key, server, pdu, is_appservice) in servercurrentpdus
                 .iter()
                 .filter_map(|r| r.ok())
                 .filter_map(|(key, _)| Self::parse_servercurrentpdus(key).ok())
-                .filter(|(_, pdu, _)| !pdu.is_empty()) // Skip reservation key
-                .take(50)
-            // This should not contain more than 50 anyway
             {
-                current_transactions
+                if pdu.is_empty() {
+                    // Remove old reservation key
+                    servercurrentpdus.remove(key).unwrap();
+                    continue;
+                }
+
+                let entry = current_transactions
                     .entry((server, is_appservice))
-                    .or_insert_with(Vec::new)
-                    .push(pdu);
+                    .or_insert_with(Vec::new);
+
+                if entry.len() > 30 {
+                    warn!("Dropping some current pdus because too many were queued. This should not happen.");
+                    servercurrentpdus.remove(key).unwrap();
+                    continue;
+                }
+
+                entry.push(pdu);
             }
 
             for ((server, is_appservice), pdus) in current_transactions {
+                // Create new reservation
+                let mut prefix = if is_appservice {
+                    b"+".to_vec()
+                } else {
+                    Vec::new()
+                };
+                prefix.extend_from_slice(server.as_bytes());
+                prefix.push(0xff);
+                servercurrentpdus.insert(prefix, &[]).unwrap();
+
                 futures.push(Self::handle_event(
                     server,
                     is_appservice,
@@ -67,6 +89,7 @@ impl Sending {
                     &globals,
                     &rooms,
                     &appservice,
+                    &maximum_requests,
                 ));
             }
 
@@ -105,7 +128,7 @@ impl Sending {
                                     .map(|k| {
                                         k.subslice(prefix.len(), k.len() - prefix.len())
                                     })
-                                    .take(50)
+                                    .take(30)
                                     .collect::<Vec<_>>();
 
                                 if !new_pdus.is_empty() {
@@ -116,7 +139,7 @@ impl Sending {
                                         servernamepduids.remove(&current_key).unwrap();
                                     }
 
-                                    futures.push(Self::handle_event(server, is_appservice, new_pdus, &globals, &rooms, &appservice));
+                                    futures.push(Self::handle_event(server, is_appservice, new_pdus, &globals, &rooms, &appservice, &maximum_requests));
                                 } else {
                                     servercurrentpdus.remove(&prefix).unwrap();
                                     // servercurrentpdus with the prefix should be empty now
@@ -202,7 +225,7 @@ impl Sending {
                                 servercurrentpdus.insert(&key, &[]).unwrap();
                                 servernamepduids.remove(&key).unwrap();
 
-                                futures.push(Self::handle_event(server, is_appservice, vec![pdu_id.into()], &globals, &rooms, &appservice));
+                                futures.push(Self::handle_event(server, is_appservice, vec![pdu_id.into()], &globals, &rooms, &appservice, &maximum_requests));
                             }
                         }
                     }
@@ -211,6 +234,7 @@ impl Sending {
         });
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn send_pdu(&self, server: &ServerName, pdu_id: &[u8]) -> Result<()> {
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
@@ -220,6 +244,7 @@ impl Sending {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn send_pdu_appservice(&self, appservice_id: &str, pdu_id: &[u8]) -> Result<()> {
         let mut key = b"+".to_vec();
         key.extend_from_slice(appservice_id.as_bytes());
@@ -230,6 +255,15 @@ impl Sending {
         Ok(())
     }
 
+    #[tracing::instrument]
+    fn calculate_hash(keys: &[IVec]) -> Vec<u8> {
+        // We only hash the pdu's event ids, not the whole pdu
+        let bytes = keys.join(&0xff);
+        let hash = digest::digest(&digest::SHA256, &bytes);
+        hash.as_ref().to_owned()
+    }
+
+    #[tracing::instrument(skip(globals, rooms, appservice))]
     async fn handle_event(
         server: Box<ServerName>,
         is_appservice: bool,
@@ -237,6 +271,7 @@ impl Sending {
         globals: &super::globals::Globals,
         rooms: &super::rooms::Rooms,
         appservice: &super::appservice::Appservice,
+        maximum_requests: &Semaphore,
     ) -> std::result::Result<(Box<ServerName>, bool), (Box<ServerName>, bool, Error)> {
         if is_appservice {
             let pdu_jsons = pdu_ids
@@ -259,7 +294,9 @@ impl Sending {
                 })
                 .filter_map(|r| r.ok())
                 .collect::<Vec<_>>();
-            appservice_server::send_request(
+
+            let permit = maximum_requests.acquire().await;
+            let response = appservice_server::send_request(
                 &globals,
                 appservice
                     .get_registration(server.as_str())
@@ -267,12 +304,19 @@ impl Sending {
                     .unwrap(), // TODO: handle error
                 appservice::event::push_events::v1::Request {
                     events: &pdu_jsons,
-                    txn_id: &utils::random_string(16),
+                    txn_id: &base64::encode_config(
+                        Self::calculate_hash(&pdu_ids),
+                        base64::URL_SAFE_NO_PAD,
+                    ),
                 },
             )
             .await
             .map(|_response| (server.clone(), is_appservice))
-            .map_err(|e| (server, is_appservice, e))
+            .map_err(|e| (server, is_appservice, e));
+
+            drop(permit);
+
+            response
         } else {
             let pdu_jsons = pdu_ids
                 .iter()
@@ -302,7 +346,8 @@ impl Sending {
                 .filter_map(|r| r.ok())
                 .collect::<Vec<_>>();
 
-            server_server::send_request(
+            let permit = maximum_requests.acquire().await;
+            let response = server_server::send_request(
                 &globals,
                 &*server,
                 send_transaction_message::v1::Request {
@@ -310,17 +355,25 @@ impl Sending {
                     pdus: &pdu_jsons,
                     edus: &[],
                     origin_server_ts: SystemTime::now(),
-                    transaction_id: &utils::random_string(16),
+                    transaction_id: &base64::encode_config(
+                        Self::calculate_hash(&pdu_ids),
+                        base64::URL_SAFE_NO_PAD,
+                    ),
                 },
             )
             .await
             .map(|_response| (server.clone(), is_appservice))
-            .map_err(|e| (server, is_appservice, e))
+            .map_err(|e| (server, is_appservice, e));
+
+            drop(permit);
+
+            response
         }
     }
 
-    fn parse_servercurrentpdus(key: IVec) -> Result<(Box<ServerName>, IVec, bool)> {
-        let mut parts = key.splitn(2, |&b| b == 0xff);
+    fn parse_servercurrentpdus(key: IVec) -> Result<(IVec, Box<ServerName>, IVec, bool)> {
+        let key2 = key.clone();
+        let mut parts = key2.splitn(2, |&b| b == 0xff);
         let server = parts.next().expect("splitn always returns one element");
         let pdu = parts
             .next()
@@ -338,6 +391,7 @@ impl Sending {
         };
 
         Ok::<_, Error>((
+            key,
             Box::<ServerName>::try_from(server).map_err(|_| {
                 Error::bad_database("Invalid server string in server_currenttransaction")
             })?,
@@ -346,6 +400,7 @@ impl Sending {
         ))
     }
 
+    #[tracing::instrument(skip(self, globals))]
     pub async fn send_federation_request<T: OutgoingRequest>(
         &self,
         globals: &crate::database::globals::Globals,
@@ -362,6 +417,7 @@ impl Sending {
         response
     }
 
+    #[tracing::instrument(skip(self, globals))]
     pub async fn send_appservice_request<T: OutgoingRequest>(
         &self,
         globals: &crate::database::globals::Globals,
