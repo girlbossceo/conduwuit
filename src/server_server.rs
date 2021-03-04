@@ -222,7 +222,7 @@ fn add_port_to_hostname(destination_str: String) -> String {
 #[tracing::instrument(skip(globals))]
 async fn find_actual_destination(
     globals: &crate::database::globals::Globals,
-    destination: &Box<ServerName>,
+    destination: &'_ ServerName,
 ) -> (String, Option<String>) {
     let mut host = None;
 
@@ -279,9 +279,9 @@ async fn find_actual_destination(
 }
 
 #[tracing::instrument(skip(globals))]
-async fn query_srv_record<'a>(
+async fn query_srv_record(
     globals: &crate::database::globals::Globals,
-    hostname: &'a str,
+    hostname: &'_ str,
 ) -> Option<String> {
     if let Ok(Some(host_port)) = globals
         .dns_resolver()
