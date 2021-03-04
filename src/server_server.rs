@@ -1148,7 +1148,7 @@ pub(crate) async fn fetch_signing_keys(
                                 &db.globals,
                                 &server,
                                 get_remote_server_keys::v2::Request::new(
-                                    &server,
+                                    origin,
                                     SystemTime::now()
                                         .checked_add(Duration::from_secs(3600))
                                         .expect("SystemTime to large"),
