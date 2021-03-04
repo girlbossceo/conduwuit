@@ -1,4 +1,4 @@
-// #![warn(rust_2018_idioms)]
+#![warn(rust_2018_idioms)]
 
 pub mod appservice_server;
 pub mod client_server;
@@ -19,11 +19,15 @@ pub use rocket::State;
 use ruma::api::client::error::ErrorKind;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
-use rocket::figment::{
-    providers::{Env, Format, Toml},
-    Figment,
+use rocket::{
+    catch, catchers,
+    fairing::AdHoc,
+    figment::{
+        providers::{Env, Format, Toml},
+        Figment,
+    },
+    routes, Request,
 };
-use rocket::{catch, catchers, fairing::AdHoc, routes, Request};
 use tracing::span;
 use tracing_subscriber::{prelude::*, Registry};
 

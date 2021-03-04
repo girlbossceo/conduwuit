@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::RwLock, time::Duration, time::Instant};
+use std::{
+    collections::HashMap,
+    sync::RwLock,
+    time::{Duration, Instant},
+};
 
 use log::error;
 use ruma::{

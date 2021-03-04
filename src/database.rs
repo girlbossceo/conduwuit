@@ -17,9 +17,11 @@ use log::info;
 use rocket::futures::{self, channel::mpsc};
 use ruma::{DeviceId, ServerName, UserId};
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::fs::remove_dir_all;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    fs::remove_dir_all,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Semaphore;
 
 #[derive(Clone, Debug, Deserialize)]

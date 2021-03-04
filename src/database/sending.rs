@@ -16,8 +16,7 @@ use ruma::{
     ServerName,
 };
 use sled::IVec;
-use tokio::select;
-use tokio::sync::Semaphore;
+use tokio::{select, sync::Semaphore};
 
 #[derive(Clone)]
 pub struct Sending {
