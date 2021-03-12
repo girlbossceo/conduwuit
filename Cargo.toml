@@ -30,7 +30,7 @@ state-res = { git = "https://github.com/ruma/state-res", branch = "timo-spec-com
 # Used for long polling and federation sender, should be the same as rocket::tokio
 tokio = "1.2.0"
 # Used for storing data permanently
-sled = { version = "0.34.6", default-features = false }
+sled = { version = "0.34.6", features = ["no_metrics"] }
 # Used for emitting log entries
 log = "0.4.14"
 # Used for rocket<->ruma conversions
