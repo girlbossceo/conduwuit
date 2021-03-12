@@ -30,7 +30,7 @@ COPY . .
 RUN if [[ $LOCAL == "true" ]]; then \
         cargo install --path . ; \
     else \
-        cargo install --git "https://github.com/timokoesters/conduit.git" --rev ${GIT_REF}; \
+        cargo install --git "https://gitlab.com/famedly/conduit.git" --rev ${GIT_REF}; \
     fi
 
 ########################## RUNTIME IMAGE ##########################
@@ -40,7 +40,7 @@ FROM alpine:3.12
 
 ARG CREATED
 ARG VERSION
-ARG GIT_REF=HEAD
+ARG GIT_REF=origin/master
 
 # Labels according to https://github.com/opencontainers/image-spec/blob/master/annotations.md
 # including a custom label specifying the build command
@@ -52,7 +52,7 @@ LABEL org.opencontainers.image.created=${CREATED} \
       org.opencontainers.image.description="A Matrix homeserver written in Rust" \
       org.opencontainers.image.url="https://conduit.rs/" \
       org.opencontainers.image.revision=${GIT_REF} \
-      org.opencontainers.image.source="https://git.koesters.xyz/timo/conduit.git" \
+      org.opencontainers.image.source="https://gitlab.com/famedly/conduit.git" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.documentation="" \
       org.opencontainers.image.ref.name="" \

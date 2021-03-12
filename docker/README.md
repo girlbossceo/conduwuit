@@ -17,13 +17,13 @@ The Dockerfile includes a few build arguments that should be supplied when build
 ARG LOCAL=false
 ARG CREATED
 ARG VERSION
-ARG GIT_REF=HEAD
+ARG GIT_REF=origin/master
 ```
 
 - **CREATED:** Date and time as string (date-time as defined by RFC 3339). Will be used to create the Open Container Initiative compliant label `org.opencontainers.image.created`. Supply by it like this `$(date -u +'%Y-%m-%dT%H:%M:%SZ')`
 - **VERSION:** The SemVer version of Conduit, which is in the image. Will be used to create the Open Container Initiative compliant label `org.opencontainers.image.version`. If you have a `Cargo.toml` in your build context, you can get it with `$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)`
 - **LOCAL:** *(Optional)* A boolean value, specifies if the local build context should be used, or if the official repository will be cloned. If not supplied with the build command, it will default to `false`.
-- **GIT_REF:** *(Optional)* A git ref, like `HEAD` or a commit ID. The supplied ref will be used to create the Open Container Initiative compliant label `org.opencontainers.image.revision` and will be the ref that is cloned from the repository when not building from the local context. If not supplied with the build command, it will default to `HEAD`.
+- **GIT_REF:** *(Optional)* A git ref, like `HEAD` or a commit ID. The supplied ref will be used to create the Open Container Initiative compliant label `org.opencontainers.image.revision` and will be the ref that is cloned from the repository when not building from the local context. If not supplied with the build command, it will default to `origin/master`.
 
 To build the image you can use the following command
 
@@ -40,7 +40,7 @@ which also will tag the resulting image as `matrixconduit/matrix-conduit:latest`
 After building the image you can simply run it with
 
 ``` bash
-docker run -d -p 8448:8000 -v db:/srv/conduit/.local/share/conduit -e ROCKET_SERVER_NAME="localhost:8000" matrixconduit/matrix-conduit:latest
+docker run -d -p 8448:8000 -v db:/srv/conduit/.local/share/conduit -e CONDUIT_SERVER_NAME="localhost:8000" matrixconduit/matrix-conduit:latest
 ```
 
 For detached mode, you also need to use the `-d` flag. You can pass in more env vars as are shown here, for an overview of possible values, you can take a look at the `docker-compose.yml` file.
