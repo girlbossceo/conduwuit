@@ -40,10 +40,11 @@ which also will tag the resulting image as `matrixconduit/matrix-conduit:latest`
 After building the image you can simply run it with
 
 ``` bash
-docker run -d -p 8448:8000 -v db:/srv/conduit/.local/share/conduit -e CONDUIT_SERVER_NAME="localhost:8000" matrixconduit/matrix-conduit:latest
+docker run -d -p 8448:8000 -v ~/conduit.toml:/srv/conduit/conduit.toml -v db:/srv/conduit/.local/share/conduit matrixconduit/matrix-conduit:latest
 ```
 
-For detached mode, you also need to use the `-d` flag. You can pass in more env vars as are shown here, for an overview of possible values, you can take a look at the `docker-compose.yml` file.
+For detached mode, you also need to use the `-d` flag. You also need to supply a `conduit.toml` config file, you can find an example [here](../conduit-example.toml).
+You can pass in more env vars as are shown here, for an overview of possible values, you can take a look at the `docker-compose.yml` file.
 If you just want to test Conduit for a short time, you can use the `--rm` flag, which will clean up everything related to your container after you stop it.
 
 
