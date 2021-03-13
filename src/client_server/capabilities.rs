@@ -1,5 +1,10 @@
 use crate::ConduitResult;
-use ruma::{api::client::r0::capabilities::get_capabilities, RoomVersionId};
+use ruma::{
+    api::client::r0::capabilities::{
+        get_capabilities, Capabilities, RoomVersionStability, RoomVersionsCapability,
+    },
+    RoomVersionId,
+};
 use std::collections::BTreeMap;
 
 #[cfg(feature = "conduit_bin")]
@@ -12,24 +17,14 @@ use rocket::get;
 #[tracing::instrument]
 pub async fn get_capabilities_route() -> ConduitResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
-    available.insert(
-        RoomVersionId::Version5,
-        get_capabilities::RoomVersionStability::Stable,
-    );
-    available.insert(
-        RoomVersionId::Version6,
-        get_capabilities::RoomVersionStability::Stable,
-    );
+    available.insert(RoomVersionId::Version5, RoomVersionStability::Stable);
+    available.insert(RoomVersionId::Version6, RoomVersionStability::Stable);
 
-    Ok(get_capabilities::Response {
-        capabilities: get_capabilities::Capabilities {
-            change_password: get_capabilities::ChangePasswordCapability::default(), // enabled by default
-            room_versions: get_capabilities::RoomVersionsCapability {
-                default: RoomVersionId::Version6,
-                available,
-            },
-            custom_capabilities: BTreeMap::new(),
-        },
-    }
-    .into())
+    let mut capabilities = Capabilities::new();
+    capabilities.room_versions = RoomVersionsCapability {
+        default: RoomVersionId::Version6,
+        available,
+    };
+
+    Ok(get_capabilities::Response { capabilities }.into())
 }

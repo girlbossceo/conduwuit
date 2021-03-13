@@ -18,16 +18,16 @@ rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "93e62c86e
 #rocket = { git = "https://github.com/timokoesters/Rocket.git", branch = "empty_parameters", default-features = false, features = ["tls"] }
 
 # Used for matrix spec type definitions and helpers
-ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "appservice-api", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks", "unstable-exhaustive-types"], rev = "0a10afe6dacc2b7a50a8002c953d10b7fb4e37bc" }
+#ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "appservice-api", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks", "unstable-exhaustive-types"], rev = "0a10afe6dacc2b7a50a8002c953d10b7fb4e37bc" }
 # ruma = { git = "https://github.com/DevinR528/ruma", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"], branch = "verified-export" }
-# ruma = { path = "../ruma/ruma", features = ["unstable-exhaustive-types", "rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"] }
+ruma = { path = "../ruma/ruma", features = ["unstable-exhaustive-types", "rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"] }
 
 # Used when doing state resolution
 # state-res = { git = "https://github.com/timokoesters/state-res", branch = "timo-spec-comp", features = ["unstable-pre-spec"] }
 # TODO: remove the gen-eventid feature
-state-res = { git = "https://github.com/ruma/state-res", branch = "main", features = ["unstable-pre-spec", "gen-eventid"] }
+#state-res = { git = "https://github.com/ruma/state-res", branch = "main", features = ["unstable-pre-spec", "gen-eventid"] }
 # state-res = { git = "https://github.com/ruma/state-res", rev = "791c66d73cf064d09db0cdf767d5fef43a343425", features = ["unstable-pre-spec", "gen-eventid"] }
-# state-res = { path = "../../state-res", features = ["unstable-pre-spec", "gen-eventid"] }
+state-res = { path = "../state-res", features = ["unstable-pre-spec", "gen-eventid"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio
 tokio = "1.2.0"
@@ -50,7 +50,7 @@ rand = "0.8.3"
 # Used to hash passwords
 rust-argon2 = "0.8.3"
 # Used to send requests
-reqwest = "0.11.1"
+reqwest = { version = "0.11.1", features = ["rustls-tls"] }
 # Used for conduit::Error type
 thiserror = "1.0.24"
 # Used to generate thumbnails for images
@@ -71,6 +71,7 @@ opentelemetry = "0.12.0"
 tracing-subscriber = "0.2.16"
 tracing-opentelemetry = "0.11.0"
 opentelemetry-jaeger = "0.11.0"
+pretty_env_logger = "0.4.0"
 
 [features]
 default = ["conduit_bin"]

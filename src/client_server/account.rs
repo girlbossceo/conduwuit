@@ -455,16 +455,9 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMessage,
-                content: serde_json::to_value(message::MessageEventContent::Text(
-                    message::TextMessageEventContent {
-                        body: "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing `/join #conduit:matrix.org`. **Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.** Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
-                        formatted: Some(message::FormattedBody {
-                            format: message::MessageFormat::Html,
-                            body: "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing <code>/join #conduit:matrix.org</code>. <strong>Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.</strong> Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
-                        }),
-                        relates_to: None,
-                        new_content: None,
-                    },
+                content: serde_json::to_value(message::MessageEventContent::text_html(
+                        "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing `/join #conduit:matrix.org`. **Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.** Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
+                        "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing <code>/join #conduit:matrix.org</code>. <strong>Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.</strong> Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
                 ))
                 .expect("event is valid, we just created it"),
                 unsigned: None,

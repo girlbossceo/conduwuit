@@ -204,6 +204,8 @@ async fn main() {
 
         rocket.launch().await.unwrap();
     } else {
+        pretty_env_logger::init();
+
         let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
         let _enter = root.enter();
 

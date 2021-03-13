@@ -346,6 +346,8 @@ impl Sending {
                 .collect::<Vec<_>>();
 
             let permit = maximum_requests.acquire().await;
+
+            info!("sending pdus to {}: {:#?}", server, pdu_jsons);
             let response = server_server::send_request(
                 &globals,
                 &*server,
@@ -361,7 +363,10 @@ impl Sending {
                 },
             )
             .await
-            .map(|_response| (server.clone(), is_appservice))
+            .map(|response| {
+                info!("server response: {:?}", response);
+                (server.clone(), is_appservice)
+            })
             .map_err(|e| (server, is_appservice, e));
 
             drop(permit);

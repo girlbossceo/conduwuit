@@ -102,9 +102,14 @@ pub async fn sync_events_route(
         // since and the current room state, meaning there should be no updates.
         // The inner Option is None when there is an event, but there is no state hash associated
         // with it. This can happen for the RoomCreate event, so all updates should arrive.
-        let first_pdu_after_since = db.rooms.pdus_after(sender_user, &room_id, since).next();
+        let first_pdu_before_since = db.rooms.pdus_until(sender_user, &room_id, since).next();
+        let pdus_after_since = db
+            .rooms
+            .pdus_after(sender_user, &room_id, since)
+            .next()
+            .is_some();
 
-        let since_state_hash = first_pdu_after_since
+        let since_state_hash = first_pdu_before_since
             .as_ref()
             .map(|pdu| db.rooms.pdu_state_hash(&pdu.as_ref().ok()?.0).ok()?);
 
@@ -114,7 +119,7 @@ pub async fn sync_events_route(
             invited_member_count,
             joined_since_last_sync,
             state_events,
-        ) = if since_state_hash != None && Some(&current_state_hash) != since_state_hash.as_ref() {
+        ) = if pdus_after_since && Some(&current_state_hash) != since_state_hash.as_ref() {
             let current_state = db.rooms.room_state_full(&room_id)?;
             let current_members = current_state
                 .iter()
@@ -138,9 +143,9 @@ pub async fn sync_events_route(
 
             // Calculations:
             let new_encrypted_room =
-                encrypted_room && since_encryption.map_or(false, |encryption| encryption.is_none());
+                encrypted_room && since_encryption.map_or(true, |encryption| encryption.is_none());
 
-            let send_member_count = since_state.as_ref().map_or(false, |since_state| {
+            let send_member_count = since_state.as_ref().map_or(true, |since_state| {
                 since_state.as_ref().map_or(true, |since_state| {
                     current_members.len()
                         != since_state
@@ -179,7 +184,7 @@ pub async fn sync_events_route(
                     let since_membership =
                         since_state
                             .as_ref()
-                            .map_or(MembershipState::Join, |since_state| {
+                            .map_or(MembershipState::Leave, |since_state| {
                                 since_state
                                     .as_ref()
                                     .and_then(|since_state| {
@@ -221,7 +226,7 @@ pub async fn sync_events_route(
                 }
             }
 
-            let joined_since_last_sync = since_sender_member.map_or(false, |member| {
+            let joined_since_last_sync = since_sender_member.map_or(true, |member| {
                 member.map_or(true, |member| member.membership != MembershipState::Join)
             });
 
@@ -310,7 +315,7 @@ pub async fn sync_events_route(
                 (None, None, Vec::new())
             };
 
-            let state_events = if joined_since_last_sync {
+            let state_events = if dbg!(joined_since_last_sync) {
                 current_state
                     .into_iter()
                     .map(|(_, pdu)| pdu.to_sync_state_event())
