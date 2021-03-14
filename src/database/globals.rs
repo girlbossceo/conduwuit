@@ -13,9 +13,7 @@ use trust_dns_resolver::TokioAsyncResolver;
 
 pub const COUNTER: &str = "c";
 
-pub type DestinationCache = Arc<RwLock<HashMap<Box<ServerName>, (String, Option<String>)>>>;
-type WellKnownMap = HashMap<Box<ServerName>, (String, Option<String>)>;
-
+type WellKnownMap = HashMap<Box<ServerName>, (String, String)>;
 #[derive(Clone)]
 pub struct Globals {
     pub actual_destination_cache: Arc<RwLock<WellKnownMap>>, // actual_destination, host

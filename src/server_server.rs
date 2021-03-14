@@ -139,11 +139,9 @@ where
         }
     }
 
-    if let Some(host) = host {
-        http_request
-            .headers_mut()
-            .insert(HOST, HeaderValue::from_str(&host).unwrap());
-    }
+    http_request
+        .headers_mut()
+        .insert(HOST, HeaderValue::from_str(&host).unwrap());
 
     let mut reqwest_request = reqwest::Request::try_from(http_request)
         .expect("all http requests are valid reqwest requests");
@@ -231,10 +229,9 @@ fn add_port_to_hostname(destination_str: String) -> String {
 async fn find_actual_destination(
     globals: &crate::database::globals::Globals,
     destination: &'_ ServerName,
-) -> (String, Option<String>) {
-    let mut host = None;
-
+) -> (String, String) {
     let destination_str = destination.as_str().to_owned();
+    let mut host = destination_str.clone();
     let actual_destination = "https://".to_owned()
         + &match get_ip_with_port(destination_str.clone()) {
             Some(host_port) => {
@@ -249,6 +246,7 @@ async fn find_actual_destination(
                     match request_well_known(globals, &destination.as_str()).await {
                         // 3: A .well-known file is available
                         Some(delegated_hostname) => {
+                            host = delegated_hostname.clone();
                             match get_ip_with_port(delegated_hostname.clone()) {
                                 Some(host_and_port) => host_and_port, // 3.1: IP literal in .well-known file
                                 None => {
@@ -270,10 +268,7 @@ async fn find_actual_destination(
                         None => {
                             match query_srv_record(globals, &destination_str).await {
                                 // 4: SRV record found
-                                Some(hostname) => {
-                                    host = Some(destination_str.to_owned());
-                                    hostname
-                                }
+                                Some(hostname) => hostname,
                                 // 5: No SRV record found
                                 None => add_port_to_hostname(destination_str.to_string()),
                             }
