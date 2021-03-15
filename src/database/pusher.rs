@@ -11,7 +11,7 @@ use ruma::{
     },
     events::room::{
         member::{MemberEventContent, MembershipState},
-        message::{MessageEventContent, TextMessageEventContent},
+        message::{MessageEventContent, MessageType, TextMessageEventContent},
         power_levels::PowerLevelsEventContent,
     },
     events::EventType,
@@ -265,8 +265,8 @@ pub async fn send_push_notice(
                             .map_err(|_| {
                                 Error::bad_database("PDU contained bad message content")
                             })?;
-                    if let MessageEventContent::Text(TextMessageEventContent { body, .. }) =
-                        &msg_content
+                    if let MessageType::Text(TextMessageEventContent { body, .. }) =
+                        &msg_content.msgtype
                     {
                         if body.contains(user.localpart()) {
                             let tweaks = rule
@@ -305,8 +305,8 @@ pub async fn send_push_notice(
                             .map_err(|_| {
                                 Error::bad_database("PDU contained bad message content")
                             })?;
-                    if let MessageEventContent::Text(TextMessageEventContent { body, .. }) =
-                        &msg_content
+                    if let MessageType::Text(TextMessageEventContent { body, .. }) =
+                        &msg_content.msgtype
                     {
                         let power_level_cmp = |pl: PowerLevelsEventContent| {
                             &pl.notifications.room
@@ -346,8 +346,8 @@ pub async fn send_push_notice(
                             .map_err(|_| {
                                 Error::bad_database("PDU contained bad message content")
                             })?;
-                    if let MessageEventContent::Text(TextMessageEventContent { body, .. }) =
-                        &msg_content
+                    if let MessageType::Text(TextMessageEventContent { body, .. }) =
+                        &msg_content.msgtype
                     {
                         if body.contains(user.localpart()) {
                             let tweaks = rule
