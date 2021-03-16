@@ -686,10 +686,10 @@ pub async fn get_pushers_route(
     db: State<'_, Database>,
     body: Ruma<get_pushers::Request>,
 ) -> ConduitResult<get_pushers::Response> {
-    let sender = body.sender_user.as_ref().expect("authenticated endpoint");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     Ok(get_pushers::Response {
-        pushers: db.pusher.get_pusher(sender)?,
+        pushers: db.pusher.get_pusher(sender_user)?,
     }
     .into())
 }
@@ -703,10 +703,10 @@ pub async fn set_pushers_route(
     db: State<'_, Database>,
     body: Ruma<set_pusher::Request>,
 ) -> ConduitResult<set_pusher::Response> {
-    let sender = body.sender_user.as_ref().expect("authenticated endpoint");
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let pusher = body.pusher.clone();
 
-    db.pusher.set_pusher(sender, pusher)?;
+    db.pusher.set_pusher(sender_user, pusher)?;
 
     db.flush().await?;
 

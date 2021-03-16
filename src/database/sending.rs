@@ -10,7 +10,7 @@ use crate::{
     appservice_server, database::pusher, server_server, utils, Database, Error, PduEvent, Result,
 };
 use federation::transactions::send_transaction_message;
-use log::{info, warn};
+use log::{debug, error, info, warn};
 use ring::digest;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
@@ -308,8 +308,6 @@ impl Sending {
         key.extend_from_slice(pdu_id);
         self.servernamepduids.insert(key, b"")?;
 
-        println!("AAAA");
-
         Ok(())
     }
 
@@ -348,7 +346,7 @@ impl Sending {
         pdu_ids: Vec<IVec>,
         db: &Database,
     ) -> std::result::Result<OutgoingKind, (OutgoingKind, Error)> {
-        match dbg!(&kind) {
+        match &kind {
             OutgoingKind::Appservice(server) => {
                 let pdu_jsons = pdu_ids
                     .iter()
@@ -414,21 +412,23 @@ impl Sending {
                     .filter_map(|r| r.ok())
                     .collect::<Vec<_>>();
 
-                for pdu in dbg!(&pdus) {
+                for pdu in pdus {
                     // Redacted events are not notification targets (we don't send push for them)
                     if pdu.unsigned.get("redacted_because").is_some() {
                         continue;
                     }
 
-                    for user in db.rooms.room_members(&pdu.room_id) {
-                        let user = user.map_err(|e| (OutgoingKind::Push(id.clone()), e))?;
-
+                    for user in db.users.iter().filter_map(|r| r.ok()).filter(|user_id| {
+                        db.rooms.is_joined(&user_id, &pdu.room_id).unwrap_or(false)
+                    }) {
                         // Don't notify the user of their own events
                         if user == pdu.sender {
                             continue;
                         }
 
-                        let pushers = dbg!(db.pusher.get_pusher(&user))
+                        let pushers = db
+                            .pusher
+                            .get_pusher(&user)
                             .map_err(|e| (OutgoingKind::Push(id.clone()), e))?;
 
                         let rules_for_user = db
@@ -467,7 +467,7 @@ impl Sending {
                             unread,
                             &pushers,
                             rules_for_user,
-                            pdu,
+                            &pdu,
                             db,
                         )
                         .await
@@ -510,7 +510,7 @@ impl Sending {
 
                 let permit = db.sending.maximum_requests.acquire().await;
 
-                info!("sending pdus to {}: {:#?}", server, pdu_jsons);
+                error!("sending pdus to {}: {:#?}", server, pdu_jsons);
                 let response = server_server::send_request(
                     &db.globals,
                     &*server,
@@ -527,7 +527,7 @@ impl Sending {
                 )
                 .await
                 .map(|response| {
-                    info!("server response: {:?}", response);
+                    error!("server response: {:?}", response);
                     kind.clone()
                 })
                 .map_err(|e| (kind, e));

@@ -1,7 +1,7 @@
 use crate::{client_server, utils, ConduitResult, Database, Error, PduEvent, Result, Ruma};
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use regex::Regex;
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
@@ -27,7 +27,7 @@ use ruma::{
 use state_res::{Event, EventMap, StateMap};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     fmt::Debug,
     future::Future,
     net::{IpAddr, SocketAddr},
@@ -601,7 +601,7 @@ pub async fn send_transaction_message_route<'a>(
     // discard the event whereas the Client Server API's /send/{eventType} endpoint
     // would return a M_BAD_JSON error.
     'main_pdu_loop: for (event_id, _room_id, value) in pdus_to_resolve {
-        info!("Working on incoming pdu: {:?}", value);
+        debug!("Working on incoming pdu: {:?}", value);
         let server_name = &body.body.origin;
         let mut pub_key_map = BTreeMap::new();
 
@@ -636,11 +636,11 @@ pub async fn send_transaction_message_route<'a>(
                 continue;
             }
         };
-        info!("Validated event.");
+        debug!("Validated event.");
 
         // 6. persist the event as an outlier.
         db.rooms.add_pdu_outlier(&pdu)?;
-        info!("Added pdu as outlier.");
+        debug!("Added pdu as outlier.");
 
         // Step 9. fetch missing state by calling /state_ids at backwards extremities doing all
         // the checks in this list starting at 1. These are not timeline events.
@@ -649,7 +649,7 @@ pub async fn send_transaction_message_route<'a>(
         //
         // TODO: if we know the prev_events of the incoming event we can avoid the request and build
         // the state from a known point and resolve if > 1 prev_event
-        info!("Requesting state at event.");
+        debug!("Requesting state at event.");
         let (state_at_event, incoming_auth_events): (StateMap<Arc<PduEvent>>, Vec<Arc<PduEvent>>) =
             match db
                 .sending
@@ -664,7 +664,7 @@ pub async fn send_transaction_message_route<'a>(
                 .await
             {
                 Ok(res) => {
-                    info!("Fetching state events at event.");
+                    debug!("Fetching state events at event.");
                     let state = match fetch_events(
                         &db,
                         server_name,
@@ -706,7 +706,7 @@ pub async fn send_transaction_message_route<'a>(
                         Err(_) => continue,
                     };
 
-                    info!("Fetching auth events of state events at event.");
+                    debug!("Fetching auth events of state events at event.");
                     (state, incoming_auth_events)
                 }
                 Err(_) => {
@@ -735,7 +735,7 @@ pub async fn send_transaction_message_route<'a>(
             );
             continue;
         }
-        info!("Auth check succeeded.");
+        debug!("Auth check succeeded.");
         // End of step 10.
 
         // 12. check if the event passes auth based on the "current state" of the room, if not "soft fail" it
@@ -745,8 +745,6 @@ pub async fn send_transaction_message_route<'a>(
             .into_iter()
             .map(|(k, v)| ((k.0, Some(k.1)), Arc::new(v)))
             .collect();
-
-        info!("current state: {:#?}", current_state);
 
         if !state_res::event_auth::auth_check(
             &RoomVersionId::Version6,
@@ -764,7 +762,7 @@ pub async fn send_transaction_message_route<'a>(
             );
             continue;
         };
-        info!("Auth check with current state succeeded.");
+        debug!("Auth check with current state succeeded.");
 
         // Step 11. Ensure that the state is derived from the previous current state (i.e. we calculated by doing state res
         // where one of the inputs was a previously trusted set of state, don't just trust a set of state we got from a remote)
@@ -773,7 +771,7 @@ pub async fn send_transaction_message_route<'a>(
         // it also calculates the new pdu leaves for the `roomid_pduleaves` DB Tree.
         let extremities = match calculate_forward_extremities(&db, &pdu).await {
             Ok(fork_ids) => {
-                info!("Calculated new forward extremities: {:?}", fork_ids);
+                debug!("Calculated new forward extremities: {:?}", fork_ids);
                 fork_ids
             }
             Err(_) => {
@@ -828,20 +826,21 @@ pub async fn send_transaction_message_route<'a>(
             for map in &fork_states {
                 let mut state_auth = vec![];
                 for auth_id in map.values().flat_map(|pdu| &pdu.auth_events) {
-                    let event = match auth_cache.get(auth_id) {
-                        Some(aev) => aev.clone(),
-                        // The only events that haven't been added to the auth cache are
-                        // events we have knowledge of previously
-                        None => {
-                            error!("Event was not present in auth_cache {}", auth_id);
-                            resolved_map.insert(
-                                event_id.clone(),
-                                Err("Event was not present in auth cache".into()),
-                            );
-                            continue 'main_pdu_loop;
+                    match fetch_events(
+                        &db,
+                        server_name,
+                        &mut pub_key_map,
+                        &[auth_id.clone()],
+                        &mut auth_cache,
+                    )
+                    .await
+                    {
+                        // This should always contain exactly one element when Ok
+                        Ok(events) => state_auth.push(events[0].clone()),
+                        Err(e) => {
+                            debug!("Event was not present: {}", e);
                         }
-                    };
-                    state_auth.push(event);
+                    }
                 }
                 auth_events.push(state_auth);
             }
@@ -864,7 +863,7 @@ pub async fn send_transaction_message_route<'a>(
                     .map(|(_, pdu)| (pdu.event_id().clone(), pdu)),
             );
 
-            info!("auth events: {:?}", auth_cache);
+            debug!("auth events: {:?}", auth_cache);
 
             let res = match state_res::StateResolution::resolve(
                 pdu.room_id(),
@@ -916,7 +915,7 @@ pub async fn send_transaction_message_route<'a>(
         // We use the `state_at_event` instead of `state_after` so we accurately
         // represent the state for this event.
         append_incoming_pdu(&db, &pdu, &extremities, &state_at_event)?;
-        info!("Appended incoming pdu.");
+        debug!("Appended incoming pdu.");
 
         // Set the new room state to the resolved state
         update_resolved_state(
@@ -928,7 +927,7 @@ pub async fn send_transaction_message_route<'a>(
                 None
             },
         )?;
-        info!("Updated resolved state");
+        debug!("Updated resolved state");
 
         // Event has passed all auth/stateres checks
     }
@@ -972,7 +971,7 @@ fn validate_event<'a>(
         }
         .keys()
         {
-            info!("Fetching signing keys for {}", signature_server);
+            debug!("Fetching signing keys for {}", signature_server);
             let keys = match fetch_signing_keys(
                 &db,
                 &Box::<ServerName>::try_from(&**signature_server).map_err(|_| {
@@ -981,10 +980,7 @@ fn validate_event<'a>(
             )
             .await
             {
-                Ok(keys) => {
-                    info!("Keys: {:?}", keys);
-                    keys
-                }
+                Ok(keys) => keys,
                 Err(_) => {
                     return Err(
                         "Signature verification failed: Could not fetch signing key.".to_string(),
@@ -993,8 +989,6 @@ fn validate_event<'a>(
             };
 
             pub_key_map.insert(signature_server.clone(), keys);
-
-            info!("Fetched signing keys");
         }
 
         let mut val =
@@ -1026,7 +1020,7 @@ fn validate_event<'a>(
         )
         .map_err(|_| "Event is not a valid PDU".to_string())?;
 
-        info!("Fetching auth events.");
+        debug!("Fetching auth events.");
         fetch_check_auth_events(db, origin, pub_key_map, &pdu.auth_events, auth_cache)
             .await
             .map_err(|e| e.to_string())?;
@@ -1035,7 +1029,7 @@ fn validate_event<'a>(
 
         /*
         // 8. fetch any missing prev events doing all checks listed here starting at 1. These are timeline events
-        info!("Fetching prev events.");
+        debug!("Fetching prev events.");
         let previous = fetch_events(&db, origin, pub_key_map, &pdu.prev_events, auth_cache)
             .await
             .map_err(|e| e.to_string())?;
@@ -1049,7 +1043,7 @@ fn validate_event<'a>(
         };
 
         // Check that the event passes auth based on the auth_events
-        info!("Checking auth.");
+        debug!("Checking auth.");
         let is_authed = state_res::event_auth::auth_check(
             &RoomVersionId::Version6,
             &pdu,
@@ -1073,7 +1067,7 @@ fn validate_event<'a>(
             return Err("Event has failed auth check with auth events".to_string());
         }
 
-        info!("Validation successful.");
+        debug!("Validation successful.");
         Ok((pdu, previous_create))
     })
 }
@@ -1111,20 +1105,19 @@ pub(crate) async fn fetch_events(
 ) -> Result<Vec<Arc<PduEvent>>> {
     let mut pdus = vec![];
     for id in events {
-        info!("Fetching event: {}", id);
         let pdu = match auth_cache.get(id) {
             Some(pdu) => {
-                info!("Event found in cache");
+                debug!("Event found in cache");
                 pdu.clone()
             }
             // `get_pdu` checks the outliers tree for us
             None => match db.rooms.get_pdu(&id)? {
                 Some(pdu) => {
-                    info!("Event found in outliers");
+                    debug!("Event found in outliers");
                     Arc::new(pdu)
                 }
                 None => {
-                    info!("Fetching event over federation");
+                    debug!("Fetching event over federation");
                     match db
                         .sending
                         .send_federation_request(
@@ -1135,7 +1128,7 @@ pub(crate) async fn fetch_events(
                         .await
                     {
                         Ok(res) => {
-                            info!("Got event over federation: {:?}", res);
+                            debug!("Got event over federation: {:?}", res);
                             let (event_id, value) =
                                 crate::pdu::gen_event_id_canonical_json(&res.pdu);
                             let (pdu, _) =
@@ -1146,7 +1139,7 @@ pub(crate) async fn fetch_events(
                                         Error::Conflict("Authentication of event failed")
                                     })?;
 
-                            info!("Added fetched pdu as outlier.");
+                            debug!("Added fetched pdu as outlier.");
                             db.rooms.add_pdu_outlier(&pdu)?;
                             pdu
                         }
@@ -1171,15 +1164,11 @@ pub(crate) async fn fetch_signing_keys(
     let mut result = BTreeMap::new();
 
     match db.globals.signing_keys_for(origin)? {
-        keys if !keys.is_empty() => {
-            info!("we knew the signing keys already: {:?}", keys);
-            Ok(keys
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v.key))
-                .collect())
-        }
+        keys if !keys.is_empty() => Ok(keys
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.key))
+            .collect()),
         _ => {
-            info!("Asking {} for it's signing key", origin);
             match db
                 .sending
                 .send_federation_request(&db.globals, origin, get_server_keys::v2::Request::new())
@@ -1204,7 +1193,7 @@ pub(crate) async fn fetch_signing_keys(
                 }
                 _ => {
                     for server in db.globals.trusted_servers() {
-                        info!("Asking {} for {}'s signing key", server, origin);
+                        debug!("Asking {} for {}'s signing key", server, origin);
                         if let Ok(keys) = db
                             .sending
                             .send_federation_request(
@@ -1219,7 +1208,7 @@ pub(crate) async fn fetch_signing_keys(
                             )
                             .await
                         {
-                            info!("Got signing keys: {:?}", keys);
+                            debug!("Got signing keys: {:?}", keys);
                             for k in keys.server_keys.into_iter() {
                                 db.globals.add_signing_key(origin, &k)?;
                                 result.extend(
@@ -1364,7 +1353,6 @@ pub(crate) async fn build_forward_extremity_snapshots(
         fork_states.insert(current_state);
     }
 
-    info!("Fork states: {:?}", fork_states);
     Ok(fork_states)
 }
 
@@ -1548,7 +1536,10 @@ pub fn get_missing_events_route<'a>(
                 )
                 .map_err(|_| Error::bad_database("Invalid prev_events content in pdu in db."))?,
             );
-            events.push(serde_json::from_value(pdu).expect("Raw<..> is always valid"));
+            events.push(PduEvent::convert_to_outgoing_federation_event(
+                serde_json::from_value(pdu)
+                    .map_err(|_| Error::bad_database("Invalid pdu in database."))?,
+            ));
         }
         i += 1;
     }

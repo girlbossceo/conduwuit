@@ -315,7 +315,7 @@ pub async fn sync_events_route(
                 (None, None, Vec::new())
             };
 
-            let state_events = if dbg!(joined_since_last_sync) {
+            let state_events = if joined_since_last_sync {
                 current_state
                     .into_iter()
                     .map(|(_, pdu)| pdu.to_sync_state_event())
@@ -703,12 +703,7 @@ pub async fn sync_events_route(
         if duration.as_secs() > 30 {
             duration = Duration::from_secs(30);
         }
-        let delay = tokio::time::sleep(duration);
-        tokio::pin!(delay);
-        tokio::select! {
-            _ = &mut delay, if delay.is_elapsed() => {}
-            _ = watcher => {}
-        }
+        let _ = tokio::time::timeout(duration, watcher).await;
     }
 
     Ok(response.into())

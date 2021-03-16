@@ -35,8 +35,6 @@ impl PushData {
     }
 
     pub fn set_pusher(&self, sender: &UserId, pusher: Pusher) -> Result<()> {
-        println!("CCCCCCCCCCCCCCCCCCCCCc");
-        dbg!(&pusher);
         let mut key = sender.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pusher.pushkey.as_bytes());
@@ -51,7 +49,7 @@ impl PushData {
         }
 
         self.senderkey_pusher.insert(
-            dbg!(key),
+            key,
             &*serde_json::to_string(&pusher).expect("Pusher is valid JSON string"),
         )?;
 
@@ -63,12 +61,10 @@ impl PushData {
         prefix.push(0xff);
 
         self.senderkey_pusher
-            .scan_prefix(dbg!(prefix))
+            .scan_prefix(prefix)
             .values()
             .map(|push| {
-                println!("DDDDDDDDDDDDDDDDDDDDDDDDDD");
-                let push =
-                    dbg!(push).map_err(|_| Error::bad_database("Invalid push bytes in db."))?;
+                let push = push.map_err(|_| Error::bad_database("Invalid push bytes in db."))?;
                 Ok(serde_json::from_slice(&*push)
                     .map_err(|_| Error::bad_database("Invalid Pusher in db."))?)
             })
@@ -100,10 +96,7 @@ where
     //*reqwest_request.timeout_mut() = Some(Duration::from_secs(5));
 
     let url = reqwest_request.url().clone();
-    let reqwest_response = globals
-        .reqwest_client()
-        .execute(dbg!(reqwest_request))
-        .await;
+    let reqwest_response = globals.reqwest_client().execute(reqwest_request).await;
 
     // Because reqwest::Response -> http::Response is complicated:
     match reqwest_response {
@@ -182,7 +175,7 @@ pub async fn send_push_notice(
             continue;
         }
 
-        match dbg!(rule.rule_id.as_str()) {
+        match rule.rule_id.as_str() {
             ".m.rule.master" => {}
             ".m.rule.suppress_notices" => {
                 if pdu.kind == EventType::RoomMessage
@@ -454,8 +447,7 @@ async fn send_notice(
     db: &Database,
     name: &str,
 ) -> Result<()> {
-    println!("BBBBBBBBBBBBBBBr");
-    let (http, _emails): (Vec<&Pusher>, _) = dbg!(pushers)
+    let (http, _emails): (Vec<&Pusher>, _) = pushers
         .iter()
         .partition(|pusher| pusher.kind == Some(PusherKind::Http));
 
@@ -463,7 +455,7 @@ async fn send_notice(
     // Two problems with this
     // 1. if "event_id_only" is the only format kind it seems we should never add more info
     // 2. can pusher/devices have conflicting formats
-    for pusher in dbg!(http) {
+    for pusher in http {
         let event_id_only = pusher.data.format == Some(PushFormat::EventIdOnly);
         let url = if let Some(url) = pusher.data.url.as_ref() {
             url

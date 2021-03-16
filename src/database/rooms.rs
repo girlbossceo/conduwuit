@@ -3,7 +3,7 @@ mod edus;
 pub use edus::RoomEdus;
 
 use crate::{pdu::PduBuilder, utils, Database, Error, PduEvent, Result};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use regex::Regex;
 use ring::digest;
 use ruma::{
@@ -67,7 +67,7 @@ pub struct Rooms {
     /// StateKey = EventType + StateKey, Short = Count
     pub(super) statekey_short: sled::Tree,
     /// StateId = StateHash + Short, PduId = Count (without roomid)
-    pub(super) stateid_pduid: sled::Tree,
+    pub(super) stateid_eventid: sled::Tree,
 
     /// RoomId + EventId -> outlier PDU.
     /// Any pdu that has passed the steps 1-8 in the incoming event /federation/send/txn.
@@ -138,7 +138,7 @@ impl Rooms {
         key.push(0xff);
         key.extend_from_slice(&state_key.as_bytes());
 
-        info!("Looking for {} {:?}", event_type, state_key);
+        debug!("Looking for {} {:?}", event_type, state_key);
 
         let short = self.statekey_short.get(&key)?;
 
@@ -147,11 +147,11 @@ impl Rooms {
             stateid.push(0xff);
             stateid.extend_from_slice(&short);
 
-            info!("trying to find pduid/eventid. short: {:?}", stateid);
+            debug!("trying to find pduid/eventid. short: {:?}", stateid);
             self.stateid_pduid
                 .get(&stateid)?
                 .map_or(Ok(None), |short_id| {
-                    info!("found in stateid_pduid");
+                    debug!("found in stateid_pduid");
                     let mut long_id = room_id.as_bytes().to_vec();
                     long_id.push(0xff);
                     long_id.extend_from_slice(&short_id);
@@ -163,7 +163,7 @@ impl Rooms {
                                 .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
                         ),
                         None => {
-                            info!("looking in outliers");
+                            debug!("looking in outliers");
                             (
                                 short_id.clone().into(),
                                 self.eventid_outlierpdu
@@ -180,7 +180,7 @@ impl Rooms {
                     }))
                 })
         } else {
-            info!("short id not found");
+            warn!("short id not found");
             Ok(None)
         }
     }
@@ -288,7 +288,7 @@ impl Rooms {
 
             let mut state_id = prefix.clone();
             state_id.extend_from_slice(&short.to_be_bytes());
-            info!("inserting {:?} into {:?}", short_id, state_id);
+            debug!("inserting {:?} into {:?}", short_id, state_id);
             self.stateid_pduid.insert(state_id, short_id)?;
         }
 
@@ -574,7 +574,7 @@ impl Rooms {
 
         self.pduid_pdu.insert(
             &pdu_id,
-            &*serde_json::to_string(&pdu_json)
+            &*serde_json::to_string(dbg!(&pdu_json))
                 .expect("CanonicalJsonObject is always a valid String"),
         )?;
 
@@ -889,12 +889,12 @@ impl Rooms {
                         content.clone(),
                         prev_event,
                         None, // TODO: third party invite
-                        dbg!(&auth_events
+                        &auth_events
                             .iter()
                             .map(|((ty, key), pdu)| {
                                 Ok(((ty.clone(), key.clone()), Arc::new(pdu.clone())))
                             })
-                            .collect::<Result<StateMap<_>>>()?),
+                            .collect::<Result<StateMap<_>>>()?,
                     )
                     .map_err(|e| {
                         log::error!("{}", e);
