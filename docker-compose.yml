@@ -29,7 +29,9 @@ services:
             ### Uncomment and change values as desired
             # CONDUIT_ADDRESS: 127.0.0.1
             # CONDUIT_PORT: 8000
-            # CONDUIT_LOG: normal  # Available levels are: off, debug, normal, critical
+            # CONDUIT_CONFIG: '/srv/conduit/conduit.toml'  # if want to configure purely by env vars, set this to an empty string ''
+            # Available levels are: error, warn, info, debug, trace - more info at: https://docs.rs/env_logger/*/env_logger/#enabling-logging
+            # CONDUIT_LOG: info  # default is: "info,rocket=off,_=off,sled=off"
             # CONDUIT_ALLOW_JAEGER: 'false'
             # CONDUIT_ALLOW_REGISTRATION : 'false'
             # CONDUIT_ALLOW_ENCRYPTION: 'false'

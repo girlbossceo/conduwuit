@@ -42,6 +42,8 @@ ARG CREATED
 ARG VERSION
 ARG GIT_REF=origin/master
 
+ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml"
+
 # Labels according to https://github.com/opencontainers/image-spec/blob/master/annotations.md
 # including a custom label specifying the build command
 LABEL org.opencontainers.image.created=${CREATED} \
