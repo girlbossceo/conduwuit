@@ -112,7 +112,7 @@ pub async fn get_state_events_route(
         && !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
-                .map(|(_, event)| {
+                .map(|event| {
                     serde_json::from_value::<HistoryVisibilityEventContent>(event.content)
                         .map_err(|_| {
                             Error::bad_database(
@@ -159,7 +159,7 @@ pub async fn get_state_events_for_key_route(
         && !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
-                .map(|(_, event)| {
+                .map(|event| {
                     serde_json::from_value::<HistoryVisibilityEventContent>(event.content)
                         .map_err(|_| {
                             Error::bad_database(
@@ -183,8 +183,7 @@ pub async fn get_state_events_for_key_route(
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "State event not found.",
-        ))?
-        .1;
+        ))?;
 
     Ok(get_state_events_for_key::Response {
         content: serde_json::value::to_raw_value(&event.content)
@@ -211,7 +210,7 @@ pub async fn get_state_events_for_empty_key_route(
         && !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
-                .map(|(_, event)| {
+                .map(|event| {
                     serde_json::from_value::<HistoryVisibilityEventContent>(event.content)
                         .map_err(|_| {
                             Error::bad_database(
@@ -235,8 +234,7 @@ pub async fn get_state_events_for_empty_key_route(
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "State event not found.",
-        ))?
-        .1;
+        ))?;
 
     Ok(get_state_events_for_empty_key::Response {
         content: serde_json::value::to_raw_value(&event.content)

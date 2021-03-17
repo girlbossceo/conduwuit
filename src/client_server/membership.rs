@@ -106,7 +106,6 @@ pub async fn leave_room_route(
                 ErrorKind::BadState,
                 "Cannot leave a room you are not a member of.",
             ))?
-            .1
             .content,
     )
     .expect("from_value::<Raw<..>> can never fail")
@@ -195,7 +194,6 @@ pub async fn kick_user_route(
                 ErrorKind::BadState,
                 "Cannot kick member that's not in the room.",
             ))?
-            .1
             .content,
     )
     .expect("Raw::from_value always works")
@@ -251,7 +249,7 @@ pub async fn ban_user_route(
                 is_direct: None,
                 third_party_invite: None,
             }),
-            |(_, event)| {
+            |event| {
                 let mut event =
                     serde_json::from_value::<Raw<member::MemberEventContent>>(event.content)
                         .expect("Raw::from_value always works")
@@ -302,7 +300,6 @@ pub async fn unban_user_route(
                 ErrorKind::BadState,
                 "Cannot unban a user who is not banned.",
             ))?
-            .1
             .content,
     )
     .expect("from_value::<Raw<..>> can never fail")
@@ -617,10 +614,7 @@ async fn join_room_by_id_helper(
                         &db.globals,
                     )?;
                 }
-                let mut long_id = room_id.as_bytes().to_vec();
-                long_id.push(0xff);
-                long_id.extend_from_slice(id.as_bytes());
-                state.insert((pdu.kind.clone(), state_key.clone()), long_id);
+                state.insert((pdu.kind.clone(), state_key.clone()), pdu.event_id.clone());
             }
         }
 
@@ -629,7 +623,7 @@ async fn join_room_by_id_helper(
                 pdu.kind.clone(),
                 pdu.state_key.clone().expect("join event has state key"),
             ),
-            pdu_id.clone(),
+            pdu.event_id.clone(),
         );
 
         db.rooms.force_state(room_id, state, &db.globals)?;

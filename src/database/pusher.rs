@@ -312,7 +312,6 @@ pub async fn send_push_notice(
                             && db
                                 .rooms
                                 .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
-                                .map(|(_, pl)| pl)
                                 .map(deserialize)
                                 .flatten()
                                 .map_or(false, power_level_cmp)
@@ -514,7 +513,7 @@ async fn send_notice(
             let room_name = db
                 .rooms
                 .room_state_get(&event.room_id, &EventType::RoomName, "")?
-                .map(|(_, pdu)| match pdu.content.get("name") {
+                .map(|pdu| match pdu.content.get("name") {
                     Some(serde_json::Value::String(s)) => Some(s.to_string()),
                     _ => None,
                 })

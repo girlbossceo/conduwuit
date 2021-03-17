@@ -1301,7 +1301,7 @@ pub(crate) async fn build_forward_extremity_snapshots(
     pub_key_map: &PublicKeyMap,
     auth_cache: &mut EventMap<Arc<PduEvent>>,
 ) -> Result<BTreeSet<StateMap<Arc<PduEvent>>>> {
-    let current_hash = db.rooms.current_state_hash(pdu.room_id())?;
+    let current_shortstatehash = db.rooms.current_shortstatehash(pdu.room_id())?;
 
     let mut includes_current_state = false;
     let mut fork_states = BTreeSet::new();
@@ -1309,39 +1309,37 @@ pub(crate) async fn build_forward_extremity_snapshots(
         if id == &pdu.event_id {
             continue;
         }
-        match db.rooms.get_pdu_id(id)? {
+        match db.rooms.get_pdu(id)? {
             // We can skip this because it is handled outside of this function
             // The current server state and incoming event state are built to be
             // the state after.
             // This would be the incoming state from the server.
-            Some(pduid) if db.rooms.get_pdu_from_id(&pduid)?.is_some() => {
-                let state_hash = db
+            Some(leave_pdu) => {
+                let pdu_shortstatehash = db
                     .rooms
-                    .pdu_state_hash(&pduid)?
-                    .expect("found pdu with no statehash");
+                    .pdu_shortstatehash(&leave_pdu.event_id)?
+                    .ok_or_else(|| Error::bad_database("Found pdu with no statehash in db."))?;
 
-                if current_hash.as_ref() == Some(&state_hash) {
+                if current_shortstatehash.as_ref() == Some(&pdu_shortstatehash) {
                     includes_current_state = true;
                 }
 
                 let mut state_before = db
                     .rooms
-                    .state_full(pdu.room_id(), &state_hash)?
+                    .state_full(pdu.room_id(), pdu_shortstatehash)?
                     .into_iter()
                     .map(|(k, v)| ((k.0, Some(k.1)), Arc::new(v)))
                     .collect::<StateMap<_>>();
 
                 // Now it's the state after
-                if let Some(pdu) = db.rooms.get_pdu_from_id(&pduid)? {
-                    let key = (pdu.kind.clone(), pdu.state_key());
-                    state_before.insert(key, Arc::new(pdu));
-                }
+                let key = (leave_pdu.kind.clone(), leave_pdu.state_key.clone());
+                state_before.insert(key, Arc::new(leave_pdu));
 
                 fork_states.insert(state_before);
             }
             _ => {
-                error!("Missing state snapshot for {:?} - {:?}", id, pdu.kind());
-                return Err(Error::BadDatabase("Missing state snapshot."));
+                error!("Missing state snapshot for {:?}", id);
+                return Err(Error::bad_database("Missing state snapshot."));
             }
         }
     }
@@ -1367,13 +1365,12 @@ pub(crate) fn update_resolved_state(
     if let Some(state) = state {
         let mut new_state = HashMap::new();
         for ((ev_type, state_k), pdu) in state {
-            let long_id = db.rooms.get_long_id(&pdu.event_id)?;
             new_state.insert(
                 (
                     ev_type,
                     state_k.ok_or_else(|| Error::Conflict("State contained non state event"))?,
                 ),
-                long_id,
+                pdu.event_id.clone(),
             );
         }
 
@@ -1396,7 +1393,6 @@ pub(crate) fn append_incoming_pdu(
     // We can tell if we need to do this based on wether state resolution took place or not
     let mut new_state = HashMap::new();
     for ((ev_type, state_k), state_pdu) in state {
-        let long_id = db.rooms.get_long_id(state_pdu.event_id())?;
         new_state.insert(
             (
                 ev_type.clone(),
@@ -1404,7 +1400,7 @@ pub(crate) fn append_incoming_pdu(
                     .clone()
                     .ok_or_else(|| Error::Conflict("State contained non state event"))?,
             ),
-            long_id.to_vec(),
+            state_pdu.event_id.clone(),
         );
     }
 
@@ -1418,7 +1414,7 @@ pub(crate) fn append_incoming_pdu(
 
     // We append to state before appending the pdu, so we don't have a moment in time with the
     // pdu without it's state. This is okay because append_pdu can't fail.
-    let state_hash = db.rooms.append_to_state(&pdu_id, &pdu, &db.globals)?;
+    let state_hash = db.rooms.append_to_state(&pdu, &db.globals)?;
 
     db.rooms.append_pdu(
         pdu,
@@ -1429,7 +1425,7 @@ pub(crate) fn append_incoming_pdu(
         &db,
     )?;
 
-    db.rooms.set_room_state(pdu.room_id(), &state_hash)?;
+    db.rooms.set_room_state(pdu.room_id(), state_hash)?;
 
     for appservice in db.appservice.iter_all().filter_map(|r| r.ok()) {
         if let Some(namespaces) = appservice.1.get("namespaces") {

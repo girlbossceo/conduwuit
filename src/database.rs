@@ -163,10 +163,14 @@ impl Database {
                 roomuserid_invited: db.open_tree("roomuserid_invited")?,
                 userroomid_left: db.open_tree("userroomid_left")?,
 
-                statekey_short: db.open_tree("statekey_short")?,
-                stateid_pduid: db.open_tree("stateid_pduid")?,
-                pduid_statehash: db.open_tree("pduid_statehash")?,
-                roomid_statehash: db.open_tree("roomid_statehash")?,
+                statekey_shortstatekey: db.open_tree("statekey_shortstatekey")?,
+                stateid_shorteventid: db.open_tree("stateid_shorteventid")?,
+                eventid_shorteventid: db.open_tree("eventid_shorteventid")?,
+                shorteventid_eventid: db.open_tree("shorteventid_eventid")?,
+                shorteventid_shortstatehash: db.open_tree("eventid_shortstatehash")?,
+                roomid_shortstatehash: db.open_tree("roomid_shortstatehash")?,
+                statehash_shortstatehash: db.open_tree("statehash_shortstatehash")?,
+
                 eventid_outlierpdu: db.open_tree("roomeventid_outlierpdu")?,
                 prevevent_parent: db.open_tree("prevevent_parent")?,
             },

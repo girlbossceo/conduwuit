@@ -49,7 +49,6 @@ pub async fn set_displayname_route(
                                     "Tried to send displayname update for user not in the room.",
                                 )
                             })?
-                            .1
                             .content
                             .clone(),
                     )
@@ -144,7 +143,6 @@ pub async fn set_avatar_url_route(
                                     "Tried to send avatar url update for user not in the room.",
                                 )
                             })?
-                            .1
                             .content
                             .clone(),
                     )
