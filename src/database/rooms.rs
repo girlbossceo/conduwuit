@@ -85,19 +85,10 @@ impl Rooms {
     /// Builds a StateMap by iterating over all keys that start
     /// with state_hash, this gives the full state for the given state_hash.
     #[tracing::instrument(skip(self))]
-    pub fn state_full_ids(
-        &self,
-        room_id: &RoomId,
-        state_hash: &StateHashId,
-    ) -> Result<Vec<EventId>> {
-        let shortstatehash = self
-            .statehash_shortstatehash
-            .get(state_hash)?
-            .ok_or_else(|| Error::bad_database("Asked for statehash that does not exist."))?;
-
+    pub fn state_full_ids(&self, shortstatehash: u64) -> Result<Vec<EventId>> {
         Ok(self
             .stateid_shorteventid
-            .scan_prefix(&shortstatehash)
+            .scan_prefix(&shortstatehash.to_be_bytes())
             .values()
             .filter_map(|r| r.ok())
             .map(|bytes| self.shorteventid_eventid.get(&bytes).ok().flatten())
@@ -895,7 +886,8 @@ impl Rooms {
             redacts,
         } = pdu_builder;
         // TODO: Make sure this isn't called twice in parallel
-        let prev_events = self.get_pdu_leaves(&room_id)?;
+        let mut prev_events = self.get_pdu_leaves(&room_id)?;
+        prev_events.truncate(20);
 
         let auth_events = self.get_auth_events(
             &room_id,

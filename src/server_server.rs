@@ -6,6 +6,7 @@ use regex::Regex;
 use rocket::{get, post, put, response::content::Json, State};
 use ruma::{
     api::{
+        client::error::ErrorKind,
         federation::{
             directory::{get_public_rooms, get_public_rooms_filtered},
             discovery::{
@@ -1541,6 +1542,62 @@ pub fn get_missing_events_route<'a>(
     }
 
     Ok(get_missing_events::v1::Response { events }.into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/federation/v1/state_ids/<_>", data = "<body>")
+)]
+#[tracing::instrument(skip(db, body))]
+pub fn get_room_state_ids_route<'a>(
+    db: State<'a, Database>,
+    body: Ruma<get_room_state_ids::v1::Request<'_>>,
+) -> ConduitResult<get_room_state_ids::v1::Response> {
+    if !db.globals.allow_federation() {
+        return Err(Error::bad_config("Federation is disabled."));
+    }
+
+    let shortstatehash = db
+        .rooms
+        .pdu_shortstatehash(&body.event_id)?
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Pdu state not found.",
+        ))?;
+
+    let pdu_ids = db.rooms.state_full_ids(shortstatehash)?;
+
+    let mut auth_chain_ids = BTreeSet::<EventId>::new();
+    let mut todo = BTreeSet::new();
+    todo.insert(body.event_id.clone());
+
+    loop {
+        if let Some(event_id) = todo.iter().next().cloned() {
+            if let Some(pdu) = db.rooms.get_pdu(&event_id)? {
+                todo.extend(
+                    pdu.auth_events
+                        .clone()
+                        .into_iter()
+                        .collect::<BTreeSet<_>>()
+                        .difference(&auth_chain_ids)
+                        .cloned(),
+                );
+                auth_chain_ids.extend(pdu.auth_events.into_iter());
+            } else {
+                warn!("Could not find pdu mentioned in auth events.");
+            }
+
+            todo.remove(&event_id);
+        } else {
+            break;
+        }
+    }
+
+    Ok(get_room_state_ids::v1::Response {
+        auth_chain_ids: auth_chain_ids.into_iter().collect(),
+        pdu_ids,
+    }
+    .into())
 }
 
 #[cfg_attr(

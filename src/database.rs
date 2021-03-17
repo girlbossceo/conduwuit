@@ -110,11 +110,6 @@ impl Database {
         let (admin_sender, admin_receiver) = mpsc::unbounded();
 
         let db = Self {
-            globals: globals::Globals::load(
-                db.open_tree("global")?,
-                db.open_tree("servertimeout_signingkey")?,
-                config,
-            )?,
             users: users::Users {
                 userid_password: db.open_tree("userid_password")?,
                 userid_displayname: db.open_tree("userid_displayname")?,
@@ -191,7 +186,7 @@ impl Database {
             sending: sending::Sending {
                 servernamepduids: db.open_tree("servernamepduids")?,
                 servercurrentpdus: db.open_tree("servercurrentpdus")?,
-                maximum_requests: Arc::new(Semaphore::new(10)),
+                maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
             },
             admin: admin::Admin {
                 sender: admin_sender,
@@ -201,6 +196,11 @@ impl Database {
                 id_appserviceregistrations: db.open_tree("id_appserviceregistrations")?,
             },
             pusher: pusher::PushData::new(&db)?,
+            globals: globals::Globals::load(
+                db.open_tree("global")?,
+                db.open_tree("servertimeout_signingkey")?,
+                config,
+            )?,
             _db: db,
         };
 
