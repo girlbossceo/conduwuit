@@ -90,11 +90,23 @@ pub async fn get_alias_helper(
                 let aliases = registration
                     .get("namespaces")
                     .and_then(|ns| ns.get("aliases"))
-                    .and_then(|users| users.get("regex"))
-                    .and_then(|regex| regex.as_str())
-                    .and_then(|regex| Regex::new(regex).ok());
+                    .and_then(|aliases| aliases.as_sequence())
+                    .map_or_else(Vec::new, |aliases| {
+                        aliases
+                            .iter()
+                            .map(|aliases| {
+                                aliases
+                                    .get("regex")
+                                    .and_then(|regex| regex.as_str())
+                                    .and_then(|regex| Regex::new(regex).ok())
+                            })
+                            .filter_map(|o| o)
+                            .collect::<Vec<_>>()
+                    });
 
-                if aliases.map_or(false, |aliases| aliases.is_match(room_alias.as_str()))
+                if aliases
+                    .iter()
+                    .any(|aliases| aliases.is_match(room_alias.as_str()))
                     && db
                         .sending
                         .send_appservice_request(

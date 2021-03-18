@@ -1142,14 +1142,22 @@ impl Rooms {
                     });
                 let aliases = namespaces
                     .get("aliases")
-                    .and_then(|users| users.get("regex"))
-                    .and_then(|regex| regex.as_str())
-                    .and_then(|regex| Regex::new(regex).ok());
+                    .and_then(|aliases| aliases.as_sequence())
+                    .map_or_else(Vec::new, |aliases| {
+                        aliases
+                            .iter()
+                            .map(|aliases| {
+                                aliases
+                                    .get("regex")
+                                    .and_then(|regex| regex.as_str())
+                                    .and_then(|regex| Regex::new(regex).ok())
+                            })
+                            .filter_map(|o| o)
+                            .collect::<Vec<_>>()
+                    });
                 let rooms = namespaces
                     .get("rooms")
                     .and_then(|rooms| rooms.as_sequence());
-
-                let room_aliases = self.room_aliases(&room_id);
 
                 let bridge_user_id = appservice
                     .1
@@ -1170,15 +1178,15 @@ impl Rooms {
                                 .as_ref()
                                 .map_or(false, |state_key| users.is_match(&state_key))
                 };
-                let matching_aliases = |aliases: Regex| {
-                    room_aliases
+                let matching_aliases = |aliases: &Regex| {
+                    self.room_aliases(&room_id)
                         .filter_map(|r| r.ok())
                         .any(|room_alias| aliases.is_match(room_alias.as_str()))
                 };
 
                 if bridge_user_id.map_or(false, user_is_joined)
                     || users.iter().any(matching_users)
-                    || aliases.map_or(false, matching_aliases)
+                    || aliases.iter().any(matching_aliases)
                     || rooms.map_or(false, |rooms| rooms.contains(&room_id.as_str().into()))
                 {
                     db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
