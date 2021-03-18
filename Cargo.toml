@@ -32,7 +32,7 @@ state-res = { path = "../state-res", features = ["unstable-pre-spec", "gen-event
 # Used for long polling and federation sender, should be the same as rocket::tokio
 tokio = "1.2.0"
 # Used for storing data permanently
-sled = { version = "0.34.6", default-features = false }
+sled = { version = "0.34.6", default-features = false, features = ["compression"] }
 # Used for emitting log entries
 log = "0.4.14"
 # Used for rocket<->ruma conversions
