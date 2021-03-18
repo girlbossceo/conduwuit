@@ -19,7 +19,6 @@ pub use rocket::State;
 use ruma::api::client::error::ErrorKind;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
-use log::LevelFilter;
 use rocket::{
     catch, catchers,
     fairing::AdHoc,

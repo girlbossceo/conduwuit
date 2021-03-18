@@ -3,7 +3,7 @@ use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::{debug, error, info, warn};
 use regex::Regex;
-use rocket::{get, post, put, response::content::Json, State};
+use rocket::{response::content::Json, State};
 use ruma::{
     api::{
         client::error::ErrorKind,
@@ -28,7 +28,7 @@ use ruma::{
 use state_res::{Event, EventMap, StateMap};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    convert::{TryFrom, TryInto},
+    convert::TryFrom,
     fmt::Debug,
     future::Future,
     net::{IpAddr, SocketAddr},
@@ -37,6 +37,9 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
+
+#[cfg(feature = "conduit_bin")]
+use rocket::{get, post, put};
 
 #[tracing::instrument(skip(globals))]
 pub async fn send_request<T: OutgoingRequest>(

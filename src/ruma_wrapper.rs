@@ -1,13 +1,10 @@
 use crate::Error;
 use ruma::{
-    api::{AuthScheme, IncomingRequest, OutgoingRequest},
+    api::OutgoingRequest,
     identifiers::{DeviceId, UserId},
     Outgoing,
 };
-use std::{
-    convert::{TryFrom, TryInto},
-    ops::Deref,
-};
+use std::{convert::TryInto, ops::Deref};
 
 #[cfg(feature = "conduit_bin")]
 use {
@@ -24,6 +21,8 @@ use {
         tokio::io::AsyncReadExt,
         Request, State,
     },
+    ruma::api::{AuthScheme, IncomingRequest},
+    std::convert::TryFrom,
     std::io::Cursor,
 };
 

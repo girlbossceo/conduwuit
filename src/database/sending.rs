@@ -10,7 +10,7 @@ use crate::{
     appservice_server, database::pusher, server_server, utils, Database, Error, PduEvent, Result,
 };
 use federation::transactions::send_transaction_message;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use ring::digest;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{

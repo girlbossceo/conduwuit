@@ -3,7 +3,7 @@ mod edus;
 pub use edus::RoomEdus;
 
 use crate::{pdu::PduBuilder, utils, Database, Error, PduEvent, Result};
-use log::{debug, error, info, warn};
+use log::{error, warn};
 use regex::Regex;
 use ring::digest;
 use ruma::{

@@ -3,9 +3,7 @@ use crate::{ConduitResult, Database, Error, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::{
-            capabilities::get_capabilities, read_marker::set_read_marker, receipt::create_receipt,
-        },
+        r0::{read_marker::set_read_marker, receipt::create_receipt},
     },
     events::{AnyEphemeralRoomEvent, AnyEvent, EventType},
 };

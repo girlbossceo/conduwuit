@@ -559,7 +559,7 @@ pub async fn sync_events_route(
             let pdus = db.rooms.pdus_since(&sender_user, &room_id, since)?;
             let mut room_events = pdus
                 .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-                .take_while(|(pdu_id, pdu)| &since_member.0 != pdu)
+                .take_while(|(_, pdu)| &since_member.0 != pdu)
                 .map(|(_, pdu)| pdu.to_sync_room_event())
                 .collect::<Vec<_>>();
             room_events.push(since_member.0.to_sync_room_event());

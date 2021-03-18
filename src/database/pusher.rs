@@ -9,17 +9,19 @@ use ruma::{
         },
         OutgoingRequest,
     },
-    events::room::{
-        member::{MemberEventContent, MembershipState},
-        message::{MessageEventContent, MessageType, TextMessageEventContent},
-        power_levels::PowerLevelsEventContent,
+    events::{
+        room::{
+            member::{MemberEventContent, MembershipState},
+            message::{MessageEventContent, MessageType, TextMessageEventContent},
+            power_levels::PowerLevelsEventContent,
+        },
+        EventType,
     },
-    events::EventType,
     push::{Action, PushCondition, PushFormat, Ruleset, Tweak},
     uint, UInt, UserId,
 };
 
-use std::{convert::TryFrom, fmt::Debug, time::Duration};
+use std::{convert::TryFrom, fmt::Debug};
 
 #[derive(Debug, Clone)]
 pub struct PushData {

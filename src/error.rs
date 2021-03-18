@@ -1,17 +1,6 @@
-use std::{
-    collections::HashMap,
-    sync::RwLock,
-    time::{Duration, Instant},
-};
-
 use log::error;
-use ruma::{
-    api::client::{error::ErrorKind, r0::uiaa::UiaaInfo},
-    events::room::message,
-};
+use ruma::api::client::{error::ErrorKind, r0::uiaa::UiaaInfo};
 use thiserror::Error;
-
-use crate::{database::admin::AdminCommand, Database};
 
 #[cfg(feature = "conduit_bin")]
 use {
