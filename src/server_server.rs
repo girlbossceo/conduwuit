@@ -21,9 +21,10 @@ use ruma::{
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::EventType,
+    identifiers::{KeyId, KeyName},
     serde::to_canonical_value,
     signatures::{CanonicalJsonObject, CanonicalJsonValue, PublicKeyMap},
-    EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
+    EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, SigningKeyAlgorithm, UserId,
 };
 use state_res::{Event, EventMap, StateMap};
 use std::{
@@ -600,7 +601,7 @@ pub async fn send_transaction_message_route<'a>(
     // discard the event whereas the Client Server API's /send/{eventType} endpoint
     // would return a M_BAD_JSON error.
     'main_pdu_loop: for (event_id, _room_id, value) in pdus_to_resolve {
-        debug!("Working on incoming pdu: {:?}", value);
+        info!("Working on incoming pdu: {:?}", value);
         let server_name = &body.body.origin;
         let mut pub_key_map = BTreeMap::new();
 
@@ -639,7 +640,7 @@ pub async fn send_transaction_message_route<'a>(
 
         // 6. persist the event as an outlier.
         db.rooms.add_pdu_outlier(&pdu)?;
-        debug!("Added pdu as outlier.");
+        info!("Added pdu as outlier.");
 
         // Step 9. fetch missing state by calling /state_ids at backwards extremities doing all
         // the checks in this list starting at 1. These are not timeline events.
@@ -914,7 +915,7 @@ pub async fn send_transaction_message_route<'a>(
         // We use the `state_at_event` instead of `state_after` so we accurately
         // represent the state for this event.
         append_incoming_pdu(&db, &pdu, &extremities, &state_at_event)?;
-        debug!("Appended incoming pdu.");
+        info!("Appended incoming pdu.");
 
         // Set the new room state to the resolved state
         update_resolved_state(
@@ -961,21 +962,31 @@ fn validate_event<'a>(
     auth_cache: &'a mut EventMap<Arc<PduEvent>>,
 ) -> AsyncRecursiveResult<'a, (Arc<PduEvent>, Option<Arc<PduEvent>>)> {
     Box::pin(async move {
-        for signature_server in match value
+        for (signature_server, signature) in match value
             .get("signatures")
             .ok_or_else(|| "No signatures in server response pdu.".to_string())?
         {
             CanonicalJsonValue::Object(map) => map,
             _ => return Err("Invalid signatures object in server response pdu.".to_string()),
-        }
-        .keys()
-        {
+        } {
+            let signature_object = match signature {
+                CanonicalJsonValue::Object(map) => map,
+                _ => {
+                    return Err(
+                        "Invalid signatures content object in server response pdu.".to_string()
+                    )
+                }
+            };
+
+            let signature_ids = signature_object.keys().collect::<Vec<_>>();
+
             debug!("Fetching signing keys for {}", signature_server);
             let keys = match fetch_signing_keys(
                 &db,
                 &Box::<ServerName>::try_from(&**signature_server).map_err(|_| {
                     "Invalid servername in signatures of server response pdu.".to_string()
                 })?,
+                signature_ids,
             )
             .await
             {
@@ -987,26 +998,29 @@ fn validate_event<'a>(
                 }
             };
 
-            pub_key_map.insert(signature_server.clone(), keys);
+            pub_key_map.insert(dbg!(signature_server.clone()), dbg!(keys));
         }
 
-        let mut val =
-            match ruma::signatures::verify_event(pub_key_map, &value, &RoomVersionId::Version5) {
-                Ok(ver) => {
-                    if let ruma::signatures::Verified::Signatures = ver {
-                        match ruma::signatures::redact(&value, &RoomVersionId::Version6) {
-                            Ok(obj) => obj,
-                            Err(_) => return Err("Redaction failed".to_string()),
-                        }
-                    } else {
-                        value
+        let mut val = match ruma::signatures::verify_event(
+            dbg!(&pub_key_map),
+            &value,
+            &RoomVersionId::Version5,
+        ) {
+            Ok(ver) => {
+                if let ruma::signatures::Verified::Signatures = ver {
+                    match ruma::signatures::redact(&value, &RoomVersionId::Version6) {
+                        Ok(obj) => obj,
+                        Err(_) => return Err("Redaction failed".to_string()),
                     }
+                } else {
+                    value
                 }
-                Err(_e) => {
-                    error!("{}", _e);
-                    return Err("Signature verification failed".to_string());
-                }
-            };
+            }
+            Err(_e) => {
+                error!("{}", _e);
+                return Err("Signature verification failed".to_string());
+            }
+        };
 
         // Now that we have checked the signature and hashes we can add the eventID and convert
         // to our PduEvent type also finally verifying the first step listed above
@@ -1116,7 +1130,7 @@ pub(crate) async fn fetch_events(
                     Arc::new(pdu)
                 }
                 None => {
-                    debug!("Fetching event over federation");
+                    debug!("Fetching event over federation: {:?}", id);
                     match db
                         .sending
                         .send_federation_request(
@@ -1159,78 +1173,93 @@ pub(crate) async fn fetch_events(
 pub(crate) async fn fetch_signing_keys(
     db: &Database,
     origin: &ServerName,
+    signature_ids: Vec<&String>,
 ) -> Result<BTreeMap<String, String>> {
-    let mut result = BTreeMap::new();
+    let contains_all_ids = |keys: &BTreeMap<String, String>| {
+        signature_ids
+            .iter()
+            .all(|&id| dbg!(dbg!(&keys).contains_key(dbg!(id))))
+    };
 
-    match db.globals.signing_keys_for(origin)? {
-        keys if !keys.is_empty() => Ok(keys
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v.key))
-            .collect()),
-        _ => {
-            match db
-                .sending
-                .send_federation_request(&db.globals, origin, get_server_keys::v2::Request::new())
-                .await
-            {
-                Ok(keys) => {
-                    db.globals.add_signing_key(origin, &keys.server_key)?;
+    let mut result = db
+        .globals
+        .signing_keys_for(origin)?
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.key))
+        .collect::<BTreeMap<_, _>>();
 
-                    result.extend(
-                        keys.server_key
-                            .verify_keys
-                            .into_iter()
-                            .map(|(k, v)| (k.to_string(), v.key)),
-                    );
-                    result.extend(
-                        keys.server_key
-                            .old_verify_keys
-                            .into_iter()
-                            .map(|(k, v)| (k.to_string(), v.key)),
-                    );
-                    return Ok(result);
-                }
-                _ => {
-                    for server in db.globals.trusted_servers() {
-                        debug!("Asking {} for {}'s signing key", server, origin);
-                        if let Ok(keys) = db
-                            .sending
-                            .send_federation_request(
-                                &db.globals,
-                                &server,
-                                get_remote_server_keys::v2::Request::new(
-                                    origin,
-                                    SystemTime::now()
-                                        .checked_add(Duration::from_secs(3600))
-                                        .expect("SystemTime to large"),
-                                ),
-                            )
-                            .await
-                        {
-                            debug!("Got signing keys: {:?}", keys);
-                            for k in keys.server_keys.into_iter() {
-                                db.globals.add_signing_key(origin, &k)?;
-                                result.extend(
-                                    k.verify_keys
-                                        .into_iter()
-                                        .map(|(k, v)| (k.to_string(), v.key)),
-                                );
-                                result.extend(
-                                    k.old_verify_keys
-                                        .into_iter()
-                                        .map(|(k, v)| (k.to_string(), v.key)),
-                                );
-                            }
-                            return Ok(result);
-                        }
-                    }
-                    Err(Error::BadServerResponse(
-                        "Failed to find public key for server",
-                    ))
-                }
+    if contains_all_ids(&result) {
+        return Ok(result);
+    }
+
+    if let Ok(get_keys_response) = db
+        .sending
+        .send_federation_request(&db.globals, origin, get_server_keys::v2::Request::new())
+        .await
+    {
+        db.globals
+            .add_signing_key(origin, &get_keys_response.server_key)?;
+
+        result.extend(
+            get_keys_response
+                .server_key
+                .verify_keys
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.key)),
+        );
+        result.extend(
+            get_keys_response
+                .server_key
+                .old_verify_keys
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.key)),
+        );
+
+        if contains_all_ids(&result) {
+            return Ok(result);
+        }
+    }
+
+    for server in db.globals.trusted_servers() {
+        debug!("Asking {} for {}'s signing key", server, origin);
+        if let Ok(keys) = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                &server,
+                get_remote_server_keys::v2::Request::new(
+                    origin,
+                    SystemTime::now()
+                        .checked_add(Duration::from_secs(3600))
+                        .expect("SystemTime to large"),
+                ),
+            )
+            .await
+        {
+            debug!("Got signing keys: {:?}", keys);
+            for k in keys.server_keys.into_iter() {
+                db.globals.add_signing_key(origin, &k)?;
+                result.extend(
+                    k.verify_keys
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v.key)),
+                );
+                result.extend(
+                    k.old_verify_keys
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v.key)),
+                );
+            }
+
+            if contains_all_ids(&result) {
+                return Ok(result);
             }
         }
     }
+
+    Err(Error::BadServerResponse(
+        "Failed to find public key for server",
+    ))
 }
 
 /// Gather all state snapshots needed to resolve the current state of the room.
@@ -1244,7 +1273,7 @@ pub(crate) async fn calculate_forward_extremities(
     db: &Database,
     pdu: &PduEvent,
 ) -> Result<Vec<EventId>> {
-    let mut current_leaves = db.rooms.get_pdu_leaves(pdu.room_id())?;
+    let mut current_leaves = dbg!(db.rooms.get_pdu_leaves(pdu.room_id())?);
 
     let mut is_incoming_leaf = true;
     // Make sure the incoming event is not already a forward extremity
@@ -1290,7 +1319,6 @@ pub(crate) async fn calculate_forward_extremities(
 ///
 /// This guarantees that the incoming event will be in the state sets (at least our servers
 /// and the sending server).
-#[tracing::instrument(skip(db))]
 pub(crate) async fn build_forward_extremity_snapshots(
     db: &Database,
     pdu: Arc<PduEvent>,
@@ -1316,7 +1344,7 @@ pub(crate) async fn build_forward_extremity_snapshots(
             Some(leave_pdu) => {
                 let pdu_shortstatehash = db
                     .rooms
-                    .pdu_shortstatehash(&leave_pdu.event_id)?
+                    .pdu_shortstatehash(dbg!(&leave_pdu.event_id))?
                     .ok_or_else(|| Error::bad_database("Found pdu with no statehash in db."))?;
 
                 if current_shortstatehash.as_ref() == Some(&pdu_shortstatehash) {
@@ -1367,7 +1395,9 @@ pub(crate) fn update_resolved_state(
             new_state.insert(
                 (
                     ev_type,
-                    state_k.ok_or_else(|| Error::Conflict("State contained non state event"))?,
+                    state_k.ok_or_else(|| {
+                        Error::Conflict("update_resolved_state: State contained non state event")
+                    })?,
                 ),
                 pdu.event_id.clone(),
             );
@@ -1395,9 +1425,9 @@ pub(crate) fn append_incoming_pdu(
         new_state.insert(
             (
                 ev_type.clone(),
-                state_k
-                    .clone()
-                    .ok_or_else(|| Error::Conflict("State contained non state event"))?,
+                state_k.clone().ok_or_else(|| {
+                    Error::Conflict("append_incoming_pdu: State contained non state event")
+                })?,
             ),
             state_pdu.event_id.clone(),
         );

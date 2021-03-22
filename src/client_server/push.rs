@@ -689,7 +689,7 @@ pub async fn get_pushers_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     Ok(get_pushers::Response {
-        pushers: db.pusher.get_pusher(sender_user)?,
+        pushers: db.pusher.get_pushers(sender_user)?,
     }
     .into())
 }

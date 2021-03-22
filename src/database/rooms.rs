@@ -84,7 +84,6 @@ pub struct Rooms {
 impl Rooms {
     /// Builds a StateMap by iterating over all keys that start
     /// with state_hash, this gives the full state for the given state_hash.
-    #[tracing::instrument(skip(self))]
     pub fn state_full_ids(&self, shortstatehash: u64) -> Result<Vec<EventId>> {
         Ok(self
             .stateid_shorteventid
@@ -107,7 +106,6 @@ impl Rooms {
             .collect())
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn state_full(
         &self,
         room_id: &RoomId,
@@ -628,7 +626,25 @@ impl Rooms {
             .insert(pdu.event_id.as_bytes(), &*pdu_id)?;
 
         // See if the event matches any known pushers
-        db.sending.send_push_pdu(&*pdu_id)?;
+        for user in db
+            .users
+            .iter()
+            .filter_map(|r| r.ok())
+            .filter(|user_id| db.rooms.is_joined(&user_id, &pdu.room_id).unwrap_or(false))
+        {
+            // Don't notify the user of their own events
+            if user == pdu.sender {
+                continue;
+            }
+
+            for senderkey in db
+                .pusher
+                .get_pusher_senderkeys(&user)
+                .filter_map(|r| r.ok())
+            {
+                db.sending.send_push_pdu(&*pdu_id, senderkey)?;
+            }
+        }
 
         match pdu.kind {
             EventType::RoomRedaction => {

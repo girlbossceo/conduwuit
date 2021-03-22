@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     fmt::Debug,
     sync::Arc,
     time::{Duration, Instant, SystemTime},
@@ -14,9 +14,9 @@ use log::{error, info, warn};
 use ring::digest;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
-    api::{appservice, federation, OutgoingRequest},
+    api::{appservice, client::r0::push::Pusher, federation, OutgoingRequest},
     events::{push_rules, EventType},
-    uint, ServerName, UInt,
+    uint, ServerName, UInt, UserId,
 };
 use sled::IVec;
 use tokio::{select, sync::Semaphore};
@@ -24,14 +24,14 @@ use tokio::{select, sync::Semaphore};
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum OutgoingKind {
     Appservice(Box<ServerName>),
-    Push(Vec<u8>),
+    Push(Vec<u8>, Vec<u8>), // user and pushkey
     Normal(Box<ServerName>),
 }
 
 #[derive(Clone)]
 pub struct Sending {
     /// The state for a given state hash.
-    pub(super) servernamepduids: sled::Tree, // ServernamePduId = (+ / $)ServerName / UserId + PduId
+    pub(super) servernamepduids: sled::Tree, // ServernamePduId = (+ / $)SenderKey / ServerName / UserId + PduId
     pub(super) servercurrentpdus: sled::Tree, // ServerCurrentPdus = (+ / $)ServerName / UserId + PduId (pduid can be empty for reservation)
     pub(super) maximum_requests: Arc<Semaphore>,
 }
@@ -85,9 +85,11 @@ impl Sending {
                         p.extend_from_slice(server.as_bytes());
                         p
                     }
-                    OutgoingKind::Push(id) => {
+                    OutgoingKind::Push(user, pushkey) => {
                         let mut p = b"$".to_vec();
-                        p.extend_from_slice(&id);
+                        p.extend_from_slice(&user);
+                        p.push(0xff);
+                        p.extend_from_slice(&pushkey);
                         p
                     }
                     OutgoingKind::Normal(server) => {
@@ -106,6 +108,7 @@ impl Sending {
 
             let mut subscriber = servernamepduids.watch_prefix(b"");
             loop {
+                println!(".");
                 select! {
                     Some(response) = futures.next() => {
                         match response {
@@ -116,9 +119,11 @@ impl Sending {
                                         p.extend_from_slice(server.as_bytes());
                                         p
                                     }
-                                    OutgoingKind::Push(id) => {
+                                    OutgoingKind::Push(user, pushkey) => {
                                         let mut p = b"$".to_vec();
-                                        p.extend_from_slice(&id);
+                                        p.extend_from_slice(&user);
+                                        p.push(0xff);
+                                        p.extend_from_slice(&pushkey);
                                         p
                                     },
                                     OutgoingKind::Normal(server) => {
@@ -179,9 +184,11 @@ impl Sending {
                                         p.extend_from_slice(serv.as_bytes());
                                         p
                                     },
-                                    OutgoingKind::Push(id) => {
+                                    OutgoingKind::Push(user, pushkey) => {
                                         let mut p = b"$".to_vec();
-                                        p.extend_from_slice(&id);
+                                        p.extend_from_slice(&user);
+                                        p.push(0xff);
+                                        p.extend_from_slice(&pushkey);
                                         p
                                     },
                                     OutgoingKind::Normal(serv) => {
@@ -208,7 +215,6 @@ impl Sending {
                     Some(event) = &mut subscriber => {
                         if let sled::Event::Insert { key, .. } = event {
                             let servernamepduid = key.clone();
-                            let mut parts = servernamepduid.splitn(2, |&b| b == 0xff);
 
                             let exponential_backoff = |(tries, instant): &(u32, Instant)| {
                                 // Fail if a request has failed recently (exponential backoff)
@@ -219,33 +225,8 @@ impl Sending {
 
                                 instant.elapsed() < min_elapsed_duration
                             };
-                            if let Some((outgoing_kind, pdu_id)) = utils::string_from_bytes(
-                                    parts
-                                        .next()
-                                        .expect("splitn will always return 1 or more elements"),
-                                )
-                                .map_err(|_| Error::bad_database("[Utf8] ServerName in servernamepduid bytes are invalid."))
-                                .and_then(|ident_str| {
-                                    // Appservices start with a plus
-                                    Ok(if ident_str.starts_with('+') {
-                                        OutgoingKind::Appservice(
-                                            Box::<ServerName>::try_from(&ident_str[1..])
-                                                .map_err(|_| Error::bad_database("ServerName in servernamepduid is invalid."))?
-                                        )
-                                    } else if ident_str.starts_with('$') {
-                                        OutgoingKind::Push(ident_str[1..].as_bytes().to_vec())
-                                    } else {
-                                        OutgoingKind::Normal(
-                                            Box::<ServerName>::try_from(ident_str)
-                                                .map_err(|_| Error::bad_database("ServerName in servernamepduid is invalid."))?
-                                        )
-                                    })
-                                })
-                                .and_then(|outgoing_kind| parts
-                                    .next()
-                                    .ok_or_else(|| Error::bad_database("Invalid servernamepduid in db."))
-                                    .map(|pdu_id| (outgoing_kind, pdu_id))
-                                )
+
+                            if let Some((outgoing_kind, pdu_id)) = Self::parse_servercurrentpdus(&servernamepduid)
                                 .ok()
                                 .filter(|(outgoing_kind, _)| {
                                     if last_failed_try.get(outgoing_kind).map_or(false, exponential_backoff) {
@@ -258,9 +239,11 @@ impl Sending {
                                             p.extend_from_slice(serv.as_bytes());
                                             p
                                     },
-                                        OutgoingKind::Push(id) => {
+                                        OutgoingKind::Push(user, pushkey) => {
                                             let mut p = b"$".to_vec();
-                                            p.extend_from_slice(&id);
+                                            p.extend_from_slice(&user);
+                                            p.push(0xff);
+                                            p.extend_from_slice(&pushkey);
                                             p
                                         },
                                         OutgoingKind::Normal(serv) => {
@@ -279,6 +262,8 @@ impl Sending {
                                 servercurrentpdus.insert(&key, &[]).unwrap();
                                 servernamepduids.remove(&key).unwrap();
 
+                                dbg!("there is a future");
+
                                 futures.push(
                                     Self::handle_event(
                                         outgoing_kind,
@@ -295,15 +280,9 @@ impl Sending {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn send_push_pdu(&self, pdu_id: &[u8]) -> Result<()> {
-        // Make sure we don't cause utf8 errors when parsing to a String...
-        let pduid = String::from_utf8_lossy(pdu_id).as_bytes().to_vec();
-
-        // these are valid ServerName chars
-        // (byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'.')
+    pub fn send_push_pdu(&self, pdu_id: &[u8], senderkey: IVec) -> Result<()> {
         let mut key = b"$".to_vec();
-        // keep each pdu push unique
-        key.extend_from_slice(pduid.as_slice());
+        key.extend_from_slice(&senderkey);
         key.push(0xff);
         key.extend_from_slice(pdu_id);
         self.servernamepduids.insert(key, b"")?;
@@ -313,6 +292,7 @@ impl Sending {
 
     #[tracing::instrument(skip(self))]
     pub fn send_pdu(&self, server: &ServerName, pdu_id: &[u8]) -> Result<()> {
+        dbg!(&server);
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pdu_id);
@@ -369,6 +349,8 @@ impl Sending {
                     .filter_map(|r| r.ok())
                     .collect::<Vec<_>>();
                 let permit = db.sending.maximum_requests.acquire().await;
+
+                error!("sending pdus to {}: {:#?}", server, pdu_jsons);
                 let response = appservice_server::send_request(
                     &db.globals,
                     db.appservice
@@ -391,17 +373,17 @@ impl Sending {
 
                 response
             }
-            OutgoingKind::Push(id) => {
+            OutgoingKind::Push(user, pushkey) => {
                 let pdus = pdu_ids
                     .iter()
                     .map(|pdu_id| {
                         Ok::<_, (Vec<u8>, Error)>(
                             db.rooms
                                 .get_pdu_from_id(pdu_id)
-                                .map_err(|e| (id.clone(), e))?
+                                .map_err(|e| (pushkey.clone(), e))?
                                 .ok_or_else(|| {
                                     (
-                                        id.clone(),
+                                        pushkey.clone(),
                                         Error::bad_database(
                                             "[Push] Event in servernamepduids not found in db.",
                                         ),
@@ -418,66 +400,80 @@ impl Sending {
                         continue;
                     }
 
-                    for user in db.users.iter().filter_map(|r| r.ok()).filter(|user_id| {
-                        db.rooms.is_joined(&user_id, &pdu.room_id).unwrap_or(false)
-                    }) {
-                        // Don't notify the user of their own events
-                        if user == pdu.sender {
-                            continue;
-                        }
-
-                        let pushers = db
-                            .pusher
-                            .get_pusher(&user)
-                            .map_err(|e| (OutgoingKind::Push(id.clone()), e))?;
-
-                        let rules_for_user = db
-                            .account_data
-                            .get::<push_rules::PushRulesEvent>(None, &user, EventType::PushRules)
-                            .map_err(|e| (OutgoingKind::Push(id.clone()), e))?
-                            .map(|ev| ev.content.global)
-                            .unwrap_or_else(|| crate::push_rules::default_pushrules(&user));
-
-                        let unread: UInt = if let Some(last_read) = db
-                            .rooms
-                            .edus
-                            .private_read_get(&pdu.room_id, &user)
-                            .map_err(|e| (OutgoingKind::Push(id.clone()), e))?
-                        {
-                            (db.rooms
-                                .pdus_since(&user, &pdu.room_id, last_read)
-                                .map_err(|e| (OutgoingKind::Push(id.clone()), e))?
-                                .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-                                .filter(|(_, pdu)| {
-                                    matches!(
-                                        pdu.kind.clone(),
-                                        EventType::RoomMessage | EventType::RoomEncrypted
-                                    )
-                                })
-                                .count() as u32)
-                                .into()
-                        } else {
-                            // Just return zero unread messages
-                            uint!(0)
-                        };
-
-                        let permit = db.sending.maximum_requests.acquire().await;
-                        let _response = pusher::send_push_notice(
-                            &user,
-                            unread,
-                            &pushers,
-                            rules_for_user,
-                            &pdu,
-                            db,
+                    let userid = UserId::try_from(utils::string_from_bytes(user).map_err(|e| {
+                        (
+                            OutgoingKind::Push(user.clone(), pushkey.clone()),
+                            Error::bad_database("Invalid push user string in db."),
                         )
-                        .await
-                        .map(|_response| kind.clone())
-                        .map_err(|e| (kind.clone(), e));
+                    })?)
+                    .map_err(|e| {
+                        (
+                            OutgoingKind::Push(user.clone(), pushkey.clone()),
+                            Error::bad_database("Invalid push user id in db."),
+                        )
+                    })?;
 
-                        drop(permit);
-                    }
+                    let mut senderkey = user.clone();
+                    senderkey.push(0xff);
+                    senderkey.extend_from_slice(pushkey);
+
+                    let pusher = match db
+                        .pusher
+                        .get_pusher(&senderkey)
+                        .map_err(|e| (OutgoingKind::Push(user.clone(), pushkey.clone()), e))?
+                    {
+                        Some(pusher) => pusher,
+                        None => continue,
+                    };
+
+                    let rules_for_user = db
+                        .account_data
+                        .get::<push_rules::PushRulesEvent>(None, &userid, EventType::PushRules)
+                        .map_err(|e| (OutgoingKind::Push(user.clone(), pushkey.clone()), e))?
+                        .map(|ev| ev.content.global)
+                        .unwrap_or_else(|| crate::push_rules::default_pushrules(&userid));
+
+                    let unread: UInt = if let Some(last_read) = db
+                        .rooms
+                        .edus
+                        .private_read_get(&pdu.room_id, &userid)
+                        .map_err(|e| (OutgoingKind::Push(user.clone(), pushkey.clone()), e))?
+                    {
+                        (db.rooms
+                            .pdus_since(&userid, &pdu.room_id, last_read)
+                            .map_err(|e| (OutgoingKind::Push(user.clone(), pushkey.clone()), e))?
+                            .filter_map(|pdu| pdu.ok()) // Filter out buggy events
+                            .filter(|(_, pdu)| {
+                                matches!(
+                                    pdu.kind.clone(),
+                                    EventType::RoomMessage | EventType::RoomEncrypted
+                                )
+                            })
+                            .count() as u32)
+                            .into()
+                    } else {
+                        // Just return zero unread messages
+                        uint!(0)
+                    };
+
+                    let permit = db.sending.maximum_requests.acquire().await;
+
+                    error!("sending pdu to {}: {:#?}", userid, pdu);
+                    let _response = pusher::send_push_notice(
+                        &userid,
+                        unread,
+                        &pusher,
+                        rules_for_user,
+                        &pdu,
+                        db,
+                    )
+                    .await
+                    .map(|_response| kind.clone())
+                    .map_err(|e| (kind.clone(), e));
+
+                    drop(permit);
                 }
-                Ok(OutgoingKind::Push(id.clone()))
+                Ok(OutgoingKind::Push(user.clone(), pushkey.clone()))
             }
             OutgoingKind::Normal(server) => {
                 let pdu_jsons = pdu_ids
@@ -540,30 +536,49 @@ impl Sending {
     }
 
     fn parse_servercurrentpdus(key: &IVec) -> Result<(OutgoingKind, IVec)> {
-        let mut parts = key.splitn(2, |&b| b == 0xff);
-        let server = parts.next().expect("splitn always returns one element");
-        let pdu = parts
-            .next()
-            .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
-
-        let server = utils::string_from_bytes(&server).map_err(|_| {
-            Error::bad_database("Invalid server bytes in server_currenttransaction")
-        })?;
-
         // Appservices start with a plus
-        Ok::<_, Error>(if server.starts_with('+') {
+        Ok::<_, Error>(if key.starts_with(b"+") {
+            let mut parts = key[1..].splitn(2, |&b| b == 0xff);
+
+            let server = parts.next().expect("splitn always returns one element");
+            let pdu = parts
+                .next()
+                .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+            let server = utils::string_from_bytes(&server).map_err(|_| {
+                Error::bad_database("Invalid server bytes in server_currenttransaction")
+            })?;
+
             (
                 OutgoingKind::Appservice(Box::<ServerName>::try_from(server).map_err(|_| {
                     Error::bad_database("Invalid server string in server_currenttransaction")
                 })?),
                 IVec::from(pdu),
             )
-        } else if server.starts_with('$') {
+        } else if key.starts_with(b"$") {
+            let mut parts = key[1..].splitn(3, |&b| b == 0xff);
+
+            let user = parts.next().expect("splitn always returns one element");
+            let pushkey = parts
+                .next()
+                .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+            let pdu = parts
+                .next()
+                .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
             (
-                OutgoingKind::Push(server.as_bytes().to_vec()),
+                OutgoingKind::Push(user.to_vec(), pushkey.to_vec()),
                 IVec::from(pdu),
             )
         } else {
+            let mut parts = key.splitn(2, |&b| b == 0xff);
+
+            let server = parts.next().expect("splitn always returns one element");
+            let pdu = parts
+                .next()
+                .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+            let server = utils::string_from_bytes(&server).map_err(|_| {
+                Error::bad_database("Invalid server bytes in server_currenttransaction")
+            })?;
+
             (
                 OutgoingKind::Normal(Box::<ServerName>::try_from(server).map_err(|_| {
                     Error::bad_database("Invalid server string in server_currenttransaction")

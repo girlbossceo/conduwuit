@@ -20,6 +20,7 @@ use ruma::{
     push::{Action, PushCondition, PushFormat, Ruleset, Tweak},
     uint, UInt, UserId,
 };
+use sled::IVec;
 
 use std::{convert::TryFrom, fmt::Debug};
 
@@ -58,7 +59,17 @@ impl PushData {
         Ok(())
     }
 
-    pub fn get_pusher(&self, sender: &UserId) -> Result<Vec<Pusher>> {
+    pub fn get_pusher(&self, senderkey: &[u8]) -> Result<Option<Pusher>> {
+        self.senderkey_pusher
+            .get(senderkey)?
+            .map(|push| {
+                Ok(serde_json::from_slice(&*push)
+                    .map_err(|_| Error::bad_database("Invalid Pusher in db."))?)
+            })
+            .transpose()
+    }
+
+    pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>> {
         let mut prefix = sender.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -71,6 +82,16 @@ impl PushData {
                     .map_err(|_| Error::bad_database("Invalid Pusher in db."))?)
             })
             .collect()
+    }
+
+    pub fn get_pusher_senderkeys(&self, sender: &UserId) -> impl Iterator<Item = Result<IVec>> {
+        let mut prefix = sender.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        self.senderkey_pusher
+            .scan_prefix(prefix)
+            .keys()
+            .map(|r| Ok(r?))
     }
 }
 
@@ -155,7 +176,7 @@ where
 pub async fn send_push_notice(
     user: &UserId,
     unread: UInt,
-    pushers: &[Pusher],
+    pusher: &Pusher,
     ruleset: Ruleset,
     pdu: &PduEvent,
     db: &Database,
@@ -194,7 +215,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
                     break;
                 }
             }
@@ -214,8 +235,7 @@ pub async fn send_push_notice(
                                 _ => None,
                             })
                             .collect::<Vec<_>>();
-                        send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
-                            .await?;
+                        send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
                         break;
                     }
                 }
@@ -246,7 +266,7 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
+                            send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str())
                                 .await?;
                             break;
                         }
@@ -272,7 +292,7 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
+                            send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str())
                                 .await?;
                             break;
                         }
@@ -289,7 +309,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
                     break;
                 }
             }
@@ -326,7 +346,7 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
+                            send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str())
                                 .await?;
                             break;
                         }
@@ -352,7 +372,7 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str())
+                            send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str())
                                 .await?;
                             break;
                         }
@@ -369,7 +389,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
                     break;
                 }
             }
@@ -385,7 +405,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
                     break;
                 }
             }
@@ -401,7 +421,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
                     break;
                 }
             }
@@ -415,7 +435,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
                     break;
                 }
             }
@@ -429,7 +449,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pushers, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
                     break;
                 }
             }
@@ -442,98 +462,96 @@ pub async fn send_push_notice(
 
 async fn send_notice(
     unread: UInt,
-    pushers: &[Pusher],
+    pusher: &Pusher,
     tweaks: Vec<Tweak>,
     event: &PduEvent,
     db: &Database,
     name: &str,
 ) -> Result<()> {
-    let (http, _emails): (Vec<&Pusher>, _) = pushers
-        .iter()
-        .partition(|pusher| pusher.kind == Some(PusherKind::Http));
+    // TODO: email
+    if pusher.kind == Some(PusherKind::Http) {
+        return Ok(());
+    }
 
     // TODO:
     // Two problems with this
     // 1. if "event_id_only" is the only format kind it seems we should never add more info
     // 2. can pusher/devices have conflicting formats
-    for pusher in http {
-        let event_id_only = pusher.data.format == Some(PushFormat::EventIdOnly);
-        let url = if let Some(url) = pusher.data.url.as_ref() {
-            url
-        } else {
-            error!("Http Pusher must have URL specified.");
-            continue;
-        };
+    let event_id_only = pusher.data.format == Some(PushFormat::EventIdOnly);
+    let url = if let Some(url) = pusher.data.url.as_ref() {
+        url
+    } else {
+        error!("Http Pusher must have URL specified.");
+        return Ok(());
+    };
 
-        let mut device = Device::new(pusher.app_id.clone(), pusher.pushkey.clone());
-        let mut data_minus_url = pusher.data.clone();
-        // The url must be stripped off according to spec
-        data_minus_url.url = None;
-        device.data = Some(data_minus_url);
+    let mut device = Device::new(pusher.app_id.clone(), pusher.pushkey.clone());
+    let mut data_minus_url = pusher.data.clone();
+    // The url must be stripped off according to spec
+    data_minus_url.url = None;
+    device.data = Some(data_minus_url);
 
-        // Tweaks are only added if the format is NOT event_id_only
-        if !event_id_only {
-            device.tweaks = tweaks.clone();
+    // Tweaks are only added if the format is NOT event_id_only
+    if !event_id_only {
+        device.tweaks = tweaks.clone();
+    }
+
+    let d = &[device];
+    let mut notifi = Notification::new(d);
+
+    notifi.prio = NotificationPriority::Low;
+    notifi.event_id = Some(&event.event_id);
+    notifi.room_id = Some(&event.room_id);
+    // TODO: missed calls
+    notifi.counts = NotificationCounts::new(unread, uint!(0));
+
+    if event.kind == EventType::RoomEncrypted
+        || tweaks
+            .iter()
+            .any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
+    {
+        notifi.prio = NotificationPriority::High
+    }
+
+    if event_id_only {
+        error!("SEND PUSH NOTICE `{}`", name);
+        send_request(
+            &db.globals,
+            &url,
+            send_event_notification::v1::Request::new(notifi),
+        )
+        .await?;
+    } else {
+        notifi.sender = Some(&event.sender);
+        notifi.event_type = Some(&event.kind);
+        notifi.content = serde_json::value::to_raw_value(&event.content).ok();
+
+        if event.kind == EventType::RoomMember {
+            notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
         }
 
-        let d = &[device];
-        let mut notifi = Notification::new(d);
+        let user_name = db.users.displayname(&event.sender)?;
+        notifi.sender_display_name = user_name.as_deref();
+        let room_name = db
+            .rooms
+            .room_state_get(&event.room_id, &EventType::RoomName, "")?
+            .map(|pdu| match pdu.content.get("name") {
+                Some(serde_json::Value::String(s)) => Some(s.to_string()),
+                _ => None,
+            })
+            .flatten();
+        notifi.room_name = room_name.as_deref();
 
-        notifi.prio = NotificationPriority::Low;
-        notifi.event_id = Some(&event.event_id);
-        notifi.room_id = Some(&event.room_id);
-        // TODO: missed calls
-        notifi.counts = NotificationCounts::new(unread, uint!(0));
-
-        if event.kind == EventType::RoomEncrypted
-            || tweaks
-                .iter()
-                .any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
-        {
-            notifi.prio = NotificationPriority::High
-        }
-
-        if event_id_only {
-            error!("SEND PUSH NOTICE `{}`", name);
-            send_request(
-                &db.globals,
-                &url,
-                send_event_notification::v1::Request::new(notifi),
-            )
-            .await?;
-        } else {
-            notifi.sender = Some(&event.sender);
-            notifi.event_type = Some(&event.kind);
-            notifi.content = serde_json::value::to_raw_value(&event.content).ok();
-
-            if event.kind == EventType::RoomMember {
-                notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
-            }
-
-            let user_name = db.users.displayname(&event.sender)?;
-            notifi.sender_display_name = user_name.as_deref();
-            let room_name = db
-                .rooms
-                .room_state_get(&event.room_id, &EventType::RoomName, "")?
-                .map(|pdu| match pdu.content.get("name") {
-                    Some(serde_json::Value::String(s)) => Some(s.to_string()),
-                    _ => None,
-                })
-                .flatten();
-            notifi.room_name = room_name.as_deref();
-
-            error!("SEND PUSH NOTICE Full `{}`", name);
-            send_request(
-                &db.globals,
-                &url,
-                send_event_notification::v1::Request::new(notifi),
-            )
-            .await?;
-        }
+        error!("SEND PUSH NOTICE Full `{}`", name);
+        send_request(
+            &db.globals,
+            &url,
+            send_event_notification::v1::Request::new(notifi),
+        )
+        .await?;
     }
 
     // TODO: email
-    // for email in emails {}
 
     Ok(())
 }
