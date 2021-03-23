@@ -226,16 +226,17 @@ impl Media {
                 }
 
                 let thumbnail = if crop {
-                    image.resize_to_fill(width, height, FilterType::Triangle)
+                    image.resize_to_fill(width, height, FilterType::CatmullRom)
                 } else {
                     let (exact_width, exact_height) = {
                         // Copied from image::dynimage::resize_dimensions
                         let ratio = u64::from(original_width) * u64::from(height);
                         let nratio = u64::from(width) * u64::from(original_height);
 
-                        let use_width = nratio > ratio;
+                        let use_width = nratio <= ratio;
                         let intermediate = if use_width {
-                            u64::from(original_height) * u64::from(width) / u64::from(width)
+                            u64::from(original_height) * u64::from(width)
+                                / u64::from(original_width)
                         } else {
                             u64::from(original_width) * u64::from(height)
                                 / u64::from(original_height)
@@ -261,7 +262,7 @@ impl Media {
                         }
                     };
 
-                    image.thumbnail_exact(exact_width, exact_height)
+                    image.thumbnail_exact(dbg!(exact_width), dbg!(exact_height))
                 };
 
                 let mut thumbnail_bytes = Vec::new();

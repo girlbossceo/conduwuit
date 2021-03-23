@@ -556,7 +556,13 @@ pub async fn send_transaction_message_route<'a>(
             // 1. Is a valid event, otherwise it is dropped.
             // Ruma/PduEvent/StateEvent satisfies this
             // We do not add the event_id field to the pdu here because of signature and hashes checks
-            let (event_id, value) = crate::pdu::gen_event_id_canonical_json(pdu);
+            let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu) {
+                Ok(t) => t,
+                Err(_) => {
+                    // Event could not be converted to canonical json
+                    return None;
+                }
+            };
 
             // If we have no idea about this room skip the PDU
             let room_id = match value
@@ -1138,7 +1144,7 @@ pub(crate) async fn fetch_events(
                         Ok(res) => {
                             debug!("Got event over federation: {:?}", res);
                             let (event_id, value) =
-                                crate::pdu::gen_event_id_canonical_json(&res.pdu);
+                                crate::pdu::gen_event_id_canonical_json(&res.pdu)?;
                             let (pdu, _) =
                                 validate_event(db, value, event_id, key_map, origin, auth_cache)
                                     .await

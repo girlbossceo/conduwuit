@@ -4,7 +4,7 @@ use crate::{
     pdu::{PduBuilder, PduEvent},
     utils, ConduitResult, Database, Error, Result, Ruma,
 };
-use log::{info, warn};
+use log::{error, info, warn};
 use ruma::{
     api::{
         client::{
@@ -544,8 +544,10 @@ async fn join_room_by_id_helper(
             .await?;
 
         let add_event_id = |pdu: &Raw<Pdu>| -> Result<(EventId, CanonicalJsonObject)> {
-            let mut value = serde_json::from_str(pdu.json().get())
-                .expect("converting raw jsons to values always works");
+            let mut value = serde_json::from_str(pdu.json().get()).map_err(|e| {
+                error!("{:?}: {:?}", pdu, e);
+                Error::BadServerResponse("Invalid PDU in server response")
+            })?;
             let event_id = EventId::try_from(&*format!(
                 "${}",
                 ruma::signatures::reference_hash(&value, &RoomVersionId::Version6)

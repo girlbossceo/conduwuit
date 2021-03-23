@@ -1193,6 +1193,9 @@ impl Rooms {
                                 .state_key
                                 .as_ref()
                                 .map_or(false, |state_key| users.is_match(&state_key))
+                        || db.rooms.room_members(&room_id).any(|userid| {
+                            userid.map_or(false, |userid| users.is_match(userid.as_str()))
+                        })
                 };
                 let matching_aliases = |aliases: &Regex| {
                     self.room_aliases(&room_id)
@@ -1201,9 +1204,9 @@ impl Rooms {
                 };
 
                 if bridge_user_id.map_or(false, user_is_joined)
-                    || users.iter().any(matching_users)
                     || aliases.iter().any(matching_aliases)
                     || rooms.map_or(false, |rooms| rooms.contains(&room_id.as_str().into()))
+                    || users.iter().any(matching_users)
                 {
                     db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
                 }

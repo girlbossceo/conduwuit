@@ -1,4 +1,5 @@
 use crate::Error;
+use log::error;
 use ruma::{
     events::{
         pdu::EventHash, room::member::MemberEventContent, AnyEvent, AnyRoomEvent, AnyStateEvent,
@@ -322,8 +323,11 @@ impl Ord for PduEvent {
 /// Returns a tuple of the new `EventId` and the PDU as a `BTreeMap<String, CanonicalJsonValue>`.
 pub(crate) fn gen_event_id_canonical_json(
     pdu: &Raw<ruma::events::pdu::Pdu>,
-) -> (EventId, CanonicalJsonObject) {
-    let value = serde_json::from_str(pdu.json().get()).expect("A Raw<...> is always valid JSON");
+) -> crate::Result<(EventId, CanonicalJsonObject)> {
+    let value = serde_json::from_str(pdu.json().get()).map_err(|e| {
+        error!("{:?}: {:?}", pdu, e);
+        Error::BadServerResponse("Invalid PDU in server response")
+    })?;
 
     let event_id = EventId::try_from(&*format!(
         "${}",
@@ -332,7 +336,7 @@ pub(crate) fn gen_event_id_canonical_json(
     ))
     .expect("ruma's reference hashes are valid event ids");
 
-    (event_id, value)
+    Ok((event_id, value))
 }
 
 /// Build the start of a PDU in order to add it to the `Database`.
