@@ -46,6 +46,8 @@ pub struct Config {
     jwt_secret: Option<String>,
     #[serde(default = "Vec::new")]
     trusted_servers: Vec<Box<ServerName>>,
+    #[serde(default = "default_log")]
+    pub log: String,
 }
 
 fn false_fn() -> bool {
@@ -66,6 +68,10 @@ fn default_max_request_size() -> u32 {
 
 fn default_max_concurrent_requests() -> u16 {
     4
+}
+
+fn default_log() -> String {
+    "info,rocket=off,_=off,sled=off".to_owned()
 }
 
 #[derive(Clone)]

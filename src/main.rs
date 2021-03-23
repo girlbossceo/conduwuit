@@ -205,7 +205,8 @@ async fn main() {
 
         rocket.launch().await.unwrap();
     } else {
-        pretty_env_logger::init();
+        std::env::set_var("CONDUIT_LOG", config.log);
+        pretty_env_logger::init_custom_env("CONDUIT_LOG");
 
         let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
         let _enter = root.enter();

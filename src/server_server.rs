@@ -1339,11 +1339,14 @@ pub(crate) async fn build_forward_extremity_snapshots(
             // The current server state and incoming event state are built to be
             // the state after.
             // This would be the incoming state from the server.
-            Some(leave_pdu) => {
+            Some(leaf_pdu) => {
                 let pdu_shortstatehash = db
                     .rooms
-                    .pdu_shortstatehash(&leave_pdu.event_id)?
-                    .ok_or_else(|| Error::bad_database("Found pdu with no statehash in db."))?;
+                    .pdu_shortstatehash(&leaf_pdu.event_id)?
+                    .ok_or_else(|| {
+                        warn!("Leaf pdu: {:?}", leaf_pdu);
+                        Error::bad_database("Found pdu with no statehash in db.")
+                    })?;
 
                 if current_shortstatehash.as_ref() == Some(&pdu_shortstatehash) {
                     includes_current_state = true;
@@ -1357,8 +1360,8 @@ pub(crate) async fn build_forward_extremity_snapshots(
                     .collect::<StateMap<_>>();
 
                 // Now it's the state after
-                let key = (leave_pdu.kind.clone(), leave_pdu.state_key.clone());
-                state_before.insert(key, Arc::new(leave_pdu));
+                let key = (leaf_pdu.kind.clone(), leaf_pdu.state_key.clone());
+                state_before.insert(key, Arc::new(leaf_pdu));
 
                 fork_states.insert(state_before);
             }
