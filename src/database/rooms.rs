@@ -1524,7 +1524,7 @@ impl Rooms {
             let mut aliasid = room_id.as_bytes().to_vec();
             aliasid.push(0xff);
             aliasid.extend_from_slice(&globals.next_count()?.to_be_bytes());
-            self.aliasid_alias.insert(aliasid, &*alias.alias())?;
+            self.aliasid_alias.insert(aliasid, &*alias.as_bytes())?;
         } else {
             // room_id=None means remove alias
             let room_id = self

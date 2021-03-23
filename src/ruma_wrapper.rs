@@ -219,6 +219,7 @@ where
                     "Access-Control-Allow-Headers",
                     "Origin, X-Requested-With, Content-Type, Accept, Authorization",
                 );
+                response.raw_header("Access-Control-Max-Age", "86400");
                 response.ok()
             }
             Err(_) => Err(Status::InternalServerError),

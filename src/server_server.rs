@@ -863,8 +863,6 @@ pub async fn send_transaction_message_route<'a>(
                     .map(|(_, pdu)| (pdu.event_id().clone(), pdu)),
             );
 
-            debug!("auth events: {:?}", auth_cache);
-
             let res = match state_res::StateResolution::resolve(
                 pdu.room_id(),
                 &RoomVersionId::Version6,
@@ -952,7 +950,7 @@ type AsyncRecursiveResult<'a, T> = Pin<Box<dyn Future<Output = StdResult<T, Stri
 /// 5. reject "due to auth events" if the event doesn't pass auth based on the auth events
 /// 7. if not timeline event: stop
 /// 8. fetch any missing prev events doing all checks listed here starting at 1. These are timeline events
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(skip(db, pub_key_map, auth_cache))]
 fn validate_event<'a>(
     db: &'a Database,
     value: CanonicalJsonObject,
@@ -998,29 +996,26 @@ fn validate_event<'a>(
                 }
             };
 
-            pub_key_map.insert(dbg!(signature_server.clone()), dbg!(keys));
+            pub_key_map.insert(signature_server.clone(), keys);
         }
 
-        let mut val = match ruma::signatures::verify_event(
-            dbg!(&pub_key_map),
-            &value,
-            &RoomVersionId::Version5,
-        ) {
-            Ok(ver) => {
-                if let ruma::signatures::Verified::Signatures = ver {
-                    match ruma::signatures::redact(&value, &RoomVersionId::Version6) {
-                        Ok(obj) => obj,
-                        Err(_) => return Err("Redaction failed".to_string()),
+        let mut val =
+            match ruma::signatures::verify_event(&pub_key_map, &value, &RoomVersionId::Version5) {
+                Ok(ver) => {
+                    if let ruma::signatures::Verified::Signatures = ver {
+                        match ruma::signatures::redact(&value, &RoomVersionId::Version6) {
+                            Ok(obj) => obj,
+                            Err(_) => return Err("Redaction failed".to_string()),
+                        }
+                    } else {
+                        value
                     }
-                } else {
-                    value
                 }
-            }
-            Err(_e) => {
-                error!("{}", _e);
-                return Err("Signature verification failed".to_string());
-            }
-        };
+                Err(e) => {
+                    error!("{:?}: {}", value, e);
+                    return Err("Signature verification failed".to_string());
+                }
+            };
 
         // Now that we have checked the signature and hashes we can add the eventID and convert
         // to our PduEvent type also finally verifying the first step listed above
@@ -1085,7 +1080,7 @@ fn validate_event<'a>(
     })
 }
 
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(skip(db, key_map, auth_cache))]
 async fn fetch_check_auth_events(
     db: &Database,
     origin: &ServerName,
@@ -1108,7 +1103,7 @@ async fn fetch_check_auth_events(
 ///
 /// If the event is unknown to the `auth_cache` it is added. This guarantees that any
 /// event we need to know of will be present.
-#[tracing::instrument(skip(db))]
+//#[tracing::instrument(skip(db, key_map, auth_cache))]
 pub(crate) async fn fetch_events(
     db: &Database,
     origin: &ServerName,
@@ -1175,11 +1170,8 @@ pub(crate) async fn fetch_signing_keys(
     origin: &ServerName,
     signature_ids: Vec<&String>,
 ) -> Result<BTreeMap<String, String>> {
-    let contains_all_ids = |keys: &BTreeMap<String, String>| {
-        signature_ids
-            .iter()
-            .all(|&id| dbg!(dbg!(&keys).contains_key(dbg!(id))))
-    };
+    let contains_all_ids =
+        |keys: &BTreeMap<String, String>| signature_ids.iter().all(|&id| keys.contains_key(id));
 
     let mut result = db
         .globals
@@ -1273,7 +1265,7 @@ pub(crate) async fn calculate_forward_extremities(
     db: &Database,
     pdu: &PduEvent,
 ) -> Result<Vec<EventId>> {
-    let mut current_leaves = dbg!(db.rooms.get_pdu_leaves(pdu.room_id())?);
+    let mut current_leaves = db.rooms.get_pdu_leaves(pdu.room_id())?;
 
     let mut is_incoming_leaf = true;
     // Make sure the incoming event is not already a forward extremity
@@ -1344,7 +1336,7 @@ pub(crate) async fn build_forward_extremity_snapshots(
             Some(leave_pdu) => {
                 let pdu_shortstatehash = db
                     .rooms
-                    .pdu_shortstatehash(dbg!(&leave_pdu.event_id))?
+                    .pdu_shortstatehash(&leave_pdu.event_id)?
                     .ok_or_else(|| Error::bad_database("Found pdu with no statehash in db."))?;
 
                 if current_shortstatehash.as_ref() == Some(&pdu_shortstatehash) {

@@ -120,7 +120,7 @@ impl Database {
                 token_userdeviceid: db.open_tree("token_userdeviceid")?,
                 onetimekeyid_onetimekeys: db.open_tree("onetimekeyid_onetimekeys")?,
                 userid_lastonetimekeyupdate: db.open_tree("userid_lastonetimekeyupdate")?,
-                keychangeid_userid: db.open_tree("devicekeychangeid_userid")?,
+                keychangeid_userid: db.open_tree("keychangeid_userid")?,
                 keyid_key: db.open_tree("keyid_key")?,
                 userid_masterkeyid: db.open_tree("userid_masterkeyid")?,
                 userid_selfsigningkeyid: db.open_tree("userid_selfsigningkeyid")?,
@@ -135,7 +135,7 @@ impl Database {
                     readreceiptid_readreceipt: db.open_tree("readreceiptid_readreceipt")?,
                     roomuserid_privateread: db.open_tree("roomuserid_privateread")?, // "Private" read receipt
                     roomuserid_lastprivatereadupdate: db
-                        .open_tree("roomid_lastprivatereadupdate")?,
+                        .open_tree("roomuserid_lastprivatereadupdate")?,
                     typingid_userid: db.open_tree("typingid_userid")?,
                     roomid_lasttypingupdate: db.open_tree("roomid_lasttypingupdate")?,
                     presenceid_presence: db.open_tree("presenceid_presence")?,
@@ -146,7 +146,7 @@ impl Database {
                 roomid_pduleaves: db.open_tree("roomid_pduleaves")?,
 
                 alias_roomid: db.open_tree("alias_roomid")?,
-                aliasid_alias: db.open_tree("alias_roomid")?,
+                aliasid_alias: db.open_tree("aliasid_alias")?,
                 publicroomids: db.open_tree("publicroomids")?,
 
                 tokenids: db.open_tree("tokenids")?,
@@ -163,11 +163,11 @@ impl Database {
                 stateid_shorteventid: db.open_tree("stateid_shorteventid")?,
                 eventid_shorteventid: db.open_tree("eventid_shorteventid")?,
                 shorteventid_eventid: db.open_tree("shorteventid_eventid")?,
-                shorteventid_shortstatehash: db.open_tree("eventid_shortstatehash")?,
+                shorteventid_shortstatehash: db.open_tree("shorteventid_shortstatehash")?,
                 roomid_shortstatehash: db.open_tree("roomid_shortstatehash")?,
                 statehash_shortstatehash: db.open_tree("statehash_shortstatehash")?,
 
-                eventid_outlierpdu: db.open_tree("roomeventid_outlierpdu")?,
+                eventid_outlierpdu: db.open_tree("eventid_outlierpdu")?,
                 prevevent_parent: db.open_tree("prevevent_parent")?,
             },
             account_data: account_data::AccountData {
@@ -179,7 +179,7 @@ impl Database {
             key_backups: key_backups::KeyBackups {
                 backupid_algorithm: db.open_tree("backupid_algorithm")?,
                 backupid_etag: db.open_tree("backupid_etag")?,
-                backupkeyid_backup: db.open_tree("backupkeyid_backupmetadata")?,
+                backupkeyid_backup: db.open_tree("backupkeyid_backup")?,
             },
             transaction_ids: transaction_ids::TransactionIds {
                 userdevicetxnid_response: db.open_tree("userdevicetxnid_response")?,

@@ -108,7 +108,6 @@ impl Sending {
 
             let mut subscriber = servernamepduids.watch_prefix(b"");
             loop {
-                println!(".");
                 select! {
                     Some(response) = futures.next() => {
                         match response {
@@ -262,8 +261,6 @@ impl Sending {
                                 servercurrentpdus.insert(&key, &[]).unwrap();
                                 servernamepduids.remove(&key).unwrap();
 
-                                dbg!("there is a future");
-
                                 futures.push(
                                     Self::handle_event(
                                         outgoing_kind,
@@ -292,7 +289,6 @@ impl Sending {
 
     #[tracing::instrument(skip(self))]
     pub fn send_pdu(&self, server: &ServerName, pdu_id: &[u8]) -> Result<()> {
-        dbg!(&server);
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pdu_id);
@@ -350,7 +346,6 @@ impl Sending {
                     .collect::<Vec<_>>();
                 let permit = db.sending.maximum_requests.acquire().await;
 
-                error!("sending pdus to {}: {:#?}", server, pdu_jsons);
                 let response = appservice_server::send_request(
                     &db.globals,
                     db.appservice
@@ -458,7 +453,6 @@ impl Sending {
 
                     let permit = db.sending.maximum_requests.acquire().await;
 
-                    error!("sending pdu to {}: {:#?}", userid, pdu);
                     let _response = pusher::send_push_notice(
                         &userid,
                         unread,
@@ -506,7 +500,6 @@ impl Sending {
 
                 let permit = db.sending.maximum_requests.acquire().await;
 
-                error!("sending pdus to {}: {:#?}", server, pdu_jsons);
                 let response = server_server::send_request(
                     &db.globals,
                     &*server,
@@ -523,7 +516,7 @@ impl Sending {
                 )
                 .await
                 .map(|response| {
-                    error!("server response: {:?}", response);
+                    info!("server response: {:?}", response);
                     kind.clone()
                 })
                 .map_err(|e| (kind, e));

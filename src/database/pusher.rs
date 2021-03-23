@@ -469,7 +469,7 @@ async fn send_notice(
     name: &str,
 ) -> Result<()> {
     // TODO: email
-    if pusher.kind == Some(PusherKind::Http) {
+    if pusher.kind == Some(PusherKind::Email) {
         return Ok(());
     }
 
