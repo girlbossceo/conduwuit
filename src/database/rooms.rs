@@ -1115,7 +1115,6 @@ impl Rooms {
         // pdu without it's state. This is okay because append_pdu can't fail.
         let statehashid = self.append_to_state(&pdu, &db.globals)?;
 
-        // remove the
         self.append_pdu(
             &pdu,
             pdu_json,

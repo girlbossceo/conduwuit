@@ -650,6 +650,10 @@ async fn join_room_by_id_helper(
             db.rooms.add_pdu_outlier(&pdu)?;
         }
 
+        // We append to state before appending the pdu, so we don't have a moment in time with the
+        // pdu without it's state. This is okay because append_pdu can't fail.
+        let statehashid = db.rooms.append_to_state(&pdu, &db.globals)?;
+
         db.rooms.append_pdu(
             &pdu,
             utils::to_canonical_object(&pdu).expect("Pdu is valid canonical object"),
@@ -658,6 +662,10 @@ async fn join_room_by_id_helper(
             &[pdu.event_id.clone()],
             db,
         )?;
+
+        // We set the room state after inserting the pdu, so that we never have a moment in time
+        // where events in the current room state do not exist
+        db.rooms.set_room_state(&room_id, statehashid)?;
     } else {
         let event = member::MemberEventContent {
             membership: member::MembershipState::Join,
