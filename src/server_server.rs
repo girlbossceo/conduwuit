@@ -21,10 +21,9 @@ use ruma::{
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::EventType,
-    identifiers::{KeyId, KeyName},
     serde::to_canonical_value,
     signatures::{CanonicalJsonObject, CanonicalJsonValue, PublicKeyMap},
-    EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, SigningKeyAlgorithm, UserId,
+    EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
 };
 use state_res::{Event, EventMap, StateMap};
 use std::{
@@ -788,23 +787,17 @@ pub async fn send_transaction_message_route<'a>(
 
         // This will create the state after any state snapshot it builds
         // So current_state will have the incoming event inserted to it
-        let mut fork_states = match build_forward_extremity_snapshots(
-            &db,
-            pdu.clone(),
-            server_name,
-            current_state,
-            &extremities,
-            &pub_key_map,
-            &mut auth_cache,
-        )
-        .await
-        {
-            Ok(states) => states,
-            Err(_) => {
-                resolved_map.insert(event_id, Err("Failed to gather forward extremities".into()));
-                continue;
-            }
-        };
+        let mut fork_states =
+            match build_forward_extremity_snapshots(&db, pdu.clone(), current_state, &extremities)
+                .await
+            {
+                Ok(states) => states,
+                Err(_) => {
+                    resolved_map
+                        .insert(event_id, Err("Failed to gather forward extremities".into()));
+                    continue;
+                }
+            };
 
         // Make this the state after.
         let mut state_after = state_at_event.clone();
@@ -1320,11 +1313,8 @@ pub(crate) async fn calculate_forward_extremities(
 pub(crate) async fn build_forward_extremity_snapshots(
     db: &Database,
     pdu: Arc<PduEvent>,
-    origin: &ServerName,
     mut current_state: StateMap<Arc<PduEvent>>,
     current_leaves: &[EventId],
-    pub_key_map: &PublicKeyMap,
-    auth_cache: &mut EventMap<Arc<PduEvent>>,
 ) -> Result<BTreeSet<StateMap<Arc<PduEvent>>>> {
     let current_shortstatehash = db.rooms.current_shortstatehash(pdu.room_id())?;
 
@@ -1354,7 +1344,7 @@ pub(crate) async fn build_forward_extremity_snapshots(
 
                 let mut state_before = db
                     .rooms
-                    .state_full(pdu.room_id(), pdu_shortstatehash)?
+                    .state_full(pdu_shortstatehash)?
                     .into_iter()
                     .map(|(k, v)| ((k.0, Some(k.1)), Arc::new(v)))
                     .collect::<StateMap<_>>();
@@ -1396,9 +1386,9 @@ pub(crate) fn update_resolved_state(
             new_state.insert(
                 (
                     ev_type,
-                    state_k.ok_or_else(|| {
-                        Error::Conflict("update_resolved_state: State contained non state event")
-                    })?,
+                    state_k.ok_or(Error::Conflict(
+                        "update_resolved_state: State contained non state event",
+                    ))?,
                 ),
                 pdu.event_id.clone(),
             );
@@ -1426,9 +1416,9 @@ pub(crate) fn append_incoming_pdu(
         new_state.insert(
             (
                 ev_type.clone(),
-                state_k.clone().ok_or_else(|| {
-                    Error::Conflict("append_incoming_pdu: State contained non state event")
-                })?,
+                state_k.clone().ok_or(Error::Conflict(
+                    "append_incoming_pdu: State contained non state event",
+                ))?,
             ),
             state_pdu.event_id.clone(),
         );
@@ -1600,26 +1590,22 @@ pub fn get_room_state_ids_route<'a>(
     let mut todo = BTreeSet::new();
     todo.insert(body.event_id.clone());
 
-    loop {
-        if let Some(event_id) = todo.iter().next().cloned() {
-            if let Some(pdu) = db.rooms.get_pdu(&event_id)? {
-                todo.extend(
-                    pdu.auth_events
-                        .clone()
-                        .into_iter()
-                        .collect::<BTreeSet<_>>()
-                        .difference(&auth_chain_ids)
-                        .cloned(),
-                );
-                auth_chain_ids.extend(pdu.auth_events.into_iter());
-            } else {
-                warn!("Could not find pdu mentioned in auth events.");
-            }
-
-            todo.remove(&event_id);
+    while let Some(event_id) = todo.iter().next().cloned() {
+        if let Some(pdu) = db.rooms.get_pdu(&event_id)? {
+            todo.extend(
+                pdu.auth_events
+                    .clone()
+                    .into_iter()
+                    .collect::<BTreeSet<_>>()
+                    .difference(&auth_chain_ids)
+                    .cloned(),
+            );
+            auth_chain_ids.extend(pdu.auth_events.into_iter());
         } else {
-            break;
+            warn!("Could not find pdu mentioned in auth events.");
         }
+
+        todo.remove(&event_id);
     }
 
     Ok(get_room_state_ids::v1::Response {

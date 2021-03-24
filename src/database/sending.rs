@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    convert::{TryFrom, TryInto},
+    convert::TryFrom,
     fmt::Debug,
     sync::Arc,
     time::{Duration, Instant, SystemTime},
@@ -10,11 +10,11 @@ use crate::{
     appservice_server, database::pusher, server_server, utils, Database, Error, PduEvent, Result,
 };
 use federation::transactions::send_transaction_message;
-use log::{error, info, warn};
+use log::{info, warn};
 use ring::digest;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
-    api::{appservice, client::r0::push::Pusher, federation, OutgoingRequest},
+    api::{appservice, federation, OutgoingRequest},
     events::{push_rules, EventType},
     uint, ServerName, UInt, UserId,
 };
@@ -264,7 +264,7 @@ impl Sending {
                                 futures.push(
                                     Self::handle_event(
                                         outgoing_kind,
-                                        vec![pdu_id.into()],
+                                        vec![pdu_id],
                                         &db,
                                     )
                                 );
@@ -395,18 +395,19 @@ impl Sending {
                         continue;
                     }
 
-                    let userid = UserId::try_from(utils::string_from_bytes(user).map_err(|e| {
-                        (
-                            OutgoingKind::Push(user.clone(), pushkey.clone()),
-                            Error::bad_database("Invalid push user string in db."),
-                        )
-                    })?)
-                    .map_err(|e| {
-                        (
-                            OutgoingKind::Push(user.clone(), pushkey.clone()),
-                            Error::bad_database("Invalid push user id in db."),
-                        )
-                    })?;
+                    let userid =
+                        UserId::try_from(utils::string_from_bytes(user).map_err(|_| {
+                            (
+                                OutgoingKind::Push(user.clone(), pushkey.clone()),
+                                Error::bad_database("Invalid push user string in db."),
+                            )
+                        })?)
+                        .map_err(|_| {
+                            (
+                                OutgoingKind::Push(user.clone(), pushkey.clone()),
+                                Error::bad_database("Invalid push user id in db."),
+                            )
+                        })?;
 
                     let mut senderkey = user.clone();
                     senderkey.push(0xff);

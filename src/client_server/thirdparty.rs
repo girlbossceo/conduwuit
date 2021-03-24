@@ -1,7 +1,6 @@
 use crate::ConduitResult;
 use ruma::api::client::r0::thirdparty::get_protocols;
 
-use log::warn;
 #[cfg(feature = "conduit_bin")]
 use rocket::get;
 use std::collections::BTreeMap;

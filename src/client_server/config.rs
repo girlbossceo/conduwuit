@@ -3,7 +3,10 @@ use crate::{ConduitResult, Database, Error, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::config::{get_room_account_data, get_global_account_data, set_room_account_data, set_global_account_data},
+        r0::config::{
+            get_global_account_data, get_room_account_data, set_global_account_data,
+            set_room_account_data,
+        },
     },
     events::{custom::CustomEventContent, BasicEvent},
     serde::Raw,
@@ -45,7 +48,10 @@ pub async fn set_global_account_data_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    put("/_matrix/client/r0/user/<_>/rooms/<_>/account_data/<_>", data = "<body>")
+    put(
+        "/_matrix/client/r0/user/<_>/rooms/<_>/account_data/<_>",
+        data = "<body>"
+    )
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_room_account_data_route(
@@ -97,7 +103,10 @@ pub async fn get_global_account_data_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/user/<_>/rooms/<_>/account_data/<_>", data = "<body>")
+    get(
+        "/_matrix/client/r0/user/<_>/rooms/<_>/account_data/<_>",
+        data = "<body>"
+    )
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_room_account_data_route(
@@ -108,7 +117,11 @@ pub async fn get_room_account_data_route(
 
     let data = db
         .account_data
-        .get::<Raw<ruma::events::AnyBasicEvent>>(Some(&body.room_id), sender_user, body.event_type.clone().into())?
+        .get::<Raw<ruma::events::AnyBasicEvent>>(
+            Some(&body.room_id),
+            sender_user,
+            body.event_type.clone().into(),
+        )?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
     db.flush().await?;

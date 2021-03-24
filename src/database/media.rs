@@ -262,7 +262,7 @@ impl Media {
                         }
                     };
 
-                    image.thumbnail_exact(dbg!(exact_width), dbg!(exact_height))
+                    image.thumbnail_exact(exact_width, exact_height)
                 };
 
                 let mut thumbnail_bytes = Vec::new();

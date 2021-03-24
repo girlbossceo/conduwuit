@@ -108,7 +108,6 @@ impl Rooms {
 
     pub fn state_full(
         &self,
-        room_id: &RoomId,
         shortstatehash: u64,
     ) -> Result<BTreeMap<(EventType, String), PduEvent>> {
         Ok(self
@@ -151,7 +150,6 @@ impl Rooms {
     #[tracing::instrument(skip(self))]
     pub fn state_get(
         &self,
-        room_id: &RoomId,
         shortstatehash: u64,
         event_type: &EventType,
         state_key: &str,
@@ -257,11 +255,11 @@ impl Rooms {
     /// Generate a new StateHash.
     ///
     /// A unique hash made from hashing all PDU ids of the state joined with 0xff.
-    fn calculate_hash(&self, bytes_list: &[&[u8]]) -> Result<StateHashId> {
+    fn calculate_hash(&self, bytes_list: &[&[u8]]) -> StateHashId {
         // We only hash the pdu's event ids, not the whole pdu
         let bytes = bytes_list.join(&0xff);
         let hash = digest::digest(&digest::SHA256, &bytes);
-        Ok(hash.as_ref().into())
+        hash.as_ref().into()
     }
 
     /// Checks if a room exists.
@@ -291,7 +289,7 @@ impl Rooms {
                 .values()
                 .map(|event_id| event_id.as_bytes())
                 .collect::<Vec<_>>(),
-        )?;
+        );
 
         let shortstatehash = match self.statehash_shortstatehash.get(&state_hash)? {
             Some(shortstatehash) => {
@@ -353,7 +351,7 @@ impl Rooms {
         room_id: &RoomId,
     ) -> Result<BTreeMap<(EventType, String), PduEvent>> {
         if let Some(current_shortstatehash) = self.current_shortstatehash(room_id)? {
-            self.state_full(&room_id, current_shortstatehash)
+            self.state_full(current_shortstatehash)
         } else {
             Ok(BTreeMap::new())
         }
@@ -368,7 +366,7 @@ impl Rooms {
         state_key: &str,
     ) -> Result<Option<PduEvent>> {
         if let Some(current_shortstatehash) = self.current_shortstatehash(room_id)? {
-            self.state_get(&room_id, current_shortstatehash, event_type, state_key)
+            self.state_get(current_shortstatehash, event_type, state_key)
         } else {
             Ok(None)
         }
@@ -582,7 +580,7 @@ impl Rooms {
             {
                 if let Some(shortstatehash) = self.pdu_shortstatehash(&pdu.event_id).unwrap() {
                     if let Some(prev_state) = self
-                        .state_get(&pdu.room_id, shortstatehash, &pdu.kind, &state_key)
+                        .state_get(shortstatehash, &pdu.kind, &state_key)
                         .unwrap()
                     {
                         unsigned.insert(
@@ -849,7 +847,7 @@ impl Rooms {
                     .values()
                     .map(|event_id| &**event_id)
                     .collect::<Vec<_>>(),
-            )?;
+            );
 
             let shortstatehash = match self.statehash_shortstatehash.get(&new_state_hash)? {
                 Some(shortstatehash) => {

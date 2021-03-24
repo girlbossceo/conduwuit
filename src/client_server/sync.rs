@@ -136,9 +136,7 @@ pub async fn sync_events_route(
                 .map(|since_shortstatehash| {
                     Ok::<_, Error>(
                         since_shortstatehash
-                            .map(|since_shortstatehash| {
-                                db.rooms.state_full(&room_id, since_shortstatehash)
-                            })
+                            .map(|since_shortstatehash| db.rooms.state_full(since_shortstatehash))
                             .transpose()?,
                     )
                 })
@@ -512,12 +510,7 @@ pub async fn sync_events_route(
             })
             .and_then(|shortstatehash| {
                 db.rooms
-                    .state_get(
-                        &room_id,
-                        shortstatehash,
-                        &EventType::RoomMember,
-                        sender_user.as_str(),
-                    )
+                    .state_get(shortstatehash, &EventType::RoomMember, sender_user.as_str())
                     .ok()?
                     .ok_or_else(|| Error::bad_database("State hash in db doesn't have a state."))
                     .ok()
