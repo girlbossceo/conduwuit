@@ -215,7 +215,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db).await?;
                     break;
                 }
             }
@@ -235,7 +235,7 @@ pub async fn send_push_notice(
                                 _ => None,
                             })
                             .collect::<Vec<_>>();
-                        send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                        send_notice(unread, pusher, tweaks, pdu, db).await?;
                         break;
                     }
                 }
@@ -266,8 +266,7 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str())
-                                .await?;
+                            send_notice(unread, pusher, tweaks, pdu, db).await?;
                             break;
                         }
                     }
@@ -292,8 +291,7 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str())
-                                .await?;
+                            send_notice(unread, pusher, tweaks, pdu, db).await?;
                             break;
                         }
                     }
@@ -309,7 +307,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db).await?;
                     break;
                 }
             }
@@ -346,8 +344,7 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str())
-                                .await?;
+                            send_notice(unread, pusher, tweaks, pdu, db).await?;
                             break;
                         }
                     }
@@ -372,8 +369,7 @@ pub async fn send_push_notice(
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>();
-                            send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str())
-                                .await?;
+                            send_notice(unread, pusher, tweaks, pdu, db).await?;
                             break;
                         }
                     }
@@ -389,7 +385,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db).await?;
                     break;
                 }
             }
@@ -405,7 +401,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db).await?;
                     break;
                 }
             }
@@ -421,7 +417,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db).await?;
                     break;
                 }
             }
@@ -435,7 +431,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db).await?;
                     break;
                 }
             }
@@ -449,7 +445,7 @@ pub async fn send_push_notice(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db, rule.rule_id.as_str()).await?;
+                    send_notice(unread, pusher, tweaks, pdu, db).await?;
                     break;
                 }
             }
@@ -466,7 +462,6 @@ async fn send_notice(
     tweaks: Vec<Tweak>,
     event: &PduEvent,
     db: &Database,
-    name: &str,
 ) -> Result<()> {
     // TODO: email
     if pusher.kind == Some(PusherKind::Email) {
@@ -514,7 +509,6 @@ async fn send_notice(
     }
 
     if event_id_only {
-        error!("SEND PUSH NOTICE `{}`", name);
         send_request(
             &db.globals,
             &url,
@@ -542,7 +536,6 @@ async fn send_notice(
             .flatten();
         notifi.room_name = room_name.as_deref();
 
-        error!("SEND PUSH NOTICE Full `{}`", name);
         send_request(
             &db.globals,
             &url,

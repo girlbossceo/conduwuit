@@ -21,11 +21,7 @@ use ruma::{
     serde::{to_canonical_value, CanonicalJsonObject, Raw},
     EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
-use std::{
-    collections::{BTreeMap, HashMap},
-    convert::TryFrom,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};
@@ -573,7 +569,7 @@ async fn join_room_by_id_helper(
         let pdu = PduEvent::from_id_val(&event_id, join_event.clone())
             .map_err(|_| Error::BadServerResponse("Invalid PDU in send_join response."))?;
 
-        let mut state = HashMap::new();
+        let mut state = BTreeMap::new();
 
         for pdu in send_join_response
             .room_state

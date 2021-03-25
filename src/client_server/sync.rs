@@ -1,5 +1,6 @@
 use super::State;
 use crate::{ConduitResult, Database, Error, Ruma};
+use log::error;
 use ruma::{
     api::client::r0::sync::sync_events,
     events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
@@ -505,7 +506,10 @@ pub async fn sync_events_route(
                 db.rooms
                     .pdu_shortstatehash(&pdu.1.event_id)
                     .ok()?
-                    .ok_or_else(|| Error::bad_database("Pdu in db doesn't have a state hash."))
+                    .ok_or_else(|| {
+                        error!("{:?}", pdu.1);
+                        Error::bad_database("Pdu in db doesn't have a state hash.")
+                    })
                     .ok()
             })
             .and_then(|shortstatehash| {

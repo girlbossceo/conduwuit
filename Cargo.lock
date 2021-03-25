@@ -2105,7 +2105,7 @@ checksum = "3015a7d0a5fd5105c91c3710d42f9ccf0abfb287d62206484dcc67f9569a6483"
 [[package]]
 name = "state-res"
 version = "0.1.0"
-source = "git+https://github.com/ruma/state-res?rev=34cd1cb4dcdd5fb84b5df9e48e63b2e4669a2488#34cd1cb4dcdd5fb84b5df9e48e63b2e4669a2488"
+source = "git+https://github.com/timokoesters/state-res?branch=improvements#1621a491a9e867a1ad4dff9f2f92b0c1e2d44aa0"
 dependencies = [
  "itertools 0.10.0",
  "log",

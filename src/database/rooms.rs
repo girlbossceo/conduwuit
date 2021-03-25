@@ -3,27 +3,24 @@ mod edus;
 pub use edus::RoomEdus;
 
 use crate::{pdu::PduBuilder, utils, Database, Error, PduEvent, Result};
-use log::{error, warn};
+use log::{debug, error, warn};
 use regex::Regex;
 use ring::digest;
 use ruma::{
     api::client::error::ErrorKind,
     events::{
         ignored_user_list,
-        room::{
-            member, message,
-            power_levels::{self, PowerLevelsEventContent},
-        },
+        room::{create::CreateEventContent, member, message},
         EventType,
     },
     serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
     EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use sled::IVec;
-use state_res::{event_auth, Event, StateMap};
+use state_res::{Event, StateMap};
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     mem,
     sync::Arc,
@@ -227,26 +224,24 @@ impl Rooms {
         sender: &UserId,
         state_key: Option<&str>,
         content: serde_json::Value,
-    ) -> Result<StateMap<PduEvent>> {
+    ) -> Result<StateMap<Arc<PduEvent>>> {
         let auth_events = state_res::auth_types_for_event(
             kind,
             sender,
             state_key.map(|s| s.to_string()),
-            content,
+            content.clone(),
         );
 
         let mut events = StateMap::new();
         for (event_type, state_key) in auth_events {
-            if let Some(pdu) = self.room_state_get(
-                room_id,
-                &event_type,
-                &state_key
-                    .as_deref()
-                    .ok_or_else(|| Error::bad_database("Saved auth event with no state key."))?,
-            )? {
-                events.insert((event_type, state_key), pdu);
+            if let Some(pdu) = self.room_state_get(room_id, &event_type, &state_key)? {
+                events.insert((event_type, state_key), Arc::new(pdu));
             } else {
-                warn!("Could not find {} {:?} in state", event_type, state_key);
+                // This is okay because when creating a new room some events were not created yet
+                debug!(
+                    "{:?}: Could not find {} {:?} in state",
+                    content, event_type, state_key
+                );
             }
         }
         Ok(events)
@@ -281,7 +276,7 @@ impl Rooms {
     pub fn force_state(
         &self,
         room_id: &RoomId,
-        state: HashMap<(EventType, String), EventId>,
+        state: BTreeMap<(EventType, String), EventId>,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let state_hash = self.calculate_hash(
@@ -293,8 +288,10 @@ impl Rooms {
 
         let shortstatehash = match self.statehash_shortstatehash.get(&state_hash)? {
             Some(shortstatehash) => {
-                warn!("state hash already existed?!");
-                shortstatehash.to_vec()
+                // State already existed in db
+                self.roomid_shortstatehash
+                    .insert(room_id.as_bytes(), &*shortstatehash)?;
+                return Ok(());
             }
             None => {
                 let shortstatehash = globals.next_count()?;
@@ -483,14 +480,11 @@ impl Rooms {
     }
 
     /// Returns the leaf pdus of a room.
-    pub fn get_pdu_leaves(&self, room_id: &RoomId) -> Result<Vec<EventId>> {
+    pub fn get_pdu_leaves(&self, room_id: &RoomId) -> Result<HashSet<EventId>> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        let mut events = Vec::new();
-
-        for event in self
-            .roomid_pduleaves
+        self.roomid_pduleaves
             .scan_prefix(prefix)
             .values()
             .map(|bytes| {
@@ -501,11 +495,7 @@ impl Rooms {
                     .map_err(|_| Error::bad_database("EventId in roomid_pduleaves is invalid."))?,
                 )
             })
-        {
-            events.push(event?);
-        }
-
-        Ok(events)
+            .collect()
     }
 
     /// Replace the leaves of a room.
@@ -765,6 +755,90 @@ impl Rooms {
     ///
     /// This adds all current state events (not including the incoming event)
     /// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
+    pub fn set_event_state(
+        &self,
+        event_id: &EventId,
+        state: &StateMap<Arc<PduEvent>>,
+        globals: &super::globals::Globals,
+    ) -> Result<()> {
+        let shorteventid = match self.eventid_shorteventid.get(event_id.as_bytes())? {
+            Some(shorteventid) => shorteventid.to_vec(),
+            None => {
+                let shorteventid = globals.next_count()?;
+                self.eventid_shorteventid
+                    .insert(event_id.as_bytes(), &shorteventid.to_be_bytes())?;
+                self.shorteventid_eventid
+                    .insert(&shorteventid.to_be_bytes(), event_id.as_bytes())?;
+                shorteventid.to_be_bytes().to_vec()
+            }
+        };
+
+        let state_hash = self.calculate_hash(
+            &state
+                .values()
+                .map(|pdu| pdu.event_id.as_bytes())
+                .collect::<Vec<_>>(),
+        );
+
+        let shortstatehash = match self.statehash_shortstatehash.get(&state_hash)? {
+            Some(shortstatehash) => {
+                // State already existed in db
+                self.shorteventid_shortstatehash
+                    .insert(shorteventid, &*shortstatehash)?;
+                return Ok(());
+            }
+            None => {
+                let shortstatehash = globals.next_count()?;
+                self.statehash_shortstatehash
+                    .insert(&state_hash, &shortstatehash.to_be_bytes())?;
+                shortstatehash.to_be_bytes().to_vec()
+            }
+        };
+
+        for ((event_type, state_key), pdu) in state {
+            let mut statekey = event_type.as_ref().as_bytes().to_vec();
+            statekey.push(0xff);
+            statekey.extend_from_slice(&state_key.as_bytes());
+
+            let shortstatekey = match self.statekey_shortstatekey.get(&statekey)? {
+                Some(shortstatekey) => shortstatekey.to_vec(),
+                None => {
+                    let shortstatekey = globals.next_count()?;
+                    self.statekey_shortstatekey
+                        .insert(&statekey, &shortstatekey.to_be_bytes())?;
+                    shortstatekey.to_be_bytes().to_vec()
+                }
+            };
+
+            let shorteventid = match self.eventid_shorteventid.get(pdu.event_id.as_bytes())? {
+                Some(shorteventid) => shorteventid.to_vec(),
+                None => {
+                    let shorteventid = globals.next_count()?;
+                    self.eventid_shorteventid
+                        .insert(pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())?;
+                    self.shorteventid_eventid
+                        .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())?;
+                    shorteventid.to_be_bytes().to_vec()
+                }
+            };
+
+            let mut state_id = shortstatehash.clone();
+            state_id.extend_from_slice(&shortstatekey);
+
+            self.stateid_shorteventid
+                .insert(&*state_id, &*shorteventid)?;
+        }
+
+        self.shorteventid_shortstatehash
+            .insert(shorteventid, &*shortstatehash)?;
+
+        Ok(())
+    }
+
+    /// Generates a new StateHash and associates it with the incoming event.
+    ///
+    /// This adds all current state events (not including the incoming event)
+    /// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
     pub fn append_to_state(
         &self,
         new_pdu: &PduEvent,
@@ -900,8 +974,37 @@ impl Rooms {
             redacts,
         } = pdu_builder;
         // TODO: Make sure this isn't called twice in parallel
-        let mut prev_events = self.get_pdu_leaves(&room_id)?;
-        prev_events.truncate(20);
+        let prev_events = self
+            .get_pdu_leaves(&room_id)?
+            .into_iter()
+            .take(20)
+            .collect::<Vec<_>>();
+
+        let create_event = self.room_state_get(&room_id, &EventType::RoomCreate, "")?;
+
+        let create_event_content = create_event
+            .as_ref()
+            .map(|create_event| {
+                Ok::<_, Error>(
+                    serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
+                        .expect("Raw::from_value always works.")
+                        .deserialize()
+                        .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))?,
+                )
+            })
+            .transpose()?;
+
+        let create_prev_event = if prev_events.len() == 1
+            && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
+        {
+            create_event.map(Arc::new)
+        } else {
+            None
+        };
+
+        let room_version = create_event_content.map_or(RoomVersionId::Version6, |create_event| {
+            create_event.room_version
+        });
 
         let auth_events = self.get_auth_events(
             &room_id,
@@ -910,118 +1013,6 @@ impl Rooms {
             state_key.as_deref(),
             content.clone(),
         )?;
-
-        // Is the event authorized?
-        if let Some(state_key) = &state_key {
-            let power_levels = self
-                .room_state_get(&room_id, &EventType::RoomPowerLevels, "")?
-                .map_or_else(
-                    || {
-                        Ok::<_, Error>(power_levels::PowerLevelsEventContent {
-                            ban: 50.into(),
-                            events: BTreeMap::new(),
-                            events_default: 0.into(),
-                            invite: 50.into(),
-                            kick: 50.into(),
-                            redact: 50.into(),
-                            state_default: 0.into(),
-                            users: BTreeMap::new(),
-                            users_default: 0.into(),
-                            notifications:
-                                ruma::events::room::power_levels::NotificationPowerLevels {
-                                    room: 50.into(),
-                                },
-                        })
-                    },
-                    |power_levels| {
-                        Ok(serde_json::from_value::<Raw<PowerLevelsEventContent>>(
-                            power_levels.content,
-                        )
-                        .expect("Raw::from_value always works.")
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))?)
-                    },
-                )?;
-            let sender_membership = self
-                .room_state_get(&room_id, &EventType::RoomMember, &sender.to_string())?
-                .map_or(Ok::<_, Error>(member::MembershipState::Leave), |pdu| {
-                    Ok(
-                        serde_json::from_value::<Raw<member::MemberEventContent>>(pdu.content)
-                            .expect("Raw::from_value always works.")
-                            .deserialize()
-                            .map_err(|_| Error::bad_database("Invalid Member event in db."))?
-                            .membership,
-                    )
-                })?;
-
-            let sender_power = power_levels.users.get(&sender).map_or_else(
-                || {
-                    if sender_membership != member::MembershipState::Join {
-                        None
-                    } else {
-                        Some(&power_levels.users_default)
-                    }
-                },
-                // If it's okay, wrap with Some(_)
-                Some,
-            );
-
-            // Is the event allowed?
-            #[allow(clippy::blocks_in_if_conditions)]
-            if !match event_type {
-                EventType::RoomEncryption => {
-                    // Only allow encryption events if it's allowed in the config
-                    db.globals.allow_encryption()
-                }
-                EventType::RoomMember => {
-                    let prev_event = self
-                        .get_pdu(prev_events.get(0).ok_or(Error::BadRequest(
-                            ErrorKind::Unknown,
-                            "Membership can't be the first event",
-                        ))?)?
-                        .map(Arc::new);
-                    event_auth::valid_membership_change(
-                        Some(state_key.as_str()),
-                        &sender,
-                        content.clone(),
-                        prev_event,
-                        None, // TODO: third party invite
-                        &auth_events
-                            .iter()
-                            .map(|((ty, key), pdu)| {
-                                Ok(((ty.clone(), key.clone()), Arc::new(pdu.clone())))
-                            })
-                            .collect::<Result<StateMap<_>>>()?,
-                    )
-                    .map_err(|e| {
-                        log::error!("{}", e);
-                        Error::Conflict("Found incoming PDU with invalid data.")
-                    })?
-                }
-                EventType::RoomCreate => prev_events.is_empty(),
-                // Not allow any of the following events if the sender is not joined.
-                _ if sender_membership != member::MembershipState::Join => false,
-                _ => {
-                    // TODO
-                    sender_power.unwrap_or(&power_levels.users_default)
-                        >= &power_levels.state_default
-                }
-            } {
-                error!("Unauthorized {}", event_type);
-                // Not authorized
-                return Err(Error::BadRequest(
-                    ErrorKind::Forbidden,
-                    "Event is not authorized",
-                ));
-            }
-        } else if !self.is_joined(&sender, &room_id)? {
-            // TODO: auth rules apply to all events, not only those with a state key
-            error!("Unauthorized {}", event_type);
-            return Err(Error::BadRequest(
-                ErrorKind::Forbidden,
-                "Event is not authorized",
-            ));
-        }
 
         // Our depth is the maximum depth of prev_events + 1
         let depth = prev_events
@@ -1057,8 +1048,8 @@ impl Rooms {
                 .try_into()
                 .map_err(|_| Error::bad_database("Depth is invalid"))?,
             auth_events: auth_events
-                .into_iter()
-                .map(|(_, pdu)| pdu.event_id)
+                .iter()
+                .map(|(_, pdu)| pdu.event_id.clone())
                 .collect(),
             redacts,
             unsigned,
@@ -1067,6 +1058,23 @@ impl Rooms {
             },
             signatures: BTreeMap::new(),
         };
+
+        if !state_res::auth_check(
+            &room_version,
+            &Arc::new(pdu.clone()),
+            create_prev_event,
+            &auth_events,
+            None, // TODO: third_party_invite
+        )
+        .map_err(|e| {
+            error!("{:?}", e);
+            Error::bad_database("Auth check failed.")
+        })? {
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Event is not authorized.",
+            ));
+        }
 
         // Hash and sign
         let mut pdu_json =

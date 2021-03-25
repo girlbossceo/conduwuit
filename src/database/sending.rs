@@ -175,8 +175,7 @@ impl Sending {
                                     // servercurrentpdus with the prefix should be empty now
                                 }
                             }
-                            Err((outgoing_kind, e)) => {
-                                info!("Couldn't send transaction to {:?}\n{}", outgoing_kind, e);
+                            Err((outgoing_kind, _)) => {
                                 let mut prefix = match &outgoing_kind {
                                     OutgoingKind::Appservice(serv) => {
                                         let mut p = b"+".to_vec();
@@ -217,7 +216,7 @@ impl Sending {
 
                             let exponential_backoff = |(tries, instant): &(u32, Instant)| {
                                 // Fail if a request has failed recently (exponential backoff)
-                                let mut min_elapsed_duration = Duration::from_secs(60) * (*tries) * (*tries);
+                                let mut min_elapsed_duration = Duration::from_secs(30) * (*tries) * (*tries);
                                 if min_elapsed_duration > Duration::from_secs(60*60*24) {
                                     min_elapsed_duration = Duration::from_secs(60*60*24);
                                 }
@@ -260,6 +259,8 @@ impl Sending {
                             {
                                 servercurrentpdus.insert(&key, &[]).unwrap();
                                 servernamepduids.remove(&key).unwrap();
+
+                                last_failed_try.remove(&outgoing_kind);
 
                                 futures.push(
                                     Self::handle_event(
