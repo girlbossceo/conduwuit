@@ -1081,7 +1081,7 @@ impl Rooms {
             signatures: BTreeMap::new(),
         };
 
-        if !state_res::auth_check(
+        let auth_check = state_res::auth_check(
             &room_version,
             &Arc::new(pdu.clone()),
             create_prev_event,
@@ -1091,7 +1091,9 @@ impl Rooms {
         .map_err(|e| {
             error!("{:?}", e);
             Error::bad_database("Auth check failed.")
-        })? {
+        })?;
+
+        if !auth_check {
             return Err(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Event is not authorized.",

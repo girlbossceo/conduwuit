@@ -184,7 +184,10 @@ where
                     "{} {}: {}",
                     url,
                     status,
-                    String::from_utf8_lossy(&body).lines().collect::<Vec<_>>().join(" ")
+                    String::from_utf8_lossy(&body)
+                        .lines()
+                        .collect::<Vec<_>>()
+                        .join(" ")
                 );
             }
 
@@ -698,8 +701,8 @@ fn handle_incoming_pdu<'a>(
         let create_event = db
             .rooms
             .room_state_get(&room_id, &EventType::RoomCreate, "")
-            .map_err(|_| "Failed to ask database for event.")?
-            .ok_or_else(|| "Failed to find create event in db.")?;
+            .map_err(|_| "Failed to ask database for event.".to_owned())?
+            .ok_or_else(|| "Failed to find create event in db.".to_owned())?;
 
         let create_event_content =
             serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
