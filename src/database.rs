@@ -71,7 +71,7 @@ fn default_max_concurrent_requests() -> u16 {
 }
 
 fn default_log() -> String {
-    "info,rocket=off,_=off,sled=off".to_owned()
+    "info,state_res=warn,rocket=off,_=off,sled=off".to_owned()
 }
 
 #[derive(Clone)]

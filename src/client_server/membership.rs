@@ -4,7 +4,7 @@ use crate::{
     pdu::{PduBuilder, PduEvent},
     utils, ConduitResult, Database, Error, Result, Ruma,
 };
-use log::{error, info, warn};
+use log::{error, warn};
 use ruma::{
     api::{
         client::{
@@ -455,7 +455,7 @@ async fn join_room_by_id_helper(
                     federation::membership::create_join_event_template::v1::Request {
                         room_id,
                         user_id: sender_user,
-                        ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
+                        ver: &[RoomVersionId::Version6],
                     },
                 )
                 .await;
@@ -468,6 +468,11 @@ async fn join_room_by_id_helper(
         }
 
         let (make_join_response, remote_server) = make_join_response_and_server?;
+
+        let room_version = match make_join_response.room_version {
+            Some(room_version) if room_version == RoomVersionId::Version6 => room_version,
+            _ => return Err(Error::BadServerResponse("Room version is not supported")),
+        };
 
         let mut join_event_stub =
             serde_json::from_str::<CanonicalJsonObject>(make_join_response.event.json().get())
@@ -505,14 +510,14 @@ async fn join_room_by_id_helper(
             db.globals.server_name().as_str(),
             db.globals.keypair(),
             &mut join_event_stub,
-            &RoomVersionId::Version6,
+            &room_version,
         )
         .expect("event is valid, we just created it");
 
         // Generate event id
         let event_id = EventId::try_from(&*format!(
             "${}",
-            ruma::signatures::reference_hash(&join_event_stub, &RoomVersionId::Version6)
+            ruma::signatures::reference_hash(&join_event_stub, &room_version)
                 .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are valid event ids");
@@ -546,7 +551,7 @@ async fn join_room_by_id_helper(
             })?;
             let event_id = EventId::try_from(&*format!(
                 "${}",
-                ruma::signatures::reference_hash(&value, &RoomVersionId::Version6)
+                ruma::signatures::reference_hash(&value, &room_version)
                     .expect("ruma can calculate reference hashes")
             ))
             .expect("ruma's reference hashes are valid event ids");
@@ -586,8 +591,7 @@ async fn join_room_by_id_helper(
                     })
             })
         {
-            let (id, pdu) = pdu?;
-            info!("adding {} to outliers: {:#?}", id, pdu);
+            let (_id, pdu) = pdu?;
             db.rooms.add_pdu_outlier(&pdu)?;
             if let Some(state_key) = &pdu.state_key {
                 if pdu.kind == EventType::RoomMember {
@@ -641,8 +645,7 @@ async fn join_room_by_id_helper(
                     })
             })
         {
-            let (id, pdu) = pdu?;
-            info!("adding {} to outliers: {:#?}", id, pdu);
+            let (_id, pdu) = pdu?;
             db.rooms.add_pdu_outlier(&pdu)?;
         }
 

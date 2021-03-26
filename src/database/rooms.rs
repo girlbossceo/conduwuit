@@ -423,6 +423,27 @@ impl Rooms {
     /// Returns the pdu.
     ///
     /// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
+    pub fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
+        self.eventid_pduid
+            .get(event_id.as_bytes())?
+            .map_or_else::<Result<_>, _, _>(
+                || Ok(None),
+                |pduid| {
+                    Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
+                        Error::bad_database("Invalid pduid in eventid_pduid.")
+                    })?))
+                },
+            )?
+            .map(|pdu| {
+                Ok(serde_json::from_slice(&pdu)
+                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?)
+            })
+            .transpose()
+    }
+
+    /// Returns the pdu.
+    ///
+    /// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
     pub fn get_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
@@ -1002,6 +1023,7 @@ impl Rooms {
             None
         };
 
+        // If there was no create event yet, assume we are creating a version 6 room right now
         let room_version = create_event_content.map_or(RoomVersionId::Version6, |create_event| {
             create_event.room_version
         });
@@ -1093,14 +1115,14 @@ impl Rooms {
             db.globals.server_name().as_str(),
             db.globals.keypair(),
             &mut pdu_json,
-            &RoomVersionId::Version6,
+            &room_version,
         )
         .expect("event is valid, we just created it");
 
         // Generate event id
         pdu.event_id = EventId::try_from(&*format!(
             "${}",
-            ruma::signatures::reference_hash(&pdu_json, &RoomVersionId::Version6)
+            ruma::signatures::reference_hash(&pdu_json, &room_version)
                 .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are valid event ids");

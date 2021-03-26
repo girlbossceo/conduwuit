@@ -343,10 +343,7 @@ pub async fn upgrade_room_route(
 ) -> ConduitResult<upgrade_room::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if !matches!(
-        body.new_version,
-        RoomVersionId::Version5 | RoomVersionId::Version6
-    ) {
+    if !matches!(body.new_version, RoomVersionId::Version6) {
         return Err(Error::BadRequest(
             ErrorKind::UnsupportedRoomVersion,
             "This server does not support that room version.",

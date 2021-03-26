@@ -10,7 +10,7 @@ use crate::{
     appservice_server, database::pusher, server_server, utils, Database, Error, PduEvent, Result,
 };
 use federation::transactions::send_transaction_message;
-use log::{info, warn};
+use log::warn;
 use ring::digest;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
@@ -518,7 +518,11 @@ impl Sending {
                 )
                 .await
                 .map(|response| {
-                    info!("server response: {:?}", response);
+                    for pdu in response.pdus {
+                        if pdu.1.is_err() {
+                            warn!("Failed to send to {}: {:?}", server, pdu);
+                        }
+                    }
                     kind.clone()
                 })
                 .map_err(|e| (kind, e));
