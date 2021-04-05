@@ -9,6 +9,7 @@ use ruma::{
     },
     encryption::DeviceKeys,
     events::{AnyToDeviceEvent, EventType},
+    identifiers::MxcUri,
     serde::Raw,
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, UInt, UserId,
 };
@@ -150,21 +151,22 @@ impl Users {
     }
 
     /// Get a the avatar_url of a user.
-    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<String>> {
+    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<MxcUri>> {
         self.userid_avatarurl
             .get(user_id.to_string())?
-            .map_or(Ok(None), |bytes| {
-                Ok(Some(utils::string_from_bytes(&bytes).map_err(|_| {
-                    Error::bad_database("Avatar URL in db is invalid.")
-                })?))
+            .map(|bytes| {
+                let s = utils::string_from_bytes(&bytes)
+                    .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))?;
+                MxcUri::try_from(s).map_err(|_| Error::bad_database("Avatar URL in db is invalid."))
             })
+            .transpose()
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
-    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<String>) -> Result<()> {
+    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<MxcUri>) -> Result<()> {
         if let Some(avatar_url) = avatar_url {
             self.userid_avatarurl
-                .insert(user_id.to_string(), &*avatar_url)?;
+                .insert(user_id.to_string(), avatar_url.to_string().as_str())?;
         } else {
             self.userid_avatarurl.remove(user_id.to_string())?;
         }

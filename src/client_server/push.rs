@@ -10,10 +10,7 @@ use ruma::{
         },
     },
     events::{push_rules, EventType},
-    push::{
-        ConditionalPushRuleInit, ContentPushRule, OverridePushRule, PatternedPushRuleInit,
-        RoomPushRule, SenderPushRule, SimplePushRuleInit, UnderridePushRule,
-    },
+    push::{ConditionalPushRuleInit, PatternedPushRuleInit, SimplePushRuleInit},
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -67,29 +64,24 @@ pub async fn get_pushrule_route(
     let rule = match body.kind {
         RuleKind::Override => global
             .override_
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.clone().into()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.clone().into()),
         RuleKind::Underride => global
             .underride
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.clone().into()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.clone().into()),
         RuleKind::Sender => global
             .sender
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.clone().into()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.clone().into()),
         RuleKind::Room => global
             .room
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.clone().into()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.clone().into()),
         RuleKind::Content => global
             .content
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.clone().into()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.clone().into()),
         RuleKind::_Custom(_) => None,
     };
 
@@ -105,14 +97,15 @@ pub async fn get_pushrule_route(
 
 #[cfg_attr(
     feature = "conduit_bin",
-    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<body>")
+    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<req>")
 )]
-#[tracing::instrument(skip(db, body))]
+#[tracing::instrument(skip(db, req))]
 pub async fn set_pushrule_route(
     db: State<'_, Database>,
-    body: Ruma<set_pushrule::Request<'_>>,
+    req: Ruma<set_pushrule::Request<'_>>,
 ) -> ConduitResult<set_pushrule::Response> {
-    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_user = req.sender_user.as_ref().expect("user is authenticated");
+    let body = req.body;
 
     if body.scope != "global" {
         return Err(Error::BadRequest(
@@ -132,107 +125,62 @@ pub async fn set_pushrule_route(
     let global = &mut event.content.global;
     match body.kind {
         RuleKind::Override => {
-            if let Some(rule) = global
-                .override_
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.override_.remove(&rule);
-            }
-
-            global.override_.insert(OverridePushRule(
+            global.override_.replace(
                 ConditionalPushRuleInit {
-                    actions: body.actions.clone(),
+                    actions: body.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id.clone(),
-                    conditions: body.conditions.clone(),
+                    rule_id: body.rule_id,
+                    conditions: body.conditions,
                 }
                 .into(),
-            ));
+            );
         }
         RuleKind::Underride => {
-            if let Some(rule) = global
-                .underride
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.underride.remove(&rule);
-            }
-
-            global.underride.insert(UnderridePushRule(
+            global.underride.replace(
                 ConditionalPushRuleInit {
-                    actions: body.actions.clone(),
+                    actions: body.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id.clone(),
-                    conditions: body.conditions.clone(),
+                    rule_id: body.rule_id,
+                    conditions: body.conditions,
                 }
                 .into(),
-            ));
+            );
         }
         RuleKind::Sender => {
-            if let Some(rule) = global
-                .sender
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.sender.remove(&rule);
-            }
-
-            global.sender.insert(SenderPushRule(
+            global.sender.replace(
                 SimplePushRuleInit {
-                    actions: body.actions.clone(),
+                    actions: body.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id.clone(),
+                    rule_id: body.rule_id,
                 }
                 .into(),
-            ));
+            );
         }
         RuleKind::Room => {
-            if let Some(rule) = global
-                .room
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.room.remove(&rule);
-            }
-
-            global.room.insert(RoomPushRule(
+            global.room.replace(
                 SimplePushRuleInit {
-                    actions: body.actions.clone(),
+                    actions: body.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id.clone(),
+                    rule_id: body.rule_id,
                 }
                 .into(),
-            ));
+            );
         }
         RuleKind::Content => {
-            if let Some(rule) = global
-                .content
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.content.remove(&rule);
-            }
-
-            global.content.insert(ContentPushRule(
+            global.content.replace(
                 PatternedPushRuleInit {
-                    actions: body.actions.clone(),
+                    actions: body.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id.clone(),
-                    pattern: body.pattern.clone().unwrap_or_default(),
+                    rule_id: body.rule_id,
+                    pattern: body.pattern.unwrap_or_default(),
                 }
                 .into(),
-            ));
+            );
         }
         RuleKind::_Custom(_) => {}
     }
@@ -280,29 +228,24 @@ pub async fn get_pushrule_actions_route(
     let actions = match body.kind {
         RuleKind::Override => global
             .override_
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.actions.clone()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.actions.clone()),
         RuleKind::Underride => global
             .underride
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.actions.clone()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.actions.clone()),
         RuleKind::Sender => global
             .sender
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.actions.clone()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.actions.clone()),
         RuleKind::Room => global
             .room
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.actions.clone()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.actions.clone()),
         RuleKind::Content => global
             .content
-            .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map(|rule| rule.0.actions.clone()),
+            .get(body.rule_id.as_str())
+            .map(|rule| rule.actions.clone()),
         RuleKind::_Custom(_) => None,
     };
 
@@ -343,63 +286,33 @@ pub async fn set_pushrule_actions_route(
     let global = &mut event.content.global;
     match body.kind {
         RuleKind::Override => {
-            if let Some(mut rule) = global
-                .override_
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.override_.remove(&rule);
-                rule.0.actions = body.actions.clone();
-                global.override_.insert(rule);
+            if let Some(mut rule) = global.override_.get(body.rule_id.as_str()).cloned() {
+                rule.actions = body.actions.clone();
+                global.override_.replace(rule);
             }
         }
         RuleKind::Underride => {
-            if let Some(mut rule) = global
-                .underride
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.underride.remove(&rule);
-                rule.0.actions = body.actions.clone();
-                global.underride.insert(rule);
+            if let Some(mut rule) = global.underride.get(body.rule_id.as_str()).cloned() {
+                rule.actions = body.actions.clone();
+                global.underride.replace(rule);
             }
         }
         RuleKind::Sender => {
-            if let Some(mut rule) = global
-                .sender
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.sender.remove(&rule);
-                rule.0.actions = body.actions.clone();
-                global.sender.insert(rule);
+            if let Some(mut rule) = global.sender.get(body.rule_id.as_str()).cloned() {
+                rule.actions = body.actions.clone();
+                global.sender.replace(rule);
             }
         }
         RuleKind::Room => {
-            if let Some(mut rule) = global
-                .room
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.room.remove(&rule);
-                rule.0.actions = body.actions.clone();
-                global.room.insert(rule);
+            if let Some(mut rule) = global.room.get(body.rule_id.as_str()).cloned() {
+                rule.actions = body.actions.clone();
+                global.room.replace(rule);
             }
         }
         RuleKind::Content => {
-            if let Some(mut rule) = global
-                .content
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
-                global.content.remove(&rule);
-                rule.0.actions = body.actions.clone();
-                global.content.insert(rule);
+            if let Some(mut rule) = global.content.get(body.rule_id.as_str()).cloned() {
+                rule.actions = body.actions.clone();
+                global.content.replace(rule);
             }
         }
         RuleKind::_Custom(_) => {}
@@ -449,28 +362,28 @@ pub async fn get_pushrule_enabled_route(
         RuleKind::Override => global
             .override_
             .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map_or(false, |rule| rule.0.enabled),
+            .find(|rule| rule.rule_id == body.rule_id)
+            .map_or(false, |rule| rule.enabled),
         RuleKind::Underride => global
             .underride
             .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map_or(false, |rule| rule.0.enabled),
+            .find(|rule| rule.rule_id == body.rule_id)
+            .map_or(false, |rule| rule.enabled),
         RuleKind::Sender => global
             .sender
             .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map_or(false, |rule| rule.0.enabled),
+            .find(|rule| rule.rule_id == body.rule_id)
+            .map_or(false, |rule| rule.enabled),
         RuleKind::Room => global
             .room
             .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map_or(false, |rule| rule.0.enabled),
+            .find(|rule| rule.rule_id == body.rule_id)
+            .map_or(false, |rule| rule.enabled),
         RuleKind::Content => global
             .content
             .iter()
-            .find(|rule| rule.0.rule_id == body.rule_id)
-            .map_or(false, |rule| rule.0.enabled),
+            .find(|rule| rule.rule_id == body.rule_id)
+            .map_or(false, |rule| rule.enabled),
         RuleKind::_Custom(_) => false,
     };
 
@@ -508,62 +421,37 @@ pub async fn set_pushrule_enabled_route(
     let global = &mut event.content.global;
     match body.kind {
         RuleKind::Override => {
-            if let Some(mut rule) = global
-                .override_
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(mut rule) = global.override_.get(body.rule_id.as_str()).cloned() {
                 global.override_.remove(&rule);
-                rule.0.enabled = body.enabled;
+                rule.enabled = body.enabled;
                 global.override_.insert(rule);
             }
         }
         RuleKind::Underride => {
-            if let Some(mut rule) = global
-                .underride
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(mut rule) = global.underride.get(body.rule_id.as_str()).cloned() {
                 global.underride.remove(&rule);
-                rule.0.enabled = body.enabled;
+                rule.enabled = body.enabled;
                 global.underride.insert(rule);
             }
         }
         RuleKind::Sender => {
-            if let Some(mut rule) = global
-                .sender
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(mut rule) = global.sender.get(body.rule_id.as_str()).cloned() {
                 global.sender.remove(&rule);
-                rule.0.enabled = body.enabled;
+                rule.enabled = body.enabled;
                 global.sender.insert(rule);
             }
         }
         RuleKind::Room => {
-            if let Some(mut rule) = global
-                .room
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(mut rule) = global.room.get(body.rule_id.as_str()).cloned() {
                 global.room.remove(&rule);
-                rule.0.enabled = body.enabled;
+                rule.enabled = body.enabled;
                 global.room.insert(rule);
             }
         }
         RuleKind::Content => {
-            if let Some(mut rule) = global
-                .content
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(mut rule) = global.content.get(body.rule_id.as_str()).cloned() {
                 global.content.remove(&rule);
-                rule.0.enabled = body.enabled;
+                rule.enabled = body.enabled;
                 global.content.insert(rule);
             }
         }
@@ -612,52 +500,27 @@ pub async fn delete_pushrule_route(
     let global = &mut event.content.global;
     match body.kind {
         RuleKind::Override => {
-            if let Some(rule) = global
-                .override_
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(rule) = global.override_.get(body.rule_id.as_str()).cloned() {
                 global.override_.remove(&rule);
             }
         }
         RuleKind::Underride => {
-            if let Some(rule) = global
-                .underride
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(rule) = global.underride.get(body.rule_id.as_str()).cloned() {
                 global.underride.remove(&rule);
             }
         }
         RuleKind::Sender => {
-            if let Some(rule) = global
-                .sender
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(rule) = global.sender.get(body.rule_id.as_str()).cloned() {
                 global.sender.remove(&rule);
             }
         }
         RuleKind::Room => {
-            if let Some(rule) = global
-                .room
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(rule) = global.room.get(body.rule_id.as_str()).cloned() {
                 global.room.remove(&rule);
             }
         }
         RuleKind::Content => {
-            if let Some(rule) = global
-                .content
-                .iter()
-                .find(|rule| rule.0.rule_id == body.rule_id)
-                .cloned()
-            {
+            if let Some(rule) = global.content.get(body.rule_id.as_str()).cloned() {
                 global.content.remove(&rule);
             }
         }

@@ -7,7 +7,6 @@ pub mod server_server;
 mod database;
 mod error;
 mod pdu;
-mod push_rules;
 mod ruma_wrapper;
 mod utils;
 
