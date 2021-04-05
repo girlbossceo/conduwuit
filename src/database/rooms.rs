@@ -151,7 +151,7 @@ impl Rooms {
         event_type: &EventType,
         state_key: &str,
     ) -> Result<Option<PduEvent>> {
-        let mut key = event_type.to_string().as_bytes().to_vec();
+        let mut key = event_type.as_ref().as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&state_key.as_bytes());
 
@@ -416,7 +416,7 @@ impl Rooms {
     /// Returns the pdu's id.
     pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<IVec>> {
         self.eventid_pduid
-            .get(event_id.to_string().as_bytes())?
+            .get(event_id.as_bytes())?
             .map_or(Ok(None), |pdu_id| Ok(Some(pdu_id)))
     }
 
@@ -690,7 +690,7 @@ impl Rooms {
                         .split_terminator(|c: char| !c.is_alphanumeric())
                         .map(str::to_lowercase)
                     {
-                        let mut key = pdu.room_id.to_string().as_bytes().to_vec();
+                        let mut key = pdu.room_id.as_bytes().to_vec();
                         key.push(0xff);
                         key.extend_from_slice(word.as_bytes());
                         key.push(0xff);
@@ -1264,7 +1264,7 @@ impl Rooms {
         room_id: &RoomId,
         since: u64,
     ) -> Result<impl DoubleEndedIterator<Item = Result<(IVec, PduEvent)>>> {
-        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         // Skip the first pdu if it's exactly at since, because we sent that last time
@@ -1298,7 +1298,7 @@ impl Rooms {
         until: u64,
     ) -> impl Iterator<Item = Result<(IVec, PduEvent)>> {
         // Create the first part of the full pdu id
-        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         let mut current = prefix.clone();
@@ -1332,7 +1332,7 @@ impl Rooms {
         from: u64,
     ) -> impl Iterator<Item = Result<(IVec, PduEvent)>> {
         // Create the first part of the full pdu id
-        let mut prefix = room_id.to_string().as_bytes().to_vec();
+        let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         let mut current = prefix.clone();
@@ -1883,9 +1883,9 @@ impl Rooms {
     }
 
     pub fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-        let mut userroom_id = user_id.to_string().as_bytes().to_vec();
+        let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
-        userroom_id.extend_from_slice(room_id.to_string().as_bytes());
+        userroom_id.extend_from_slice(room_id.as_bytes());
 
         Ok(self.roomuseroncejoinedids.get(userroom_id)?.is_some())
     }

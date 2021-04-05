@@ -24,7 +24,7 @@ impl KeyBackups {
     ) -> Result<String> {
         let version = globals.next_count()?.to_string();
 
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&version.as_bytes());
 
@@ -39,7 +39,7 @@ impl KeyBackups {
     }
 
     pub fn delete_backup(&self, user_id: &UserId, version: &str) -> Result<()> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&version.as_bytes());
 
@@ -67,7 +67,7 @@ impl KeyBackups {
         backup_metadata: &BackupAlgorithm,
         globals: &super::globals::Globals,
     ) -> Result<String> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&version.as_bytes());
 
@@ -89,7 +89,7 @@ impl KeyBackups {
     }
 
     pub fn get_latest_backup(&self, user_id: &UserId) -> Result<Option<(String, BackupAlgorithm)>> {
-        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         self.backupid_algorithm
             .scan_prefix(&prefix)
@@ -113,7 +113,7 @@ impl KeyBackups {
     }
 
     pub fn get_backup(&self, user_id: &UserId, version: &str) -> Result<Option<BackupAlgorithm>> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(version.as_bytes());
 
@@ -132,7 +132,7 @@ impl KeyBackups {
         key_data: &KeyBackupData,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(version.as_bytes());
 
@@ -147,7 +147,7 @@ impl KeyBackups {
             .insert(&key, &globals.next_count()?.to_be_bytes())?;
 
         key.push(0xff);
-        key.extend_from_slice(room_id.to_string().as_bytes());
+        key.extend_from_slice(room_id.as_bytes());
         key.push(0xff);
         key.extend_from_slice(session_id.as_bytes());
 
@@ -160,7 +160,7 @@ impl KeyBackups {
     }
 
     pub fn count_keys(&self, user_id: &UserId, version: &str) -> Result<usize> {
-        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(version.as_bytes());
 
@@ -168,7 +168,7 @@ impl KeyBackups {
     }
 
     pub fn get_etag(&self, user_id: &UserId, version: &str) -> Result<String> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&version.as_bytes());
 
@@ -187,7 +187,7 @@ impl KeyBackups {
         user_id: &UserId,
         version: &str,
     ) -> Result<BTreeMap<RoomId, RoomKeyBackup>> {
-        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(version.as_bytes());
         prefix.push(0xff);
@@ -240,7 +240,7 @@ impl KeyBackups {
         version: &str,
         room_id: &RoomId,
     ) -> BTreeMap<String, KeyBackupData> {
-        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(version.as_bytes());
         prefix.push(0xff);
@@ -278,7 +278,7 @@ impl KeyBackups {
         room_id: &RoomId,
         session_id: &str,
     ) -> Result<Option<KeyBackupData>> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(version.as_bytes());
         key.push(0xff);
@@ -297,7 +297,7 @@ impl KeyBackups {
     }
 
     pub fn delete_all_keys(&self, user_id: &UserId, version: &str) -> Result<()> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&version.as_bytes());
         key.push(0xff);
@@ -320,7 +320,7 @@ impl KeyBackups {
         version: &str,
         room_id: &RoomId,
     ) -> Result<()> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&version.as_bytes());
         key.push(0xff);
@@ -346,7 +346,7 @@ impl KeyBackups {
         room_id: &RoomId,
         session_id: &str,
     ) -> Result<()> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&version.as_bytes());
         key.push(0xff);
