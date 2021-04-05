@@ -552,7 +552,7 @@ pub async fn send_transaction_message_route<'a>(
     // events that it references.
     let mut auth_cache = EventMap::new();
 
-    for pdu in body.pdus.iter() {
+    for pdu in &body.pdus {
         // We do not add the event_id field to the pdu here because of signature and hashes checks
         let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu) {
             Ok(t) => t,
@@ -757,7 +757,7 @@ fn handle_incoming_pdu<'a>(
 
         // Build map of auth events
         let mut auth_events = BTreeMap::new();
-        for id in incoming_pdu.auth_events.iter() {
+        for id in &incoming_pdu.auth_events {
             let auth_event = auth_cache.get(id).ok_or_else(|| {
                 "Auth event not found, event failed recursive auth checks.".to_string()
             })?;
@@ -869,7 +869,7 @@ fn handle_incoming_pdu<'a>(
                     };
 
                     let mut state = BTreeMap::new();
-                    for pdu in state_vec.into_iter() {
+                    for pdu in state_vec {
                         match state.entry((pdu.kind.clone(), pdu.state_key.clone().ok_or_else(|| "Found non-state pdu in state events.".to_owned())?)) {
                             Entry::Vacant(v) => {
                                 v.insert(pdu);
@@ -1268,7 +1268,7 @@ pub(crate) async fn fetch_signing_keys(
             .await
         {
             debug!("Got signing keys: {:?}", keys);
-            for k in keys.server_keys.into_iter() {
+            for k in keys.server_keys {
                 db.globals.add_signing_key(origin, &k)?;
                 result.extend(
                     k.verify_keys

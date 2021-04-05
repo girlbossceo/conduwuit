@@ -531,7 +531,7 @@ impl Rooms {
             self.roomid_pduleaves.remove(key?)?;
         }
 
-        for event_id in event_ids.iter() {
+        for event_id in event_ids {
             let mut key = prefix.to_owned();
             key.extend_from_slice(event_id.as_bytes());
             self.roomid_pduleaves.insert(&key, event_id.as_bytes())?;
