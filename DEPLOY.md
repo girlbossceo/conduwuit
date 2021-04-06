@@ -18,14 +18,16 @@ $ sudo wget -O /usr/local/bin/matrix-conduit <url>
 $ sudo chmod +x /usr/local/bin/matrix-conduit
 ```
 
-## Adding a conduit user
+## Adding a Conduit user
 
 While conduit can run as any user it is usually better to use dedicated users for different services.
 This also allows you to make sure that the file permissions are correctly set up.
 
-In debian you can use this command to create a conduit user:
+In Debian you can use this command to create a Conduit user:
 
-`sudo adduser --system conduit --no-create-home`
+```
+sudo adduser --system conduit --no-create-home
+```
 
 ## Setting up a systemd service
 
@@ -101,14 +103,20 @@ address = "127.0.0.1" # This makes sure Conduit can only be reached using the re
 
 ## Setting the correct file permissions
 
-As we are using a conduit specific user we need to allow it to read the config.
-To do that you can run this command on debian:
+As we are using a Conduit specific user we need to allow it to read the config.
+To do that you can run this command on Debian:
 
-`sudo chown -R conduit:nogroup /etc/matrix-conduit`
+```
+sudo chown -R conduit:nogroup /etc/matrix-conduit
+```
 
-If you use the default database path you also need to run this. (It might be that you first need to create that folder):
+If you use the default database path you also need to run this:
 
-`sudo chown -R conduit:nogroup /var/lib/matrix-conduit/conduit_db`
+```
+sudo mkdir -p /var/lib/matrix-conduit/conduit_db
+sudo chown -R conduit:nogroup /var/lib/matrix-conduit/conduit_db
+```
+
 
 ## Setting up the Reverse Proxy
 
