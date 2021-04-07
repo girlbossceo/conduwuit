@@ -164,6 +164,7 @@ fn setup_rocket() -> (rocket::Rocket, Config) {
                 server_server::get_public_rooms_route,
                 server_server::get_public_rooms_filtered_route,
                 server_server::send_transaction_message_route,
+                server_server::get_event_route,
                 server_server::get_missing_events_route,
                 server_server::get_room_state_ids_route,
                 server_server::get_profile_information_route,

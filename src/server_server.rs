@@ -1390,6 +1390,34 @@ pub(crate) fn append_incoming_pdu(
 
 #[cfg_attr(
     feature = "conduit_bin",
+    get("/_matrix/federation/v1/event/<_>", data = "<body>")
+)]
+#[tracing::instrument(skip(db, body))]
+pub fn get_event_route<'a>(
+    db: State<'a, Database>,
+    body: Ruma<get_event::v1::Request<'_>>,
+) -> ConduitResult<get_event::v1::Response> {
+    if !db.globals.allow_federation() {
+        return Err(Error::bad_config("Federation is disabled."));
+    }
+
+    Ok(get_event::v1::Response {
+        origin: db.globals.server_name().to_owned(),
+        origin_server_ts: SystemTime::now(),
+        pdu: PduEvent::convert_to_outgoing_federation_event(
+            serde_json::from_value(
+                db.rooms
+                    .get_pdu_json(&body.event_id)?
+                    .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?,
+            )
+            .map_err(|_| Error::bad_database("Invalid pdu in database."))?,
+        ),
+    }
+    .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
     post("/_matrix/federation/v1/get_missing_events/<_>", data = "<body>")
 )]
 #[tracing::instrument(skip(db, body))]
