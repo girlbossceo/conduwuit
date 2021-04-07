@@ -21,7 +21,7 @@ use ruma::{
         },
         EventType,
     },
-    RoomAliasId, RoomId, RoomVersionId, UserId,
+    push, RoomAliasId, RoomId, RoomVersionId, UserId,
 };
 
 use register::RegistrationKind;
@@ -181,7 +181,7 @@ pub async fn register_route(
         EventType::PushRules,
         &ruma::events::push_rules::PushRulesEvent {
             content: ruma::events::push_rules::PushRulesEventContent {
-                global: crate::push_rules::default_pushrules(&user_id),
+                global: push::Ruleset::server_default(&user_id),
             },
         },
         &db.globals,

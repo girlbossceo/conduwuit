@@ -9,15 +9,8 @@ use ruma::{
         },
         OutgoingRequest,
     },
-    events::{
-        room::{
-            member::{MemberEventContent, MembershipState},
-            message::{MessageEventContent, MessageType, TextMessageEventContent},
-            power_levels::PowerLevelsEventContent,
-        },
-        EventType,
-    },
-    push::{Action, PushCondition, PushFormat, Ruleset, Tweak},
+    events::{room::power_levels::PowerLevelsEventContent, EventType},
+    push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     uint, UInt, UserId,
 };
 use sled::IVec;
@@ -181,276 +174,56 @@ pub async fn send_push_notice(
     pdu: &PduEvent,
     db: &Database,
 ) -> Result<()> {
-    if let Some(msgtype) = pdu.content.get("msgtype").and_then(|b| b.as_str()) {
-        if msgtype == "m.notice" {
-            return Ok(());
+    let power_levels: PowerLevelsEventContent = db
+        .rooms
+        .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
+        .map(|ev| {
+            serde_json::from_value(ev.content)
+                .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    let ctx = PushConditionRoomCtx {
+        room_id: pdu.room_id.clone(),
+        member_count: (db.rooms.room_members(&pdu.room_id).count() as u32).into(),
+        user_display_name: user.localpart().into(), // TODO: Use actual display name
+        users_power_levels: power_levels.users,
+        default_power_level: power_levels.users_default,
+        notification_power_levels: power_levels.notifications,
+    };
+
+    let mut notify = None;
+    let mut tweaks = Vec::new();
+
+    for action in ruleset.get_actions(&pdu.to_sync_state_event(), &ctx) {
+        let n = match action {
+            Action::DontNotify => false,
+            // TODO: Implement proper support for coalesce
+            Action::Notify | Action::Coalesce => true,
+            Action::SetTweak(tweak) => {
+                tweaks.push(tweak.clone());
+                continue;
+            }
+        };
+
+        if notify.is_some() {
+            return Err(Error::bad_database(
+                r#"Malformed pushrule contains more than one of these actions: ["dont_notify", "notify", "coalesce"]"#,
+            ));
         }
+
+        notify = Some(n);
     }
 
-    for rule in ruleset.into_iter() {
-        // TODO: can actions contain contradictory Actions
-        if rule
-            .actions
-            .iter()
-            .any(|act| matches!(act, ruma::push::Action::DontNotify))
-            || !rule.enabled
-        {
-            continue;
-        }
+    let notify = notify.ok_or_else(|| {
+        Error::bad_database(
+            r#"Malformed pushrule contains none of these actions: ["dont_notify", "notify", "coalesce"]"#,
+        )
+    })?;
 
-        match rule.rule_id.as_str() {
-            ".m.rule.master" => {}
-            ".m.rule.suppress_notices" => {
-                if pdu.kind == EventType::RoomMessage
-                    && pdu
-                        .content
-                        .get("msgtype")
-                        .map_or(false, |ty| ty == "m.notice")
-                {
-                    let tweaks = rule
-                        .actions
-                        .iter()
-                        .filter_map(|a| match a {
-                            Action::SetTweak(tweak) => Some(tweak.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db).await?;
-                    break;
-                }
-            }
-            ".m.rule.invite_for_me" => {
-                if let EventType::RoomMember = &pdu.kind {
-                    if pdu.state_key.as_deref() == Some(user.as_str())
-                        && serde_json::from_value::<MemberEventContent>(pdu.content.clone())
-                            .map_err(|_| Error::bad_database("PDU contained bad message content"))?
-                            .membership
-                            == MembershipState::Invite
-                    {
-                        let tweaks = rule
-                            .actions
-                            .iter()
-                            .filter_map(|a| match a {
-                                Action::SetTweak(tweak) => Some(tweak.clone()),
-                                _ => None,
-                            })
-                            .collect::<Vec<_>>();
-                        send_notice(unread, pusher, tweaks, pdu, db).await?;
-                        break;
-                    }
-                }
-            }
-            ".m.rule.member_event" => {
-                if let EventType::RoomMember = &pdu.kind {
-                    // TODO use this?
-                    let _member = serde_json::from_value::<MemberEventContent>(pdu.content.clone())
-                        .map_err(|_| Error::bad_database("PDU contained bad message content"))?;
-                    if let Some(conditions) = rule.conditions {
-                        if conditions.iter().any(|cond| match cond {
-                            PushCondition::EventMatch { key, pattern } => {
-                                let mut json =
-                                    serde_json::to_value(pdu).expect("PDU is valid JSON");
-                                for key in key.split('.') {
-                                    json = json[key].clone();
-                                }
-                                // TODO: this is baddddd
-                                json.to_string().contains(pattern)
-                            }
-                            _ => false,
-                        }) {
-                            let tweaks = rule
-                                .actions
-                                .iter()
-                                .filter_map(|a| match a {
-                                    Action::SetTweak(tweak) => Some(tweak.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>();
-                            send_notice(unread, pusher, tweaks, pdu, db).await?;
-                            break;
-                        }
-                    }
-                }
-            }
-            ".m.rule.contains_display_name" => {
-                if let EventType::RoomMessage = &pdu.kind {
-                    let msg_content =
-                        serde_json::from_value::<MessageEventContent>(pdu.content.clone())
-                            .map_err(|_| {
-                                Error::bad_database("PDU contained bad message content")
-                            })?;
-                    if let MessageType::Text(TextMessageEventContent { body, .. }) =
-                        &msg_content.msgtype
-                    {
-                        if body.contains(user.localpart()) {
-                            let tweaks = rule
-                                .actions
-                                .iter()
-                                .filter_map(|a| match a {
-                                    Action::SetTweak(tweak) => Some(tweak.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>();
-                            send_notice(unread, pusher, tweaks, pdu, db).await?;
-                            break;
-                        }
-                    }
-                }
-            }
-            ".m.rule.tombstone" => {
-                if pdu.kind == EventType::RoomTombstone && pdu.state_key.as_deref() == Some("") {
-                    let tweaks = rule
-                        .actions
-                        .iter()
-                        .filter_map(|a| match a {
-                            Action::SetTweak(tweak) => Some(tweak.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db).await?;
-                    break;
-                }
-            }
-            ".m.rule.roomnotif" => {
-                if let EventType::RoomMessage = &pdu.kind {
-                    let msg_content =
-                        serde_json::from_value::<MessageEventContent>(pdu.content.clone())
-                            .map_err(|_| {
-                                Error::bad_database("PDU contained bad message content")
-                            })?;
-                    if let MessageType::Text(TextMessageEventContent { body, .. }) =
-                        &msg_content.msgtype
-                    {
-                        let power_level_cmp = |pl: PowerLevelsEventContent| {
-                            &pl.notifications.room
-                                <= pl.users.get(&pdu.sender).unwrap_or(&ruma::int!(0))
-                        };
-                        let deserialize = |pl: PduEvent| {
-                            serde_json::from_value::<PowerLevelsEventContent>(pl.content).ok()
-                        };
-                        if body.contains("@room")
-                            && db
-                                .rooms
-                                .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
-                                .map(deserialize)
-                                .flatten()
-                                .map_or(false, power_level_cmp)
-                        {
-                            let tweaks = rule
-                                .actions
-                                .iter()
-                                .filter_map(|a| match a {
-                                    Action::SetTweak(tweak) => Some(tweak.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>();
-                            send_notice(unread, pusher, tweaks, pdu, db).await?;
-                            break;
-                        }
-                    }
-                }
-            }
-            ".m.rule.contains_user_name" => {
-                if let EventType::RoomMessage = &pdu.kind {
-                    let msg_content =
-                        serde_json::from_value::<MessageEventContent>(pdu.content.clone())
-                            .map_err(|_| {
-                                Error::bad_database("PDU contained bad message content")
-                            })?;
-                    if let MessageType::Text(TextMessageEventContent { body, .. }) =
-                        &msg_content.msgtype
-                    {
-                        if body.contains(user.localpart()) {
-                            let tweaks = rule
-                                .actions
-                                .iter()
-                                .filter_map(|a| match a {
-                                    Action::SetTweak(tweak) => Some(tweak.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>();
-                            send_notice(unread, pusher, tweaks, pdu, db).await?;
-                            break;
-                        }
-                    }
-                }
-            }
-            ".m.rule.call" => {
-                if pdu.kind == EventType::CallInvite {
-                    let tweaks = rule
-                        .actions
-                        .iter()
-                        .filter_map(|a| match a {
-                            Action::SetTweak(tweak) => Some(tweak.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db).await?;
-                    break;
-                }
-            }
-            ".m.rule.encrypted_room_one_to_one" => {
-                if db.rooms.room_members(&pdu.room_id).count() == 2
-                    && pdu.kind == EventType::RoomEncrypted
-                {
-                    let tweaks = rule
-                        .actions
-                        .iter()
-                        .filter_map(|a| match a {
-                            Action::SetTweak(tweak) => Some(tweak.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db).await?;
-                    break;
-                }
-            }
-            ".m.rule.room_one_to_one" => {
-                if db.rooms.room_members(&pdu.room_id).count() == 2
-                    && pdu.kind == EventType::RoomMessage
-                {
-                    let tweaks = rule
-                        .actions
-                        .iter()
-                        .filter_map(|a| match a {
-                            Action::SetTweak(tweak) => Some(tweak.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db).await?;
-                    break;
-                }
-            }
-            ".m.rule.message" => {
-                if pdu.kind == EventType::RoomMessage {
-                    let tweaks = rule
-                        .actions
-                        .iter()
-                        .filter_map(|a| match a {
-                            Action::SetTweak(tweak) => Some(tweak.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db).await?;
-                    break;
-                }
-            }
-            ".m.rule.encrypted" => {
-                if pdu.kind == EventType::RoomEncrypted {
-                    let tweaks = rule
-                        .actions
-                        .iter()
-                        .filter_map(|a| match a {
-                            Action::SetTweak(tweak) => Some(tweak.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    send_notice(unread, pusher, tweaks, pdu, db).await?;
-                    break;
-                }
-            }
-            _ => {}
-        }
+    if notify {
+        send_notice(unread, pusher, tweaks, pdu, db).await?;
     }
 
     Ok(())

@@ -9,6 +9,7 @@ use ruma::{
     },
     encryption::DeviceKeys,
     events::{AnyToDeviceEvent, EventType},
+    identifiers::MxcUri,
     serde::Raw,
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, UInt, UserId,
 };
@@ -150,21 +151,22 @@ impl Users {
     }
 
     /// Get a the avatar_url of a user.
-    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<String>> {
+    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<MxcUri>> {
         self.userid_avatarurl
             .get(user_id.to_string())?
-            .map_or(Ok(None), |bytes| {
-                Ok(Some(utils::string_from_bytes(&bytes).map_err(|_| {
-                    Error::bad_database("Avatar URL in db is invalid.")
-                })?))
+            .map(|bytes| {
+                let s = utils::string_from_bytes(&bytes)
+                    .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))?;
+                MxcUri::try_from(s).map_err(|_| Error::bad_database("Avatar URL in db is invalid."))
             })
+            .transpose()
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
-    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<String>) -> Result<()> {
+    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<MxcUri>) -> Result<()> {
         if let Some(avatar_url) = avatar_url {
             self.userid_avatarurl
-                .insert(user_id.to_string(), &*avatar_url)?;
+                .insert(user_id.to_string(), avatar_url.to_string().as_str())?;
         } else {
             self.userid_avatarurl.remove(user_id.to_string())?;
         }
@@ -183,7 +185,7 @@ impl Users {
         // This method should never be called for nonexistent users.
         assert!(self.exists(user_id)?);
 
-        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
@@ -206,7 +208,7 @@ impl Users {
 
     /// Removes a device from a user.
     pub fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
-        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
@@ -232,7 +234,7 @@ impl Users {
 
     /// Returns an iterator over all device ids of this user.
     pub fn all_device_ids(&self, user_id: &UserId) -> impl Iterator<Item = Result<Box<DeviceId>>> {
-        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         // All devices have metadata
         self.userdeviceid_metadata
@@ -252,7 +254,7 @@ impl Users {
 
     /// Replaces the access token of one device.
     pub fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
-        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
@@ -280,7 +282,7 @@ impl Users {
         one_time_key_value: &OneTimeKey,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());
 
@@ -303,10 +305,8 @@ impl Users {
                 .expect("OneTimeKey::to_string always works"),
         )?;
 
-        self.userid_lastonetimekeyupdate.insert(
-            &user_id.to_string().as_bytes(),
-            &globals.next_count()?.to_be_bytes(),
-        )?;
+        self.userid_lastonetimekeyupdate
+            .insert(&user_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
 
         Ok(())
     }
@@ -314,7 +314,7 @@ impl Users {
     #[tracing::instrument(skip(self))]
     pub fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
         self.userid_lastonetimekeyupdate
-            .get(&user_id.to_string().as_bytes())?
+            .get(&user_id.as_bytes())?
             .map(|bytes| {
                 utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Count in roomid_lastroomactiveupdate is invalid.")
@@ -330,18 +330,16 @@ impl Users {
         key_algorithm: &DeviceKeyAlgorithm,
         globals: &super::globals::Globals,
     ) -> Result<Option<(DeviceKeyId, OneTimeKey)>> {
-        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(device_id.as_bytes());
         prefix.push(0xff);
         prefix.push(b'"'); // Annoying quotation mark
-        prefix.extend_from_slice(key_algorithm.to_string().as_bytes());
+        prefix.extend_from_slice(key_algorithm.as_ref().as_bytes());
         prefix.push(b':');
 
-        self.userid_lastonetimekeyupdate.insert(
-            &user_id.to_string().as_bytes(),
-            &globals.next_count()?.to_be_bytes(),
-        )?;
+        self.userid_lastonetimekeyupdate
+            .insert(&user_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
 
         self.onetimekeyid_onetimekeys
             .scan_prefix(&prefix)
@@ -371,7 +369,7 @@ impl Users {
         user_id: &UserId,
         device_id: &DeviceId,
     ) -> Result<BTreeMap<DeviceKeyAlgorithm, UInt>> {
-        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
@@ -407,7 +405,7 @@ impl Users {
         rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
@@ -432,7 +430,7 @@ impl Users {
     ) -> Result<()> {
         // TODO: Check signatures
 
-        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         // Master key
@@ -530,9 +528,9 @@ impl Users {
         rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        let mut key = target_id.to_string().as_bytes().to_vec();
+        let mut key = target_id.as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(key_id.to_string().as_bytes());
+        key.extend_from_slice(key_id.as_bytes());
 
         let mut cross_signing_key =
             serde_json::from_slice::<serde_json::Value>(&self.keyid_key.get(&key)?.ok_or(
@@ -615,14 +613,14 @@ impl Users {
                 continue;
             }
 
-            let mut key = room_id.to_string().as_bytes().to_vec();
+            let mut key = room_id.as_bytes().to_vec();
             key.push(0xff);
             key.extend_from_slice(&count);
 
             self.keychangeid_userid.insert(key, &*user_id.to_string())?;
         }
 
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&count);
         self.keychangeid_userid.insert(key, &*user_id.to_string())?;
@@ -635,7 +633,7 @@ impl Users {
         user_id: &UserId,
         device_id: &DeviceId,
     ) -> Result<Option<DeviceKeys>> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());
 
@@ -722,7 +720,7 @@ impl Users {
         content: serde_json::Value,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        let mut key = target_user_id.to_string().as_bytes().to_vec();
+        let mut key = target_user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(target_device_id.as_bytes());
         key.push(0xff);
@@ -749,7 +747,7 @@ impl Users {
     ) -> Result<Vec<Raw<AnyToDeviceEvent>>> {
         let mut events = Vec::new();
 
-        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(device_id.as_bytes());
         prefix.push(0xff);
@@ -771,7 +769,7 @@ impl Users {
         device_id: &DeviceId,
         until: u64,
     ) -> Result<()> {
-        let mut prefix = user_id.to_string().as_bytes().to_vec();
+        let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(device_id.as_bytes());
         prefix.push(0xff);
@@ -806,7 +804,7 @@ impl Users {
         device_id: &DeviceId,
         device: &Device,
     ) -> Result<()> {
-        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
@@ -829,7 +827,7 @@ impl Users {
         user_id: &UserId,
         device_id: &DeviceId,
     ) -> Result<Option<Device>> {
-        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
@@ -843,7 +841,7 @@ impl Users {
     }
 
     pub fn all_devices_metadata(&self, user_id: &UserId) -> impl Iterator<Item = Result<Device>> {
-        let mut key = user_id.to_string().as_bytes().to_vec();
+        let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
 
         self.userdeviceid_metadata

@@ -1,6 +1,5 @@
 use crate::Error;
 use ruma::{
-    api::OutgoingRequest,
     identifiers::{DeviceId, UserId},
     Outgoing,
 };
@@ -28,7 +27,7 @@ use {
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
 /// first.
-pub struct Ruma<T: Outgoing + OutgoingRequest> {
+pub struct Ruma<T: Outgoing> {
     pub body: T::Incoming,
     pub sender_user: Option<UserId>,
     pub sender_device: Option<Box<DeviceId>>,
@@ -37,7 +36,7 @@ pub struct Ruma<T: Outgoing + OutgoingRequest> {
 }
 
 #[cfg(feature = "conduit_bin")]
-impl<'a, T: Outgoing + OutgoingRequest> FromTransformedData<'a> for Ruma<T>
+impl<'a, T: Outgoing> FromTransformedData<'a> for Ruma<T>
 where
     T::Incoming: IncomingRequest,
 {
@@ -56,6 +55,8 @@ where
         request: &'a Request<'_>,
         outcome: Transformed<'a, Self>,
     ) -> FromDataFuture<'a, Self, Self::Error> {
+        let metadata = T::Incoming::METADATA;
+
         Box::pin(async move {
             let data = rocket::try_outcome!(outcome.owned());
             let db = request
@@ -80,7 +81,7 @@ where
                             .and_then(|as_token| as_token.as_str())
                             .map_or(false, |as_token| token.as_deref() == Some(as_token))
                     }) {
-                match T::METADATA.authentication {
+                match metadata.authentication {
                     AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
                         let user_id = request.get_query_value::<String>("user_id").map_or_else(
                             || {
@@ -112,7 +113,7 @@ where
                     AuthScheme::None => (None, None, true),
                 }
             } else {
-                match T::METADATA.authentication {
+                match metadata.authentication {
                     AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
                         if let Some(token) = token {
                             match db.users.find_from_token(&token).unwrap() {
@@ -166,7 +167,7 @@ where
     }
 }
 
-impl<T: Outgoing + OutgoingRequest> Deref for Ruma<T> {
+impl<T: Outgoing> Deref for Ruma<T> {
     type Target = T::Incoming;
 
     fn deref(&self) -> &Self::Target {

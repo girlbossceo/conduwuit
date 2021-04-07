@@ -16,7 +16,7 @@ use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
     api::{appservice, federation, OutgoingRequest},
     events::{push_rules, EventType},
-    uint, ServerName, UInt, UserId,
+    push, uint, ServerName, UInt, UserId,
 };
 use sled::IVec;
 use tokio::{select, sync::Semaphore};
@@ -428,7 +428,7 @@ impl Sending {
                         .get::<push_rules::PushRulesEvent>(None, &userid, EventType::PushRules)
                         .map_err(|e| (OutgoingKind::Push(user.clone(), pushkey.clone()), e))?
                         .map(|ev| ev.content.global)
-                        .unwrap_or_else(|| crate::push_rules::default_pushrules(&userid));
+                        .unwrap_or_else(|| push::Ruleset::server_default(&userid));
 
                     let unread: UInt = if let Some(last_read) = db
                         .rooms

@@ -30,7 +30,7 @@ impl AccountData {
             .as_bytes()
             .to_vec();
         prefix.push(0xff);
-        prefix.extend_from_slice(&user_id.to_string().as_bytes());
+        prefix.extend_from_slice(&user_id.as_bytes());
         prefix.push(0xff);
 
         // Remove old entry
@@ -42,7 +42,7 @@ impl AccountData {
         let mut key = prefix;
         key.extend_from_slice(&globals.next_count()?.to_be_bytes());
         key.push(0xff);
-        key.extend_from_slice(event_type.to_string().as_bytes());
+        key.extend_from_slice(event_type.as_ref().as_bytes());
 
         let json = serde_json::to_value(data).expect("all types here can be serialized"); // TODO: maybe add error handling
         if json.get("type").is_none() || json.get("content").is_none() {
@@ -89,7 +89,7 @@ impl AccountData {
             .as_bytes()
             .to_vec();
         prefix.push(0xff);
-        prefix.extend_from_slice(&user_id.to_string().as_bytes());
+        prefix.extend_from_slice(&user_id.as_bytes());
         prefix.push(0xff);
 
         // Skip the data that's exactly at since, because we sent that last time
@@ -135,7 +135,7 @@ impl AccountData {
             .as_bytes()
             .to_vec();
         prefix.push(0xff);
-        prefix.extend_from_slice(&user_id.to_string().as_bytes());
+        prefix.extend_from_slice(&user_id.as_bytes());
         prefix.push(0xff);
         let kind = kind.clone();
 
@@ -148,7 +148,7 @@ impl AccountData {
                         k.rsplit(|&b| b == 0xff)
                             .next()
                             .map(|current_event_type| {
-                                current_event_type == kind.to_string().as_bytes()
+                                current_event_type == kind.as_ref().as_bytes()
                             })
                             .unwrap_or(false)
                     })
