@@ -604,12 +604,16 @@ async fn join_room_by_id_helper(
                     db.rooms.update_membership(
                         &pdu.room_id,
                         &target_user_id,
-                        serde_json::from_value::<member::MemberEventContent>(pdu.content.clone())
-                            .map_err(|_| {
-                            Error::BadRequest(
-                                ErrorKind::InvalidParam,
-                                "Invalid member event content.",
-                            )
+                        serde_json::from_value::<member::MembershipState>(
+                            pdu.content
+                                .get("membership")
+                                .ok_or_else(|| {
+                                    Error::BadServerResponse("Invalid member event content")
+                                })?
+                                .clone(),
+                        )
+                        .map_err(|_| {
+                            Error::BadServerResponse("Invalid membership state content.")
                         })?,
                         &pdu.sender,
                         &db.account_data,

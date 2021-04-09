@@ -196,7 +196,7 @@ pub async fn send_push_notice(
     let mut notify = None;
     let mut tweaks = Vec::new();
 
-    for action in ruleset.get_actions(&pdu.to_sync_state_event(), &ctx) {
+    for action in ruleset.get_actions(&pdu.to_sync_room_event(), &ctx) {
         let n = match action {
             Action::DontNotify => false,
             // TODO: Implement proper support for coalesce

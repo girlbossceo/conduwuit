@@ -2,7 +2,6 @@ use argon2::{Config, Variant};
 use cmp::Ordering;
 use rand::prelude::*;
 use ruma::serde::{try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
-use sled::IVec;
 use std::{
     cmp,
     convert::TryInto,
@@ -70,10 +69,10 @@ pub fn calculate_hash(password: &str) -> Result<String, argon2::Error> {
     argon2::hash_encoded(password.as_bytes(), salt.as_bytes(), &hashing_config)
 }
 
-pub fn common_elements(
-    mut iterators: impl Iterator<Item = impl Iterator<Item = IVec>>,
-    check_order: impl Fn(&IVec, &IVec) -> Ordering,
-) -> Option<impl Iterator<Item = IVec>> {
+pub fn common_elements<'a>(
+    mut iterators: impl Iterator<Item = impl Iterator<Item = Vec<u8>>>,
+    check_order: impl Fn(&[u8], &[u8]) -> Ordering,
+) -> Option<impl Iterator<Item = Vec<u8>>> {
     let first_iterator = iterators.next()?;
     let mut other_iterators = iterators.map(|i| i.peekable()).collect::<Vec<_>>();
 

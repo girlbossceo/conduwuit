@@ -108,7 +108,7 @@ impl Database {
     pub async fn load_or_create(config: Config) -> Result<Self> {
         let db = sled::Config::default()
             .path(&config.database_path)
-            .cache_capacity(config.cache_capacity as u64)
+            .cache_capacity(config.cache_capacity as usize)
             .use_compression(true)
             .open()?;
 

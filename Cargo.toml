@@ -23,11 +23,8 @@ ruma = { git = "https://github.com/ruma/ruma", rev = "a310ccc318a4eb51062923d570
 #ruma = { path = "../ruma/ruma", features = ["unstable-exhaustive-types", "rand", "client-api", "federation-api", "push-gateway-api", "unstable-pre-spec", "unstable-synapse-quirks"] }
 
 # Used when doing state resolution
-state-res = { git = "https://github.com/ruma/state-res", rev = "af450d0fe2b0e1c890284d0bc3b9d6d4008ac475", features = ["unstable-pre-spec"] }
-# TODO: remove the gen-eventid feature
-#state-res = { git = "https://github.com/ruma/state-res", branch = "main", features = ["unstable-pre-spec", "gen-eventid"] }
-#state-res = { git = "https://github.com/ruma/state-res", rev = "1621a491a9e867a1ad4dff9f2f92b0c1e2d44aa0", features = ["unstable-pre-spec", "gen-eventid"] }
-#state-res = { path = "../state-res", features = ["unstable-pre-spec", "gen-eventid"] }
+state-res = { git = "https://github.com/timokoesters/state-res", rev = "1ec42ea2fc0b0728bf027a5899839ad94bb3091b", features = ["unstable-pre-spec"] }
+#state-res = { path = "../state-res", features = ["unstable-pre-spec"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio
 tokio = "1.2.0"

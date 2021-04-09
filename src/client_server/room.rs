@@ -91,10 +91,24 @@ pub async fn create_room_route(
     )?;
 
     // 3. Power levels
+
+    // Figure out preset. We need it for preset specific events
+    let preset = body
+        .preset
+        .clone()
+        .unwrap_or_else(|| match &body.visibility {
+            room::Visibility::Private => create_room::RoomPreset::PrivateChat,
+            room::Visibility::Public => create_room::RoomPreset::PublicChat,
+            room::Visibility::_Custom(_) => create_room::RoomPreset::PrivateChat, // Room visibility should not be custom
+        });
+
     let mut users = BTreeMap::new();
     users.insert(sender_user.clone(), 100.into());
-    for invite_ in &body.invite {
-        users.insert(invite_.clone(), 100.into());
+
+    if preset == create_room::RoomPreset::TrustedPrivateChat {
+        for invite_ in &body.invite {
+            users.insert(invite_.clone(), 100.into());
+        }
     }
 
     let power_levels_content = if let Some(power_levels) = &body.power_level_content_override {
@@ -132,16 +146,6 @@ pub async fn create_room_route(
     )?;
 
     // 4. Events set by preset
-
-    // Figure out preset. We need it for preset specific events
-    let preset = body
-        .preset
-        .clone()
-        .unwrap_or_else(|| match &body.visibility {
-            room::Visibility::Private => create_room::RoomPreset::PrivateChat,
-            room::Visibility::Public => create_room::RoomPreset::PublicChat,
-            room::Visibility::_Custom(s) => create_room::RoomPreset::_Custom(s.into()),
-        });
 
     // 4.1 Join Rules
     db.rooms.build_and_append_pdu(

@@ -465,7 +465,7 @@ impl Rooms {
     /// Returns the pdu.
     ///
     /// This does __NOT__ check the outliers `Tree`.
-    pub fn get_pdu_from_id(&self, pdu_id: &IVec) -> Result<Option<PduEvent>> {
+    pub fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<Option<PduEvent>> {
         self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
             Ok(Some(
                 serde_json::from_slice(&pdu)
@@ -671,11 +671,21 @@ impl Rooms {
                     self.update_membership(
                         &pdu.room_id,
                         &target_user_id,
-                        serde_json::from_value::<member::MemberEventContent>(pdu.content.clone())
-                            .map_err(|_| {
+                        serde_json::from_value::<member::MembershipState>(
+                            pdu.content
+                                .get("membership")
+                                .ok_or_else(|| {
+                                    Error::BadRequest(
+                                        ErrorKind::InvalidParam,
+                                        "Invalid member event content",
+                                    )
+                                })?
+                                .clone(),
+                        )
+                        .map_err(|_| {
                             Error::BadRequest(
                                 ErrorKind::InvalidParam,
-                                "Invalid member event content.",
+                                "Invalid membership state content.",
                             )
                         })?,
                         &pdu.sender,
@@ -895,19 +905,14 @@ impl Rooms {
                 .scan_prefix(&old_shortstatehash)
                 .filter_map(|pdu| pdu.map_err(|e| error!("{}", e)).ok())
                 // Chop the old_shortstatehash out leaving behind the short state key
-                .map(|(k, v)| {
-                    (
-                        k.subslice(old_shortstatehash.len(), k.len() - old_shortstatehash.len()),
-                        v,
-                    )
-                })
-                .collect::<HashMap<IVec, IVec>>()
+                .map(|(k, v)| (k[old_shortstatehash.len()..].to_vec(), v))
+                .collect::<HashMap<Vec<u8>, IVec>>()
         } else {
             HashMap::new()
         };
 
         if let Some(state_key) = &new_pdu.state_key {
-            let mut new_state: HashMap<IVec, IVec> = old_state;
+            let mut new_state: HashMap<Vec<u8>, IVec> = old_state;
 
             let mut new_state_key = new_pdu.kind.as_ref().as_bytes().to_vec();
             new_state_key.push(0xff);
@@ -935,7 +940,7 @@ impl Rooms {
                 }
             };
 
-            new_state.insert(shortstatekey.into(), shorteventid.into());
+            new_state.insert(shortstatekey, shorteventid.into());
 
             let new_state_hash = self.calculate_hash(
                 &new_state
@@ -1377,13 +1382,11 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         user_id: &UserId,
-        member_content: member::MemberEventContent,
+        membership: member::MembershipState,
         sender: &UserId,
         account_data: &super::account_data::AccountData,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        let membership = member_content.membership;
-
         let mut roomserver_id = room_id.as_bytes().to_vec();
         roomserver_id.push(0xff);
         roomserver_id.extend_from_slice(user_id.server_name().as_bytes());
@@ -1633,7 +1636,7 @@ impl Rooms {
         &'a self,
         room_id: &RoomId,
         search_string: &str,
-    ) -> Result<(impl Iterator<Item = IVec> + 'a, Vec<String>)> {
+    ) -> Result<(impl Iterator<Item = Vec<u8>> + 'a, Vec<String>)> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -1661,7 +1664,7 @@ impl Rooms {
                         .0
                         + 1; // +1 because the pdu id starts AFTER the separator
 
-                    let pdu_id = key.subslice(pduid_index, key.len() - pduid_index);
+                    let pdu_id = key[pduid_index..].to_vec();
 
                     Ok::<_, Error>(pdu_id)
                 })
@@ -1700,7 +1703,7 @@ impl Rooms {
                         .0
                         + 1; // +1 because the room id starts AFTER the separator
 
-                    let room_id = key.subslice(roomid_index, key.len() - roomid_index);
+                    let room_id = key[roomid_index..].to_vec();
 
                     Ok::<_, Error>(room_id)
                 })
