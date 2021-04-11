@@ -1668,8 +1668,10 @@ impl Rooms {
             .scan_prefix(prefix)
             .values()
             .map(|bytes| {
-                Ok(serde_json::from_slice(&bytes?)
-                    .map_err(|_| Error::bad_database("Alias in aliasid_alias is invalid."))?)
+                Ok(utils::string_from_bytes(&bytes?)
+                    .map_err(|_| Error::bad_database("Invalid alias bytes in aliasid_alias."))?
+                    .try_into()
+                    .map_err(|_| Error::bad_database("Invalid alias in aliasid_alias."))?)
             })
     }
 
