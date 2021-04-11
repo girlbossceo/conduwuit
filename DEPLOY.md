@@ -133,8 +133,8 @@ Listen 8448
 ServerName your.server.name # EDIT THIS
 
 AllowEncodedSlashes NoDecode
-ProxyPass /_matrix/ http://localhost:6167/
-ProxyPassReverse /_matrix/ http://localhost:6167/
+ProxyPass /_matrix/ http://localhost:6167/_matrix/
+ProxyPassReverse /_matrix/ http://localhost:6167/_matrix/
 
 Include /etc/letsencrypt/options-ssl-apache.conf
 SSLCertificateFile /etc/letsencrypt/live/your.server.name/fullchain.pem # EDIT THIS
