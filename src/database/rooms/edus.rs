@@ -382,7 +382,7 @@ impl RoomEdus {
                         .ok()?,
                 ))
             })
-            .take_while(|(_, timestamp)| current_timestamp - timestamp > 5 * 60_000)
+            .take_while(|(_, timestamp)| current_timestamp.saturating_sub(*timestamp) > 5 * 60_000)
         // 5 Minutes
         {
             // Send new presence events to set the user offline
