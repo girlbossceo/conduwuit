@@ -29,8 +29,8 @@ state-res = { git = "https://github.com/timokoesters/state-res", rev = "1ec42ea2
 # Used for long polling and federation sender, should be the same as rocket::tokio
 tokio = "1.2.0"
 # Used for storing data permanently
-#sled = { version = "0.34.6", default-features = false, features = ["compression"] }
-sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
+sled = { version = "0.34.6", default-features = false, features = ["compression"] }
+#sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
 
 # Used for emitting log entries
 log = "0.4.14"

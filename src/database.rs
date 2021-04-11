@@ -108,7 +108,7 @@ impl Database {
     pub async fn load_or_create(config: Config) -> Result<Self> {
         let db = sled::Config::default()
             .path(&config.database_path)
-            .cache_capacity(config.cache_capacity as usize)
+            .cache_capacity(config.cache_capacity as u64)
             .use_compression(true)
             .open()?;
 
@@ -301,7 +301,8 @@ impl Database {
     }
 
     pub async fn flush(&self) -> Result<()> {
-        self._db.flush_async().await?;
+        // noop while we don't use sled 1.0
+        //self._db.flush_async().await?;
         Ok(())
     }
 }

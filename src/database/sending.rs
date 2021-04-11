@@ -211,10 +211,12 @@ impl Sending {
                         };
                     },
                     Some(event) = &mut subscriber => {
-                        for (_tree, key, value_opt) in &event {
-                            if value_opt.is_none() {
-                                continue;
-                            }
+                        if let sled::Event::Insert { key, .. } = event {
+                        // New sled version:
+                        //for (_tree, key, value_opt) in &event {
+                        //    if value_opt.is_none() {
+                        //        continue;
+                        //    }
 
                             let servernamepduid = key.clone();
 
