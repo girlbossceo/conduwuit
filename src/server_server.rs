@@ -1010,6 +1010,7 @@ fn handle_incoming_pdu<'a>(
         fork_states.insert(current_state);
 
         // We also add state after incoming event to the fork states
+        extremities.insert(incoming_pdu.event_id.clone());
         let mut state_after = state_at_incoming_event.clone();
         if let Some(state_key) = &incoming_pdu.state_key {
             state_after.insert(
