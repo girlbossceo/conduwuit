@@ -10,20 +10,24 @@ use ruma::{
         federation::{
             directory::{get_public_rooms, get_public_rooms_filtered},
             discovery::{
-                get_remote_server_keys, get_server_keys,
-                get_server_version::v1 as get_server_version, ServerSigningKeys, VerifyKey,
+                get_remote_server_keys, get_server_keys, get_server_version, ServerSigningKeys,
+                VerifyKey,
             },
             event::{get_event, get_missing_events, get_room_state_ids},
+            membership::create_invite,
             query::get_profile_information,
             transactions::send_transaction_message,
         },
         OutgoingRequest,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
-    events::{room::create::CreateEventContent, EventType},
+    events::{
+        room::{create::CreateEventContent, member::MembershipState},
+        EventType,
+    },
     serde::{to_canonical_value, Raw},
     signatures::CanonicalJsonValue,
-    EventId, RoomId, ServerName, ServerSigningKeyId, UserId,
+    EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
 };
 use state_res::{Event, EventMap, StateMap};
 use std::{
@@ -332,13 +336,13 @@ pub async fn request_well_known(
 #[tracing::instrument(skip(db))]
 pub fn get_server_version_route(
     db: State<'_, Database>,
-) -> ConduitResult<get_server_version::Response> {
+) -> ConduitResult<get_server_version::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    Ok(get_server_version::Response {
-        server: Some(get_server_version::Server {
+    Ok(get_server_version::v1::Response {
+        server: Some(get_server_version::v1::Server {
             name: Some("Conduit".to_owned()),
             version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         }),
@@ -1406,12 +1410,9 @@ pub fn get_event_route<'a>(
         origin: db.globals.server_name().to_owned(),
         origin_server_ts: SystemTime::now(),
         pdu: PduEvent::convert_to_outgoing_federation_event(
-            serde_json::from_value(
-                db.rooms
-                    .get_pdu_json(&body.event_id)?
-                    .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?,
-            )
-            .map_err(|_| Error::bad_database("Invalid pdu in database."))?,
+            db.rooms
+                .get_pdu_json(&body.event_id)?
+                .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?,
         ),
     }
     .into())
@@ -1438,9 +1439,10 @@ pub fn get_missing_events_route<'a>(
         if let Some(pdu) = db.rooms.get_pdu_json(&queued_events[i])? {
             if body.earliest_events.contains(
                 &serde_json::from_value(
-                    pdu.get("event_id")
-                        .cloned()
-                        .ok_or_else(|| Error::bad_database("Event in db has no event_id field."))?,
+                    serde_json::to_value(pdu.get("event_id").cloned().ok_or_else(|| {
+                        Error::bad_database("Event in db has no event_id field.")
+                    })?)
+                    .expect("canonical json is valid json value"),
                 )
                 .map_err(|_| Error::bad_database("Invalid event_id field in pdu in db."))?,
             ) {
@@ -1449,16 +1451,14 @@ pub fn get_missing_events_route<'a>(
             }
             queued_events.extend_from_slice(
                 &serde_json::from_value::<Vec<EventId>>(
-                    pdu.get("prev_events").cloned().ok_or_else(|| {
-                        Error::bad_database("Invalid prev_events field of pdu in db.")
-                    })?,
+                    serde_json::to_value(pdu.get("prev_events").cloned().ok_or_else(|| {
+                        Error::bad_database("Event in db has no prev_events field.")
+                    })?)
+                    .expect("canonical json is valid json value"),
                 )
                 .map_err(|_| Error::bad_database("Invalid prev_events content in pdu in db."))?,
             );
-            events.push(PduEvent::convert_to_outgoing_federation_event(
-                serde_json::from_value(pdu)
-                    .map_err(|_| Error::bad_database("Invalid pdu in database."))?,
-            ));
+            events.push(PduEvent::convert_to_outgoing_federation_event(pdu));
         }
         i += 1;
     }
@@ -1514,6 +1514,93 @@ pub fn get_room_state_ids_route<'a>(
     Ok(get_room_state_ids::v1::Response {
         auth_chain_ids: auth_chain_ids.into_iter().collect(),
         pdu_ids,
+    }
+    .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    put("/_matrix/federation/v2/invite/<_>/<_>", data = "<body>")
+)]
+#[tracing::instrument(skip(db, body))]
+pub fn create_invite_route<'a>(
+    db: State<'a, Database>,
+    body: Ruma<create_invite::v2::Request>,
+) -> ConduitResult<create_invite::v2::Response> {
+    if body.room_version < RoomVersionId::Version6 {
+        return Err(Error::BadRequest(
+            ErrorKind::IncompatibleRoomVersion {
+                room_version: body.room_version.clone(),
+            },
+            "Server does not support this room version.",
+        ));
+    }
+
+    let mut signed_event = utils::to_canonical_object(&body.event)
+        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invite event is invalid."))?;
+
+    ruma::signatures::hash_and_sign_event(
+        db.globals.server_name().as_str(),
+        db.globals.keypair(),
+        &mut signed_event,
+        &body.room_version,
+    )
+    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event."))?;
+
+    let sender = serde_json::from_value(
+        serde_json::to_value(
+            signed_event
+                .get("sender")
+                .ok_or_else(|| {
+                    Error::BadRequest(ErrorKind::InvalidParam, "Event had no sender field.")
+                })?
+                .clone(),
+        )
+        .expect("CanonicalJsonValue to serde_json::Value always works"),
+    )
+    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "sender is not a user id."))?;
+    let invited_user = serde_json::from_value(
+        serde_json::to_value(
+            signed_event
+                .get("state_key")
+                .ok_or_else(|| {
+                    Error::BadRequest(ErrorKind::InvalidParam, "Event had no state_key field.")
+                })?
+                .clone(),
+        )
+        .expect("CanonicalJsonValue to serde_json::Value always works"),
+    )
+    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user id."))?;
+
+    let mut invite_state = body.invite_room_state.clone();
+
+    let mut event = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
+        &body.event.json().to_string(),
+    )
+    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event bytes."))?;
+
+    event.insert("event_id".to_owned(), "$dummy".into());
+    invite_state.push(
+        serde_json::from_value::<PduEvent>(event.into())
+            .map_err(|e| {
+                warn!("Invalid invite event: {}", e);
+                Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event.")
+            })?
+            .to_stripped_state_event(),
+    );
+
+    db.rooms.update_membership(
+        &body.room_id,
+        &invited_user,
+        MembershipState::Invite,
+        &sender,
+        Some(invite_state),
+        &db.account_data,
+        &db.globals,
+    )?;
+
+    Ok(create_invite::v2::Response {
+        event: PduEvent::convert_to_outgoing_federation_event(signed_event),
     }
     .into())
 }

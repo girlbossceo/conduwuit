@@ -216,11 +216,11 @@ pub async fn send_push_notice(
         notify = Some(n);
     }
 
-    if notify  == Some(true) {
+    if notify == Some(true) {
         send_notice(unread, pusher, tweaks, pdu, db).await?;
     }
     // Else the event triggered no actions
-    
+
     Ok(())
 }
 

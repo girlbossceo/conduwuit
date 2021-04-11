@@ -599,6 +599,8 @@ async fn join_room_by_id_helper(
                         Error::BadServerResponse("Invalid user id in send_join response.")
                     })?;
 
+                    let invite_state = Vec::new(); // TODO add a few important events
+
                     // Update our membership info, we do this here incase a user is invited
                     // and immediately leaves we need the DB to record the invite event for auth
                     db.rooms.update_membership(
@@ -616,6 +618,7 @@ async fn join_room_by_id_helper(
                             Error::BadServerResponse("Invalid membership state content.")
                         })?,
                         &pdu.sender,
+                        Some(invite_state),
                         &db.account_data,
                         &db.globals,
                     )?;

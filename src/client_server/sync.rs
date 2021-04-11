@@ -588,44 +588,23 @@ pub async fn sync_events_route(
     }
 
     let mut invited_rooms = BTreeMap::new();
-    for room_id in db.rooms.rooms_invited(&sender_user) {
-        let room_id = room_id?;
-        let mut invited_since_last_sync = false;
-        for pdu in db.rooms.pdus_since(&sender_user, &room_id, since)? {
-            let (_, pdu) = pdu?;
-            if pdu.kind == EventType::RoomMember && pdu.state_key == Some(sender_user.to_string()) {
-                let content = serde_json::from_value::<
-                    Raw<ruma::events::room::member::MemberEventContent>,
-                >(pdu.content.clone())
-                .expect("Raw::from_value always works")
-                .deserialize()
-                .map_err(|_| Error::bad_database("Invalid PDU in database."))?;
+    for result in db.rooms.rooms_invited(&sender_user) {
+        let (room_id, invite_state_events) = result?;
+        let invite_count = db.rooms.get_invite_count(&room_id, &sender_user)?;
 
-                if content.membership == MembershipState::Invite {
-                    invited_since_last_sync = true;
-                    break;
-                }
-            }
-        }
-
-        if !invited_since_last_sync {
+        // Invited before last sync
+        if Some(since) >= invite_count {
             continue;
         }
 
-        let invited_room = sync_events::InvitedRoom {
-            invite_state: sync_events::InviteState {
-                events: db
-                    .rooms
-                    .room_state_full(&room_id)?
-                    .into_iter()
-                    .map(|(_, pdu)| pdu.to_stripped_state_event())
-                    .collect(),
+        invited_rooms.insert(
+            room_id.clone(),
+            sync_events::InvitedRoom {
+                invite_state: sync_events::InviteState {
+                    events: invite_state_events,
+                },
             },
-        };
-
-        if !invited_room.is_empty() {
-            invited_rooms.insert(room_id.clone(), invited_room);
-        }
+        );
     }
 
     for user_id in left_encrypted_users {

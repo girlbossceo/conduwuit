@@ -617,11 +617,11 @@ pub async fn deactivate_route(
     }
 
     // Leave all joined rooms and reject all invitations
-    for room_id in db
-        .rooms
-        .rooms_joined(&sender_user)
-        .chain(db.rooms.rooms_invited(&sender_user))
-    {
+    for room_id in db.rooms.rooms_joined(&sender_user).chain(
+        db.rooms
+            .rooms_invited(&sender_user)
+            .map(|t| t.map(|(r, _)| r)),
+    ) {
         let room_id = room_id?;
         let event = member::MemberEventContent {
             membership: member::MembershipState::Leave,

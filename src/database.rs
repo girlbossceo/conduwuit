@@ -161,8 +161,8 @@ impl Database {
                 userroomid_joined: db.open_tree("userroomid_joined")?,
                 roomuserid_joined: db.open_tree("roomuserid_joined")?,
                 roomuseroncejoinedids: db.open_tree("roomuseroncejoinedids")?,
-                userroomid_invited: db.open_tree("userroomid_invited")?,
-                roomuserid_invited: db.open_tree("roomuserid_invited")?,
+                userroomid_invitestate: db.open_tree("userroomid_invitestate")?,
+                roomuserid_invitecount: db.open_tree("roomuserid_invitecount")?,
                 userroomid_left: db.open_tree("userroomid_left")?,
 
                 statekey_shortstatekey: db.open_tree("statekey_shortstatekey")?,
@@ -236,7 +236,11 @@ impl Database {
         );
 
         futures.push(self.rooms.userroomid_joined.watch_prefix(&userid_prefix));
-        futures.push(self.rooms.userroomid_invited.watch_prefix(&userid_prefix));
+        futures.push(
+            self.rooms
+                .userroomid_invitestate
+                .watch_prefix(&userid_prefix),
+        );
         futures.push(self.rooms.userroomid_left.watch_prefix(&userid_prefix));
 
         // Events for rooms we are in
