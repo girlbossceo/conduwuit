@@ -216,16 +216,11 @@ pub async fn send_push_notice(
         notify = Some(n);
     }
 
-    let notify = notify.ok_or_else(|| {
-        Error::bad_database(
-            r#"Malformed pushrule contains none of these actions: ["dont_notify", "notify", "coalesce"]"#,
-        )
-    })?;
-
-    if notify {
+    if notify  == Some(true) {
         send_notice(unread, pusher, tweaks, pdu, db).await?;
     }
-
+    // Else the event triggered no actions
+    
     Ok(())
 }
 
