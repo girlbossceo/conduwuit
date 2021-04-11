@@ -20,7 +20,7 @@ $ sudo chmod +x /usr/local/bin/matrix-conduit
 
 ## Adding a Conduit user
 
-While conduit can run as any user it is usually better to use dedicated users for different services.
+While Conduit can run as any user it is usually better to use dedicated users for different services.
 This also allows you to make sure that the file permissions are correctly set up.
 
 In Debian you can use this command to create a Conduit user:
