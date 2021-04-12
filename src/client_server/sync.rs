@@ -12,7 +12,7 @@ use ruma::{
 use rocket::{get, tokio};
 use std::{
     collections::{hash_map, BTreeMap, HashMap, HashSet},
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     time::Duration,
 };
 
@@ -370,23 +370,23 @@ pub async fn sync_events_route(
         );
 
         let notification_count = if send_notification_counts {
-            if let Some(last_read) = db.rooms.edus.private_read_get(&room_id, &sender_user)? {
-                Some(
-                    (db.rooms
-                        .pdus_since(&sender_user, &room_id, last_read)?
-                        .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-                        .filter(|(_, pdu)| {
-                            matches!(
-                                pdu.kind.clone(),
-                                EventType::RoomMessage | EventType::RoomEncrypted
-                            )
-                        })
-                        .count() as u32)
-                        .into(),
-                )
-            } else {
-                None
-            }
+            Some(
+                db.rooms
+                    .notification_count(&sender_user, &room_id)?
+                    .try_into()
+                    .expect("notification count can't go that high"),
+            )
+        } else {
+            None
+        };
+
+        let highlight_count = if send_notification_counts {
+            Some(
+                db.rooms
+                    .highlight_count(&sender_user, &room_id)?
+                    .try_into()
+                    .expect("highlight count can't go that high"),
+            )
         } else {
             None
         };
@@ -440,7 +440,7 @@ pub async fn sync_events_route(
                 invited_member_count: invited_member_count.map(|n| (n as u32).into()),
             },
             unread_notifications: sync_events::UnreadNotificationsCount {
-                highlight_count: None,
+                highlight_count,
                 notification_count,
             },
             timeline: sync_events::Timeline {

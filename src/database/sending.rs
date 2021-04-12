@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     fmt::Debug,
     sync::Arc,
     time::{Duration, Instant, SystemTime},
@@ -16,7 +16,7 @@ use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
     api::{appservice, federation, OutgoingRequest},
     events::{push_rules, EventType},
-    push, uint, ServerName, UInt, UserId,
+    push, ServerName, UInt, UserId,
 };
 use sled::IVec;
 use tokio::{select, sync::Semaphore};
@@ -432,32 +432,16 @@ impl Sending {
                     let rules_for_user = db
                         .account_data
                         .get::<push_rules::PushRulesEvent>(None, &userid, EventType::PushRules)
-                        .map_err(|e| (OutgoingKind::Push(user.clone(), pushkey.clone()), e))?
+                        .unwrap_or_default()
                         .map(|ev| ev.content.global)
                         .unwrap_or_else(|| push::Ruleset::server_default(&userid));
 
-                    let unread: UInt = if let Some(last_read) = db
+                    let unread: UInt = db
                         .rooms
-                        .edus
-                        .private_read_get(&pdu.room_id, &userid)
-                        .map_err(|e| (OutgoingKind::Push(user.clone(), pushkey.clone()), e))?
-                    {
-                        (db.rooms
-                            .pdus_since(&userid, &pdu.room_id, last_read)
-                            .map_err(|e| (OutgoingKind::Push(user.clone(), pushkey.clone()), e))?
-                            .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-                            .filter(|(_, pdu)| {
-                                matches!(
-                                    pdu.kind.clone(),
-                                    EventType::RoomMessage | EventType::RoomEncrypted
-                                )
-                            })
-                            .count() as u32)
-                            .into()
-                    } else {
-                        // Just return zero unread messages
-                        uint!(0)
-                    };
+                        .notification_count(&userid, &pdu.room_id)
+                        .map_err(|e| (kind.clone(), e))?
+                        .try_into()
+                        .expect("notifiation count can't go that high");
 
                     let permit = db.sending.maximum_requests.acquire().await;
 

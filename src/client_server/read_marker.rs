@@ -47,6 +47,8 @@ pub async fn set_read_marker_route(
             ))?,
             &db.globals,
         )?;
+        db.rooms
+            .reset_notification_counts(&sender_user, &body.room_id)?;
 
         let mut user_receipts = BTreeMap::new();
         user_receipts.insert(
@@ -103,6 +105,8 @@ pub async fn create_receipt_route(
             ))?,
         &db.globals,
     )?;
+    db.rooms
+        .reset_notification_counts(&sender_user, &body.room_id)?;
 
     let mut user_receipts = BTreeMap::new();
     user_receipts.insert(

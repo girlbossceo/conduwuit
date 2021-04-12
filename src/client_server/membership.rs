@@ -596,7 +596,10 @@ async fn join_room_by_id_helper(
             if let Some(state_key) = &pdu.state_key {
                 if pdu.kind == EventType::RoomMember {
                     let target_user_id = UserId::try_from(state_key.clone()).map_err(|e| {
-                        warn!("Invalid user id in send_join response: {}: {}", state_key, e);
+                        warn!(
+                            "Invalid user id in send_join response: {}: {}",
+                            state_key, e
+                        );
                         Error::BadServerResponse("Invalid user id in send_join response.")
                     })?;
 

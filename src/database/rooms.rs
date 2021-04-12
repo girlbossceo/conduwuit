@@ -9,10 +9,11 @@ use ring::digest;
 use ruma::{
     api::client::error::ErrorKind,
     events::{
-        ignored_user_list,
+        ignored_user_list, push_rules,
         room::{create::CreateEventContent, member, message},
         AnyStrippedStateEvent, EventType,
     },
+    push::{self, Action, Tweak},
     serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
     uint, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
@@ -26,7 +27,7 @@ use std::{
     sync::Arc,
 };
 
-use super::admin::AdminCommand;
+use super::{admin::AdminCommand, pusher};
 
 /// The unique identifier of each state group.
 ///
@@ -51,9 +52,12 @@ pub struct Rooms {
     pub(super) userroomid_joined: sled::Tree,
     pub(super) roomuserid_joined: sled::Tree,
     pub(super) roomuseroncejoinedids: sled::Tree,
-    pub(super) userroomid_invitestate: sled::Tree,
-    pub(super) roomuserid_invitecount: sled::Tree,
+    pub(super) userroomid_invitestate: sled::Tree, // InviteState = Vec<Raw<Pdu>>
+    pub(super) roomuserid_invitecount: sled::Tree, // InviteCount = Count
     pub(super) userroomid_left: sled::Tree,
+
+    pub(super) userroomid_notificationcount: sled::Tree, // NotifyCount = u64
+    pub(super) userroomid_highlightcount: sled::Tree,    // HightlightCount = u64
 
     /// Remember the current state hash of a room.
     pub(super) roomid_shortstatehash: sled::Tree,
@@ -649,6 +653,7 @@ impl Rooms {
         // fails
         self.edus
             .private_read_set(&pdu.room_id, &pdu.sender, count, &db.globals)?;
+        self.reset_notification_counts(&pdu.sender, &pdu.room_id)?;
 
         self.pduid_pdu.insert(
             &pdu_id,
@@ -671,6 +676,45 @@ impl Rooms {
             // Don't notify the user of their own events
             if user == pdu.sender {
                 continue;
+            }
+
+            let rules_for_user = db
+                .account_data
+                .get::<push_rules::PushRulesEvent>(None, &user, EventType::PushRules)?
+                .map(|ev| ev.content.global)
+                .unwrap_or_else(|| push::Ruleset::server_default(&user));
+
+            let mut highlight = false;
+            let mut notify = false;
+
+            for action in pusher::get_actions(&user, &rules_for_user, pdu, db)? {
+                match action {
+                    Action::DontNotify => notify = false,
+                    // TODO: Implement proper support for coalesce
+                    Action::Notify | Action::Coalesce => notify = true,
+                    Action::SetTweak(Tweak::Highlight(true)) => {
+                        highlight = true;
+                    }
+                    _ => {}
+                };
+            }
+
+            let mut userroom_id = user.as_bytes().to_vec();
+            userroom_id.push(0xff);
+            userroom_id.extend_from_slice(pdu.room_id.as_bytes());
+
+            if notify {
+                &self
+                    .userroomid_notificationcount
+                    .update_and_fetch(&userroom_id, utils::increment)?
+                    .expect("utils::increment will always put in a value");
+            }
+
+            if highlight {
+                &self
+                    .userroomid_highlightcount
+                    .update_and_fetch(&userroom_id, utils::increment)?
+                    .expect("utils::increment will always put in a value");
             }
 
             for senderkey in db
@@ -738,6 +782,14 @@ impl Rooms {
                             {
                                 state.push(e.to_stripped_state_event());
                             }
+                            if let Some(e) =
+                                self.room_state_get(&pdu.room_id, &EventType::RoomMember, pdu.sender.as_str())?
+                            {
+                                state.push(e.to_stripped_state_event());
+                            }
+
+                            state.push(pdu.to_stripped_state_event());
+
                             Some(state)
                         }
                         _ => None,
@@ -842,6 +894,47 @@ impl Rooms {
         }
 
         Ok(())
+    }
+
+    pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
+        let mut userroom_id = user_id.as_bytes().to_vec();
+        userroom_id.push(0xff);
+        userroom_id.extend_from_slice(room_id.as_bytes());
+
+        self.userroomid_notificationcount
+            .insert(&userroom_id, &0_u64.to_be_bytes())?;
+        self.userroomid_highlightcount
+            .insert(&userroom_id, &0_u64.to_be_bytes())?;
+
+        Ok(())
+    }
+
+    pub fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
+        let mut userroom_id = user_id.as_bytes().to_vec();
+        userroom_id.push(0xff);
+        userroom_id.extend_from_slice(room_id.as_bytes());
+
+        self.userroomid_notificationcount
+            .get(&userroom_id)?
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes)
+                    .map_err(|_| Error::bad_database("Invalid notification count in db."))
+            })
+            .unwrap_or(Ok(0))
+    }
+
+    pub fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
+        let mut userroom_id = user_id.as_bytes().to_vec();
+        userroom_id.push(0xff);
+        userroom_id.extend_from_slice(room_id.as_bytes());
+
+        self.userroomid_highlightcount
+            .get(&userroom_id)?
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes)
+                    .map_err(|_| Error::bad_database("Invalid highlight count in db."))
+            })
+            .unwrap_or(Ok(0))
     }
 
     /// Generates a new StateHash and associates it with the incoming event.

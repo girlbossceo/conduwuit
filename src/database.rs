@@ -165,6 +165,9 @@ impl Database {
                 roomuserid_invitecount: db.open_tree("roomuserid_invitecount")?,
                 userroomid_left: db.open_tree("userroomid_left")?,
 
+                userroomid_notificationcount: db.open_tree("userroomid_notificationcount")?,
+                userroomid_highlightcount: db.open_tree("userroomid_highlightcount")?,
+
                 statekey_shortstatekey: db.open_tree("statekey_shortstatekey")?,
                 stateid_shorteventid: db.open_tree("stateid_shorteventid")?,
                 eventid_shorteventid: db.open_tree("eventid_shorteventid")?,

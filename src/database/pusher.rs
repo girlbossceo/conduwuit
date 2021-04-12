@@ -174,29 +174,10 @@ pub async fn send_push_notice(
     pdu: &PduEvent,
     db: &Database,
 ) -> Result<()> {
-    let power_levels: PowerLevelsEventContent = db
-        .rooms
-        .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
-        .map(|ev| {
-            serde_json::from_value(ev.content)
-                .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
-        })
-        .transpose()?
-        .unwrap_or_default();
-
-    let ctx = PushConditionRoomCtx {
-        room_id: pdu.room_id.clone(),
-        member_count: (db.rooms.room_members(&pdu.room_id).count() as u32).into(),
-        user_display_name: user.localpart().into(), // TODO: Use actual display name
-        users_power_levels: power_levels.users,
-        default_power_level: power_levels.users_default,
-        notification_power_levels: power_levels.notifications,
-    };
-
     let mut notify = None;
     let mut tweaks = Vec::new();
 
-    for action in ruleset.get_actions(&pdu.to_sync_room_event(), &ctx) {
+    for action in get_actions(user, &ruleset, pdu, db)? {
         let n = match action {
             Action::DontNotify => false,
             // TODO: Implement proper support for coalesce
@@ -222,6 +203,39 @@ pub async fn send_push_notice(
     // Else the event triggered no actions
 
     Ok(())
+}
+
+pub fn get_actions<'a>(
+    user: &UserId,
+    ruleset: &'a Ruleset,
+    pdu: &PduEvent,
+    db: &Database,
+) -> Result<impl 'a + Iterator<Item = Action>> {
+    let power_levels: PowerLevelsEventContent = db
+        .rooms
+        .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
+        .map(|ev| {
+            serde_json::from_value(ev.content)
+                .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    let ctx = PushConditionRoomCtx {
+        room_id: pdu.room_id.clone(),
+        member_count: (db.rooms.room_members(&pdu.room_id).count() as u32).into(),
+        user_display_name: db
+            .users
+            .displayname(&user)?
+            .unwrap_or(user.localpart().to_owned()),
+        users_power_levels: power_levels.users,
+        default_power_level: power_levels.users_default,
+        notification_power_levels: power_levels.notifications,
+    };
+
+    Ok(ruleset
+        .get_actions(&pdu.to_sync_room_event(), &ctx)
+        .map(Clone::clone))
 }
 
 async fn send_notice(
