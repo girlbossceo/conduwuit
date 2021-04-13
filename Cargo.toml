@@ -18,12 +18,12 @@ rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "93e62c86e
 #rocket = { git = "https://github.com/timokoesters/Rocket.git", branch = "empty_parameters", default-features = false, features = ["tls"] }
 
 # Used for matrix spec type definitions and helpers
-#ruma = { git = "https://github.com/ruma/ruma", rev = "a310ccc318a4eb51062923d570d5a86c1468e8a1", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "unstable-pre-spec", "unstable-exhaustive-types"] }
-ruma = { git = "https://github.com/timokoesters/ruma", rev = "b11de1e1f9d3c15267d09617131cf217f8277fa4", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "unstable-pre-spec", "unstable-exhaustive-types"] }
+ruma = { git = "https://github.com/ruma/ruma", rev = "6394609feb4af5c43b840fab85b824b13cebb156", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "unstable-pre-spec", "unstable-exhaustive-types"] }
+#ruma = { git = "https://github.com/timokoesters/ruma", rev = "220d5b4a76b3b781f7f8297fbe6b14473b04214b", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { path = "../ruma/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "unstable-pre-spec", "unstable-exhaustive-types"] }
 
 # Used when doing state resolution
-state-res = { git = "https://github.com/timokoesters/state-res", rev = "2e90b36babeb0d6b99ce8d4b513302a25dcdffc1", features = ["unstable-pre-spec"] }
+state-res = { git = "https://github.com/timokoesters/state-res", rev = "94534b8ff3e71b544ae36206abc182321e9d41f1", features = ["unstable-pre-spec"] }
 #state-res = { path = "../state-res", features = ["unstable-pre-spec"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio

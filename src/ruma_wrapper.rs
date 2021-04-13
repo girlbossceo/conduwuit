@@ -1,9 +1,10 @@
 use crate::Error;
 use ruma::{
+    api::OutgoingResponse,
     identifiers::{DeviceId, UserId},
     Outgoing,
 };
-use std::{convert::TryInto, ops::Deref};
+use std::ops::Deref;
 
 #[cfg(feature = "conduit_bin")]
 use {
@@ -145,7 +146,7 @@ where
             let mut body = Vec::new();
             handle.read_to_end(&mut body).await.unwrap();
 
-            let http_request = http_request.body(body.clone()).unwrap();
+            let http_request = http_request.body(&*body).unwrap();
             debug!("{:?}", http_request);
             match <T::Incoming as IncomingRequest>::try_from_http_request(http_request) {
                 Ok(t) => Success(Ruma {
@@ -178,9 +179,9 @@ impl<T: Outgoing> Deref for Ruma<T> {
 /// This struct converts ruma responses into rocket http responses.
 pub type ConduitResult<T> = std::result::Result<RumaResponse<T>, Error>;
 
-pub struct RumaResponse<T: TryInto<http::Response<Vec<u8>>>>(pub T);
+pub struct RumaResponse<T: OutgoingResponse>(pub T);
 
-impl<T: TryInto<http::Response<Vec<u8>>>> From<T> for RumaResponse<T> {
+impl<T: OutgoingResponse> From<T> for RumaResponse<T> {
     fn from(t: T) -> Self {
         Self(t)
     }
@@ -189,12 +190,11 @@ impl<T: TryInto<http::Response<Vec<u8>>>> From<T> for RumaResponse<T> {
 #[cfg(feature = "conduit_bin")]
 impl<'r, 'o, T> Responder<'r, 'o> for RumaResponse<T>
 where
-    T: Send + TryInto<http::Response<Vec<u8>>>,
-    T::Error: Send,
+    T: Send + OutgoingResponse,
     'o: 'r,
 {
     fn respond_to(self, _: &'r Request<'_>) -> response::Result<'o> {
-        let http_response: Result<http::Response<_>, _> = self.0.try_into();
+        let http_response: Result<http::Response<_>, _> = self.0.try_into_http_response();
         match http_response {
             Ok(http_response) => {
                 let mut response = rocket::response::Response::build();

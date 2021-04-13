@@ -1,17 +1,18 @@
 mod edus;
 
 pub use edus::RoomEdus;
+use member::MembershipState;
 
 use crate::{pdu::PduBuilder, utils, Database, Error, PduEvent, Result};
 use log::{debug, error, warn};
 use regex::Regex;
 use ring::digest;
 use ruma::{
-    api::client::error::ErrorKind,
+    api::{client::error::ErrorKind, federation},
     events::{
         ignored_user_list, push_rules,
         room::{create::CreateEventContent, member, message},
-        AnyStrippedStateEvent, EventType,
+        AnyStrippedStateEvent, AnySyncStateEvent, EventType,
     },
     push::{self, Action, Tweak},
     serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
@@ -54,7 +55,8 @@ pub struct Rooms {
     pub(super) roomuseroncejoinedids: sled::Tree,
     pub(super) userroomid_invitestate: sled::Tree, // InviteState = Vec<Raw<Pdu>>
     pub(super) roomuserid_invitecount: sled::Tree, // InviteCount = Count
-    pub(super) userroomid_left: sled::Tree,
+    pub(super) userroomid_leftstate: sled::Tree,
+    pub(super) roomuserid_leftcount: sled::Tree,
 
     pub(super) userroomid_notificationcount: sled::Tree, // NotifyCount = u64
     pub(super) userroomid_highlightcount: sled::Tree,    // HightlightCount = u64
@@ -671,7 +673,7 @@ impl Rooms {
             .users
             .iter()
             .filter_map(|r| r.ok())
-            .filter(|user_id| db.rooms.is_joined(&user_id, &pdu.room_id).unwrap_or(false))
+            .filter(|user_id| self.is_joined(&user_id, &pdu.room_id).unwrap_or(false))
         {
             // Don't notify the user of their own events
             if user == pdu.sender {
@@ -782,9 +784,11 @@ impl Rooms {
                             {
                                 state.push(e.to_stripped_state_event());
                             }
-                            if let Some(e) =
-                                self.room_state_get(&pdu.room_id, &EventType::RoomMember, pdu.sender.as_str())?
-                            {
+                            if let Some(e) = self.room_state_get(
+                                &pdu.room_id,
+                                &EventType::RoomMember,
+                                pdu.sender.as_str(),
+                            )? {
                                 state.push(e.to_stripped_state_event());
                             }
 
@@ -1380,7 +1384,7 @@ impl Rooms {
                                 .state_key
                                 .as_ref()
                                 .map_or(false, |state_key| users.is_match(&state_key))
-                        || db.rooms.room_members(&room_id).any(|userid| {
+                        || self.room_members(&room_id).any(|userid| {
                             userid.map_or(false, |userid| users.is_match(userid.as_str()))
                         })
                 };
@@ -1537,7 +1541,7 @@ impl Rooms {
         user_id: &UserId,
         membership: member::MembershipState,
         sender: &UserId,
-        invite_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
+        last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
         account_data: &super::account_data::AccountData,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -1643,7 +1647,8 @@ impl Rooms {
                 self.roomuserid_joined.insert(&roomuser_id, &[])?;
                 self.userroomid_invitestate.remove(&userroom_id)?;
                 self.roomuserid_invitecount.remove(&roomuser_id)?;
-                self.userroomid_left.remove(&userroom_id)?;
+                self.userroomid_leftstate.remove(&userroom_id)?;
+                self.roomuserid_leftcount.remove(&roomuser_id)?;
             }
             member::MembershipState::Invite => {
                 // We want to know if the sender is ignored by the receiver
@@ -1664,14 +1669,15 @@ impl Rooms {
                 self.roomserverids.insert(&roomserver_id, &[])?;
                 self.userroomid_invitestate.insert(
                     &userroom_id,
-                    serde_json::to_vec(&invite_state.unwrap_or_default())
+                    serde_json::to_vec(&last_state.unwrap_or_default())
                         .expect("state to bytes always works"),
                 )?;
                 self.roomuserid_invitecount
                     .insert(&roomuser_id, &globals.next_count()?.to_be_bytes())?;
                 self.userroomid_joined.remove(&userroom_id)?;
                 self.roomuserid_joined.remove(&roomuser_id)?;
-                self.userroomid_left.remove(&userroom_id)?;
+                self.userroomid_leftstate.remove(&userroom_id)?;
+                self.roomuserid_leftcount.remove(&roomuser_id)?;
             }
             member::MembershipState::Leave | member::MembershipState::Ban => {
                 if self
@@ -1682,7 +1688,12 @@ impl Rooms {
                 {
                     self.roomserverids.remove(&roomserver_id)?;
                 }
-                self.userroomid_left.insert(&userroom_id, &[])?;
+                self.userroomid_leftstate.insert(
+                    &userroom_id,
+                    serde_json::to_vec(&Vec::<Raw<AnySyncStateEvent>>::new()).unwrap(),
+                )?; // TODO
+                self.roomuserid_leftcount
+                    .insert(&roomuser_id, &globals.next_count()?.to_be_bytes())?;
                 self.userroomid_joined.remove(&userroom_id)?;
                 self.roomuserid_joined.remove(&roomuser_id)?;
                 self.userroomid_invitestate.remove(&userroom_id)?;
@@ -1694,13 +1705,191 @@ impl Rooms {
         Ok(())
     }
 
+    pub async fn leave_room(
+        &self,
+        user_id: &UserId,
+        room_id: &RoomId,
+        db: &Database,
+    ) -> Result<()> {
+        // Ask a remote server if we don't have this room
+        if !self.exists(room_id)? && room_id.server_name() != db.globals.server_name() {
+            if let Err(e) = self.remote_leave_room(user_id, room_id, db).await {
+                warn!("Failed to leave room {} remotely: {}", user_id, e);
+                // Don't tell the client about this error
+            }
+
+            let last_state = self
+                .invite_state(user_id, room_id)?
+                .map_or_else(|| self.left_state(user_id, room_id), |s| Ok(Some(s)))?;
+
+            // We always drop the invite, we can't rely on other servers
+            self.update_membership(
+                room_id,
+                user_id,
+                MembershipState::Leave,
+                user_id,
+                last_state,
+                &db.account_data,
+                &db.globals,
+            )?;
+        } else {
+            let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
+                self.room_state_get(room_id, &EventType::RoomMember, &user_id.to_string())?
+                    .ok_or(Error::BadRequest(
+                        ErrorKind::BadState,
+                        "Cannot leave a room you are not a member of.",
+                    ))?
+                    .content,
+            )
+            .expect("from_value::<Raw<..>> can never fail")
+            .deserialize()
+            .map_err(|_| Error::bad_database("Invalid member event in database."))?;
+
+            event.membership = member::MembershipState::Leave;
+
+            self.build_and_append_pdu(
+                PduBuilder {
+                    event_type: EventType::RoomMember,
+                    content: serde_json::to_value(event)
+                        .expect("event is valid, we just created it"),
+                    unsigned: None,
+                    state_key: Some(user_id.to_string()),
+                    redacts: None,
+                },
+                user_id,
+                room_id,
+                db,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    async fn remote_leave_room(
+        &self,
+        user_id: &UserId,
+        room_id: &RoomId,
+        db: &Database,
+    ) -> Result<()> {
+        let mut make_leave_response_and_server = Err(Error::BadServerResponse(
+            "No server available to assist in leaving.",
+        ));
+
+        let invite_state = db
+            .rooms
+            .invite_state(user_id, room_id)?
+            .ok_or(Error::BadRequest(
+                ErrorKind::BadState,
+                "User is not invited.",
+            ))?;
+
+        let servers = invite_state
+            .iter()
+            .filter_map(|event| {
+                serde_json::from_str::<serde_json::Value>(&event.json().to_string()).ok()
+            })
+            .filter_map(|event| event.get("sender").cloned())
+            .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
+            .filter_map(|sender| UserId::try_from(sender).ok())
+            .map(|user| user.server_name().to_owned());
+
+        for remote_server in servers {
+            let make_leave_response = db
+                .sending
+                .send_federation_request(
+                    &db.globals,
+                    &remote_server,
+                    federation::membership::get_leave_event::v1::Request { room_id, user_id },
+                )
+                .await;
+
+            make_leave_response_and_server = make_leave_response.map(|r| (r, remote_server));
+
+            if make_leave_response_and_server.is_ok() {
+                break;
+            }
+        }
+
+        let (make_leave_response, remote_server) = make_leave_response_and_server?;
+
+        let room_version = match make_leave_response.room_version {
+            Some(room_version) if room_version == RoomVersionId::Version6 => room_version,
+            _ => return Err(Error::BadServerResponse("Room version is not supported")),
+        };
+
+        let mut leave_event_stub =
+            serde_json::from_str::<CanonicalJsonObject>(make_leave_response.event.json().get())
+                .map_err(|_| {
+                    Error::BadServerResponse("Invalid make_leave event json received from server.")
+                })?;
+
+        // TODO: Is origin needed?
+        leave_event_stub.insert(
+            "origin".to_owned(),
+            to_canonical_value(db.globals.server_name())
+                .map_err(|_| Error::bad_database("Invalid server name found"))?,
+        );
+        leave_event_stub.insert(
+            "origin_server_ts".to_owned(),
+            to_canonical_value(utils::millis_since_unix_epoch())
+                .expect("Timestamp is valid js_int value"),
+        );
+        // We don't leave the event id in the pdu because that's only allowed in v1 or v2 rooms
+        leave_event_stub.remove("event_id");
+
+        // In order to create a compatible ref hash (EventID) the `hashes` field needs to be present
+        ruma::signatures::hash_and_sign_event(
+            db.globals.server_name().as_str(),
+            db.globals.keypair(),
+            &mut leave_event_stub,
+            &room_version,
+        )
+        .expect("event is valid, we just created it");
+
+        // Generate event id
+        let event_id = EventId::try_from(&*format!(
+            "${}",
+            ruma::signatures::reference_hash(&leave_event_stub, &room_version)
+                .expect("ruma can calculate reference hashes")
+        ))
+        .expect("ruma's reference hashes are valid event ids");
+
+        // Add event_id back
+        leave_event_stub.insert(
+            "event_id".to_owned(),
+            to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
+        );
+
+        // It has enough fields to be called a proper event now
+        let leave_event = leave_event_stub;
+
+        db.sending
+            .send_federation_request(
+                &db.globals,
+                &remote_server,
+                federation::membership::create_leave_event::v2::Request {
+                    room_id,
+                    event_id: &event_id,
+                    pdu: PduEvent::convert_to_outgoing_federation_event(leave_event.clone()),
+                },
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// Makes a user forget a room.
     pub fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
 
-        self.userroomid_left.remove(userroom_id)?;
+        let mut roomuser_id = room_id.as_bytes().to_vec();
+        roomuser_id.push(0xff);
+        roomuser_id.extend_from_slice(user_id.as_bytes());
+
+        self.userroomid_leftstate.remove(userroom_id)?;
+        self.roomuserid_leftcount.remove(roomuser_id)?;
 
         Ok(())
     }
@@ -1977,7 +2166,6 @@ impl Rooms {
             })
     }
 
-    /// Returns an iterator over all invited members of a room.
     #[tracing::instrument(skip(self))]
     pub fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
         let mut key = room_id.as_bytes().to_vec();
@@ -1989,6 +2177,21 @@ impl Rooms {
             .map_or(Ok(None), |bytes| {
                 Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Invalid invitecount in db.")
+                })?))
+            })
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
+        let mut key = room_id.as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(user_id.as_bytes());
+
+        self.roomuserid_leftcount
+            .get(key)?
+            .map_or(Ok(None), |bytes| {
+                Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("Invalid leftcount in db.")
                 })?))
             })
     }
@@ -2045,25 +2248,75 @@ impl Rooms {
         })
     }
 
+    #[tracing::instrument(skip(self))]
+    pub fn invite_state(
+        &self,
+        user_id: &UserId,
+        room_id: &RoomId,
+    ) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
+        let mut key = user_id.as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&room_id.as_bytes());
+
+        self.userroomid_invitestate
+            .get(key)?
+            .map(|state| {
+                let state = serde_json::from_slice(&state)
+                    .map_err(|_| Error::bad_database("Invalid state in userroomid_invitestate."))?;
+
+                Ok(state)
+            })
+            .transpose()
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn left_state(
+        &self,
+        user_id: &UserId,
+        room_id: &RoomId,
+    ) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
+        let mut key = user_id.as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&room_id.as_bytes());
+
+        self.userroomid_leftstate
+            .get(key)?
+            .map(|state| {
+                let state = serde_json::from_slice(&state)
+                    .map_err(|_| Error::bad_database("Invalid state in userroomid_leftstate."))?;
+
+                Ok(state)
+            })
+            .transpose()
+    }
+
     /// Returns an iterator over all rooms a user left.
     #[tracing::instrument(skip(self))]
-    pub fn rooms_left(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
+    pub fn rooms_left(
+        &self,
+        user_id: &UserId,
+    ) -> impl Iterator<Item = Result<(RoomId, Vec<Raw<AnySyncStateEvent>>)>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        self.userroomid_left.scan_prefix(prefix).keys().map(|key| {
-            Ok(RoomId::try_from(
+        self.userroomid_leftstate.scan_prefix(prefix).map(|r| {
+            let (key, state) = r?;
+            let room_id = RoomId::try_from(
                 utils::string_from_bytes(
-                    &key?
-                        .rsplit(|&b| b == 0xff)
+                    &key.rsplit(|&b| b == 0xff)
                         .next()
                         .expect("rsplit always returns an element"),
                 )
                 .map_err(|_| {
-                    Error::bad_database("Room ID in userroomid_left is invalid unicode.")
+                    Error::bad_database("Room ID in userroomid_invited is invalid unicode.")
                 })?,
             )
-            .map_err(|_| Error::bad_database("Room ID in userroomid_left is invalid."))?)
+            .map_err(|_| Error::bad_database("Room ID in userroomid_invited is invalid."))?;
+
+            let state = serde_json::from_slice(&state)
+                .map_err(|_| Error::bad_database("Invalid state in userroomid_leftstate."))?;
+
+            Ok((room_id, state))
         })
     }
 
@@ -2096,6 +2349,6 @@ impl Rooms {
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
 
-        Ok(self.userroomid_left.get(userroom_id)?.is_some())
+        Ok(self.userroomid_leftstate.get(userroom_id)?.is_some())
     }
 }

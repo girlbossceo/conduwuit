@@ -1,6 +1,5 @@
 use super::State;
 use crate::{ConduitResult, Database, Error, Ruma};
-use log::error;
 use ruma::{
     api::client::r0::sync::sync_events,
     events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
@@ -494,83 +493,17 @@ pub async fn sync_events_route(
     }
 
     let mut left_rooms = BTreeMap::new();
-    for room_id in db.rooms.rooms_left(&sender_user) {
-        let room_id = room_id?;
+    for result in db.rooms.rooms_left(&sender_user) {
+        let (room_id, left_state_events) = result?;
+        let left_count = db.rooms.get_left_count(&room_id, &sender_user)?;
 
-        let since_member = if let Some(since_member) = db
-            .rooms
-            .pdus_after(sender_user, &room_id, since)
-            .next()
-            .and_then(|pdu| pdu.ok())
-            .and_then(|pdu| {
-                db.rooms
-                    .pdu_shortstatehash(&pdu.1.event_id)
-                    .ok()?
-                    .ok_or_else(|| {
-                        error!("{:?}", pdu.1);
-                        Error::bad_database("Pdu in db doesn't have a state hash.")
-                    })
-                    .ok()
-            })
-            .and_then(|shortstatehash| {
-                db.rooms
-                    .state_get(shortstatehash, &EventType::RoomMember, sender_user.as_str())
-                    .ok()?
-                    .ok_or_else(|| Error::bad_database("State hash in db doesn't have a state."))
-                    .ok()
-            })
-            .and_then(|pdu| {
-                serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
-                    pdu.content.clone(),
-                )
-                .expect("Raw::from_value always works")
-                .deserialize()
-                .map_err(|_| Error::bad_database("Invalid PDU in database."))
-                .map(|content| (pdu, content))
-                .ok()
-            }) {
-            since_member
-        } else {
-            // We couldn't find the since_member event. This is very weird - we better abort
+        // Left before last sync
+        if Some(since) >= left_count {
             continue;
-        };
+        }
 
-        let left_since_last_sync = since_member.1.membership == MembershipState::Join;
-
-        let left_room = if left_since_last_sync {
-            device_list_left.extend(
-                db.rooms
-                    .room_members(&room_id)
-                    .filter_map(|user_id| Some(user_id.ok()?))
-                    .filter(|user_id| {
-                        // Don't send key updates from the sender to the sender
-                        sender_user != user_id
-                    })
-                    .filter(|user_id| {
-                        // Only send if the sender doesn't share any encrypted room with the target
-                        // anymore
-                        !share_encrypted_room(&db, sender_user, user_id, &room_id)
-                    }),
-            );
-
-            let pdus = db.rooms.pdus_since(&sender_user, &room_id, since)?;
-            let mut room_events = pdus
-                .filter_map(|pdu| pdu.ok()) // Filter out buggy events
-                .take_while(|(_, pdu)| &since_member.0 != pdu)
-                .map(|(_, pdu)| pdu.to_sync_room_event())
-                .collect::<Vec<_>>();
-            room_events.push(since_member.0.to_sync_room_event());
-
-            sync_events::LeftRoom {
-                account_data: sync_events::AccountData { events: Vec::new() },
-                timeline: sync_events::Timeline {
-                    limited: false,
-                    prev_batch: Some(next_batch.clone()),
-                    events: room_events,
-                },
-                state: sync_events::State { events: Vec::new() },
-            }
-        } else {
+        left_rooms.insert(
+            room_id.clone(),
             sync_events::LeftRoom {
                 account_data: sync_events::AccountData { events: Vec::new() },
                 timeline: sync_events::Timeline {
@@ -578,13 +511,11 @@ pub async fn sync_events_route(
                     prev_batch: Some(next_batch.clone()),
                     events: Vec::new(),
                 },
-                state: sync_events::State { events: Vec::new() },
-            }
-        };
-
-        if !left_room.is_empty() {
-            left_rooms.insert(room_id.clone(), left_room);
-        }
+                state: sync_events::State {
+                    events: left_state_events,
+                },
+            },
+        );
     }
 
     let mut invited_rooms = BTreeMap::new();

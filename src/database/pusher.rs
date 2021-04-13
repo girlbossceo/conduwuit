@@ -7,7 +7,7 @@ use ruma::{
             self,
             v1::{Device, Notification, NotificationCounts, NotificationPriority},
         },
-        OutgoingRequest,
+        IncomingResponse, OutgoingRequest,
     },
     events::{room::power_levels::PowerLevelsEventContent, EventType},
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
@@ -129,15 +129,10 @@ where
 
             let status = reqwest_response.status();
 
-            let body = reqwest_response
-                .bytes()
-                .await
-                .unwrap_or_else(|e| {
-                    warn!("server error {}", e);
-                    Vec::new().into()
-                }) // TODO: handle timeout
-                .into_iter()
-                .collect::<Vec<_>>();
+            let body = reqwest_response.bytes().await.unwrap_or_else(|e| {
+                warn!("server error {}", e);
+                Vec::new().into()
+            }); // TODO: handle timeout
 
             if status != 200 {
                 info!(
@@ -149,7 +144,7 @@ where
                 );
             }
 
-            let response = T::IncomingResponse::try_from(
+            let response = T::IncomingResponse::try_from_http_response(
                 http_response
                     .body(body)
                     .expect("reqwest body is valid http body"),

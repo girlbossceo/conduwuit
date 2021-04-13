@@ -18,7 +18,7 @@ use ruma::{
             query::get_profile_information,
             transactions::send_transaction_message,
         },
-        OutgoingRequest,
+        IncomingResponse, OutgoingRequest, OutgoingResponse,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::{
@@ -173,15 +173,10 @@ where
 
             let status = reqwest_response.status();
 
-            let body = reqwest_response
-                .bytes()
-                .await
-                .unwrap_or_else(|e| {
-                    warn!("server error {}", e);
-                    Vec::new().into()
-                }) // TODO: handle timeout
-                .into_iter()
-                .collect::<Vec<_>>();
+            let body = reqwest_response.bytes().await.unwrap_or_else(|e| {
+                warn!("server error {}", e);
+                Vec::new().into()
+            }); // TODO: handle timeout
 
             if status != 200 {
                 info!(
@@ -195,7 +190,7 @@ where
                 );
             }
 
-            let response = T::IncomingResponse::try_from(
+            let response = T::IncomingResponse::try_from_http_response(
                 http_response
                     .body(body)
                     .expect("reqwest body is valid http body"),
@@ -350,6 +345,7 @@ pub fn get_server_version_route(
     .into())
 }
 
+// Response type for this endpoint is Json because we need to calculate a signature for the response
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server"))]
 #[tracing::instrument(skip(db))]
 pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
@@ -369,7 +365,7 @@ pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
         },
     );
     let mut response = serde_json::from_slice(
-        http::Response::try_from(get_server_keys::v2::Response {
+        get_server_keys::v2::Response {
             server_key: ServerSigningKeys {
                 server_name: db.globals.server_name().to_owned(),
                 verify_keys,
@@ -377,7 +373,8 @@ pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
                 signatures: BTreeMap::new(),
                 valid_until_ts: SystemTime::now() + Duration::from_secs(60 * 2),
             },
-        })
+        }
+        .try_into_http_response()
         .unwrap()
         .body(),
     )
@@ -745,7 +742,7 @@ fn handle_incoming_pdu<'a>(
 
         // 4. fetch any missing auth events doing all checks listed here starting at 1. These are not timeline events
         // 5. Reject "due to auth events" if can't get all the auth events or some of the auth events are also rejected "due to auth events"
-        debug!("Fetching auth events.");
+        debug!("Fetching auth events for {}", incoming_pdu.event_id);
         fetch_and_handle_events(
             db,
             origin,
@@ -757,7 +754,10 @@ fn handle_incoming_pdu<'a>(
         .map_err(|e| e.to_string())?;
 
         // 6. Reject "due to auth events" if the event doesn't pass auth based on the auth events
-        debug!("Checking auth.");
+        debug!(
+            "Auth check for {} based on auth events",
+            incoming_pdu.event_id
+        );
 
         // Build map of auth events
         let mut auth_events = BTreeMap::new();
@@ -1151,7 +1151,7 @@ pub(crate) async fn fetch_and_handle_events(
         // a. Look at auth cache
         let pdu = match auth_cache.get(id) {
             Some(pdu) => {
-                debug!("Event found in cache");
+                debug!("Found {} in cache", id);
                 pdu.clone()
             }
             // b. Look in the main timeline (pduid_pdu tree)
@@ -1159,12 +1159,12 @@ pub(crate) async fn fetch_and_handle_events(
             // (get_pdu checks both)
             None => match db.rooms.get_pdu(&id)? {
                 Some(pdu) => {
-                    debug!("Event found in outliers");
+                    debug!("Found {} in outliers", id);
                     Arc::new(pdu)
                 }
                 None => {
                     // d. Ask origin server over federation
-                    debug!("Fetching event over federation: {:?}", id);
+                    debug!("Fetching {} over federation.", id);
                     match db
                         .sending
                         .send_federation_request(
@@ -1175,7 +1175,7 @@ pub(crate) async fn fetch_and_handle_events(
                         .await
                     {
                         Ok(res) => {
-                            debug!("Got event over federation: {:?}", res);
+                            debug!("Got {} over federation: {:?}", id, res);
                             let (event_id, value) =
                                 crate::pdu::gen_event_id_canonical_json(&res.pdu)?;
                             let pdu = handle_incoming_pdu(

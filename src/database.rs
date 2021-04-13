@@ -163,7 +163,8 @@ impl Database {
                 roomuseroncejoinedids: db.open_tree("roomuseroncejoinedids")?,
                 userroomid_invitestate: db.open_tree("userroomid_invitestate")?,
                 roomuserid_invitecount: db.open_tree("roomuserid_invitecount")?,
-                userroomid_left: db.open_tree("userroomid_left")?,
+                userroomid_leftstate: db.open_tree("userroomid_leftstate")?,
+                roomuserid_leftcount: db.open_tree("roomuserid_leftcount")?,
 
                 userroomid_notificationcount: db.open_tree("userroomid_notificationcount")?,
                 userroomid_highlightcount: db.open_tree("userroomid_highlightcount")?,
@@ -244,7 +245,7 @@ impl Database {
                 .userroomid_invitestate
                 .watch_prefix(&userid_prefix),
         );
-        futures.push(self.rooms.userroomid_left.watch_prefix(&userid_prefix));
+        futures.push(self.rooms.userroomid_leftstate.watch_prefix(&userid_prefix));
 
         // Events for rooms we are in
         for room_id in self.rooms.rooms_joined(user_id).filter_map(|r| r.ok()) {

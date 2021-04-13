@@ -91,37 +91,7 @@ pub async fn leave_room_route(
 ) -> ConduitResult<leave_room::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
-        db.rooms
-            .room_state_get(
-                &body.room_id,
-                &EventType::RoomMember,
-                &sender_user.to_string(),
-            )?
-            .ok_or(Error::BadRequest(
-                ErrorKind::BadState,
-                "Cannot leave a room you are not a member of.",
-            ))?
-            .content,
-    )
-    .expect("from_value::<Raw<..>> can never fail")
-    .deserialize()
-    .map_err(|_| Error::bad_database("Invalid member event in database."))?;
-
-    event.membership = member::MembershipState::Leave;
-
-    db.rooms.build_and_append_pdu(
-        PduBuilder {
-            event_type: EventType::RoomMember,
-            content: serde_json::to_value(event).expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: Some(sender_user.to_string()),
-            redacts: None,
-        },
-        &sender_user,
-        &body.room_id,
-        &db,
-    )?;
+    db.rooms.leave_room(sender_user, &body.room_id, &db).await?;
 
     db.flush().await?;
 
@@ -480,6 +450,7 @@ async fn join_room_by_id_helper(
                     Error::BadServerResponse("Invalid make_join event json received from server.")
                 })?;
 
+        // TODO: Is origin needed?
         join_event_stub.insert(
             "origin".to_owned(),
             to_canonical_value(db.globals.server_name())
@@ -698,6 +669,8 @@ async fn join_room_by_id_helper(
             &db,
         )?;
     }
+
+    db.flush().await?;
 
     Ok(join_room_by_id::Response::new(room_id.clone()).into())
 }
