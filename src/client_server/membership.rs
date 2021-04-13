@@ -5,6 +5,7 @@ use crate::{
     server_server, utils, ConduitResult, Database, Error, Result, Ruma,
 };
 use log::{error, warn};
+use rocket::futures;
 use ruma::{
     api::{
         client::{
@@ -21,6 +22,7 @@ use ruma::{
     serde::{to_canonical_value, CanonicalJsonObject, Raw},
     EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
+use std::sync::RwLock;
 use std::{collections::BTreeMap, convert::TryFrom};
 
 #[cfg(feature = "conduit_bin")]
@@ -525,10 +527,18 @@ async fn join_room_by_id_helper(
             .map_err(|_| Error::BadServerResponse("Invalid PDU in send_join response."))?;
 
         let mut state = BTreeMap::new();
-        let mut pub_key_map = BTreeMap::new();
+        let mut pub_key_map = RwLock::new(BTreeMap::new());
 
-        for pdu in send_join_response.room_state.state.iter() {
-            let (event_id, value) = validate_and_add_event_id(pdu, &room_version, &mut pub_key_map, &db).await?;
+        for result in futures::future::join_all(
+            send_join_response
+                .room_state
+                .state
+                .iter()
+                .map(|pdu| validate_and_add_event_id(pdu, &room_version, &pub_key_map, &db)),
+        )
+        .await
+        {
+            let (event_id, value) = result?;
             let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
                 warn!("{:?}: {}", value, e);
                 Error::BadServerResponse("Invalid PDU in send_join response.")
@@ -584,7 +594,8 @@ async fn join_room_by_id_helper(
         db.rooms.force_state(room_id, state, &db.globals)?;
 
         for pdu in send_join_response.room_state.auth_chain.iter() {
-            let (event_id, value) = validate_and_add_event_id(pdu, &room_version, &mut pub_key_map, &db).await?;
+            let (event_id, value) =
+                validate_and_add_event_id(pdu, &room_version, &mut pub_key_map, &db).await?;
             let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
                 warn!("{:?}: {}", value, e);
                 Error::BadServerResponse("Invalid PDU in send_join response.")
@@ -639,7 +650,7 @@ async fn join_room_by_id_helper(
 async fn validate_and_add_event_id(
     pdu: &Raw<Pdu>,
     room_version: &RoomVersionId,
-    pub_key_map: &mut BTreeMap<String, BTreeMap<String, String>>,
+    pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
     db: &Database,
 ) -> Result<(EventId, CanonicalJsonObject)> {
     let mut value = serde_json::from_str::<CanonicalJsonObject>(pdu.json().get()).map_err(|e| {
@@ -648,6 +659,16 @@ async fn validate_and_add_event_id(
     })?;
 
     server_server::fetch_required_signing_keys(&value, pub_key_map, db).await?;
+    if let Err(e) = ruma::signatures::verify_event(
+        &*pub_key_map
+            .read()
+            .map_err(|_| Error::bad_database("RwLock is poisoned."))?,
+        &value,
+        room_version,
+    ) {
+        warn!("Event failed verification: {}", e);
+        return Err(Error::BadServerResponse("Event failed verification."));
+    }
 
     let event_id = EventId::try_from(&*format!(
         "${}",
