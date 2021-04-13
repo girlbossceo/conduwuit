@@ -5,6 +5,7 @@ use ruma::serde::{try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
 use std::{
     cmp,
     convert::TryInto,
+    str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -114,4 +115,30 @@ pub fn to_canonical_object<T: serde::Serialize>(
             "Value must be an object",
         ))),
     }
+}
+
+pub fn deserialize_from_str<
+    'de,
+    D: serde::de::Deserializer<'de>,
+    T: FromStr<Err = E>,
+    E: std::fmt::Display,
+>(
+    deserializer: D,
+) -> std::result::Result<T, D::Error> {
+    struct Visitor<T: FromStr<Err = E>, E>(std::marker::PhantomData<T>);
+    impl<'de, T: FromStr<Err = Err>, Err: std::fmt::Display> serde::de::Visitor<'de>
+        for Visitor<T, Err>
+    {
+        type Value = T;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(formatter, "a parsable string")
+        }
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            v.parse().map_err(|e| serde::de::Error::custom(e))
+        }
+    }
+    deserializer.deserialize_str(Visitor(std::marker::PhantomData))
 }
