@@ -658,44 +658,7 @@ fn handle_incoming_pdu<'a>(
 
         // We go through all the signatures we see on the value and fetch the corresponding signing
         // keys
-        for (signature_server, signature) in match value
-            .get("signatures")
-            .ok_or_else(|| "No signatures in server response pdu.".to_string())?
-        {
-            CanonicalJsonValue::Object(map) => map,
-            _ => return Err("Invalid signatures object in server response pdu.".to_string()),
-        } {
-            let signature_object = match signature {
-                CanonicalJsonValue::Object(map) => map,
-                _ => {
-                    return Err(
-                        "Invalid signatures content object in server response pdu.".to_string()
-                    )
-                }
-            };
-
-            let signature_ids = signature_object.keys().collect::<Vec<_>>();
-
-            debug!("Fetching signing keys for {}", signature_server);
-            let keys = match fetch_signing_keys(
-                &db,
-                &Box::<ServerName>::try_from(&**signature_server).map_err(|_| {
-                    "Invalid servername in signatures of server response pdu.".to_string()
-                })?,
-                signature_ids,
-            )
-            .await
-            {
-                Ok(keys) => keys,
-                Err(_) => {
-                    return Err(
-                        "Signature verification failed: Could not fetch signing key.".to_string(),
-                    );
-                }
-            };
-
-            pub_key_map.insert(signature_server.clone(), keys);
-        }
+        fetch_required_signing_keys(&value, pub_key_map, db).await.map_err(|e| e.to_string())?;
 
         // 2. Check signatures, otherwise drop
         // 3. check content hash, redact if doesn't match
@@ -1639,38 +1602,58 @@ pub fn get_profile_information_route<'a>(
     .into())
 }
 
-/*
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v2/invite/<_>/<_>", data = "<body>")
-)]
-pub fn get_user_devices_route<'a>(
-    db: State<'a, Database>,
-    body: Ruma<membership::v1::Request<'_>>,
-) -> ConduitResult<get_profile_information::v1::Response> {
-    if !db.globals.allow_federation() {
-        return Err(Error::bad_config("Federation is disabled."));
-    }
-
-    let mut displayname = None;
-    let mut avatar_url = None;
-
-    match body.field {
-        Some(ProfileField::DisplayName) => displayname = db.users.displayname(&body.user_id)?,
-        Some(ProfileField::AvatarUrl) => avatar_url = db.users.avatar_url(&body.user_id)?,
-        None => {
-            displayname = db.users.displayname(&body.user_id)?;
-            avatar_url = db.users.avatar_url(&body.user_id)?;
+pub async fn fetch_required_signing_keys(
+    event: &BTreeMap<String, CanonicalJsonValue>,
+    pub_key_map: &mut BTreeMap<String, BTreeMap<String, String>>,
+    db: &Database,
+) -> Result<()> {
+    // We go through all the signatures we see on the value and fetch the corresponding signing
+    // keys
+    for (signature_server, signature) in match event
+        .get("signatures")
+        .ok_or_else(|| Error::BadServerResponse("No signatures in server response pdu."))?
+    {
+        CanonicalJsonValue::Object(map) => map,
+        _ => {
+            return Err(Error::BadServerResponse(
+                "Invalid signatures object in server response pdu.",
+            ))
         }
+    } {
+        let signature_object = match signature {
+            CanonicalJsonValue::Object(map) => map,
+            _ => {
+                return Err(Error::BadServerResponse(
+                    "Invalid signatures content object in server response pdu.",
+                ))
+            }
+        };
+
+        let signature_ids = signature_object.keys().collect::<Vec<_>>();
+
+        debug!("Fetching signing keys for {}", signature_server);
+        let keys = match fetch_signing_keys(
+            db,
+            &Box::<ServerName>::try_from(&**signature_server).map_err(|_| {
+                Error::BadServerResponse("Invalid servername in signatures of server response pdu.")
+            })?,
+            signature_ids,
+        )
+        .await
+        {
+            Ok(keys) => keys,
+            Err(_) => {
+                return Err(Error::BadServerResponse(
+                    "Signature verification failed: Could not fetch signing key.",
+                ));
+            }
+        };
+
+        pub_key_map.insert(signature_server.clone(), keys);
     }
 
-    Ok(get_profile_information::v1::Response {
-        displayname,
-        avatar_url,
-    }
-    .into())
+    Ok(())
 }
-*/
 
 #[cfg(test)]
 mod tests {

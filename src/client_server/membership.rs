@@ -2,7 +2,7 @@ use super::State;
 use crate::{
     client_server,
     pdu::{PduBuilder, PduEvent},
-    utils, ConduitResult, Database, Error, Result, Ruma,
+    server_server, utils, ConduitResult, Database, Error, Result, Ruma,
 };
 use log::{error, warn};
 use ruma::{
@@ -21,7 +21,7 @@ use ruma::{
     serde::{to_canonical_value, CanonicalJsonObject, Raw},
     EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
-use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
+use std::{collections::BTreeMap, convert::TryFrom};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};
@@ -515,27 +515,6 @@ async fn join_room_by_id_helper(
             )
             .await?;
 
-        let add_event_id = |pdu: &Raw<Pdu>| -> Result<(EventId, CanonicalJsonObject)> {
-            let mut value = serde_json::from_str(pdu.json().get()).map_err(|e| {
-                error!("{:?}: {:?}", pdu, e);
-                Error::BadServerResponse("Invalid PDU in server response")
-            })?;
-            let event_id = EventId::try_from(&*format!(
-                "${}",
-                ruma::signatures::reference_hash(&value, &room_version)
-                    .expect("ruma can calculate reference hashes")
-            ))
-            .expect("ruma's reference hashes are valid event ids");
-
-            value.insert(
-                "event_id".to_owned(),
-                to_canonical_value(&event_id)
-                    .expect("a valid EventId can be converted to CanonicalJsonValue"),
-            );
-
-            Ok((event_id, value))
-        };
-
         let count = db.globals.next_count()?;
 
         let mut pdu_id = room_id.as_bytes().to_vec();
@@ -546,23 +525,15 @@ async fn join_room_by_id_helper(
             .map_err(|_| Error::BadServerResponse("Invalid PDU in send_join response."))?;
 
         let mut state = BTreeMap::new();
+        let mut pub_key_map = BTreeMap::new();
 
-        for pdu in send_join_response
-            .room_state
-            .state
-            .iter()
-            .map(add_event_id)
-            .map(|r| {
-                let (event_id, value) = r?;
-                PduEvent::from_id_val(&event_id, value.clone())
-                    .map(|ev| (event_id, Arc::new(ev)))
-                    .map_err(|e| {
-                        warn!("{:?}: {}", value, e);
-                        Error::BadServerResponse("Invalid PDU in send_join response.")
-                    })
-            })
-        {
-            let (_id, pdu) = pdu?;
+        for pdu in send_join_response.room_state.state.iter() {
+            let (event_id, value) = validate_and_add_event_id(pdu, &room_version, &mut pub_key_map, &db).await?;
+            let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
+                warn!("{:?}: {}", value, e);
+                Error::BadServerResponse("Invalid PDU in send_join response.")
+            })?;
+
             db.rooms.add_pdu_outlier(&pdu)?;
             if let Some(state_key) = &pdu.state_key {
                 if pdu.kind == EventType::RoomMember {
@@ -612,22 +583,12 @@ async fn join_room_by_id_helper(
 
         db.rooms.force_state(room_id, state, &db.globals)?;
 
-        for pdu in send_join_response
-            .room_state
-            .auth_chain
-            .iter()
-            .map(add_event_id)
-            .map(|r| {
-                let (event_id, value) = r?;
-                PduEvent::from_id_val(&event_id, value.clone())
-                    .map(|ev| (event_id, Arc::new(ev)))
-                    .map_err(|e| {
-                        warn!("{:?}: {}", value, e);
-                        Error::BadServerResponse("Invalid PDU in send_join response.")
-                    })
-            })
-        {
-            let (_id, pdu) = pdu?;
+        for pdu in send_join_response.room_state.auth_chain.iter() {
+            let (event_id, value) = validate_and_add_event_id(pdu, &room_version, &mut pub_key_map, &db).await?;
+            let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
+                warn!("{:?}: {}", value, e);
+                Error::BadServerResponse("Invalid PDU in send_join response.")
+            })?;
             db.rooms.add_pdu_outlier(&pdu)?;
         }
 
@@ -673,4 +634,33 @@ async fn join_room_by_id_helper(
     db.flush().await?;
 
     Ok(join_room_by_id::Response::new(room_id.clone()).into())
+}
+
+async fn validate_and_add_event_id(
+    pdu: &Raw<Pdu>,
+    room_version: &RoomVersionId,
+    pub_key_map: &mut BTreeMap<String, BTreeMap<String, String>>,
+    db: &Database,
+) -> Result<(EventId, CanonicalJsonObject)> {
+    let mut value = serde_json::from_str::<CanonicalJsonObject>(pdu.json().get()).map_err(|e| {
+        error!("{:?}: {:?}", pdu, e);
+        Error::BadServerResponse("Invalid PDU in server response")
+    })?;
+
+    server_server::fetch_required_signing_keys(&value, pub_key_map, db).await?;
+
+    let event_id = EventId::try_from(&*format!(
+        "${}",
+        ruma::signatures::reference_hash(&value, &room_version)
+            .expect("ruma can calculate reference hashes")
+    ))
+    .expect("ruma's reference hashes are valid event ids");
+
+    value.insert(
+        "event_id".to_owned(),
+        to_canonical_value(&event_id)
+            .expect("a valid EventId can be converted to CanonicalJsonValue"),
+    );
+
+    Ok((event_id, value))
 }
