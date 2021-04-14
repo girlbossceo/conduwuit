@@ -1,4 +1,19 @@
 # For use in our CI only. This requires a build artifact created by a previous run pipline stage to be placed in cached_target/release/conduit
+FROM valkum/docker-rust-ci:latest as builder
+WORKDIR /workdir
+
+ARG RUSTC_WRAPPER
+ARG AWS_ACCESS_KEY_ID
+ARG AWS_SECRET_ACCESS_KEY
+ARG SCCACHE_BUCKET
+ARG SCCACHE_ENDPOINT
+ARG SCCACHE_S3_USE_SSL
+
+COPY . .
+RUN mkdir -p target/release
+RUN test -e cached_target/release/conduit && cp cached_target/release/conduit target/release/conduit || cargo build --release
+
+
 FROM valkum/docker-rust-ci:latest
 WORKDIR /workdir
 
@@ -32,4 +47,3 @@ CMD ([ -z "${COMPLEMENT_CA}" ] && echo "Error: Need Complement PKI support" && t
     sed -i "s/your.server.name/${SERVER_NAME}/g" caddy.json && \
     /workdir/caddy start --config caddy.json > /dev/null && \
     /workdir/conduit
-    

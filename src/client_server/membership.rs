@@ -22,8 +22,7 @@ use ruma::{
     serde::{to_canonical_value, CanonicalJsonObject, Raw},
     EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
-use std::sync::RwLock;
-use std::{collections::BTreeMap, convert::TryFrom};
+use std::{collections::BTreeMap, convert::TryFrom, sync::RwLock};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};

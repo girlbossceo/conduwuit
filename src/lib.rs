@@ -1,3 +1,4 @@
+#![allow(clippy::suspicious_else_formatting)]
 pub mod appservice_server;
 pub mod client_server;
 mod database;

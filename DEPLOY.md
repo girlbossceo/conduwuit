@@ -18,6 +18,16 @@ $ sudo wget -O /usr/local/bin/matrix-conduit <url>
 $ sudo chmod +x /usr/local/bin/matrix-conduit
 ```
 
+## Adding a Conduit user
+
+While Conduit can run as any user it is usually better to use dedicated users for different services.
+This also allows you to make sure that the file permissions are correctly set up.
+
+In Debian you can use this command to create a Conduit user:
+
+```
+sudo adduser --system conduit --no-create-home
+```
 
 ## Setting up a systemd service
 
@@ -33,8 +43,8 @@ After=network.target
 
 [Service]
 Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
-User=root
-Group=root
+User=conduit
+Group=nogroup
 Restart=always
 ExecStart=/usr/local/bin/matrix-conduit
 
@@ -91,6 +101,22 @@ allow_federation = true
 address = "127.0.0.1" # This makes sure Conduit can only be reached using the reverse proxy
 ```
 
+## Setting the correct file permissions
+
+As we are using a Conduit specific user we need to allow it to read the config.
+To do that you can run this command on Debian:
+
+```
+sudo chown -R conduit:nogroup /etc/matrix-conduit
+```
+
+If you use the default database path you also need to run this:
+
+```
+sudo mkdir -p /var/lib/matrix-conduit/conduit_db
+sudo chown -R conduit:nogroup /var/lib/matrix-conduit/conduit_db
+```
+
 
 ## Setting up the Reverse Proxy
 
@@ -107,8 +133,8 @@ Listen 8448
 ServerName your.server.name # EDIT THIS
 
 AllowEncodedSlashes NoDecode
-ProxyPass /_matrix/ http://localhost:6167/
-ProxyPassReverse /_matrix/ http://localhost:6167/
+ProxyPass /_matrix/ http://localhost:6167/_matrix/
+ProxyPassReverse /_matrix/ http://localhost:6167/_matrix/
 
 Include /etc/letsencrypt/options-ssl-apache.conf
 SSLCertificateFile /etc/letsencrypt/live/your.server.name/fullchain.pem # EDIT THIS
