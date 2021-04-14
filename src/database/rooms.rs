@@ -674,6 +674,7 @@ impl Rooms {
             .iter()
             .filter_map(|r| r.ok())
             .filter(|user_id| self.is_joined(&user_id, &pdu.room_id).unwrap_or(false))
+            .filter(|user_id| !db.users.is_deactivated(user_id).unwrap_or(false))
         {
             // Don't notify the user of their own events
             if user == pdu.sender {
@@ -706,15 +707,13 @@ impl Rooms {
             userroom_id.extend_from_slice(pdu.room_id.as_bytes());
 
             if notify {
-                self
-                    .userroomid_notificationcount
+                self.userroomid_notificationcount
                     .update_and_fetch(&userroom_id, utils::increment)?
                     .expect("utils::increment will always put in a value");
             }
 
             if highlight {
-                self
-                    .userroomid_highlightcount
+                self.userroomid_highlightcount
                     .update_and_fetch(&userroom_id, utils::increment)?
                     .expect("utils::increment will always put in a value");
             }

@@ -218,7 +218,7 @@ pub fn get_actions<'a>(
 
     let ctx = PushConditionRoomCtx {
         room_id: pdu.room_id.clone(),
-        member_count: (db.rooms.room_members(&pdu.room_id).count() as u32).into(),
+        member_count: 10_u32.into(), // TODO: get member count efficiently
         user_display_name: db
             .users
             .displayname(&user)?
