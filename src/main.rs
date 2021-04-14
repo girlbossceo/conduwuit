@@ -8,7 +8,6 @@ pub mod server_server;
 mod database;
 mod error;
 mod pdu;
-mod push_rules;
 mod ruma_wrapper;
 mod utils;
 
@@ -20,11 +19,15 @@ pub use rocket::State;
 use ruma::api::client::error::ErrorKind;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
-use rocket::figment::{
-    providers::{Env, Format, Toml},
-    Figment,
+use rocket::{
+    catch, catchers,
+    fairing::AdHoc,
+    figment::{
+        providers::{Env, Format, Toml},
+        Figment,
+    },
+    routes, Request,
 };
-use rocket::{catch, catchers, fairing::AdHoc, routes, Request};
 use tracing::span;
 use tracing_subscriber::{prelude::*, Registry};
 
@@ -74,7 +77,9 @@ fn setup_rocket() -> (rocket::Rocket, Config) {
                 client_server::get_filter_route,
                 client_server::create_filter_route,
                 client_server::set_global_account_data_route,
+                client_server::set_room_account_data_route,
                 client_server::get_global_account_data_route,
+                client_server::get_room_account_data_route,
                 client_server::set_displayname_route,
                 client_server::get_displayname_route,
                 client_server::set_avatar_url_route,
@@ -152,6 +157,7 @@ fn setup_rocket() -> (rocket::Rocket, Config) {
                 client_server::get_key_changes_route,
                 client_server::get_pushers_route,
                 client_server::set_pushers_route,
+                // client_server::third_party_route,
                 client_server::upgrade_room_route,
                 server_server::get_server_version_route,
                 server_server::get_server_keys_route,
@@ -159,7 +165,10 @@ fn setup_rocket() -> (rocket::Rocket, Config) {
                 server_server::get_public_rooms_route,
                 server_server::get_public_rooms_filtered_route,
                 server_server::send_transaction_message_route,
+                server_server::get_event_route,
                 server_server::get_missing_events_route,
+                server_server::get_room_state_ids_route,
+                server_server::create_invite_route,
                 server_server::get_profile_information_route,
             ],
         )
@@ -175,8 +184,7 @@ fn setup_rocket() -> (rocket::Rocket, Config) {
                 .await
                 .expect("config is valid");
 
-            data.sending
-                .start_handler(&data.globals, &data.rooms, &data.appservice);
+            data.sending.start_handler(&data);
 
             Ok(rocket.manage(data))
         }));
@@ -201,6 +209,9 @@ async fn main() {
 
         rocket.launch().await.unwrap();
     } else {
+        std::env::set_var("CONDUIT_LOG", config.log);
+        pretty_env_logger::init_custom_env("CONDUIT_LOG");
+
         let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
         let _enter = root.enter();
 
@@ -209,7 +220,7 @@ async fn main() {
 }
 
 #[catch(404)]
-fn not_found_catcher(_req: &'_ Request<'_>) -> String {
+fn not_found_catcher(_: &Request<'_>) -> String {
     "404 Not Found".to_owned()
 }
 

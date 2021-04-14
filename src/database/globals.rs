@@ -1,15 +1,19 @@
 use crate::{database::Config, utils, Error, Result};
 use log::error;
-use ruma::ServerName;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::time::Duration;
+use ruma::{
+    api::federation::discovery::{ServerSigningKeys, VerifyKey},
+    ServerName, ServerSigningKeyId,
+};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 use trust_dns_resolver::TokioAsyncResolver;
 
 pub const COUNTER: &str = "c";
 
-type WellKnownMap = HashMap<Box<ServerName>, (String, Option<String>)>;
+type WellKnownMap = HashMap<Box<ServerName>, (String, String)>;
 #[derive(Clone)]
 pub struct Globals {
     pub actual_destination_cache: Arc<RwLock<WellKnownMap>>, // actual_destination, host
@@ -19,10 +23,15 @@ pub struct Globals {
     reqwest_client: reqwest::Client,
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
+    pub(super) servertimeout_signingkey: sled::Tree, // ServerName + Timeout Timestamp -> algorithm:key + pubkey
 }
 
 impl Globals {
-    pub async fn load(globals: sled::Tree, config: Config) -> Result<Self> {
+    pub fn load(
+        globals: sled::Tree,
+        servertimeout_signingkey: sled::Tree,
+        config: Config,
+    ) -> Result<Self> {
         let bytes = &*globals
             .update_and_fetch("keypair", utils::generate_keypair)?
             .expect("utils::generate_keypair always returns Some");
@@ -78,6 +87,7 @@ impl Globals {
                 Error::bad_config("Failed to set up trust dns resolver with system config.")
             })?,
             actual_destination_cache: Arc::new(RwLock::new(HashMap::new())),
+            servertimeout_signingkey,
             jwt_decoding_key,
         })
     }
@@ -129,11 +139,75 @@ impl Globals {
         self.config.allow_federation
     }
 
+    pub fn trusted_servers(&self) -> &[Box<ServerName>] {
+        &self.config.trusted_servers
+    }
+
     pub fn dns_resolver(&self) -> &TokioAsyncResolver {
         &self.dns_resolver
     }
 
     pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey<'_>> {
         self.jwt_decoding_key.as_ref()
+    }
+
+    /// TODO: the key valid until timestamp is only honored in room version > 4
+    /// Remove the outdated keys and insert the new ones.
+    ///
+    /// This doesn't actually check that the keys provided are newer than the old set.
+    pub fn add_signing_key(&self, origin: &ServerName, keys: &ServerSigningKeys) -> Result<()> {
+        let mut key1 = origin.as_bytes().to_vec();
+        key1.push(0xff);
+
+        let mut key2 = key1.clone();
+
+        let ts = keys
+            .valid_until_ts
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time is valid")
+            .as_millis() as u64;
+
+        key1.extend_from_slice(&ts.to_be_bytes());
+        key2.extend_from_slice(&(ts + 1).to_be_bytes());
+
+        self.servertimeout_signingkey.insert(
+            key1,
+            serde_json::to_vec(&keys.verify_keys).expect("ServerSigningKeys are a valid string"),
+        )?;
+
+        self.servertimeout_signingkey.insert(
+            key2,
+            serde_json::to_vec(&keys.old_verify_keys)
+                .expect("ServerSigningKeys are a valid string"),
+        )?;
+
+        Ok(())
+    }
+
+    /// This returns an empty `Ok(BTreeMap<..>)` when there are no keys found for the server.
+    pub fn signing_keys_for(
+        &self,
+        origin: &ServerName,
+    ) -> Result<BTreeMap<ServerSigningKeyId, VerifyKey>> {
+        let mut response = BTreeMap::new();
+
+        let now = crate::utils::millis_since_unix_epoch();
+
+        for item in self.servertimeout_signingkey.scan_prefix(origin.as_bytes()) {
+            let (k, bytes) = item?;
+            let valid_until = k
+                .splitn(2, |&b| b == 0xff)
+                .nth(1)
+                .map(crate::utils::u64_from_bytes)
+                .ok_or_else(|| Error::bad_database("Invalid signing keys."))?
+                .map_err(|_| Error::bad_database("Invalid signing key valid until bytes"))?;
+            // If these keys are still valid use em!
+            if valid_until > now {
+                let btree: BTreeMap<_, _> = serde_json::from_slice(&bytes)
+                    .map_err(|_| Error::bad_database("Invalid BTreeMap<> of signing keys"))?;
+                response.extend(btree);
+            }
+        }
+        Ok(response)
     }
 }

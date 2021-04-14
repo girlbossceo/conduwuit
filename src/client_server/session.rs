@@ -51,8 +51,11 @@ pub async fn login_route(
     // Validate login method
     // TODO: Other login methods
     let user_id = match &body.login_info {
-        login::IncomingLoginInfo::Password { password } => {
-            let username = if let login::IncomingUserInfo::MatrixId(matrix_id) = &body.user {
+        login::IncomingLoginInfo::Password {
+            identifier,
+            password,
+        } => {
+            let username = if let login::IncomingUserIdentifier::MatrixId(matrix_id) = identifier {
                 matrix_id
             } else {
                 return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));

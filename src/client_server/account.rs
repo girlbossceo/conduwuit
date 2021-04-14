@@ -21,7 +21,7 @@ use ruma::{
         },
         EventType,
     },
-    RoomAliasId, RoomId, RoomVersionId, UserId,
+    push, RoomAliasId, RoomId, RoomVersionId, UserId,
 };
 
 use register::RegistrationKind;
@@ -181,7 +181,7 @@ pub async fn register_route(
         EventType::PushRules,
         &ruma::events::push_rules::PushRulesEvent {
             content: ruma::events::push_rules::PushRulesEventContent {
-                global: crate::push_rules::default_pushrules(&user_id),
+                global: push::Ruleset::server_default(&user_id),
             },
         },
         &db.globals,
@@ -241,11 +241,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // 2. Make conduit bot join
@@ -266,11 +262,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // 3. Power levels
@@ -304,11 +296,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // 4.1 Join Rules
@@ -325,11 +313,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // 4.2 History Visibility
@@ -348,11 +332,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // 4.3 Guest Access
@@ -369,11 +349,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // 6. Events implied by name and topic
@@ -392,11 +368,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         db.rooms.build_and_append_pdu(
@@ -412,11 +384,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // Room alias
@@ -438,11 +406,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         db.rooms.set_alias(&alias, Some(&room_id), &db.globals)?;
@@ -465,11 +429,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
         db.rooms.build_and_append_pdu(
             PduBuilder {
@@ -488,27 +448,16 @@ pub async fn register_route(
             },
             &user_id,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // Send welcome message
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMessage,
-                content: serde_json::to_value(message::MessageEventContent::Text(
-                    message::TextMessageEventContent {
-                        body: "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing `/join #conduit:matrix.org`. **Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.** Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
-                        formatted: Some(message::FormattedBody {
-                            format: message::MessageFormat::Html,
-                            body: "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing <code>/join #conduit:matrix.org</code>. <strong>Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.</strong> Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
-                        }),
-                        relates_to: None,
-                        new_content: None,
-                    },
+                content: serde_json::to_value(message::MessageEventContent::text_html(
+                        "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing `/join #conduit:matrix.org`. **Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.** Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
+                        "Thanks for trying out Conduit! This software is still in development, so expect many bugs and missing features. If you have federation enabled, you can join the Conduit chat room by typing <code>/join #conduit:matrix.org</code>. <strong>Important: Please don't join any other Matrix rooms over federation without permission from the room's admins.</strong> Some actions might trigger bugs in other server implementations, breaking the chat for everyone else.".to_owned(),
                 ))
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -517,11 +466,7 @@ pub async fn register_route(
             },
             &conduit_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-        &db.appservice,
+            &db,
         )?;
     }
 
@@ -672,11 +617,11 @@ pub async fn deactivate_route(
     }
 
     // Leave all joined rooms and reject all invitations
-    for room_id in db
-        .rooms
-        .rooms_joined(&sender_user)
-        .chain(db.rooms.rooms_invited(&sender_user))
-    {
+    for room_id in db.rooms.rooms_joined(&sender_user).chain(
+        db.rooms
+            .rooms_invited(&sender_user)
+            .map(|t| t.map(|(r, _)| r)),
+    ) {
         let room_id = room_id?;
         let event = member::MemberEventContent {
             membership: member::MembershipState::Leave,
@@ -696,11 +641,7 @@ pub async fn deactivate_route(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -716,3 +657,17 @@ pub async fn deactivate_route(
     }
     .into())
 }
+
+/*/
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/account/3pid", data = "<body>")
+)]
+pub async fn third_party_route(
+    body: Ruma<account::add_3pid::Request<'_>>,
+) -> ConduitResult<account::add_3pid::Response> {
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+    Ok(account::add_3pid::Response::default().into())
+}
+*/

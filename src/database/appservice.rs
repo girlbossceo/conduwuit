@@ -1,6 +1,8 @@
 use crate::{utils, Error, Result};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Clone)]
 pub struct Appservice {
@@ -53,9 +55,7 @@ impl Appservice {
         })
     }
 
-    pub fn iter_all<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = Result<(String, serde_yaml::Value)>> + 'a {
+    pub fn iter_all(&self) -> impl Iterator<Item = Result<(String, serde_yaml::Value)>> + '_ {
         self.iter_ids().filter_map(|id| id.ok()).map(move |id| {
             Ok((
                 id.clone(),

@@ -148,7 +148,7 @@ impl Uiaa {
         device_id: &DeviceId,
         uiaainfo: Option<&UiaaInfo>,
     ) -> Result<()> {
-        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
@@ -170,7 +170,7 @@ impl Uiaa {
         device_id: &DeviceId,
         session: &str,
     ) -> Result<UiaaInfo> {
-        let mut userdeviceid = user_id.to_string().as_bytes().to_vec();
+        let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 

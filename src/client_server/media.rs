@@ -46,7 +46,7 @@ pub async fn create_content_route(
     db.flush().await?;
 
     Ok(create_content::Response {
-        content_uri: mxc,
+        content_uri: mxc.try_into().expect("Invalid mxc:// URI"),
         blurhash: None,
     }
     .into())
@@ -80,7 +80,7 @@ pub async fn get_content_route(
             .sending
             .send_federation_request(
                 &db.globals,
-                body.server_name.clone(),
+                &body.server_name,
                 get_content::Request {
                     allow_remote: false,
                     server_name: &body.server_name,
@@ -130,12 +130,12 @@ pub async fn get_content_thumbnail_route(
             .sending
             .send_federation_request(
                 &db.globals,
-                body.server_name.clone(),
+                &body.server_name,
                 get_content_thumbnail::Request {
                     allow_remote: false,
                     height: body.height,
                     width: body.width,
-                    method: body.method,
+                    method: body.method.clone(),
                     server_name: &body.server_name,
                     media_id: &body.media_id,
                 },

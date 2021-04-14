@@ -4,6 +4,7 @@ pub mod appservice;
 pub mod globals;
 pub mod key_backups;
 pub mod media;
+pub mod pusher;
 pub mod rooms;
 pub mod sending;
 pub mod transaction_ids;
@@ -17,12 +18,14 @@ use log::info;
 use rocket::futures::{self, channel::mpsc};
 use ruma::{DeviceId, ServerName, UserId};
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::fs::remove_dir_all;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    fs::remove_dir_all,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Semaphore;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Config {
     server_name: Box<ServerName>,
     database_path: String,
@@ -41,6 +44,10 @@ pub struct Config {
     #[serde(default = "false_fn")]
     pub allow_jaeger: bool,
     jwt_secret: Option<String>,
+    #[serde(default = "Vec::new")]
+    trusted_servers: Vec<Box<ServerName>>,
+    #[serde(default = "default_log")]
+    pub log: String,
 }
 
 fn false_fn() -> bool {
@@ -63,6 +70,10 @@ fn default_max_concurrent_requests() -> u16 {
     4
 }
 
+fn default_log() -> String {
+    "info,state_res=warn,rocket=off,_=off,sled=off".to_owned()
+}
+
 #[derive(Clone)]
 pub struct Database {
     pub globals: globals::Globals,
@@ -76,6 +87,7 @@ pub struct Database {
     pub sending: sending::Sending,
     pub admin: admin::Admin,
     pub appservice: appservice::Appservice,
+    pub pusher: pusher::PushData,
     pub _db: sled::Db,
 }
 
@@ -97,6 +109,7 @@ impl Database {
         let db = sled::Config::default()
             .path(&config.database_path)
             .cache_capacity(config.cache_capacity as u64)
+            .use_compression(true)
             .open()?;
 
         info!("Opened sled database at {}", config.database_path);
@@ -104,7 +117,6 @@ impl Database {
         let (admin_sender, admin_receiver) = mpsc::unbounded();
 
         let db = Self {
-            globals: globals::Globals::load(db.open_tree("global")?, config).await?,
             users: users::Users {
                 userid_password: db.open_tree("userid_password")?,
                 userid_displayname: db.open_tree("userid_displayname")?,
@@ -114,7 +126,7 @@ impl Database {
                 token_userdeviceid: db.open_tree("token_userdeviceid")?,
                 onetimekeyid_onetimekeys: db.open_tree("onetimekeyid_onetimekeys")?,
                 userid_lastonetimekeyupdate: db.open_tree("userid_lastonetimekeyupdate")?,
-                keychangeid_userid: db.open_tree("devicekeychangeid_userid")?,
+                keychangeid_userid: db.open_tree("keychangeid_userid")?,
                 keyid_key: db.open_tree("keyid_key")?,
                 userid_masterkeyid: db.open_tree("userid_masterkeyid")?,
                 userid_selfsigningkeyid: db.open_tree("userid_selfsigningkeyid")?,
@@ -129,7 +141,7 @@ impl Database {
                     readreceiptid_readreceipt: db.open_tree("readreceiptid_readreceipt")?,
                     roomuserid_privateread: db.open_tree("roomuserid_privateread")?, // "Private" read receipt
                     roomuserid_lastprivatereadupdate: db
-                        .open_tree("roomid_lastprivatereadupdate")?,
+                        .open_tree("roomuserid_lastprivatereadupdate")?,
                     typingid_userid: db.open_tree("typingid_userid")?,
                     roomid_lasttypingupdate: db.open_tree("roomid_lasttypingupdate")?,
                     presenceid_presence: db.open_tree("presenceid_presence")?,
@@ -140,7 +152,7 @@ impl Database {
                 roomid_pduleaves: db.open_tree("roomid_pduleaves")?,
 
                 alias_roomid: db.open_tree("alias_roomid")?,
-                aliasid_alias: db.open_tree("alias_roomid")?,
+                aliasid_alias: db.open_tree("aliasid_alias")?,
                 publicroomids: db.open_tree("publicroomids")?,
 
                 tokenids: db.open_tree("tokenids")?,
@@ -149,14 +161,24 @@ impl Database {
                 userroomid_joined: db.open_tree("userroomid_joined")?,
                 roomuserid_joined: db.open_tree("roomuserid_joined")?,
                 roomuseroncejoinedids: db.open_tree("roomuseroncejoinedids")?,
-                userroomid_invited: db.open_tree("userroomid_invited")?,
-                roomuserid_invited: db.open_tree("roomuserid_invited")?,
-                userroomid_left: db.open_tree("userroomid_left")?,
+                userroomid_invitestate: db.open_tree("userroomid_invitestate")?,
+                roomuserid_invitecount: db.open_tree("roomuserid_invitecount")?,
+                userroomid_leftstate: db.open_tree("userroomid_leftstate")?,
+                roomuserid_leftcount: db.open_tree("roomuserid_leftcount")?,
 
-                statekey_short: db.open_tree("statekey_short")?,
-                stateid_pduid: db.open_tree("stateid_pduid")?,
-                pduid_statehash: db.open_tree("pduid_statehash")?,
-                roomid_statehash: db.open_tree("roomid_statehash")?,
+                userroomid_notificationcount: db.open_tree("userroomid_notificationcount")?,
+                userroomid_highlightcount: db.open_tree("userroomid_highlightcount")?,
+
+                statekey_shortstatekey: db.open_tree("statekey_shortstatekey")?,
+                stateid_shorteventid: db.open_tree("stateid_shorteventid")?,
+                eventid_shorteventid: db.open_tree("eventid_shorteventid")?,
+                shorteventid_eventid: db.open_tree("shorteventid_eventid")?,
+                shorteventid_shortstatehash: db.open_tree("shorteventid_shortstatehash")?,
+                roomid_shortstatehash: db.open_tree("roomid_shortstatehash")?,
+                statehash_shortstatehash: db.open_tree("statehash_shortstatehash")?,
+
+                eventid_outlierpdu: db.open_tree("eventid_outlierpdu")?,
+                prevevent_parent: db.open_tree("prevevent_parent")?,
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: db.open_tree("roomuserdataid_accountdata")?,
@@ -167,7 +189,7 @@ impl Database {
             key_backups: key_backups::KeyBackups {
                 backupid_algorithm: db.open_tree("backupid_algorithm")?,
                 backupid_etag: db.open_tree("backupid_etag")?,
-                backupkeyid_backup: db.open_tree("backupkeyid_backupmetadata")?,
+                backupkeyid_backup: db.open_tree("backupkeyid_backup")?,
             },
             transaction_ids: transaction_ids::TransactionIds {
                 userdevicetxnid_response: db.open_tree("userdevicetxnid_response")?,
@@ -175,7 +197,7 @@ impl Database {
             sending: sending::Sending {
                 servernamepduids: db.open_tree("servernamepduids")?,
                 servercurrentpdus: db.open_tree("servercurrentpdus")?,
-                maximum_requests: Arc::new(Semaphore::new(10)),
+                maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
             },
             admin: admin::Admin {
                 sender: admin_sender,
@@ -184,6 +206,12 @@ impl Database {
                 cached_registrations: Arc::new(RwLock::new(HashMap::new())),
                 id_appserviceregistrations: db.open_tree("id_appserviceregistrations")?,
             },
+            pusher: pusher::PushData::new(&db)?,
+            globals: globals::Globals::load(
+                db.open_tree("global")?,
+                db.open_tree("servertimeout_signingkey")?,
+                config,
+            )?,
             _db: db,
         };
 
@@ -193,7 +221,7 @@ impl Database {
     }
 
     pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) {
-        let userid_bytes = user_id.to_string().as_bytes().to_vec();
+        let userid_bytes = user_id.as_bytes().to_vec();
         let mut userid_prefix = userid_bytes.clone();
         userid_prefix.push(0xff);
 
@@ -212,12 +240,16 @@ impl Database {
         );
 
         futures.push(self.rooms.userroomid_joined.watch_prefix(&userid_prefix));
-        futures.push(self.rooms.userroomid_invited.watch_prefix(&userid_prefix));
-        futures.push(self.rooms.userroomid_left.watch_prefix(&userid_prefix));
+        futures.push(
+            self.rooms
+                .userroomid_invitestate
+                .watch_prefix(&userid_prefix),
+        );
+        futures.push(self.rooms.userroomid_leftstate.watch_prefix(&userid_prefix));
 
         // Events for rooms we are in
         for room_id in self.rooms.rooms_joined(user_id).filter_map(|r| r.ok()) {
-            let roomid_bytes = room_id.to_string().as_bytes().to_vec();
+            let roomid_bytes = room_id.as_bytes().to_vec();
             let mut roomid_prefix = roomid_bytes.clone();
             roomid_prefix.push(0xff);
 
@@ -277,7 +309,8 @@ impl Database {
     }
 
     pub async fn flush(&self) -> Result<()> {
-        self._db.flush_async().await?;
+        // noop while we don't use sled 1.0
+        //self._db.flush_async().await?;
         Ok(())
     }
 }

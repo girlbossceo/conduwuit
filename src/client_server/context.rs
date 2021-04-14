@@ -24,19 +24,24 @@ pub async fn get_context_route(
         ));
     }
 
+    let base_pdu_id = db
+        .rooms
+        .get_pdu_id(&body.event_id)?
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Base event id not found.",
+        ))?;
+
+    let base_token = db.rooms.pdu_count(&base_pdu_id)?;
+
     let base_event = db
         .rooms
-        .get_pdu(&body.event_id)?
+        .get_pdu_from_id(&base_pdu_id)?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "Base event not found.",
         ))?
         .to_room_event();
-
-    let base_token = db
-        .rooms
-        .get_pdu_count(&body.event_id)?
-        .expect("event still exists");
 
     let events_before = db
         .rooms

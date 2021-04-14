@@ -3,10 +3,7 @@ use crate::{pdu::PduBuilder, ConduitResult, Database, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::state::{
-            get_state_events, get_state_events_for_empty_key, get_state_events_for_key,
-            send_state_event_for_empty_key, send_state_event_for_key,
-        },
+        r0::state::{get_state_events, get_state_events_for_key, send_state_event},
     },
     events::{
         room::history_visibility::{HistoryVisibility, HistoryVisibilityEventContent},
@@ -25,8 +22,8 @@ use rocket::{get, put};
 #[tracing::instrument(skip(db, body))]
 pub async fn send_state_event_for_key_route(
     db: State<'_, Database>,
-    body: Ruma<send_state_event_for_key::Request<'_>>,
-) -> ConduitResult<send_state_event_for_key::Response> {
+    body: Ruma<send_state_event::Request<'_>>,
+) -> ConduitResult<send_state_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let content = serde_json::from_str::<serde_json::Value>(
@@ -49,7 +46,7 @@ pub async fn send_state_event_for_key_route(
 
     db.flush().await?;
 
-    Ok(send_state_event_for_key::Response { event_id }.into())
+    Ok(send_state_event::Response { event_id }.into())
 }
 
 #[cfg_attr(
@@ -59,8 +56,8 @@ pub async fn send_state_event_for_key_route(
 #[tracing::instrument(skip(db, body))]
 pub async fn send_state_event_for_empty_key_route(
     db: State<'_, Database>,
-    body: Ruma<send_state_event_for_empty_key::Request<'_>>,
-) -> ConduitResult<send_state_event_for_empty_key::Response> {
+    body: Ruma<send_state_event::Request<'_>>,
+) -> ConduitResult<send_state_event::Response> {
     // This just calls send_state_event_for_key_route
     let Ruma {
         body,
@@ -81,7 +78,7 @@ pub async fn send_state_event_for_empty_key_route(
         &db,
         sender_user
             .as_ref()
-            .expect("no user for send state empty key rout"),
+            .expect("no user for send state empty key route"),
         &body.content,
         json,
         &body.room_id,
@@ -91,7 +88,7 @@ pub async fn send_state_event_for_empty_key_route(
 
     db.flush().await?;
 
-    Ok(send_state_event_for_empty_key::Response { event_id }.into())
+    Ok(send_state_event::Response { event_id }.into())
 }
 
 #[cfg_attr(
@@ -112,7 +109,7 @@ pub async fn get_state_events_route(
         && !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
-                .map(|(_, event)| {
+                .map(|event| {
                     serde_json::from_value::<HistoryVisibilityEventContent>(event.content)
                         .map_err(|_| {
                             Error::bad_database(
@@ -159,7 +156,7 @@ pub async fn get_state_events_for_key_route(
         && !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
-                .map(|(_, event)| {
+                .map(|event| {
                     serde_json::from_value::<HistoryVisibilityEventContent>(event.content)
                         .map_err(|_| {
                             Error::bad_database(
@@ -183,8 +180,7 @@ pub async fn get_state_events_for_key_route(
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "State event not found.",
-        ))?
-        .1;
+        ))?;
 
     Ok(get_state_events_for_key::Response {
         content: serde_json::value::to_raw_value(&event.content)
@@ -200,8 +196,8 @@ pub async fn get_state_events_for_key_route(
 #[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_for_empty_key_route(
     db: State<'_, Database>,
-    body: Ruma<get_state_events_for_empty_key::Request<'_>>,
-) -> ConduitResult<get_state_events_for_empty_key::Response> {
+    body: Ruma<get_state_events_for_key::Request<'_>>,
+) -> ConduitResult<get_state_events_for_key::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     #[allow(clippy::blocks_in_if_conditions)]
@@ -211,7 +207,7 @@ pub async fn get_state_events_for_empty_key_route(
         && !matches!(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
-                .map(|(_, event)| {
+                .map(|event| {
                     serde_json::from_value::<HistoryVisibilityEventContent>(event.content)
                         .map_err(|_| {
                             Error::bad_database(
@@ -235,10 +231,9 @@ pub async fn get_state_events_for_empty_key_route(
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "State event not found.",
-        ))?
-        .1;
+        ))?;
 
-    Ok(get_state_events_for_empty_key::Response {
+    Ok(get_state_events_for_key::Response {
         content: serde_json::value::to_raw_value(&event.content)
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
@@ -289,11 +284,7 @@ pub async fn send_state_event_for_key_helper(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     Ok(event_id)

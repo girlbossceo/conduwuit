@@ -59,11 +59,7 @@ impl Admin {
                             },
                             &conduit_user,
                             &conduit_room,
-                            &db.globals,
-                            &db.sending,
-                            &db.admin,
-                            &db.account_data,
-                            &db.appservice,
+                            &db,
                         )
                         .unwrap();
                 }

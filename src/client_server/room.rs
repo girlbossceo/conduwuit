@@ -66,11 +66,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 2. Let the room creator join
@@ -91,18 +87,28 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 3. Power levels
+
+    // Figure out preset. We need it for preset specific events
+    let preset = body
+        .preset
+        .clone()
+        .unwrap_or_else(|| match &body.visibility {
+            room::Visibility::Private => create_room::RoomPreset::PrivateChat,
+            room::Visibility::Public => create_room::RoomPreset::PublicChat,
+            room::Visibility::_Custom(_) => create_room::RoomPreset::PrivateChat, // Room visibility should not be custom
+        });
+
     let mut users = BTreeMap::new();
     users.insert(sender_user.clone(), 100.into());
-    for invite_ in &body.invite {
-        users.insert(invite_.clone(), 100.into());
+
+    if preset == create_room::RoomPreset::TrustedPrivateChat {
+        for invite_ in &body.invite {
+            users.insert(invite_.clone(), 100.into());
+        }
     }
 
     let power_levels_content = if let Some(power_levels) = &body.power_level_content_override {
@@ -136,24 +142,10 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 4. Events set by preset
-
-    // Figure out preset. We need it for preset specific events
-    let preset = body
-        .preset
-        .clone()
-        .unwrap_or_else(|| match &body.visibility {
-            room::Visibility::Private => create_room::RoomPreset::PrivateChat,
-            room::Visibility::Public => create_room::RoomPreset::PublicChat,
-            room::Visibility::_Custom(s) => create_room::RoomPreset::_Custom(s.into()),
-        });
 
     // 4.1 Join Rules
     db.rooms.build_and_append_pdu(
@@ -176,11 +168,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 4.2 History Visibility
@@ -197,11 +185,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 4.3 Guest Access
@@ -226,11 +210,7 @@ pub async fn create_room_route(
         },
         &sender_user,
         &room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // 5. Events listed in initial_state
@@ -245,16 +225,8 @@ pub async fn create_room_route(
             continue;
         }
 
-        db.rooms.build_and_append_pdu(
-            pdu_builder,
-            &sender_user,
-            &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
-        )?;
+        db.rooms
+            .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db)?;
     }
 
     // 6. Events implied by name and topic
@@ -274,11 +246,7 @@ pub async fn create_room_route(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -296,11 +264,7 @@ pub async fn create_room_route(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -323,11 +287,7 @@ pub async fn create_room_route(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -387,10 +347,7 @@ pub async fn upgrade_room_route(
 ) -> ConduitResult<upgrade_room::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if !matches!(
-        body.new_version,
-        RoomVersionId::Version5 | RoomVersionId::Version6
-    ) {
+    if !matches!(body.new_version, RoomVersionId::Version6) {
         return Err(Error::BadRequest(
             ErrorKind::UnsupportedRoomVersion,
             "This server does not support that room version.",
@@ -416,11 +373,7 @@ pub async fn upgrade_room_route(
         },
         sender_user,
         &body.room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // Get the old room federations status
@@ -428,7 +381,6 @@ pub async fn upgrade_room_route(
         db.rooms
             .room_state_get(&body.room_id, &EventType::RoomCreate, "")?
             .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
-            .1
             .content,
     )
     .expect("Raw::from_value always works")
@@ -460,11 +412,7 @@ pub async fn upgrade_room_route(
         },
         sender_user,
         &replacement_room,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // Join the new room
@@ -485,11 +433,7 @@ pub async fn upgrade_room_route(
         },
         sender_user,
         &replacement_room,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     // Recommended transferable state events list from the specs
@@ -508,7 +452,7 @@ pub async fn upgrade_room_route(
     // Replicate transferable state events to the new room
     for event_type in transferable_state_events {
         let event_content = match db.rooms.room_state_get(&body.room_id, &event_type, "")? {
-            Some((_, v)) => v.content.clone(),
+            Some(v) => v.content.clone(),
             None => continue, // Skipping missing events.
         };
 
@@ -522,11 +466,7 @@ pub async fn upgrade_room_route(
             },
             sender_user,
             &replacement_room,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
     }
 
@@ -542,7 +482,6 @@ pub async fn upgrade_room_route(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomPowerLevels, "")?
                 .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
-                .1
                 .content,
         )
         .expect("database contains invalid PDU")
@@ -569,11 +508,7 @@ pub async fn upgrade_room_route(
         },
         sender_user,
         &body.room_id,
-        &db.globals,
-        &db.sending,
-        &db.admin,
-        &db.account_data,
-        &db.appservice,
+        &db,
     )?;
 
     db.flush().await?;

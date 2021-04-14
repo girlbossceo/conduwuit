@@ -18,19 +18,20 @@ rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "93e62c86e
 #rocket = { git = "https://github.com/timokoesters/Rocket.git", branch = "empty_parameters", default-features = false, features = ["tls"] }
 
 # Used for matrix spec type definitions and helpers
-ruma = { git = "https://github.com/ruma/ruma", features = ["rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks", "unstable-exhaustive-types"], rev = "ee814aa84934530d76f5e4b275d739805b49bdef" }
-# ruma = { git = "https://github.com/DevinR528/ruma", features = ["rand", "client-api", "federation-api", "unstable-exhaustive-types", "unstable-pre-spec", "unstable-synapse-quirks"], branch = "unstable-join" }
-# ruma = { path = "../ruma/ruma", features = ["unstable-exhaustive-types", "rand", "client-api", "federation-api", "unstable-pre-spec", "unstable-synapse-quirks"] }
+ruma = { git = "https://github.com/ruma/ruma", rev = "c1693569f15920e408aa6a26b7f3cc7fc6693a63", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "unstable-pre-spec", "unstable-exhaustive-types"] }
+#ruma = { git = "https://github.com/timokoesters/ruma", rev = "220d5b4a76b3b781f7f8297fbe6b14473b04214b", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "unstable-pre-spec", "unstable-exhaustive-types"] }
+#ruma = { path = "../ruma/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "unstable-pre-spec", "unstable-exhaustive-types"] }
 
 # Used when doing state resolution
-# state-res = { git = "https://github.com/timokoesters/state-res", branch = "timo-spec-comp", features = ["unstable-pre-spec"] }
-state-res = { git = "https://github.com/ruma/state-res", branch = "timo-spec-comp", features = ["unstable-pre-spec", "gen-eventid"] }
-#state-res = { path = "../state-res", features = ["unstable-pre-spec", "gen-eventid"] }
+state-res = { git = "https://github.com/timokoesters/state-res", rev = "9bb46ae681bfc361cff740e78dc42bb711db9779", features = ["unstable-pre-spec"] }
+#state-res = { path = "../state-res", features = ["unstable-pre-spec"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio
 tokio = "1.2.0"
 # Used for storing data permanently
-sled = { version = "0.34.6", features = ["no_metrics"] }
+sled = { version = "0.34.6", features = ["compression", "no_metrics"] }
+#sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
+
 # Used for emitting log entries
 log = "0.4.14"
 # Used for rocket<->ruma conversions
@@ -48,7 +49,7 @@ rand = "0.8.3"
 # Used to hash passwords
 rust-argon2 = "0.8.3"
 # Used to send requests
-reqwest = "0.11.1"
+reqwest = { version = "0.11.1" }
 # Used for conduit::Error type
 thiserror = "1.0.24"
 # Used to generate thumbnails for images
@@ -69,6 +70,7 @@ opentelemetry = "0.12.0"
 tracing-subscriber = "0.2.16"
 tracing-opentelemetry = "0.11.0"
 opentelemetry-jaeger = "0.11.0"
+pretty_env_logger = "0.4.0"
 
 [features]
 default = ["conduit_bin"]

@@ -1,17 +1,14 @@
 use crate::Error;
 use ruma::{
+    api::OutgoingResponse,
     identifiers::{DeviceId, UserId},
     Outgoing,
 };
-use std::{
-    convert::{TryInto},
-    ops::Deref,
-};
+use std::ops::Deref;
 
 #[cfg(feature = "conduit_bin")]
 use {
     crate::utils,
-    ruma::api::{AuthScheme, OutgoingRequest},
     log::{debug, warn},
     rocket::{
         data::{
@@ -24,8 +21,9 @@ use {
         tokio::io::AsyncReadExt,
         Request, State,
     },
+    ruma::api::{AuthScheme, IncomingRequest},
+    std::convert::TryFrom,
     std::io::Cursor,
-    std::convert::TryFrom, 
 };
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
@@ -39,12 +37,9 @@ pub struct Ruma<T: Outgoing> {
 }
 
 #[cfg(feature = "conduit_bin")]
-impl<'a, T: Outgoing + OutgoingRequest> FromTransformedData<'a> for Ruma<T>
+impl<'a, T: Outgoing> FromTransformedData<'a> for Ruma<T>
 where
-    <T as Outgoing>::Incoming: TryFrom<http::request::Request<std::vec::Vec<u8>>> + std::fmt::Debug,
-    <<T as Outgoing>::Incoming as std::convert::TryFrom<
-        http::request::Request<std::vec::Vec<u8>>,
-    >>::Error: std::fmt::Debug,
+    T::Incoming: IncomingRequest,
 {
     type Error = ();
     type Owned = Data;
@@ -61,6 +56,8 @@ where
         request: &'a Request<'_>,
         outcome: Transformed<'a, Self>,
     ) -> FromDataFuture<'a, Self, Self::Error> {
+        let metadata = T::Incoming::METADATA;
+
         Box::pin(async move {
             let data = rocket::try_outcome!(outcome.owned());
             let db = request
@@ -85,7 +82,7 @@ where
                             .and_then(|as_token| as_token.as_str())
                             .map_or(false, |as_token| token.as_deref() == Some(as_token))
                     }) {
-                match T::METADATA.authentication {
+                match metadata.authentication {
                     AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
                         let user_id = request.get_query_value::<String>("user_id").map_or_else(
                             || {
@@ -117,7 +114,7 @@ where
                     AuthScheme::None => (None, None, true),
                 }
             } else {
-                match T::METADATA.authentication {
+                match metadata.authentication {
                     AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
                         if let Some(token) = token {
                             match db.users.find_from_token(&token).unwrap() {
@@ -149,10 +146,9 @@ where
             let mut body = Vec::new();
             handle.read_to_end(&mut body).await.unwrap();
 
-            let http_request = http_request.body(body.clone()).unwrap();
+            let http_request = http_request.body(&*body).unwrap();
             debug!("{:?}", http_request);
-
-            match <T as Outgoing>::Incoming::try_from(http_request) {
+            match <T::Incoming as IncomingRequest>::try_from_http_request(http_request) {
                 Ok(t) => Success(Ruma {
                     body: t,
                     sender_user,
@@ -183,9 +179,9 @@ impl<T: Outgoing> Deref for Ruma<T> {
 /// This struct converts ruma responses into rocket http responses.
 pub type ConduitResult<T> = std::result::Result<RumaResponse<T>, Error>;
 
-pub struct RumaResponse<T: TryInto<http::Response<Vec<u8>>>>(pub T);
+pub struct RumaResponse<T: OutgoingResponse>(pub T);
 
-impl<T: TryInto<http::Response<Vec<u8>>>> From<T> for RumaResponse<T> {
+impl<T: OutgoingResponse> From<T> for RumaResponse<T> {
     fn from(t: T) -> Self {
         Self(t)
     }
@@ -194,12 +190,11 @@ impl<T: TryInto<http::Response<Vec<u8>>>> From<T> for RumaResponse<T> {
 #[cfg(feature = "conduit_bin")]
 impl<'r, 'o, T> Responder<'r, 'o> for RumaResponse<T>
 where
-    T: Send + TryInto<http::Response<Vec<u8>>>,
-    T::Error: Send,
+    T: Send + OutgoingResponse,
     'o: 'r,
 {
     fn respond_to(self, _: &'r Request<'_>) -> response::Result<'o> {
-        let http_response: Result<http::Response<_>, _> = self.0.try_into();
+        let http_response: Result<http::Response<_>, _> = self.0.try_into_http_response();
         match http_response {
             Ok(http_response) => {
                 let mut response = rocket::response::Response::build();
@@ -225,6 +220,7 @@ where
                     "Access-Control-Allow-Headers",
                     "Origin, X-Requested-With, Content-Type, Accept, Authorization",
                 );
+                response.raw_header("Access-Control-Max-Age", "86400");
                 response.ok()
             }
             Err(_) => Err(Status::InternalServerError),

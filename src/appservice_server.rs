@@ -1,7 +1,7 @@
 use crate::{utils, Error, Result};
 use http::header::{HeaderValue, CONTENT_TYPE};
 use log::warn;
-use ruma::api::OutgoingRequest;
+use ruma::api::{IncomingResponse, OutgoingRequest};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Debug,
@@ -66,15 +66,10 @@ where
 
             let status = reqwest_response.status();
 
-            let body = reqwest_response
-                .bytes()
-                .await
-                .unwrap_or_else(|e| {
-                    warn!("server error: {}", e);
-                    Vec::new().into()
-                }) // TODO: handle timeout
-                .into_iter()
-                .collect::<Vec<_>>();
+            let body = reqwest_response.bytes().await.unwrap_or_else(|e| {
+                warn!("server error: {}", e);
+                Vec::new().into()
+            }); // TODO: handle timeout
 
             if status != 200 {
                 warn!(
@@ -86,7 +81,7 @@ where
                 );
             }
 
-            let response = T::IncomingResponse::try_from(
+            let response = T::IncomingResponse::try_from_http_response(
                 http_response
                     .body(body)
                     .expect("reqwest body is valid http body"),

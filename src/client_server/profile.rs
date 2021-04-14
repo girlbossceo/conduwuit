@@ -49,7 +49,6 @@ pub async fn set_displayname_route(
                                     "Tried to send displayname update for user not in the room.",
                                 )
                             })?
-                            .1
                             .content
                             .clone(),
                     )
@@ -64,11 +63,7 @@ pub async fn set_displayname_route(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // Presence update
@@ -148,7 +143,6 @@ pub async fn set_avatar_url_route(
                                     "Tried to send avatar url update for user not in the room.",
                                 )
                             })?
-                            .1
                             .content
                             .clone(),
                     )
@@ -163,11 +157,7 @@ pub async fn set_avatar_url_route(
             },
             &sender_user,
             &room_id,
-            &db.globals,
-            &db.sending,
-            &db.admin,
-            &db.account_data,
-            &db.appservice,
+            &db,
         )?;
 
         // Presence update
