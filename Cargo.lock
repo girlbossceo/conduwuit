@@ -2120,7 +2120,7 @@ checksum = "3015a7d0a5fd5105c91c3710d42f9ccf0abfb287d62206484dcc67f9569a6483"
 [[package]]
 name = "state-res"
 version = "0.1.0"
-source = "git+https://github.com/timokoesters/state-res?rev=84e70c062708213d01281438598e16f13dffeda4#84e70c062708213d01281438598e16f13dffeda4"
+source = "git+https://github.com/timokoesters/state-res?rev=9bb46ae681bfc361cff740e78dc42bb711db9779#9bb46ae681bfc361cff740e78dc42bb711db9779"
 dependencies = [
  "itertools 0.10.0",
  "log",

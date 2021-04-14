@@ -685,7 +685,7 @@ fn handle_incoming_pdu<'a>(
         ) {
             Err(e) => {
                 // Drop
-                error!("{:?}: {}", value, e);
+                warn!("{:?}: {}", value, e);
                 return Err("Signature verification failed".to_string());
             }
             Ok(ruma::signatures::Verified::Signatures) => {
@@ -1147,7 +1147,7 @@ pub(crate) async fn fetch_and_handle_events(
                             debug!("Got {} over federation: {:?}", id, res);
                             let (event_id, value) =
                                 crate::pdu::gen_event_id_canonical_json(&res.pdu)?;
-                            let pdu = handle_incoming_pdu(
+                            let pdu = match handle_incoming_pdu(
                                 origin,
                                 &event_id,
                                 value,
@@ -1157,14 +1157,20 @@ pub(crate) async fn fetch_and_handle_events(
                                 auth_cache,
                             )
                             .await
-                            .map_err(|e| {
-                                error!("Error: {:?}", e);
-                                Error::Conflict("Authentication of event failed")
-                            })?;
+                            {
+                                Ok(pdu) => pdu,
+                                Err(e) => {
+                                    warn!("Authentication of event {} failed: {:?}", id, e);
+                                    continue;
+                                }
+                            };
 
                             pdu
                         }
-                        Err(_) => return Err(Error::BadServerResponse("Failed to fetch event")),
+                        Err(_) => {
+                            warn!("Failed to fetch event: {}", id);
+                            continue;
+                        }
                     }
                 }
             },
@@ -1665,10 +1671,9 @@ pub async fn fetch_required_signing_keys(
         .await
         {
             Ok(keys) => keys,
-            Err(e) => {
-                return Err(Error::BadServerResponse(
-                    "Signature verification failed: Could not fetch signing key.",
-                ));
+            Err(_) => {
+                warn!("Signature verification failed: Could not fetch signing key.",);
+                continue;
             }
         };
 

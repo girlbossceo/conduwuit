@@ -527,7 +527,7 @@ async fn join_room_by_id_helper(
             .map_err(|_| Error::BadServerResponse("Invalid PDU in send_join response."))?;
 
         let mut state = BTreeMap::new();
-        let mut pub_key_map = RwLock::new(BTreeMap::new());
+        let pub_key_map = RwLock::new(BTreeMap::new());
 
         for result in futures::future::join_all(
             send_join_response
@@ -538,7 +538,11 @@ async fn join_room_by_id_helper(
         )
         .await
         {
-            let (event_id, value) = result?;
+            let (event_id, value) = match result {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+
             let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
                 warn!("{:?}: {}", value, e);
                 Error::BadServerResponse("Invalid PDU in send_join response.")
@@ -593,9 +597,20 @@ async fn join_room_by_id_helper(
 
         db.rooms.force_state(room_id, state, &db.globals)?;
 
-        for pdu in send_join_response.room_state.auth_chain.iter() {
-            let (event_id, value) =
-                validate_and_add_event_id(pdu, &room_version, &mut pub_key_map, &db).await?;
+        for result in futures::future::join_all(
+            send_join_response
+                .room_state
+                .auth_chain
+                .iter()
+                .map(|pdu| validate_and_add_event_id(pdu, &room_version, &pub_key_map, &db)),
+        )
+        .await
+        {
+            let (event_id, value) = match result {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+
             let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
                 warn!("{:?}: {}", value, e);
                 Error::BadServerResponse("Invalid PDU in send_join response.")

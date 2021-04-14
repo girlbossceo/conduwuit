@@ -166,22 +166,17 @@ impl PduEvent {
 
     #[tracing::instrument(skip(self))]
     pub fn to_sync_state_event(&self) -> Raw<AnySyncStateEvent> {
-        let json = format!(
-            r#"{{"content":{},"type":"{}","event_id":"{}","sender":"{}","origin_server_ts":{},"unsigned":{},"state_key":"{}"}}"#,
-            self.content,
-            self.kind,
-            self.event_id,
-            self.sender,
-            self.origin_server_ts,
-            serde_json::to_string(&self.unsigned).expect("Map::to_string always works"),
-            self.state_key
-                .as_ref()
-                .expect("state events have state keys")
-        );
+        let json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "event_id": self.event_id,
+            "sender": self.sender,
+            "origin_server_ts": self.origin_server_ts,
+            "unsigned": self.unsigned,
+            "state_key": self.state_key,
+        });
 
-        Raw::from_json(
-            serde_json::value::RawValue::from_string(json).expect("our string is valid json"),
-        )
+        serde_json::from_value(json).expect("Raw::from_value always works")
     }
 
     #[tracing::instrument(skip(self))]
