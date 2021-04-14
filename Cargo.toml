@@ -23,7 +23,7 @@ ruma = { git = "https://github.com/ruma/ruma", rev = "c1693569f15920e408aa6a26b7
 #ruma = { path = "../ruma/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "unstable-pre-spec", "unstable-exhaustive-types"] }
 
 # Used when doing state resolution
-state-res = { git = "https://github.com/timokoesters/state-res", rev = "9bb46ae681bfc361cff740e78dc42bb711db9779", features = ["unstable-pre-spec"] }
+state-res = { git = "https://github.com/ruma/state-res", rev = "4516d73e8c7495330619bfb5b42c3bbf704293d8", features = ["unstable-pre-spec"] }
 #state-res = { path = "../state-res", features = ["unstable-pre-spec"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio
