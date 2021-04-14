@@ -568,9 +568,7 @@ async fn join_room_by_id_helper(
                         serde_json::from_value::<member::MembershipState>(
                             pdu.content
                                 .get("membership")
-                                .ok_or_else(|| {
-                                    Error::BadServerResponse("Invalid member event content")
-                                })?
+                                .ok_or(Error::BadServerResponse("Invalid member event content"))?
                                 .clone(),
                         )
                         .map_err(|_| {
@@ -578,8 +576,7 @@ async fn join_room_by_id_helper(
                         })?,
                         &pdu.sender,
                         Some(invite_state),
-                        &db.account_data,
-                        &db.globals,
+                        db,
                     )?;
                 }
                 state.insert((pdu.kind.clone(), state_key.clone()), pdu.event_id.clone());

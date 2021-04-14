@@ -1413,15 +1413,16 @@ pub fn get_missing_events_route<'a>(
     let mut i = 0;
     while i < queued_events.len() && events.len() < u64::from(body.limit) as usize {
         if let Some(pdu) = db.rooms.get_pdu_json(&queued_events[i])? {
-            if body.earliest_events.contains(
-                &serde_json::from_value(
+            let event_id =
+                serde_json::from_value(
                     serde_json::to_value(pdu.get("event_id").cloned().ok_or_else(|| {
                         Error::bad_database("Event in db has no event_id field.")
                     })?)
                     .expect("canonical json is valid json value"),
                 )
-                .map_err(|_| Error::bad_database("Invalid event_id field in pdu in db."))?,
-            ) {
+                .map_err(|_| Error::bad_database("Invalid event_id field in pdu in db."))?;
+
+            if body.earliest_events.contains(&event_id) {
                 i += 1;
                 continue;
             }
@@ -1541,9 +1542,10 @@ pub async fn create_invite_route<'a>(
         serde_json::to_value(
             signed_event
                 .get("sender")
-                .ok_or_else(|| {
-                    Error::BadRequest(ErrorKind::InvalidParam, "Event had no sender field.")
-                })?
+                .ok_or(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "Event had no sender field.",
+                ))?
                 .clone(),
         )
         .expect("CanonicalJsonValue to serde_json::Value always works"),
@@ -1553,9 +1555,10 @@ pub async fn create_invite_route<'a>(
         serde_json::to_value(
             signed_event
                 .get("state_key")
-                .ok_or_else(|| {
-                    Error::BadRequest(ErrorKind::InvalidParam, "Event had no state_key field.")
-                })?
+                .ok_or(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "Event had no state_key field.",
+                ))?
                 .clone(),
         )
         .expect("CanonicalJsonValue to serde_json::Value always works"),
@@ -1586,8 +1589,7 @@ pub async fn create_invite_route<'a>(
             MembershipState::Invite,
             &sender,
             Some(invite_state),
-            &db.account_data,
-            &db.globals,
+            &db,
         )?;
     }
 
@@ -1638,10 +1640,9 @@ pub async fn fetch_required_signing_keys(
 ) -> Result<()> {
     // We go through all the signatures we see on the value and fetch the corresponding signing
     // keys
-    for (signature_server, signature) in match event
-        .get("signatures")
-        .ok_or_else(|| Error::BadServerResponse("No signatures in server response pdu."))?
-    {
+    for (signature_server, signature) in match event.get("signatures").ok_or(
+        Error::BadServerResponse("No signatures in server response pdu."),
+    )? {
         CanonicalJsonValue::Object(map) => map,
         _ => {
             return Err(Error::BadServerResponse(

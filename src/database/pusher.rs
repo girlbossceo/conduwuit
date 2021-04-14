@@ -222,7 +222,7 @@ pub fn get_actions<'a>(
         user_display_name: db
             .users
             .displayname(&user)?
-            .unwrap_or(user.localpart().to_owned()),
+            .unwrap_or_else(|| user.localpart().to_owned()),
         users_power_levels: power_levels.users,
         default_power_level: power_levels.users_default,
         notification_power_levels: power_levels.notifications,

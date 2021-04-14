@@ -706,14 +706,14 @@ impl Rooms {
             userroom_id.extend_from_slice(pdu.room_id.as_bytes());
 
             if notify {
-                &self
+                self
                     .userroomid_notificationcount
                     .update_and_fetch(&userroom_id, utils::increment)?
                     .expect("utils::increment will always put in a value");
             }
 
             if highlight {
-                &self
+                self
                     .userroomid_highlightcount
                     .update_and_fetch(&userroom_id, utils::increment)?
                     .expect("utils::increment will always put in a value");
@@ -743,12 +743,10 @@ impl Rooms {
                     let membership = serde_json::from_value::<member::MembershipState>(
                         pdu.content
                             .get("membership")
-                            .ok_or_else(|| {
-                                Error::BadRequest(
-                                    ErrorKind::InvalidParam,
-                                    "Invalid member event content",
-                                )
-                            })?
+                            .ok_or(Error::BadRequest(
+                                ErrorKind::InvalidParam,
+                                "Invalid member event content",
+                            ))?
                             .clone(),
                     )
                     .map_err(|_| {
@@ -807,8 +805,7 @@ impl Rooms {
                         membership,
                         &pdu.sender,
                         invite_state,
-                        &db.account_data,
-                        &db.globals,
+                        db,
                     )?;
                 }
             }
@@ -1205,7 +1202,7 @@ impl Rooms {
             .iter()
             .filter_map(|event_id| Some(self.get_pdu(event_id).ok()??.depth))
             .max()
-            .unwrap_or(uint!(0))
+            .unwrap_or_else(|| uint!(0))
             + uint!(1);
 
         let mut unsigned = unsigned.unwrap_or_default();
@@ -1542,8 +1539,7 @@ impl Rooms {
         membership: member::MembershipState,
         sender: &UserId,
         last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
-        account_data: &super::account_data::AccountData,
-        globals: &super::globals::Globals,
+        db: &Database,
     ) -> Result<()> {
         let mut roomserver_id = room_id.as_bytes().to_vec();
         roomserver_id.push(0xff);
@@ -1603,23 +1599,32 @@ impl Rooms {
                         //     .ok();
 
                         // Copy old tags to new room
-                        if let Some(tag_event) = account_data.get::<ruma::events::tag::TagEvent>(
-                            Some(&predecessor.room_id),
-                            user_id,
-                            EventType::Tag,
-                        )? {
-                            account_data
-                                .update(Some(room_id), user_id, EventType::Tag, &tag_event, globals)
+                        if let Some(tag_event) =
+                            db.account_data.get::<ruma::events::tag::TagEvent>(
+                                Some(&predecessor.room_id),
+                                user_id,
+                                EventType::Tag,
+                            )?
+                        {
+                            db.account_data
+                                .update(
+                                    Some(room_id),
+                                    user_id,
+                                    EventType::Tag,
+                                    &tag_event,
+                                    &db.globals,
+                                )
                                 .ok();
                         };
 
                         // Copy direct chat flag
-                        if let Some(mut direct_event) = account_data
-                            .get::<ruma::events::direct::DirectEvent>(
-                            None,
-                            user_id,
-                            EventType::Direct,
-                        )? {
+                        if let Some(mut direct_event) =
+                            db.account_data.get::<ruma::events::direct::DirectEvent>(
+                                None,
+                                user_id,
+                                EventType::Direct,
+                            )?
+                        {
                             let mut room_ids_updated = false;
 
                             for room_ids in direct_event.content.0.values_mut() {
@@ -1630,12 +1635,12 @@ impl Rooms {
                             }
 
                             if room_ids_updated {
-                                account_data.update(
+                                db.account_data.update(
                                     None,
                                     user_id,
                                     EventType::Direct,
                                     &direct_event,
-                                    globals,
+                                    &db.globals,
                                 )?;
                             }
                         };
@@ -1652,7 +1657,8 @@ impl Rooms {
             }
             member::MembershipState::Invite => {
                 // We want to know if the sender is ignored by the receiver
-                let is_ignored = account_data
+                let is_ignored = db
+                    .account_data
                     .get::<ignored_user_list::IgnoredUserListEvent>(
                         None,     // Ignored users are in global account data
                         &user_id, // Receiver
@@ -1673,7 +1679,7 @@ impl Rooms {
                         .expect("state to bytes always works"),
                 )?;
                 self.roomuserid_invitecount
-                    .insert(&roomuser_id, &globals.next_count()?.to_be_bytes())?;
+                    .insert(&roomuser_id, &db.globals.next_count()?.to_be_bytes())?;
                 self.userroomid_joined.remove(&userroom_id)?;
                 self.roomuserid_joined.remove(&roomuser_id)?;
                 self.userroomid_leftstate.remove(&userroom_id)?;
@@ -1693,7 +1699,7 @@ impl Rooms {
                     serde_json::to_vec(&Vec::<Raw<AnySyncStateEvent>>::new()).unwrap(),
                 )?; // TODO
                 self.roomuserid_leftcount
-                    .insert(&roomuser_id, &globals.next_count()?.to_be_bytes())?;
+                    .insert(&roomuser_id, &db.globals.next_count()?.to_be_bytes())?;
                 self.userroomid_joined.remove(&userroom_id)?;
                 self.roomuserid_joined.remove(&roomuser_id)?;
                 self.userroomid_invitestate.remove(&userroom_id)?;
@@ -1729,8 +1735,7 @@ impl Rooms {
                 MembershipState::Leave,
                 user_id,
                 last_state,
-                &db.account_data,
-                &db.globals,
+                db,
             )?;
         } else {
             let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
