@@ -53,6 +53,7 @@ WantedBy=multi-user.target
 ```
 
 Finally, run
+
 ```bash
 $ sudo systemctl daemon-reload
 ```
@@ -61,6 +62,7 @@ $ sudo systemctl daemon-reload
 ## Creating the Conduit configuration file
 
 Now we need to create the Conduit's config file in `/etc/matrix-conduit/conduit.toml`. Paste this in **and take a moment to read it. You need to change at least the server name.**
+
 ```toml
 [global]
 # The server_name is the name of this server. It is used as a suffix for user
@@ -125,6 +127,7 @@ This depends on whether you use Apache, Nginx or another web server.
 ### Apache
 
 Create `/etc/apache2/sites-enabled/050-conduit.conf` and copy-and-paste this:
+
 ```
 Listen 8448
 
@@ -143,6 +146,7 @@ SSLCertificateKeyFile /etc/letsencrypt/live/your.server.name/privkey.pem # EDIT 
 ```
 
 **You need to make some edits again.** When you are done, run
+
 ```bash
 $ sudo systemctl reload apache2
 ```
@@ -152,6 +156,7 @@ $ sudo systemctl reload apache2
 
 If you use Nginx and not Apache, add the following server section inside the
 http section of `/etc/nginx/nginx.conf`
+
 ```
 server {
     listen 443;
@@ -164,6 +169,7 @@ server {
 }
 ```
 **You need to make some edits again.** When you are done, run
+
 ```bash
 $ sudo systemctl reload nginx
 ```
@@ -172,6 +178,7 @@ $ sudo systemctl reload nginx
 ## SSL Certificate
 
 The easiest way to get an SSL certificate, if you don't have one already, is to install `certbot` and run this:
+
 ```bash
 $ sudo certbot -d your.server.name
 ```
@@ -180,11 +187,13 @@ $ sudo certbot -d your.server.name
 ## You're done!
 
 Now you can start Conduit with:
+
 ```bash
 $ sudo systemctl start conduit
 ```
 
 Set it to start automatically when your system boots with:
+
 ```bash
 $ sudo systemctl enable conduit
 ```
