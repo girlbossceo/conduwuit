@@ -52,7 +52,11 @@ impl ServerCertVerifier for MatrixServerVerifier {
             },
             None => dns_name
         };
-        self.inner.verify_server_cert(roots, presented_certs, override_name, ocsp_response)
+
+        self.inner.verify_server_cert(roots, presented_certs, override_name, ocsp_response).or_else(|_| {
+            log::warn!("Server is non-compliant, retrying with original name!");
+            self.inner.verify_server_cert(roots, presented_certs, dns_name, ocsp_response)
+        })
     }
 }
 
