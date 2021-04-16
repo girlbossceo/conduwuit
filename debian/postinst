@@ -5,7 +5,7 @@ set -e
 
 CONDUIT_CONFIG_PATH=/etc/matrix-conduit
 CONDUIT_CONFIG_FILE="${CONDUIT_CONFIG_PATH}/conduit.toml"
-CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit
+CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit/conduit_db
 
 case "$1" in
   configure)
@@ -13,7 +13,7 @@ case "$1" in
     if ! getent passwd _matrix-conduit > /dev/null ; then
       echo 'Adding system user for the Conduit Matrix homeserver' 1>&2
       adduser --system --group --quiet \
-        --home $CONDUIT_DATABASE_PATH \
+        --home "$CONDUIT_DATABASE_PATH" \
         --disabled-login \
         --force-badname \
         _matrix-conduit
