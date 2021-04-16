@@ -11,7 +11,7 @@
 # YOU NEED TO EDIT THIS
 #server_name = "your.server.name"
 
-# This is the only directly where Conduit will save its data
+# This is the only directory where Conduit will save its data
 database_path = "/var/lib/conduit/conduit.db"
 
 # The port Conduit will be running on. You need to set up a reverse proxy in

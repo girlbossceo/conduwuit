@@ -34,10 +34,7 @@ SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
 StateDirectory=matrix-conduit
 
-Environment="ROCKET_ENV=production"
-Environment="ROCKET_DATABASE_PATH=/var/lib/matrix-conduit"
-EnvironmentFile=/etc/matrix-conduit/debian
-EnvironmentFile=/etc/matrix-conduit/local
+Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
 
 ExecStart=/usr/sbin/matrix-conduit
 Restart=on-failure

@@ -103,7 +103,7 @@ assets = [
   ["target/release/conduit", "usr/sbin/matrix-conduit", "755"],
 ]
 conf-files = [
-  "/etc/matrix-conduit/local"
+  "/etc/matrix-conduit/conduit.toml"
 ]
 maintainer-scripts = "debian/"
 systemd-units = { unit-name = "matrix-conduit" }
