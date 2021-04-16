@@ -74,6 +74,16 @@ where
             .write()
             .unwrap()
             .insert(Box::<ServerName>::from(destination), result.clone());
+        let actual_destination = result.0.strip_prefix("https://").unwrap().splitn(2, ':').next().unwrap();
+        let host = result.1.splitn(2, ':').next().unwrap_or(&result.1);
+        if actual_destination != host {
+            globals.tls_name_override.write().unwrap().insert(
+                actual_destination.to_owned(),
+                webpki::DNSNameRef::try_from_ascii_str(&host)
+                    .unwrap()
+                    .to_owned(),
+            );
+        }
         result
     };
 

@@ -10,13 +10,16 @@ use std::{
     time::Duration,
 };
 use trust_dns_resolver::TokioAsyncResolver;
+use rustls::{ServerCertVerifier, WebPKIVerifier};
 
 pub const COUNTER: &str = "c";
 
 type WellKnownMap = HashMap<Box<ServerName>, (String, String)>;
+type TlsNameMap = HashMap<String, webpki::DNSName>;
 #[derive(Clone)]
 pub struct Globals {
     pub actual_destination_cache: Arc<RwLock<WellKnownMap>>, // actual_destination, host
+    pub tls_name_override: Arc<RwLock<TlsNameMap>>,
     pub(super) globals: sled::Tree,
     config: Config,
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
@@ -24,6 +27,33 @@ pub struct Globals {
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
     pub(super) servertimeout_signingkey: sled::Tree, // ServerName + Timeout Timestamp -> algorithm:key + pubkey
+}
+
+struct MatrixServerVerifier {
+    inner: WebPKIVerifier,
+    tls_name_override: Arc<RwLock<TlsNameMap>>,
+}
+
+impl ServerCertVerifier for MatrixServerVerifier {
+    fn verify_server_cert(
+        &self,
+        roots: &rustls::RootCertStore,
+        presented_certs: &[rustls::Certificate],
+        dns_name: webpki::DNSNameRef<'_>,
+        ocsp_response: &[u8],
+    ) -> std::result::Result<rustls::ServerCertVerified, rustls::TLSError> {
+        let cache = self.tls_name_override.read().unwrap();
+        log::debug!("Searching for override for {:?}", dns_name);
+        log::debug!("Cache: {:?}", cache);
+        let override_name = match cache.get(dns_name.into()) {
+            Some(host) => {
+                log::debug!("Override found! {:?}", host);
+                host.as_ref()
+            },
+            None => dns_name
+        };
+        self.inner.verify_server_cert(roots, presented_certs, override_name, ocsp_response)
+    }
 }
 
 impl Globals {
@@ -66,10 +96,17 @@ impl Globals {
             }
         };
 
+        let tls_name_override = Arc::new(RwLock::new(TlsNameMap::new()));
+        let verifier = Arc::new(MatrixServerVerifier { inner: WebPKIVerifier::new(), tls_name_override: tls_name_override.clone() });
+        let mut tlsconfig = rustls::ClientConfig::new();
+        tlsconfig.dangerous().set_certificate_verifier(verifier);
+        tlsconfig.root_store = rustls_native_certs::load_native_certs().expect("Error loading system certificates");
+
         let reqwest_client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(30))
             .timeout(Duration::from_secs(60 * 3))
             .pool_max_idle_per_host(1)
+            .use_preconfigured_tls(tlsconfig)
             .build()
             .unwrap();
 
@@ -86,7 +123,8 @@ impl Globals {
             dns_resolver: TokioAsyncResolver::tokio_from_system_conf().map_err(|_| {
                 Error::bad_config("Failed to set up trust dns resolver with system config.")
             })?,
-            actual_destination_cache: Arc::new(RwLock::new(HashMap::new())),
+            actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
+            tls_name_override,
             servertimeout_signingkey,
             jwt_decoding_key,
         })

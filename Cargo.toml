@@ -49,7 +49,11 @@ rand = "0.8.3"
 # Used to hash passwords
 rust-argon2 = "0.8.3"
 # Used to send requests
-reqwest = { version = "0.11.1" }
+reqwest = { version = "0.11.3", default-features = false, features = ["rustls-tls-native-roots"] }
+# Custom TLS verifier
+rustls = { version = "0.19", features = ["dangerous_configuration"] }
+rustls-native-certs = "0.5.0"
+webpki = "0.21.0"
 # Used for conduit::Error type
 thiserror = "1.0.24"
 # Used to generate thumbnails for images
@@ -75,7 +79,6 @@ pretty_env_logger = "0.4.0"
 [features]
 default = ["conduit_bin"]
 conduit_bin = [] # TODO: add rocket to this when it is optional
-tls_vendored = ["reqwest/native-tls-vendored"]
 
 [[bin]]
 name = "conduit"
