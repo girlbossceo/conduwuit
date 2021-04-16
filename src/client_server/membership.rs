@@ -564,7 +564,7 @@ async fn join_room_by_id_helper(
         pdu_id.extend_from_slice(&count.to_be_bytes());
 
         let pdu = PduEvent::from_id_val(&event_id, join_event.clone())
-            .map_err(|_| Error::BadServerResponse("Invalid PDU in send_join response."))?;
+            .map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
 
         let mut state = BTreeMap::new();
         let pub_key_map = RwLock::new(BTreeMap::new());
@@ -588,7 +588,7 @@ async fn join_room_by_id_helper(
                 Error::BadServerResponse("Invalid PDU in send_join response.")
             })?;
 
-            db.rooms.add_pdu_outlier(&pdu)?;
+            db.rooms.add_pdu_outlier(&event_id, &value)?;
             if let Some(state_key) = &pdu.state_key {
                 if pdu.kind == EventType::RoomMember {
                     let target_user_id = UserId::try_from(state_key.clone()).map_err(|e| {
@@ -632,7 +632,11 @@ async fn join_room_by_id_helper(
             pdu.event_id.clone(),
         );
 
-        db.rooms.force_state(room_id, state, &db.globals)?;
+        if state.get(&(EventType::RoomCreate, "".to_owned())).is_none() {
+            return Err(Error::BadServerResponse("State contained no create event."));
+        }
+
+        db.rooms.force_state(room_id, state, &db)?;
 
         for result in futures::future::join_all(
             send_join_response
@@ -648,11 +652,7 @@ async fn join_room_by_id_helper(
                 Err(_) => continue,
             };
 
-            let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
-                warn!("{:?}: {}", value, e);
-                Error::BadServerResponse("Invalid PDU in send_join response.")
-            })?;
-            db.rooms.add_pdu_outlier(&pdu)?;
+            db.rooms.add_pdu_outlier(&event_id, &value)?;
         }
 
         // We append to state before appending the pdu, so we don't have a moment in time with the

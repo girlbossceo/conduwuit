@@ -168,7 +168,10 @@ fn setup_rocket() -> (rocket::Rocket, Config) {
                 server_server::get_event_route,
                 server_server::get_missing_events_route,
                 server_server::get_room_state_ids_route,
+                server_server::create_join_event_template_route,
+                server_server::create_join_event_route,
                 server_server::create_invite_route,
+                server_server::get_room_information_route,
                 server_server::get_profile_information_route,
             ],
         )
