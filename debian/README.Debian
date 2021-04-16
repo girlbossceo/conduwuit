@@ -19,10 +19,10 @@ The package uses the matrix-conduit.service systemd unit file to start and
 stop Conduit. It loads the configuration file mentioned above to set up the
 environment before running the server.
 
-This package assumes by default that Conduit is placed behind a reverse proxy
-such as Apache or nginx. This default deployment entails just listening on
-127.0.0.1 and the free port 14004 and is reachable via a client using the URL
-http://localhost:14004.
+This package assumes by default that Conduit will be placed behind a reverse
+proxy such as Apache or nginx. This default deployment entails just listening
+on 127.0.0.1 and the free port 6167 and is reachable via a client using the URL
+http://localhost:6167.
 
 At a later stage this packaging may support also setting up TLS and running
 stand-alone.  In this case, however, you need to set up some certificates and

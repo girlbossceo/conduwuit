@@ -16,6 +16,6 @@ Description: The listen address of the Matrix homeserver
 
 Template: matrix-conduit/port
 Type: string
-Default: 14004
+Default: 6167
 Description: The port of the Matrix homeserver
  This port is most often just accessed by a reverse proxy.
