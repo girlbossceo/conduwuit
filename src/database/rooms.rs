@@ -241,7 +241,7 @@ impl Rooms {
         kind: &EventType,
         sender: &UserId,
         state_key: Option<&str>,
-        content: serde_json::Value,
+        content: &serde_json::Value,
     ) -> Result<StateMap<Arc<PduEvent>>> {
         let auth_events = state_res::auth_types_for_event(
             kind,
@@ -295,7 +295,7 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         state: BTreeMap<(EventType, String), EventId>,
-        globals: &super::globals::Globals,
+        db: &Database,
     ) -> Result<()> {
         let state_hash = self.calculate_hash(
             &state
@@ -304,57 +304,109 @@ impl Rooms {
                 .collect::<Vec<_>>(),
         );
 
-        let shortstatehash = match self.statehash_shortstatehash.get(&state_hash)? {
-            Some(shortstatehash) => {
-                // State already existed in db
-                self.roomid_shortstatehash
-                    .insert(room_id.as_bytes(), &*shortstatehash)?;
-                return Ok(());
+        let (shortstatehash, already_existed) =
+            match self.statehash_shortstatehash.get(&state_hash)? {
+                Some(shortstatehash) => (
+                    utils::u64_from_bytes(&shortstatehash)
+                        .map_err(|_| Error::bad_database("Invalid shortstatehash in db."))?,
+                    true,
+                ),
+                None => {
+                    let shortstatehash = db.globals.next_count()?;
+                    self.statehash_shortstatehash
+                        .insert(&state_hash, &shortstatehash.to_be_bytes())?;
+                    (shortstatehash, false)
+                }
+            };
+
+        let new_state = if !already_existed {
+            let mut new_state = HashSet::new();
+
+            for ((event_type, state_key), eventid) in state {
+                new_state.insert(eventid.clone());
+
+                let mut statekey = event_type.as_ref().as_bytes().to_vec();
+                statekey.push(0xff);
+                statekey.extend_from_slice(&state_key.as_bytes());
+
+                let shortstatekey = match self.statekey_shortstatekey.get(&statekey)? {
+                    Some(shortstatekey) => shortstatekey.to_vec(),
+                    None => {
+                        let shortstatekey = db.globals.next_count()?;
+                        self.statekey_shortstatekey
+                            .insert(&statekey, &shortstatekey.to_be_bytes())?;
+                        shortstatekey.to_be_bytes().to_vec()
+                    }
+                };
+
+                let shorteventid = match self.eventid_shorteventid.get(eventid.as_bytes())? {
+                    Some(shorteventid) => shorteventid.to_vec(),
+                    None => {
+                        let shorteventid = db.globals.next_count()?;
+                        self.eventid_shorteventid
+                            .insert(eventid.as_bytes(), &shorteventid.to_be_bytes())?;
+                        self.shorteventid_eventid
+                            .insert(&shorteventid.to_be_bytes(), eventid.as_bytes())?;
+                        shorteventid.to_be_bytes().to_vec()
+                    }
+                };
+
+                let mut state_id = shortstatehash.to_be_bytes().to_vec();
+                state_id.extend_from_slice(&shortstatekey);
+
+                self.stateid_shorteventid
+                    .insert(&state_id, &*shorteventid)?;
             }
-            None => {
-                let shortstatehash = globals.next_count()?;
-                self.statehash_shortstatehash
-                    .insert(&state_hash, &shortstatehash.to_be_bytes())?;
-                shortstatehash.to_be_bytes().to_vec()
-            }
+
+            new_state
+        } else {
+            self.state_full_ids(shortstatehash)?.into_iter().collect()
         };
 
-        for ((event_type, state_key), eventid) in state {
-            let mut statekey = event_type.as_ref().as_bytes().to_vec();
-            statekey.push(0xff);
-            statekey.extend_from_slice(&state_key.as_bytes());
+        let old_state = self
+            .current_shortstatehash(&room_id)?
+            .map(|s| self.state_full_ids(s))
+            .transpose()?
+            .map(|vec| vec.into_iter().collect::<HashSet<_>>())
+            .unwrap_or_default();
 
-            let shortstatekey = match self.statekey_shortstatekey.get(&statekey)? {
-                Some(shortstatekey) => shortstatekey.to_vec(),
-                None => {
-                    let shortstatekey = globals.next_count()?;
-                    self.statekey_shortstatekey
-                        .insert(&statekey, &shortstatekey.to_be_bytes())?;
-                    shortstatekey.to_be_bytes().to_vec()
+        for event_id in new_state.difference(&old_state) {
+            if let Some(pdu) = self.get_pdu_json(event_id)? {
+                if pdu.get("event_type")
+                    == Some(&CanonicalJsonValue::String("m.room.member".to_owned()))
+                {
+                    if let Ok(pdu) = serde_json::from_value::<PduEvent>(
+                        serde_json::to_value(&pdu).expect("CanonicalJsonObj is a valid JsonValue"),
+                    ) {
+                        if let Some(membership) =
+                            pdu.content.get("membership").and_then(|membership| {
+                                serde_json::from_value::<member::MembershipState>(
+                                    membership.clone(),
+                                )
+                                .ok()
+                            })
+                        {
+                            if let Some(state_key) = pdu
+                                .state_key
+                                .and_then(|state_key| UserId::try_from(state_key).ok())
+                            {
+                                self.update_membership(
+                                    room_id,
+                                    &state_key,
+                                    membership,
+                                    &pdu.sender,
+                                    None,
+                                    db,
+                                )?;
+                            }
+                        }
+                    }
                 }
-            };
-
-            let shorteventid = match self.eventid_shorteventid.get(eventid.as_bytes())? {
-                Some(shorteventid) => shorteventid.to_vec(),
-                None => {
-                    let shorteventid = globals.next_count()?;
-                    self.eventid_shorteventid
-                        .insert(eventid.as_bytes(), &shorteventid.to_be_bytes())?;
-                    self.shorteventid_eventid
-                        .insert(&shorteventid.to_be_bytes(), eventid.as_bytes())?;
-                    shorteventid.to_be_bytes().to_vec()
-                }
-            };
-
-            let mut state_id = shortstatehash.clone();
-            state_id.extend_from_slice(&shortstatekey);
-
-            self.stateid_shorteventid
-                .insert(&*state_id, &*shorteventid)?;
+            }
         }
 
         self.roomid_shortstatehash
-            .insert(room_id.as_bytes(), &*shortstatehash)?;
+            .insert(room_id.as_bytes(), &shortstatehash.to_be_bytes())?;
 
         Ok(())
     }
@@ -591,10 +643,10 @@ impl Rooms {
     /// Append the PDU as an outlier.
     ///
     /// Any event given to this will be processed (state-res) on another thread.
-    pub fn add_pdu_outlier(&self, pdu: &PduEvent) -> Result<()> {
+    pub fn add_pdu_outlier(&self, event_id: &EventId, pdu: &CanonicalJsonObject) -> Result<()> {
         self.eventid_outlierpdu.insert(
-            &pdu.event_id.as_bytes(),
-            &*serde_json::to_string(&pdu).expect("PduEvent is always a valid String"),
+            &event_id.as_bytes(),
+            &*serde_json::to_string(&pdu).expect("CanonicalJsonObject is valid string"),
         )?;
 
         Ok(())
@@ -1193,7 +1245,7 @@ impl Rooms {
             &event_type,
             &sender,
             state_key.as_deref(),
-            content.clone(),
+            &content,
         )?;
 
         // Our depth is the maximum depth of prev_events + 1
