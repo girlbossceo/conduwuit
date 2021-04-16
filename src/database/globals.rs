@@ -1,16 +1,16 @@
 use crate::{database::Config, utils, Error, Result};
-use log::error;
+use log::{error, info};
 use ruma::{
     api::federation::discovery::{ServerSigningKeys, VerifyKey},
     ServerName, ServerSigningKeyId,
 };
+use rustls::{ServerCertVerifier, WebPKIVerifier};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
     time::Duration,
 };
 use trust_dns_resolver::TokioAsyncResolver;
-use rustls::{ServerCertVerifier, WebPKIVerifier};
 
 pub const COUNTER: &str = "c";
 
@@ -42,21 +42,20 @@ impl ServerCertVerifier for MatrixServerVerifier {
         dns_name: webpki::DNSNameRef<'_>,
         ocsp_response: &[u8],
     ) -> std::result::Result<rustls::ServerCertVerified, rustls::TLSError> {
-        let cache = self.tls_name_override.read().unwrap();
-        log::debug!("Searching for override for {:?}", dns_name);
-        log::debug!("Cache: {:?}", cache);
-        let override_name = match cache.get(dns_name.into()) {
-            Some(host) => {
-                log::debug!("Override found! {:?}", host);
-                host.as_ref()
-            },
-            None => dns_name
-        };
-
-        self.inner.verify_server_cert(roots, presented_certs, override_name, ocsp_response).or_else(|_| {
-            log::warn!("Server is non-compliant, retrying with original name!");
-            self.inner.verify_server_cert(roots, presented_certs, dns_name, ocsp_response)
-        })
+        if let Some(override_name) = self.tls_name_override.read().unwrap().get(dns_name.into()) {
+            let result = self.inner.verify_server_cert(
+                roots,
+                presented_certs,
+                override_name.as_ref(),
+                ocsp_response,
+            );
+            if result.is_ok() {
+                return result;
+            }
+            info!("Server {:?} is non-compliant, retrying TLS verification with original name", dns_name);
+        }
+        self.inner
+            .verify_server_cert(roots, presented_certs, dns_name, ocsp_response)
     }
 }
 
@@ -101,10 +100,14 @@ impl Globals {
         };
 
         let tls_name_override = Arc::new(RwLock::new(TlsNameMap::new()));
-        let verifier = Arc::new(MatrixServerVerifier { inner: WebPKIVerifier::new(), tls_name_override: tls_name_override.clone() });
+        let verifier = Arc::new(MatrixServerVerifier {
+            inner: WebPKIVerifier::new(),
+            tls_name_override: tls_name_override.clone(),
+        });
         let mut tlsconfig = rustls::ClientConfig::new();
         tlsconfig.dangerous().set_certificate_verifier(verifier);
-        tlsconfig.root_store = rustls_native_certs::load_native_certs().expect("Error loading system certificates");
+        tlsconfig.root_store =
+            rustls_native_certs::load_native_certs().expect("Error loading system certificates");
 
         let reqwest_client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(30))

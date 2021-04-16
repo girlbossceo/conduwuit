@@ -46,13 +46,13 @@ use std::{
 use rocket::{get, post, put};
 
 #[derive(Clone, Debug, PartialEq)]
-enum FederationDestination {
+enum FedDest {
     Literal(SocketAddr),
     Named(String, String),
 }
 
-impl FederationDestination {
-    fn into_url(self) -> String {
+impl FedDest {
+    fn into_https_url(self) -> String {
         match self {
             Self::Literal(addr) => format!("https://{}", addr),
             Self::Named(host, port) => format!("https://{}{}", host, port),
@@ -69,7 +69,7 @@ impl FederationDestination {
     fn host(&self) -> String {
         match &self {
             Self::Literal(addr) => addr.ip().to_string(),
-            Self::Named(host, _) => host.clone()
+            Self::Named(host, _) => host.clone(),
         }
     }
 }
@@ -99,13 +99,13 @@ where
     } else {
         let result = find_actual_destination(globals, &destination).await;
         let (actual_destination, host) = result.clone();
-        let result = (result.0.into_url(), result.1.into_uri());
+        let result = (result.0.into_https_url(), result.1.into_uri());
         globals
             .actual_destination_cache
             .write()
             .unwrap()
             .insert(Box::<ServerName>::from(destination), result.clone());
-        if actual_destination != host {
+        if actual_destination.host() != host.host() {
             globals.tls_name_override.write().unwrap().insert(
                 actual_destination.host(),
                 webpki::DNSNameRef::try_from_ascii_str(&host.host())
@@ -241,23 +241,23 @@ where
 }
 
 #[tracing::instrument]
-fn get_ip_with_port(destination_str: &str) -> Option<FederationDestination> {
+fn get_ip_with_port(destination_str: &str) -> Option<FedDest> {
     if let Ok(destination) = destination_str.parse::<SocketAddr>() {
-        Some(FederationDestination::Literal(destination))
+        Some(FedDest::Literal(destination))
     } else if let Ok(ip_addr) = destination_str.parse::<IpAddr>() {
-        Some(FederationDestination::Literal(SocketAddr::new(ip_addr, 8448)))
+        Some(FedDest::Literal(SocketAddr::new(ip_addr, 8448)))
     } else {
         None
     }
 }
 
 #[tracing::instrument]
-fn add_port_to_hostname(destination_str: &str) -> FederationDestination {
+fn add_port_to_hostname(destination_str: &str) -> FedDest {
     let (host, port) = match destination_str.find(':') {
         None => (destination_str, ":8448"),
         Some(pos) => destination_str.split_at(pos),
     };
-    FederationDestination::Named(host.to_string(), port.to_string())
+    FedDest::Named(host.to_string(), port.to_string())
 }
 
 /// Returns: actual_destination, host header
@@ -267,65 +267,66 @@ fn add_port_to_hostname(destination_str: &str) -> FederationDestination {
 async fn find_actual_destination(
     globals: &crate::database::globals::Globals,
     destination: &'_ ServerName,
-) -> (FederationDestination, FederationDestination) {
+) -> (FedDest, FedDest) {
     let destination_str = destination.as_str().to_owned();
     let mut hostname = destination_str.clone();
     let actual_destination = match get_ip_with_port(&destination_str) {
-            Some(host_port) => {
-                // 1: IP literal with provided or default port
-                host_port
-            }
-            None => {
-                if let Some(pos) = destination_str.find(':') {
-                    // 2: Hostname with included port
-                    let (host, port) = destination_str.split_at(pos);
-                    FederationDestination::Named(host.to_string(), port.to_string())
-                } else {
-                    match request_well_known(globals, &destination.as_str()).await {
-                        // 3: A .well-known file is available
-                        Some(delegated_hostname) => {
-                            hostname = delegated_hostname.clone();
-                            match get_ip_with_port(&delegated_hostname) {
-                                Some(host_and_port) => host_and_port, // 3.1: IP literal in .well-known file
-                                None => {
-                                    if let Some(pos) = destination_str.find(':') {
-                                        // 3.2: Hostname with port in .well-known file
-                                        let (host, port) = destination_str.split_at(pos);
-                                        FederationDestination::Named(host.to_string(), port.to_string())
-                                    } else {
-                                        match query_srv_record(globals, &delegated_hostname).await {
-                                            // 3.3: SRV lookup successful
-                                            Some(hostname) => hostname,
-                                            // 3.4: No SRV records, just use the hostname from .well-known
-                                            None => add_port_to_hostname(&delegated_hostname),
-                                        }
+        Some(host_port) => {
+            // 1: IP literal with provided or default port
+            host_port
+        }
+        None => {
+            if let Some(pos) = destination_str.find(':') {
+                // 2: Hostname with included port
+                let (host, port) = destination_str.split_at(pos);
+                FedDest::Named(host.to_string(), port.to_string())
+            } else {
+                match request_well_known(globals, &destination.as_str()).await {
+                    // 3: A .well-known file is available
+                    Some(delegated_hostname) => {
+                        hostname = delegated_hostname.clone();
+                        match get_ip_with_port(&delegated_hostname) {
+                            Some(host_and_port) => host_and_port, // 3.1: IP literal in .well-known file
+                            None => {
+                                if let Some(pos) = destination_str.find(':') {
+                                    // 3.2: Hostname with port in .well-known file
+                                    let (host, port) = destination_str.split_at(pos);
+                                    FedDest::Named(host.to_string(), port.to_string())
+                                } else {
+                                    match query_srv_record(globals, &delegated_hostname).await {
+                                        // 3.3: SRV lookup successful
+                                        Some(hostname) => hostname,
+                                        // 3.4: No SRV records, just use the hostname from .well-known
+                                        None => add_port_to_hostname(&delegated_hostname),
                                     }
                                 }
                             }
                         }
-                        // 4: No .well-known or an error occured
-                        None => {
-                            match query_srv_record(globals, &destination_str).await {
-                                // 4: SRV record found
-                                Some(hostname) => hostname,
-                                // 5: No SRV record found
-                                None => add_port_to_hostname(&destination_str),
-                            }
+                    }
+                    // 4: No .well-known or an error occured
+                    None => {
+                        match query_srv_record(globals, &destination_str).await {
+                            // 4: SRV record found
+                            Some(hostname) => hostname,
+                            // 5: No SRV record found
+                            None => add_port_to_hostname(&destination_str),
                         }
                     }
                 }
             }
-        };
-
-    let hostname = get_ip_with_port(&hostname).unwrap_or_else(|| {
-        match hostname.find(':') {
-            Some(pos) => {
-                let (host, port) = hostname.split_at(pos);
-                FederationDestination::Named(host.to_string(), port.to_string())
-            }
-            None => FederationDestination::Named(hostname, "".to_string())
         }
-    });
+    };
+
+    let hostname = if let Ok(addr) = hostname.parse::<SocketAddr>() {
+        FedDest::Literal(addr)
+    } else if let Ok(addr) = hostname.parse::<IpAddr>() {
+        FedDest::Named(addr.to_string(), "".to_string())
+    } else if let Some(pos) = hostname.find(':') {
+        let (host, port) = hostname.split_at(pos);
+        FedDest::Named(host.to_string(), port.to_string())
+    } else {
+        FedDest::Named(hostname, "".to_string())
+    };
     (actual_destination, hostname)
 }
 
@@ -333,16 +334,20 @@ async fn find_actual_destination(
 async fn query_srv_record(
     globals: &crate::database::globals::Globals,
     hostname: &'_ str,
-) -> Option<FederationDestination> {
+) -> Option<FedDest> {
     if let Ok(Some(host_port)) = globals
         .dns_resolver()
         .srv_lookup(format!("_matrix._tcp.{}", hostname))
         .await
         .map(|srv| {
             srv.iter().next().map(|result| {
-                FederationDestination::Named(
-                    result.target().to_string().trim_end_matches('.').to_string(),
-                    format!(":{}", result.port())
+                FedDest::Named(
+                    result
+                        .target()
+                        .to_string()
+                        .trim_end_matches('.')
+                        .to_string(),
+                    format!(":{}", result.port()),
                 )
             })
         })
