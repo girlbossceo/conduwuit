@@ -2,7 +2,7 @@
 
 ## Getting help
 
-If you run into any problems while setting up Conduit, write an email to `support@conduit.rs`, ask us in `#conduit:matrix.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
+If you run into any problems while setting up Conduit, write an email to `timo@koesters.xyz`, ask us in `#conduit:matrix.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
 
 ## Installing Conduit
 
