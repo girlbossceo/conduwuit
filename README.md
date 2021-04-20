@@ -23,11 +23,23 @@ example) and register on the `https://conduit.koesters.xyz` homeserver.
 - [Rocket](https://rocket.rs): A flexible web framework
 
 
-#### What are the biggest things still missing?
+#### What is the current status?
 
-- Most federation features (invites, e2ee)
-- Push notifications on mobile
-- Notification settings
+Conduit can already be used chat with other users on Conduit, chat with users
+from other Matrix servers and even to chat with users on other platforms using
+appservices. When chatting with users on the same Conduit server, everything
+should work assuming you use a compatible client.
+
+**You should not join Matrix rooms without asking the admins first.** We do not
+know whether Conduit is safe for general use yet, so you should assume there is
+some chance that it breaks rooms permanently for all participating users. We
+are not aware of such a bug today, but we would like to do more testing.
+
+There are still a few important features missing:
+
+- Database stability (currently you might have to do manual upgrades or even wipe the db for new versions)
+- End-to-end encrypted chats over federation
+- Typing, presence, read receipts etc. over federation
 - Lots of testing
 
 Check out the [Conduit 1.0 Release Milestone](https://gitlab.com/famedly/conduit/-/milestones/3).
