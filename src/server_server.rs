@@ -862,8 +862,6 @@ fn handle_incoming_pdu<'a>(
                         .collect(),
                 );
             }
-            &state_at_incoming_event;
-
             // TODO: set incoming_auth_events?
         }
 
@@ -1860,12 +1858,12 @@ pub async fn create_join_event_route<'a>(
             auth_chain: auth_chain_ids
                 .iter()
                 .filter_map(|id| db.rooms.get_pdu_json(&id).ok().flatten())
-                .map(|json| PduEvent::convert_to_outgoing_federation_event(json))
+                .map(PduEvent::convert_to_outgoing_federation_event)
                 .collect(),
             state: state_ids
                 .iter()
                 .filter_map(|id| db.rooms.get_pdu_json(&id).ok().flatten())
-                .map(|json| PduEvent::convert_to_outgoing_federation_event(json))
+                .map(PduEvent::convert_to_outgoing_federation_event)
                 .collect(),
         },
     }
@@ -2036,7 +2034,7 @@ pub fn get_room_information_route<'a>(
     let room_id = db
         .rooms
         .id_from_alias(&body.room_alias)?
-        .ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Room alias not found."))?;
+        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Room alias not found."))?;
 
     Ok(get_room_information::v1::Response {
         room_id,
