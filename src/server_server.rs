@@ -8,6 +8,7 @@ use ruma::{
     api::{
         client::error::ErrorKind,
         federation::{
+            device::get_devices::{self, v1::UserDevice},
             directory::{get_public_rooms, get_public_rooms_filtered},
             discovery::{
                 get_remote_server_keys, get_server_keys, get_server_version, ServerSigningKeys,
@@ -1975,6 +1976,46 @@ pub async fn create_invite_route<'a>(
 
     Ok(create_invite::v2::Response {
         event: PduEvent::convert_to_outgoing_federation_event(signed_event),
+    }
+    .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/federation/v1/user/devices/<_>", data = "<body>")
+)]
+#[tracing::instrument(skip(db, body))]
+pub fn get_devices_route<'a>(
+    db: State<'a, Database>,
+    body: Ruma<get_devices::v1::Request<'_>>,
+) -> ConduitResult<get_devices::v1::Response> {
+    if !db.globals.allow_federation() {
+        return Err(Error::bad_config("Federation is disabled."));
+    }
+
+    Ok(get_devices::v1::Response {
+        user_id: body.user_id.clone(),
+        stream_id: db
+            .users
+            .get_devicelist_version(&body.user_id)?
+            .unwrap_or(0)
+            .try_into()
+            .expect("version will not grow that large"),
+        devices: db
+            .users
+            .all_devices_metadata(&body.user_id)
+            .filter_map(|r| r.ok())
+            .filter_map(|metadata| {
+                Some(UserDevice {
+                    keys: db
+                        .users
+                        .get_device_keys(&body.user_id, &metadata.device_id)
+                        .ok()??,
+                    device_id: metadata.device_id,
+                    device_display_name: metadata.display_name,
+                })
+            })
+            .collect(),
     }
     .into())
 }
