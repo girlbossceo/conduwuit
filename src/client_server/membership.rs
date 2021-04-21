@@ -152,6 +152,13 @@ pub async fn invite_user_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if let invite_user::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
+        if body.room_id.server_name() != db.globals.server_name() {
+            return Err(Error::BadRequest(
+                ErrorKind::Forbidden,
+                "Inviting users from other homeservers is not implemented yet.",
+            ));
+        }
+
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMember,

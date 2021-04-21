@@ -22,6 +22,7 @@ pub struct Users {
     pub(super) userid_avatarurl: sled::Tree,
     pub(super) userdeviceid_token: sled::Tree,
     pub(super) userdeviceid_metadata: sled::Tree, // This is also used to check if a device exists
+    pub(super) userid_devicelistversion: sled::Tree, // DevicelistVersion = u64
     pub(super) token_userdeviceid: sled::Tree,
 
     pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + DeviceKeyId
@@ -189,6 +190,10 @@ impl Users {
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
+        self.userid_devicelistversion
+            .update_and_fetch(&user_id.as_bytes(), utils::increment)?
+            .expect("utils::increment will always put in a value");
+
         self.userdeviceid_metadata.insert(
             userdeviceid,
             serde_json::to_string(&Device {
@@ -226,6 +231,10 @@ impl Users {
         }
 
         // TODO: Remove onetimekeys
+
+        self.userid_devicelistversion
+            .update_and_fetch(&user_id.as_bytes(), utils::increment)?
+            .expect("utils::increment will always put in a value");
 
         self.userdeviceid_metadata.remove(&userdeviceid)?;
 
@@ -811,6 +820,10 @@ impl Users {
         // Only existing devices should be able to call this.
         assert!(self.userdeviceid_metadata.get(&userdeviceid)?.is_some());
 
+        self.userid_devicelistversion
+            .update_and_fetch(&user_id.as_bytes(), utils::increment)?
+            .expect("utils::increment will always put in a value");
+
         self.userdeviceid_metadata.insert(
             userdeviceid,
             serde_json::to_string(device)
@@ -837,6 +850,16 @@ impl Users {
                 Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
                     Error::bad_database("Metadata in userdeviceid_metadata is invalid.")
                 })?))
+            })
+    }
+
+    pub fn get_devicelist_version(&self, user_id: &UserId) -> Result<Option<u64>> {
+        self.userid_devicelistversion
+            .get(user_id.as_bytes())?
+            .map_or(Ok(None), |bytes| {
+                utils::u64_from_bytes(&bytes)
+                    .map_err(|_| Error::bad_database("Invalid devicelistversion in db."))
+                    .map(Some)
             })
     }
 

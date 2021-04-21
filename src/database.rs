@@ -123,6 +123,7 @@ impl Database {
                 userid_avatarurl: db.open_tree("userid_avatarurl")?,
                 userdeviceid_token: db.open_tree("userdeviceid_token")?,
                 userdeviceid_metadata: db.open_tree("userdeviceid_metadata")?,
+                userid_devicelistversion: db.open_tree("userid_devicelistversion")?,
                 token_userdeviceid: db.open_tree("token_userdeviceid")?,
                 onetimekeyid_onetimekeys: db.open_tree("onetimekeyid_onetimekeys")?,
                 userid_lastonetimekeyupdate: db.open_tree("userid_lastonetimekeyupdate")?,
