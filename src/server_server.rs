@@ -2106,7 +2106,10 @@ pub fn get_room_information_route<'a>(
     let room_id = db
         .rooms
         .id_from_alias(&body.room_alias)?
-        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Room alias not found."))?;
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Room alias not found.",
+        ))?;
 
     Ok(get_room_information::v1::Response {
         room_id,
