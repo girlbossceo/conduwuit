@@ -21,7 +21,7 @@ use ruma::{
                 create_join_event_template,
             },
             query::{get_profile_information, get_room_information},
-            transactions::send_transaction_message,
+            transactions::{edu::Edu, send_transaction_message},
         },
         IncomingResponse, OutgoingRequest, OutgoingResponse,
     },
@@ -585,39 +585,32 @@ pub async fn send_transaction_message_route<'a>(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    for edu in &body.edus {
-        match serde_json::from_str::<send_transaction_message::v1::Edu>(edu.json().get()) {
-            Ok(edu) => match edu.edu_type.as_str() {
-                "m.typing" => {
-                    if let Some(typing) = edu.content.get("typing") {
-                        if typing.as_bool().unwrap_or_default() {
-                            db.rooms.edus.typing_add(
-                                &UserId::try_from(edu.content["user_id"].as_str().unwrap())
-                                    .unwrap(),
-                                &RoomId::try_from(edu.content["room_id"].as_str().unwrap())
-                                    .unwrap(),
-                                3000 + utils::millis_since_unix_epoch(),
-                                &db.globals,
-                            )?;
-                        } else {
-                            db.rooms.edus.typing_remove(
-                                &UserId::try_from(edu.content["user_id"].as_str().unwrap())
-                                    .unwrap(),
-                                &RoomId::try_from(edu.content["room_id"].as_str().unwrap())
-                                    .unwrap(),
-                                &db.globals,
-                            )?;
-                        }
-                    }
+    for edu in body
+        .edus
+        .iter()
+        .map(|edu| serde_json::from_str::<Edu>(edu.json().get()))
+        .filter_map(|r| r.ok())
+    {
+        match edu {
+            Edu::Presence(_) => {}
+            Edu::Receipt(_) => {}
+            Edu::Typing(typing) => {
+                if typing.typing {
+                    db.rooms.edus.typing_add(
+                        &typing.user_id,
+                        &typing.room_id,
+                        3000 + utils::millis_since_unix_epoch(),
+                        &db.globals,
+                    )?;
+                } else {
+                    db.rooms
+                        .edus
+                        .typing_remove(&typing.user_id, &typing.room_id, &db.globals)?;
                 }
-                "m.presence" => {}
-                "m.receipt" => {}
-                "m.device_list_update" => {}
-                _ => {}
-            },
-            Err(_err) => {
-                continue;
             }
+            Edu::DeviceListUpdate(_) => {}
+            Edu::DirectToDevice(_) => {}
+            Edu::_Custom(_) => {}
         }
     }
 

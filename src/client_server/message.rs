@@ -5,7 +5,7 @@ use ruma::{
         error::ErrorKind,
         r0::message::{get_message_events, send_message_event},
     },
-    events::EventContent,
+    events::EventType,
     EventId,
 };
 use std::{
@@ -55,7 +55,7 @@ pub async fn send_message_event_route(
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: body.content.event_type().into(),
+            event_type: EventType::from(&body.event_type),
             content: serde_json::from_str(
                 body.json_body
                     .as_ref()

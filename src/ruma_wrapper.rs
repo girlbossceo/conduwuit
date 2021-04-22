@@ -4,7 +4,6 @@ use ruma::{
     identifiers::{DeviceId, UserId},
     Outgoing,
 };
-use std::collections::BTreeMap;
 use std::ops::Deref;
 
 #[cfg(feature = "conduit_bin")]
@@ -27,6 +26,7 @@ use {
         signatures::CanonicalJsonValue,
         ServerName,
     },
+    std::collections::BTreeMap,
     std::convert::TryFrom,
     std::io::Cursor,
 };
@@ -265,7 +265,10 @@ where
                         match ruma::signatures::verify_json(&pub_key_map, &request_map) {
                             Ok(()) => (None, None, false),
                             Err(e) => {
-                                warn!("Failed to verify json request: {}: {:?} {:?}", e, pub_key_map, request_map);
+                                warn!(
+                                    "Failed to verify json request: {}: {:?} {:?}",
+                                    e, pub_key_map, request_map
+                                );
 
                                 // Forbidden
                                 return Failure((Status::raw(580), ()));

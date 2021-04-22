@@ -26,7 +26,12 @@ use rocket::{get, post};
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/login"))]
 #[tracing::instrument]
 pub async fn get_login_types_route() -> ConduitResult<get_login_types::Response> {
-    Ok(get_login_types::Response::new(vec![get_login_types::LoginType::Password]).into())
+    Ok(
+        get_login_types::Response::new(vec![get_login_types::LoginType::Password(
+            Default::default(),
+        )])
+        .into(),
+    )
 }
 
 /// # `POST /_matrix/client/r0/login`
