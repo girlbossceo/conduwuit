@@ -1,7 +1,8 @@
 use crate::{utils, Error, Result};
+use bytes::BytesMut;
 use http::header::{HeaderValue, CONTENT_TYPE};
 use log::warn;
-use ruma::api::{IncomingResponse, OutgoingRequest};
+use ruma::api::{IncomingResponse, OutgoingRequest, SendAccessToken};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Debug,
@@ -20,8 +21,9 @@ where
     let hs_token = registration.get("hs_token").unwrap().as_str().unwrap();
 
     let mut http_request = request
-        .try_into_http_request(&destination, Some(""))
-        .unwrap();
+        .try_into_http_request::<BytesMut>(&destination, SendAccessToken::IfRequired(""))
+        .unwrap()
+        .map(|body| body.freeze());
 
     let mut parts = http_request.uri().clone().into_parts();
     let old_path_and_query = parts.path_and_query.unwrap().as_str().to_owned();

@@ -23,7 +23,7 @@ use ruma::{
             query::{get_profile_information, get_room_information},
             transactions::{edu::Edu, send_transaction_message},
         },
-        IncomingResponse, OutgoingRequest, OutgoingResponse,
+        IncomingResponse, OutgoingRequest, OutgoingResponse, SendAccessToken,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::{
@@ -141,7 +141,7 @@ where
     };
 
     let mut http_request = request
-        .try_into_http_request(&actual_destination, Some(""))
+        .try_into_http_request::<Vec<u8>>(&actual_destination, SendAccessToken::IfRequired(""))
         .map_err(|e| {
             warn!("Failed to find destination {}: {}", actual_destination, e);
             Error::BadServerResponse("Invalid destination")
@@ -454,7 +454,7 @@ pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
                 valid_until_ts: SystemTime::now() + Duration::from_secs(60 * 2),
             },
         }
-        .try_into_http_response()
+        .try_into_http_response::<Vec<u8>>()
         .unwrap()
         .body(),
     )

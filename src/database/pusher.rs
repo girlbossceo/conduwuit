@@ -1,4 +1,5 @@
 use crate::{Database, Error, PduEvent, Result};
+use bytes::BytesMut;
 use log::{error, info, warn};
 use ruma::{
     api::{
@@ -7,7 +8,7 @@ use ruma::{
             self,
             v1::{Device, Notification, NotificationCounts, NotificationPriority},
         },
-        IncomingResponse, OutgoingRequest,
+        IncomingResponse, OutgoingRequest, SendAccessToken,
     },
     events::{room::power_levels::PowerLevelsEventContent, EventType},
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
@@ -99,11 +100,12 @@ where
     let destination = destination.replace("/_matrix/push/v1/notify", "");
 
     let http_request = request
-        .try_into_http_request(&destination, Some(""))
+        .try_into_http_request::<BytesMut>(&destination, SendAccessToken::IfRequired(""))
         .map_err(|e| {
             warn!("Failed to find destination {}: {}", destination, e);
             Error::BadServerResponse("Invalid destination")
-        })?;
+        })?
+        .map(|body| body.freeze());
 
     let reqwest_request = reqwest::Request::try_from(http_request)
         .expect("all http requests are valid reqwest requests");

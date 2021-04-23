@@ -316,7 +316,7 @@ where
     fn respond_to(self, _: &'r Request<'_>) -> response::Result<'o> {
         let http_response = self
             .0
-            .try_into_http_response()
+            .try_into_http_response::<Vec<u8>>()
             .map_err(|_| Status::InternalServerError)?;
 
         let mut response = rocket::response::Response::build();
