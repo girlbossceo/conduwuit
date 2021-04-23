@@ -136,8 +136,8 @@ Listen 8448
 ServerName your.server.name # EDIT THIS
 
 AllowEncodedSlashes NoDecode
-ProxyPass /_matrix/ http://localhost:6167/_matrix/
-ProxyPassReverse /_matrix/ http://localhost:6167/_matrix/
+ProxyPass /_matrix/ http://127.0.0.1:6167/_matrix/ nocanon
+ProxyPassReverse /_matrix/ http://127.0.0.1:6167/_matrix/
 
 Include /etc/letsencrypt/options-ssl-apache.conf
 SSLCertificateFile /etc/letsencrypt/live/your.server.name/fullchain.pem # EDIT THIS
@@ -159,13 +159,23 @@ http section of `/etc/nginx/nginx.conf`
 
 ```
 server {
-    listen 443;
-    listen 8448;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    listen 8448 ssl http2;
+    listen [::]:8448 ssl http2;
     server_name your.server.name; # EDIT THIS
+    merge_slashes off;
 
     location /_matrix/ {
-        proxy_pass http://localhost:6167/_matrix/;
+        proxy_pass http://127.0.0.1:6167$request_uri;
+        proxy_set_header Host $http_host;
+        proxy_buffering off;
     }
+
+    ssl_certificate /etc/letsencrypt/live/your.server.name/fullchain.pem; # EDIT THIS
+    ssl_certificate_key /etc/letsencrypt/live/your.server.name/privkey.pem; # EDIT THIS
+    ssl_trusted_certificate /etc/letsencrypt/live/your.server.name/chain.pem; # EDIT THIS
+    include /etc/letsencrypt/options-ssl-nginx.conf;
 }
 ```
 **You need to make some edits again.** When you are done, run
