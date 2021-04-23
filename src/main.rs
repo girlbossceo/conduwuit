@@ -21,7 +21,6 @@ pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 
 use rocket::{
     catch, catchers,
-    fairing::AdHoc,
     figment::{
         providers::{Env, Format, Toml},
         Figment,
@@ -31,9 +30,9 @@ use rocket::{
 use tracing::span;
 use tracing_subscriber::{prelude::*, Registry};
 
-fn setup_rocket() -> (rocket::Rocket, Config) {
+async fn setup_rocket() -> (rocket::Rocket<rocket::Build>, Config) {
     // Force log level off, so we can use our own logger
-    std::env::set_var("CONDUIT_LOG_LEVEL", "off");
+    //std::env::set_var("CONDUIT_LOG_LEVEL", "off");
 
     let config =
         Figment::from(rocket::Config::release_default())
@@ -48,9 +47,15 @@ fn setup_rocket() -> (rocket::Rocket, Config) {
     let parsed_config = config
         .extract::<Config>()
         .expect("It looks like your config is invalid. Please take a look at the error");
-    let parsed_config2 = parsed_config.clone();
+
+    let data = Database::load_or_create(parsed_config.clone())
+        .await
+        .expect("config is valid");
+
+    data.sending.start_handler(&data);
 
     let rocket = rocket::custom(config)
+        .manage(data)
         .mount(
             "/",
             routes![
@@ -176,29 +181,23 @@ fn setup_rocket() -> (rocket::Rocket, Config) {
                 server_server::get_profile_information_route,
             ],
         )
-        .register(catchers![
-            not_found_catcher,
-            forbidden_catcher,
-            unknown_token_catcher,
-            missing_token_catcher,
-            bad_json_catcher
-        ])
-        .attach(AdHoc::on_attach("Config", |rocket| async {
-            let data = Database::load_or_create(parsed_config2)
-                .await
-                .expect("config is valid");
-
-            data.sending.start_handler(&data);
-
-            Ok(rocket.manage(data))
-        }));
+        .register(
+            "/",
+            catchers![
+                not_found_catcher,
+                forbidden_catcher,
+                unknown_token_catcher,
+                missing_token_catcher,
+                bad_json_catcher
+            ],
+        );
 
     (rocket, parsed_config)
 }
 
 #[rocket::main]
 async fn main() {
-    let (rocket, config) = setup_rocket();
+    let (rocket, config) = setup_rocket().await;
 
     if config.allow_jaeger {
         let (tracer, _uninstall) = opentelemetry_jaeger::new_pipeline()
@@ -213,11 +212,11 @@ async fn main() {
 
         rocket.launch().await.unwrap();
     } else {
-        std::env::set_var("CONDUIT_LOG", config.log);
-        pretty_env_logger::init_custom_env("CONDUIT_LOG");
+        //std::env::set_var("CONDUIT_LOG", config.log);
+        //pretty_env_logger::init_custom_env("CONDUIT_LOG");
 
-        let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
-        let _enter = root.enter();
+        //let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
+        //let _enter = root.enter();
 
         rocket.launch().await.unwrap();
     }
