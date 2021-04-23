@@ -314,36 +314,34 @@ where
     'o: 'r,
 {
     fn respond_to(self, _: &'r Request<'_>) -> response::Result<'o> {
-        let http_response: Result<http::Response<_>, _> = self.0.try_into_http_response();
-        match http_response {
-            Ok(http_response) => {
-                let mut response = rocket::response::Response::build();
+        let http_response = self
+            .0
+            .try_into_http_response()
+            .map_err(|_| Status::InternalServerError)?;
 
-                let status = http_response.status();
-                response.raw_status(status.into(), "");
+        let mut response = rocket::response::Response::build();
 
-                for header in http_response.headers() {
-                    response
-                        .raw_header(header.0.to_string(), header.1.to_str().unwrap().to_owned());
-                }
+        let status = http_response.status();
+        response.raw_status(status.into(), "");
 
-                let http_body = http_response.into_body();
-
-                response.sized_body(http_body.len(), Cursor::new(http_body));
-
-                response.raw_header("Access-Control-Allow-Origin", "*");
-                response.raw_header(
-                    "Access-Control-Allow-Methods",
-                    "GET, POST, PUT, DELETE, OPTIONS",
-                );
-                response.raw_header(
-                    "Access-Control-Allow-Headers",
-                    "Origin, X-Requested-With, Content-Type, Accept, Authorization",
-                );
-                response.raw_header("Access-Control-Max-Age", "86400");
-                response.ok()
-            }
-            Err(_) => Err(Status::InternalServerError),
+        for header in http_response.headers() {
+            response.raw_header(header.0.to_string(), header.1.to_str().unwrap().to_owned());
         }
+
+        let http_body = http_response.into_body();
+
+        response.sized_body(http_body.len(), Cursor::new(http_body));
+
+        response.raw_header("Access-Control-Allow-Origin", "*");
+        response.raw_header(
+            "Access-Control-Allow-Methods",
+            "GET, POST, PUT, DELETE, OPTIONS",
+        );
+        response.raw_header(
+            "Access-Control-Allow-Headers",
+            "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+        );
+        response.raw_header("Access-Control-Max-Age", "86400");
+        response.ok()
     }
 }
