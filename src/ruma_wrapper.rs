@@ -34,7 +34,8 @@ pub struct Ruma<T: Outgoing> {
     pub body: T::Incoming,
     pub sender_user: Option<UserId>,
     pub sender_device: Option<Box<DeviceId>>,
-    pub json_body: Option<Box<serde_json::value::RawValue>>, // This is None when body is not a valid string
+    // This is None when body is not a valid string
+    pub json_body: Option<Box<serde_json::value::RawValue>>,
     pub from_appservice: bool,
 }
 
@@ -124,22 +125,24 @@ where
                 }
                 AuthScheme::ServerSignatures => {
                     // Get origin from header
-                    let x_matrix = match request
-                            .headers()
-                            .get_one("Authorization")
-                            .map(|s| {
-                                s[9..]
-                                    .split_terminator(',').map(|field| {let mut splits = field.splitn(2, '='); (splits.next(), splits.next().map(|s| s.trim_matches('"')))}).collect::<BTreeMap<_, _>>()
-                            }) // Split off "X-Matrix " and parse the rest
-                        {
-                            Some(t) => t,
-                            None => {
-                                warn!("No Authorization header");
+                    let x_matrix = match request.headers().get_one("Authorization").map(|s| {
+                        // Split off "X-Matrix " and parse the rest
+                        s[9..]
+                            .split_terminator(',')
+                            .map(|field| {
+                                let mut splits = field.splitn(2, '=');
+                                (splits.next(), splits.next().map(|s| s.trim_matches('"')))
+                            })
+                            .collect::<BTreeMap<_, _>>()
+                    }) {
+                        Some(t) => t,
+                        None => {
+                            warn!("No Authorization header");
 
-                                // Forbidden
-                                return Failure((Status::raw(580), ()));
-                            }
-                        };
+                            // Forbidden
+                            return Failure((Status::raw(580), ()));
+                        }
+                    };
 
                     let origin_str = match x_matrix.get(&Some("origin")) {
                         Some(Some(o)) => *o,
