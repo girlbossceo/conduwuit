@@ -53,6 +53,49 @@ use std::{
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post, put};
 
+/// Wraps either an literal IP address plus port, or a hostname plus complement
+/// (colon-plus-port if it was specified).
+///
+/// Note: A `FedDest::Named` might contain an IP address in string form if there
+/// was no port specified to construct a SocketAddr with.
+///
+/// # Examples:
+/// ```rust,ignore
+/// FedDest::Literal("198.51.100.3:8448".parse()?);
+/// FedDest::Literal("[2001:db8::4:5]:443".parse()?);
+/// FedDest::Named("matrix.example.org".to_owned(), "".to_owned());
+/// FedDest::Named("matrix.example.org".to_owned(), ":8448".to_owned());
+/// FedDest::Named("198.51.100.5".to_owned(), "".to_owned());
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+enum FedDest {
+    Literal(SocketAddr),
+    Named(String, String),
+}
+
+impl FedDest {
+    fn into_https_string(self) -> String {
+        match self {
+            Self::Literal(addr) => format!("https://{}", addr),
+            Self::Named(host, port) => format!("https://{}{}", host, port),
+        }
+    }
+
+    fn into_uri_string(self) -> String {
+        match self {
+            Self::Literal(addr) => addr.to_string(),
+            Self::Named(host, ref port) => host + port,
+        }
+    }
+
+    fn hostname(&self) -> String {
+        match &self {
+            Self::Literal(addr) => addr.ip().to_string(),
+            Self::Named(host, _) => host.clone(),
+        }
+    }
+}
+
 #[tracing::instrument(skip(globals))]
 pub async fn send_request<T: OutgoingRequest>(
     globals: &crate::database::globals::Globals,
@@ -77,12 +120,24 @@ where
         result
     } else {
         let result = find_actual_destination(globals, &destination).await;
+        let (actual_destination, host) = result.clone();
+        let result_string = (result.0.into_https_string(), result.1.into_uri_string());
         globals
             .actual_destination_cache
             .write()
             .unwrap()
-            .insert(Box::<ServerName>::from(destination), result.clone());
-        result
+            .insert(Box::<ServerName>::from(destination), result_string.clone());
+        let dest_hostname = actual_destination.hostname();
+        let host_hostname = host.hostname();
+        if dest_hostname != host_hostname {
+            globals.tls_name_override.write().unwrap().insert(
+                dest_hostname,
+                webpki::DNSNameRef::try_from_ascii_str(&host_hostname)
+                    .unwrap()
+                    .to_owned(),
+            );
+        }
+        result_string
     };
 
     let mut http_request = request
@@ -210,22 +265,23 @@ where
 }
 
 #[tracing::instrument]
-fn get_ip_with_port(destination_str: String) -> Option<String> {
-    if destination_str.parse::<SocketAddr>().is_ok() {
-        Some(destination_str)
+fn get_ip_with_port(destination_str: &str) -> Option<FedDest> {
+    if let Ok(destination) = destination_str.parse::<SocketAddr>() {
+        Some(FedDest::Literal(destination))
     } else if let Ok(ip_addr) = destination_str.parse::<IpAddr>() {
-        Some(SocketAddr::new(ip_addr, 8448).to_string())
+        Some(FedDest::Literal(SocketAddr::new(ip_addr, 8448)))
     } else {
         None
     }
 }
 
 #[tracing::instrument]
-fn add_port_to_hostname(destination_str: String) -> String {
-    match destination_str.find(':') {
-        None => destination_str.to_owned() + ":8448",
-        Some(_) => destination_str.to_string(),
-    }
+fn add_port_to_hostname(destination_str: &str) -> FedDest {
+    let (host, port) = match destination_str.find(':') {
+        None => (destination_str, ":8448"),
+        Some(pos) => destination_str.split_at(pos),
+    };
+    FedDest::Named(host.to_string(), port.to_string())
 }
 
 /// Returns: actual_destination, host header
@@ -235,73 +291,89 @@ fn add_port_to_hostname(destination_str: String) -> String {
 async fn find_actual_destination(
     globals: &crate::database::globals::Globals,
     destination: &'_ ServerName,
-) -> (String, String) {
+) -> (FedDest, FedDest) {
     let destination_str = destination.as_str().to_owned();
-    let mut host = destination_str.clone();
-    let actual_destination = "https://".to_owned()
-        + &match get_ip_with_port(destination_str.clone()) {
-            Some(host_port) => {
-                // 1: IP literal with provided or default port
-                host_port
-            }
-            None => {
-                if destination_str.find(':').is_some() {
-                    // 2: Hostname with included port
-                    destination_str
-                } else {
-                    match request_well_known(globals, &destination.as_str()).await {
-                        // 3: A .well-known file is available
-                        Some(delegated_hostname) => {
-                            host = delegated_hostname.clone();
-                            match get_ip_with_port(delegated_hostname.clone()) {
-                                Some(host_and_port) => host_and_port, // 3.1: IP literal in .well-known file
-                                None => {
-                                    if destination_str.find(':').is_some() {
-                                        // 3.2: Hostname with port in .well-known file
-                                        destination_str
-                                    } else {
-                                        match query_srv_record(globals, &delegated_hostname).await {
-                                            // 3.3: SRV lookup successful
-                                            Some(hostname) => hostname,
-                                            // 3.4: No SRV records, just use the hostname from .well-known
-                                            None => add_port_to_hostname(delegated_hostname),
-                                        }
+    let mut hostname = destination_str.clone();
+    let actual_destination = match get_ip_with_port(&destination_str) {
+        Some(host_port) => {
+            // 1: IP literal with provided or default port
+            host_port
+        }
+        None => {
+            if let Some(pos) = destination_str.find(':') {
+                // 2: Hostname with included port
+                let (host, port) = destination_str.split_at(pos);
+                FedDest::Named(host.to_string(), port.to_string())
+            } else {
+                match request_well_known(globals, &destination.as_str()).await {
+                    // 3: A .well-known file is available
+                    Some(delegated_hostname) => {
+                        hostname = delegated_hostname.clone();
+                        match get_ip_with_port(&delegated_hostname) {
+                            Some(host_and_port) => host_and_port, // 3.1: IP literal in .well-known file
+                            None => {
+                                if let Some(pos) = destination_str.find(':') {
+                                    // 3.2: Hostname with port in .well-known file
+                                    let (host, port) = destination_str.split_at(pos);
+                                    FedDest::Named(host.to_string(), port.to_string())
+                                } else {
+                                    match query_srv_record(globals, &delegated_hostname).await {
+                                        // 3.3: SRV lookup successful
+                                        Some(hostname) => hostname,
+                                        // 3.4: No SRV records, just use the hostname from .well-known
+                                        None => add_port_to_hostname(&delegated_hostname),
                                     }
                                 }
                             }
                         }
-                        // 4: No .well-known or an error occured
-                        None => {
-                            match query_srv_record(globals, &destination_str).await {
-                                // 4: SRV record found
-                                Some(hostname) => hostname,
-                                // 5: No SRV record found
-                                None => add_port_to_hostname(destination_str.to_string()),
-                            }
+                    }
+                    // 4: No .well-known or an error occured
+                    None => {
+                        match query_srv_record(globals, &destination_str).await {
+                            // 4: SRV record found
+                            Some(hostname) => hostname,
+                            // 5: No SRV record found
+                            None => add_port_to_hostname(&destination_str),
                         }
                     }
                 }
             }
-        };
+        }
+    };
 
-    (actual_destination, host)
+    // Can't use get_ip_with_port here because we don't want to add a port
+    // to an IP address if it wasn't specified
+    let hostname = if let Ok(addr) = hostname.parse::<SocketAddr>() {
+        FedDest::Literal(addr)
+    } else if let Ok(addr) = hostname.parse::<IpAddr>() {
+        FedDest::Named(addr.to_string(), "".to_string())
+    } else if let Some(pos) = hostname.find(':') {
+        let (host, port) = hostname.split_at(pos);
+        FedDest::Named(host.to_string(), port.to_string())
+    } else {
+        FedDest::Named(hostname, "".to_string())
+    };
+    (actual_destination, hostname)
 }
 
 #[tracing::instrument(skip(globals))]
 async fn query_srv_record(
     globals: &crate::database::globals::Globals,
     hostname: &'_ str,
-) -> Option<String> {
+) -> Option<FedDest> {
     if let Ok(Some(host_port)) = globals
         .dns_resolver()
         .srv_lookup(format!("_matrix._tcp.{}", hostname))
         .await
         .map(|srv| {
             srv.iter().next().map(|result| {
-                format!(
-                    "{}:{}",
-                    result.target().to_string().trim_end_matches('.'),
-                    result.port().to_string()
+                FedDest::Named(
+                    result
+                        .target()
+                        .to_string()
+                        .trim_end_matches('.')
+                        .to_string(),
+                    format!(":{}", result.port()),
                 )
             })
         })
@@ -2133,45 +2205,45 @@ pub async fn fetch_required_signing_keys(
 
 #[cfg(test)]
 mod tests {
-    use super::{add_port_to_hostname, get_ip_with_port};
+    use super::{FedDest, add_port_to_hostname, get_ip_with_port};
 
     #[test]
     fn ips_get_default_ports() {
         assert_eq!(
-            get_ip_with_port(String::from("1.1.1.1")),
-            Some(String::from("1.1.1.1:8448"))
+            get_ip_with_port("1.1.1.1"),
+            Some(FedDest::Literal("1.1.1.1:8448".parse().unwrap()))
         );
         assert_eq!(
-            get_ip_with_port(String::from("dead:beef::")),
-            Some(String::from("[dead:beef::]:8448"))
+            get_ip_with_port("dead:beef::"),
+            Some(FedDest::Literal("[dead:beef::]:8448".parse().unwrap()))
         );
     }
 
     #[test]
     fn ips_keep_custom_ports() {
         assert_eq!(
-            get_ip_with_port(String::from("1.1.1.1:1234")),
-            Some(String::from("1.1.1.1:1234"))
+            get_ip_with_port("1.1.1.1:1234"),
+            Some(FedDest::Literal("1.1.1.1:1234".parse().unwrap()))
         );
         assert_eq!(
-            get_ip_with_port(String::from("[dead::beef]:8933")),
-            Some(String::from("[dead::beef]:8933"))
+            get_ip_with_port("[dead::beef]:8933"),
+            Some(FedDest::Literal("[dead::beef]:8933".parse().unwrap()))
         );
     }
 
     #[test]
     fn hostnames_get_default_ports() {
         assert_eq!(
-            add_port_to_hostname(String::from("example.com")),
-            "example.com:8448"
+            add_port_to_hostname("example.com"),
+            FedDest::Named(String::from("example.com"), String::from(":8448"))
         )
     }
 
     #[test]
     fn hostnames_keep_custom_ports() {
         assert_eq!(
-            add_port_to_hostname(String::from("example.com:1337")),
-            "example.com:1337"
+            add_port_to_hostname("example.com:1337"),
+            FedDest::Named(String::from("example.com"), String::from(":1337"))
         )
     }
 }
