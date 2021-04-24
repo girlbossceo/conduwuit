@@ -6,9 +6,13 @@ use ruma::{
         r0::state::{get_state_events, get_state_events_for_key, send_state_event},
     },
     events::{
-        room::history_visibility::{HistoryVisibility, HistoryVisibilityEventContent},
-        AnyStateEventContent, EventContent, EventType,
+        room::{
+            canonical_alias::CanonicalAliasEventContent,
+            history_visibility::{HistoryVisibility, HistoryVisibilityEventContent},
+        },
+        AnyStateEventContent, EventType,
     },
+    serde::Raw,
     EventId, RoomId, UserId,
 };
 
@@ -26,21 +30,13 @@ pub async fn send_state_event_for_key_route(
 ) -> ConduitResult<send_state_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let content = serde_json::from_str::<serde_json::Value>(
-        body.json_body
-            .as_ref()
-            .ok_or(Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?
-            .get(),
-    )
-    .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
-
     let event_id = send_state_event_for_key_helper(
         &db,
         sender_user,
-        &body.content,
-        content,
         &body.room_id,
-        Some(body.state_key.to_owned()),
+        EventType::from(&body.event_type),
+        &body.body.body, // Yes, I hate it too
+        body.state_key.to_owned(),
     )
     .await?;
 
@@ -58,31 +54,15 @@ pub async fn send_state_event_for_empty_key_route(
     db: State<'_, Database>,
     body: Ruma<send_state_event::Request<'_>>,
 ) -> ConduitResult<send_state_event::Response> {
-    // This just calls send_state_event_for_key_route
-    let Ruma {
-        body,
-        sender_user,
-        json_body,
-        ..
-    } = body;
-
-    let json = serde_json::from_str::<serde_json::Value>(
-        json_body
-            .as_ref()
-            .ok_or(Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?
-            .get(),
-    )
-    .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event_id = send_state_event_for_key_helper(
         &db,
-        sender_user
-            .as_ref()
-            .expect("no user for send state empty key route"),
-        &body.content,
-        json,
+        sender_user,
         &body.room_id,
-        Some("".into()),
+        EventType::from(&body.event_type),
+        &body.body.body,
+        body.state_key.to_owned(),
     )
     .await?;
 
@@ -183,7 +163,7 @@ pub async fn get_state_events_for_key_route(
         ))?;
 
     Ok(get_state_events_for_key::Response {
-        content: serde_json::value::to_raw_value(&event.content)
+        content: serde_json::from_value(event.content)
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
     .into())
@@ -234,7 +214,7 @@ pub async fn get_state_events_for_empty_key_route(
         ))?;
 
     Ok(get_state_events_for_key::Response {
-        content: serde_json::value::to_raw_value(&event.content)
+        content: serde_json::from_value(event.content)
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
     .into())
@@ -243,17 +223,19 @@ pub async fn get_state_events_for_empty_key_route(
 pub async fn send_state_event_for_key_helper(
     db: &Database,
     sender: &UserId,
-    content: &AnyStateEventContent,
-    json: serde_json::Value,
     room_id: &RoomId,
-    state_key: Option<String>,
+    event_type: EventType,
+    json: &Raw<AnyStateEventContent>,
+    state_key: String,
 ) -> Result<EventId> {
     let sender_user = sender;
 
-    if let AnyStateEventContent::RoomCanonicalAlias(canonical_alias) = content {
+    if let Ok(canonical_alias) =
+        serde_json::from_str::<CanonicalAliasEventContent>(json.json().get())
+    {
         let mut aliases = canonical_alias.alt_aliases.clone();
 
-        if let Some(alias) = canonical_alias.alias.clone() {
+        if let Some(alias) = canonical_alias.alias {
             aliases.push(alias);
         }
 
@@ -276,10 +258,10 @@ pub async fn send_state_event_for_key_helper(
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: content.event_type().into(),
-            content: json,
+            event_type,
+            content: serde_json::from_str(json.json().get()).expect("content is valid json"),
             unsigned: None,
-            state_key,
+            state_key: Some(state_key),
             redacts: None,
         },
         &sender_user,

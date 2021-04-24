@@ -21,9 +21,9 @@ use ruma::{
                 create_join_event_template,
             },
             query::{get_profile_information, get_room_information},
-            transactions::send_transaction_message,
+            transactions::{edu::Edu, send_transaction_message},
         },
-        IncomingResponse, OutgoingRequest, OutgoingResponse,
+        IncomingResponse, OutgoingRequest, OutgoingResponse, SendAccessToken,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::{
@@ -141,7 +141,7 @@ where
     };
 
     let mut http_request = request
-        .try_into_http_request(&actual_destination, Some(""))
+        .try_into_http_request::<Vec<u8>>(&actual_destination, SendAccessToken::IfRequired(""))
         .map_err(|e| {
             warn!("Failed to find destination {}: {}", actual_destination, e);
             Error::BadServerResponse("Invalid destination")
@@ -454,7 +454,7 @@ pub fn get_server_keys_route(db: State<'_, Database>) -> Json<String> {
                 valid_until_ts: SystemTime::now() + Duration::from_secs(60 * 2),
             },
         }
-        .try_into_http_response()
+        .try_into_http_response::<Vec<u8>>()
         .unwrap()
         .body(),
     )
@@ -585,39 +585,32 @@ pub async fn send_transaction_message_route<'a>(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    for edu in &body.edus {
-        match serde_json::from_str::<send_transaction_message::v1::Edu>(edu.json().get()) {
-            Ok(edu) => match edu.edu_type.as_str() {
-                "m.typing" => {
-                    if let Some(typing) = edu.content.get("typing") {
-                        if typing.as_bool().unwrap_or_default() {
-                            db.rooms.edus.typing_add(
-                                &UserId::try_from(edu.content["user_id"].as_str().unwrap())
-                                    .unwrap(),
-                                &RoomId::try_from(edu.content["room_id"].as_str().unwrap())
-                                    .unwrap(),
-                                3000 + utils::millis_since_unix_epoch(),
-                                &db.globals,
-                            )?;
-                        } else {
-                            db.rooms.edus.typing_remove(
-                                &UserId::try_from(edu.content["user_id"].as_str().unwrap())
-                                    .unwrap(),
-                                &RoomId::try_from(edu.content["room_id"].as_str().unwrap())
-                                    .unwrap(),
-                                &db.globals,
-                            )?;
-                        }
-                    }
+    for edu in body
+        .edus
+        .iter()
+        .map(|edu| serde_json::from_str::<Edu>(edu.json().get()))
+        .filter_map(|r| r.ok())
+    {
+        match edu {
+            Edu::Presence(_) => {}
+            Edu::Receipt(_) => {}
+            Edu::Typing(typing) => {
+                if typing.typing {
+                    db.rooms.edus.typing_add(
+                        &typing.user_id,
+                        &typing.room_id,
+                        3000 + utils::millis_since_unix_epoch(),
+                        &db.globals,
+                    )?;
+                } else {
+                    db.rooms
+                        .edus
+                        .typing_remove(&typing.user_id, &typing.room_id, &db.globals)?;
                 }
-                "m.presence" => {}
-                "m.receipt" => {}
-                "m.device_list_update" => {}
-                _ => {}
-            },
-            Err(_err) => {
-                continue;
             }
+            Edu::DeviceListUpdate(_) => {}
+            Edu::DirectToDevice(_) => {}
+            Edu::_Custom(_) => {}
         }
     }
 
@@ -2106,7 +2099,10 @@ pub fn get_room_information_route<'a>(
     let room_id = db
         .rooms
         .id_from_alias(&body.room_alias)?
-        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Room alias not found."))?;
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Room alias not found.",
+        ))?;
 
     Ok(get_room_information::v1::Response {
         room_id,
@@ -2205,7 +2201,7 @@ pub async fn fetch_required_signing_keys(
 
 #[cfg(test)]
 mod tests {
-    use super::{FedDest, add_port_to_hostname, get_ip_with_port};
+    use super::{add_port_to_hostname, get_ip_with_port, FedDest};
 
     #[test]
     fn ips_get_default_ports() {

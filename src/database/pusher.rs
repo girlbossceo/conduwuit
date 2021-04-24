@@ -1,13 +1,14 @@
 use crate::{Database, Error, PduEvent, Result};
+use bytes::BytesMut;
 use log::{error, info, warn};
 use ruma::{
     api::{
-        client::r0::push::{Pusher, PusherKind},
+        client::r0::push::{get_pushers, set_pusher, PusherKind},
         push_gateway::send_event_notification::{
             self,
             v1::{Device, Notification, NotificationCounts, NotificationPriority},
         },
-        IncomingResponse, OutgoingRequest,
+        IncomingResponse, OutgoingRequest, SendAccessToken,
     },
     events::{room::power_levels::PowerLevelsEventContent, EventType},
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
@@ -30,7 +31,7 @@ impl PushData {
         })
     }
 
-    pub fn set_pusher(&self, sender: &UserId, pusher: Pusher) -> Result<()> {
+    pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::Pusher) -> Result<()> {
         let mut key = sender.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pusher.pushkey.as_bytes());
@@ -52,7 +53,7 @@ impl PushData {
         Ok(())
     }
 
-    pub fn get_pusher(&self, senderkey: &[u8]) -> Result<Option<Pusher>> {
+    pub fn get_pusher(&self, senderkey: &[u8]) -> Result<Option<get_pushers::Pusher>> {
         self.senderkey_pusher
             .get(senderkey)?
             .map(|push| {
@@ -62,7 +63,7 @@ impl PushData {
             .transpose()
     }
 
-    pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>> {
+    pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<get_pushers::Pusher>> {
         let mut prefix = sender.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -99,11 +100,12 @@ where
     let destination = destination.replace("/_matrix/push/v1/notify", "");
 
     let http_request = request
-        .try_into_http_request(&destination, Some(""))
+        .try_into_http_request::<BytesMut>(&destination, SendAccessToken::IfRequired(""))
         .map_err(|e| {
             warn!("Failed to find destination {}: {}", destination, e);
             Error::BadServerResponse("Invalid destination")
-        })?;
+        })?
+        .map(|body| body.freeze());
 
     let reqwest_request = reqwest::Request::try_from(http_request)
         .expect("all http requests are valid reqwest requests");
@@ -164,7 +166,7 @@ where
 pub async fn send_push_notice(
     user: &UserId,
     unread: UInt,
-    pusher: &Pusher,
+    pusher: &get_pushers::Pusher,
     ruleset: Ruleset,
     pdu: &PduEvent,
     db: &Database,
@@ -205,7 +207,7 @@ pub fn get_actions<'a>(
     ruleset: &'a Ruleset,
     pdu: &PduEvent,
     db: &Database,
-) -> Result<impl 'a + Iterator<Item = Action>> {
+) -> Result<&'a [Action]> {
     let power_levels: PowerLevelsEventContent = db
         .rooms
         .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
@@ -228,20 +230,18 @@ pub fn get_actions<'a>(
         notification_power_levels: power_levels.notifications,
     };
 
-    Ok(ruleset
-        .get_actions(&pdu.to_sync_room_event(), &ctx)
-        .map(Clone::clone))
+    Ok(ruleset.get_actions(&pdu.to_sync_room_event(), &ctx))
 }
 
 async fn send_notice(
     unread: UInt,
-    pusher: &Pusher,
+    pusher: &get_pushers::Pusher,
     tweaks: Vec<Tweak>,
     event: &PduEvent,
     db: &Database,
 ) -> Result<()> {
     // TODO: email
-    if pusher.kind == Some(PusherKind::Email) {
+    if pusher.kind == PusherKind::Email {
         return Ok(());
     }
 
@@ -250,7 +250,7 @@ async fn send_notice(
     // 1. if "event_id_only" is the only format kind it seems we should never add more info
     // 2. can pusher/devices have conflicting formats
     let event_id_only = pusher.data.format == Some(PushFormat::EventIdOnly);
-    let url = if let Some(url) = pusher.data.url.as_ref() {
+    let url = if let Some(url) = &pusher.data.url {
         url
     } else {
         error!("Http Pusher must have URL specified.");

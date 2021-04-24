@@ -9,7 +9,7 @@ use ruma::{
     RoomId, UInt, UserId,
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
     mem,
 };
@@ -280,7 +280,7 @@ impl RoomEdus {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        let mut user_ids = Vec::new();
+        let mut user_ids = HashSet::new();
 
         for user_id in self
             .typingid_userid
@@ -295,11 +295,13 @@ impl RoomEdus {
                 )
             })
         {
-            user_ids.push(user_id?);
+            user_ids.insert(user_id?);
         }
 
         Ok(SyncEphemeralRoomEvent {
-            content: ruma::events::typing::TypingEventContent { user_ids },
+            content: ruma::events::typing::TypingEventContent {
+                user_ids: user_ids.into_iter().collect(),
+            },
         })
     }
 

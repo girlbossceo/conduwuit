@@ -52,7 +52,10 @@ impl ServerCertVerifier for MatrixServerVerifier {
             if result.is_ok() {
                 return result;
             }
-            info!("Server {:?} is non-compliant, retrying TLS verification with original name", dns_name);
+            info!(
+                "Server {:?} is non-compliant, retrying TLS verification with original name",
+                dns_name
+            );
         }
         self.inner
             .verify_server_cert(roots, presented_certs, dns_name, ocsp_response)
