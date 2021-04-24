@@ -14,7 +14,7 @@ edition = "2018"
 [dependencies]
 # Used to handle requests
 # TODO: This can become optional as soon as proper configs are supported
-rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "e1307ddf48dac14e6a37e526098732327bcb86f0", features = ["tls"] } # Used to handle requests
+rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "801e04bd5369eb39e126c75f6d11e1e9597304d8", features = ["tls"] } # Used to handle requests
 #rocket = { git = "https://github.com/timokoesters/Rocket.git", branch = "empty_parameters", default-features = false, features = ["tls"] }
 
 # Used for matrix spec type definitions and helpers
