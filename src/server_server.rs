@@ -2201,7 +2201,7 @@ pub async fn fetch_required_signing_keys(
 
 #[cfg(test)]
 mod tests {
-    use super::{FedDest, add_port_to_hostname, get_ip_with_port};
+    use super::{add_port_to_hostname, get_ip_with_port, FedDest};
 
     #[test]
     fn ips_get_default_ports() {

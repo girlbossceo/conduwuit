@@ -203,9 +203,6 @@ where
                         "uri".to_owned(),
                         CanonicalJsonValue::String(request.uri().to_string()),
                     );
-
-                    println!("{}: {:?}", origin, request.uri().to_string());
-
                     request_map.insert(
                         "origin".to_owned(),
                         CanonicalJsonValue::String(origin.as_str().to_owned()),
@@ -252,7 +249,11 @@ where
                     match ruma::signatures::verify_json(&pub_key_map, &request_map) {
                         Ok(()) => (None, None, false),
                         Err(e) => {
-                            warn!("Failed to verify json request from {}: {}", origin, e,);
+                            warn!("Failed to verify json request from {}: {}", origin, e);
+
+                            if request.uri().to_string().contains('@') {
+                                warn!("Request uri contained '@' character. Make sure your reverse proxy gives Conduit the raw uri (apache: use nocanon)");
+                            }
 
                             // Forbidden
                             return Failure((Status::raw(580), ()));
