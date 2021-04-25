@@ -809,39 +809,7 @@ impl Rooms {
 
                     let invite_state = match membership {
                         member::MembershipState::Invite => {
-                            let mut state = Vec::new();
-                            // Add recommended events
-                            if let Some(e) =
-                                self.room_state_get(&pdu.room_id, &EventType::RoomJoinRules, "")?
-                            {
-                                state.push(e.to_stripped_state_event());
-                            }
-                            if let Some(e) = self.room_state_get(
-                                &pdu.room_id,
-                                &EventType::RoomCanonicalAlias,
-                                "",
-                            )? {
-                                state.push(e.to_stripped_state_event());
-                            }
-                            if let Some(e) =
-                                self.room_state_get(&pdu.room_id, &EventType::RoomAvatar, "")?
-                            {
-                                state.push(e.to_stripped_state_event());
-                            }
-                            if let Some(e) =
-                                self.room_state_get(&pdu.room_id, &EventType::RoomName, "")?
-                            {
-                                state.push(e.to_stripped_state_event());
-                            }
-                            if let Some(e) = self.room_state_get(
-                                &pdu.room_id,
-                                &EventType::RoomMember,
-                                pdu.sender.as_str(),
-                            )? {
-                                state.push(e.to_stripped_state_event());
-                            }
-
-                            state.push(pdu.to_stripped_state_event());
+                            let state = self.calculate_invite_state(pdu)?;
 
                             Some(state)
                         }
@@ -1182,6 +1150,40 @@ impl Rooms {
                 "Tried to insert non-state event into room without a state.",
             ))
         }
+    }
+
+    pub fn calculate_invite_state(
+        &self,
+        invite_event: &PduEvent,
+    ) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
+        let mut state = Vec::new();
+        // Add recommended events
+        if let Some(e) =
+            self.room_state_get(&invite_event.room_id, &EventType::RoomJoinRules, "")?
+        {
+            state.push(e.to_stripped_state_event());
+        }
+        if let Some(e) =
+            self.room_state_get(&invite_event.room_id, &EventType::RoomCanonicalAlias, "")?
+        {
+            state.push(e.to_stripped_state_event());
+        }
+        if let Some(e) = self.room_state_get(&invite_event.room_id, &EventType::RoomAvatar, "")? {
+            state.push(e.to_stripped_state_event());
+        }
+        if let Some(e) = self.room_state_get(&invite_event.room_id, &EventType::RoomName, "")? {
+            state.push(e.to_stripped_state_event());
+        }
+        if let Some(e) = self.room_state_get(
+            &invite_event.room_id,
+            &EventType::RoomMember,
+            invite_event.sender.as_str(),
+        )? {
+            state.push(e.to_stripped_state_event());
+        }
+
+        state.push(invite_event.to_stripped_state_event());
+        Ok(state)
     }
 
     pub fn set_room_state(&self, room_id: &RoomId, shortstatehash: u64) -> Result<()> {
