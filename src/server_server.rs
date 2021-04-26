@@ -689,7 +689,7 @@ type AsyncRecursiveResult<'a, T, E> = Pin<Box<dyn Future<Output = StdResult<T, E
 ///     it
 /// 14. Use state resolution to find new room state
 // We use some AsyncRecursiveResult hacks here so we can call this async funtion recursively
-fn handle_incoming_pdu<'a>(
+pub fn handle_incoming_pdu<'a>(
     origin: &'a ServerName,
     event_id: &'a EventId,
     value: BTreeMap<String, CanonicalJsonValue>,

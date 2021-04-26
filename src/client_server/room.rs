@@ -1,4 +1,5 @@
 use super::State;
+use crate::client_server::invite_helper;
 use crate::{pdu::PduBuilder, ConduitResult, Database, Error, Ruma};
 use log::info;
 use ruma::{
@@ -269,26 +270,8 @@ pub async fn create_room_route(
     }
 
     // 7. Events implied by invite (and TODO: invite_3pid)
-    for user in &body.invite {
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Invite,
-                    displayname: db.users.displayname(&user)?,
-                    avatar_url: db.users.avatar_url(&user)?,
-                    is_direct: Some(body.is_direct),
-                    third_party_invite: None,
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(user.to_string()),
-                redacts: None,
-            },
-            &sender_user,
-            &room_id,
-            &db,
-        )?;
+    for user_id in &body.invite {
+        let _ = invite_helper(sender_user, user_id, &room_id, &db, body.is_direct).await;
     }
 
     // Homeserver specific stuff

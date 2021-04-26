@@ -30,41 +30,48 @@ pub async fn set_displayname_route(
         .set_displayname(&sender_user, body.displayname.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
-    for room_id in db.rooms.rooms_joined(&sender_user) {
-        let room_id = room_id?;
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
-                    displayname: body.displayname.clone(),
-                    ..serde_json::from_value::<Raw<_>>(
-                        db.rooms
-                            .room_state_get(
-                                &room_id,
-                                &EventType::RoomMember,
-                                &sender_user.to_string(),
-                            )?
-                            .ok_or_else(|| {
-                                Error::bad_database(
-                                    "Tried to send displayname update for user not in the room.",
-                                )
-                            })?
-                            .content
-                            .clone(),
-                    )
-                    .expect("from_value::<Raw<..>> can never fail")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(sender_user.to_string()),
-                redacts: None,
-            },
-            &sender_user,
-            &room_id,
-            &db,
-        )?;
+    for (pdu_builder, room_id) in db
+        .rooms
+        .rooms_joined(&sender_user)
+        .filter_map(|r| r.ok())
+        .map(|room_id| {
+            Ok::<_, Error>((
+                PduBuilder {
+                    event_type: EventType::RoomMember,
+                    content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
+                        displayname: body.displayname.clone(),
+                        ..serde_json::from_value::<Raw<_>>(
+                            db.rooms
+                                .room_state_get(
+                                    &room_id,
+                                    &EventType::RoomMember,
+                                    &sender_user.to_string(),
+                                )?
+                                .ok_or_else(|| {
+                                    Error::bad_database(
+                                "Tried to send displayname update for user not in the room.",
+                            )
+                                })?
+                                .content
+                                .clone(),
+                        )
+                        .expect("from_value::<Raw<..>> can never fail")
+                        .deserialize()
+                        .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
+                    })
+                    .expect("event is valid, we just created it"),
+                    unsigned: None,
+                    state_key: Some(sender_user.to_string()),
+                    redacts: None,
+                },
+                room_id,
+            ))
+        })
+        .filter_map(|r| r.ok())
+    {
+        let _ = db
+            .rooms
+            .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db);
 
         // Presence update
         db.rooms.edus.update_presence(
@@ -124,41 +131,48 @@ pub async fn set_avatar_url_route(
         .set_avatar_url(&sender_user, body.avatar_url.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
-    for room_id in db.rooms.rooms_joined(&sender_user) {
-        let room_id = room_id?;
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
-                    avatar_url: body.avatar_url.clone(),
-                    ..serde_json::from_value::<Raw<_>>(
-                        db.rooms
-                            .room_state_get(
-                                &room_id,
-                                &EventType::RoomMember,
-                                &sender_user.to_string(),
-                            )?
-                            .ok_or_else(|| {
-                                Error::bad_database(
-                                    "Tried to send avatar url update for user not in the room.",
-                                )
-                            })?
-                            .content
-                            .clone(),
-                    )
-                    .expect("from_value::<Raw<..>> can never fail")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(sender_user.to_string()),
-                redacts: None,
-            },
-            &sender_user,
-            &room_id,
-            &db,
-        )?;
+    for (pdu_builder, room_id) in db
+        .rooms
+        .rooms_joined(&sender_user)
+        .filter_map(|r| r.ok())
+        .map(|room_id| {
+            Ok::<_, Error>((
+                PduBuilder {
+                    event_type: EventType::RoomMember,
+                    content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
+                        avatar_url: body.avatar_url.clone(),
+                        ..serde_json::from_value::<Raw<_>>(
+                            db.rooms
+                                .room_state_get(
+                                    &room_id,
+                                    &EventType::RoomMember,
+                                    &sender_user.to_string(),
+                                )?
+                                .ok_or_else(|| {
+                                    Error::bad_database(
+                                "Tried to send displayname update for user not in the room.",
+                            )
+                                })?
+                                .content
+                                .clone(),
+                        )
+                        .expect("from_value::<Raw<..>> can never fail")
+                        .deserialize()
+                        .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
+                    })
+                    .expect("event is valid, we just created it"),
+                    unsigned: None,
+                    state_key: Some(sender_user.to_string()),
+                    redacts: None,
+                },
+                room_id,
+            ))
+        })
+        .filter_map(|r| r.ok())
+    {
+        let _ = db
+            .rooms
+            .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db);
 
         // Presence update
         db.rooms.edus.update_presence(
