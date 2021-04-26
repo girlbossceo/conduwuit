@@ -15,7 +15,7 @@ use ruma::{
         AnyStrippedStateEvent, AnySyncStateEvent, EventType,
     },
     push::{self, Action, Tweak},
-    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
+    serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
     uint, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use sled::IVec;
@@ -372,9 +372,7 @@ impl Rooms {
 
         for event_id in new_state.difference(&old_state) {
             if let Some(pdu) = self.get_pdu_json(event_id)? {
-                if pdu.get("event_type")
-                    == Some(&CanonicalJsonValue::String("m.room.member".to_owned()))
-                {
+                if pdu.get("event_type").and_then(|val| val.as_str()) == Some("m.room.member") {
                     if let Ok(pdu) = serde_json::from_value::<PduEvent>(
                         serde_json::to_value(&pdu).expect("CanonicalJsonObj is a valid JsonValue"),
                     ) {
@@ -1321,8 +1319,7 @@ impl Rooms {
         // Add origin because synapse likes that (and it's required in the spec)
         pdu_json.insert(
             "origin".to_owned(),
-            to_canonical_value(db.globals.server_name())
-                .expect("server name is a valid CanonicalJsonValue"),
+            CanonicalJsonValue::String(db.globals.server_name().as_ref().to_owned()),
         );
 
         ruma::signatures::hash_and_sign_event(
@@ -1343,7 +1340,7 @@ impl Rooms {
 
         pdu_json.insert(
             "event_id".to_owned(),
-            to_canonical_value(&pdu.event_id).expect("EventId is a valid CanonicalJsonValue"),
+            CanonicalJsonValue::String(pdu.event_id.as_str().to_owned()),
         );
 
         // Increment the last index and use that
@@ -1885,13 +1882,15 @@ impl Rooms {
         // TODO: Is origin needed?
         leave_event_stub.insert(
             "origin".to_owned(),
-            to_canonical_value(db.globals.server_name())
-                .map_err(|_| Error::bad_database("Invalid server name found"))?,
+            CanonicalJsonValue::String(db.globals.server_name().as_str().to_owned()),
         );
         leave_event_stub.insert(
             "origin_server_ts".to_owned(),
-            to_canonical_value(utils::millis_since_unix_epoch())
-                .expect("Timestamp is valid js_int value"),
+            CanonicalJsonValue::Integer(
+                utils::millis_since_unix_epoch()
+                    .try_into()
+                    .expect("Timestamp is valid js_int value"),
+            ),
         );
         // We don't leave the event id in the pdu because that's only allowed in v1 or v2 rooms
         leave_event_stub.remove("event_id");
@@ -1916,7 +1915,7 @@ impl Rooms {
         // Add event_id back
         leave_event_stub.insert(
             "event_id".to_owned(),
-            to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
+            CanonicalJsonValue::String(event_id.as_str().to_owned()),
         );
 
         // It has enough fields to be called a proper event now
