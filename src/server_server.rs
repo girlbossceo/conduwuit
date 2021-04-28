@@ -33,7 +33,7 @@ use ruma::{
         },
         EventType,
     },
-    serde::{to_canonical_value, Raw},
+    serde::Raw,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
     uint, EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
 };
@@ -709,11 +709,7 @@ pub fn handle_incoming_pdu<'a>(
         // 1. Check the server is in the room
         let room_id = match value
             .get("room_id")
-            .map(|id| match id {
-                CanonicalJsonValue::String(id) => RoomId::try_from(id.as_str()).ok(),
-                _ => None,
-            })
-            .flatten()
+            .and_then(|id| RoomId::try_from(id.as_str()?).ok())
         {
             Some(id) => id,
             None => {
@@ -776,7 +772,7 @@ pub fn handle_incoming_pdu<'a>(
         // to our PduEvent type
         val.insert(
             "event_id".to_owned(),
-            to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
+            CanonicalJsonValue::String(event_id.as_str().to_owned()),
         );
         let incoming_pdu = serde_json::from_value::<PduEvent>(
             serde_json::to_value(&val).expect("CanonicalJsonObj is a valid JsonValue"),
@@ -1306,8 +1302,7 @@ pub(crate) fn fetch_and_handle_events<'a>(
                                     Ok(_) => {
                                         value.insert(
                                             "event_id".to_owned(),
-                                            to_canonical_value(&event_id)
-                                                .expect("EventId is a valid CanonicalJsonValue"),
+                                            CanonicalJsonValue::String(event_id.into()),
                                         );
 
                                         Arc::new(serde_json::from_value(
@@ -1805,8 +1800,7 @@ pub fn create_join_event_template_route<'a>(
     // Add origin because synapse likes that (and it's required in the spec)
     pdu_json.insert(
         "origin".to_owned(),
-        to_canonical_value(db.globals.server_name())
-            .expect("server name is a valid CanonicalJsonValue"),
+        CanonicalJsonValue::String(db.globals.server_name().as_str().to_owned()),
     );
 
     Ok(create_join_event_template::v1::Response {
@@ -1979,33 +1973,30 @@ pub async fn create_invite_route<'a>(
     // Add event_id back
     signed_event.insert(
         "event_id".to_owned(),
-        to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
+        CanonicalJsonValue::String(event_id.into()),
     );
 
     let sender = serde_json::from_value(
-        serde_json::to_value(
-            signed_event
-                .get("sender")
-                .ok_or(Error::BadRequest(
-                    ErrorKind::InvalidParam,
-                    "Event had no sender field.",
-                ))?
-                .clone(),
-        )
-        .expect("CanonicalJsonValue to serde_json::Value always works"),
+        signed_event
+            .get("sender")
+            .ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Event had no sender field.",
+            ))?
+            .clone()
+            .into(),
     )
     .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "sender is not a user id."))?;
+
     let invited_user = serde_json::from_value(
-        serde_json::to_value(
-            signed_event
-                .get("state_key")
-                .ok_or(Error::BadRequest(
-                    ErrorKind::InvalidParam,
-                    "Event had no state_key field.",
-                ))?
-                .clone(),
-        )
-        .expect("CanonicalJsonValue to serde_json::Value always works"),
+        signed_event
+            .get("state_key")
+            .ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Event had no state_key field.",
+            ))?
+            .clone()
+            .into(),
     )
     .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user id."))?;
 
@@ -2150,39 +2141,36 @@ pub async fn fetch_required_signing_keys(
     pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
     db: &Database,
 ) -> Result<()> {
+    let signatures = event
+        .get("signatures")
+        .ok_or(Error::BadServerResponse(
+            "No signatures in server response pdu.",
+        ))?
+        .as_object()
+        .ok_or(Error::BadServerResponse(
+            "Invalid signatures object in server response pdu.",
+        ))?;
+
     // We go through all the signatures we see on the value and fetch the corresponding signing
     // keys
-    for (signature_server, signature) in match event.get("signatures").ok_or(
-        Error::BadServerResponse("No signatures in server response pdu."),
-    )? {
-        CanonicalJsonValue::Object(map) => map,
-        _ => {
-            return Err(Error::BadServerResponse(
-                "Invalid signatures object in server response pdu.",
-            ))
-        }
-    } {
-        let signature_object = match signature {
-            CanonicalJsonValue::Object(map) => map,
-            _ => {
-                return Err(Error::BadServerResponse(
-                    "Invalid signatures content object in server response pdu.",
-                ))
-            }
-        };
+    for (signature_server, signature) in signatures {
+        let signature_object = signature.as_object().ok_or(Error::BadServerResponse(
+            "Invalid signatures content object in server response pdu.",
+        ))?;
 
         let signature_ids = signature_object.keys().collect::<Vec<_>>();
 
         debug!("Fetching signing keys for {}", signature_server);
-        let keys = match fetch_signing_keys(
+        let fetch_res = fetch_signing_keys(
             db,
             &Box::<ServerName>::try_from(&**signature_server).map_err(|_| {
                 Error::BadServerResponse("Invalid servername in signatures of server response pdu.")
             })?,
             signature_ids,
         )
-        .await
-        {
+        .await;
+
+        let keys = match fetch_res {
             Ok(keys) => keys,
             Err(_) => {
                 warn!("Signature verification failed: Could not fetch signing key.",);

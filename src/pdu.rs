@@ -5,7 +5,7 @@ use ruma::{
         pdu::EventHash, room::member::MemberEventContent, AnyEvent, AnyRoomEvent, AnyStateEvent,
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
-    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
+    serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
     EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
@@ -238,7 +238,7 @@ impl PduEvent {
     ) -> Result<Self, serde_json::Error> {
         json.insert(
             "event_id".to_string(),
-            to_canonical_value(event_id).expect("event_id is a valid Value"),
+            CanonicalJsonValue::String(event_id.as_str().to_owned()),
         );
 
         serde_json::from_value(serde_json::to_value(json).expect("valid JSON"))

@@ -31,7 +31,7 @@ use tracing::span;
 use tracing_subscriber::{prelude::*, Registry};
 
 fn setup_rocket(config: Figment, data: Database) -> rocket::Rocket<rocket::Build> {
-    let rocket = rocket::custom(config)
+    rocket::custom(config)
         .manage(data)
         .mount(
             "/",
@@ -167,9 +167,7 @@ fn setup_rocket(config: Figment, data: Database) -> rocket::Rocket<rocket::Build
                 missing_token_catcher,
                 bad_json_catcher
             ],
-        );
-
-    rocket
+        )
 }
 
 #[rocket::main]

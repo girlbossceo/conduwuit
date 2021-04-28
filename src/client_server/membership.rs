@@ -24,7 +24,7 @@ use ruma::{
         room::{create::CreateEventContent, member},
         EventType,
     },
-    serde::{to_canonical_value, CanonicalJsonObject, Raw},
+    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use state_res::EventMap;
@@ -481,13 +481,15 @@ async fn join_room_by_id_helper(
         // TODO: Is origin needed?
         join_event_stub.insert(
             "origin".to_owned(),
-            to_canonical_value(db.globals.server_name())
-                .map_err(|_| Error::bad_database("Invalid server name found"))?,
+            CanonicalJsonValue::String(db.globals.server_name().as_str().to_owned()),
         );
         join_event_stub.insert(
             "origin_server_ts".to_owned(),
-            to_canonical_value(utils::millis_since_unix_epoch())
-                .expect("Timestamp is valid js_int value"),
+            CanonicalJsonValue::Integer(
+                utils::millis_since_unix_epoch()
+                    .try_into()
+                    .expect("Timestamp is valid js_int value"),
+            ),
         );
         join_event_stub.insert(
             "content".to_owned(),
@@ -524,7 +526,7 @@ async fn join_room_by_id_helper(
         // Add event_id back
         join_event_stub.insert(
             "event_id".to_owned(),
-            to_canonical_value(&event_id).expect("EventId is a valid CanonicalJsonValue"),
+            CanonicalJsonValue::String(event_id.as_str().to_owned()),
         );
 
         // It has enough fields to be called a proper event now
@@ -717,8 +719,7 @@ async fn validate_and_add_event_id(
 
     value.insert(
         "event_id".to_owned(),
-        to_canonical_value(&event_id)
-            .expect("a valid EventId can be converted to CanonicalJsonValue"),
+        CanonicalJsonValue::String(event_id.as_str().to_owned()),
     );
 
     Ok((event_id, value))
