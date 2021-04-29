@@ -16,7 +16,7 @@ use ruma::{
 };
 use sled::IVec;
 
-use std::{convert::TryFrom, fmt::Debug};
+use std::{convert::TryFrom, fmt::Debug, mem};
 
 #[derive(Debug, Clone)]
 pub struct PushData {
@@ -114,24 +114,23 @@ where
     //*reqwest_request.timeout_mut() = Some(Duration::from_secs(5));
 
     let url = reqwest_request.url().clone();
-    let reqwest_response = globals.reqwest_client().execute(reqwest_request).await;
+    let response = globals.reqwest_client().execute(reqwest_request).await;
 
-    // Because reqwest::Response -> http::Response is complicated:
-    match reqwest_response {
-        Ok(mut reqwest_response) => {
-            let status = reqwest_response.status();
-            let mut http_response = http::Response::builder().status(status);
-            let headers = http_response.headers_mut().unwrap();
+    match response {
+        Ok(mut response) => {
+            // reqwest::Response -> http::Response conversion
+            let status = response.status();
+            let mut http_response_builder = http::Response::builder()
+                .status(status)
+                .version(response.version());
+            mem::swap(
+                response.headers_mut(),
+                http_response_builder
+                    .headers_mut()
+                    .expect("http::response::Builder is usable"),
+            );
 
-            for (k, v) in reqwest_response.headers_mut().drain() {
-                if let Some(key) = k {
-                    headers.insert(key, v);
-                }
-            }
-
-            let status = reqwest_response.status();
-
-            let body = reqwest_response.bytes().await.unwrap_or_else(|e| {
+            let body = response.bytes().await.unwrap_or_else(|e| {
                 warn!("server error {}", e);
                 Vec::new().into()
             }); // TODO: handle timeout
@@ -147,7 +146,7 @@ where
             }
 
             let response = T::IncomingResponse::try_from_http_response(
-                http_response
+                http_response_builder
                     .body(body)
                     .expect("reqwest body is valid http body"),
             );
