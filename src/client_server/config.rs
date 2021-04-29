@@ -8,7 +8,7 @@ use ruma::{
             set_room_account_data,
         },
     },
-    events::{custom::CustomEventContent, BasicEvent},
+    events::{custom::CustomEventContent, AnyBasicEventContent, BasicEvent},
     serde::Raw,
 };
 
@@ -91,14 +91,14 @@ pub async fn get_global_account_data_route(
 ) -> ConduitResult<get_global_account_data::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let data = db
+    let account_data = db
         .account_data
-        .get::<Raw<ruma::events::AnyBasicEvent>>(None, sender_user, body.event_type.clone().into())?
+        .get::<Raw<AnyBasicEventContent>>(None, sender_user, body.event_type.clone().into())?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
     db.flush().await?;
 
-    Ok(get_global_account_data::Response { account_data: data }.into())
+    Ok(get_global_account_data::Response { account_data }.into())
 }
 
 #[cfg_attr(
@@ -115,9 +115,9 @@ pub async fn get_room_account_data_route(
 ) -> ConduitResult<get_room_account_data::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let data = db
+    let account_data = db
         .account_data
-        .get::<Raw<ruma::events::AnyBasicEvent>>(
+        .get::<Raw<AnyBasicEventContent>>(
             Some(&body.room_id),
             sender_user,
             body.event_type.clone().into(),
@@ -126,5 +126,5 @@ pub async fn get_room_account_data_route(
 
     db.flush().await?;
 
-    Ok(get_room_account_data::Response { account_data: data }.into())
+    Ok(get_room_account_data::Response { account_data }.into())
 }
