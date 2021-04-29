@@ -11,6 +11,8 @@ use ruma::{
     events::{custom::CustomEventContent, AnyBasicEventContent, BasicEvent},
     serde::Raw,
 };
+use serde::Deserialize;
+use serde_json::value::RawValue as RawJsonValue;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};
@@ -91,12 +93,15 @@ pub async fn get_global_account_data_route(
 ) -> ConduitResult<get_global_account_data::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let account_data = db
+    let event = db
         .account_data
-        .get::<Raw<AnyBasicEventContent>>(None, sender_user, body.event_type.clone().into())?
+        .get::<Box<RawJsonValue>>(None, sender_user, body.event_type.clone().into())?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
-
     db.flush().await?;
+
+    let account_data = serde_json::from_str::<ExtractEventContent>(event.get())
+        .map_err(|_| Error::bad_database("Invalid account data event in db."))?
+        .content;
 
     Ok(get_global_account_data::Response { account_data }.into())
 }
@@ -115,16 +120,24 @@ pub async fn get_room_account_data_route(
 ) -> ConduitResult<get_room_account_data::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let account_data = db
+    let event = db
         .account_data
-        .get::<Raw<AnyBasicEventContent>>(
+        .get::<Box<RawJsonValue>>(
             Some(&body.room_id),
             sender_user,
             body.event_type.clone().into(),
         )?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
-
     db.flush().await?;
 
+    let account_data = serde_json::from_str::<ExtractEventContent>(event.get())
+        .map_err(|_| Error::bad_database("Invalid account data event in db."))?
+        .content;
+
     Ok(get_room_account_data::Response { account_data }.into())
+}
+
+#[derive(Deserialize)]
+struct ExtractEventContent {
+    content: Raw<AnyBasicEventContent>,
 }
