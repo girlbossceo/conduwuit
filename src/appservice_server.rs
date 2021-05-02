@@ -1,11 +1,11 @@
 use crate::{utils, Error, Result};
 use bytes::BytesMut;
-use http::header::{HeaderValue, CONTENT_TYPE};
 use log::warn;
 use ruma::api::{IncomingResponse, OutgoingRequest, SendAccessToken};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Debug,
+    mem,
     time::Duration,
 };
 
@@ -40,33 +40,27 @@ where
     );
     *http_request.uri_mut() = parts.try_into().expect("our manipulation is always valid");
 
-    http_request.headers_mut().insert(
-        CONTENT_TYPE,
-        HeaderValue::from_str("application/json").unwrap(),
-    );
-
     let mut reqwest_request = reqwest::Request::try_from(http_request)
         .expect("all http requests are valid reqwest requests");
 
     *reqwest_request.timeout_mut() = Some(Duration::from_secs(30));
 
     let url = reqwest_request.url().clone();
-    let mut reqwest_response = globals.reqwest_client().execute(reqwest_request).await?;
+    let mut response = globals.reqwest_client().execute(reqwest_request).await?;
 
-    // Because reqwest::Response -> http::Response is complicated:
-    let status = reqwest_response.status();
-    let mut http_response = http::Response::builder().status(status);
-    let headers = http_response.headers_mut().unwrap();
+    // reqwest::Response -> http::Response conversion
+    let status = response.status();
+    let mut http_response_builder = http::Response::builder()
+        .status(status)
+        .version(response.version());
+    mem::swap(
+        response.headers_mut(),
+        http_response_builder
+            .headers_mut()
+            .expect("http::response::Builder is usable"),
+    );
 
-    for (k, v) in reqwest_response.headers_mut().drain() {
-        if let Some(key) = k {
-            headers.insert(key, v);
-        }
-    }
-
-    let status = reqwest_response.status();
-
-    let body = reqwest_response.bytes().await.unwrap_or_else(|e| {
+    let body = response.bytes().await.unwrap_or_else(|e| {
         warn!("server error: {}", e);
         Vec::new().into()
     }); // TODO: handle timeout
@@ -82,7 +76,7 @@ where
     }
 
     let response = T::IncomingResponse::try_from_http_response(
-        http_response
+        http_response_builder
             .body(body)
             .expect("reqwest body is valid http body"),
     );
