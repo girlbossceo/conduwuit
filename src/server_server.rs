@@ -1018,29 +1018,6 @@ pub fn handle_incoming_pdu<'a>(
         }
         debug!("Auth check succeeded.");
 
-        // 13. Check if the event passes auth based on the "current state" of the room, if not "soft fail" it
-        let current_state = db
-            .rooms
-            .room_state_full(&room_id)
-            .map_err(|_| "Failed to load room state.".to_owned())?
-            .into_iter()
-            .map(|(k, v)| (k, Arc::new(v)))
-            .collect();
-
-        if !state_res::event_auth::auth_check(
-            &room_version,
-            &incoming_pdu,
-            previous_create,
-            &current_state,
-            None,
-        )
-        .map_err(|_e| "Auth check failed.".to_owned())?
-        {
-            // Soft fail, we leave the event as an outlier but don't add it to the timeline
-            return Err("Event has been soft failed".into());
-        };
-        debug!("Auth check with current state succeeded.");
-
         // Now we calculate the set of extremities this room has after the incoming event has been
         // applied. We start with the previous extremities (aka leaves)
         let mut extremities = db
@@ -1103,6 +1080,14 @@ pub fn handle_incoming_pdu<'a>(
         //     don't just trust a set of state we got from a remote).
 
         // We do this by adding the current state to the list of fork states
+        let current_state = db
+            .rooms
+            .room_state_full(&room_id)
+            .map_err(|_| "Failed to load room state.".to_owned())?
+            .into_iter()
+            .map(|(k, v)| (k, Arc::new(v)))
+            .collect();
+
         fork_states.insert(current_state);
 
         // We also add state after incoming event to the fork states
@@ -1199,18 +1184,40 @@ pub fn handle_incoming_pdu<'a>(
             }
         };
 
-        // Now that the event has passed all auth it is added into the timeline.
-        // We use the `state_at_event` instead of `state_after` so we accurately
-        // represent the state for this event.
-        let pdu_id = append_incoming_pdu(
-            &db,
+        // 13. Check if the event passes auth based on the "current state" of the room, if not "soft fail" it
+        let soft_fail = !state_res::event_auth::auth_check(
+            &room_version,
             &incoming_pdu,
-            val,
-            extremities,
-            &state_at_incoming_event,
+            previous_create,
+            &new_room_state
+                .iter()
+                .filter_map(|(k, v)| {
+                    Some((k.clone(), Arc::new(db.rooms.get_pdu(&v).ok().flatten()?)))
+                })
+                .collect(),
+            None,
         )
-        .map_err(|_| "Failed to add pdu to db.".to_owned())?;
-        debug!("Appended incoming pdu.");
+        .map_err(|_e| "Auth check failed.".to_owned())?;
+
+        let mut pdu_id = None;
+        if !soft_fail {
+            // Now that the event has passed all auth it is added into the timeline.
+            // We use the `state_at_event` instead of `state_after` so we accurately
+            // represent the state for this event.
+            pdu_id = Some(
+                append_incoming_pdu(
+                    &db,
+                    &incoming_pdu,
+                    val,
+                    extremities,
+                    &state_at_incoming_event,
+                )
+                .map_err(|_| "Failed to add pdu to db.".to_owned())?,
+            );
+            debug!("Appended incoming pdu.");
+        } else {
+            warn!("Event was soft failed: {:?}", incoming_pdu);
+        }
 
         // Set the new room state to the resolved state
         if update_state {
@@ -1220,8 +1227,13 @@ pub fn handle_incoming_pdu<'a>(
         }
         debug!("Updated resolved state");
 
+        if soft_fail {
+            // Soft fail, we leave the event as an outlier but don't add it to the timeline
+            return Err("Event has been soft failed".into());
+        }
+
         // Event has passed all auth/stateres checks
-        Ok(Some(pdu_id))
+        Ok(pdu_id)
     })
 }
 

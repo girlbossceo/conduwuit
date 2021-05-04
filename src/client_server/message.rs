@@ -56,13 +56,8 @@ pub async fn send_message_event_route(
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::from(&body.event_type),
-            content: serde_json::from_str(
-                body.json_body
-                    .as_ref()
-                    .ok_or(Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?
-                    .get(),
-            )
-            .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?,
+            content: serde_json::from_str(body.body.body.json().get())
+                .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?,
             unsigned: Some(unsigned),
             state_key: None,
             redacts: None,

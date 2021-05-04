@@ -220,7 +220,12 @@ pub async fn upload_signing_keys_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&sender_user, &sender_device, &uiaainfo)?;
+        db.uiaa.create(
+            &sender_user,
+            &sender_device,
+            &uiaainfo,
+            &body.json_body.expect("body is json"),
+        )?;
         return Err(Error::Uiaa(uiaainfo));
     }
 

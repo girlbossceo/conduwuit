@@ -135,7 +135,8 @@ impl Database {
                 todeviceid_events: db.open_tree("todeviceid_events")?,
             },
             uiaa: uiaa::Uiaa {
-                userdeviceid_uiaainfo: db.open_tree("userdeviceid_uiaainfo")?,
+                userdevicesessionid_uiaainfo: db.open_tree("userdevicesessionid_uiaainfo")?,
+                userdevicesessionid_uiaarequest: db.open_tree("userdevicesessionid_uiaarequest")?,
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {
