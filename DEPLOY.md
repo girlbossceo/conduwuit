@@ -96,6 +96,8 @@ allow_registration = false
 allow_encryption = true
 allow_federation = true
 
+trusted_servers = ["matrix.org"]
+
 #cache_capacity = 1073741824 # in bytes, 1024 * 1024 * 1024
 #max_concurrent_requests = 4 # How many requests Conduit sends to other servers at the same time
 #workers = 4 # default: cpu core count * 2
