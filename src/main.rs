@@ -1,5 +1,6 @@
 #![warn(rust_2018_idioms)]
 #![allow(clippy::suspicious_else_formatting)]
+#![deny(clippy::dbg_macro)]
 
 pub mod appservice_server;
 pub mod client_server;
