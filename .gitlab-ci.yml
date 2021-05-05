@@ -11,4 +11,5 @@ test:cargo:
   script:
     - rustc --version && cargo --version  # Print version info for debugging
     - cargo test --workspace --verbose --locked
+    - cargo fmt --all -- --check
     - cargo clippy
