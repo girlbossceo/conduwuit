@@ -6,11 +6,10 @@ variables:
 before_script:
   - apt-get update -yqq
   - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config
-  - rustup component add clippy
 
 test:cargo:
   script:
     - rustc --version && cargo --version  # Print version info for debugging
     - cargo test --workspace --verbose --locked
     - cargo fmt --all -- --check
-    - cargo clippy
+    - rustup component add clippy && cargo clippy
