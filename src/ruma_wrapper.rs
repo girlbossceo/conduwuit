@@ -8,7 +8,7 @@ use std::ops::Deref;
 
 #[cfg(feature = "conduit_bin")]
 use {
-    crate::{server_server, utils},
+    crate::server_server,
     log::{debug, warn},
     rocket::{
         data::{self, ByteUnit, Data, FromData},
@@ -35,7 +35,7 @@ pub struct Ruma<T: Outgoing> {
     pub sender_user: Option<UserId>,
     pub sender_device: Option<Box<DeviceId>>,
     // This is None when body is not a valid string
-    pub json_body: Option<Box<serde_json::value::RawValue>>,
+    pub json_body: Option<CanonicalJsonValue>,
     pub from_appservice: bool,
 }
 
@@ -65,6 +65,8 @@ where
         let mut handle = data.open(ByteUnit::Byte(limit.into()));
         let mut body = Vec::new();
         handle.read_to_end(&mut body).await.unwrap();
+
+        let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&body).ok();
 
         let (sender_user, sender_device, from_appservice) = if let Some((_id, registration)) = db
             .appservice
@@ -115,7 +117,7 @@ where
                             // Unknown Token
                             None => return Failure((Status::raw(581), ())),
                             Some((user_id, device_id)) => {
-                                (Some(user_id), Some(device_id.into()), false)
+                                (Some(user_id), Some(Box::<DeviceId>::from(device_id)), false)
                             }
                         }
                     } else {
@@ -187,12 +189,10 @@ where
                         }
                     };
 
-                    let json_body = serde_json::from_slice::<CanonicalJsonValue>(&body);
-
                     let mut request_map = BTreeMap::<String, CanonicalJsonValue>::new();
 
-                    if let Ok(json_body) = json_body {
-                        request_map.insert("content".to_owned(), json_body);
+                    if let Some(json_body) = &json_body {
+                        request_map.insert("content".to_owned(), json_body.clone());
                     };
 
                     request_map.insert(
@@ -271,6 +271,43 @@ where
             http_request = http_request.header(header.name.as_str(), &*header.value);
         }
 
+        match &mut json_body {
+            Some(CanonicalJsonValue::Object(json_body)) => {
+                let user_id = sender_user.clone().unwrap_or_else(|| {
+                    UserId::parse_with_server_name("", db.globals.server_name())
+                        .expect("we know this is valid")
+                });
+
+                if let Some(initial_request) = json_body
+                    .get("auth")
+                    .and_then(|auth| auth.as_object())
+                    .and_then(|auth| auth.get("session"))
+                    .and_then(|session| session.as_str())
+                    .and_then(|session| {
+                        db.uiaa
+                            .get_uiaa_request(
+                                &user_id,
+                                &sender_device.clone().unwrap_or_else(|| "".into()),
+                                session,
+                            )
+                            .ok()
+                            .flatten()
+                    })
+                {
+                    match initial_request {
+                        CanonicalJsonValue::Object(initial_request) => {
+                            for (key, value) in initial_request.into_iter() {
+                                json_body.entry(key).or_insert(value);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                body = serde_json::to_vec(json_body).expect("value to bytes can't fail");
+            }
+            _ => {}
+        }
+
         let http_request = http_request.body(&*body).unwrap();
         debug!("{:?}", http_request);
         match <T::Incoming as IncomingRequest>::try_from_http_request(http_request) {
@@ -278,11 +315,8 @@ where
                 body: t,
                 sender_user,
                 sender_device,
-                // TODO: Can we avoid parsing it again? (We only need this for append_pdu)
-                json_body: utils::string_from_bytes(&body)
-                    .ok()
-                    .and_then(|s| serde_json::value::RawValue::from_string(s).ok()),
                 from_appservice,
+                json_body,
             }),
             Err(e) => {
                 warn!("{:?}", e);

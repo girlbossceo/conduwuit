@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, convert::TryInto};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+};
 
 use super::{State, DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{pdu::PduBuilder, utils, ConduitResult, Database, Error, Ruma};
@@ -143,16 +146,28 @@ pub async fn register_route(
 
     if !body.from_appservice {
         if let Some(auth) = &body.auth {
-            let (worked, uiaainfo) =
-                db.uiaa
-                    .try_auth(&user_id, "".into(), auth, &uiaainfo, &db.users, &db.globals)?;
+            let (worked, uiaainfo) = db.uiaa.try_auth(
+                &UserId::parse_with_server_name("", db.globals.server_name())
+                    .expect("we know this is valid"),
+                "".into(),
+                auth,
+                &uiaainfo,
+                &db.users,
+                &db.globals,
+            )?;
             if !worked {
                 return Err(Error::Uiaa(uiaainfo));
             }
         // Success!
         } else {
             uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-            db.uiaa.create(&user_id, "".into(), &uiaainfo)?;
+            db.uiaa.create(
+                &UserId::parse_with_server_name("", db.globals.server_name())
+                    .expect("we know this is valid"),
+                "".into(),
+                &uiaainfo,
+                &body.json_body.expect("body is json"),
+            )?;
             return Err(Error::Uiaa(uiaainfo));
         }
     }
@@ -526,7 +541,12 @@ pub async fn change_password_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&sender_user, &sender_device, &uiaainfo)?;
+        db.uiaa.create(
+            &sender_user,
+            &sender_device,
+            &uiaainfo,
+            &body.json_body.expect("body is json"),
+        )?;
         return Err(Error::Uiaa(uiaainfo));
     }
 
@@ -612,7 +632,12 @@ pub async fn deactivate_route(
     // Success!
     } else {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(&sender_user, &sender_device, &uiaainfo)?;
+        db.uiaa.create(
+            &sender_user,
+            &sender_device,
+            &uiaainfo,
+            &body.json_body.expect("body is json"),
+        )?;
         return Err(Error::Uiaa(uiaainfo));
     }
 

@@ -69,9 +69,9 @@ use {
     ruma::api::client::r0::to_device::send_event_to_device,
 };
 
-const DEVICE_ID_LENGTH: usize = 10;
-const TOKEN_LENGTH: usize = 256;
-const SESSION_ID_LENGTH: usize = 256;
+pub const DEVICE_ID_LENGTH: usize = 10;
+pub const TOKEN_LENGTH: usize = 256;
+pub const SESSION_ID_LENGTH: usize = 256;
 
 #[cfg(feature = "conduit_bin")]
 #[options("/<_..>")]
