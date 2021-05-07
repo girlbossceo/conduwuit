@@ -6,7 +6,7 @@ use ruma::{
         AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
-    EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UInt, UserId,
+    state_res, EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;

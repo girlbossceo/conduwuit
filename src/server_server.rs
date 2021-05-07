@@ -35,9 +35,9 @@ use ruma::{
     },
     serde::Raw,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
+    state_res::{self, Event, EventMap, RoomVersion, StateMap},
     uint, EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
 };
-use state_res::{Event, EventMap, StateMap};
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet, HashSet},
     convert::{TryFrom, TryInto},
@@ -745,12 +745,13 @@ pub fn handle_incoming_pdu<'a>(
                 .deserialize()
                 .map_err(|_| "Invalid PowerLevels event in db.".to_owned())?;
 
-        let room_version = create_event_content.room_version;
+        let room_version_id = &create_event_content.room_version;
+        let room_version = RoomVersion::new(room_version_id).expect("room version is supported");
 
         let mut val = match ruma::signatures::verify_event(
             &*pub_key_map.read().map_err(|_| "RwLock is poisoned.")?,
             &value,
-            &room_version,
+            room_version_id,
         ) {
             Err(e) => {
                 // Drop
@@ -760,7 +761,7 @@ pub fn handle_incoming_pdu<'a>(
             Ok(ruma::signatures::Verified::Signatures) => {
                 // Redact
                 warn!("Calculated hash does not match: {}", event_id);
-                match ruma::signatures::redact(&value, &room_version) {
+                match ruma::signatures::redact(&value, room_version_id) {
                     Ok(obj) => obj,
                     Err(_) => return Err("Redaction failed".to_string()),
                 }
@@ -1162,7 +1163,7 @@ pub fn handle_incoming_pdu<'a>(
 
             match state_res::StateResolution::resolve(
                 &room_id,
-                &room_version,
+                room_version_id,
                 &fork_states
                     .into_iter()
                     .map(|map| {
@@ -1718,9 +1719,12 @@ pub fn create_join_event_template_route<'a>(
     };
 
     // If there was no create event yet, assume we are creating a version 6 room right now
-    let room_version = create_event_content.map_or(RoomVersionId::Version6, |create_event| {
-        create_event.room_version
-    });
+    let room_version = RoomVersion::new(
+        &create_event_content.map_or(RoomVersionId::Version6, |create_event| {
+            create_event.room_version
+        }),
+    )
+    .expect("room version is supported");
 
     let content = serde_json::to_value(MemberEventContent {
         avatar_url: None,

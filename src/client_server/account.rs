@@ -1,7 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-};
+use std::{collections::BTreeMap, convert::TryInto};
 
 use super::{State, DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{pdu::PduBuilder, utils, ConduitResult, Database, Error, Ruma};

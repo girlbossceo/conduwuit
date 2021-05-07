@@ -16,10 +16,10 @@ use ruma::{
     },
     push::{self, Action, Tweak},
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
+    state_res::{self, Event, RoomVersion, StateMap},
     uint, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use sled::IVec;
-use state_res::{Event, StateMap};
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -1236,9 +1236,11 @@ impl Rooms {
         };
 
         // If there was no create event yet, assume we are creating a version 6 room right now
-        let room_version = create_event_content.map_or(RoomVersionId::Version6, |create_event| {
-            create_event.room_version
-        });
+        let room_version_id = create_event_content
+            .map_or(RoomVersionId::Version6, |create_event| {
+                create_event.room_version
+            });
+        let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
 
         let auth_events = self.get_auth_events(
             &room_id,
@@ -1326,14 +1328,14 @@ impl Rooms {
             db.globals.server_name().as_str(),
             db.globals.keypair(),
             &mut pdu_json,
-            &room_version,
+            &room_version_id,
         )
         .expect("event is valid, we just created it");
 
         // Generate event id
         pdu.event_id = EventId::try_from(&*format!(
             "${}",
-            ruma::signatures::reference_hash(&pdu_json, &room_version)
+            ruma::signatures::reference_hash(&pdu_json, &room_version_id)
                 .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are valid event ids");
@@ -1868,8 +1870,8 @@ impl Rooms {
 
         let (make_leave_response, remote_server) = make_leave_response_and_server?;
 
-        let room_version = match make_leave_response.room_version {
-            Some(room_version) if room_version == RoomVersionId::Version6 => room_version,
+        let room_version_id = match make_leave_response.room_version {
+            Some(id @ RoomVersionId::Version6) => id,
             _ => return Err(Error::BadServerResponse("Room version is not supported")),
         };
 
@@ -1900,14 +1902,14 @@ impl Rooms {
             db.globals.server_name().as_str(),
             db.globals.keypair(),
             &mut leave_event_stub,
-            &room_version,
+            &room_version_id,
         )
         .expect("event is valid, we just created it");
 
         // Generate event id
         let event_id = EventId::try_from(&*format!(
             "${}",
-            ruma::signatures::reference_hash(&leave_event_stub, &room_version)
+            ruma::signatures::reference_hash(&leave_event_stub, &room_version_id)
                 .expect("ruma can calculate reference hashes")
         ))
         .expect("ruma's reference hashes are valid event ids");

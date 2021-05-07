@@ -1,6 +1,5 @@
 use super::State;
-use crate::client_server::invite_helper;
-use crate::{pdu::PduBuilder, ConduitResult, Database, Error, Ruma};
+use crate::{client_server::invite_helper, pdu::PduBuilder, ConduitResult, Database, Error, Ruma};
 use log::info;
 use ruma::{
     api::client::{
