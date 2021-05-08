@@ -271,41 +271,33 @@ where
             http_request = http_request.header(header.name.as_str(), &*header.value);
         }
 
-        match &mut json_body {
-            Some(CanonicalJsonValue::Object(json_body)) => {
-                let user_id = sender_user.clone().unwrap_or_else(|| {
-                    UserId::parse_with_server_name("", db.globals.server_name())
-                        .expect("we know this is valid")
-                });
+        if let Some(json_body) = json_body.as_mut().and_then(|val| val.as_object_mut()) {
+            let user_id = sender_user.clone().unwrap_or_else(|| {
+                UserId::parse_with_server_name("", db.globals.server_name())
+                    .expect("we know this is valid")
+            });
 
-                if let Some(initial_request) = json_body
-                    .get("auth")
-                    .and_then(|auth| auth.as_object())
-                    .and_then(|auth| auth.get("session"))
-                    .and_then(|session| session.as_str())
-                    .and_then(|session| {
-                        db.uiaa
-                            .get_uiaa_request(
-                                &user_id,
-                                &sender_device.clone().unwrap_or_else(|| "".into()),
-                                session,
-                            )
-                            .ok()
-                            .flatten()
-                    })
-                {
-                    match initial_request {
-                        CanonicalJsonValue::Object(initial_request) => {
-                            for (key, value) in initial_request.into_iter() {
-                                json_body.entry(key).or_insert(value);
-                            }
-                        }
-                        _ => {}
-                    }
+            if let Some(CanonicalJsonValue::Object(initial_request)) = json_body
+                .get("auth")
+                .and_then(|auth| auth.as_object())
+                .and_then(|auth| auth.get("session"))
+                .and_then(|session| session.as_str())
+                .and_then(|session| {
+                    db.uiaa
+                        .get_uiaa_request(
+                            &user_id,
+                            &sender_device.clone().unwrap_or_else(|| "".into()),
+                            session,
+                        )
+                        .ok()
+                        .flatten()
+                })
+            {
+                for (key, value) in initial_request {
+                    json_body.entry(key).or_insert(value);
                 }
-                body = serde_json::to_vec(json_body).expect("value to bytes can't fail");
             }
-            _ => {}
+            body = serde_json::to_vec(json_body).expect("value to bytes can't fail");
         }
 
         let http_request = http_request.body(&*body).unwrap();

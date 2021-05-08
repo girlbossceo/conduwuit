@@ -213,7 +213,10 @@ impl PduEvent {
     pub fn convert_to_outgoing_federation_event(
         mut pdu_json: CanonicalJsonObject,
     ) -> Raw<ruma::events::pdu::Pdu> {
-        if let Some(CanonicalJsonValue::Object(unsigned)) = pdu_json.get_mut("unsigned") {
+        if let Some(unsigned) = pdu_json
+            .get_mut("unsigned")
+            .and_then(|val| val.as_object_mut())
+        {
             unsigned.remove("transaction_id");
         }
 
