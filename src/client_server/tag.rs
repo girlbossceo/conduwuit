@@ -31,7 +31,7 @@ pub async fn update_tag_route(
     tags_event
         .content
         .tags
-        .insert(body.tag.to_string(), body.tag_info.clone());
+        .insert(body.tag.clone().into(), body.tag_info.clone());
 
     db.account_data.update(
         Some(&body.room_id),
@@ -65,7 +65,7 @@ pub async fn delete_tag_route(
                 tags: BTreeMap::new(),
             },
         });
-    tags_event.content.tags.remove(&body.tag);
+    tags_event.content.tags.remove(&body.tag.clone().into());
 
     db.account_data.update(
         Some(&body.room_id),

@@ -25,9 +25,9 @@ use ruma::{
         EventType,
     },
     serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
+    state_res::{self, EventMap, RoomVersion},
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
-use state_res::EventMap;
 use std::{
     collections::{BTreeMap, HashSet},
     convert::{TryFrom, TryInto},
@@ -765,9 +765,11 @@ pub async fn invite_helper(
         };
 
         // If there was no create event yet, assume we are creating a version 6 room right now
-        let room_version = create_event_content.map_or(RoomVersionId::Version6, |create_event| {
-            create_event.room_version
-        });
+        let room_version_id = create_event_content
+            .map_or(RoomVersionId::Version6, |create_event| {
+                create_event.room_version
+            });
+        let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
 
         let content = serde_json::to_value(MemberEventContent {
             avatar_url: None,
@@ -863,7 +865,7 @@ pub async fn invite_helper(
             db.globals.server_name().as_str(),
             db.globals.keypair(),
             &mut pdu_json,
-            &room_version,
+            &room_version_id,
         )
         .expect("event is valid, we just created it");
 
