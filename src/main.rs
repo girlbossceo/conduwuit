@@ -205,13 +205,16 @@ async fn main() {
 
         let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
         let _enter = root.enter();
+
+        let rocket = setup_rocket(raw_config, db);
+        rocket.launch().await.unwrap();
     } else {
         std::env::set_var("CONDUIT_LOG", config.log);
         pretty_env_logger::init_custom_env("CONDUIT_LOG");
-    }
 
-    let rocket = setup_rocket(raw_config, db);
-    rocket.launch().await.unwrap();
+        let rocket = setup_rocket(raw_config, db);
+        rocket.launch().await.unwrap();
+    }
 }
 
 #[catch(404)]

@@ -106,3 +106,7 @@ conf-files = [
 ]
 maintainer-scripts = "debian/"
 systemd-units = { unit-name = "matrix-conduit" }
+
+# For flamegraphs:
+#[profile.release]
+#debug = true

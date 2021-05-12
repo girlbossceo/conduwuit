@@ -27,11 +27,12 @@ use ruma::{
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::{
+        receipt::{ReceiptEvent, ReceiptEventContent},
         room::{
             create::CreateEventContent,
             member::{MemberEventContent, MembershipState},
         },
-        EventType,
+        AnyEphemeralRoomEvent, AnyEvent as EduEvent, EventType,
     },
     serde::Raw,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
@@ -585,35 +586,6 @@ pub async fn send_transaction_message_route<'a>(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    for edu in body
-        .edus
-        .iter()
-        .map(|edu| serde_json::from_str::<Edu>(edu.json().get()))
-        .filter_map(|r| r.ok())
-    {
-        match edu {
-            Edu::Presence(_) => {}
-            Edu::Receipt(_) => {}
-            Edu::Typing(typing) => {
-                if typing.typing {
-                    db.rooms.edus.typing_add(
-                        &typing.user_id,
-                        &typing.room_id,
-                        3000 + utils::millis_since_unix_epoch(),
-                        &db.globals,
-                    )?;
-                } else {
-                    db.rooms
-                        .edus
-                        .typing_remove(&typing.user_id, &typing.room_id, &db.globals)?;
-                }
-            }
-            Edu::DeviceListUpdate(_) => {}
-            Edu::DirectToDevice(_) => {}
-            Edu::_Custom(_) => {}
-        }
-    }
-
     let mut resolved_map = BTreeMap::new();
 
     let pub_key_map = RwLock::new(BTreeMap::new());
@@ -656,6 +628,73 @@ pub async fn send_transaction_message_route<'a>(
             if e != "Room is unknown to this server." {
                 warn!("Incoming PDU failed {:?}", pdu);
             }
+        }
+    }
+
+    for edu in body
+        .edus
+        .iter()
+        .map(|edu| serde_json::from_str::<Edu>(edu.json().get()))
+        .filter_map(|r| r.ok())
+    {
+        match edu {
+            Edu::Presence(_) => {}
+            Edu::Receipt(receipt) => {
+                for (room_id, room_updates) in receipt.receipts {
+                    for (user_id, user_updates) in room_updates.read {
+                        if let Some((event_id, _)) = user_updates
+                            .event_ids
+                            .iter()
+                            .filter_map(|id| {
+                                db.rooms.get_pdu_count(&id).ok().flatten().map(|r| (id, r))
+                            })
+                            .max_by_key(|(_, count)| *count)
+                        {
+                            let mut user_receipts = BTreeMap::new();
+                            user_receipts.insert(user_id.clone(), user_updates.data);
+
+                            let mut receipt_content = BTreeMap::new();
+                            receipt_content.insert(
+                                event_id.to_owned(),
+                                ruma::events::receipt::Receipts {
+                                    read: Some(user_receipts),
+                                },
+                            );
+
+                            let event =
+                                EduEvent::Ephemeral(AnyEphemeralRoomEvent::Receipt(ReceiptEvent {
+                                    content: ReceiptEventContent(receipt_content),
+                                    room_id: room_id.clone(),
+                                }));
+                            db.rooms.edus.readreceipt_update(
+                                &user_id,
+                                &room_id,
+                                event,
+                                &db.globals,
+                            )?;
+                        } else {
+                            warn!("No known event ids in read receipt: {:?}", user_updates);
+                        }
+                    }
+                }
+            }
+            Edu::Typing(typing) => {
+                if typing.typing {
+                    db.rooms.edus.typing_add(
+                        &typing.user_id,
+                        &typing.room_id,
+                        3000 + utils::millis_since_unix_epoch(),
+                        &db.globals,
+                    )?;
+                } else {
+                    db.rooms
+                        .edus
+                        .typing_remove(&typing.user_id, &typing.room_id, &db.globals)?;
+                }
+            }
+            Edu::DeviceListUpdate(_) => {}
+            Edu::DirectToDevice(_) => {}
+            Edu::_Custom(_) => {}
         }
     }
 
@@ -1134,7 +1173,7 @@ pub fn handle_incoming_pdu<'a>(
                     .await
                     {
                         // This should always contain exactly one element when Ok
-                        Ok(events) => state_auth.push(events[0].clone()),
+                        Ok(events) => state_auth.extend_from_slice(&events),
                         Err(e) => {
                             debug!("Event was not present: {}", e);
                         }

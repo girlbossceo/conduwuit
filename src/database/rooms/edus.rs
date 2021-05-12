@@ -6,6 +6,7 @@ use ruma::{
     },
     presence::PresenceState,
     serde::Raw,
+    signatures::CanonicalJsonObject,
     RoomId, UInt, UserId,
 };
 use std::{
@@ -88,9 +89,13 @@ impl RoomEdus {
             .filter_map(|r| r.ok())
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(_, v)| {
-                Ok(serde_json::from_slice(&v).map_err(|_| {
-                    Error::bad_database("Read receipt in roomlatestid_roomlatest is invalid.")
-                })?)
+                let mut json = serde_json::from_slice::<CanonicalJsonObject>(&v).map_err(|_| {
+                    Error::bad_database("Read receipt in roomlatestid_roomlatest is invalid json.")
+                })?;
+                json.remove("room_id");
+                Ok(Raw::from_json(
+                    serde_json::value::to_raw_value(&json).expect("json is valid raw value"),
+                ))
             }))
     }
 

@@ -1,4 +1,4 @@
-use log::error;
+use log::{error, warn};
 use ruma::api::client::{error::ErrorKind, r0::uiaa::UiaaInfo};
 use thiserror::Error;
 
@@ -91,6 +91,8 @@ where
             Self::Conflict(_) => (Unknown, StatusCode::CONFLICT),
             _ => (Unknown, StatusCode::INTERNAL_SERVER_ERROR),
         };
+
+        warn!("{}: {}", status_code, message);
 
         RumaResponse::from(RumaError {
             kind,
