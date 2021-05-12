@@ -568,7 +568,13 @@ async fn join_room_by_id_helper(
         {
             let (event_id, value) = match result {
                 Ok(t) => t,
-                Err(_) => continue,
+                Err(e) => {
+                    warn!(
+                        "PDU could not be verified: {:?} {:?} {:?}",
+                        e, event_id, pdu
+                    );
+                    continue;
+                }
             };
 
             let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {

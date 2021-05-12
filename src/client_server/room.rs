@@ -111,11 +111,7 @@ pub async fn create_room_route(
         }
     }
 
-    let power_levels_content = if let Some(power_levels) = &body.power_level_content_override {
-        serde_json::from_str(power_levels.json().get()).map_err(|_| {
-            Error::BadRequest(ErrorKind::BadJson, "Invalid power_level_content_override.")
-        })?
-    } else {
+    let mut power_levels_content =
         serde_json::to_value(ruma::events::room::power_levels::PowerLevelsEventContent {
             ban: 50.into(),
             events: BTreeMap::new(),
@@ -130,8 +126,21 @@ pub async fn create_room_route(
                 room: 50.into(),
             },
         })
-        .expect("event is valid, we just created it")
-    };
+        .expect("event is valid, we just created it");
+
+    if let Some(power_level_content_override) = &body.power_level_content_override {
+        let json = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
+            power_level_content_override.json().get(),
+        )
+        .map_err(|_| {
+            Error::BadRequest(ErrorKind::BadJson, "Invalid power_level_content_override.")
+        })?;
+
+        for (key, value) in json {
+            power_levels_content[key] = value;
+        }
+    }
+
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomPowerLevels,

@@ -198,7 +198,7 @@ impl Database {
             },
             sending: sending::Sending {
                 servernamepduids: db.open_tree("servernamepduids")?,
-                servercurrentpdus: db.open_tree("servercurrentpdus")?,
+                servercurrentevents: db.open_tree("servercurrentevents")?,
                 maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
             },
             admin: admin::Admin {
@@ -216,6 +216,9 @@ impl Database {
             )?,
             _db: db,
         };
+
+        // This data is probably outdated
+        db.rooms.edus.presenceid_presence.clear()?;
 
         db.admin.start_handler(db.clone(), admin_receiver);
 
