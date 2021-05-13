@@ -1,9 +1,18 @@
 image: "rust:latest"
 
+cache:
+  paths:
+    - target
+    - cargohome
+
+
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
+  CARGO_HOME: "cargohome"
+  FF_USE_FASTZIP: 1
 
 before_script:
+  - mkdir -p $CARGO_HOME && echo "using $CARGO_HOME to cache cargo deps"
   - apt-get update -yqq
   - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config
   - rustup component add clippy rustfmt
