@@ -367,6 +367,47 @@ impl RoomEdus {
             .transpose()
     }
 
+    pub fn get_last_presence_event(
+        &self,
+        user_id: &UserId,
+        room_id: &RoomId,
+    ) -> Result<Option<PresenceEvent>> {
+        let last_update = match self.last_presence_update(user_id)? {
+            Some(last) => last,
+            None => return Ok(None),
+        };
+
+        let mut presence_id = room_id.as_bytes().to_vec();
+        presence_id.push(0xff);
+        presence_id.extend_from_slice(&last_update.to_be_bytes());
+        presence_id.push(0xff);
+        presence_id.extend_from_slice(&user_id.as_bytes());
+
+        self.presenceid_presence
+            .get(presence_id)?
+            .map(|value| {
+                let mut presence = serde_json::from_slice::<PresenceEvent>(&value)
+                    .map_err(|_| Error::bad_database("Invalid presence event in db."))?;
+                let current_timestamp: UInt = utils::millis_since_unix_epoch()
+                    .try_into()
+                    .expect("time is valid");
+
+                if presence.content.presence == PresenceState::Online {
+                    // Don't set last_active_ago when the user is online
+                    presence.content.last_active_ago = None;
+                } else {
+                    // Convert from timestamp to duration
+                    presence.content.last_active_ago = presence
+                        .content
+                        .last_active_ago
+                        .map(|timestamp| current_timestamp - timestamp);
+                }
+
+                Ok(presence)
+            })
+            .transpose()
+    }
+
     /// Sets all users to offline who have been quiet for too long.
     pub fn presence_maintain(
         &self,
