@@ -258,4 +258,16 @@ impl Globals {
         }
         Ok(response)
     }
+
+    pub fn database_version(&self) -> Result<u64> {
+        self.globals.get("version")?.map_or(Ok(0), |version| {
+            utils::u64_from_bytes(&version)
+                .map_err(|_| Error::bad_database("Database version id is invalid."))
+        })
+    }
+
+    pub fn bump_database_version(&self, new_version: u64) -> Result<()> {
+        self.globals.insert("version", &new_version.to_be_bytes())?;
+        Ok(())
+    }
 }

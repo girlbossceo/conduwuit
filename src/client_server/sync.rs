@@ -406,6 +406,7 @@ pub async fn sync_events_route(
             .edus
             .readreceipts_since(&room_id, since)?
             .filter_map(|r| r.ok()) // Filter out buggy events
+            .map(|(_, _, v)| v)
             .collect::<Vec<_>>();
 
         if db.rooms.edus.last_typing_update(&room_id, &db.globals)? > since {

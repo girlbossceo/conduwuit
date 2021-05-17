@@ -50,6 +50,8 @@ pub struct Rooms {
 
     /// Participating servers in a room.
     pub(super) roomserverids: sled::Tree, // RoomServerId = RoomId + ServerName
+    pub(super) serverroomids: sled::Tree, // ServerRoomId = ServerName + RoomId
+
     pub(super) userroomid_joined: sled::Tree,
     pub(super) roomuserid_joined: sled::Tree,
     pub(super) roomuseroncejoinedids: sled::Tree,
@@ -1597,6 +1599,10 @@ impl Rooms {
         roomserver_id.push(0xff);
         roomserver_id.extend_from_slice(user_id.server_name().as_bytes());
 
+        let mut serverroom_id = user_id.server_name().as_bytes().to_vec();
+        serverroom_id.push(0xff);
+        serverroom_id.extend_from_slice(room_id.as_bytes());
+
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
@@ -1700,6 +1706,7 @@ impl Rooms {
                 }
 
                 self.roomserverids.insert(&roomserver_id, &[])?;
+                self.serverroomids.insert(&serverroom_id, &[])?;
                 self.userroomid_joined.insert(&userroom_id, &[])?;
                 self.roomuserid_joined.insert(&roomuser_id, &[])?;
                 self.userroomid_invitestate.remove(&userroom_id)?;
@@ -1725,6 +1732,7 @@ impl Rooms {
                 }
 
                 self.roomserverids.insert(&roomserver_id, &[])?;
+                self.serverroomids.insert(&serverroom_id, &[])?;
                 self.userroomid_invitestate.insert(
                     &userroom_id,
                     serde_json::to_vec(&last_state.unwrap_or_default())
@@ -1745,6 +1753,7 @@ impl Rooms {
                     .all(|u| u.server_name() != user_id.server_name())
                 {
                     self.roomserverids.remove(&roomserver_id)?;
+                    self.serverroomids.remove(&serverroom_id)?;
                 }
                 self.userroomid_leftstate.insert(
                     &userroom_id,
@@ -2149,6 +2158,25 @@ impl Rooms {
                 })?,
             )
             .map_err(|_| Error::bad_database("Server name in roomserverids is invalid."))?)
+        })
+    }
+
+    /// Returns an iterator of all rooms a server participates in (as far as we know).
+    pub fn server_rooms(&self, server: &ServerName) -> impl Iterator<Item = Result<RoomId>> {
+        let mut prefix = server.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        self.serverroomids.scan_prefix(prefix).keys().map(|key| {
+            Ok(RoomId::try_from(
+                utils::string_from_bytes(
+                    &key?
+                        .rsplit(|&b| b == 0xff)
+                        .next()
+                        .expect("rsplit always returns an element"),
+                )
+                .map_err(|_| Error::bad_database("RoomId in serverroomids is invalid unicode."))?,
+            )
+            .map_err(|_| Error::bad_database("RoomId in serverroomids is invalid."))?)
         })
     }
 

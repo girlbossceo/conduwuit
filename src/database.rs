@@ -14,7 +14,7 @@ pub mod users;
 use crate::{Error, Result};
 use directories::ProjectDirs;
 use futures::StreamExt;
-use log::info;
+use log::{error, info};
 use rocket::futures::{self, channel::mpsc};
 use ruma::{DeviceId, ServerName, UserId};
 use serde::Deserialize;
@@ -160,6 +160,7 @@ impl Database {
                 tokenids: db.open_tree("tokenids")?,
 
                 roomserverids: db.open_tree("roomserverids")?,
+                serverroomids: db.open_tree("serverroomids")?,
                 userroomid_joined: db.open_tree("userroomid_joined")?,
                 roomuserid_joined: db.open_tree("roomuserid_joined")?,
                 roomuseroncejoinedids: db.open_tree("roomuseroncejoinedids")?,
@@ -197,6 +198,7 @@ impl Database {
                 userdevicetxnid_response: db.open_tree("userdevicetxnid_response")?,
             },
             sending: sending::Sending {
+                servername_educount: db.open_tree("servername_educount")?,
                 servernamepduids: db.open_tree("servernamepduids")?,
                 servercurrentevents: db.open_tree("servercurrentevents")?,
                 maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
@@ -216,6 +218,31 @@ impl Database {
             )?,
             _db: db,
         };
+
+        // MIGRATIONS
+        if db.globals.database_version()? < 1 {
+            for roomserverid in db.rooms.roomserverids.iter().keys() {
+                let roomserverid = roomserverid?;
+                let mut parts = roomserverid.split(|&b| b == 0xff);
+                let room_id = parts.next().expect("split always returns one element");
+                let servername = match parts.next() {
+                    Some(s) => s,
+                    None => {
+                        error!("Migration: Invalid roomserverid in db.");
+                        continue;
+                    }
+                };
+                let mut serverroomid = servername.to_vec();
+                serverroomid.push(0xff);
+                serverroomid.extend_from_slice(room_id);
+
+                db.rooms.serverroomids.insert(serverroomid, &[])?;
+            }
+
+            db.globals.bump_database_version(1)?;
+
+            info!("Migration: 0 -> 1 finished");
+        }
 
         // This data is probably outdated
         db.rooms.edus.presenceid_presence.clear()?;

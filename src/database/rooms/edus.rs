@@ -76,9 +76,12 @@ impl RoomEdus {
         &self,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<impl Iterator<Item = Result<Raw<ruma::events::AnySyncEphemeralRoomEvent>>>> {
+    ) -> Result<
+        impl Iterator<Item = Result<(UserId, u64, Raw<ruma::events::AnySyncEphemeralRoomEvent>)>>,
+    > {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
+        let prefix2 = prefix.clone();
 
         let mut first_possible_edu = prefix.clone();
         first_possible_edu.extend_from_slice(&(since + 1).to_be_bytes()); // +1 so we don't send the event at since
@@ -87,14 +90,30 @@ impl RoomEdus {
             .readreceiptid_readreceipt
             .range(&*first_possible_edu..)
             .filter_map(|r| r.ok())
-            .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(|(_, v)| {
+            .take_while(move |(k, _)| k.starts_with(&prefix2))
+            .map(move |(k, v)| {
+                let count =
+                    utils::u64_from_bytes(&k[prefix.len()..prefix.len() + mem::size_of::<u64>()])
+                        .map_err(|_| Error::bad_database("Invalid readreceiptid count in db."))?;
+                let user_id = UserId::try_from(
+                    utils::string_from_bytes(&k[prefix.len() + mem::size_of::<u64>() + 1..])
+                        .map_err(|_| {
+                            Error::bad_database("Invalid readreceiptid userid bytes in db.")
+                        })?,
+                )
+                .map_err(|_| Error::bad_database("Invalid readreceiptid userid in db."))?;
+
                 let mut json = serde_json::from_slice::<CanonicalJsonObject>(&v).map_err(|_| {
                     Error::bad_database("Read receipt in roomlatestid_roomlatest is invalid json.")
                 })?;
                 json.remove("room_id");
-                Ok(Raw::from_json(
-                    serde_json::value::to_raw_value(&json).expect("json is valid raw value"),
+
+                Ok((
+                    user_id,
+                    count,
+                    Raw::from_json(
+                        serde_json::value::to_raw_value(&json).expect("json is valid raw value"),
+                    ),
                 ))
             }))
     }
