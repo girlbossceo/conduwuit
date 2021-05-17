@@ -1126,9 +1126,9 @@ pub fn handle_incoming_pdu<'a>(
             .map_err(|_| "Failed to load room state.".to_owned())?
             .into_iter()
             .map(|(k, v)| (k, Arc::new(v)))
-            .collect();
+            .collect::<BTreeMap<_, _>>();
 
-        fork_states.insert(current_state);
+        fork_states.insert(current_state.clone());
 
         // We also add state after incoming event to the fork states
         extremities.insert(incoming_pdu.event_id.clone());
@@ -1229,12 +1229,7 @@ pub fn handle_incoming_pdu<'a>(
             &room_version,
             &incoming_pdu,
             previous_create,
-            &new_room_state
-                .iter()
-                .filter_map(|(k, v)| {
-                    Some((k.clone(), Arc::new(db.rooms.get_pdu(&v).ok().flatten()?)))
-                })
-                .collect(),
+            &current_state,
             None,
         )
         .map_err(|_e| "Auth check failed.".to_owned())?;
