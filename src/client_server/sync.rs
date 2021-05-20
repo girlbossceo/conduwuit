@@ -422,7 +422,7 @@ pub async fn sync_events_route(
         }
 
         let joined_room = sync_events::JoinedRoom {
-            account_data: sync_events::AccountData {
+            account_data: sync_events::RoomAccountData {
                 events: db
                     .account_data
                     .changes_since(Some(&room_id), &sender_user, since)?
@@ -506,7 +506,7 @@ pub async fn sync_events_route(
         left_rooms.insert(
             room_id.clone(),
             sync_events::LeftRoom {
-                account_data: sync_events::AccountData { events: Vec::new() },
+                account_data: sync_events::RoomAccountData { events: Vec::new() },
                 timeline: sync_events::Timeline {
                     limited: false,
                     prev_batch: Some(next_batch.clone()),
@@ -577,7 +577,7 @@ pub async fn sync_events_route(
                 .map(|(_, v)| Raw::from(v))
                 .collect(),
         },
-        account_data: sync_events::AccountData {
+        account_data: sync_events::GlobalAccountData {
             events: db
                 .account_data
                 .changes_since(None, &sender_user, since)?

@@ -2,7 +2,7 @@ use crate::{utils, Error, Result};
 use ruma::{
     events::{
         presence::{PresenceEvent, PresenceEventContent},
-        AnyEvent as EduEvent, SyncEphemeralRoomEvent,
+        AnyEphemeralRoomEvent, SyncEphemeralRoomEvent,
     },
     presence::PresenceState,
     serde::Raw,
@@ -32,7 +32,7 @@ impl RoomEdus {
         &self,
         user_id: &UserId,
         room_id: &RoomId,
-        event: EduEvent,
+        event: AnyEphemeralRoomEvent,
         globals: &super::super::globals::Globals,
     ) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();

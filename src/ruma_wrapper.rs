@@ -34,6 +34,7 @@ pub struct Ruma<T: Outgoing> {
     pub body: T::Incoming,
     pub sender_user: Option<UserId>,
     pub sender_device: Option<Box<DeviceId>>,
+    pub sender_servername: Option<Box<ServerName>>,
     // This is None when body is not a valid string
     pub json_body: Option<CanonicalJsonValue>,
     pub from_appservice: bool,
@@ -68,7 +69,10 @@ where
 
         let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&body).ok();
 
-        let (sender_user, sender_device, from_appservice) = if let Some((_id, registration)) = db
+        let (sender_user, sender_device, sender_servername, from_appservice) = if let Some((
+            _id,
+            registration,
+        )) = db
             .appservice
             .iter_all()
             .filter_map(|r| r.ok())
@@ -104,10 +108,10 @@ where
                     }
 
                     // TODO: Check if appservice is allowed to be that user
-                    (Some(user_id), None, true)
+                    (Some(user_id), None, None, true)
                 }
-                AuthScheme::ServerSignatures => (None, None, true),
-                AuthScheme::None => (None, None, true),
+                AuthScheme::ServerSignatures => (None, None, None, true),
+                AuthScheme::None => (None, None, None, true),
             }
         } else {
             match metadata.authentication {
@@ -116,9 +120,12 @@ where
                         match db.users.find_from_token(&token).unwrap() {
                             // Unknown Token
                             None => return Failure((Status::raw(581), ())),
-                            Some((user_id, device_id)) => {
-                                (Some(user_id), Some(Box::<DeviceId>::from(device_id)), false)
-                            }
+                            Some((user_id, device_id)) => (
+                                Some(user_id),
+                                Some(Box::<DeviceId>::from(device_id)),
+                                None,
+                                false,
+                            ),
                         }
                     } else {
                         // Missing Token
@@ -227,27 +234,24 @@ where
                         CanonicalJsonValue::Object(signatures),
                     );
 
-                    let keys = match server_server::fetch_signing_keys(
-                        &db,
-                        &origin,
-                        vec![&key.to_owned()],
-                    )
-                    .await
-                    {
-                        Ok(b) => b,
-                        Err(e) => {
-                            warn!("Failed to fetch signing keys: {}", e);
+                    let keys =
+                        match server_server::fetch_signing_keys(&db, &origin, vec![key.to_owned()])
+                            .await
+                        {
+                            Ok(b) => b,
+                            Err(e) => {
+                                warn!("Failed to fetch signing keys: {}", e);
 
-                            // Forbidden
-                            return Failure((Status::raw(580), ()));
-                        }
-                    };
+                                // Forbidden
+                                return Failure((Status::raw(580), ()));
+                            }
+                        };
 
                     let mut pub_key_map = BTreeMap::new();
                     pub_key_map.insert(origin.as_str().to_owned(), keys);
 
                     match ruma::signatures::verify_json(&pub_key_map, &request_map) {
-                        Ok(()) => (None, None, false),
+                        Ok(()) => (None, None, Some(origin), false),
                         Err(e) => {
                             warn!("Failed to verify json request from {}: {}", origin, e);
 
@@ -260,7 +264,7 @@ where
                         }
                     }
                 }
-                AuthScheme::None => (None, None, false),
+                AuthScheme::None => (None, None, None, false),
             }
         };
 
@@ -307,6 +311,7 @@ where
                 body: t,
                 sender_user,
                 sender_device,
+                sender_servername,
                 from_appservice,
                 json_body,
             }),

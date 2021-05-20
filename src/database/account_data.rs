@@ -1,7 +1,7 @@
 use crate::{utils, Error, Result};
 use ruma::{
     api::client::error::ErrorKind,
-    events::{AnyEvent as EduEvent, EventType},
+    events::{AnyEphemeralRoomEvent, EventType},
     serde::Raw,
     RoomId, UserId,
 };
@@ -80,7 +80,7 @@ impl AccountData {
         room_id: Option<&RoomId>,
         user_id: &UserId,
         since: u64,
-    ) -> Result<HashMap<EventType, Raw<EduEvent>>> {
+    ) -> Result<HashMap<EventType, Raw<AnyEphemeralRoomEvent>>> {
         let mut userdata = HashMap::new();
 
         let mut prefix = room_id
@@ -110,7 +110,7 @@ impl AccountData {
                         .map_err(|_| Error::bad_database("RoomUserData ID in db is invalid."))?,
                     )
                     .map_err(|_| Error::bad_database("RoomUserData ID in db is invalid."))?,
-                    serde_json::from_slice::<Raw<EduEvent>>(&v).map_err(|_| {
+                    serde_json::from_slice::<Raw<AnyEphemeralRoomEvent>>(&v).map_err(|_| {
                         Error::bad_database("Database contains invalid account data.")
                     })?,
                 ))

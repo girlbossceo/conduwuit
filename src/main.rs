@@ -158,6 +158,7 @@ fn setup_rocket(config: Figment, data: Database) -> rocket::Rocket<rocket::Build
                 server_server::get_devices_route,
                 server_server::get_room_information_route,
                 server_server::get_profile_information_route,
+                server_server::get_keys_route,
             ],
         )
         .register(

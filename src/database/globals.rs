@@ -2,20 +2,22 @@ use crate::{database::Config, utils, Error, Result};
 use log::{error, info};
 use ruma::{
     api::federation::discovery::{ServerSigningKeys, VerifyKey},
-    ServerName, ServerSigningKeyId,
+    EventId, MilliSecondsSinceUnixEpoch, ServerName, ServerSigningKeyId,
 };
 use rustls::{ServerCertVerifier, WebPKIVerifier};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
+use tokio::sync::Semaphore;
 use trust_dns_resolver::TokioAsyncResolver;
 
 pub const COUNTER: &str = "c";
 
 type WellKnownMap = HashMap<Box<ServerName>, (String, String)>;
 type TlsNameMap = HashMap<String, webpki::DNSName>;
+type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 #[derive(Clone)]
 pub struct Globals {
     pub actual_destination_cache: Arc<RwLock<WellKnownMap>>, // actual_destination, host
@@ -26,7 +28,10 @@ pub struct Globals {
     reqwest_client: reqwest::Client,
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
-    pub(super) servertimeout_signingkey: sled::Tree, // ServerName + Timeout Timestamp -> algorithm:key + pubkey
+    pub(super) server_signingkeys: sled::Tree,
+    pub bad_event_ratelimiter: Arc<RwLock<BTreeMap<EventId, RateLimitState>>>,
+    pub bad_signature_ratelimiter: Arc<RwLock<BTreeMap<Vec<String>, RateLimitState>>>,
+    pub servername_ratelimiter: Arc<RwLock<BTreeMap<Box<ServerName>, Arc<Semaphore>>>>,
 }
 
 struct MatrixServerVerifier {
@@ -65,7 +70,7 @@ impl ServerCertVerifier for MatrixServerVerifier {
 impl Globals {
     pub fn load(
         globals: sled::Tree,
-        servertimeout_signingkey: sled::Tree,
+        server_signingkeys: sled::Tree,
         config: Config,
     ) -> Result<Self> {
         let bytes = &*globals
@@ -135,8 +140,11 @@ impl Globals {
             })?,
             actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
             tls_name_override,
-            servertimeout_signingkey,
+            server_signingkeys,
             jwt_decoding_key,
+            bad_event_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
+            bad_signature_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
+            servername_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
         })
     }
 
@@ -203,31 +211,21 @@ impl Globals {
     /// Remove the outdated keys and insert the new ones.
     ///
     /// This doesn't actually check that the keys provided are newer than the old set.
-    pub fn add_signing_key(&self, origin: &ServerName, keys: &ServerSigningKeys) -> Result<()> {
-        let mut key1 = origin.as_bytes().to_vec();
-        key1.push(0xff);
-
-        let mut key2 = key1.clone();
-
-        let ts = keys
-            .valid_until_ts
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("time is valid")
-            .as_millis() as u64;
-
-        key1.extend_from_slice(&ts.to_be_bytes());
-        key2.extend_from_slice(&(ts + 1).to_be_bytes());
-
-        self.servertimeout_signingkey.insert(
-            key1,
-            serde_json::to_vec(&keys.verify_keys).expect("ServerSigningKeys are a valid string"),
-        )?;
-
-        self.servertimeout_signingkey.insert(
-            key2,
-            serde_json::to_vec(&keys.old_verify_keys)
-                .expect("ServerSigningKeys are a valid string"),
-        )?;
+    pub fn add_signing_key(&self, origin: &ServerName, new_keys: &ServerSigningKeys) -> Result<()> {
+        self.server_signingkeys
+            .update_and_fetch(origin.as_bytes(), |signingkeys| {
+                let mut keys = signingkeys
+                    .and_then(|keys| serde_json::from_slice(keys).ok())
+                    .unwrap_or_else(|| {
+                        // Just insert "now", it doesn't matter
+                        ServerSigningKeys::new(origin.to_owned(), MilliSecondsSinceUnixEpoch::now())
+                    });
+                keys.verify_keys
+                    .extend(new_keys.verify_keys.clone().into_iter());
+                keys.old_verify_keys
+                    .extend(new_keys.old_verify_keys.clone().into_iter());
+                Some(serde_json::to_vec(&keys).expect("serversigningkeys can be serialized"))
+            })?;
 
         Ok(())
     }
@@ -237,26 +235,22 @@ impl Globals {
         &self,
         origin: &ServerName,
     ) -> Result<BTreeMap<ServerSigningKeyId, VerifyKey>> {
-        let mut response = BTreeMap::new();
+        let signingkeys = self
+            .server_signingkeys
+            .get(origin.as_bytes())?
+            .and_then(|bytes| serde_json::from_slice::<ServerSigningKeys>(&bytes).ok())
+            .map(|keys| {
+                let mut tree = keys.verify_keys;
+                tree.extend(
+                    keys.old_verify_keys
+                        .into_iter()
+                        .map(|old| (old.0, VerifyKey::new(old.1.key))),
+                );
+                tree
+            })
+            .unwrap_or_else(BTreeMap::new);
 
-        let now = crate::utils::millis_since_unix_epoch();
-
-        for item in self.servertimeout_signingkey.scan_prefix(origin.as_bytes()) {
-            let (k, bytes) = item?;
-            let valid_until = k
-                .splitn(2, |&b| b == 0xff)
-                .nth(1)
-                .map(crate::utils::u64_from_bytes)
-                .ok_or_else(|| Error::bad_database("Invalid signing keys."))?
-                .map_err(|_| Error::bad_database("Invalid signing key valid until bytes"))?;
-            // If these keys are still valid use em!
-            if valid_until > now {
-                let btree: BTreeMap<_, _> = serde_json::from_slice(&bytes)
-                    .map_err(|_| Error::bad_database("Invalid BTreeMap<> of signing keys"))?;
-                response.extend(btree);
-            }
-        }
-        Ok(response)
+        Ok(signingkeys)
     }
 
     pub fn database_version(&self) -> Result<u64> {

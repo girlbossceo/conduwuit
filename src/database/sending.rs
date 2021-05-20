@@ -3,7 +3,7 @@ use std::{
     convert::{TryFrom, TryInto},
     fmt::Debug,
     sync::Arc,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -23,7 +23,9 @@ use ruma::{
         OutgoingRequest,
     },
     events::{push_rules, AnySyncEphemeralRoomEvent, EventType},
-    push, ServerName, UInt, UserId,
+    push,
+    receipt::ReceiptType,
+    MilliSecondsSinceUnixEpoch, ServerName, UInt, UserId,
 };
 use sled::IVec;
 use tokio::{select, sync::Semaphore};
@@ -277,17 +279,14 @@ impl Sending {
                 events.push(e);
             }
 
-            match outgoing_kind {
-                OutgoingKind::Normal(server_name) => {
-                    if let Ok((select_edus, last_count)) = Self::select_edus(db, server_name) {
-                        events.extend_from_slice(&select_edus);
-                        db.sending
-                            .servername_educount
-                            .insert(server_name.as_bytes(), &last_count.to_be_bytes())
-                            .unwrap();
-                    }
+            if let OutgoingKind::Normal(server_name) = outgoing_kind {
+                if let Ok((select_edus, last_count)) = Self::select_edus(db, server_name) {
+                    events.extend_from_slice(&select_edus);
+                    db.sending
+                        .servername_educount
+                        .insert(server_name.as_bytes(), &last_count.to_be_bytes())
+                        .unwrap();
                 }
-                _ => {}
             }
         }
 
@@ -326,14 +325,14 @@ impl Sending {
                     AnySyncEphemeralRoomEvent::Receipt(r) => {
                         let mut read = BTreeMap::new();
 
-                        let (event_id, receipt) = r
+                        let (event_id, mut receipt) = r
                             .content
                             .0
                             .into_iter()
                             .next()
                             .expect("we only use one event per read receipt");
                         let receipt = receipt
-                            .read
+                            .remove(&ReceiptType::Read)
                             .expect("our read receipts always set this")
                             .remove(&user_id)
                             .expect("our read receipts always have the user here");
@@ -436,7 +435,7 @@ impl Sending {
                                         ),
                                     )
                                 })?
-                                .to_any_event())
+                                .to_room_event())
                         }
                         SendingEventType::Edu(_) => {
                             // Appservices don't need EDUs (?)
@@ -610,7 +609,7 @@ impl Sending {
                         origin: db.globals.server_name(),
                         pdus: &pdu_jsons,
                         edus: &edu_jsons,
-                        origin_server_ts: SystemTime::now(),
+                        origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
                         transaction_id: &base64::encode_config(
                             Self::calculate_hash(
                                 &events

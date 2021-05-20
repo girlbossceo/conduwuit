@@ -1,19 +1,13 @@
 use crate::{utils, Error, Result};
 use ruma::{
-    api::client::{
-        error::ErrorKind,
-        r0::{
-            device::Device,
-            keys::{CrossSigningKey, OneTimeKey},
-        },
-    },
-    encryption::DeviceKeys,
+    api::client::{error::ErrorKind, r0::device::Device},
+    encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::{AnyToDeviceEvent, EventType},
     identifiers::MxcUri,
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, UInt, UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, UInt, UserId,
 };
-use std::{collections::BTreeMap, convert::TryFrom, mem, time::SystemTime};
+use std::{collections::BTreeMap, convert::TryFrom, mem};
 
 #[derive(Clone)]
 pub struct Users {
@@ -200,7 +194,7 @@ impl Users {
                 device_id: device_id.into(),
                 display_name: initial_device_display_name,
                 last_seen_ip: None, // TODO
-                last_seen_ts: Some(SystemTime::now()),
+                last_seen_ts: Some(MilliSecondsSinceUnixEpoch::now()),
             })
             .expect("Device::to_string never fails.")
             .as_bytes(),
@@ -653,12 +647,11 @@ impl Users {
         })
     }
 
-    pub fn get_master_key(
+    pub fn get_master_key<F: Fn(&UserId) -> bool>(
         &self,
         user_id: &UserId,
-        sender_id: &UserId,
+        allowed_signatures: F,
     ) -> Result<Option<CrossSigningKey>> {
-        // TODO: hide some signatures
         self.userid_masterkeyid
             .get(user_id.to_string())?
             .map_or(Ok(None), |key| {
@@ -673,7 +666,7 @@ impl Users {
                     cross_signing_key.signatures = cross_signing_key
                         .signatures
                         .into_iter()
-                        .filter(|(user, _)| user == user_id || user == sender_id)
+                        .filter(|(user, _)| allowed_signatures(user))
                         .collect();
 
                     Ok(Some(cross_signing_key))
@@ -681,10 +674,10 @@ impl Users {
             })
     }
 
-    pub fn get_self_signing_key(
+    pub fn get_self_signing_key<F: Fn(&UserId) -> bool>(
         &self,
         user_id: &UserId,
-        sender_id: &UserId,
+        allowed_signatures: F,
     ) -> Result<Option<CrossSigningKey>> {
         self.userid_selfsigningkeyid
             .get(user_id.to_string())?
@@ -700,7 +693,7 @@ impl Users {
                     cross_signing_key.signatures = cross_signing_key
                         .signatures
                         .into_iter()
-                        .filter(|(user, _)| user == user_id || user == sender_id)
+                        .filter(|(user, _)| user == user_id || allowed_signatures(user))
                         .collect();
 
                     Ok(Some(cross_signing_key))

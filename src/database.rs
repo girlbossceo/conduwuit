@@ -213,7 +213,7 @@ impl Database {
             pusher: pusher::PushData::new(&db)?,
             globals: globals::Globals::load(
                 db.open_tree("global")?,
-                db.open_tree("servertimeout_signingkey")?,
+                db.open_tree("server_signingkeys")?,
                 config,
             )?,
             _db: db,

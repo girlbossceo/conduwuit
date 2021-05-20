@@ -4,7 +4,7 @@ use crate::{
     pdu::{PduBuilder, PduEvent},
     server_server, utils, ConduitResult, Database, Error, Result, Ruma,
 };
-use log::{error, warn};
+use log::{debug, error, warn};
 use member::{MemberEventContent, MembershipState};
 use rocket::futures;
 use ruma::{
@@ -29,9 +29,10 @@ use ruma::{
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{btree_map::Entry, BTreeMap, HashSet},
     convert::{TryFrom, TryInto},
     sync::{Arc, RwLock},
+    time::{Duration, Instant},
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -703,6 +704,38 @@ async fn validate_and_add_event_id(
         error!("{:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
+    let event_id = EventId::try_from(&*format!(
+        "${}",
+        ruma::signatures::reference_hash(&value, &room_version)
+            .expect("ruma can calculate reference hashes")
+    ))
+    .expect("ruma's reference hashes are valid event ids");
+
+    let back_off = |id| match db.globals.bad_event_ratelimiter.write().unwrap().entry(id) {
+        Entry::Vacant(e) => {
+            e.insert((Instant::now(), 1));
+        }
+        Entry::Occupied(mut e) => *e.get_mut() = (Instant::now(), e.get().1 + 1),
+    };
+
+    if let Some((time, tries)) = db
+        .globals
+        .bad_event_ratelimiter
+        .read()
+        .unwrap()
+        .get(&event_id)
+    {
+        // Exponential backoff
+        let mut min_elapsed_duration = Duration::from_secs(30) * (*tries) * (*tries);
+        if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
+            min_elapsed_duration = Duration::from_secs(60 * 60 * 24);
+        }
+
+        if time.elapsed() < min_elapsed_duration {
+            debug!("Backing off from {}", event_id);
+            return Err(Error::BadServerResponse("bad event, still backing off"));
+        }
+    }
 
     server_server::fetch_required_signing_keys(&value, pub_key_map, db).await?;
     if let Err(e) = ruma::signatures::verify_event(
@@ -712,16 +745,10 @@ async fn validate_and_add_event_id(
         &value,
         room_version,
     ) {
-        warn!("Event failed verification: {}", e);
+        warn!("Event {} failed verification: {}", event_id, e);
+        back_off(event_id);
         return Err(Error::BadServerResponse("Event failed verification."));
     }
-
-    let event_id = EventId::try_from(&*format!(
-        "${}",
-        ruma::signatures::reference_hash(&value, &room_version)
-            .expect("ruma can calculate reference hashes")
-    ))
-    .expect("ruma's reference hashes are valid event ids");
 
     value.insert(
         "event_id".to_owned(),
