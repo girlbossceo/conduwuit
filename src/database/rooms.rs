@@ -1309,7 +1309,7 @@ impl Rooms {
 
         if !auth_check {
             return Err(Error::BadRequest(
-                ErrorKind::InvalidParam,
+                ErrorKind::Forbidden,
                 "Event is not authorized.",
             ));
         }

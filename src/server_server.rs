@@ -1484,7 +1484,7 @@ pub(crate) async fn fetch_signing_keys(
         }
     }
 
-    debug!("Loading signing keys for {}", origin);
+    trace!("Loading signing keys for {}", origin);
 
     let mut result = db
         .globals
@@ -1943,7 +1943,7 @@ pub fn create_join_event_template_route<'a>(
 
     if !auth_check {
         return Err(Error::BadRequest(
-            ErrorKind::InvalidParam,
+            ErrorKind::Forbidden,
             "Event is not authorized.",
         ));
     }

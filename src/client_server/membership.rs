@@ -569,13 +569,7 @@ async fn join_room_by_id_helper(
         {
             let (event_id, value) = match result {
                 Ok(t) => t,
-                Err(e) => {
-                    warn!(
-                        "PDU could not be verified: {:?} {:?} {:?}",
-                        e, event_id, pdu
-                    );
-                    continue;
-                }
+                Err(_) => continue,
             };
 
             let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
@@ -701,7 +695,7 @@ async fn validate_and_add_event_id(
     db: &Database,
 ) -> Result<(EventId, CanonicalJsonObject)> {
     let mut value = serde_json::from_str::<CanonicalJsonObject>(pdu.json().get()).map_err(|e| {
-        error!("{:?}: {:?}", pdu, e);
+        error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
     let event_id = EventId::try_from(&*format!(
@@ -745,7 +739,7 @@ async fn validate_and_add_event_id(
         &value,
         room_version,
     ) {
-        warn!("Event {} failed verification: {}", event_id, e);
+        warn!("Event {} failed verification {:?} {}", event_id, pdu, e);
         back_off(event_id);
         return Err(Error::BadServerResponse("Event failed verification."));
     }
