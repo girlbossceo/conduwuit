@@ -374,7 +374,7 @@ impl Rooms {
 
         for event_id in new_state.difference(&old_state) {
             if let Some(pdu) = self.get_pdu_json(event_id)? {
-                if pdu.get("event_type").and_then(|val| val.as_str()) == Some("m.room.member") {
+                if pdu.get("type").and_then(|val| val.as_str()) == Some("m.room.member") {
                     if let Ok(pdu) = serde_json::from_value::<PduEvent>(
                         serde_json::to_value(&pdu).expect("CanonicalJsonObj is a valid JsonValue"),
                     ) {
@@ -1158,6 +1158,9 @@ impl Rooms {
     ) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
         let mut state = Vec::new();
         // Add recommended events
+        if let Some(e) = self.room_state_get(&invite_event.room_id, &EventType::RoomCreate, "")? {
+            state.push(e.to_stripped_state_event());
+        }
         if let Some(e) =
             self.room_state_get(&invite_event.room_id, &EventType::RoomJoinRules, "")?
         {

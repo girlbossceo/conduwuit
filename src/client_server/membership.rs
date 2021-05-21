@@ -546,12 +546,6 @@ async fn join_room_by_id_helper(
             )
             .await?;
 
-        let count = db.globals.next_count()?;
-
-        let mut pdu_id = room_id.as_bytes().to_vec();
-        pdu_id.push(0xff);
-        pdu_id.extend_from_slice(&count.to_be_bytes());
-
         let pdu = PduEvent::from_id_val(&event_id, join_event.clone())
             .map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
 
@@ -579,36 +573,6 @@ async fn join_room_by_id_helper(
 
             db.rooms.add_pdu_outlier(&event_id, &value)?;
             if let Some(state_key) = &pdu.state_key {
-                if pdu.kind == EventType::RoomMember {
-                    let target_user_id = UserId::try_from(state_key.clone()).map_err(|e| {
-                        warn!(
-                            "Invalid user id in send_join response: {}: {}",
-                            state_key, e
-                        );
-                        Error::BadServerResponse("Invalid user id in send_join response.")
-                    })?;
-
-                    let invite_state = Vec::new(); // TODO add a few important events
-
-                    // Update our membership info, we do this here incase a user is invited
-                    // and immediately leaves we need the DB to record the invite event for auth
-                    db.rooms.update_membership(
-                        &pdu.room_id,
-                        &target_user_id,
-                        serde_json::from_value::<member::MembershipState>(
-                            pdu.content
-                                .get("membership")
-                                .ok_or(Error::BadServerResponse("Invalid member event content"))?
-                                .clone(),
-                        )
-                        .map_err(|_| {
-                            Error::BadServerResponse("Invalid membership state content.")
-                        })?,
-                        &pdu.sender,
-                        Some(invite_state),
-                        db,
-                    )?;
-                }
                 state.insert((pdu.kind.clone(), state_key.clone()), pdu.event_id.clone());
             }
         }
@@ -648,10 +612,15 @@ async fn join_room_by_id_helper(
         // pdu without it's state. This is okay because append_pdu can't fail.
         let statehashid = db.rooms.append_to_state(&pdu, &db.globals)?;
 
+        let count = db.globals.next_count()?;
+        let mut pdu_id = room_id.as_bytes().to_vec();
+        pdu_id.push(0xff);
+        pdu_id.extend_from_slice(&count.to_be_bytes());
+
         db.rooms.append_pdu(
             &pdu,
             utils::to_canonical_object(&pdu).expect("Pdu is valid canonical object"),
-            db.globals.next_count()?,
+            count,
             pdu_id.into(),
             &[pdu.event_id.clone()],
             db,
