@@ -15,32 +15,39 @@ services:
         #         CREATED:
         #         VERSION:
         #         LOCAL: 'false'
-        #         GIT_REF: HEAD
+        #         GIT_REF: origin/master
         restart: unless-stopped
         volumes:
             - db:/srv/conduit/.local/share/conduit
-            ### Uncomment if you want to use Rocket.toml to configure Conduit
-            ### Note: Set env vars will override Rocket.toml values
-            # - ./Rocket.toml:/srv/conduit/Rocket.toml
+            ### Uncomment if you want to use conduit.toml to configure Conduit
+            ### Note: Set env vars will override conduit.toml values
+            # - ./conduit.toml:/srv/conduit/conduit.toml
         networks:
             - proxy
         environment:
-            ROCKET_SERVER_NAME: localhost:8000  # replace with your own name
+            CONDUIT_SERVER_NAME: localhost:8000  # replace with your own name
+            CONDUIT_TRUSTED_SERVERS:
+                - 'matrix.org'
             ### Uncomment and change values as desired
-            # ROCKET_LOG: normal  # Available levels are: off, debug, normal, critical
-            # ROCKET_PORT: 8000
-            # ROCKET_REGISTRATION_DISABLED: 'true'
-            # ROCKET_ENCRYPTION_DISABLED: 'true'
-            # ROCKET_DATABASE_PATH: /srv/conduit/.local/share/conduit
-            # ROCKET_WORKERS: 10
-            # ROCKET_MAX_REQUEST_SIZE: 20_000_000  # in bytes, ~20 MB
+            # CONDUIT_ADDRESS: 127.0.0.1
+            # CONDUIT_PORT: 8000
+            # CONDUIT_CONFIG: '/srv/conduit/conduit.toml'  # if want to configure purely by env vars, set this to an empty string ''
+            # Available levels are: error, warn, info, debug, trace - more info at: https://docs.rs/env_logger/*/env_logger/#enabling-logging
+            # CONDUIT_LOG: info  # default is: "info,rocket=off,_=off,sled=off"
+            # CONDUIT_ALLOW_JAEGER: 'false'
+            # CONDUIT_ALLOW_REGISTRATION : 'false'
+            # CONDUIT_ALLOW_ENCRYPTION: 'false'
+            # CONDUIT_ALLOW_FEDERATION: 'false'
+            # CONDUIT_DATABASE_PATH: /srv/conduit/.local/share/conduit
+            # CONDUIT_WORKERS: 10
+            # CONDUIT_MAX_REQUEST_SIZE: 20_000_000  # in bytes, ~20 MB
 
     ### Uncomment if you want to use your own Element-Web App.
     ### Note: You need to provide a config.json for Element and you also need a second
     ###       Domain or Subdomain for the communication between Element and Conduit
     ### Config-Docs: https://github.com/vector-im/element-web/blob/develop/docs/config.md
     # element-web:
-    #     image: vectorim/riot-web:latest
+    #     image: vectorim/element-web:latest
     #     restart: unless-stopped
     #     volumes:
     #         - ./element_config.json:/app/config.json
