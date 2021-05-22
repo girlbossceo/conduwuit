@@ -5,17 +5,17 @@ services:
     homeserver:
         ### If you already built the Conduit image with 'docker build' or want to use the Docker Hub image,
         ### then you are ready to go.
-        image: matrixconduit/matrix-conduit:latest
+        #image: matrixconduit/matrix-conduit:latest
         ### If you want to build a fresh image from the sources, then comment the image line and uncomment the
         ### build lines. If you want meaningful labels in your built Conduit image, you should run docker-compose like this:
         ### CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml) docker-compose up -d
-        # build:
-        #     context: .
-        #     args:
-        #         CREATED:
-        #         VERSION:
-        #         LOCAL: 'false'
-        #         GIT_REF: origin/master
+        build:
+            context: .
+            args:
+                CREATED: '2021-03-16T08:18:27Z'
+                VERSION: '0.1.0'
+                LOCAL: 'false'
+                GIT_REF: origin/master
         restart: unless-stopped
         ports:
             - 8448:8000
@@ -26,10 +26,12 @@ services:
             # - ./conduit.toml:/srv/conduit/conduit.toml
         environment:
             CONDUIT_SERVER_NAME: localhost:8000  # replace with your own name
+            CONDUIT_TRUSTED_SERVERS:
+                - 'matrix.org'
             ### Uncomment and change values as desired
             # CONDUIT_ADDRESS: 127.0.0.1
             # CONDUIT_PORT: 8000
-            # CONDUIT_CONFIG: '/srv/conduit/conduit.toml'  # if want to configure purely by env vars, set this to an empty string ''
+            # CONDUIT_CONFIG: '/srv/conduit/conduit.toml'  # if you want to configure purely by env vars, set this to an empty string ''
             # Available levels are: error, warn, info, debug, trace - more info at: https://docs.rs/env_logger/*/env_logger/#enabling-logging
             # CONDUIT_LOG: info  # default is: "info,rocket=off,_=off,sled=off"
             # CONDUIT_ALLOW_JAEGER: 'false'
