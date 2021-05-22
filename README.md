@@ -52,6 +52,26 @@ Check out the [Conduit 1.0 Release Milestone](https://gitlab.com/famedly/conduit
 Download or compile a Conduit binary, set up the config and call it from somewhere like a systemd script. [Read
 more](DEPLOY.md)
 
+##### Deloy using a Debian package
+
+You need to have the `deb` helper command installed that creates Debian packages from Cargo projects (see [cargo-deb](https://github.com/mmstick/cargo-deb/) for more info):
+
+```shell
+$ cargo install cargo-deb
+```
+
+Then, you can create and install a Debian package at a whim:
+
+```shell
+$ cargo deb
+$ dpkg -i target/debian/matrix-conduit_0.1.0_amd64.deb
+```
+
+This will build, package, install, configure and start Conduit. [Read more](debian/README.Debian).
+
+Note that `cargo deb` supports [cross-compilation](https://github.com/mmstick/cargo-deb/#cross-compilation) too!
+Official Debian packages will follow once Conduit starts to have stable releases.
+
 ##### Deploy using Docker
 
 Pull and run the docker image with

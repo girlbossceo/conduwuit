@@ -97,13 +97,12 @@ instead of a server that has high scalability."""
 section = "net"
 priority = "optional"
 assets = [
-  ["debian/env.local", "etc/matrix-conduit/local", "644"],
   ["debian/README.Debian", "usr/share/doc/matrix-conduit/", "644"],
   ["README.md", "usr/share/doc/matrix-conduit/", "644"],
   ["target/release/conduit", "usr/sbin/matrix-conduit", "755"],
 ]
 conf-files = [
-  "/etc/matrix-conduit/local"
+  "/etc/matrix-conduit/conduit.toml"
 ]
 maintainer-scripts = "debian/"
 systemd-units = { unit-name = "matrix-conduit" }
