@@ -25,7 +25,7 @@ services:
         networks:
             - proxy
         environment:
-            ROCKET_SERVER_NAME: localhost:8000  # replace with your own name
+            CONDUIT_SERVER_NAME: localhost:8000  # replace with your own name
             CONDUIT_TRUSTED_SERVERS:
                 - 'matrix.org'
             ### Uncomment and change values as desired
