@@ -52,6 +52,10 @@ Check out the [Conduit 1.0 Release Milestone](https://gitlab.com/famedly/conduit
 Download or compile a Conduit binary, set up the config and call it from somewhere like a systemd script. [Read
 more](DEPLOY.md)
 
+If you want to connect an Appservice to Conduit, take a look at the [Appservice Guide](APPSERVICES.md).
+
+If you want to cross compile Conduit to another architecture, read the [Cross-Compile Guide](CROSS_COMPILE.md).
+
 ##### Deloy using a Debian package
 
 You need to have the `deb` helper command installed that creates Debian packages from Cargo projects (see [cargo-deb](https://github.com/mmstick/cargo-deb/) for more info):
