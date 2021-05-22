@@ -59,7 +59,7 @@ where
         let token = request
             .headers()
             .get_one("Authorization")
-            .map(|s| s[7..].to_owned()) // Split off "Bearer "
+            .and_then(|s| s.get(7..)) // Split off "Bearer "
             .or_else(|| request.query_value("access_token").and_then(|r| r.ok()));
 
         let limit = db.globals.max_request_size();
@@ -134,16 +134,20 @@ where
                 }
                 AuthScheme::ServerSignatures => {
                     // Get origin from header
-                    let x_matrix = match request.headers().get_one("Authorization").map(|s| {
+                    let x_matrix = match request
+                        .headers()
+                        .get_one("Authorization")
+                        .and_then(|s|
                         // Split off "X-Matrix " and parse the rest
-                        s[9..]
-                            .split_terminator(',')
-                            .map(|field| {
-                                let mut splits = field.splitn(2, '=');
-                                (splits.next(), splits.next().map(|s| s.trim_matches('"')))
-                            })
-                            .collect::<BTreeMap<_, _>>()
-                    }) {
+                        s.get(9..))
+                        .map(|s| {
+                            s.split_terminator(',')
+                                .map(|field| {
+                                    let mut splits = field.splitn(2, '=');
+                                    (splits.next(), splits.next().map(|s| s.trim_matches('"')))
+                                })
+                                .collect::<BTreeMap<_, _>>()
+                        }) {
                         Some(t) => t,
                         None => {
                             warn!("No Authorization header");
