@@ -209,3 +209,5 @@ Set it to start automatically when your system boots with:
 ```bash
 $ sudo systemctl enable conduit
 ```
+
+If you want to set up an appservice, take a look at the [Appservice Guide](APPSERVICES.md).
