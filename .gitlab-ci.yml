@@ -1,5 +1,8 @@
 image: "rust:latest"
 
+default:
+    tags: [docker]
+
 cache:
   paths:
     - target
