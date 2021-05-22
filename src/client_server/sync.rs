@@ -103,6 +103,11 @@ pub async fn sync_events_route(
         // The inner Option is None when there is an event, but there is no state hash associated
         // with it. This can happen for the RoomCreate event, so all updates should arrive.
         let first_pdu_before_since = db.rooms.pdus_until(sender_user, &room_id, since).next();
+        let pdus_after_since = db
+            .rooms
+            .pdus_after(sender_user, &room_id, since)
+            .next()
+            .is_some();
 
         let since_shortstatehash = first_pdu_before_since.as_ref().map(|pdu| {
             db.rooms
@@ -116,7 +121,7 @@ pub async fn sync_events_route(
             invited_member_count,
             joined_since_last_sync,
             state_events,
-        ) = if Some(current_shortstatehash) != since_shortstatehash {
+        ) = if pdus_after_since && Some(current_shortstatehash) != since_shortstatehash {
             let current_state = db.rooms.room_state_full(&room_id)?;
             let current_members = current_state
                 .iter()
