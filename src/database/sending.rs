@@ -1,9 +1,9 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
     fmt::Debug,
     sync::Arc,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -14,9 +14,18 @@ use log::{error, warn};
 use ring::digest;
 use rocket::futures::stream::{FuturesUnordered, StreamExt};
 use ruma::{
-    api::{appservice, federation, OutgoingRequest},
-    events::{push_rules, EventType},
-    push, ServerName, UInt, UserId,
+    api::{
+        appservice,
+        federation::{
+            self,
+            transactions::edu::{Edu, ReceiptContent, ReceiptData, ReceiptMap},
+        },
+        OutgoingRequest,
+    },
+    events::{push_rules, AnySyncEphemeralRoomEvent, EventType},
+    push,
+    receipt::ReceiptType,
+    MilliSecondsSinceUnixEpoch, ServerName, UInt, UserId,
 };
 use sled::IVec;
 use tokio::{select, sync::Semaphore};
@@ -64,6 +73,7 @@ pub enum SendingEventType {
 #[derive(Clone)]
 pub struct Sending {
     /// The state for a given state hash.
+    pub(super) servername_educount: sled::Tree, // EduCount: Count of last EDU sync
     pub(super) servernamepduids: sled::Tree, // ServernamePduId = (+ / $)SenderKey / ServerName / UserId + PduId
     pub(super) servercurrentevents: sled::Tree, // ServerCurrentEvents = (+ / $)ServerName / UserId + PduId / (*)EduEvent
     pub(super) maximum_requests: Arc<Semaphore>,
@@ -194,7 +204,7 @@ impl Sending {
 
                         if let sled::Event::Insert { key, .. } = event {
                             if let Ok((outgoing_kind, event)) = Self::parse_servercurrentevent(&key) {
-                                if let Some(events) = Self::select_events(&outgoing_kind, vec![(event, key)], &mut current_transaction_status, &servercurrentevents, &servernamepduids) {
+                                if let Some(events) = Self::select_events(&outgoing_kind, vec![(event, key)], &mut current_transaction_status, &servercurrentevents, &servernamepduids, &db) {
                                     futures.push(Self::handle_events(outgoing_kind, events, &db));
                                 }
                             }
@@ -211,6 +221,7 @@ impl Sending {
         current_transaction_status: &mut HashMap<Vec<u8>, TransactionStatus>,
         servercurrentevents: &sled::Tree,
         servernamepduids: &sled::Tree,
+        db: &Database,
     ) -> Option<Vec<SendingEventType>> {
         let mut retry = false;
         let mut allow = true;
@@ -267,9 +278,97 @@ impl Sending {
 
                 events.push(e);
             }
+
+            if let OutgoingKind::Normal(server_name) = outgoing_kind {
+                if let Ok((select_edus, last_count)) = Self::select_edus(db, server_name) {
+                    events.extend_from_slice(&select_edus);
+                    db.sending
+                        .servername_educount
+                        .insert(server_name.as_bytes(), &last_count.to_be_bytes())
+                        .unwrap();
+                }
+            }
         }
 
         Some(events)
+    }
+
+    pub fn select_edus(db: &Database, server: &ServerName) -> Result<(Vec<SendingEventType>, u64)> {
+        // u64: count of last edu
+        let since = db
+            .sending
+            .servername_educount
+            .get(server.as_bytes())?
+            .map_or(Ok(0), |bytes| {
+                utils::u64_from_bytes(&bytes)
+                    .map_err(|_| Error::bad_database("Invalid u64 in servername_educount."))
+            })?;
+        let mut events = Vec::new();
+        let mut max_edu_count = since;
+        'outer: for room_id in db.rooms.server_rooms(server) {
+            let room_id = room_id?;
+            for r in db.rooms.edus.readreceipts_since(&room_id, since)? {
+                let (user_id, count, read_receipt) = r?;
+
+                if count > max_edu_count {
+                    max_edu_count = count;
+                }
+
+                if user_id.server_name() != db.globals.server_name() {
+                    continue;
+                }
+
+                let event =
+                    serde_json::from_str::<AnySyncEphemeralRoomEvent>(&read_receipt.json().get())
+                        .map_err(|_| Error::bad_database("Invalid edu event in read_receipts."))?;
+                let federation_event = match event {
+                    AnySyncEphemeralRoomEvent::Receipt(r) => {
+                        let mut read = BTreeMap::new();
+
+                        let (event_id, mut receipt) = r
+                            .content
+                            .0
+                            .into_iter()
+                            .next()
+                            .expect("we only use one event per read receipt");
+                        let receipt = receipt
+                            .remove(&ReceiptType::Read)
+                            .expect("our read receipts always set this")
+                            .remove(&user_id)
+                            .expect("our read receipts always have the user here");
+
+                        read.insert(
+                            user_id,
+                            ReceiptData {
+                                data: receipt.clone(),
+                                event_ids: vec![event_id.clone()],
+                            },
+                        );
+
+                        let receipt_map = ReceiptMap { read };
+
+                        let mut receipts = BTreeMap::new();
+                        receipts.insert(room_id.clone(), receipt_map);
+
+                        Edu::Receipt(ReceiptContent { receipts })
+                    }
+                    _ => {
+                        Error::bad_database("Invalid event type in read_receipts");
+                        continue;
+                    }
+                };
+
+                events.push(SendingEventType::Edu(
+                    serde_json::to_vec(&federation_event).expect("json can be serialized"),
+                ));
+
+                if events.len() >= 20 {
+                    break 'outer;
+                }
+            }
+        }
+
+        Ok((events, max_edu_count))
     }
 
     #[tracing::instrument(skip(self))]
@@ -336,7 +435,7 @@ impl Sending {
                                         ),
                                     )
                                 })?
-                                .to_any_event())
+                                .to_room_event())
                         }
                         SendingEventType::Edu(_) => {
                             // Appservices don't need EDUs (?)
@@ -510,7 +609,7 @@ impl Sending {
                         origin: db.globals.server_name(),
                         pdus: &pdu_jsons,
                         edus: &edu_jsons,
-                        origin_server_ts: SystemTime::now(),
+                        origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
                         transaction_id: &base64::encode_config(
                             Self::calculate_hash(
                                 &events

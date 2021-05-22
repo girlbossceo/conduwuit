@@ -5,12 +5,14 @@ use ruma::{
         error::ErrorKind,
         r0::{read_marker::set_read_marker, receipt::create_receipt},
     },
-    events::{AnyEphemeralRoomEvent, AnyEvent, EventType},
+    events::{AnyEphemeralRoomEvent, EventType},
+    receipt::ReceiptType,
+    MilliSecondsSinceUnixEpoch,
 };
 
 #[cfg(feature = "conduit_bin")]
 use rocket::post;
-use std::{collections::BTreeMap, time::SystemTime};
+use std::collections::BTreeMap;
 
 #[cfg_attr(
     feature = "conduit_bin",
@@ -27,7 +29,6 @@ pub async fn set_read_marker_route(
         content: ruma::events::fully_read::FullyReadEventContent {
             event_id: body.fully_read.clone(),
         },
-        room_id: body.room_id.clone(),
     };
     db.account_data.update(
         Some(&body.room_id),
@@ -54,26 +55,23 @@ pub async fn set_read_marker_route(
         user_receipts.insert(
             sender_user.clone(),
             ruma::events::receipt::Receipt {
-                ts: Some(SystemTime::now()),
+                ts: Some(MilliSecondsSinceUnixEpoch::now()),
             },
         );
+
+        let mut receipts = BTreeMap::new();
+        receipts.insert(ReceiptType::Read, user_receipts);
+
         let mut receipt_content = BTreeMap::new();
-        receipt_content.insert(
-            event.to_owned(),
-            ruma::events::receipt::Receipts {
-                read: Some(user_receipts),
-            },
-        );
+        receipt_content.insert(event.to_owned(), receipts);
 
         db.rooms.edus.readreceipt_update(
             &sender_user,
             &body.room_id,
-            AnyEvent::Ephemeral(AnyEphemeralRoomEvent::Receipt(
-                ruma::events::receipt::ReceiptEvent {
-                    content: ruma::events::receipt::ReceiptEventContent(receipt_content),
-                    room_id: body.room_id.clone(),
-                },
-            )),
+            AnyEphemeralRoomEvent::Receipt(ruma::events::receipt::ReceiptEvent {
+                content: ruma::events::receipt::ReceiptEventContent(receipt_content),
+                room_id: body.room_id.clone(),
+            }),
             &db.globals,
         )?;
     }
@@ -112,26 +110,22 @@ pub async fn create_receipt_route(
     user_receipts.insert(
         sender_user.clone(),
         ruma::events::receipt::Receipt {
-            ts: Some(SystemTime::now()),
+            ts: Some(MilliSecondsSinceUnixEpoch::now()),
         },
     );
+    let mut receipts = BTreeMap::new();
+    receipts.insert(ReceiptType::Read, user_receipts);
+
     let mut receipt_content = BTreeMap::new();
-    receipt_content.insert(
-        body.event_id.to_owned(),
-        ruma::events::receipt::Receipts {
-            read: Some(user_receipts),
-        },
-    );
+    receipt_content.insert(body.event_id.to_owned(), receipts);
 
     db.rooms.edus.readreceipt_update(
         &sender_user,
         &body.room_id,
-        AnyEvent::Ephemeral(AnyEphemeralRoomEvent::Receipt(
-            ruma::events::receipt::ReceiptEvent {
-                content: ruma::events::receipt::ReceiptEventContent(receipt_content),
-                room_id: body.room_id.clone(),
-            },
-        )),
+        AnyEphemeralRoomEvent::Receipt(ruma::events::receipt::ReceiptEvent {
+            content: ruma::events::receipt::ReceiptEventContent(receipt_content),
+            room_id: body.room_id.clone(),
+        }),
         &db.globals,
     )?;
 

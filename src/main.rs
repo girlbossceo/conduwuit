@@ -69,6 +69,7 @@ fn setup_rocket(config: Figment, data: Database) -> rocket::Rocket<rocket::Build
                 client_server::get_avatar_url_route,
                 client_server::get_profile_route,
                 client_server::set_presence_route,
+                client_server::get_presence_route,
                 client_server::upload_keys_route,
                 client_server::get_keys_route,
                 client_server::claim_keys_route,
@@ -157,6 +158,7 @@ fn setup_rocket(config: Figment, data: Database) -> rocket::Rocket<rocket::Build
                 server_server::get_devices_route,
                 server_server::get_room_information_route,
                 server_server::get_profile_information_route,
+                server_server::get_keys_route,
             ],
         )
         .register(

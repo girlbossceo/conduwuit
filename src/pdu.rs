@@ -2,15 +2,17 @@ use crate::Error;
 use log::error;
 use ruma::{
     events::{
-        pdu::EventHash, room::member::MemberEventContent, AnyEvent, AnyRoomEvent, AnyStateEvent,
-        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
+        pdu::EventHash, room::member::MemberEventContent, AnyEphemeralRoomEvent, AnyRoomEvent,
+        AnyStateEvent, AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType,
+        StateEvent,
     },
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
-    state_res, EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UInt, UserId,
+    state_res, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
+    ServerSigningKeyId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{cmp::Ordering, collections::BTreeMap, convert::TryFrom, time::UNIX_EPOCH};
+use std::{cmp::Ordering, collections::BTreeMap, convert::TryFrom};
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct PduEvent {
@@ -105,7 +107,7 @@ impl PduEvent {
 
     /// This only works for events that are also AnyRoomEvents.
     #[tracing::instrument(skip(self))]
-    pub fn to_any_event(&self) -> Raw<AnyEvent> {
+    pub fn to_any_event(&self) -> Raw<AnyEphemeralRoomEvent> {
         let mut json = json!({
             "content": self.content,
             "type": self.kind,
@@ -267,10 +269,9 @@ impl state_res::Event for PduEvent {
     fn content(&self) -> serde_json::Value {
         self.content.clone()
     }
-    fn origin_server_ts(&self) -> std::time::SystemTime {
-        UNIX_EPOCH + std::time::Duration::from_millis(self.origin_server_ts.into())
+    fn origin_server_ts(&self) -> MilliSecondsSinceUnixEpoch {
+        MilliSecondsSinceUnixEpoch(self.origin_server_ts)
     }
-
     fn state_key(&self) -> Option<String> {
         self.state_key.clone()
     }

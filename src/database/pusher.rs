@@ -294,7 +294,8 @@ async fn send_notice(
     } else {
         notifi.sender = Some(&event.sender);
         notifi.event_type = Some(&event.kind);
-        notifi.content = serde_json::value::to_raw_value(&event.content).ok();
+        let content = serde_json::value::to_raw_value(&event.content).ok();
+        notifi.content = content.as_deref();
 
         if event.kind == EventType::RoomMember {
             notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());

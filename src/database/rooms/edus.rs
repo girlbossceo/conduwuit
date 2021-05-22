@@ -2,7 +2,7 @@ use crate::{utils, Error, Result};
 use ruma::{
     events::{
         presence::{PresenceEvent, PresenceEventContent},
-        AnyEvent as EduEvent, SyncEphemeralRoomEvent,
+        AnyEphemeralRoomEvent, SyncEphemeralRoomEvent,
     },
     presence::PresenceState,
     serde::Raw,
@@ -32,7 +32,7 @@ impl RoomEdus {
         &self,
         user_id: &UserId,
         room_id: &RoomId,
-        event: EduEvent,
+        event: AnyEphemeralRoomEvent,
         globals: &super::super::globals::Globals,
     ) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();
@@ -76,9 +76,12 @@ impl RoomEdus {
         &self,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<impl Iterator<Item = Result<Raw<ruma::events::AnySyncEphemeralRoomEvent>>>> {
+    ) -> Result<
+        impl Iterator<Item = Result<(UserId, u64, Raw<ruma::events::AnySyncEphemeralRoomEvent>)>>,
+    > {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
+        let prefix2 = prefix.clone();
 
         let mut first_possible_edu = prefix.clone();
         first_possible_edu.extend_from_slice(&(since + 1).to_be_bytes()); // +1 so we don't send the event at since
@@ -87,14 +90,30 @@ impl RoomEdus {
             .readreceiptid_readreceipt
             .range(&*first_possible_edu..)
             .filter_map(|r| r.ok())
-            .take_while(move |(k, _)| k.starts_with(&prefix))
-            .map(|(_, v)| {
+            .take_while(move |(k, _)| k.starts_with(&prefix2))
+            .map(move |(k, v)| {
+                let count =
+                    utils::u64_from_bytes(&k[prefix.len()..prefix.len() + mem::size_of::<u64>()])
+                        .map_err(|_| Error::bad_database("Invalid readreceiptid count in db."))?;
+                let user_id = UserId::try_from(
+                    utils::string_from_bytes(&k[prefix.len() + mem::size_of::<u64>() + 1..])
+                        .map_err(|_| {
+                            Error::bad_database("Invalid readreceiptid userid bytes in db.")
+                        })?,
+                )
+                .map_err(|_| Error::bad_database("Invalid readreceiptid userid in db."))?;
+
                 let mut json = serde_json::from_slice::<CanonicalJsonObject>(&v).map_err(|_| {
                     Error::bad_database("Read receipt in roomlatestid_roomlatest is invalid json.")
                 })?;
                 json.remove("room_id");
-                Ok(Raw::from_json(
-                    serde_json::value::to_raw_value(&json).expect("json is valid raw value"),
+
+                Ok((
+                    user_id,
+                    count,
+                    Raw::from_json(
+                        serde_json::value::to_raw_value(&json).expect("json is valid raw value"),
+                    ),
                 ))
             }))
     }
@@ -363,6 +382,47 @@ impl RoomEdus {
                 utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Invalid timestamp in userid_lastpresenceupdate.")
                 })
+            })
+            .transpose()
+    }
+
+    pub fn get_last_presence_event(
+        &self,
+        user_id: &UserId,
+        room_id: &RoomId,
+    ) -> Result<Option<PresenceEvent>> {
+        let last_update = match self.last_presence_update(user_id)? {
+            Some(last) => last,
+            None => return Ok(None),
+        };
+
+        let mut presence_id = room_id.as_bytes().to_vec();
+        presence_id.push(0xff);
+        presence_id.extend_from_slice(&last_update.to_be_bytes());
+        presence_id.push(0xff);
+        presence_id.extend_from_slice(&user_id.as_bytes());
+
+        self.presenceid_presence
+            .get(presence_id)?
+            .map(|value| {
+                let mut presence = serde_json::from_slice::<PresenceEvent>(&value)
+                    .map_err(|_| Error::bad_database("Invalid presence event in db."))?;
+                let current_timestamp: UInt = utils::millis_since_unix_epoch()
+                    .try_into()
+                    .expect("time is valid");
+
+                if presence.content.presence == PresenceState::Online {
+                    // Don't set last_active_ago when the user is online
+                    presence.content.last_active_ago = None;
+                } else {
+                    // Convert from timestamp to duration
+                    presence.content.last_active_ago = presence
+                        .content
+                        .last_active_ago
+                        .map(|timestamp| current_timestamp - timestamp);
+                }
+
+                Ok(presence)
             })
             .transpose()
     }

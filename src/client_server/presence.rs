@@ -1,10 +1,10 @@
 use super::State;
 use crate::{utils, ConduitResult, Database, Ruma};
-use ruma::api::client::r0::presence::set_presence;
-use std::convert::TryInto;
+use ruma::api::client::r0::presence::{get_presence, set_presence};
+use std::{convert::TryInto, time::Duration};
 
 #[cfg(feature = "conduit_bin")]
-use rocket::put;
+use rocket::{get, put};
 
 #[cfg_attr(
     feature = "conduit_bin",
@@ -45,4 +45,49 @@ pub async fn set_presence_route(
     db.flush().await?;
 
     Ok(set_presence::Response.into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/presence/<_>/status", data = "<body>")
+)]
+#[tracing::instrument(skip(db, body))]
+pub async fn get_presence_route(
+    db: State<'_, Database>,
+    body: Ruma<get_presence::Request<'_>>,
+) -> ConduitResult<get_presence::Response> {
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+    let mut presence_event = None;
+
+    for room_id in db
+        .rooms
+        .get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])
+    {
+        let room_id = room_id?;
+
+        if let Some(presence) = db
+            .rooms
+            .edus
+            .get_last_presence_event(&sender_user, &room_id)?
+        {
+            presence_event = Some(presence);
+        }
+    }
+
+    if let Some(presence) = presence_event {
+        Ok(get_presence::Response {
+            // TODO: Should ruma just use the presenceeventcontent type here?
+            status_msg: presence.content.status_msg,
+            currently_active: presence.content.currently_active,
+            last_active_ago: presence
+                .content
+                .last_active_ago
+                .map(|millis| Duration::from_millis(millis.into())),
+            presence: presence.content.presence,
+        }
+        .into())
+    } else {
+        todo!();
+    }
 }

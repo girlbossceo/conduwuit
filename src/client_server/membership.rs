@@ -4,7 +4,7 @@ use crate::{
     pdu::{PduBuilder, PduEvent},
     server_server, utils, ConduitResult, Database, Error, Result, Ruma,
 };
-use log::{error, warn};
+use log::{debug, error, warn};
 use member::{MemberEventContent, MembershipState};
 use rocket::futures;
 use ruma::{
@@ -29,9 +29,10 @@ use ruma::{
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{btree_map::Entry, BTreeMap, HashSet},
     convert::{TryFrom, TryInto},
     sync::{Arc, RwLock},
+    time::{Duration, Instant},
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -545,12 +546,6 @@ async fn join_room_by_id_helper(
             )
             .await?;
 
-        let count = db.globals.next_count()?;
-
-        let mut pdu_id = room_id.as_bytes().to_vec();
-        pdu_id.push(0xff);
-        pdu_id.extend_from_slice(&count.to_be_bytes());
-
         let pdu = PduEvent::from_id_val(&event_id, join_event.clone())
             .map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
 
@@ -568,13 +563,7 @@ async fn join_room_by_id_helper(
         {
             let (event_id, value) = match result {
                 Ok(t) => t,
-                Err(e) => {
-                    warn!(
-                        "PDU could not be verified: {:?} {:?} {:?}",
-                        e, event_id, pdu
-                    );
-                    continue;
-                }
+                Err(_) => continue,
             };
 
             let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
@@ -584,36 +573,6 @@ async fn join_room_by_id_helper(
 
             db.rooms.add_pdu_outlier(&event_id, &value)?;
             if let Some(state_key) = &pdu.state_key {
-                if pdu.kind == EventType::RoomMember {
-                    let target_user_id = UserId::try_from(state_key.clone()).map_err(|e| {
-                        warn!(
-                            "Invalid user id in send_join response: {}: {}",
-                            state_key, e
-                        );
-                        Error::BadServerResponse("Invalid user id in send_join response.")
-                    })?;
-
-                    let invite_state = Vec::new(); // TODO add a few important events
-
-                    // Update our membership info, we do this here incase a user is invited
-                    // and immediately leaves we need the DB to record the invite event for auth
-                    db.rooms.update_membership(
-                        &pdu.room_id,
-                        &target_user_id,
-                        serde_json::from_value::<member::MembershipState>(
-                            pdu.content
-                                .get("membership")
-                                .ok_or(Error::BadServerResponse("Invalid member event content"))?
-                                .clone(),
-                        )
-                        .map_err(|_| {
-                            Error::BadServerResponse("Invalid membership state content.")
-                        })?,
-                        &pdu.sender,
-                        Some(invite_state),
-                        db,
-                    )?;
-                }
                 state.insert((pdu.kind.clone(), state_key.clone()), pdu.event_id.clone());
             }
         }
@@ -653,10 +612,15 @@ async fn join_room_by_id_helper(
         // pdu without it's state. This is okay because append_pdu can't fail.
         let statehashid = db.rooms.append_to_state(&pdu, &db.globals)?;
 
+        let count = db.globals.next_count()?;
+        let mut pdu_id = room_id.as_bytes().to_vec();
+        pdu_id.push(0xff);
+        pdu_id.extend_from_slice(&count.to_be_bytes());
+
         db.rooms.append_pdu(
             &pdu,
             utils::to_canonical_object(&pdu).expect("Pdu is valid canonical object"),
-            db.globals.next_count()?,
+            count,
             pdu_id.into(),
             &[pdu.event_id.clone()],
             db,
@@ -700,9 +664,41 @@ async fn validate_and_add_event_id(
     db: &Database,
 ) -> Result<(EventId, CanonicalJsonObject)> {
     let mut value = serde_json::from_str::<CanonicalJsonObject>(pdu.json().get()).map_err(|e| {
-        error!("{:?}: {:?}", pdu, e);
+        error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
+    let event_id = EventId::try_from(&*format!(
+        "${}",
+        ruma::signatures::reference_hash(&value, &room_version)
+            .expect("ruma can calculate reference hashes")
+    ))
+    .expect("ruma's reference hashes are valid event ids");
+
+    let back_off = |id| match db.globals.bad_event_ratelimiter.write().unwrap().entry(id) {
+        Entry::Vacant(e) => {
+            e.insert((Instant::now(), 1));
+        }
+        Entry::Occupied(mut e) => *e.get_mut() = (Instant::now(), e.get().1 + 1),
+    };
+
+    if let Some((time, tries)) = db
+        .globals
+        .bad_event_ratelimiter
+        .read()
+        .unwrap()
+        .get(&event_id)
+    {
+        // Exponential backoff
+        let mut min_elapsed_duration = Duration::from_secs(30) * (*tries) * (*tries);
+        if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
+            min_elapsed_duration = Duration::from_secs(60 * 60 * 24);
+        }
+
+        if time.elapsed() < min_elapsed_duration {
+            debug!("Backing off from {}", event_id);
+            return Err(Error::BadServerResponse("bad event, still backing off"));
+        }
+    }
 
     server_server::fetch_required_signing_keys(&value, pub_key_map, db).await?;
     if let Err(e) = ruma::signatures::verify_event(
@@ -712,16 +708,10 @@ async fn validate_and_add_event_id(
         &value,
         room_version,
     ) {
-        warn!("Event failed verification: {}", e);
+        warn!("Event {} failed verification {:?} {}", event_id, pdu, e);
+        back_off(event_id);
         return Err(Error::BadServerResponse("Event failed verification."));
     }
-
-    let event_id = EventId::try_from(&*format!(
-        "${}",
-        ruma::signatures::reference_hash(&value, &room_version)
-            .expect("ruma can calculate reference hashes")
-    ))
-    .expect("ruma's reference hashes are valid event ids");
 
     value.insert(
         "event_id".to_owned(),

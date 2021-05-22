@@ -1,5 +1,5 @@
 use super::{State, SESSION_ID_LENGTH};
-use crate::{utils, ConduitResult, Database, Error, Ruma};
+use crate::{utils, ConduitResult, Database, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -12,6 +12,7 @@ use ruma::{
         },
     },
     encryption::UnsignedDeviceInfo,
+    DeviceId, UserId,
 };
 use std::collections::{BTreeMap, HashSet};
 
@@ -78,74 +79,14 @@ pub async fn get_keys_route(
 ) -> ConduitResult<get_keys::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let mut master_keys = BTreeMap::new();
-    let mut self_signing_keys = BTreeMap::new();
-    let mut user_signing_keys = BTreeMap::new();
-    let mut device_keys = BTreeMap::new();
+    let response = get_keys_helper(
+        Some(sender_user),
+        &body.device_keys,
+        |u| u == sender_user,
+        &db,
+    )?;
 
-    for (user_id, device_ids) in &body.device_keys {
-        if device_ids.is_empty() {
-            let mut container = BTreeMap::new();
-            for device_id in db.users.all_device_ids(user_id) {
-                let device_id = device_id?;
-                if let Some(mut keys) = db.users.get_device_keys(user_id, &device_id)? {
-                    let metadata = db
-                        .users
-                        .get_device_metadata(user_id, &device_id)?
-                        .ok_or_else(|| {
-                            Error::bad_database("all_device_keys contained nonexistent device.")
-                        })?;
-
-                    keys.unsigned = UnsignedDeviceInfo {
-                        device_display_name: metadata.display_name,
-                    };
-
-                    container.insert(device_id, keys);
-                }
-            }
-            device_keys.insert(user_id.clone(), container);
-        } else {
-            for device_id in device_ids {
-                let mut container = BTreeMap::new();
-                if let Some(mut keys) = db.users.get_device_keys(&user_id.clone(), &device_id)? {
-                    let metadata = db.users.get_device_metadata(user_id, &device_id)?.ok_or(
-                        Error::BadRequest(
-                            ErrorKind::InvalidParam,
-                            "Tried to get keys for nonexistent device.",
-                        ),
-                    )?;
-
-                    keys.unsigned = UnsignedDeviceInfo {
-                        device_display_name: metadata.display_name,
-                    };
-
-                    container.insert(device_id.clone(), keys);
-                }
-                device_keys.insert(user_id.clone(), container);
-            }
-        }
-
-        if let Some(master_key) = db.users.get_master_key(user_id, sender_user)? {
-            master_keys.insert(user_id.clone(), master_key);
-        }
-        if let Some(self_signing_key) = db.users.get_self_signing_key(user_id, sender_user)? {
-            self_signing_keys.insert(user_id.clone(), self_signing_key);
-        }
-        if user_id == sender_user {
-            if let Some(user_signing_key) = db.users.get_user_signing_key(sender_user)? {
-                user_signing_keys.insert(user_id.clone(), user_signing_key);
-            }
-        }
-    }
-
-    Ok(get_keys::Response {
-        master_keys,
-        self_signing_keys,
-        user_signing_keys,
-        device_keys,
-        failures: BTreeMap::new(),
-    }
-    .into())
+    Ok(response.into())
 }
 
 #[cfg_attr(
@@ -355,4 +296,82 @@ pub async fn get_key_changes_route(
         left: Vec::new(), // TODO
     }
     .into())
+}
+
+pub fn get_keys_helper<F: Fn(&UserId) -> bool>(
+    sender_user: Option<&UserId>,
+    device_keys_input: &BTreeMap<UserId, Vec<Box<DeviceId>>>,
+    allowed_signatures: F,
+    db: &Database,
+) -> Result<get_keys::Response> {
+    let mut master_keys = BTreeMap::new();
+    let mut self_signing_keys = BTreeMap::new();
+    let mut user_signing_keys = BTreeMap::new();
+    let mut device_keys = BTreeMap::new();
+
+    for (user_id, device_ids) in device_keys_input {
+        if device_ids.is_empty() {
+            let mut container = BTreeMap::new();
+            for device_id in db.users.all_device_ids(user_id) {
+                let device_id = device_id?;
+                if let Some(mut keys) = db.users.get_device_keys(user_id, &device_id)? {
+                    let metadata = db
+                        .users
+                        .get_device_metadata(user_id, &device_id)?
+                        .ok_or_else(|| {
+                            Error::bad_database("all_device_keys contained nonexistent device.")
+                        })?;
+
+                    keys.unsigned = UnsignedDeviceInfo {
+                        device_display_name: metadata.display_name,
+                    };
+
+                    container.insert(device_id, keys);
+                }
+            }
+            device_keys.insert(user_id.clone(), container);
+        } else {
+            for device_id in device_ids {
+                let mut container = BTreeMap::new();
+                if let Some(mut keys) = db.users.get_device_keys(&user_id.clone(), &device_id)? {
+                    let metadata = db.users.get_device_metadata(user_id, &device_id)?.ok_or(
+                        Error::BadRequest(
+                            ErrorKind::InvalidParam,
+                            "Tried to get keys for nonexistent device.",
+                        ),
+                    )?;
+
+                    keys.unsigned = UnsignedDeviceInfo {
+                        device_display_name: metadata.display_name,
+                    };
+
+                    container.insert(device_id.clone(), keys);
+                }
+                device_keys.insert(user_id.clone(), container);
+            }
+        }
+
+        if let Some(master_key) = db.users.get_master_key(user_id, &allowed_signatures)? {
+            master_keys.insert(user_id.clone(), master_key);
+        }
+        if let Some(self_signing_key) = db
+            .users
+            .get_self_signing_key(user_id, &allowed_signatures)?
+        {
+            self_signing_keys.insert(user_id.clone(), self_signing_key);
+        }
+        if Some(user_id) == sender_user {
+            if let Some(user_signing_key) = db.users.get_user_signing_key(user_id)? {
+                user_signing_keys.insert(user_id.clone(), user_signing_key);
+            }
+        }
+    }
+
+    Ok(get_keys::Response {
+        master_keys,
+        self_signing_keys,
+        user_signing_keys,
+        device_keys,
+        failures: BTreeMap::new(),
+    })
 }
