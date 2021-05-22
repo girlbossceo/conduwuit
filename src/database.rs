@@ -112,7 +112,9 @@ impl Database {
             .use_compression(true)
             .open()?;
 
-        info!("Opened sled database at {}", config.database_path);
+        if config.max_request_size < 1024 {
+            eprintln!("ERROR: Max request size is less than 1KB. Please increase it.");
+        }
 
         let (admin_sender, admin_receiver) = mpsc::unbounded();
 
