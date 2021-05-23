@@ -137,9 +137,7 @@ where
                     let x_matrix = match request
                         .headers()
                         .get_one("Authorization")
-                        .and_then(|s|
-                        // Split off "X-Matrix " and parse the rest
-                        s.get(9..))
+                        .and_then(|s| s.get(9..)) // Split off "X-Matrix " and parse the rest
                         .map(|s| {
                             s.split_terminator(',')
                                 .map(|field| {
