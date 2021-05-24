@@ -99,7 +99,7 @@ allow_federation = true
 trusted_servers = ["matrix.org"]
 
 #cache_capacity = 1073741824 # in bytes, 1024 * 1024 * 1024
-#max_concurrent_requests = 4 # How many requests Conduit sends to other servers at the same time
+#max_concurrent_requests = 100 # How many requests Conduit sends to other servers at the same time
 #workers = 4 # default: cpu core count * 2
 
 address = "127.0.0.1" # This makes sure Conduit can only be reached using the reverse proxy
