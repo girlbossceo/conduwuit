@@ -67,7 +67,7 @@ fn default_max_request_size() -> u32 {
 }
 
 fn default_max_concurrent_requests() -> u16 {
-    4
+    100
 }
 
 fn default_log() -> String {
