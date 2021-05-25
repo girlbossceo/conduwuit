@@ -26,8 +26,7 @@ services:
             # - ./conduit.toml:/srv/conduit/conduit.toml
         environment:
             CONDUIT_SERVER_NAME: localhost:8000  # replace with your own name
-            CONDUIT_TRUSTED_SERVERS:
-                - 'matrix.org'
+            CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
             ### Uncomment and change values as desired
             # CONDUIT_ADDRESS: 127.0.0.1
             # CONDUIT_PORT: 8000
