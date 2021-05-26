@@ -74,9 +74,7 @@ impl PduEvent {
 
         self.unsigned.insert(
             "redacted_because".to_owned(),
-            serde_json::to_string(reason)
-                .expect("PduEvent::to_string always works")
-                .into(),
+            serde_json::to_value(reason).expect("to_value(PduEvent) always works"),
         );
 
         self.content = new_content.into();
