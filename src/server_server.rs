@@ -628,19 +628,20 @@ pub async fn send_transaction_message_route<'a>(
         };
 
         let start_time = Instant::now();
-        if let Err(e) = handle_incoming_pdu(
-            &body.origin,
-            &event_id,
-            value,
-            true,
-            &db,
-            &pub_key_map,
-            &mut auth_cache,
-        )
-        .await
-        {
-            resolved_map.insert(event_id.clone(), Err(e));
-        }
+        resolved_map.insert(
+            event_id.clone(),
+            handle_incoming_pdu(
+                &body.origin,
+                &event_id,
+                value,
+                true,
+                &db,
+                &pub_key_map,
+                &mut auth_cache,
+            )
+            .await
+            .map(|_| ()),
+        );
 
         let elapsed = start_time.elapsed();
         if elapsed > Duration::from_secs(1) {
