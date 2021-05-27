@@ -14,7 +14,7 @@ Yes! Just open a Matrix client (<https://app.element.io> or Element Android for
 example) and register on the `https://conduit.koesters.xyz` homeserver.
 
 
-#### What is it build on?
+#### What is it built on?
 
 - [Ruma](https://www.ruma.io): Useful structures for endpoint requests and
   responses that can be (de)serialized
@@ -56,7 +56,7 @@ If you want to connect an Appservice to Conduit, take a look at the [Appservice 
 
 If you want to cross compile Conduit to another architecture, read the [Cross-Compile Guide](CROSS_COMPILE.md).
 
-##### Deloy using a Debian package
+##### Deploy using a Debian package
 
 You need to have the `deb` helper command installed that creates Debian packages from Cargo projects (see [cargo-deb](https://github.com/mmstick/cargo-deb/) for more info):
 
