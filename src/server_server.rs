@@ -1209,6 +1209,10 @@ pub fn handle_incoming_pdu<'a>(
                         }
                     }
                 }
+                auth_cache.extend(
+                    map.iter()
+                        .map(|pdu| (pdu.1.event_id.clone(), pdu.1.clone())),
+                );
                 auth_events.push(state_auth);
             }
 
@@ -1216,7 +1220,7 @@ pub fn handle_incoming_pdu<'a>(
             auth_cache.extend(
                 auth_events
                     .iter()
-                    .map(|pdus| pdus.iter().map(|pdu| (pdu.event_id().clone(), pdu.clone())))
+                    .map(|pdus| pdus.iter().map(|pdu| (pdu.event_id.clone(), pdu.clone())))
                     .flatten(),
             );
             auth_cache.extend(
