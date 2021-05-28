@@ -12,7 +12,7 @@ use ruma::{
         },
     },
     encryption::UnsignedDeviceInfo,
-    DeviceId, UserId,
+    DeviceId, DeviceKeyAlgorithm, UserId,
 };
 use std::collections::{BTreeMap, HashSet};
 
@@ -98,29 +98,11 @@ pub async fn claim_keys_route(
     db: State<'_, Database>,
     body: Ruma<claim_keys::Request>,
 ) -> ConduitResult<claim_keys::Response> {
-    let mut one_time_keys = BTreeMap::new();
-    for (user_id, map) in &body.one_time_keys {
-        let mut container = BTreeMap::new();
-        for (device_id, key_algorithm) in map {
-            if let Some(one_time_keys) =
-                db.users
-                    .take_one_time_key(user_id, device_id, key_algorithm, &db.globals)?
-            {
-                let mut c = BTreeMap::new();
-                c.insert(one_time_keys.0, one_time_keys.1);
-                container.insert(device_id.clone(), c);
-            }
-        }
-        one_time_keys.insert(user_id.clone(), container);
-    }
+    let response = claim_keys_helper(&body.one_time_keys, &db)?;
 
     db.flush().await?;
 
-    Ok(claim_keys::Response {
-        failures: BTreeMap::new(),
-        one_time_keys,
-    }
-    .into())
+    Ok(response.into())
 }
 
 #[cfg_attr(
@@ -373,5 +355,31 @@ pub fn get_keys_helper<F: Fn(&UserId) -> bool>(
         user_signing_keys,
         device_keys,
         failures: BTreeMap::new(),
+    })
+}
+
+pub fn claim_keys_helper(
+    one_time_keys_input: &BTreeMap<UserId, BTreeMap<Box<DeviceId>, DeviceKeyAlgorithm>>,
+    db: &Database,
+) -> Result<claim_keys::Response> {
+    let mut one_time_keys = BTreeMap::new();
+    for (user_id, map) in one_time_keys_input {
+        let mut container = BTreeMap::new();
+        for (device_id, key_algorithm) in map {
+            if let Some(one_time_keys) =
+                db.users
+                    .take_one_time_key(user_id, device_id, key_algorithm, &db.globals)?
+            {
+                let mut c = BTreeMap::new();
+                c.insert(one_time_keys.0, one_time_keys.1);
+                container.insert(device_id.clone(), c);
+            }
+        }
+        one_time_keys.insert(user_id.clone(), container);
+    }
+
+    Ok(claim_keys::Response {
+        failures: BTreeMap::new(),
+        one_time_keys,
     })
 }

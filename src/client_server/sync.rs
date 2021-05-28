@@ -1,5 +1,6 @@
 use super::State;
 use crate::{ConduitResult, Database, Error, Ruma};
+use log::error;
 use ruma::{
     api::client::r0::sync::sync_events,
     events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
@@ -71,7 +72,12 @@ pub async fn sync_events_route(
         let mut non_timeline_pdus = db
             .rooms
             .pdus_since(&sender_user, &room_id, since)?
-            .filter_map(|r| r.ok()); // Filter out buggy events
+            .filter_map(|r| {
+                if r.is_err() {
+                    error!("Bad pdu in pdus_since: {:?}", r);
+                }
+                r.ok()
+            }); // Filter out buggy events
 
         // Take the last 10 events for the timeline
         let timeline_pdus = non_timeline_pdus

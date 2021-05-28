@@ -1,5 +1,5 @@
 use crate::{
-    client_server::{self, get_keys_helper},
+    client_server::{self, claim_keys_helper, get_keys_helper},
     utils, ConduitResult, Database, Error, PduEvent, Result, Ruma,
 };
 use get_profile_information::v1::ProfileField;
@@ -9,7 +9,10 @@ use regex::Regex;
 use rocket::{response::content::Json, State};
 use ruma::{
     api::{
-        client::error::{Error as RumaError, ErrorKind},
+        client::{
+            error::{Error as RumaError, ErrorKind},
+            r0::to_device,
+        },
         federation::{
             device::get_devices::{self, v1::UserDevice},
             directory::{get_public_rooms, get_public_rooms_filtered},
@@ -18,14 +21,17 @@ use ruma::{
                 VerifyKey,
             },
             event::{get_event, get_missing_events, get_room_state_ids},
-            keys::get_keys,
+            keys::{claim_keys, get_keys},
             membership::{
                 create_invite,
                 create_join_event::{self, RoomState},
                 create_join_event_template,
             },
             query::{get_profile_information, get_room_information},
-            transactions::{edu::Edu, send_transaction_message},
+            transactions::{
+                edu::{DirectDeviceContent, Edu},
+                send_transaction_message,
+            },
         },
         EndpointError, IncomingResponse, OutgoingRequest, OutgoingResponse, SendAccessToken,
     },
@@ -720,8 +726,68 @@ pub async fn send_transaction_message_route<'a>(
                         .typing_remove(&typing.user_id, &typing.room_id, &db.globals)?;
                 }
             }
-            Edu::DeviceListUpdate(_) => {}
-            Edu::DirectToDevice(_) => {}
+            Edu::DeviceListUpdate(_) => {
+                // TODO: Instead of worrying about stream ids we can just fetch all devices again
+            }
+            Edu::DirectToDevice(DirectDeviceContent {
+                sender,
+                ev_type,
+                message_id,
+                messages,
+            }) => {
+                // Check if this is a new transaction id
+                if db
+                    .transaction_ids
+                    .existing_txnid(&sender, None, &message_id)?
+                    .is_some()
+                {
+                    continue;
+                }
+
+                for (target_user_id, map) in &messages {
+                    for (target_device_id_maybe, event) in map {
+                        match target_device_id_maybe {
+                            to_device::DeviceIdOrAllDevices::DeviceId(target_device_id) => {
+                                db.users.add_to_device_event(
+                                    &sender,
+                                    &target_user_id,
+                                    &target_device_id,
+                                    &ev_type,
+                                    serde_json::from_str(event.get()).map_err(|_| {
+                                        Error::BadRequest(
+                                            ErrorKind::InvalidParam,
+                                            "Event is invalid",
+                                        )
+                                    })?,
+                                    &db.globals,
+                                )?
+                            }
+
+                            to_device::DeviceIdOrAllDevices::AllDevices => {
+                                for target_device_id in db.users.all_device_ids(&target_user_id) {
+                                    db.users.add_to_device_event(
+                                        &sender,
+                                        &target_user_id,
+                                        &target_device_id?,
+                                        &ev_type,
+                                        serde_json::from_str(event.get()).map_err(|_| {
+                                            Error::BadRequest(
+                                                ErrorKind::InvalidParam,
+                                                "Event is invalid",
+                                            )
+                                        })?,
+                                        &db.globals,
+                                    )?;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Save transaction id with empty data
+                db.transaction_ids
+                    .add_txnid(&sender, None, &message_id, &[])?;
+            }
             Edu::_Custom(_) => {}
         }
     }
@@ -2331,6 +2397,29 @@ pub fn get_keys_route<'a>(
         device_keys: result.device_keys,
         master_keys: result.master_keys,
         self_signing_keys: result.self_signing_keys,
+    }
+    .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    post("/_matrix/federation/v1/user/keys/claim", data = "<body>")
+)]
+#[tracing::instrument(skip(db, body))]
+pub async fn claim_keys_route<'a>(
+    db: State<'a, Database>,
+    body: Ruma<claim_keys::v1::Request>,
+) -> ConduitResult<claim_keys::v1::Response> {
+    if !db.globals.allow_federation() {
+        return Err(Error::bad_config("Federation is disabled."));
+    }
+
+    let result = claim_keys_helper(&body.one_time_keys, &db)?;
+
+    db.flush().await?;
+
+    Ok(claim_keys::v1::Response {
+        one_time_keys: result.one_time_keys,
     }
     .into())
 }
