@@ -24,6 +24,7 @@ $ cargo build --release
 ```
 Note that this currently requires Rust 1.50.
 
+If you want to cross compile Conduit to another architecture, read the [Cross-Compile Guide](CROSS_COMPILE.md).
 
 ## Adding a Conduit user
 
