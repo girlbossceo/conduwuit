@@ -945,7 +945,7 @@ pub async fn invite_helper(
                 membership: member::MembershipState::Invite,
                 displayname: db.users.displayname(&user_id)?,
                 avatar_url: db.users.avatar_url(&user_id)?,
-                is_direct: None,
+                is_direct: Some(is_direct),
                 third_party_invite: None,
             })
             .expect("event is valid, we just created it"),
