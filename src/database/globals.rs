@@ -94,7 +94,7 @@ impl Globals {
                 .map(|key| (version, key))
         })
         .and_then(|(version, key)| {
-            ruma::signatures::Ed25519KeyPair::new(&key, version)
+            ruma::signatures::Ed25519KeyPair::from_der(&key, version)
                 .map_err(|_| Error::bad_database("Private or public keys are invalid."))
         });
 

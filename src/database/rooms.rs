@@ -1494,7 +1494,12 @@ impl Rooms {
         Ok(self
             .pduid_pdu
             .range(first_pdu_id..last_pdu_id)
-            .filter_map(|r| r.ok())
+            .filter_map(|r| {
+                if r.is_err() {
+                    error!("Bad pdu in pduid_pdu: {:?}", r);
+                }
+                r.ok()
+            })
             .map(move |(pdu_id, v)| {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
