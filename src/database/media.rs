@@ -4,14 +4,14 @@ use crate::{utils, Error, Result};
 use std::mem;
 
 pub struct FileMeta {
-    pub filename: Option<String>,
+    pub content_disposition: Option<String>,
     pub content_type: Option<String>,
     pub file: Vec<u8>,
 }
 
 #[derive(Clone)]
 pub struct Media {
-    pub(super) mediaid_file: sled::Tree, // MediaId = MXC + WidthHeight + Filename + ContentType
+    pub(super) mediaid_file: sled::Tree, // MediaId = MXC + WidthHeight + ContentDisposition + ContentType
 }
 
 impl Media {
@@ -19,7 +19,7 @@ impl Media {
     pub fn create(
         &self,
         mxc: String,
-        filename: &Option<&str>,
+        content_disposition: &Option<&str>,
         content_type: &Option<&str>,
         file: &[u8],
     ) -> Result<()> {
@@ -28,7 +28,12 @@ impl Media {
         key.extend_from_slice(&0_u32.to_be_bytes()); // Width = 0 if it's not a thumbnail
         key.extend_from_slice(&0_u32.to_be_bytes()); // Height = 0 if it's not a thumbnail
         key.push(0xff);
-        key.extend_from_slice(filename.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
+        key.extend_from_slice(
+            content_disposition
+                .as_ref()
+                .map(|f| f.as_bytes())
+                .unwrap_or_default(),
+        );
         key.push(0xff);
         key.extend_from_slice(
             content_type
@@ -46,7 +51,7 @@ impl Media {
     pub fn upload_thumbnail(
         &self,
         mxc: String,
-        filename: &Option<String>,
+        content_disposition: &Option<String>,
         content_type: &Option<String>,
         width: u32,
         height: u32,
@@ -57,7 +62,12 @@ impl Media {
         key.extend_from_slice(&width.to_be_bytes());
         key.extend_from_slice(&height.to_be_bytes());
         key.push(0xff);
-        key.extend_from_slice(filename.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
+        key.extend_from_slice(
+            content_disposition
+                .as_ref()
+                .map(|f| f.as_bytes())
+                .unwrap_or_default(),
+        );
         key.push(0xff);
         key.extend_from_slice(
             content_type
@@ -92,20 +102,24 @@ impl Media {
                 })
                 .transpose()?;
 
-            let filename_bytes = parts
+            let content_disposition_bytes = parts
                 .next()
                 .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?;
 
-            let filename = if filename_bytes.is_empty() {
+            let content_disposition = if content_disposition_bytes.is_empty() {
                 None
             } else {
-                Some(utils::string_from_bytes(filename_bytes).map_err(|_| {
-                    Error::bad_database("Filename in mediaid_file is invalid unicode.")
-                })?)
+                Some(
+                    utils::string_from_bytes(content_disposition_bytes).map_err(|_| {
+                        Error::bad_database(
+                            "Content Disposition in mediaid_file is invalid unicode.",
+                        )
+                    })?,
+                )
             };
 
             Ok(Some(FileMeta {
-                filename,
+                content_disposition,
                 content_type,
                 file: file.to_vec(),
             }))
@@ -169,21 +183,22 @@ impl Media {
                 })
                 .transpose()?;
 
-            let filename_bytes = parts
+            let content_disposition_bytes = parts
                 .next()
                 .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?;
 
-            let filename = if filename_bytes.is_empty() {
+            let content_disposition = if content_disposition_bytes.is_empty() {
                 None
             } else {
                 Some(
-                    utils::string_from_bytes(filename_bytes)
-                        .map_err(|_| Error::bad_database("Filename in db is invalid."))?,
+                    utils::string_from_bytes(content_disposition_bytes).map_err(|_| {
+                        Error::bad_database("Content Disposition in db is invalid.")
+                    })?,
                 )
             };
 
             Ok(Some(FileMeta {
-                filename,
+                content_disposition,
                 content_type,
                 file: file.to_vec(),
             }))
@@ -202,16 +217,20 @@ impl Media {
                 })
                 .transpose()?;
 
-            let filename_bytes = parts
+            let content_disposition_bytes = parts
                 .next()
                 .ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?;
 
-            let filename = if filename_bytes.is_empty() {
+            let content_disposition = if content_disposition_bytes.is_empty() {
                 None
             } else {
-                Some(utils::string_from_bytes(filename_bytes).map_err(|_| {
-                    Error::bad_database("Filename in mediaid_file is invalid unicode.")
-                })?)
+                Some(
+                    utils::string_from_bytes(content_disposition_bytes).map_err(|_| {
+                        Error::bad_database(
+                            "Content Disposition in mediaid_file is invalid unicode.",
+                        )
+                    })?,
+                )
             };
 
             if let Ok(image) = image::load_from_memory(&file) {
@@ -219,7 +238,7 @@ impl Media {
                 let original_height = image.height();
                 if width > original_width || height > original_height {
                     return Ok(Some(FileMeta {
-                        filename,
+                        content_disposition,
                         content_type,
                         file: file.to_vec(),
                     }));
@@ -286,14 +305,14 @@ impl Media {
                 self.mediaid_file.insert(thumbnail_key, &*thumbnail_bytes)?;
 
                 Ok(Some(FileMeta {
-                    filename,
+                    content_disposition,
                     content_type,
                     file: thumbnail_bytes.to_vec(),
                 }))
             } else {
                 // Couldn't parse file to generate thumbnail, send original
                 Ok(Some(FileMeta {
-                    filename,
+                    content_disposition,
                     content_type,
                     file: file.to_vec(),
                 }))

@@ -49,7 +49,7 @@ impl Users {
     }
 
     /// Create a new user account on this homeserver.
-    pub fn create(&self, user_id: &UserId, password: &str) -> Result<()> {
+    pub fn create(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
         self.set_password(user_id, password)?;
         Ok(())
     }
@@ -110,15 +110,20 @@ impl Users {
     }
 
     /// Hash and set the user's password to the Argon2 hash
-    pub fn set_password(&self, user_id: &UserId, password: &str) -> Result<()> {
-        if let Ok(hash) = utils::calculate_hash(&password) {
-            self.userid_password.insert(user_id.to_string(), &*hash)?;
-            Ok(())
+    pub fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
+        if let Some(password) = password {
+            if let Ok(hash) = utils::calculate_hash(&password) {
+                self.userid_password.insert(user_id.to_string(), &*hash)?;
+                Ok(())
+            } else {
+                Err(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "Password does not meet the requirements.",
+                ))
+            }
         } else {
-            Err(Error::BadRequest(
-                ErrorKind::InvalidParam,
-                "Password does not meet the requirements.",
-            ))
+            self.userid_password.insert(user_id.to_string(), "")?;
+            Ok(())
         }
     }
 

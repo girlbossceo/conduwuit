@@ -11,7 +11,7 @@ pub mod transaction_ids;
 pub mod uiaa;
 pub mod users;
 
-use crate::{Error, Result};
+use crate::{utils, Error, Result};
 use directories::ProjectDirs;
 use futures::StreamExt;
 use log::{error, info};
@@ -244,6 +244,25 @@ impl Database {
             db.globals.bump_database_version(1)?;
 
             info!("Migration: 0 -> 1 finished");
+        }
+
+        if db.globals.database_version()? < 2 {
+            // We accidentally inserted hashed versions of "" into the db instead of just ""
+            for userid_password in db.users.userid_password.iter() {
+                let (userid, password) = userid_password?;
+
+                let password = utils::string_from_bytes(&password);
+
+                if password.map_or(false, |password| {
+                    argon2::verify_encoded(&password, b"").unwrap_or(false)
+                }) {
+                    db.users.userid_password.insert(userid, b"")?;
+                }
+            }
+
+            db.globals.bump_database_version(2)?;
+
+            info!("Migration: 1 -> 2 finished");
         }
 
         // This data is probably outdated

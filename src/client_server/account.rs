@@ -179,12 +179,11 @@ pub async fn register_route(
     let password = if is_guest {
         None
     } else {
-        body.password.clone()
-    }
-    .unwrap_or_default();
+        body.password.as_deref()
+    };
 
     // Create user
-    db.users.create(&user_id, &password)?;
+    db.users.create(&user_id, password)?;
 
     // Initial data
     db.account_data.update(
@@ -233,7 +232,7 @@ pub async fn register_route(
         let conduit_user = UserId::parse_with_server_name("conduit", db.globals.server_name())
             .expect("@conduit:server_name is valid");
 
-        db.users.create(&conduit_user, "")?;
+        db.users.create(&conduit_user, None)?;
 
         let room_id = RoomId::new(db.globals.server_name());
 
@@ -547,7 +546,8 @@ pub async fn change_password_route(
         return Err(Error::Uiaa(uiaainfo));
     }
 
-    db.users.set_password(&sender_user, &body.new_password)?;
+    db.users
+        .set_password(&sender_user, Some(&body.new_password))?;
 
     if body.logout_devices {
         // Logout all devices except the current one
