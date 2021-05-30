@@ -725,8 +725,9 @@ impl Rooms {
             .users
             .iter()
             .filter_map(|r| r.ok())
-            .filter(|user_id| self.is_joined(&user_id, &pdu.room_id).unwrap_or(false))
+            .filter(|user_id| user_id.server_name() == db.globals.server_name())
             .filter(|user_id| !db.users.is_deactivated(user_id).unwrap_or(false))
+            .filter(|user_id| self.is_joined(&user_id, &pdu.room_id).unwrap_or(false))
         {
             // Don't notify the user of their own events
             if user == pdu.sender {
