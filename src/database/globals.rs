@@ -5,11 +5,7 @@ use ruma::{
     EventId, MilliSecondsSinceUnixEpoch, ServerName, ServerSigningKeyId,
 };
 use rustls::{ServerCertVerifier, WebPKIVerifier};
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::{Arc, RwLock},
-    time::{Duration, Instant},
-};
+use std::{collections::{BTreeMap, HashMap}, path::{PathBuf}, sync::{Arc, RwLock}, time::{Duration, Instant}};
 use tokio::sync::Semaphore;
 use trust_dns_resolver::TokioAsyncResolver;
 
@@ -274,5 +270,20 @@ impl Globals {
         self.globals
             .insert(b"version", &new_version.to_be_bytes())?;
         Ok(())
+    }
+
+    pub fn get_media_folder(&self) -> PathBuf {
+        let mut r = PathBuf::new();
+        r.push(self.config.database_path.clone());
+        r.push("media");
+        r
+    }
+
+    pub fn get_media_file(&self, key: &Vec<u8>) -> PathBuf {
+        let mut r = PathBuf::new();
+        r.push(self.config.database_path.clone());
+        r.push("media");
+        r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));
+        r
     }
 }

@@ -45,6 +45,11 @@ pub enum Error {
     },
     #[error("{0}")]
     FederationError(Box<ServerName>, RumaError),
+    #[error("Could not do this io: {source}")]
+    IoError {
+        #[from]
+        source: std::io::Error,
+    },
     #[error("{0}")]
     BadServerResponse(&'static str),
     #[error("{0}")]

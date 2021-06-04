@@ -245,7 +245,7 @@ impl Database {
 
             db.globals.bump_database_version(1)?;
 
-            info!("Migration: 0 -> 1 finished");
+            println!("Migration: 0 -> 1 finished");
         }
 
         if db.globals.database_version()? < 2 {
@@ -262,7 +262,7 @@ impl Database {
 
             db.globals.bump_database_version(2)?;
 
-            info!("Migration: 1 -> 2 finished");
+            println!("Migration: 1 -> 2 finished");
         }
 
         // This data is probably outdated
