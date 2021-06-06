@@ -36,17 +36,20 @@ pub async fn create_content_route(
         db.globals.server_name(),
         utils::random_string(MXC_LENGTH)
     );
-    db.media.create(
-        mxc.clone(),
-        &db.globals,
-        &body
-            .filename
-            .as_ref()
-            .map(|filename| "inline; filename=".to_owned() + filename)
-            .as_deref(),
-        &body.content_type.as_deref(),
-        &body.file,
-    ).await?;
+
+    db.media
+        .create(
+            mxc.clone(),
+            &db.globals,
+            &body
+                .filename
+                .as_ref()
+                .map(|filename| "inline; filename=".to_owned() + filename)
+                .as_deref(),
+            &body.content_type.as_deref(),
+            &body.file,
+        )
+        .await?;
 
     db.flush().await?;
 
@@ -94,13 +97,15 @@ pub async fn get_content_route(
             )
             .await?;
 
-        db.media.create(
-            mxc,
-            &db.globals,
-            &get_content_response.content_disposition.as_deref(),
-            &get_content_response.content_type.as_deref(),
-            &get_content_response.file,
-        ).await?;
+        db.media
+            .create(
+                mxc,
+                &db.globals,
+                &get_content_response.content_disposition.as_deref(),
+                &get_content_response.content_type.as_deref(),
+                &get_content_response.file,
+            )
+            .await?;
 
         Ok(get_content_response.into())
     } else {
@@ -121,16 +126,20 @@ pub async fn get_content_thumbnail_route(
 
     if let Some(FileMeta {
         content_type, file, ..
-    }) = db.media.get_thumbnail(
-        mxc.clone(),
-        &db.globals,
-        body.width
-            .try_into()
-            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
-        body.height
-            .try_into()
-            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
-    ).await? {
+    }) = db
+        .media
+        .get_thumbnail(
+            mxc.clone(),
+            &db.globals,
+            body.width
+                .try_into()
+                .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
+            body.height
+                .try_into()
+                .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
+        )
+        .await?
+    {
         Ok(get_content_thumbnail::Response { file, content_type }.into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
         let get_thumbnail_response = db
@@ -149,15 +158,17 @@ pub async fn get_content_thumbnail_route(
             )
             .await?;
 
-        db.media.upload_thumbnail(
-            mxc,
-            &db.globals,
-            &None,
-            &get_thumbnail_response.content_type,
-            body.width.try_into().expect("all UInts are valid u32s"),
-            body.height.try_into().expect("all UInts are valid u32s"),
-            &get_thumbnail_response.file,
-        ).await?;
+        db.media
+            .upload_thumbnail(
+                mxc,
+                &db.globals,
+                &None,
+                &get_thumbnail_response.content_type,
+                body.width.try_into().expect("all UInts are valid u32s"),
+                body.height.try_into().expect("all UInts are valid u32s"),
+                &get_thumbnail_response.file,
+            )
+            .await?;
 
         Ok(get_thumbnail_response.into())
     } else {

@@ -1,10 +1,14 @@
-use image::{imageops::FilterType, GenericImageView};
 use crate::database::globals::Globals;
+use image::{imageops::FilterType, GenericImageView};
 
+use super::abstraction::Tree;
 use crate::{utils, Error, Result};
 use std::{mem, sync::Arc};
-use super::abstraction::Tree;
-use tokio::{fs::{self, File}, io::AsyncWriteExt, io::AsyncReadExt};
+use tokio::{
+    fs::{self, File},
+    io::AsyncReadExt,
+    io::AsyncWriteExt,
+};
 
 pub struct FileMeta {
     pub content_disposition: Option<String>,
@@ -167,7 +171,13 @@ impl Media {
     /// - Server creates the thumbnail and sends it to the user
     ///
     /// For width,height <= 96 the server uses another thumbnailing algorithm which crops the image afterwards.
-    pub async fn get_thumbnail(&self, mxc: String, globals: &Globals, width: u32, height: u32) -> Result<Option<FileMeta>> {
+    pub async fn get_thumbnail(
+        &self,
+        mxc: String,
+        globals: &Globals,
+        width: u32,
+        height: u32,
+    ) -> Result<Option<FileMeta>> {
         let (width, height, crop) = self
             .thumbnail_properties(width, height)
             .unwrap_or((0, 0, false)); // 0, 0 because that's the original file
@@ -225,7 +235,7 @@ impl Media {
             let path = globals.get_media_file(&key.to_vec());
             let mut file = vec![];
             File::open(path).await?.read_to_end(&mut file).await?;
-            
+
             let mut parts = key.rsplit(|&b| b == 0xff);
 
             let content_type = parts
@@ -326,20 +336,20 @@ impl Media {
                 fs::create_dir_all(path.parent().unwrap()).await?;
                 let mut f = File::create(path).await?;
                 f.write_all(&thumbnail_bytes).await?;
-        
+
                 self.mediaid_file.insert(&thumbnail_key, &[])?;
 
                 Ok(Some(FileMeta {
                     content_disposition,
                     content_type,
-                    file: thumbnail_bytes.to_vec()
+                    file: thumbnail_bytes.to_vec(),
                 }))
             } else {
                 // Couldn't parse file to generate thumbnail, send original
                 Ok(Some(FileMeta {
                     content_disposition,
                     content_type,
-                    file: file.to_vec()
+                    file: file.to_vec(),
                 }))
             }
         } else {
