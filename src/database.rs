@@ -20,7 +20,12 @@ use log::error;
 use rocket::futures::{channel::mpsc, stream::FuturesUnordered, StreamExt};
 use ruma::{DeviceId, ServerName, UserId};
 use serde::Deserialize;
-use std::{collections::HashMap, fs::{self, remove_dir_all}, io::Write, sync::{Arc, RwLock}};
+use std::{
+    collections::HashMap,
+    fs::{self, remove_dir_all},
+    io::Write,
+    sync::{Arc, RwLock},
+};
 use tokio::sync::Semaphore;
 
 #[derive(Clone, Debug, Deserialize)]
