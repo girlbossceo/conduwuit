@@ -20,11 +20,7 @@ use log::error;
 use rocket::futures::{channel::mpsc, stream::FuturesUnordered, StreamExt};
 use ruma::{DeviceId, ServerName, UserId};
 use serde::Deserialize;
-use std::{
-    collections::HashMap,
-    fs::remove_dir_all,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, fs::{self, remove_dir_all}, io::Write, sync::{Arc, RwLock}};
 use tokio::sync::Semaphore;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -253,9 +249,11 @@ impl Database {
             for (userid, password) in db.users.userid_password.iter() {
                 let password = utils::string_from_bytes(&password);
 
-                if password.map_or(false, |password| {
+                let empty_hashed_password = password.map_or(false, |password| {
                     argon2::verify_encoded(&password, b"").unwrap_or(false)
-                }) {
+                });
+
+                if empty_hashed_password {
                     db.users.userid_password.insert(&userid, b"")?;
                 }
             }
@@ -265,6 +263,23 @@ impl Database {
             println!("Migration: 1 -> 2 finished");
         }
 
+        if db.globals.database_version()? < 3 {
+            // Move media to filesystem
+            for (key, content) in db.media.mediaid_file.iter() {
+                if content.len() == 0 {
+                    continue;
+                }
+
+                let path = db.globals.get_media_file(&key);
+                let mut file = fs::File::create(path)?;
+                file.write_all(&content)?;
+                db.media.mediaid_file.insert(&key, &[])?;
+            }
+
+            db.globals.bump_database_version(3)?;
+
+            println!("Migration: 2 -> 3 finished");
+        }
         // This data is probably outdated
         db.rooms.edus.presenceid_presence.clear()?;
 

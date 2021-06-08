@@ -103,7 +103,7 @@ impl Media {
         let mut iter = self.mediaid_file.scan_prefix(prefix);
         if let Some((key, _)) = iter.next() {
             let path = globals.get_media_file(&key);
-            let mut file = vec![];
+            let mut file = Vec::new();
             File::open(path).await?.read_to_end(&mut file).await?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
@@ -192,7 +192,7 @@ impl Media {
         if let Some((key, _)) = self.mediaid_file.scan_prefix(thumbnail_prefix).next() {
             // Using saved thumbnail
             let path = globals.get_media_file(&key);
-            let mut file = vec![];
+            let mut file = Vec::new();
             File::open(path).await?.read_to_end(&mut file).await?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
@@ -227,7 +227,7 @@ impl Media {
         } else if let Some((key, _)) = self.mediaid_file.scan_prefix(original_prefix).next() {
             // Generate a thumbnail
             let path = globals.get_media_file(&key);
-            let mut file = vec![];
+            let mut file = Vec::new();
             File::open(path).await?.read_to_end(&mut file).await?;
 
             let mut parts = key.rsplit(|&b| b == 0xff);
