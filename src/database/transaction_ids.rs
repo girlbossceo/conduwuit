@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use crate::Result;
 use ruma::{DeviceId, UserId};
-use sled::IVec;
 
-#[derive(Clone)]
+use super::abstraction::Tree;
+
 pub struct TransactionIds {
-    pub(super) userdevicetxnid_response: sled::Tree, // Response can be empty (/sendToDevice) or the event id (/send)
+    pub(super) userdevicetxnid_response: Arc<dyn Tree>, // Response can be empty (/sendToDevice) or the event id (/send)
 }
 
 impl TransactionIds {
@@ -21,7 +23,7 @@ impl TransactionIds {
         key.push(0xff);
         key.extend_from_slice(txn_id.as_bytes());
 
-        self.userdevicetxnid_response.insert(key, data)?;
+        self.userdevicetxnid_response.insert(&key, data)?;
 
         Ok(())
     }
@@ -31,7 +33,7 @@ impl TransactionIds {
         user_id: &UserId,
         device_id: Option<&DeviceId>,
         txn_id: &str,
-    ) -> Result<Option<IVec>> {
+    ) -> Result<Option<Vec<u8>>> {
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(device_id.map(|d| d.as_bytes()).unwrap_or_default());
@@ -39,6 +41,6 @@ impl TransactionIds {
         key.extend_from_slice(txn_id.as_bytes());
 
         // If there's no entry, this is a new transaction
-        Ok(self.userdevicetxnid_response.get(key)?)
+        Ok(self.userdevicetxnid_response.get(&key)?)
     }
 }

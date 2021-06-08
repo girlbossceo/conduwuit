@@ -1,10 +1,10 @@
-use crate::Error;
+use crate::{Database, Error};
 use ruma::{
     api::OutgoingResponse,
     identifiers::{DeviceId, UserId},
     Outgoing,
 };
-use std::ops::Deref;
+use std::{ops::Deref, sync::Arc};
 
 #[cfg(feature = "conduit_bin")]
 use {
@@ -51,7 +51,7 @@ where
     async fn from_data(request: &'a Request<'_>, data: Data) -> data::Outcome<Self, Self::Error> {
         let metadata = T::Incoming::METADATA;
         let db = request
-            .guard::<State<'_, crate::Database>>()
+            .guard::<State<'_, Arc<Database>>>()
             .await
             .expect("database was loaded");
 
@@ -75,6 +75,7 @@ where
         )) = db
             .appservice
             .iter_all()
+            .unwrap()
             .filter_map(|r| r.ok())
             .find(|(_id, registration)| {
                 registration

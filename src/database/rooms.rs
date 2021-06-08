@@ -28,7 +28,7 @@ use std::{
     sync::Arc,
 };
 
-use super::{admin::AdminCommand, pusher};
+use super::{abstraction::Tree, admin::AdminCommand, pusher};
 
 /// The unique identifier of each state group.
 ///
@@ -36,54 +36,53 @@ use super::{admin::AdminCommand, pusher};
 /// hashing the entire state.
 pub type StateHashId = IVec;
 
-#[derive(Clone)]
 pub struct Rooms {
     pub edus: edus::RoomEdus,
-    pub(super) pduid_pdu: sled::Tree, // PduId = RoomId + Count
-    pub(super) eventid_pduid: sled::Tree,
-    pub(super) roomid_pduleaves: sled::Tree,
-    pub(super) alias_roomid: sled::Tree,
-    pub(super) aliasid_alias: sled::Tree, // AliasId = RoomId + Count
-    pub(super) publicroomids: sled::Tree,
+    pub(super) pduid_pdu: Arc<dyn Tree>, // PduId = RoomId + Count
+    pub(super) eventid_pduid: Arc<dyn Tree>,
+    pub(super) roomid_pduleaves: Arc<dyn Tree>,
+    pub(super) alias_roomid: Arc<dyn Tree>,
+    pub(super) aliasid_alias: Arc<dyn Tree>, // AliasId = RoomId + Count
+    pub(super) publicroomids: Arc<dyn Tree>,
 
-    pub(super) tokenids: sled::Tree, // TokenId = RoomId + Token + PduId
+    pub(super) tokenids: Arc<dyn Tree>, // TokenId = RoomId + Token + PduId
 
     /// Participating servers in a room.
-    pub(super) roomserverids: sled::Tree, // RoomServerId = RoomId + ServerName
-    pub(super) serverroomids: sled::Tree, // ServerRoomId = ServerName + RoomId
+    pub(super) roomserverids: Arc<dyn Tree>, // RoomServerId = RoomId + ServerName
+    pub(super) serverroomids: Arc<dyn Tree>, // ServerRoomId = ServerName + RoomId
 
-    pub(super) userroomid_joined: sled::Tree,
-    pub(super) roomuserid_joined: sled::Tree,
-    pub(super) roomuseroncejoinedids: sled::Tree,
-    pub(super) userroomid_invitestate: sled::Tree, // InviteState = Vec<Raw<Pdu>>
-    pub(super) roomuserid_invitecount: sled::Tree, // InviteCount = Count
-    pub(super) userroomid_leftstate: sled::Tree,
-    pub(super) roomuserid_leftcount: sled::Tree,
+    pub(super) userroomid_joined: Arc<dyn Tree>,
+    pub(super) roomuserid_joined: Arc<dyn Tree>,
+    pub(super) roomuseroncejoinedids: Arc<dyn Tree>,
+    pub(super) userroomid_invitestate: Arc<dyn Tree>, // InviteState = Vec<Raw<Pdu>>
+    pub(super) roomuserid_invitecount: Arc<dyn Tree>, // InviteCount = Count
+    pub(super) userroomid_leftstate: Arc<dyn Tree>,
+    pub(super) roomuserid_leftcount: Arc<dyn Tree>,
 
-    pub(super) userroomid_notificationcount: sled::Tree, // NotifyCount = u64
-    pub(super) userroomid_highlightcount: sled::Tree,    // HightlightCount = u64
+    pub(super) userroomid_notificationcount: Arc<dyn Tree>, // NotifyCount = u64
+    pub(super) userroomid_highlightcount: Arc<dyn Tree>,    // HightlightCount = u64
 
     /// Remember the current state hash of a room.
-    pub(super) roomid_shortstatehash: sled::Tree,
+    pub(super) roomid_shortstatehash: Arc<dyn Tree>,
     /// Remember the state hash at events in the past.
-    pub(super) shorteventid_shortstatehash: sled::Tree,
+    pub(super) shorteventid_shortstatehash: Arc<dyn Tree>,
     /// StateKey = EventType + StateKey, ShortStateKey = Count
-    pub(super) statekey_shortstatekey: sled::Tree,
-    pub(super) shorteventid_eventid: sled::Tree,
+    pub(super) statekey_shortstatekey: Arc<dyn Tree>,
+    pub(super) shorteventid_eventid: Arc<dyn Tree>,
     /// ShortEventId = Count
-    pub(super) eventid_shorteventid: sled::Tree,
+    pub(super) eventid_shorteventid: Arc<dyn Tree>,
     /// ShortEventId = Count
-    pub(super) statehash_shortstatehash: sled::Tree,
+    pub(super) statehash_shortstatehash: Arc<dyn Tree>,
     /// ShortStateHash = Count
     /// StateId = ShortStateHash + ShortStateKey
-    pub(super) stateid_shorteventid: sled::Tree,
+    pub(super) stateid_shorteventid: Arc<dyn Tree>,
 
     /// RoomId + EventId -> outlier PDU.
     /// Any pdu that has passed the steps 1-8 in the incoming event /federation/send/txn.
-    pub(super) eventid_outlierpdu: sled::Tree,
+    pub(super) eventid_outlierpdu: Arc<dyn Tree>,
 
     /// RoomId + EventId -> Parent PDU EventId.
-    pub(super) prevevent_parent: sled::Tree,
+    pub(super) prevevent_parent: Arc<dyn Tree>,
 }
 
 impl Rooms {
@@ -92,10 +91,8 @@ impl Rooms {
     pub fn state_full_ids(&self, shortstatehash: u64) -> Result<Vec<EventId>> {
         Ok(self
             .stateid_shorteventid
-            .scan_prefix(&shortstatehash.to_be_bytes())
-            .values()
-            .filter_map(|r| r.ok())
-            .map(|bytes| self.shorteventid_eventid.get(&bytes).ok().flatten())
+            .scan_prefix(shortstatehash.to_be_bytes().to_vec())
+            .map(|(_, bytes)| self.shorteventid_eventid.get(&bytes).ok().flatten())
             .flatten()
             .map(|bytes| {
                 Ok::<_, Error>(
@@ -117,10 +114,8 @@ impl Rooms {
     ) -> Result<BTreeMap<(EventType, String), PduEvent>> {
         Ok(self
             .stateid_shorteventid
-            .scan_prefix(shortstatehash.to_be_bytes())
-            .values()
-            .filter_map(|r| r.ok())
-            .map(|bytes| self.shorteventid_eventid.get(&bytes).ok().flatten())
+            .scan_prefix(shortstatehash.to_be_bytes().to_vec())
+            .map(|(_, bytes)| self.shorteventid_eventid.get(&bytes).ok().flatten())
             .flatten()
             .map(|bytes| {
                 Ok::<_, Error>(
@@ -211,16 +206,16 @@ impl Rooms {
         self.eventid_shorteventid
             .get(event_id.as_bytes())?
             .map_or(Ok(None), |shorteventid| {
-                Ok(self.shorteventid_shortstatehash.get(shorteventid)?.map_or(
-                    Ok::<_, Error>(None),
-                    |bytes| {
+                Ok(self
+                    .shorteventid_shortstatehash
+                    .get(&shorteventid)?
+                    .map_or(Ok::<_, Error>(None), |bytes| {
                         Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
                             Error::bad_database(
                                 "Invalid shortstatehash bytes in shorteventid_shortstatehash",
                             )
                         })?))
-                    },
-                )?)
+                    })?)
             })
     }
 
@@ -285,7 +280,8 @@ impl Rooms {
         // Look for PDUs in that room.
         Ok(self
             .pduid_pdu
-            .get_gt(&prefix)?
+            .iter_from(&prefix, false)
+            .next()
             .filter(|(k, _)| k.starts_with(&prefix))
             .is_some())
     }
@@ -471,10 +467,17 @@ impl Rooms {
     }
 
     pub fn latest_pdu_count(&self, room_id: &RoomId) -> Result<u64> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        let mut last_possible_key = prefix.clone();
+        last_possible_key.extend_from_slice(&u64::MAX.to_be_bytes());
+
         self.pduid_pdu
-            .scan_prefix(room_id.as_bytes())
-            .last()
-            .map(|b| self.pdu_count(&b?.0))
+            .iter_from(&last_possible_key, true)
+            .take_while(move |(k, _)| k.starts_with(&prefix))
+            .next()
+            .map(|b| self.pdu_count(&b.0))
             .transpose()
             .map(|op| op.unwrap_or_default())
     }
@@ -499,7 +502,7 @@ impl Rooms {
     }
 
     /// Returns the pdu's id.
-    pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<IVec>> {
+    pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
             .map_or(Ok(None), |pdu_id| Ok(Some(pdu_id)))
@@ -570,11 +573,11 @@ impl Rooms {
     }
 
     /// Removes a pdu and creates a new one with the same id.
-    fn replace_pdu(&self, pdu_id: &IVec, pdu: &PduEvent) -> Result<()> {
+    fn replace_pdu(&self, pdu_id: &[u8], pdu: &PduEvent) -> Result<()> {
         if self.pduid_pdu.get(&pdu_id)?.is_some() {
             self.pduid_pdu.insert(
                 &pdu_id,
-                &*serde_json::to_string(pdu).expect("PduEvent::to_string always works"),
+                &serde_json::to_vec(pdu).expect("PduEvent::to_vec always works"),
             )?;
             Ok(())
         } else {
@@ -591,11 +594,11 @@ impl Rooms {
         prefix.push(0xff);
 
         self.roomid_pduleaves
-            .scan_prefix(prefix)
-            .values()
-            .map(|bytes| {
+            .scan_prefix(dbg!(prefix))
+            .map(|(key, bytes)| {
+                dbg!(key);
                 Ok::<_, Error>(
-                    EventId::try_from(utils::string_from_bytes(&bytes?).map_err(|_| {
+                    EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
                         Error::bad_database("EventID in roomid_pduleaves is invalid unicode.")
                     })?)
                     .map_err(|_| Error::bad_database("EventId in roomid_pduleaves is invalid."))?,
@@ -612,8 +615,8 @@ impl Rooms {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        for key in self.roomid_pduleaves.scan_prefix(&prefix).keys() {
-            self.roomid_pduleaves.remove(key?)?;
+        for (key, _) in self.roomid_pduleaves.scan_prefix(prefix.clone()) {
+            self.roomid_pduleaves.remove(&key)?;
         }
 
         for event_id in event_ids {
@@ -628,7 +631,7 @@ impl Rooms {
     pub fn is_pdu_referenced(&self, pdu: &PduEvent) -> Result<bool> {
         let mut key = pdu.room_id().as_bytes().to_vec();
         key.extend_from_slice(pdu.event_id().as_bytes());
-        self.prevevent_parent.contains_key(key).map_err(Into::into)
+        Ok(self.prevevent_parent.get(&key)?.is_some())
     }
 
     /// Returns the pdu from the outlier tree.
@@ -646,7 +649,7 @@ impl Rooms {
     pub fn add_pdu_outlier(&self, event_id: &EventId, pdu: &CanonicalJsonObject) -> Result<()> {
         self.eventid_outlierpdu.insert(
             &event_id.as_bytes(),
-            &*serde_json::to_string(&pdu).expect("CanonicalJsonObject is valid string"),
+            &serde_json::to_vec(&pdu).expect("CanonicalJsonObject is valid"),
         )?;
 
         Ok(())
@@ -698,7 +701,7 @@ impl Rooms {
             let mut key = pdu.room_id().as_bytes().to_vec();
             key.extend_from_slice(leaf.as_bytes());
             self.prevevent_parent
-                .insert(key, pdu.event_id().as_bytes())?;
+                .insert(&key, pdu.event_id().as_bytes())?;
         }
 
         self.replace_pdu_leaves(&pdu.room_id, leaves)?;
@@ -711,8 +714,7 @@ impl Rooms {
 
         self.pduid_pdu.insert(
             &pdu_id,
-            &*serde_json::to_string(&pdu_json)
-                .expect("CanonicalJsonObject is always a valid String"),
+            &serde_json::to_vec(&pdu_json).expect("CanonicalJsonObject is always a valid"),
         )?;
 
         // This also replaces the eventid of any outliers with the correct
@@ -760,22 +762,14 @@ impl Rooms {
             userroom_id.extend_from_slice(pdu.room_id.as_bytes());
 
             if notify {
-                self.userroomid_notificationcount
-                    .update_and_fetch(&userroom_id, utils::increment)?
-                    .expect("utils::increment will always put in a value");
+                self.userroomid_notificationcount.increment(&userroom_id)?;
             }
 
             if highlight {
-                self.userroomid_highlightcount
-                    .update_and_fetch(&userroom_id, utils::increment)?
-                    .expect("utils::increment will always put in a value");
+                self.userroomid_highlightcount.increment(&userroom_id)?;
             }
 
-            for senderkey in db
-                .pusher
-                .get_pusher_senderkeys(&user)
-                .filter_map(|r| r.ok())
-            {
+            for senderkey in db.pusher.get_pusher_senderkeys(&user) {
                 db.sending.send_push_pdu(&*pdu_id, senderkey)?;
             }
         }
@@ -840,7 +834,7 @@ impl Rooms {
                         key.extend_from_slice(word.as_bytes());
                         key.push(0xff);
                         key.extend_from_slice(&pdu_id);
-                        self.tokenids.insert(key, &[])?;
+                        self.tokenids.insert(&key, &[])?;
                     }
 
                     if body.starts_with(&format!("@conduit:{}: ", db.globals.server_name()))
@@ -991,7 +985,7 @@ impl Rooms {
             Some(shortstatehash) => {
                 // State already existed in db
                 self.shorteventid_shortstatehash
-                    .insert(shorteventid, &*shortstatehash)?;
+                    .insert(&shorteventid, &*shortstatehash)?;
                 return Ok(());
             }
             None => {
@@ -1037,7 +1031,7 @@ impl Rooms {
         }
 
         self.shorteventid_shortstatehash
-            .insert(shorteventid, &*shortstatehash)?;
+            .insert(&shorteventid, &*shortstatehash)?;
 
         Ok(())
     }
@@ -1070,7 +1064,7 @@ impl Rooms {
             };
 
             self.shorteventid_shortstatehash
-                .insert(shorteventid, &old_shortstatehash)?;
+                .insert(&shorteventid, &old_shortstatehash)?;
             if new_pdu.state_key.is_none() {
                 return utils::u64_from_bytes(&old_shortstatehash).map_err(|_| {
                     Error::bad_database("Invalid shortstatehash in roomid_shortstatehash.")
@@ -1078,17 +1072,16 @@ impl Rooms {
             }
 
             self.stateid_shorteventid
-                .scan_prefix(&old_shortstatehash)
-                .filter_map(|pdu| pdu.map_err(|e| error!("{}", e)).ok())
+                .scan_prefix(old_shortstatehash.clone())
                 // Chop the old_shortstatehash out leaving behind the short state key
                 .map(|(k, v)| (k[old_shortstatehash.len()..].to_vec(), v))
-                .collect::<HashMap<Vec<u8>, IVec>>()
+                .collect::<HashMap<Vec<u8>, Box<[u8]>>>()
         } else {
             HashMap::new()
         };
 
         if let Some(state_key) = &new_pdu.state_key {
-            let mut new_state: HashMap<Vec<u8>, IVec> = old_state;
+            let mut new_state: HashMap<Vec<u8>, Box<[u8]>> = old_state;
 
             let mut new_state_key = new_pdu.kind.as_ref().as_bytes().to_vec();
             new_state_key.push(0xff);
@@ -1205,6 +1198,7 @@ impl Rooms {
         room_id: &RoomId,
         db: &Database,
     ) -> Result<EventId> {
+        dbg!(&pdu_builder);
         let PduBuilder {
             event_type,
             content,
@@ -1385,7 +1379,7 @@ impl Rooms {
             db.sending.send_pdu(&server, &pdu_id)?;
         }
 
-        for appservice in db.appservice.iter_all().filter_map(|r| r.ok()) {
+        for appservice in db.appservice.iter_all()?.filter_map(|r| r.ok()) {
             if let Some(namespaces) = appservice.1.get("namespaces") {
                 let users = namespaces
                     .get("users")
@@ -1464,23 +1458,23 @@ impl Rooms {
 
     /// Returns an iterator over all PDUs in a room.
     #[tracing::instrument(skip(self))]
-    pub fn all_pdus(
-        &self,
+    pub fn all_pdus<'a>(
+        &'a self,
         user_id: &UserId,
         room_id: &RoomId,
-    ) -> Result<impl Iterator<Item = Result<(IVec, PduEvent)>>> {
+    ) -> impl Iterator<Item = Result<(Box<[u8]>, PduEvent)>> + 'a {
         self.pdus_since(user_id, room_id, 0)
     }
 
-    /// Returns a double-ended iterator over all events in a room that happened after the event with id `since`
+    /// Returns an iterator over all events in a room that happened after the event with id `since`
     /// in chronological order.
     #[tracing::instrument(skip(self))]
-    pub fn pdus_since(
-        &self,
+    pub fn pdus_since<'a>(
+        &'a self,
         user_id: &UserId,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<impl DoubleEndedIterator<Item = Result<(IVec, PduEvent)>>> {
+    ) -> impl Iterator<Item = Result<(Box<[u8]>, PduEvent)>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -1488,19 +1482,10 @@ impl Rooms {
         let mut first_pdu_id = prefix.clone();
         first_pdu_id.extend_from_slice(&(since + 1).to_be_bytes());
 
-        let mut last_pdu_id = prefix;
-        last_pdu_id.extend_from_slice(&u64::MAX.to_be_bytes());
-
         let user_id = user_id.clone();
-        Ok(self
-            .pduid_pdu
-            .range(first_pdu_id..last_pdu_id)
-            .filter_map(|r| {
-                if r.is_err() {
-                    error!("Bad pdu in pduid_pdu: {:?}", r);
-                }
-                r.ok()
-            })
+        self.pduid_pdu
+            .iter_from(&first_pdu_id, false)
+            .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(move |(pdu_id, v)| {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
@@ -1508,17 +1493,17 @@ impl Rooms {
                     pdu.unsigned.remove("transaction_id");
                 }
                 Ok((pdu_id, pdu))
-            }))
+            })
     }
 
     /// Returns an iterator over all events and their tokens in a room that happened before the
     /// event with id `until` in reverse-chronological order.
-    pub fn pdus_until(
-        &self,
+    pub fn pdus_until<'a>(
+        &'a self,
         user_id: &UserId,
         room_id: &RoomId,
         until: u64,
-    ) -> impl Iterator<Item = Result<(IVec, PduEvent)>> {
+    ) -> impl Iterator<Item = Result<(Box<[u8]>, PduEvent)>> + 'a {
         // Create the first part of the full pdu id
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
@@ -1530,9 +1515,7 @@ impl Rooms {
 
         let user_id = user_id.clone();
         self.pduid_pdu
-            .range(..current)
-            .rev()
-            .filter_map(|r| r.ok())
+            .iter_from(current, true)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(move |(pdu_id, v)| {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
@@ -1547,12 +1530,12 @@ impl Rooms {
     /// Returns an iterator over all events and their token in a room that happened after the event
     /// with id `from` in chronological order.
     #[tracing::instrument(skip(self))]
-    pub fn pdus_after(
-        &self,
+    pub fn pdus_after<'a>(
+        &'a self,
         user_id: &UserId,
         room_id: &RoomId,
         from: u64,
-    ) -> impl Iterator<Item = Result<(IVec, PduEvent)>> {
+    ) -> impl Iterator<Item = Result<(Box<[u8]>, PduEvent)>> + 'a {
         // Create the first part of the full pdu id
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
@@ -1564,8 +1547,7 @@ impl Rooms {
 
         let user_id = user_id.clone();
         self.pduid_pdu
-            .range(current..)
-            .filter_map(|r| r.ok())
+            .iter_from(current, false)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(move |(pdu_id, v)| {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
@@ -1744,7 +1726,7 @@ impl Rooms {
                 self.serverroomids.insert(&serverroom_id, &[])?;
                 self.userroomid_invitestate.insert(
                     &userroom_id,
-                    serde_json::to_vec(&last_state.unwrap_or_default())
+                    &serde_json::to_vec(&last_state.unwrap_or_default())
                         .expect("state to bytes always works"),
                 )?;
                 self.roomuserid_invitecount
@@ -1766,7 +1748,7 @@ impl Rooms {
                 }
                 self.userroomid_leftstate.insert(
                     &userroom_id,
-                    serde_json::to_vec(&Vec::<Raw<AnySyncStateEvent>>::new()).unwrap(),
+                    &serde_json::to_vec(&Vec::<Raw<AnySyncStateEvent>>::new()).unwrap(),
                 )?; // TODO
                 self.roomuserid_leftcount
                     .insert(&roomuser_id, &db.globals.next_count()?.to_be_bytes())?;
@@ -1966,8 +1948,8 @@ impl Rooms {
         roomuser_id.push(0xff);
         roomuser_id.extend_from_slice(user_id.as_bytes());
 
-        self.userroomid_leftstate.remove(userroom_id)?;
-        self.roomuserid_leftcount.remove(roomuser_id)?;
+        self.userroomid_leftstate.remove(&userroom_id)?;
+        self.roomuserid_leftcount.remove(&roomuser_id)?;
 
         Ok(())
     }
@@ -1981,26 +1963,26 @@ impl Rooms {
         if let Some(room_id) = room_id {
             // New alias
             self.alias_roomid
-                .insert(alias.alias(), room_id.as_bytes())?;
+                .insert(&alias.alias().as_bytes(), room_id.as_bytes())?;
             let mut aliasid = room_id.as_bytes().to_vec();
             aliasid.push(0xff);
             aliasid.extend_from_slice(&globals.next_count()?.to_be_bytes());
-            self.aliasid_alias.insert(aliasid, &*alias.as_bytes())?;
+            self.aliasid_alias.insert(&aliasid, &*alias.as_bytes())?;
         } else {
             // room_id=None means remove alias
-            let room_id = self
-                .alias_roomid
-                .remove(alias.alias())?
-                .ok_or(Error::BadRequest(
+            if let Some(room_id) = self.alias_roomid.get(&alias.alias().as_bytes())? {
+                let mut prefix = room_id.to_vec();
+                prefix.push(0xff);
+
+                for (key, _) in self.aliasid_alias.scan_prefix(prefix) {
+                    self.aliasid_alias.remove(&key)?;
+                }
+                self.alias_roomid.remove(&alias.alias().as_bytes())?;
+            } else {
+                return Err(Error::BadRequest(
                     ErrorKind::NotFound,
                     "Alias does not exist.",
-                ))?;
-
-            let mut prefix = room_id.to_vec();
-            prefix.push(0xff);
-
-            for key in self.aliasid_alias.scan_prefix(prefix).keys() {
-                self.aliasid_alias.remove(key?)?;
+                ));
             }
         }
 
@@ -2009,7 +1991,7 @@ impl Rooms {
 
     pub fn id_from_alias(&self, alias: &RoomAliasId) -> Result<Option<RoomId>> {
         self.alias_roomid
-            .get(alias.alias())?
+            .get(alias.alias().as_bytes())?
             .map_or(Ok(None), |bytes| {
                 Ok(Some(
                     RoomId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
@@ -2020,19 +2002,19 @@ impl Rooms {
             })
     }
 
-    pub fn room_aliases(&self, room_id: &RoomId) -> impl Iterator<Item = Result<RoomAliasId>> {
+    pub fn room_aliases<'a>(
+        &'a self,
+        room_id: &RoomId,
+    ) -> impl Iterator<Item = Result<RoomAliasId>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        self.aliasid_alias
-            .scan_prefix(prefix)
-            .values()
-            .map(|bytes| {
-                Ok(utils::string_from_bytes(&bytes?)
-                    .map_err(|_| Error::bad_database("Invalid alias bytes in aliasid_alias."))?
-                    .try_into()
-                    .map_err(|_| Error::bad_database("Invalid alias in aliasid_alias."))?)
-            })
+        self.aliasid_alias.scan_prefix(prefix).map(|(_, bytes)| {
+            Ok(utils::string_from_bytes(&bytes)
+                .map_err(|_| Error::bad_database("Invalid alias bytes in aliasid_alias."))?
+                .try_into()
+                .map_err(|_| Error::bad_database("Invalid alias in aliasid_alias."))?)
+        })
     }
 
     pub fn set_public(&self, room_id: &RoomId, public: bool) -> Result<()> {
@@ -2046,13 +2028,13 @@ impl Rooms {
     }
 
     pub fn is_public_room(&self, room_id: &RoomId) -> Result<bool> {
-        Ok(self.publicroomids.contains_key(room_id.as_bytes())?)
+        Ok(self.publicroomids.get(room_id.as_bytes())?.is_some())
     }
 
-    pub fn public_rooms(&self) -> impl Iterator<Item = Result<RoomId>> {
-        self.publicroomids.iter().keys().map(|bytes| {
+    pub fn public_rooms<'a>(&'a self) -> impl Iterator<Item = Result<RoomId>> + 'a {
+        self.publicroomids.iter().map(|(bytes, _)| {
             Ok(
-                RoomId::try_from(utils::string_from_bytes(&bytes?).map_err(|_| {
+                RoomId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Room ID in publicroomids is invalid unicode.")
                 })?)
                 .map_err(|_| Error::bad_database("Room ID in publicroomids is invalid."))?,
@@ -2073,31 +2055,39 @@ impl Rooms {
             .map(str::to_lowercase)
             .collect::<Vec<_>>();
 
-        let iterators = words.clone().into_iter().map(move |word| {
-            let mut prefix2 = prefix.clone();
-            prefix2.extend_from_slice(word.as_bytes());
-            prefix2.push(0xff);
-            self.tokenids
-                .scan_prefix(&prefix2)
-                .keys()
-                .rev() // Newest pdus first
-                .filter_map(|r| r.ok())
-                .map(|key| {
-                    let pduid_index = key
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, &b)| b == 0xff)
-                        .nth(1)
-                        .ok_or_else(|| Error::bad_database("Invalid tokenid in db."))?
-                        .0
-                        + 1; // +1 because the pdu id starts AFTER the separator
+        let iterators = words
+            .clone()
+            .into_iter()
+            .map(move |word| {
+                let mut prefix2 = prefix.clone();
+                prefix2.extend_from_slice(word.as_bytes());
+                prefix2.push(0xff);
 
-                    let pdu_id = key[pduid_index..].to_vec();
+                let mut last_possible_id = prefix2.clone();
+                last_possible_id.extend_from_slice(&u64::MAX.to_be_bytes());
 
-                    Ok::<_, Error>(pdu_id)
-                })
-                .filter_map(|r| r.ok())
-        });
+                Ok::<_, Error>(
+                    self.tokenids
+                        .iter_from(&last_possible_id, true) // Newest pdus first
+                        .take_while(move |(k, _)| k.starts_with(&prefix2))
+                        .map(|(key, _)| {
+                            let pduid_index = key
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, &b)| b == 0xff)
+                                .nth(1)
+                                .ok_or_else(|| Error::bad_database("Invalid tokenid in db."))?
+                                .0
+                                + 1; // +1 because the pdu id starts AFTER the separator
+
+                            let pdu_id = key[pduid_index..].to_vec();
+
+                            Ok::<_, Error>(pdu_id)
+                        })
+                        .filter_map(|r| r.ok()),
+                )
+            })
+            .filter_map(|r| r.ok());
 
         Ok((
             utils::common_elements(iterators, |a, b| {
@@ -2113,52 +2103,59 @@ impl Rooms {
     pub fn get_shared_rooms<'a>(
         &'a self,
         users: Vec<UserId>,
-    ) -> impl Iterator<Item = Result<RoomId>> + 'a {
-        let iterators = users.into_iter().map(move |user_id| {
-            let mut prefix = user_id.as_bytes().to_vec();
-            prefix.push(0xff);
+    ) -> Result<impl Iterator<Item = Result<RoomId>> + 'a> {
+        let iterators = users
+            .into_iter()
+            .map(move |user_id| {
+                let mut prefix = user_id.as_bytes().to_vec();
+                prefix.push(0xff);
 
-            self.userroomid_joined
-                .scan_prefix(&prefix)
-                .keys()
-                .filter_map(|r| r.ok())
-                .map(|key| {
-                    let roomid_index = key
-                        .iter()
-                        .enumerate()
-                        .find(|(_, &b)| b == 0xff)
-                        .ok_or_else(|| Error::bad_database("Invalid userroomid_joined in db."))?
-                        .0
-                        + 1; // +1 because the room id starts AFTER the separator
+                Ok::<_, Error>(
+                    self.userroomid_joined
+                        .scan_prefix(prefix)
+                        .map(|(key, _)| {
+                            let roomid_index = key
+                                .iter()
+                                .enumerate()
+                                .find(|(_, &b)| b == 0xff)
+                                .ok_or_else(|| {
+                                    Error::bad_database("Invalid userroomid_joined in db.")
+                                })?
+                                .0
+                                + 1; // +1 because the room id starts AFTER the separator
 
-                    let room_id = key[roomid_index..].to_vec();
+                            let room_id = key[roomid_index..].to_vec();
 
-                    Ok::<_, Error>(room_id)
-                })
-                .filter_map(|r| r.ok())
-        });
+                            Ok::<_, Error>(room_id)
+                        })
+                        .filter_map(|r| r.ok()),
+                )
+            })
+            .filter_map(|r| r.ok());
 
         // We use the default compare function because keys are sorted correctly (not reversed)
-        utils::common_elements(iterators, Ord::cmp)
+        Ok(utils::common_elements(iterators, Ord::cmp)
             .expect("users is not empty")
             .map(|bytes| {
                 RoomId::try_from(utils::string_from_bytes(&*bytes).map_err(|_| {
                     Error::bad_database("Invalid RoomId bytes in userroomid_joined")
                 })?)
                 .map_err(|_| Error::bad_database("Invalid RoomId in userroomid_joined."))
-            })
+            }))
     }
 
     /// Returns an iterator of all servers participating in this room.
-    pub fn room_servers(&self, room_id: &RoomId) -> impl Iterator<Item = Result<Box<ServerName>>> {
+    pub fn room_servers<'a>(
+        &'a self,
+        room_id: &RoomId,
+    ) -> impl Iterator<Item = Result<Box<ServerName>>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        self.roomserverids.scan_prefix(prefix).keys().map(|key| {
+        self.roomserverids.scan_prefix(prefix).map(|(key, _)| {
             Ok(Box::<ServerName>::try_from(
                 utils::string_from_bytes(
-                    &key?
-                        .rsplit(|&b| b == 0xff)
+                    &key.rsplit(|&b| b == 0xff)
                         .next()
                         .expect("rsplit always returns an element"),
                 )
@@ -2171,15 +2168,17 @@ impl Rooms {
     }
 
     /// Returns an iterator of all rooms a server participates in (as far as we know).
-    pub fn server_rooms(&self, server: &ServerName) -> impl Iterator<Item = Result<RoomId>> {
+    pub fn server_rooms<'a>(
+        &'a self,
+        server: &ServerName,
+    ) -> impl Iterator<Item = Result<RoomId>> + 'a {
         let mut prefix = server.as_bytes().to_vec();
         prefix.push(0xff);
 
-        self.serverroomids.scan_prefix(prefix).keys().map(|key| {
+        self.serverroomids.scan_prefix(prefix).map(|(key, _)| {
             Ok(RoomId::try_from(
                 utils::string_from_bytes(
-                    &key?
-                        .rsplit(|&b| b == 0xff)
+                    &key.rsplit(|&b| b == 0xff)
                         .next()
                         .expect("rsplit always returns an element"),
                 )
@@ -2191,42 +2190,42 @@ impl Rooms {
 
     /// Returns an iterator over all joined members of a room.
     #[tracing::instrument(skip(self))]
-    pub fn room_members(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
+    pub fn room_members<'a>(
+        &'a self,
+        room_id: &RoomId,
+    ) -> impl Iterator<Item = Result<UserId>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        self.roomuserid_joined
-            .scan_prefix(prefix)
-            .keys()
-            .map(|key| {
-                Ok(UserId::try_from(
-                    utils::string_from_bytes(
-                        &key?
-                            .rsplit(|&b| b == 0xff)
-                            .next()
-                            .expect("rsplit always returns an element"),
-                    )
-                    .map_err(|_| {
-                        Error::bad_database("User ID in roomuserid_joined is invalid unicode.")
-                    })?,
+        self.roomuserid_joined.scan_prefix(prefix).map(|(key, _)| {
+            Ok(UserId::try_from(
+                utils::string_from_bytes(
+                    &key.rsplit(|&b| b == 0xff)
+                        .next()
+                        .expect("rsplit always returns an element"),
                 )
-                .map_err(|_| Error::bad_database("User ID in roomuserid_joined is invalid."))?)
-            })
+                .map_err(|_| {
+                    Error::bad_database("User ID in roomuserid_joined is invalid unicode.")
+                })?,
+            )
+            .map_err(|_| Error::bad_database("User ID in roomuserid_joined is invalid."))?)
+        })
     }
 
     /// Returns an iterator over all User IDs who ever joined a room.
-    pub fn room_useroncejoined(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
+    pub fn room_useroncejoined<'a>(
+        &'a self,
+        room_id: &RoomId,
+    ) -> impl Iterator<Item = Result<UserId>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.roomuseroncejoinedids
             .scan_prefix(prefix)
-            .keys()
-            .map(|key| {
+            .map(|(key, _)| {
                 Ok(UserId::try_from(
                     utils::string_from_bytes(
-                        &key?
-                            .rsplit(|&b| b == 0xff)
+                        &key.rsplit(|&b| b == 0xff)
                             .next()
                             .expect("rsplit always returns an element"),
                     )
@@ -2240,18 +2239,19 @@ impl Rooms {
 
     /// Returns an iterator over all invited members of a room.
     #[tracing::instrument(skip(self))]
-    pub fn room_members_invited(&self, room_id: &RoomId) -> impl Iterator<Item = Result<UserId>> {
+    pub fn room_members_invited<'a>(
+        &'a self,
+        room_id: &RoomId,
+    ) -> impl Iterator<Item = Result<UserId>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.roomuserid_invitecount
             .scan_prefix(prefix)
-            .keys()
-            .map(|key| {
+            .map(|(key, _)| {
                 Ok(UserId::try_from(
                     utils::string_from_bytes(
-                        &key?
-                            .rsplit(|&b| b == 0xff)
+                        &key.rsplit(|&b| b == 0xff)
                             .next()
                             .expect("rsplit always returns an element"),
                     )
@@ -2270,7 +2270,7 @@ impl Rooms {
         key.extend_from_slice(user_id.as_bytes());
 
         self.roomuserid_invitecount
-            .get(key)?
+            .get(&key)?
             .map_or(Ok(None), |bytes| {
                 Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Invalid invitecount in db.")
@@ -2285,7 +2285,7 @@ impl Rooms {
         key.extend_from_slice(user_id.as_bytes());
 
         self.roomuserid_leftcount
-            .get(key)?
+            .get(&key)?
             .map_or(Ok(None), |bytes| {
                 Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Invalid leftcount in db.")
@@ -2295,15 +2295,16 @@ impl Rooms {
 
     /// Returns an iterator over all rooms this user joined.
     #[tracing::instrument(skip(self))]
-    pub fn rooms_joined(&self, user_id: &UserId) -> impl Iterator<Item = Result<RoomId>> {
+    pub fn rooms_joined<'a>(
+        &'a self,
+        user_id: &UserId,
+    ) -> impl Iterator<Item = Result<RoomId>> + 'a {
         self.userroomid_joined
-            .scan_prefix(user_id.as_bytes())
-            .keys()
-            .map(|key| {
+            .scan_prefix(user_id.as_bytes().to_vec())
+            .map(|(key, _)| {
                 Ok(RoomId::try_from(
                     utils::string_from_bytes(
-                        &key?
-                            .rsplit(|&b| b == 0xff)
+                        &key.rsplit(|&b| b == 0xff)
                             .next()
                             .expect("rsplit always returns an element"),
                     )
@@ -2317,32 +2318,33 @@ impl Rooms {
 
     /// Returns an iterator over all rooms a user was invited to.
     #[tracing::instrument(skip(self))]
-    pub fn rooms_invited(
-        &self,
+    pub fn rooms_invited<'a>(
+        &'a self,
         user_id: &UserId,
-    ) -> impl Iterator<Item = Result<(RoomId, Vec<Raw<AnyStrippedStateEvent>>)>> {
+    ) -> impl Iterator<Item = Result<(RoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        self.userroomid_invitestate.scan_prefix(prefix).map(|r| {
-            let (key, state) = r?;
-            let room_id = RoomId::try_from(
-                utils::string_from_bytes(
-                    &key.rsplit(|&b| b == 0xff)
-                        .next()
-                        .expect("rsplit always returns an element"),
+        self.userroomid_invitestate
+            .scan_prefix(prefix)
+            .map(|(key, state)| {
+                let room_id = RoomId::try_from(
+                    utils::string_from_bytes(
+                        &key.rsplit(|&b| b == 0xff)
+                            .next()
+                            .expect("rsplit always returns an element"),
+                    )
+                    .map_err(|_| {
+                        Error::bad_database("Room ID in userroomid_invited is invalid unicode.")
+                    })?,
                 )
-                .map_err(|_| {
-                    Error::bad_database("Room ID in userroomid_invited is invalid unicode.")
-                })?,
-            )
-            .map_err(|_| Error::bad_database("Room ID in userroomid_invited is invalid."))?;
+                .map_err(|_| Error::bad_database("Room ID in userroomid_invited is invalid."))?;
 
-            let state = serde_json::from_slice(&state)
-                .map_err(|_| Error::bad_database("Invalid state in userroomid_invitestate."))?;
+                let state = serde_json::from_slice(&state)
+                    .map_err(|_| Error::bad_database("Invalid state in userroomid_invitestate."))?;
 
-            Ok((room_id, state))
-        })
+                Ok((room_id, state))
+            })
     }
 
     #[tracing::instrument(skip(self))]
@@ -2356,7 +2358,7 @@ impl Rooms {
         key.extend_from_slice(&room_id.as_bytes());
 
         self.userroomid_invitestate
-            .get(key)?
+            .get(&key)?
             .map(|state| {
                 let state = serde_json::from_slice(&state)
                     .map_err(|_| Error::bad_database("Invalid state in userroomid_invitestate."))?;
@@ -2377,7 +2379,7 @@ impl Rooms {
         key.extend_from_slice(&room_id.as_bytes());
 
         self.userroomid_leftstate
-            .get(key)?
+            .get(&key)?
             .map(|state| {
                 let state = serde_json::from_slice(&state)
                     .map_err(|_| Error::bad_database("Invalid state in userroomid_leftstate."))?;
@@ -2389,32 +2391,33 @@ impl Rooms {
 
     /// Returns an iterator over all rooms a user left.
     #[tracing::instrument(skip(self))]
-    pub fn rooms_left(
-        &self,
+    pub fn rooms_left<'a>(
+        &'a self,
         user_id: &UserId,
-    ) -> impl Iterator<Item = Result<(RoomId, Vec<Raw<AnySyncStateEvent>>)>> {
+    ) -> impl Iterator<Item = Result<(RoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        self.userroomid_leftstate.scan_prefix(prefix).map(|r| {
-            let (key, state) = r?;
-            let room_id = RoomId::try_from(
-                utils::string_from_bytes(
-                    &key.rsplit(|&b| b == 0xff)
-                        .next()
-                        .expect("rsplit always returns an element"),
+        self.userroomid_leftstate
+            .scan_prefix(prefix)
+            .map(|(key, state)| {
+                let room_id = RoomId::try_from(
+                    utils::string_from_bytes(
+                        &key.rsplit(|&b| b == 0xff)
+                            .next()
+                            .expect("rsplit always returns an element"),
+                    )
+                    .map_err(|_| {
+                        Error::bad_database("Room ID in userroomid_invited is invalid unicode.")
+                    })?,
                 )
-                .map_err(|_| {
-                    Error::bad_database("Room ID in userroomid_invited is invalid unicode.")
-                })?,
-            )
-            .map_err(|_| Error::bad_database("Room ID in userroomid_invited is invalid."))?;
+                .map_err(|_| Error::bad_database("Room ID in userroomid_invited is invalid."))?;
 
-            let state = serde_json::from_slice(&state)
-                .map_err(|_| Error::bad_database("Invalid state in userroomid_leftstate."))?;
+                let state = serde_json::from_slice(&state)
+                    .map_err(|_| Error::bad_database("Invalid state in userroomid_leftstate."))?;
 
-            Ok((room_id, state))
-        })
+                Ok((room_id, state))
+            })
     }
 
     pub fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
@@ -2422,7 +2425,7 @@ impl Rooms {
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
 
-        Ok(self.roomuseroncejoinedids.get(userroom_id)?.is_some())
+        Ok(self.roomuseroncejoinedids.get(&userroom_id)?.is_some())
     }
 
     pub fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
@@ -2430,7 +2433,7 @@ impl Rooms {
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
 
-        Ok(self.userroomid_joined.get(userroom_id)?.is_some())
+        Ok(self.userroomid_joined.get(&userroom_id)?.is_some())
     }
 
     pub fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
@@ -2438,7 +2441,7 @@ impl Rooms {
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
 
-        Ok(self.userroomid_invitestate.get(userroom_id)?.is_some())
+        Ok(self.userroomid_invitestate.get(&userroom_id)?.is_some())
     }
 
     pub fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
@@ -2446,6 +2449,6 @@ impl Rooms {
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
 
-        Ok(self.userroomid_leftstate.get(userroom_id)?.is_some())
+        Ok(self.userroomid_leftstate.get(&userroom_id)?.is_some())
     }
 }

@@ -14,23 +14,17 @@ use ruma::{
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     uint, UInt, UserId,
 };
-use sled::IVec;
 
-use std::{convert::TryFrom, fmt::Debug, mem};
+use std::{convert::TryFrom, fmt::Debug, mem, sync::Arc};
 
-#[derive(Debug, Clone)]
+use super::abstraction::Tree;
+
 pub struct PushData {
     /// UserId + pushkey -> Pusher
-    pub(super) senderkey_pusher: sled::Tree,
+    pub(super) senderkey_pusher: Arc<dyn Tree>,
 }
 
 impl PushData {
-    pub fn new(db: &sled::Db) -> Result<Self> {
-        Ok(Self {
-            senderkey_pusher: db.open_tree("senderkey_pusher")?,
-        })
-    }
-
     pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::Pusher) -> Result<()> {
         let mut key = sender.as_bytes().to_vec();
         key.push(0xff);
@@ -40,14 +34,14 @@ impl PushData {
         if pusher.kind.is_none() {
             return self
                 .senderkey_pusher
-                .remove(key)
+                .remove(&key)
                 .map(|_| ())
                 .map_err(Into::into);
         }
 
         self.senderkey_pusher.insert(
-            key,
-            &*serde_json::to_string(&pusher).expect("Pusher is valid JSON string"),
+            &key,
+            &serde_json::to_vec(&pusher).expect("Pusher is valid JSON value"),
         )?;
 
         Ok(())
@@ -69,23 +63,21 @@ impl PushData {
 
         self.senderkey_pusher
             .scan_prefix(prefix)
-            .values()
-            .map(|push| {
-                let push = push.map_err(|_| Error::bad_database("Invalid push bytes in db."))?;
+            .map(|(_, push)| {
                 Ok(serde_json::from_slice(&*push)
                     .map_err(|_| Error::bad_database("Invalid Pusher in db."))?)
             })
             .collect()
     }
 
-    pub fn get_pusher_senderkeys(&self, sender: &UserId) -> impl Iterator<Item = Result<IVec>> {
+    pub fn get_pusher_senderkeys<'a>(
+        &'a self,
+        sender: &UserId,
+    ) -> impl Iterator<Item = Box<[u8]>> + 'a {
         let mut prefix = sender.as_bytes().to_vec();
         prefix.push(0xff);
 
-        self.senderkey_pusher
-            .scan_prefix(prefix)
-            .keys()
-            .map(|r| Ok(r?))
+        self.senderkey_pusher.scan_prefix(prefix).map(|(k, _)| k)
     }
 }
 

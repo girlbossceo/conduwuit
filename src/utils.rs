@@ -1,6 +1,7 @@
 use argon2::{Config, Variant};
 use cmp::Ordering;
 use rand::prelude::*;
+use rocksdb::MergeOperands;
 use ruma::serde::{try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
 use std::{
     cmp,
@@ -15,6 +16,14 @@ pub fn millis_since_unix_epoch() -> u64 {
         .as_millis() as u64
 }
 
+pub fn increment_rocksdb(
+    _new_key: &[u8],
+    old: Option<&[u8]>,
+    _operands: &mut MergeOperands,
+) -> Option<Vec<u8>> {
+    increment(old)
+}
+
 pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
     let number = match old.map(|bytes| bytes.try_into()) {
         Some(Ok(bytes)) => {
@@ -27,16 +36,14 @@ pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
     Some(number.to_be_bytes().to_vec())
 }
 
-pub fn generate_keypair(old: Option<&[u8]>) -> Option<Vec<u8>> {
-    Some(old.map(|s| s.to_vec()).unwrap_or_else(|| {
-        let mut value = random_string(8).as_bytes().to_vec();
-        value.push(0xff);
-        value.extend_from_slice(
-            &ruma::signatures::Ed25519KeyPair::generate()
-                .expect("Ed25519KeyPair generation always works (?)"),
-        );
-        value
-    }))
+pub fn generate_keypair() -> Vec<u8> {
+    let mut value = random_string(8).as_bytes().to_vec();
+    value.push(0xff);
+    value.extend_from_slice(
+        &ruma::signatures::Ed25519KeyPair::generate()
+            .expect("Ed25519KeyPair generation always works (?)"),
+    );
+    value
 }
 
 /// Parses the bytes into an u64.

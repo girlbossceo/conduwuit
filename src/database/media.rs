@@ -1,7 +1,9 @@
 use image::{imageops::FilterType, GenericImageView};
 
 use crate::{utils, Error, Result};
-use std::mem;
+use std::{mem, sync::Arc};
+
+use super::abstraction::Tree;
 
 pub struct FileMeta {
     pub content_disposition: Option<String>,
@@ -9,9 +11,8 @@ pub struct FileMeta {
     pub file: Vec<u8>,
 }
 
-#[derive(Clone)]
 pub struct Media {
-    pub(super) mediaid_file: sled::Tree, // MediaId = MXC + WidthHeight + ContentDisposition + ContentType
+    pub(super) mediaid_file: Arc<dyn Tree>, // MediaId = MXC + WidthHeight + ContentDisposition + ContentType
 }
 
 impl Media {
@@ -42,7 +43,7 @@ impl Media {
                 .unwrap_or_default(),
         );
 
-        self.mediaid_file.insert(key, file)?;
+        self.mediaid_file.insert(&key, file)?;
 
         Ok(())
     }
@@ -76,7 +77,7 @@ impl Media {
                 .unwrap_or_default(),
         );
 
-        self.mediaid_file.insert(key, file)?;
+        self.mediaid_file.insert(&key, file)?;
 
         Ok(())
     }
@@ -89,8 +90,7 @@ impl Media {
         prefix.extend_from_slice(&0_u32.to_be_bytes()); // Height = 0 if it's not a thumbnail
         prefix.push(0xff);
 
-        if let Some(r) = self.mediaid_file.scan_prefix(&prefix).next() {
-            let (key, file) = r?;
+        if let Some((key, file)) = self.mediaid_file.scan_prefix(prefix).next() {
             let mut parts = key.rsplit(|&b| b == 0xff);
 
             let content_type = parts
@@ -169,9 +169,8 @@ impl Media {
         original_prefix.extend_from_slice(&0_u32.to_be_bytes()); // Height = 0 if it's not a thumbnail
         original_prefix.push(0xff);
 
-        if let Some(r) = self.mediaid_file.scan_prefix(&thumbnail_prefix).next() {
+        if let Some((key, file)) = self.mediaid_file.scan_prefix(thumbnail_prefix).next() {
             // Using saved thumbnail
-            let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
             let content_type = parts
@@ -202,10 +201,8 @@ impl Media {
                 content_type,
                 file: file.to_vec(),
             }))
-        } else if let Some(r) = self.mediaid_file.scan_prefix(&original_prefix).next() {
+        } else if let Some((key, file)) = self.mediaid_file.scan_prefix(original_prefix).next() {
             // Generate a thumbnail
-
-            let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
             let content_type = parts
@@ -302,7 +299,7 @@ impl Media {
                     widthheight,
                 );
 
-                self.mediaid_file.insert(thumbnail_key, &*thumbnail_bytes)?;
+                self.mediaid_file.insert(&thumbnail_key, &thumbnail_bytes)?;
 
                 Ok(Some(FileMeta {
                     content_disposition,

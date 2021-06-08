@@ -1,7 +1,7 @@
 use super::State;
 use crate::{utils, ConduitResult, Database, Ruma};
 use ruma::api::client::r0::presence::{get_presence, set_presence};
-use std::{convert::TryInto, time::Duration};
+use std::{convert::TryInto, sync::Arc, time::Duration};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};
@@ -12,7 +12,7 @@ use rocket::{get, put};
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_presence_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<set_presence::Request<'_>>,
 ) -> ConduitResult<set_presence::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -53,7 +53,7 @@ pub async fn set_presence_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_presence_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<get_presence::Request<'_>>,
 ) -> ConduitResult<get_presence::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -62,7 +62,7 @@ pub async fn get_presence_route(
 
     for room_id in db
         .rooms
-        .get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])
+        .get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])?
     {
         let room_id = room_id?;
 

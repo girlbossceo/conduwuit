@@ -1,6 +1,9 @@
-use std::convert::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 
-use crate::pdu::PduBuilder;
+use crate::{pdu::PduBuilder, Database};
 use log::warn;
 use rocket::futures::{channel::mpsc, stream::StreamExt};
 use ruma::{
@@ -22,7 +25,7 @@ pub struct Admin {
 impl Admin {
     pub fn start_handler(
         &self,
-        db: super::Database,
+        db: Arc<Database>,
         mut receiver: mpsc::UnboundedReceiver<AdminCommand>,
     ) {
         tokio::spawn(async move {
@@ -73,14 +76,17 @@ impl Admin {
                                 db.appservice.register_appservice(yaml).unwrap(); // TODO handle error
                             }
                             AdminCommand::ListAppservices => {
-                                let appservices = db.appservice.iter_ids().collect::<Vec<_>>();
-                                let count = appservices.len();
-                                let output = format!(
-                                    "Appservices ({}): {}",
-                                    count,
-                                    appservices.into_iter().filter_map(|r| r.ok()).collect::<Vec<_>>().join(", ")
-                                );
-                                send_message(message::MessageEventContent::text_plain(output));
+                                if let Ok(appservices) = db.appservice.iter_ids().map(|ids| ids.collect::<Vec<_>>()) {
+                                    let count = appservices.len();
+                                    let output = format!(
+                                        "Appservices ({}): {}",
+                                        count,
+                                        appservices.into_iter().filter_map(|r| r.ok()).collect::<Vec<_>>().join(", ")
+                                    );
+                                    send_message(message::MessageEventContent::text_plain(output));
+                                } else {
+                                    send_message(message::MessageEventContent::text_plain("Failed to get appservices."));
+                                }
                             }
                             AdminCommand::SendMessage(message) => {
                                 send_message(message);
@@ -93,6 +99,6 @@ impl Admin {
     }
 
     pub fn send(&self, command: AdminCommand) {
-        self.sender.unbounded_send(command).unwrap()
+        self.sender.unbounded_send(command).unwrap();
     }
 }

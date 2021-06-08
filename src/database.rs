@@ -1,3 +1,5 @@
+pub mod abstraction;
+
 pub mod account_data;
 pub mod admin;
 pub mod appservice;
@@ -12,10 +14,10 @@ pub mod uiaa;
 pub mod users;
 
 use crate::{utils, Error, Result};
+use abstraction::DatabaseEngine;
 use directories::ProjectDirs;
-use futures::StreamExt;
 use log::{error, info};
-use rocket::futures::{self, channel::mpsc};
+use rocket::futures::{channel::mpsc, stream::FuturesUnordered, StreamExt};
 use ruma::{DeviceId, ServerName, UserId};
 use serde::Deserialize;
 use std::{
@@ -74,7 +76,8 @@ fn default_log() -> String {
     "info,state_res=warn,rocket=off,_=off,sled=off".to_owned()
 }
 
-#[derive(Clone)]
+pub type Engine = abstraction::SledEngine;
+
 pub struct Database {
     pub globals: globals::Globals,
     pub users: users::Users,
@@ -88,7 +91,6 @@ pub struct Database {
     pub admin: admin::Admin,
     pub appservice: appservice::Appservice,
     pub pusher: pusher::PushData,
-    pub _db: sled::Db,
 }
 
 impl Database {
@@ -105,126 +107,126 @@ impl Database {
     }
 
     /// Load an existing database or create a new one.
-    pub async fn load_or_create(config: Config) -> Result<Self> {
-        let db = sled::Config::default()
-            .path(&config.database_path)
-            .cache_capacity(config.cache_capacity as u64)
-            .use_compression(true)
-            .open()?;
+    pub async fn load_or_create(config: Config) -> Result<Arc<Self>> {
+        let builder = Engine::open(&config)?;
 
         if config.max_request_size < 1024 {
             eprintln!("ERROR: Max request size is less than 1KB. Please increase it.");
         }
 
         let (admin_sender, admin_receiver) = mpsc::unbounded();
+        let (sending_sender, sending_receiver) = mpsc::unbounded();
 
-        let db = Self {
+        let db = Arc::new(Self {
             users: users::Users {
-                userid_password: db.open_tree("userid_password")?,
-                userid_displayname: db.open_tree("userid_displayname")?,
-                userid_avatarurl: db.open_tree("userid_avatarurl")?,
-                userdeviceid_token: db.open_tree("userdeviceid_token")?,
-                userdeviceid_metadata: db.open_tree("userdeviceid_metadata")?,
-                userid_devicelistversion: db.open_tree("userid_devicelistversion")?,
-                token_userdeviceid: db.open_tree("token_userdeviceid")?,
-                onetimekeyid_onetimekeys: db.open_tree("onetimekeyid_onetimekeys")?,
-                userid_lastonetimekeyupdate: db.open_tree("userid_lastonetimekeyupdate")?,
-                keychangeid_userid: db.open_tree("keychangeid_userid")?,
-                keyid_key: db.open_tree("keyid_key")?,
-                userid_masterkeyid: db.open_tree("userid_masterkeyid")?,
-                userid_selfsigningkeyid: db.open_tree("userid_selfsigningkeyid")?,
-                userid_usersigningkeyid: db.open_tree("userid_usersigningkeyid")?,
-                todeviceid_events: db.open_tree("todeviceid_events")?,
+                userid_password: builder.open_tree("userid_password")?,
+                userid_displayname: builder.open_tree("userid_displayname")?,
+                userid_avatarurl: builder.open_tree("userid_avatarurl")?,
+                userdeviceid_token: builder.open_tree("userdeviceid_token")?,
+                userdeviceid_metadata: builder.open_tree("userdeviceid_metadata")?,
+                userid_devicelistversion: builder.open_tree("userid_devicelistversion")?,
+                token_userdeviceid: builder.open_tree("token_userdeviceid")?,
+                onetimekeyid_onetimekeys: builder.open_tree("onetimekeyid_onetimekeys")?,
+                userid_lastonetimekeyupdate: builder.open_tree("userid_lastonetimekeyupdate")?,
+                keychangeid_userid: builder.open_tree("keychangeid_userid")?,
+                keyid_key: builder.open_tree("keyid_key")?,
+                userid_masterkeyid: builder.open_tree("userid_masterkeyid")?,
+                userid_selfsigningkeyid: builder.open_tree("userid_selfsigningkeyid")?,
+                userid_usersigningkeyid: builder.open_tree("userid_usersigningkeyid")?,
+                todeviceid_events: builder.open_tree("todeviceid_events")?,
             },
             uiaa: uiaa::Uiaa {
-                userdevicesessionid_uiaainfo: db.open_tree("userdevicesessionid_uiaainfo")?,
-                userdevicesessionid_uiaarequest: db.open_tree("userdevicesessionid_uiaarequest")?,
+                userdevicesessionid_uiaainfo: builder.open_tree("userdevicesessionid_uiaainfo")?,
+                userdevicesessionid_uiaarequest: builder
+                    .open_tree("userdevicesessionid_uiaarequest")?,
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {
-                    readreceiptid_readreceipt: db.open_tree("readreceiptid_readreceipt")?,
-                    roomuserid_privateread: db.open_tree("roomuserid_privateread")?, // "Private" read receipt
-                    roomuserid_lastprivatereadupdate: db
+                    readreceiptid_readreceipt: builder.open_tree("readreceiptid_readreceipt")?,
+                    roomuserid_privateread: builder.open_tree("roomuserid_privateread")?, // "Private" read receipt
+                    roomuserid_lastprivatereadupdate: builder
                         .open_tree("roomuserid_lastprivatereadupdate")?,
-                    typingid_userid: db.open_tree("typingid_userid")?,
-                    roomid_lasttypingupdate: db.open_tree("roomid_lasttypingupdate")?,
-                    presenceid_presence: db.open_tree("presenceid_presence")?,
-                    userid_lastpresenceupdate: db.open_tree("userid_lastpresenceupdate")?,
+                    typingid_userid: builder.open_tree("typingid_userid")?,
+                    roomid_lasttypingupdate: builder.open_tree("roomid_lasttypingupdate")?,
+                    presenceid_presence: builder.open_tree("presenceid_presence")?,
+                    userid_lastpresenceupdate: builder.open_tree("userid_lastpresenceupdate")?,
                 },
-                pduid_pdu: db.open_tree("pduid_pdu")?,
-                eventid_pduid: db.open_tree("eventid_pduid")?,
-                roomid_pduleaves: db.open_tree("roomid_pduleaves")?,
+                pduid_pdu: builder.open_tree("pduid_pdu")?,
+                eventid_pduid: builder.open_tree("eventid_pduid")?,
+                roomid_pduleaves: builder.open_tree("roomid_pduleaves")?,
 
-                alias_roomid: db.open_tree("alias_roomid")?,
-                aliasid_alias: db.open_tree("aliasid_alias")?,
-                publicroomids: db.open_tree("publicroomids")?,
+                alias_roomid: builder.open_tree("alias_roomid")?,
+                aliasid_alias: builder.open_tree("aliasid_alias")?,
+                publicroomids: builder.open_tree("publicroomids")?,
 
-                tokenids: db.open_tree("tokenids")?,
+                tokenids: builder.open_tree("tokenids")?,
 
-                roomserverids: db.open_tree("roomserverids")?,
-                serverroomids: db.open_tree("serverroomids")?,
-                userroomid_joined: db.open_tree("userroomid_joined")?,
-                roomuserid_joined: db.open_tree("roomuserid_joined")?,
-                roomuseroncejoinedids: db.open_tree("roomuseroncejoinedids")?,
-                userroomid_invitestate: db.open_tree("userroomid_invitestate")?,
-                roomuserid_invitecount: db.open_tree("roomuserid_invitecount")?,
-                userroomid_leftstate: db.open_tree("userroomid_leftstate")?,
-                roomuserid_leftcount: db.open_tree("roomuserid_leftcount")?,
+                roomserverids: builder.open_tree("roomserverids")?,
+                serverroomids: builder.open_tree("serverroomids")?,
+                userroomid_joined: builder.open_tree("userroomid_joined")?,
+                roomuserid_joined: builder.open_tree("roomuserid_joined")?,
+                roomuseroncejoinedids: builder.open_tree("roomuseroncejoinedids")?,
+                userroomid_invitestate: builder.open_tree("userroomid_invitestate")?,
+                roomuserid_invitecount: builder.open_tree("roomuserid_invitecount")?,
+                userroomid_leftstate: builder.open_tree("userroomid_leftstate")?,
+                roomuserid_leftcount: builder.open_tree("roomuserid_leftcount")?,
 
-                userroomid_notificationcount: db.open_tree("userroomid_notificationcount")?,
-                userroomid_highlightcount: db.open_tree("userroomid_highlightcount")?,
+                userroomid_notificationcount: builder.open_tree("userroomid_notificationcount")?,
+                userroomid_highlightcount: builder.open_tree("userroomid_highlightcount")?,
 
-                statekey_shortstatekey: db.open_tree("statekey_shortstatekey")?,
-                stateid_shorteventid: db.open_tree("stateid_shorteventid")?,
-                eventid_shorteventid: db.open_tree("eventid_shorteventid")?,
-                shorteventid_eventid: db.open_tree("shorteventid_eventid")?,
-                shorteventid_shortstatehash: db.open_tree("shorteventid_shortstatehash")?,
-                roomid_shortstatehash: db.open_tree("roomid_shortstatehash")?,
-                statehash_shortstatehash: db.open_tree("statehash_shortstatehash")?,
+                statekey_shortstatekey: builder.open_tree("statekey_shortstatekey")?,
+                stateid_shorteventid: builder.open_tree("stateid_shorteventid")?,
+                eventid_shorteventid: builder.open_tree("eventid_shorteventid")?,
+                shorteventid_eventid: builder.open_tree("shorteventid_eventid")?,
+                shorteventid_shortstatehash: builder.open_tree("shorteventid_shortstatehash")?,
+                roomid_shortstatehash: builder.open_tree("roomid_shortstatehash")?,
+                statehash_shortstatehash: builder.open_tree("statehash_shortstatehash")?,
 
-                eventid_outlierpdu: db.open_tree("eventid_outlierpdu")?,
-                prevevent_parent: db.open_tree("prevevent_parent")?,
+                eventid_outlierpdu: builder.open_tree("eventid_outlierpdu")?,
+                prevevent_parent: builder.open_tree("prevevent_parent")?,
             },
             account_data: account_data::AccountData {
-                roomuserdataid_accountdata: db.open_tree("roomuserdataid_accountdata")?,
+                roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
             },
             media: media::Media {
-                mediaid_file: db.open_tree("mediaid_file")?,
+                mediaid_file: builder.open_tree("mediaid_file")?,
             },
             key_backups: key_backups::KeyBackups {
-                backupid_algorithm: db.open_tree("backupid_algorithm")?,
-                backupid_etag: db.open_tree("backupid_etag")?,
-                backupkeyid_backup: db.open_tree("backupkeyid_backup")?,
+                backupid_algorithm: builder.open_tree("backupid_algorithm")?,
+                backupid_etag: builder.open_tree("backupid_etag")?,
+                backupkeyid_backup: builder.open_tree("backupkeyid_backup")?,
             },
             transaction_ids: transaction_ids::TransactionIds {
-                userdevicetxnid_response: db.open_tree("userdevicetxnid_response")?,
+                userdevicetxnid_response: builder.open_tree("userdevicetxnid_response")?,
             },
             sending: sending::Sending {
-                servername_educount: db.open_tree("servername_educount")?,
-                servernamepduids: db.open_tree("servernamepduids")?,
-                servercurrentevents: db.open_tree("servercurrentevents")?,
+                servername_educount: builder.open_tree("servername_educount")?,
+                servernamepduids: builder.open_tree("servernamepduids")?,
+                servercurrentevents: builder.open_tree("servercurrentevents")?,
                 maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
+                sender: sending_sender,
             },
             admin: admin::Admin {
                 sender: admin_sender,
             },
             appservice: appservice::Appservice {
                 cached_registrations: Arc::new(RwLock::new(HashMap::new())),
-                id_appserviceregistrations: db.open_tree("id_appserviceregistrations")?,
+                id_appserviceregistrations: builder.open_tree("id_appserviceregistrations")?,
             },
-            pusher: pusher::PushData::new(&db)?,
+            pusher: pusher::PushData {
+                senderkey_pusher: builder.open_tree("senderkey_pusher")?,
+            },
             globals: globals::Globals::load(
-                db.open_tree("global")?,
-                db.open_tree("server_signingkeys")?,
+                builder.open_tree("global")?,
+                builder.open_tree("server_signingkeys")?,
                 config,
             )?,
-            _db: db,
-        };
+        });
 
         // MIGRATIONS
+        // TODO: database versions of new dbs should probably not be 0
         if db.globals.database_version()? < 1 {
-            for roomserverid in db.rooms.roomserverids.iter().keys() {
-                let roomserverid = roomserverid?;
+            for (roomserverid, _) in db.rooms.roomserverids.iter() {
                 let mut parts = roomserverid.split(|&b| b == 0xff);
                 let room_id = parts.next().expect("split always returns one element");
                 let servername = match parts.next() {
@@ -238,7 +240,7 @@ impl Database {
                 serverroomid.push(0xff);
                 serverroomid.extend_from_slice(room_id);
 
-                db.rooms.serverroomids.insert(serverroomid, &[])?;
+                db.rooms.serverroomids.insert(&serverroomid, &[])?;
             }
 
             db.globals.bump_database_version(1)?;
@@ -248,15 +250,13 @@ impl Database {
 
         if db.globals.database_version()? < 2 {
             // We accidentally inserted hashed versions of "" into the db instead of just ""
-            for userid_password in db.users.userid_password.iter() {
-                let (userid, password) = userid_password?;
-
+            for (userid, password) in db.users.userid_password.iter() {
                 let password = utils::string_from_bytes(&password);
 
                 if password.map_or(false, |password| {
                     argon2::verify_encoded(&password, b"").unwrap_or(false)
                 }) {
-                    db.users.userid_password.insert(userid, b"")?;
+                    db.users.userid_password.insert(&userid, b"")?;
                 }
             }
 
@@ -268,7 +268,8 @@ impl Database {
         // This data is probably outdated
         db.rooms.edus.presenceid_presence.clear()?;
 
-        db.admin.start_handler(db.clone(), admin_receiver);
+        db.admin.start_handler(Arc::clone(&db), admin_receiver);
+        db.sending.start_handler(Arc::clone(&db), sending_receiver);
 
         Ok(db)
     }
@@ -282,7 +283,7 @@ impl Database {
         userdeviceid_prefix.extend_from_slice(device_id.as_bytes());
         userdeviceid_prefix.push(0xff);
 
-        let mut futures = futures::stream::FuturesUnordered::new();
+        let mut futures = FuturesUnordered::new();
 
         // Return when *any* user changed his key
         // TODO: only send for user they share a room with

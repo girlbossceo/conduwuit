@@ -1,7 +1,7 @@
 use super::State;
 use crate::{ConduitResult, Database, Error, Ruma};
 use ruma::api::client::{error::ErrorKind, r0::context::get_context};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, sync::Arc};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::get;
@@ -12,7 +12,7 @@ use rocket::get;
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_context_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<get_context::Request<'_>>,
 ) -> ConduitResult<get_context::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

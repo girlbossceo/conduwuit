@@ -44,7 +44,7 @@ use rocket::{get, post};
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn join_room_by_id_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<join_room_by_id::Request<'_>>,
 ) -> ConduitResult<join_room_by_id::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -81,7 +81,7 @@ pub async fn join_room_by_id_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn join_room_by_id_or_alias_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<join_room_by_id_or_alias::Request<'_>>,
 ) -> ConduitResult<join_room_by_id_or_alias::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -135,7 +135,7 @@ pub async fn join_room_by_id_or_alias_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn leave_room_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<leave_room::Request<'_>>,
 ) -> ConduitResult<leave_room::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -153,7 +153,7 @@ pub async fn leave_room_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn invite_user_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<invite_user::Request<'_>>,
 ) -> ConduitResult<invite_user::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -173,7 +173,7 @@ pub async fn invite_user_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn kick_user_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<kick_user::Request<'_>>,
 ) -> ConduitResult<kick_user::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -222,7 +222,7 @@ pub async fn kick_user_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn ban_user_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<ban_user::Request<'_>>,
 ) -> ConduitResult<ban_user::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -279,7 +279,7 @@ pub async fn ban_user_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn unban_user_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<unban_user::Request<'_>>,
 ) -> ConduitResult<unban_user::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -327,7 +327,7 @@ pub async fn unban_user_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn forget_room_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<forget_room::Request<'_>>,
 ) -> ConduitResult<forget_room::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -345,7 +345,7 @@ pub async fn forget_room_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn joined_rooms_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<joined_rooms::Request>,
 ) -> ConduitResult<joined_rooms::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -366,7 +366,7 @@ pub async fn joined_rooms_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_member_events_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<get_member_events::Request<'_>>,
 ) -> ConduitResult<get_member_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -396,7 +396,7 @@ pub async fn get_member_events_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn joined_members_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<joined_members::Request<'_>>,
 ) -> ConduitResult<joined_members::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

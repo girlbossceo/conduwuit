@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::State;
 use crate::{utils, ConduitResult, Database, Ruma};
 use create_typing_event::Typing;
@@ -12,7 +14,7 @@ use rocket::put;
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn create_typing_event_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<create_typing_event::Request<'_>>,
 ) -> ConduitResult<create_typing_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

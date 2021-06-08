@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::State;
 use crate::{ConduitResult, Database, Ruma};
 use ruma::api::client::r0::user_directory::search_users;
@@ -11,7 +13,7 @@ use rocket::post;
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn search_users_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<search_users::Request<'_>>,
 ) -> ConduitResult<search_users::Response> {
     let limit = u64::from(body.limit) as usize;

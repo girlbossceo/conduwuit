@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::{State, DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::{utils, ConduitResult, Database, Error, Ruma};
 use log::info;
@@ -50,7 +52,7 @@ pub async fn get_login_types_route() -> ConduitResult<get_login_types::Response>
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn login_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<login::Request<'_>>,
 ) -> ConduitResult<login::Response> {
     // Validate login method
@@ -167,7 +169,7 @@ pub async fn login_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn logout_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<logout::Request>,
 ) -> ConduitResult<logout::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -195,7 +197,7 @@ pub async fn logout_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn logout_all_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<logout_all::Request>,
 ) -> ConduitResult<logout_all::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

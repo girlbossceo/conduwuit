@@ -12,6 +12,8 @@ mod pdu;
 mod ruma_wrapper;
 mod utils;
 
+use std::sync::Arc;
+
 use database::Config;
 pub use database::Database;
 pub use error::{Error, Result};
@@ -31,7 +33,7 @@ use rocket::{
 use tracing::span;
 use tracing_subscriber::{prelude::*, Registry};
 
-fn setup_rocket(config: Figment, data: Database) -> rocket::Rocket<rocket::Build> {
+fn setup_rocket(config: Figment, data: Arc<Database>) -> rocket::Rocket<rocket::Build> {
     rocket::custom(config)
         .manage(data)
         .mount(
@@ -196,8 +198,6 @@ async fn main() {
     let db = Database::load_or_create(config.clone())
         .await
         .expect("config is valid");
-
-    db.sending.start_handler(&db);
 
     if config.allow_jaeger {
         let (tracer, _uninstall) = opentelemetry_jaeger::new_pipeline()

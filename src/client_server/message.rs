@@ -11,6 +11,7 @@ use ruma::{
 use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
+    sync::Arc,
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -22,7 +23,7 @@ use rocket::{get, put};
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn send_message_event_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<send_message_event::Request<'_>>,
 ) -> ConduitResult<send_message_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -85,7 +86,7 @@ pub async fn send_message_event_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_message_events_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<get_message_events::Request<'_>>,
 ) -> ConduitResult<get_message_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

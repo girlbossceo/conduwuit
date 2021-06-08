@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, convert::TryInto};
+use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 
 use super::{State, DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{pdu::PduBuilder, utils, ConduitResult, Database, Error, Ruma};
@@ -42,7 +42,7 @@ const GUEST_NAME_LENGTH: usize = 10;
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_register_available_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<get_username_availability::Request<'_>>,
 ) -> ConduitResult<get_username_availability::Response> {
     // Validate user id
@@ -85,7 +85,7 @@ pub async fn get_register_available_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn register_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<register::Request<'_>>,
 ) -> ConduitResult<register::Response> {
     if !db.globals.allow_registration() {
@@ -227,7 +227,7 @@ pub async fn register_route(
     )?;
 
     // If this is the first user on this server, create the admins room
-    if db.users.count() == 1 {
+    if db.users.count()? == 1 {
         // Create a user for the server
         let conduit_user = UserId::parse_with_server_name("conduit", db.globals.server_name())
             .expect("@conduit:server_name is valid");
@@ -506,7 +506,7 @@ pub async fn register_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn change_password_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<change_password::Request<'_>>,
 ) -> ConduitResult<change_password::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -598,7 +598,7 @@ pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn deactivate_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<deactivate::Request<'_>>,
 ) -> ConduitResult<deactivate::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

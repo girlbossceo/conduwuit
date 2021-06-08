@@ -23,10 +23,15 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("There was a problem with the connection to the database.")]
+    #[error("There was a problem with the connection to the sled database.")]
     SledError {
         #[from]
         source: sled::Error,
+    },
+    #[error("There was a problem with the connection to the rocksdb database: {source}")]
+    RocksDbError {
+        #[from]
+        source: rocksdb::Error,
     },
     #[error("Could not generate an image.")]
     ImageError {
