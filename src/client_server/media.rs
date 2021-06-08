@@ -38,7 +38,11 @@ pub async fn create_content_route(
     );
     db.media.create(
         mxc.clone(),
-        &body.filename.as_deref(),
+        &body
+            .filename
+            .as_ref()
+            .map(|filename| "inline; filename=".to_owned() + filename)
+            .as_deref(),
         &body.content_type.as_deref(),
         &body.file,
     )?;
@@ -64,7 +68,7 @@ pub async fn get_content_route(
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
     if let Some(FileMeta {
-        filename,
+        content_disposition,
         content_type,
         file,
     }) = db.media.get(&mxc)?
@@ -72,7 +76,7 @@ pub async fn get_content_route(
         Ok(get_content::Response {
             file,
             content_type,
-            content_disposition: filename,
+            content_disposition,
         }
         .into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
