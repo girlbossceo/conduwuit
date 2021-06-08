@@ -4,11 +4,7 @@ use image::{imageops::FilterType, GenericImageView};
 use super::abstraction::Tree;
 use crate::{utils, Error, Result};
 use std::{mem, sync::Arc};
-use tokio::{
-    fs::{self, File},
-    io::AsyncReadExt,
-    io::AsyncWriteExt,
-};
+use tokio::{fs::File, io::AsyncReadExt, io::AsyncWriteExt};
 
 pub struct FileMeta {
     pub content_disposition: Option<String>,
@@ -50,7 +46,6 @@ impl Media {
         );
 
         let path = globals.get_media_file(&key);
-        fs::create_dir_all(path.parent().unwrap()).await?;
         let mut f = File::create(path).await?;
         f.write_all(file).await?;
 
@@ -89,7 +84,6 @@ impl Media {
         );
 
         let path = globals.get_media_file(&key);
-        fs::create_dir_all(path.parent().unwrap()).await?;
         let mut f = File::create(path).await?;
         f.write_all(file).await?;
 
@@ -333,7 +327,6 @@ impl Media {
                 );
 
                 let path = globals.get_media_file(&thumbnail_key);
-                fs::create_dir_all(path.parent().unwrap()).await?;
                 let mut f = File::create(path).await?;
                 f.write_all(&thumbnail_bytes).await?;
 

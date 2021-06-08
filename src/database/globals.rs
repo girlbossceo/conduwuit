@@ -7,6 +7,7 @@ use ruma::{
 use rustls::{ServerCertVerifier, WebPKIVerifier};
 use std::{
     collections::{BTreeMap, HashMap},
+    fs,
     path::PathBuf,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
@@ -137,7 +138,7 @@ impl Globals {
             .as_ref()
             .map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()).into_static());
 
-        Ok(Self {
+        let s = Self {
             globals,
             config,
             keypair: Arc::new(keypair),
@@ -152,7 +153,11 @@ impl Globals {
             bad_event_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
             bad_signature_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
             servername_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
-        })
+        };
+
+        fs::create_dir_all(s.get_media_folder())?;
+
+        Ok(s)
     }
 
     /// Returns this server's keypair.
