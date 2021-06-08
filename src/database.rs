@@ -16,7 +16,7 @@ pub mod users;
 use crate::{utils, Error, Result};
 use abstraction::DatabaseEngine;
 use directories::ProjectDirs;
-use log::{error, info};
+use log::error;
 use rocket::futures::{channel::mpsc, stream::FuturesUnordered, StreamExt};
 use ruma::{DeviceId, ServerName, UserId};
 use serde::Deserialize;
