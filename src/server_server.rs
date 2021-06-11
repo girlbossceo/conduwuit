@@ -662,8 +662,7 @@ pub async fn send_transaction_message_route(
     for edu in body
         .edus
         .iter()
-        .map(|edu| serde_json::from_str::<Edu>(edu.json().get()))
-        .filter_map(|r| r.ok())
+        .filter_map(|edu| serde_json::from_str::<Edu>(edu.json().get()).ok())
     {
         match edu {
             Edu::Presence(_) => {}
