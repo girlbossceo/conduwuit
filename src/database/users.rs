@@ -7,40 +7,41 @@ use ruma::{
     serde::Raw,
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, UInt, UserId,
 };
-use std::{collections::BTreeMap, convert::TryFrom, mem};
+use std::{collections::BTreeMap, convert::TryFrom, mem, sync::Arc};
 
-#[derive(Clone)]
+use super::abstraction::Tree;
+
 pub struct Users {
-    pub(super) userid_password: sled::Tree,
-    pub(super) userid_displayname: sled::Tree,
-    pub(super) userid_avatarurl: sled::Tree,
-    pub(super) userdeviceid_token: sled::Tree,
-    pub(super) userdeviceid_metadata: sled::Tree, // This is also used to check if a device exists
-    pub(super) userid_devicelistversion: sled::Tree, // DevicelistVersion = u64
-    pub(super) token_userdeviceid: sled::Tree,
+    pub(super) userid_password: Arc<dyn Tree>,
+    pub(super) userid_displayname: Arc<dyn Tree>,
+    pub(super) userid_avatarurl: Arc<dyn Tree>,
+    pub(super) userdeviceid_token: Arc<dyn Tree>,
+    pub(super) userdeviceid_metadata: Arc<dyn Tree>, // This is also used to check if a device exists
+    pub(super) userid_devicelistversion: Arc<dyn Tree>, // DevicelistVersion = u64
+    pub(super) token_userdeviceid: Arc<dyn Tree>,
 
-    pub(super) onetimekeyid_onetimekeys: sled::Tree, // OneTimeKeyId = UserId + DeviceKeyId
-    pub(super) userid_lastonetimekeyupdate: sled::Tree, // LastOneTimeKeyUpdate = Count
-    pub(super) keychangeid_userid: sled::Tree,       // KeyChangeId = UserId/RoomId + Count
-    pub(super) keyid_key: sled::Tree,                // KeyId = UserId + KeyId (depends on key type)
-    pub(super) userid_masterkeyid: sled::Tree,
-    pub(super) userid_selfsigningkeyid: sled::Tree,
-    pub(super) userid_usersigningkeyid: sled::Tree,
+    pub(super) onetimekeyid_onetimekeys: Arc<dyn Tree>, // OneTimeKeyId = UserId + DeviceKeyId
+    pub(super) userid_lastonetimekeyupdate: Arc<dyn Tree>, // LastOneTimeKeyUpdate = Count
+    pub(super) keychangeid_userid: Arc<dyn Tree>,       // KeyChangeId = UserId/RoomId + Count
+    pub(super) keyid_key: Arc<dyn Tree>, // KeyId = UserId + KeyId (depends on key type)
+    pub(super) userid_masterkeyid: Arc<dyn Tree>,
+    pub(super) userid_selfsigningkeyid: Arc<dyn Tree>,
+    pub(super) userid_usersigningkeyid: Arc<dyn Tree>,
 
-    pub(super) todeviceid_events: sled::Tree, // ToDeviceId = UserId + DeviceId + Count
+    pub(super) todeviceid_events: Arc<dyn Tree>, // ToDeviceId = UserId + DeviceId + Count
 }
 
 impl Users {
     /// Check if a user has an account on this homeserver.
     pub fn exists(&self, user_id: &UserId) -> Result<bool> {
-        Ok(self.userid_password.contains_key(user_id.to_string())?)
+        Ok(self.userid_password.get(user_id.as_bytes())?.is_some())
     }
 
     /// Check if account is deactivated
     pub fn is_deactivated(&self, user_id: &UserId) -> Result<bool> {
         Ok(self
             .userid_password
-            .get(user_id.to_string())?
+            .get(user_id.as_bytes())?
             .ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "User does not exist.",
@@ -55,14 +56,14 @@ impl Users {
     }
 
     /// Returns the number of users registered on this server.
-    pub fn count(&self) -> usize {
-        self.userid_password.iter().count()
+    pub fn count(&self) -> Result<usize> {
+        Ok(self.userid_password.iter().count())
     }
 
     /// Find out which user an access token belongs to.
     pub fn find_from_token(&self, token: &str) -> Result<Option<(UserId, String)>> {
         self.token_userdeviceid
-            .get(token)?
+            .get(token.as_bytes())?
             .map_or(Ok(None), |bytes| {
                 let mut parts = bytes.split(|&b| b == 0xff);
                 let user_bytes = parts.next().ok_or_else(|| {
@@ -87,10 +88,10 @@ impl Users {
     }
 
     /// Returns an iterator over all users on this homeserver.
-    pub fn iter(&self) -> impl Iterator<Item = Result<UserId>> {
-        self.userid_password.iter().keys().map(|bytes| {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = Result<UserId>> + 'a {
+        self.userid_password.iter().map(|(bytes, _)| {
             Ok(
-                UserId::try_from(utils::string_from_bytes(&bytes?).map_err(|_| {
+                UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("User ID in userid_password is invalid unicode.")
                 })?)
                 .map_err(|_| Error::bad_database("User ID in userid_password is invalid."))?,
@@ -101,7 +102,7 @@ impl Users {
     /// Returns the password hash for the given user.
     pub fn password_hash(&self, user_id: &UserId) -> Result<Option<String>> {
         self.userid_password
-            .get(user_id.to_string())?
+            .get(user_id.as_bytes())?
             .map_or(Ok(None), |bytes| {
                 Ok(Some(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Password hash in db is not valid string.")
@@ -113,7 +114,8 @@ impl Users {
     pub fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
         if let Some(password) = password {
             if let Ok(hash) = utils::calculate_hash(&password) {
-                self.userid_password.insert(user_id.to_string(), &*hash)?;
+                self.userid_password
+                    .insert(user_id.as_bytes(), hash.as_bytes())?;
                 Ok(())
             } else {
                 Err(Error::BadRequest(
@@ -122,7 +124,7 @@ impl Users {
                 ))
             }
         } else {
-            self.userid_password.insert(user_id.to_string(), "")?;
+            self.userid_password.insert(user_id.as_bytes(), b"")?;
             Ok(())
         }
     }
@@ -130,7 +132,7 @@ impl Users {
     /// Returns the displayname of a user on this homeserver.
     pub fn displayname(&self, user_id: &UserId) -> Result<Option<String>> {
         self.userid_displayname
-            .get(user_id.to_string())?
+            .get(user_id.as_bytes())?
             .map_or(Ok(None), |bytes| {
                 Ok(Some(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Displayname in db is invalid.")
@@ -142,9 +144,9 @@ impl Users {
     pub fn set_displayname(&self, user_id: &UserId, displayname: Option<String>) -> Result<()> {
         if let Some(displayname) = displayname {
             self.userid_displayname
-                .insert(user_id.to_string(), &*displayname)?;
+                .insert(user_id.as_bytes(), displayname.as_bytes())?;
         } else {
-            self.userid_displayname.remove(user_id.to_string())?;
+            self.userid_displayname.remove(user_id.as_bytes())?;
         }
 
         Ok(())
@@ -153,7 +155,7 @@ impl Users {
     /// Get a the avatar_url of a user.
     pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<MxcUri>> {
         self.userid_avatarurl
-            .get(user_id.to_string())?
+            .get(user_id.as_bytes())?
             .map(|bytes| {
                 let s = utils::string_from_bytes(&bytes)
                     .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))?;
@@ -166,9 +168,9 @@ impl Users {
     pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<MxcUri>) -> Result<()> {
         if let Some(avatar_url) = avatar_url {
             self.userid_avatarurl
-                .insert(user_id.to_string(), avatar_url.to_string().as_str())?;
+                .insert(user_id.as_bytes(), avatar_url.to_string().as_bytes())?;
         } else {
-            self.userid_avatarurl.remove(user_id.to_string())?;
+            self.userid_avatarurl.remove(user_id.as_bytes())?;
         }
 
         Ok(())
@@ -190,19 +192,17 @@ impl Users {
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
         self.userid_devicelistversion
-            .update_and_fetch(&user_id.as_bytes(), utils::increment)?
-            .expect("utils::increment will always put in a value");
+            .increment(user_id.as_bytes())?;
 
         self.userdeviceid_metadata.insert(
-            userdeviceid,
-            serde_json::to_string(&Device {
+            &userdeviceid,
+            &serde_json::to_vec(&Device {
                 device_id: device_id.into(),
                 display_name: initial_device_display_name,
                 last_seen_ip: None, // TODO
                 last_seen_ts: Some(MilliSecondsSinceUnixEpoch::now()),
             })
-            .expect("Device::to_string never fails.")
-            .as_bytes(),
+            .expect("Device::to_string never fails."),
         )?;
 
         self.set_token(user_id, &device_id, token)?;
@@ -217,7 +217,8 @@ impl Users {
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
         // Remove tokens
-        if let Some(old_token) = self.userdeviceid_token.remove(&userdeviceid)? {
+        if let Some(old_token) = self.userdeviceid_token.get(&userdeviceid)? {
+            self.userdeviceid_token.remove(&userdeviceid)?;
             self.token_userdeviceid.remove(&old_token)?;
         }
 
@@ -225,15 +226,14 @@ impl Users {
         let mut prefix = userdeviceid.clone();
         prefix.push(0xff);
 
-        for key in self.todeviceid_events.scan_prefix(&prefix).keys() {
-            self.todeviceid_events.remove(key?)?;
+        for (key, _) in self.todeviceid_events.scan_prefix(prefix) {
+            self.todeviceid_events.remove(&key)?;
         }
 
         // TODO: Remove onetimekeys
 
         self.userid_devicelistversion
-            .update_and_fetch(&user_id.as_bytes(), utils::increment)?
-            .expect("utils::increment will always put in a value");
+            .increment(user_id.as_bytes())?;
 
         self.userdeviceid_metadata.remove(&userdeviceid)?;
 
@@ -241,16 +241,18 @@ impl Users {
     }
 
     /// Returns an iterator over all device ids of this user.
-    pub fn all_device_ids(&self, user_id: &UserId) -> impl Iterator<Item = Result<Box<DeviceId>>> {
+    pub fn all_device_ids<'a>(
+        &'a self,
+        user_id: &UserId,
+    ) -> impl Iterator<Item = Result<Box<DeviceId>>> + 'a {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         // All devices have metadata
         self.userdeviceid_metadata
             .scan_prefix(prefix)
-            .keys()
-            .map(|bytes| {
+            .map(|(bytes, _)| {
                 Ok(utils::string_from_bytes(
-                    &*bytes?
+                    &bytes
                         .rsplit(|&b| b == 0xff)
                         .next()
                         .ok_or_else(|| Error::bad_database("UserDevice ID in db is invalid."))?,
@@ -271,13 +273,15 @@ impl Users {
 
         // Remove old token
         if let Some(old_token) = self.userdeviceid_token.get(&userdeviceid)? {
-            self.token_userdeviceid.remove(old_token)?;
+            self.token_userdeviceid.remove(&old_token)?;
             // It will be removed from userdeviceid_token by the insert later
         }
 
         // Assign token to user device combination
-        self.userdeviceid_token.insert(&userdeviceid, &*token)?;
-        self.token_userdeviceid.insert(token, userdeviceid)?;
+        self.userdeviceid_token
+            .insert(&userdeviceid, token.as_bytes())?;
+        self.token_userdeviceid
+            .insert(token.as_bytes(), &userdeviceid)?;
 
         Ok(())
     }
@@ -309,8 +313,7 @@ impl Users {
 
         self.onetimekeyid_onetimekeys.insert(
             &key,
-            &*serde_json::to_string(&one_time_key_value)
-                .expect("OneTimeKey::to_string always works"),
+            &serde_json::to_vec(&one_time_key_value).expect("OneTimeKey::to_vec always works"),
         )?;
 
         self.userid_lastonetimekeyupdate
@@ -350,10 +353,9 @@ impl Users {
             .insert(&user_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
 
         self.onetimekeyid_onetimekeys
-            .scan_prefix(&prefix)
+            .scan_prefix(prefix)
             .next()
-            .map(|r| {
-                let (key, value) = r?;
+            .map(|(key, value)| {
                 self.onetimekeyid_onetimekeys.remove(&key)?;
 
                 Ok((
@@ -383,21 +385,20 @@ impl Users {
 
         let mut counts = BTreeMap::new();
 
-        for algorithm in self
-            .onetimekeyid_onetimekeys
-            .scan_prefix(&userdeviceid)
-            .keys()
-            .map(|bytes| {
-                Ok::<_, Error>(
-                    serde_json::from_slice::<DeviceKeyId>(
-                        &*bytes?.rsplit(|&b| b == 0xff).next().ok_or_else(|| {
-                            Error::bad_database("OneTimeKey ID in db is invalid.")
-                        })?,
+        for algorithm in
+            self.onetimekeyid_onetimekeys
+                .scan_prefix(userdeviceid)
+                .map(|(bytes, _)| {
+                    Ok::<_, Error>(
+                        serde_json::from_slice::<DeviceKeyId>(
+                            &*bytes.rsplit(|&b| b == 0xff).next().ok_or_else(|| {
+                                Error::bad_database("OneTimeKey ID in db is invalid.")
+                            })?,
+                        )
+                        .map_err(|_| Error::bad_database("DeviceKeyId in db is invalid."))?
+                        .algorithm(),
                     )
-                    .map_err(|_| Error::bad_database("DeviceKeyId in db is invalid."))?
-                    .algorithm(),
-                )
-            })
+                })
         {
             *counts.entry(algorithm?).or_default() += UInt::from(1_u32);
         }
@@ -419,7 +420,7 @@ impl Users {
 
         self.keyid_key.insert(
             &userdeviceid,
-            &*serde_json::to_string(&device_keys).expect("DeviceKeys::to_string always works"),
+            &serde_json::to_vec(&device_keys).expect("DeviceKeys::to_vec always works"),
         )?;
 
         self.mark_device_key_update(user_id, rooms, globals)?;
@@ -460,11 +461,11 @@ impl Users {
 
         self.keyid_key.insert(
             &master_key_key,
-            &*serde_json::to_string(&master_key).expect("CrossSigningKey::to_string always works"),
+            &serde_json::to_vec(&master_key).expect("CrossSigningKey::to_vec always works"),
         )?;
 
         self.userid_masterkeyid
-            .insert(&*user_id.to_string(), master_key_key)?;
+            .insert(user_id.as_bytes(), &master_key_key)?;
 
         // Self-signing key
         if let Some(self_signing_key) = self_signing_key {
@@ -486,12 +487,12 @@ impl Users {
 
             self.keyid_key.insert(
                 &self_signing_key_key,
-                &*serde_json::to_string(&self_signing_key)
-                    .expect("CrossSigningKey::to_string always works"),
+                &serde_json::to_vec(&self_signing_key)
+                    .expect("CrossSigningKey::to_vec always works"),
             )?;
 
             self.userid_selfsigningkeyid
-                .insert(&*user_id.to_string(), self_signing_key_key)?;
+                .insert(user_id.as_bytes(), &self_signing_key_key)?;
         }
 
         // User-signing key
@@ -514,12 +515,12 @@ impl Users {
 
             self.keyid_key.insert(
                 &user_signing_key_key,
-                &*serde_json::to_string(&user_signing_key)
-                    .expect("CrossSigningKey::to_string always works"),
+                &serde_json::to_vec(&user_signing_key)
+                    .expect("CrossSigningKey::to_vec always works"),
             )?;
 
             self.userid_usersigningkeyid
-                .insert(&*user_id.to_string(), user_signing_key_key)?;
+                .insert(user_id.as_bytes(), &user_signing_key_key)?;
         }
 
         self.mark_device_key_update(user_id, rooms, globals)?;
@@ -561,8 +562,7 @@ impl Users {
 
         self.keyid_key.insert(
             &key,
-            &*serde_json::to_string(&cross_signing_key)
-                .expect("CrossSigningKey::to_string always works"),
+            &serde_json::to_vec(&cross_signing_key).expect("CrossSigningKey::to_vec always works"),
         )?;
 
         // TODO: Should we notify about this change?
@@ -572,24 +572,20 @@ impl Users {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn keys_changed(
-        &self,
+    pub fn keys_changed<'a>(
+        &'a self,
         user_or_room_id: &str,
         from: u64,
         to: Option<u64>,
-    ) -> impl Iterator<Item = Result<UserId>> {
+    ) -> impl Iterator<Item = Result<UserId>> + 'a {
         let mut prefix = user_or_room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         let mut start = prefix.clone();
         start.extend_from_slice(&(from + 1).to_be_bytes());
 
-        let mut end = prefix.clone();
-        end.extend_from_slice(&to.unwrap_or(u64::MAX).to_be_bytes());
-
         self.keychangeid_userid
-            .range(start..end)
-            .filter_map(|r| r.ok())
+            .iter_from(&start, false)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(_, bytes)| {
                 Ok(
@@ -625,13 +621,13 @@ impl Users {
             key.push(0xff);
             key.extend_from_slice(&count);
 
-            self.keychangeid_userid.insert(key, &*user_id.to_string())?;
+            self.keychangeid_userid.insert(&key, user_id.as_bytes())?;
         }
 
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(&count);
-        self.keychangeid_userid.insert(key, &*user_id.to_string())?;
+        self.keychangeid_userid.insert(&key, user_id.as_bytes())?;
 
         Ok(())
     }
@@ -645,7 +641,7 @@ impl Users {
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());
 
-        self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+        self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
             Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
                 Error::bad_database("DeviceKeys in db are invalid.")
             })?))
@@ -658,9 +654,9 @@ impl Users {
         allowed_signatures: F,
     ) -> Result<Option<CrossSigningKey>> {
         self.userid_masterkeyid
-            .get(user_id.to_string())?
+            .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
-                self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+                self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
                     let mut cross_signing_key = serde_json::from_slice::<CrossSigningKey>(&bytes)
                         .map_err(|_| {
                         Error::bad_database("CrossSigningKey in db is invalid.")
@@ -685,9 +681,9 @@ impl Users {
         allowed_signatures: F,
     ) -> Result<Option<CrossSigningKey>> {
         self.userid_selfsigningkeyid
-            .get(user_id.to_string())?
+            .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
-                self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+                self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
                     let mut cross_signing_key = serde_json::from_slice::<CrossSigningKey>(&bytes)
                         .map_err(|_| {
                         Error::bad_database("CrossSigningKey in db is invalid.")
@@ -708,9 +704,9 @@ impl Users {
 
     pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<CrossSigningKey>> {
         self.userid_usersigningkeyid
-            .get(user_id.to_string())?
+            .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
-                self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+                self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
                     Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
                         Error::bad_database("CrossSigningKey in db is invalid.")
                     })?))
@@ -740,7 +736,7 @@ impl Users {
 
         self.todeviceid_events.insert(
             &key,
-            &*serde_json::to_string(&json).expect("Map::to_string always works"),
+            &serde_json::to_vec(&json).expect("Map::to_vec always works"),
         )?;
 
         Ok(())
@@ -759,9 +755,9 @@ impl Users {
         prefix.extend_from_slice(device_id.as_bytes());
         prefix.push(0xff);
 
-        for value in self.todeviceid_events.scan_prefix(&prefix).values() {
+        for (_, value) in self.todeviceid_events.scan_prefix(prefix) {
             events.push(
-                serde_json::from_slice(&*value?)
+                serde_json::from_slice(&value)
                     .map_err(|_| Error::bad_database("Event in todeviceid_events is invalid."))?,
             );
         }
@@ -786,10 +782,9 @@ impl Users {
 
         for (key, _) in self
             .todeviceid_events
-            .range(&*prefix..=&*last)
-            .keys()
-            .map(|key| {
-                let key = key?;
+            .iter_from(&last, true)
+            .take_while(move |(k, _)| k.starts_with(&prefix))
+            .map(|(key, _)| {
                 Ok::<_, Error>((
                     key.clone(),
                     utils::u64_from_bytes(&key[key.len() - mem::size_of::<u64>()..key.len()])
@@ -799,7 +794,7 @@ impl Users {
             .filter_map(|r| r.ok())
             .take_while(|&(_, count)| count <= until)
         {
-            self.todeviceid_events.remove(key)?;
+            self.todeviceid_events.remove(&key)?;
         }
 
         Ok(())
@@ -819,14 +814,11 @@ impl Users {
         assert!(self.userdeviceid_metadata.get(&userdeviceid)?.is_some());
 
         self.userid_devicelistversion
-            .update_and_fetch(&user_id.as_bytes(), utils::increment)?
-            .expect("utils::increment will always put in a value");
+            .increment(user_id.as_bytes())?;
 
         self.userdeviceid_metadata.insert(
-            userdeviceid,
-            serde_json::to_string(device)
-                .expect("Device::to_string always works")
-                .as_bytes(),
+            &userdeviceid,
+            &serde_json::to_vec(device).expect("Device::to_string always works"),
         )?;
 
         Ok(())
@@ -861,15 +853,17 @@ impl Users {
             })
     }
 
-    pub fn all_devices_metadata(&self, user_id: &UserId) -> impl Iterator<Item = Result<Device>> {
+    pub fn all_devices_metadata<'a>(
+        &'a self,
+        user_id: &UserId,
+    ) -> impl Iterator<Item = Result<Device>> + 'a {
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
 
         self.userdeviceid_metadata
             .scan_prefix(key)
-            .values()
-            .map(|bytes| {
-                Ok(serde_json::from_slice::<Device>(&bytes?).map_err(|_| {
+            .map(|(_, bytes)| {
+                Ok(serde_json::from_slice::<Device>(&bytes).map_err(|_| {
                     Error::bad_database("Device in userdeviceid_metadata is invalid.")
                 })?)
             })
@@ -885,7 +879,7 @@ impl Users {
         // Set the password to "" to indicate a deactivated account. Hashes will never result in an
         // empty string, so the user will not be able to log in again. Systems like changing the
         // password without logging in should check if the account is deactivated.
-        self.userid_password.insert(user_id.to_string(), "")?;
+        self.userid_password.insert(user_id.as_bytes(), &[])?;
 
         // TODO: Unhook 3PID
         Ok(())

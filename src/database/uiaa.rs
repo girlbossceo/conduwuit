@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{client_server::SESSION_ID_LENGTH, utils, Error, Result};
 use ruma::{
     api::client::{
@@ -8,10 +10,11 @@ use ruma::{
     DeviceId, UserId,
 };
 
-#[derive(Clone)]
+use super::abstraction::Tree;
+
 pub struct Uiaa {
-    pub(super) userdevicesessionid_uiaainfo: sled::Tree, // User-interactive authentication
-    pub(super) userdevicesessionid_uiaarequest: sled::Tree, // UiaaRequest = canonical json value
+    pub(super) userdevicesessionid_uiaainfo: Arc<dyn Tree>, // User-interactive authentication
+    pub(super) userdevicesessionid_uiaarequest: Arc<dyn Tree>, // UiaaRequest = canonical json value
 }
 
 impl Uiaa {
@@ -185,7 +188,7 @@ impl Uiaa {
 
         self.userdevicesessionid_uiaarequest.insert(
             &userdevicesessionid,
-            &*serde_json::to_string(request).expect("json value to string always works"),
+            &serde_json::to_vec(request).expect("json value to vec always works"),
         )?;
 
         Ok(())
@@ -233,7 +236,7 @@ impl Uiaa {
         if let Some(uiaainfo) = uiaainfo {
             self.userdevicesessionid_uiaainfo.insert(
                 &userdevicesessionid,
-                &*serde_json::to_string(&uiaainfo).expect("UiaaInfo::to_string always works"),
+                &serde_json::to_vec(&uiaainfo).expect("UiaaInfo::to_vec always works"),
             )?;
         } else {
             self.userdevicesessionid_uiaainfo

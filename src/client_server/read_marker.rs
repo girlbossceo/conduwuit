@@ -12,7 +12,7 @@ use ruma::{
 
 #[cfg(feature = "conduit_bin")]
 use rocket::post;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[cfg_attr(
     feature = "conduit_bin",
@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_read_marker_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<set_read_marker::Request<'_>>,
 ) -> ConduitResult<set_read_marker::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -87,7 +87,7 @@ pub async fn set_read_marker_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_receipt_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<create_receipt::Request<'_>>,
 ) -> ConduitResult<create_receipt::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

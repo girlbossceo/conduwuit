@@ -4,6 +4,7 @@ use ruma::{
     api::client::r0::redact::redact_event,
     events::{room::redaction, EventType},
 };
+use std::sync::Arc;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::put;
@@ -14,7 +15,7 @@ use rocket::put;
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn redact_event_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<redact_event::Request<'_>>,
 ) -> ConduitResult<redact_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

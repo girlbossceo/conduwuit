@@ -4,18 +4,21 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-#[derive(Clone)]
+use super::abstraction::Tree;
+
 pub struct Appservice {
     pub(super) cached_registrations: Arc<RwLock<HashMap<String, serde_yaml::Value>>>,
-    pub(super) id_appserviceregistrations: sled::Tree,
+    pub(super) id_appserviceregistrations: Arc<dyn Tree>,
 }
 
 impl Appservice {
     pub fn register_appservice(&self, yaml: serde_yaml::Value) -> Result<()> {
         // TODO: Rumaify
         let id = yaml.get("id").unwrap().as_str().unwrap();
-        self.id_appserviceregistrations
-            .insert(id, serde_yaml::to_string(&yaml).unwrap().as_bytes())?;
+        self.id_appserviceregistrations.insert(
+            id.as_bytes(),
+            serde_yaml::to_string(&yaml).unwrap().as_bytes(),
+        )?;
         self.cached_registrations
             .write()
             .unwrap()
@@ -33,7 +36,7 @@ impl Appservice {
                 || {
                     Ok(self
                         .id_appserviceregistrations
-                        .get(id)?
+                        .get(id.as_bytes())?
                         .map(|bytes| {
                             Ok::<_, Error>(serde_yaml::from_slice(&bytes).map_err(|_| {
                                 Error::bad_database(
@@ -47,21 +50,25 @@ impl Appservice {
             )
     }
 
-    pub fn iter_ids(&self) -> impl Iterator<Item = Result<String>> {
-        self.id_appserviceregistrations.iter().keys().map(|id| {
-            Ok(utils::string_from_bytes(&id?).map_err(|_| {
+    pub fn iter_ids<'a>(
+        &'a self,
+    ) -> Result<impl Iterator<Item = Result<String>> + Send + Sync + 'a> {
+        Ok(self.id_appserviceregistrations.iter().map(|(id, _)| {
+            Ok(utils::string_from_bytes(&id).map_err(|_| {
                 Error::bad_database("Invalid id bytes in id_appserviceregistrations.")
             })?)
-        })
+        }))
     }
 
-    pub fn iter_all(&self) -> impl Iterator<Item = Result<(String, serde_yaml::Value)>> + '_ {
-        self.iter_ids().filter_map(|id| id.ok()).map(move |id| {
+    pub fn iter_all(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<(String, serde_yaml::Value)>> + '_ + Send + Sync> {
+        Ok(self.iter_ids()?.filter_map(|id| id.ok()).map(move |id| {
             Ok((
                 id.clone(),
                 self.get_registration(&id)?
                     .expect("iter_ids only returns appservices that exist"),
             ))
-        })
+        }))
     }
 }

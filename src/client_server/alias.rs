@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::State;
 use crate::{ConduitResult, Database, Error, Ruma};
 use regex::Regex;
@@ -22,7 +24,7 @@ use rocket::{delete, get, put};
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_alias_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<create_alias::Request<'_>>,
 ) -> ConduitResult<create_alias::Response> {
     if db.rooms.id_from_alias(&body.room_alias)?.is_some() {
@@ -43,7 +45,7 @@ pub async fn create_alias_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn delete_alias_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<delete_alias::Request<'_>>,
 ) -> ConduitResult<delete_alias::Response> {
     db.rooms.set_alias(&body.room_alias, None, &db.globals)?;
@@ -59,7 +61,7 @@ pub async fn delete_alias_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_alias_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<get_alias::Request<'_>>,
 ) -> ConduitResult<get_alias::Response> {
     get_alias_helper(&db, &body.room_alias).await
@@ -86,7 +88,8 @@ pub async fn get_alias_helper(
     match db.rooms.id_from_alias(&room_alias)? {
         Some(r) => room_id = Some(r),
         None => {
-            for (_id, registration) in db.appservice.iter_all().filter_map(|r| r.ok()) {
+            let iter = db.appservice.iter_all()?;
+            for (_id, registration) in iter.filter_map(|r| r.ok()) {
                 let aliases = registration
                     .get("namespaces")
                     .and_then(|ns| ns.get("aliases"))

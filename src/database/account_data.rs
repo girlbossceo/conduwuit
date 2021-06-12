@@ -6,12 +6,12 @@ use ruma::{
     RoomId, UserId,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use sled::IVec;
-use std::{collections::HashMap, convert::TryFrom};
+use std::{collections::HashMap, convert::TryFrom, sync::Arc};
 
-#[derive(Clone)]
+use super::abstraction::Tree;
+
 pub struct AccountData {
-    pub(super) roomuserdataid_accountdata: sled::Tree, // RoomUserDataId = Room + User + Count + Type
+    pub(super) roomuserdataid_accountdata: Arc<dyn Tree>, // RoomUserDataId = Room + User + Count + Type
 }
 
 impl AccountData {
@@ -34,9 +34,8 @@ impl AccountData {
         prefix.push(0xff);
 
         // Remove old entry
-        if let Some(previous) = self.find_event(room_id, user_id, &event_type) {
-            let (old_key, _) = previous?;
-            self.roomuserdataid_accountdata.remove(old_key)?;
+        if let Some((old_key, _)) = self.find_event(room_id, user_id, &event_type)? {
+            self.roomuserdataid_accountdata.remove(&old_key)?;
         }
 
         let mut key = prefix;
@@ -52,8 +51,10 @@ impl AccountData {
             ));
         }
 
-        self.roomuserdataid_accountdata
-            .insert(key, &*json.to_string())?;
+        self.roomuserdataid_accountdata.insert(
+            &key,
+            &serde_json::to_vec(&json).expect("to_vec always works on json values"),
+        )?;
 
         Ok(())
     }
@@ -65,9 +66,8 @@ impl AccountData {
         user_id: &UserId,
         kind: EventType,
     ) -> Result<Option<T>> {
-        self.find_event(room_id, user_id, &kind)
-            .map(|r| {
-                let (_, v) = r?;
+        self.find_event(room_id, user_id, &kind)?
+            .map(|(_, v)| {
                 serde_json::from_slice(&v).map_err(|_| Error::bad_database("could not deserialize"))
             })
             .transpose()
@@ -98,8 +98,7 @@ impl AccountData {
 
         for r in self
             .roomuserdataid_accountdata
-            .range(&*first_possible..)
-            .filter_map(|r| r.ok())
+            .iter_from(&first_possible, false)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(k, v)| {
                 Ok::<_, Error>((
@@ -128,7 +127,7 @@ impl AccountData {
         room_id: Option<&RoomId>,
         user_id: &UserId,
         kind: &EventType,
-    ) -> Option<Result<(IVec, IVec)>> {
+    ) -> Result<Option<(Box<[u8]>, Box<[u8]>)>> {
         let mut prefix = room_id
             .map(|r| r.to_string())
             .unwrap_or_default()
@@ -137,23 +136,21 @@ impl AccountData {
         prefix.push(0xff);
         prefix.extend_from_slice(&user_id.as_bytes());
         prefix.push(0xff);
+
+        let mut last_possible_key = prefix.clone();
+        last_possible_key.extend_from_slice(&u64::MAX.to_be_bytes());
+
         let kind = kind.clone();
 
-        self.roomuserdataid_accountdata
-            .scan_prefix(prefix)
-            .rev()
-            .find(move |r| {
-                r.as_ref()
-                    .map(|(k, _)| {
-                        k.rsplit(|&b| b == 0xff)
-                            .next()
-                            .map(|current_event_type| {
-                                current_event_type == kind.as_ref().as_bytes()
-                            })
-                            .unwrap_or(false)
-                    })
+        Ok(self
+            .roomuserdataid_accountdata
+            .iter_from(&last_possible_key, true)
+            .take_while(move |(k, _)| k.starts_with(&prefix))
+            .find(move |(k, _)| {
+                k.rsplit(|&b| b == 0xff)
+                    .next()
+                    .map(|current_event_type| current_event_type == kind.as_ref().as_bytes())
                     .unwrap_or(false)
-            })
-            .map(|r| Ok(r?))
+            }))
     }
 }

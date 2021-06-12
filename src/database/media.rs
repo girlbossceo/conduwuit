@@ -1,7 +1,10 @@
+use crate::database::globals::Globals;
 use image::{imageops::FilterType, GenericImageView};
 
+use super::abstraction::Tree;
 use crate::{utils, Error, Result};
-use std::mem;
+use std::{mem, sync::Arc};
+use tokio::{fs::File, io::AsyncReadExt, io::AsyncWriteExt};
 
 pub struct FileMeta {
     pub content_disposition: Option<String>,
@@ -9,16 +12,16 @@ pub struct FileMeta {
     pub file: Vec<u8>,
 }
 
-#[derive(Clone)]
 pub struct Media {
-    pub(super) mediaid_file: sled::Tree, // MediaId = MXC + WidthHeight + ContentDisposition + ContentType
+    pub(super) mediaid_file: Arc<dyn Tree>, // MediaId = MXC + WidthHeight + ContentDisposition + ContentType
 }
 
 impl Media {
-    /// Uploads or replaces a file.
-    pub fn create(
+    /// Uploads a file.
+    pub async fn create(
         &self,
         mxc: String,
+        globals: &Globals,
         content_disposition: &Option<&str>,
         content_type: &Option<&str>,
         file: &[u8],
@@ -42,15 +45,19 @@ impl Media {
                 .unwrap_or_default(),
         );
 
-        self.mediaid_file.insert(key, file)?;
+        let path = globals.get_media_file(&key);
+        let mut f = File::create(path).await?;
+        f.write_all(file).await?;
 
+        self.mediaid_file.insert(&key, &[])?;
         Ok(())
     }
 
     /// Uploads or replaces a file thumbnail.
-    pub fn upload_thumbnail(
+    pub async fn upload_thumbnail(
         &self,
         mxc: String,
+        globals: &Globals,
         content_disposition: &Option<String>,
         content_type: &Option<String>,
         width: u32,
@@ -76,21 +83,28 @@ impl Media {
                 .unwrap_or_default(),
         );
 
-        self.mediaid_file.insert(key, file)?;
+        let path = globals.get_media_file(&key);
+        let mut f = File::create(path).await?;
+        f.write_all(file).await?;
+
+        self.mediaid_file.insert(&key, &[])?;
 
         Ok(())
     }
 
     /// Downloads a file.
-    pub fn get(&self, mxc: &str) -> Result<Option<FileMeta>> {
+    pub async fn get(&self, globals: &Globals, mxc: &str) -> Result<Option<FileMeta>> {
         let mut prefix = mxc.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(&0_u32.to_be_bytes()); // Width = 0 if it's not a thumbnail
         prefix.extend_from_slice(&0_u32.to_be_bytes()); // Height = 0 if it's not a thumbnail
         prefix.push(0xff);
 
-        if let Some(r) = self.mediaid_file.scan_prefix(&prefix).next() {
-            let (key, file) = r?;
+        let mut iter = self.mediaid_file.scan_prefix(prefix);
+        if let Some((key, _)) = iter.next() {
+            let path = globals.get_media_file(&key);
+            let mut file = Vec::new();
+            File::open(path).await?.read_to_end(&mut file).await?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
             let content_type = parts
@@ -121,7 +135,7 @@ impl Media {
             Ok(Some(FileMeta {
                 content_disposition,
                 content_type,
-                file: file.to_vec(),
+                file,
             }))
         } else {
             Ok(None)
@@ -151,7 +165,13 @@ impl Media {
     /// - Server creates the thumbnail and sends it to the user
     ///
     /// For width,height <= 96 the server uses another thumbnailing algorithm which crops the image afterwards.
-    pub fn get_thumbnail(&self, mxc: String, width: u32, height: u32) -> Result<Option<FileMeta>> {
+    pub async fn get_thumbnail(
+        &self,
+        mxc: String,
+        globals: &Globals,
+        width: u32,
+        height: u32,
+    ) -> Result<Option<FileMeta>> {
         let (width, height, crop) = self
             .thumbnail_properties(width, height)
             .unwrap_or((0, 0, false)); // 0, 0 because that's the original file
@@ -169,9 +189,11 @@ impl Media {
         original_prefix.extend_from_slice(&0_u32.to_be_bytes()); // Height = 0 if it's not a thumbnail
         original_prefix.push(0xff);
 
-        if let Some(r) = self.mediaid_file.scan_prefix(&thumbnail_prefix).next() {
+        if let Some((key, _)) = self.mediaid_file.scan_prefix(thumbnail_prefix).next() {
             // Using saved thumbnail
-            let (key, file) = r?;
+            let path = globals.get_media_file(&key);
+            let mut file = Vec::new();
+            File::open(path).await?.read_to_end(&mut file).await?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
             let content_type = parts
@@ -202,10 +224,12 @@ impl Media {
                 content_type,
                 file: file.to_vec(),
             }))
-        } else if let Some(r) = self.mediaid_file.scan_prefix(&original_prefix).next() {
+        } else if let Some((key, _)) = self.mediaid_file.scan_prefix(original_prefix).next() {
             // Generate a thumbnail
+            let path = globals.get_media_file(&key);
+            let mut file = Vec::new();
+            File::open(path).await?.read_to_end(&mut file).await?;
 
-            let (key, file) = r?;
             let mut parts = key.rsplit(|&b| b == 0xff);
 
             let content_type = parts
@@ -302,7 +326,11 @@ impl Media {
                     widthheight,
                 );
 
-                self.mediaid_file.insert(thumbnail_key, &*thumbnail_bytes)?;
+                let path = globals.get_media_file(&thumbnail_key);
+                let mut f = File::create(path).await?;
+                f.write_all(&thumbnail_bytes).await?;
+
+                self.mediaid_file.insert(&thumbnail_key, &[])?;
 
                 Ok(Some(FileMeta {
                     content_disposition,

@@ -1,5 +1,5 @@
 use super::State;
-use crate::{ConduitResult, Database, Error, Ruma};
+use crate::{ConduitResult, Database, Error, Result, Ruma};
 use log::error;
 use ruma::{
     api::client::r0::sync::sync_events,
@@ -13,6 +13,7 @@ use rocket::{get, tokio};
 use std::{
     collections::{hash_map, BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
+    sync::Arc,
     time::Duration,
 };
 
@@ -33,7 +34,7 @@ use std::{
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn sync_events_route(
-    db: State<'_, Database>,
+    db: State<'_, Arc<Database>>,
     body: Ruma<sync_events::Request<'_>>,
 ) -> ConduitResult<sync_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -71,18 +72,23 @@ pub async fn sync_events_route(
 
         let mut non_timeline_pdus = db
             .rooms
-            .pdus_since(&sender_user, &room_id, since)?
+            .pdus_until(&sender_user, &room_id, u64::MAX)
             .filter_map(|r| {
+                // Filter out buggy events
                 if r.is_err() {
                     error!("Bad pdu in pdus_since: {:?}", r);
                 }
                 r.ok()
-            }); // Filter out buggy events
+            })
+            .take_while(|(pduid, _)| {
+                db.rooms
+                    .pdu_count(pduid)
+                    .map_or(false, |count| count > since)
+            });
 
         // Take the last 10 events for the timeline
         let timeline_pdus = non_timeline_pdus
             .by_ref()
-            .rev()
             .take(10)
             .collect::<Vec<_>>()
             .into_iter()
@@ -226,7 +232,7 @@ pub async fn sync_events_route(
                     match (since_membership, current_membership) {
                         (MembershipState::Leave, MembershipState::Join) => {
                             // A new user joined an encrypted room
-                            if !share_encrypted_room(&db, &sender_user, &user_id, &room_id) {
+                            if !share_encrypted_room(&db, &sender_user, &user_id, &room_id)? {
                                 device_list_updates.insert(user_id);
                             }
                         }
@@ -257,6 +263,7 @@ pub async fn sync_events_route(
                         .filter(|user_id| {
                             // Only send keys if the sender doesn't share an encrypted room with the target already
                             !share_encrypted_room(&db, sender_user, user_id, &room_id)
+                                .unwrap_or(false)
                         }),
                 );
             }
@@ -274,7 +281,7 @@ pub async fn sync_events_route(
 
                     for hero in db
                         .rooms
-                        .all_pdus(&sender_user, &room_id)?
+                        .all_pdus(&sender_user, &room_id)
                         .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
                         .filter(|(_, pdu)| pdu.kind == EventType::RoomMember)
                         .map(|(_, pdu)| {
@@ -411,7 +418,7 @@ pub async fn sync_events_route(
         let mut edus = db
             .rooms
             .edus
-            .readreceipts_since(&room_id, since)?
+            .readreceipts_since(&room_id, since)
             .filter_map(|r| r.ok()) // Filter out buggy events
             .map(|(_, _, v)| v)
             .collect::<Vec<_>>();
@@ -549,7 +556,7 @@ pub async fn sync_events_route(
     for user_id in left_encrypted_users {
         let still_share_encrypted_room = db
             .rooms
-            .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])
+            .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])?
             .filter_map(|r| r.ok())
             .filter_map(|other_room_id| {
                 Some(
@@ -639,9 +646,10 @@ fn share_encrypted_room(
     sender_user: &UserId,
     user_id: &UserId,
     ignore_room: &RoomId,
-) -> bool {
-    db.rooms
-        .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])
+) -> Result<bool> {
+    Ok(db
+        .rooms
+        .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])?
         .filter_map(|r| r.ok())
         .filter(|room_id| room_id != ignore_room)
         .filter_map(|other_room_id| {
@@ -652,5 +660,5 @@ fn share_encrypted_room(
                     .is_some(),
             )
         })
-        .any(|encrypted| encrypted)
+        .any(|encrypted| encrypted))
 }

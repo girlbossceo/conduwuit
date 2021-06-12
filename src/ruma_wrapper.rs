@@ -2,13 +2,14 @@ use crate::Error;
 use ruma::{
     api::OutgoingResponse,
     identifiers::{DeviceId, UserId},
-    Outgoing,
+    signatures::CanonicalJsonValue,
+    Outgoing, ServerName,
 };
 use std::ops::Deref;
 
 #[cfg(feature = "conduit_bin")]
 use {
-    crate::server_server,
+    crate::{server_server, Database},
     log::{debug, warn},
     rocket::{
         data::{self, ByteUnit, Data, FromData},
@@ -18,14 +19,11 @@ use {
         tokio::io::AsyncReadExt,
         Request, State,
     },
-    ruma::{
-        api::{AuthScheme, IncomingRequest},
-        signatures::CanonicalJsonValue,
-        ServerName,
-    },
+    ruma::api::{AuthScheme, IncomingRequest},
     std::collections::BTreeMap,
     std::convert::TryFrom,
     std::io::Cursor,
+    std::sync::Arc,
 };
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
@@ -51,7 +49,7 @@ where
     async fn from_data(request: &'a Request<'_>, data: Data) -> data::Outcome<Self, Self::Error> {
         let metadata = T::Incoming::METADATA;
         let db = request
-            .guard::<State<'_, crate::Database>>()
+            .guard::<State<'_, Arc<Database>>>()
             .await
             .expect("database was loaded");
 
@@ -75,6 +73,7 @@ where
         )) = db
             .appservice
             .iter_all()
+            .unwrap()
             .filter_map(|r| r.ok())
             .find(|(_id, registration)| {
                 registration
