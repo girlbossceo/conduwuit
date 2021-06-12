@@ -21,9 +21,6 @@ pub async fn search_users_route(
     let mut users = db.users.iter().filter_map(|user_id| {
         // Filter out buggy users (they should not exist, but you never know...)
         let user_id = user_id.ok()?;
-        if db.users.is_deactivated(&user_id).ok()? {
-            return None;
-        }
 
         let user = search_users::User {
             user_id: user_id.clone(),
@@ -31,11 +28,18 @@ pub async fn search_users_route(
             avatar_url: db.users.avatar_url(&user_id).ok()?,
         };
 
-        if !user.user_id.to_string().contains(&body.search_term)
+        if !user
+            .user_id
+            .to_string()
+            .to_lowercase()
+            .contains(&body.search_term.to_lowercase())
             && user
                 .display_name
                 .as_ref()
-                .filter(|name| name.contains(&body.search_term))
+                .filter(|name| {
+                    name.to_lowercase()
+                        .contains(&body.search_term.to_lowercase())
+                })
                 .is_none()
         {
             return None;

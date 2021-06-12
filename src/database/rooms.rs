@@ -592,9 +592,8 @@ impl Rooms {
         prefix.push(0xff);
 
         self.roomid_pduleaves
-            .scan_prefix(dbg!(prefix))
-            .map(|(key, bytes)| {
-                dbg!(key);
+            .scan_prefix(prefix)
+            .map(|(_, bytes)| {
                 Ok::<_, Error>(
                     EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
                         Error::bad_database("EventID in roomid_pduleaves is invalid unicode.")
@@ -1195,7 +1194,6 @@ impl Rooms {
         room_id: &RoomId,
         db: &Database,
     ) -> Result<EventId> {
-        dbg!(&pdu_builder);
         let PduBuilder {
             event_type,
             content,
@@ -1583,6 +1581,12 @@ impl Rooms {
         last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
         db: &Database,
     ) -> Result<()> {
+        // Keep track what remote users exist by adding them as "deactivated" users
+        if user_id.server_name() != db.globals.server_name() {
+            db.users.create(user_id, None)?;
+            // TODO: displayname, avatar url
+        }
+
         let mut roomserver_id = room_id.as_bytes().to_vec();
         roomserver_id.push(0xff);
         roomserver_id.extend_from_slice(user_id.server_name().as_bytes());

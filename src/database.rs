@@ -289,6 +289,30 @@ impl Database {
 
             println!("Migration: 2 -> 3 finished");
         }
+
+        if db.globals.database_version()? < 4 {
+            // Add federated users to db as deactivated
+            for our_user in db.users.iter() {
+                let our_user = our_user?;
+                if db.users.is_deactivated(&our_user)? {
+                    continue;
+                }
+                for room in db.rooms.rooms_joined(&our_user) {
+                    for user in db.rooms.room_members(&room?) {
+                        let user = user?;
+                        if user.server_name() != db.globals.server_name() {
+                            println!("Migration: Creating user {}", user);
+                            db.users.create(&user, None)?;
+                        }
+                    }
+                }
+            }
+
+            db.globals.bump_database_version(4)?;
+
+            println!("Migration: 3 -> 4 finished");
+        }
+
         // This data is probably outdated
         db.rooms.edus.presenceid_presence.clear()?;
 
