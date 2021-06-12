@@ -91,8 +91,6 @@ enum TransactionStatus {
 
 impl Sending {
     pub fn start_handler(&self, db: Arc<Database>, mut receiver: mpsc::UnboundedReceiver<Vec<u8>>) {
-        let db = db.clone();
-
         tokio::spawn(async move {
             let mut futures = FuturesUnordered::new();
 

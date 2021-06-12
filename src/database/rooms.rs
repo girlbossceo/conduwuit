@@ -19,8 +19,6 @@ use ruma::{
     state_res::{self, Event, RoomVersion, StateMap},
     uint, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
-use sled::IVec;
-
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
@@ -34,7 +32,7 @@ use super::{abstraction::Tree, admin::AdminCommand, pusher};
 ///
 /// This is created when a state group is added to the database by
 /// hashing the entire state.
-pub type StateHashId = IVec;
+pub type StateHashId = Vec<u8>;
 
 pub struct Rooms {
     pub edus: edus::RoomEdus,
@@ -665,7 +663,7 @@ impl Rooms {
         pdu: &PduEvent,
         mut pdu_json: CanonicalJsonObject,
         count: u64,
-        pdu_id: IVec,
+        pdu_id: &[u8],
         leaves: &[EventId],
         db: &Database,
     ) -> Result<()> {
@@ -713,14 +711,13 @@ impl Rooms {
         self.reset_notification_counts(&pdu.sender, &pdu.room_id)?;
 
         self.pduid_pdu.insert(
-            &pdu_id,
+            pdu_id,
             &serde_json::to_vec(&pdu_json).expect("CanonicalJsonObject is always a valid"),
         )?;
 
         // This also replaces the eventid of any outliers with the correct
         // pduid, removing the place holder.
-        self.eventid_pduid
-            .insert(pdu.event_id.as_bytes(), &*pdu_id)?;
+        self.eventid_pduid.insert(pdu.event_id.as_bytes(), pdu_id)?;
 
         // See if the event matches any known pushers
         for user in db
@@ -1360,7 +1357,7 @@ impl Rooms {
             &pdu,
             pdu_json,
             count,
-            pdu_id.clone().into(),
+            &pdu_id,
             // Since this PDU references all pdu_leaves we can update the leaves
             // of the room
             &[pdu.event_id.clone()],

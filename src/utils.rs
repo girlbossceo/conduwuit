@@ -1,7 +1,6 @@
 use argon2::{Config, Variant};
 use cmp::Ordering;
 use rand::prelude::*;
-use rocksdb::MergeOperands;
 use ruma::serde::{try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
 use std::{
     cmp,
@@ -16,10 +15,11 @@ pub fn millis_since_unix_epoch() -> u64 {
         .as_millis() as u64
 }
 
+#[cfg(feature = "rocksdb")]
 pub fn increment_rocksdb(
     _new_key: &[u8],
     old: Option<&[u8]>,
-    _operands: &mut MergeOperands,
+    _operands: &mut rocksdb::MergeOperands,
 ) -> Option<Vec<u8>> {
     increment(old)
 }

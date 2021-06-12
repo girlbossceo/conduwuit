@@ -1681,7 +1681,7 @@ pub(crate) fn append_incoming_pdu(
         pdu,
         pdu_json,
         count,
-        pdu_id.clone().into(),
+        &pdu_id,
         &new_room_leaves.into_iter().collect::<Vec<_>>(),
         &db,
     )?;

@@ -77,7 +77,11 @@ fn default_log() -> String {
     "info,state_res=warn,rocket=off,_=off,sled=off".to_owned()
 }
 
+#[cfg(feature = "sled")]
 pub type Engine = abstraction::SledEngine;
+
+#[cfg(feature = "rocksdb")]
+pub type Engine = abstraction::RocksDbEngine;
 
 pub struct Database {
     pub globals: globals::Globals,

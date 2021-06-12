@@ -23,11 +23,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[cfg(feature = "sled")]
     #[error("There was a problem with the connection to the sled database.")]
     SledError {
         #[from]
         source: sled::Error,
     },
+    #[cfg(feature = "rocksdb")]
     #[error("There was a problem with the connection to the rocksdb database: {source}")]
     RocksDbError {
         #[from]

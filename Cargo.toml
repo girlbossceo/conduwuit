@@ -24,8 +24,8 @@ ruma = { git = "https://github.com/ruma/ruma", rev = "b39537812c12caafcbf8b7bd74
 # Used for long polling and federation sender, should be the same as rocket::tokio
 tokio = "1.2.0"
 # Used for storing data permanently
-sled = { version = "0.34.6", features = ["compression", "no_metrics"] }
-rocksdb = { version = "0.16.0", features = ["multi-threaded-cf"] }
+sled = { version = "0.34.6", features = ["compression", "no_metrics"], optional = true }
+rocksdb = { version = "0.16.0", features = ["multi-threaded-cf"], optional = true }
 #sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
@@ -75,7 +75,9 @@ opentelemetry-jaeger = "0.11.0"
 pretty_env_logger = "0.4.0"
 
 [features]
-default = ["conduit_bin"]
+default = ["conduit_bin", "backend_sled"]
+backend_sled = ["sled"]
+backend_rocksdb = ["rocksdb"]
 conduit_bin = [] # TODO: add rocket to this when it is optional
 
 [[bin]]

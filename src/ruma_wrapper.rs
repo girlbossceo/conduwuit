@@ -1,14 +1,15 @@
-use crate::{Database, Error};
+use crate::Error;
 use ruma::{
     api::OutgoingResponse,
     identifiers::{DeviceId, UserId},
-    Outgoing,
+    signatures::CanonicalJsonValue,
+    Outgoing, ServerName,
 };
-use std::{ops::Deref, sync::Arc};
+use std::ops::Deref;
 
 #[cfg(feature = "conduit_bin")]
 use {
-    crate::server_server,
+    crate::{server_server, Database},
     log::{debug, warn},
     rocket::{
         data::{self, ByteUnit, Data, FromData},
@@ -18,14 +19,11 @@ use {
         tokio::io::AsyncReadExt,
         Request, State,
     },
-    ruma::{
-        api::{AuthScheme, IncomingRequest},
-        signatures::CanonicalJsonValue,
-        ServerName,
-    },
+    ruma::api::{AuthScheme, IncomingRequest},
     std::collections::BTreeMap,
     std::convert::TryFrom,
     std::io::Cursor,
+    std::sync::Arc,
 };
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests

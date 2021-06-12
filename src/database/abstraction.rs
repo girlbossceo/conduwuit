@@ -1,21 +1,19 @@
-use std::{
-    collections::BTreeMap,
-    future::Future,
-    pin::Pin,
-    sync::{Arc, RwLock},
-};
-
-use log::warn;
-use rocksdb::{
-    BoundColumnFamily, ColumnFamilyDescriptor, DBWithThreadMode, Direction, MultiThreaded, Options,
-};
-
 use super::Config;
 use crate::{utils, Result};
+use log::warn;
+use std::{future::Future, pin::Pin, sync::Arc};
 
+#[cfg(feature = "rocksdb")]
+use std::{collections::BTreeMap, sync::RwLock};
+
+#[cfg(feature = "sled")]
 pub struct SledEngine(sled::Db);
+#[cfg(feature = "sled")]
 pub struct SledEngineTree(sled::Tree);
-pub struct RocksDbEngine(rocksdb::DBWithThreadMode<MultiThreaded>);
+
+#[cfg(feature = "rocksdb")]
+pub struct RocksDbEngine(rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>);
+#[cfg(feature = "rocksdb")]
 pub struct RocksDbEngineTree<'a> {
     db: Arc<RocksDbEngine>,
     name: &'a str,
@@ -60,6 +58,7 @@ pub trait Tree: Send + Sync {
     }
 }
 
+#[cfg(feature = "sled")]
 impl DatabaseEngine for SledEngine {
     fn open(config: &Config) -> Result<Arc<Self>> {
         Ok(Arc::new(SledEngine(
@@ -76,6 +75,7 @@ impl DatabaseEngine for SledEngine {
     }
 }
 
+#[cfg(feature = "sled")]
 impl Tree for SledEngineTree {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self.0.get(key)?.map(|v| v.to_vec()))
@@ -165,29 +165,42 @@ impl Tree for SledEngineTree {
     }
 }
 
+#[cfg(feature = "rocksdb")]
 impl DatabaseEngine for RocksDbEngine {
     fn open(config: &Config) -> Result<Arc<Self>> {
-        let mut db_opts = Options::default();
+        let mut db_opts = rocksdb::Options::default();
         db_opts.create_if_missing(true);
+        db_opts.set_max_open_files(16);
+        db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
+        db_opts.set_compression_type(rocksdb::DBCompressionType::Snappy);
+        db_opts.set_target_file_size_base(256 << 20);
+        db_opts.set_write_buffer_size(256 << 20);
 
-        let cfs = DBWithThreadMode::<MultiThreaded>::list_cf(&db_opts, &config.database_path)
-            .unwrap_or_default();
+        let mut block_based_options = rocksdb::BlockBasedOptions::default();
+        block_based_options.set_block_size(512 << 10);
+        db_opts.set_block_based_table_factory(&block_based_options);
 
-        let mut options = Options::default();
+        let cfs = rocksdb::DBWithThreadMode::<rocksdb::MultiThreaded>::list_cf(
+            &db_opts,
+            &config.database_path,
+        )
+        .unwrap_or_default();
+
+        let mut options = rocksdb::Options::default();
         options.set_merge_operator_associative("increment", utils::increment_rocksdb);
 
-        let db = DBWithThreadMode::<MultiThreaded>::open_cf_descriptors(
+        let db = rocksdb::DBWithThreadMode::<rocksdb::MultiThreaded>::open_cf_descriptors(
             &db_opts,
             &config.database_path,
             cfs.iter()
-                .map(|name| ColumnFamilyDescriptor::new(name, options.clone())),
+                .map(|name| rocksdb::ColumnFamilyDescriptor::new(name, options.clone())),
         )?;
 
         Ok(Arc::new(RocksDbEngine(db)))
     }
 
     fn open_tree(self: &Arc<Self>, name: &'static str) -> Result<Arc<dyn Tree>> {
-        let mut options = Options::default();
+        let mut options = rocksdb::Options::default();
         options.set_merge_operator_associative("increment", utils::increment_rocksdb);
 
         // Create if it doesn't exist
@@ -201,12 +214,14 @@ impl DatabaseEngine for RocksDbEngine {
     }
 }
 
+#[cfg(feature = "rocksdb")]
 impl RocksDbEngineTree<'_> {
-    fn cf(&self) -> BoundColumnFamily<'_> {
+    fn cf(&self) -> rocksdb::BoundColumnFamily<'_> {
         self.db.0.cf_handle(self.name).unwrap()
     }
 }
 
+#[cfg(feature = "rocksdb")]
 impl Tree for RocksDbEngineTree<'_> {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self.db.0.get_cf(self.cf(), key)?)
@@ -260,15 +275,20 @@ impl Tree for RocksDbEngineTree<'_> {
             rocksdb::IteratorMode::From(
                 from,
                 if backwards {
-                    Direction::Reverse
+                    rocksdb::Direction::Reverse
                 } else {
-                    Direction::Forward
+                    rocksdb::Direction::Forward
                 },
             ),
         ))
     }
 
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
+        let stats = rocksdb::perf::get_memory_usage_stats(Some(&[&self.db.0]), None).unwrap();
+        dbg!(stats.mem_table_total);
+        dbg!(stats.mem_table_unflushed);
+        dbg!(stats.mem_table_readers_total);
+        dbg!(stats.cache_total);
         // TODO: atomic?
         let old = self.get(key)?;
         let new = utils::increment(old.as_deref()).unwrap();
@@ -285,7 +305,7 @@ impl Tree for RocksDbEngineTree<'_> {
                 .0
                 .iterator_cf(
                     self.cf(),
-                    rocksdb::IteratorMode::From(&prefix, Direction::Forward),
+                    rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward),
                 )
                 .take_while(move |(k, _)| k.starts_with(&prefix)),
         )
