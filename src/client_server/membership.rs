@@ -743,12 +743,10 @@ pub async fn invite_helper(
         let create_event_content = create_event
             .as_ref()
             .map(|create_event| {
-                Ok::<_, Error>(
-                    serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                        .expect("Raw::from_value always works.")
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))?,
-                )
+                serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
+                    .expect("Raw::from_value always works.")
+                    .deserialize()
+                    .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))
             })
             .transpose()?;
 

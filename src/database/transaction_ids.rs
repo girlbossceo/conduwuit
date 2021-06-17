@@ -41,6 +41,6 @@ impl TransactionIds {
         key.extend_from_slice(txn_id.as_bytes());
 
         // If there's no entry, this is a new transaction
-        Ok(self.userdevicetxnid_response.get(&key)?)
+        self.userdevicetxnid_response.get(&key)
     }
 }

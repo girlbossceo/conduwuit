@@ -135,9 +135,7 @@ pub async fn get_public_rooms_filtered_helper(
     filter: &IncomingFilter,
     _network: &IncomingRoomNetwork,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
-    if let Some(other_server) = server
-        .clone()
-        .filter(|server| *server != db.globals.server_name().as_str())
+    if let Some(other_server) = server.filter(|server| *server != db.globals.server_name().as_str())
     {
         let response = db
             .sending

@@ -57,9 +57,7 @@ impl Uiaa {
         {
             let mut uiaainfo = session
                 .as_ref()
-                .map(|session| {
-                    Ok::<_, Error>(self.get_uiaa_session(&user_id, &device_id, session)?)
-                })
+                .map(|session| self.get_uiaa_session(&user_id, &device_id, session))
                 .unwrap_or_else(|| Ok(uiaainfo.clone()))?;
 
             if uiaainfo.session.is_none() {

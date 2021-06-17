@@ -88,14 +88,12 @@ impl Users {
     }
 
     /// Returns an iterator over all users on this homeserver.
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = Result<UserId>> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = Result<UserId>> + '_ {
         self.userid_password.iter().map(|(bytes, _)| {
-            Ok(
-                UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                    Error::bad_database("User ID in userid_password is invalid unicode.")
-                })?)
-                .map_err(|_| Error::bad_database("User ID in userid_password is invalid."))?,
-            )
+            UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                Error::bad_database("User ID in userid_password is invalid unicode.")
+            })?)
+            .map_err(|_| Error::bad_database("User ID in userid_password is invalid."))
         })
     }
 
@@ -588,16 +586,10 @@ impl Users {
             .iter_from(&start, false)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(_, bytes)| {
-                Ok(
-                    UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                        Error::bad_database(
-                            "User ID in devicekeychangeid_userid is invalid unicode.",
-                        )
-                    })?)
-                    .map_err(|_| {
-                        Error::bad_database("User ID in devicekeychangeid_userid is invalid.")
-                    })?,
-                )
+                UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("User ID in devicekeychangeid_userid is invalid unicode.")
+                })?)
+                .map_err(|_| Error::bad_database("User ID in devicekeychangeid_userid is invalid."))
             })
     }
 
@@ -863,9 +855,8 @@ impl Users {
         self.userdeviceid_metadata
             .scan_prefix(key)
             .map(|(_, bytes)| {
-                Ok(serde_json::from_slice::<Device>(&bytes).map_err(|_| {
-                    Error::bad_database("Device in userdeviceid_metadata is invalid.")
-                })?)
+                serde_json::from_slice::<Device>(&bytes)
+                    .map_err(|_| Error::bad_database("Device in userdeviceid_metadata is invalid."))
             })
     }
 

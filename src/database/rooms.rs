@@ -93,14 +93,10 @@ impl Rooms {
             .map(|(_, bytes)| self.shorteventid_eventid.get(&bytes).ok().flatten())
             .flatten()
             .map(|bytes| {
-                Ok::<_, Error>(
-                    EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                        Error::bad_database("EventID in stateid_shorteventid is invalid unicode.")
-                    })?)
-                    .map_err(|_| {
-                        Error::bad_database("EventId in stateid_shorteventid is invalid.")
-                    })?,
-                )
+                EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("EventID in stateid_shorteventid is invalid unicode.")
+                })?)
+                .map_err(|_| Error::bad_database("EventId in stateid_shorteventid is invalid."))
             })
             .filter_map(|r| r.ok())
             .collect())
@@ -116,14 +112,10 @@ impl Rooms {
             .map(|(_, bytes)| self.shorteventid_eventid.get(&bytes).ok().flatten())
             .flatten()
             .map(|bytes| {
-                Ok::<_, Error>(
-                    EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                        Error::bad_database("EventID in stateid_shorteventid is invalid unicode.")
-                    })?)
-                    .map_err(|_| {
-                        Error::bad_database("EventId in stateid_shorteventid is invalid.")
-                    })?,
-                )
+                EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("EventID in stateid_shorteventid is invalid unicode.")
+                })?)
+                .map_err(|_| Error::bad_database("EventId in stateid_shorteventid is invalid."))
             })
             .filter_map(|r| r.ok())
             .map(|eventid| self.get_pdu(&eventid))
@@ -168,16 +160,10 @@ impl Rooms {
                 .map(|bytes| self.shorteventid_eventid.get(&bytes).ok().flatten())
                 .flatten()
                 .map(|bytes| {
-                    Ok::<_, Error>(
-                        EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                            Error::bad_database(
-                                "EventID in stateid_shorteventid is invalid unicode.",
-                            )
-                        })?)
-                        .map_err(|_| {
-                            Error::bad_database("EventId in stateid_shorteventid is invalid.")
-                        })?,
-                    )
+                    EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                        Error::bad_database("EventID in stateid_shorteventid is invalid unicode.")
+                    })?)
+                    .map_err(|_| Error::bad_database("EventId in stateid_shorteventid is invalid."))
                 })
                 .map(|r| r.ok())
                 .flatten())
@@ -204,16 +190,16 @@ impl Rooms {
         self.eventid_shorteventid
             .get(event_id.as_bytes())?
             .map_or(Ok(None), |shorteventid| {
-                Ok(self
-                    .shorteventid_shortstatehash
-                    .get(&shorteventid)?
-                    .map_or(Ok::<_, Error>(None), |bytes| {
+                self.shorteventid_shortstatehash.get(&shorteventid)?.map_or(
+                    Ok::<_, Error>(None),
+                    |bytes| {
                         Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
                             Error::bad_database(
                                 "Invalid shortstatehash bytes in shorteventid_shortstatehash",
                             )
                         })?))
-                    })?)
+                    },
+                )
             })
     }
 
@@ -485,7 +471,7 @@ impl Rooms {
         self.eventid_pduid
             .get(event_id.as_bytes())?
             .map_or_else::<Result<_>, _, _>(
-                || Ok(self.eventid_outlierpdu.get(event_id.as_bytes())?),
+                || self.eventid_outlierpdu.get(event_id.as_bytes()),
                 |pduid| {
                     Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
                         Error::bad_database("Invalid pduid in eventid_pduid.")
@@ -493,8 +479,7 @@ impl Rooms {
                 },
             )?
             .map(|pdu| {
-                Ok(serde_json::from_slice(&pdu)
-                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?)
+                serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
             .transpose()
     }
@@ -521,8 +506,7 @@ impl Rooms {
                 },
             )?
             .map(|pdu| {
-                Ok(serde_json::from_slice(&pdu)
-                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?)
+                serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
             .transpose()
     }
@@ -534,7 +518,7 @@ impl Rooms {
         self.eventid_pduid
             .get(event_id.as_bytes())?
             .map_or_else::<Result<_>, _, _>(
-                || Ok(self.eventid_outlierpdu.get(event_id.as_bytes())?),
+                || self.eventid_outlierpdu.get(event_id.as_bytes()),
                 |pduid| {
                     Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
                         Error::bad_database("Invalid pduid in eventid_pduid.")
@@ -542,8 +526,7 @@ impl Rooms {
                 },
             )?
             .map(|pdu| {
-                Ok(serde_json::from_slice(&pdu)
-                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?)
+                serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
             .transpose()
     }
@@ -594,12 +577,10 @@ impl Rooms {
         self.roomid_pduleaves
             .scan_prefix(prefix)
             .map(|(_, bytes)| {
-                Ok::<_, Error>(
-                    EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                        Error::bad_database("EventID in roomid_pduleaves is invalid unicode.")
-                    })?)
-                    .map_err(|_| Error::bad_database("EventId in roomid_pduleaves is invalid."))?,
-                )
+                EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("EventID in roomid_pduleaves is invalid unicode.")
+                })?)
+                .map_err(|_| Error::bad_database("EventId in roomid_pduleaves is invalid."))
             })
             .collect()
     }
@@ -1213,12 +1194,10 @@ impl Rooms {
         let create_event_content = create_event
             .as_ref()
             .map(|create_event| {
-                Ok::<_, Error>(
-                    serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                        .expect("Raw::from_value always works.")
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))?,
-                )
+                serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
+                    .expect("Raw::from_value always works.")
+                    .deserialize()
+                    .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))
             })
             .transpose()?;
 
@@ -1382,13 +1361,12 @@ impl Rooms {
                     .map_or_else(Vec::new, |users| {
                         users
                             .iter()
-                            .map(|users| {
+                            .filter_map(|users| {
                                 users
                                     .get("regex")
                                     .and_then(|regex| regex.as_str())
                                     .and_then(|regex| Regex::new(regex).ok())
                             })
-                            .filter_map(|o| o)
                             .collect::<Vec<_>>()
                     });
                 let aliases = namespaces
@@ -1397,13 +1375,12 @@ impl Rooms {
                     .map_or_else(Vec::new, |aliases| {
                         aliases
                             .iter()
-                            .map(|aliases| {
+                            .filter_map(|aliases| {
                                 aliases
                                     .get("regex")
                                     .and_then(|regex| regex.as_str())
                                     .and_then(|regex| Regex::new(regex).ok())
                             })
-                            .filter_map(|o| o)
                             .collect::<Vec<_>>()
                     });
                 let rooms = namespaces
@@ -2011,10 +1988,10 @@ impl Rooms {
         prefix.push(0xff);
 
         self.aliasid_alias.scan_prefix(prefix).map(|(_, bytes)| {
-            Ok(utils::string_from_bytes(&bytes)
+            utils::string_from_bytes(&bytes)
                 .map_err(|_| Error::bad_database("Invalid alias bytes in aliasid_alias."))?
                 .try_into()
-                .map_err(|_| Error::bad_database("Invalid alias in aliasid_alias."))?)
+                .map_err(|_| Error::bad_database("Invalid alias in aliasid_alias."))
         })
     }
 
@@ -2032,14 +2009,14 @@ impl Rooms {
         Ok(self.publicroomids.get(room_id.as_bytes())?.is_some())
     }
 
-    pub fn public_rooms<'a>(&'a self) -> impl Iterator<Item = Result<RoomId>> + 'a {
+    pub fn public_rooms(&self) -> impl Iterator<Item = Result<RoomId>> + '_ {
         self.publicroomids.iter().map(|(bytes, _)| {
-            Ok(
-                RoomId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+            RoomId::try_from(
+                utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Room ID in publicroomids is invalid unicode.")
-                })?)
-                .map_err(|_| Error::bad_database("Room ID in publicroomids is invalid."))?,
+                })?,
             )
+            .map_err(|_| Error::bad_database("Room ID in publicroomids is invalid."))
         })
     }
 
@@ -2105,34 +2082,27 @@ impl Rooms {
         &'a self,
         users: Vec<UserId>,
     ) -> Result<impl Iterator<Item = Result<RoomId>> + 'a> {
-        let iterators = users
-            .into_iter()
-            .map(move |user_id| {
-                let mut prefix = user_id.as_bytes().to_vec();
-                prefix.push(0xff);
+        let iterators = users.into_iter().map(move |user_id| {
+            let mut prefix = user_id.as_bytes().to_vec();
+            prefix.push(0xff);
 
-                Ok::<_, Error>(
-                    self.userroomid_joined
-                        .scan_prefix(prefix)
-                        .map(|(key, _)| {
-                            let roomid_index = key
-                                .iter()
-                                .enumerate()
-                                .find(|(_, &b)| b == 0xff)
-                                .ok_or_else(|| {
-                                    Error::bad_database("Invalid userroomid_joined in db.")
-                                })?
-                                .0
-                                + 1; // +1 because the room id starts AFTER the separator
+            self.userroomid_joined
+                .scan_prefix(prefix)
+                .map(|(key, _)| {
+                    let roomid_index = key
+                        .iter()
+                        .enumerate()
+                        .find(|(_, &b)| b == 0xff)
+                        .ok_or_else(|| Error::bad_database("Invalid userroomid_joined in db."))?
+                        .0
+                        + 1; // +1 because the room id starts AFTER the separator
 
-                            let room_id = key[roomid_index..].to_vec();
+                    let room_id = key[roomid_index..].to_vec();
 
-                            Ok::<_, Error>(room_id)
-                        })
-                        .filter_map(|r| r.ok()),
-                )
-            })
-            .filter_map(|r| r.ok());
+                    Ok::<_, Error>(room_id)
+                })
+                .filter_map(|r| r.ok())
+        });
 
         // We use the default compare function because keys are sorted correctly (not reversed)
         Ok(utils::common_elements(iterators, Ord::cmp)
@@ -2154,7 +2124,7 @@ impl Rooms {
         prefix.push(0xff);
 
         self.roomserverids.scan_prefix(prefix).map(|(key, _)| {
-            Ok(Box::<ServerName>::try_from(
+            Box::<ServerName>::try_from(
                 utils::string_from_bytes(
                     &key.rsplit(|&b| b == 0xff)
                         .next()
@@ -2164,7 +2134,7 @@ impl Rooms {
                     Error::bad_database("Server name in roomserverids is invalid unicode.")
                 })?,
             )
-            .map_err(|_| Error::bad_database("Server name in roomserverids is invalid."))?)
+            .map_err(|_| Error::bad_database("Server name in roomserverids is invalid."))
         })
     }
 
@@ -2177,7 +2147,7 @@ impl Rooms {
         prefix.push(0xff);
 
         self.serverroomids.scan_prefix(prefix).map(|(key, _)| {
-            Ok(RoomId::try_from(
+            RoomId::try_from(
                 utils::string_from_bytes(
                     &key.rsplit(|&b| b == 0xff)
                         .next()
@@ -2185,7 +2155,7 @@ impl Rooms {
                 )
                 .map_err(|_| Error::bad_database("RoomId in serverroomids is invalid unicode."))?,
             )
-            .map_err(|_| Error::bad_database("RoomId in serverroomids is invalid."))?)
+            .map_err(|_| Error::bad_database("RoomId in serverroomids is invalid."))
         })
     }
 
@@ -2199,7 +2169,7 @@ impl Rooms {
         prefix.push(0xff);
 
         self.roomuserid_joined.scan_prefix(prefix).map(|(key, _)| {
-            Ok(UserId::try_from(
+            UserId::try_from(
                 utils::string_from_bytes(
                     &key.rsplit(|&b| b == 0xff)
                         .next()
@@ -2209,7 +2179,7 @@ impl Rooms {
                     Error::bad_database("User ID in roomuserid_joined is invalid unicode.")
                 })?,
             )
-            .map_err(|_| Error::bad_database("User ID in roomuserid_joined is invalid."))?)
+            .map_err(|_| Error::bad_database("User ID in roomuserid_joined is invalid."))
         })
     }
 
@@ -2224,7 +2194,7 @@ impl Rooms {
         self.roomuseroncejoinedids
             .scan_prefix(prefix)
             .map(|(key, _)| {
-                Ok(UserId::try_from(
+                UserId::try_from(
                     utils::string_from_bytes(
                         &key.rsplit(|&b| b == 0xff)
                             .next()
@@ -2234,7 +2204,7 @@ impl Rooms {
                         Error::bad_database("User ID in room_useroncejoined is invalid unicode.")
                     })?,
                 )
-                .map_err(|_| Error::bad_database("User ID in room_useroncejoined is invalid."))?)
+                .map_err(|_| Error::bad_database("User ID in room_useroncejoined is invalid."))
             })
     }
 
@@ -2250,7 +2220,7 @@ impl Rooms {
         self.roomuserid_invitecount
             .scan_prefix(prefix)
             .map(|(key, _)| {
-                Ok(UserId::try_from(
+                UserId::try_from(
                     utils::string_from_bytes(
                         &key.rsplit(|&b| b == 0xff)
                             .next()
@@ -2260,7 +2230,7 @@ impl Rooms {
                         Error::bad_database("User ID in roomuserid_invited is invalid unicode.")
                     })?,
                 )
-                .map_err(|_| Error::bad_database("User ID in roomuserid_invited is invalid."))?)
+                .map_err(|_| Error::bad_database("User ID in roomuserid_invited is invalid."))
             })
     }
 
@@ -2303,7 +2273,7 @@ impl Rooms {
         self.userroomid_joined
             .scan_prefix(user_id.as_bytes().to_vec())
             .map(|(key, _)| {
-                Ok(RoomId::try_from(
+                RoomId::try_from(
                     utils::string_from_bytes(
                         &key.rsplit(|&b| b == 0xff)
                             .next()
@@ -2313,7 +2283,7 @@ impl Rooms {
                         Error::bad_database("Room ID in userroomid_joined is invalid unicode.")
                     })?,
                 )
-                .map_err(|_| Error::bad_database("Room ID in userroomid_joined is invalid."))?)
+                .map_err(|_| Error::bad_database("Room ID in userroomid_joined is invalid."))
             })
     }
 

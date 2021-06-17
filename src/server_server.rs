@@ -1691,13 +1691,12 @@ pub(crate) fn append_incoming_pdu(
                 .map_or_else(Vec::new, |users| {
                     users
                         .iter()
-                        .map(|users| {
+                        .filter_map(|users| {
                             users
                                 .get("regex")
                                 .and_then(|regex| regex.as_str())
                                 .and_then(|regex| Regex::new(regex).ok())
                         })
-                        .filter_map(|o| o)
                         .collect::<Vec<_>>()
                 });
             let aliases = namespaces
@@ -2026,12 +2025,10 @@ pub fn create_join_event_template_route(
     let create_event_content = create_event
         .as_ref()
         .map(|create_event| {
-            Ok::<_, Error>(
-                serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                    .expect("Raw::from_value always works.")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))?,
-            )
+            serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
+                .expect("Raw::from_value always works.")
+                .deserialize()
+                .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))
         })
         .transpose()?;
 

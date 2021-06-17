@@ -34,29 +34,25 @@ impl Appservice {
             .get(id)
             .map_or_else(
                 || {
-                    Ok(self
-                        .id_appserviceregistrations
+                    self.id_appserviceregistrations
                         .get(id.as_bytes())?
                         .map(|bytes| {
-                            Ok::<_, Error>(serde_yaml::from_slice(&bytes).map_err(|_| {
+                            serde_yaml::from_slice(&bytes).map_err(|_| {
                                 Error::bad_database(
                                     "Invalid registration bytes in id_appserviceregistrations.",
                                 )
-                            })?)
+                            })
                         })
-                        .transpose()?)
+                        .transpose()
                 },
                 |r| Ok(Some(r.clone())),
             )
     }
 
-    pub fn iter_ids<'a>(
-        &'a self,
-    ) -> Result<impl Iterator<Item = Result<String>> + Send + Sync + 'a> {
+    pub fn iter_ids(&self) -> Result<impl Iterator<Item = Result<String>> + Send + Sync + '_> {
         Ok(self.id_appserviceregistrations.iter().map(|(id, _)| {
-            Ok(utils::string_from_bytes(&id).map_err(|_| {
-                Error::bad_database("Invalid id bytes in id_appserviceregistrations.")
-            })?)
+            utils::string_from_bytes(&id)
+                .map_err(|_| Error::bad_database("Invalid id bytes in id_appserviceregistrations."))
         }))
     }
 
