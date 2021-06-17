@@ -286,10 +286,8 @@ pub async fn sync_events_route(
                         .filter(|(_, pdu)| pdu.kind == EventType::RoomMember)
                         .map(|(_, pdu)| {
                             let content = serde_json::from_value::<
-                                Raw<ruma::events::room::member::MemberEventContent>,
+                                ruma::events::room::member::MemberEventContent,
                             >(pdu.content.clone())
-                            .expect("Raw::from_value always works")
-                            .deserialize()
                             .map_err(|_| {
                                 Error::bad_database("Invalid member event in database.")
                             })?;
