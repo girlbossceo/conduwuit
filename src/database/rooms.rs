@@ -2023,39 +2023,33 @@ impl Rooms {
             .map(str::to_lowercase)
             .collect::<Vec<_>>();
 
-        let iterators = words
-            .clone()
-            .into_iter()
-            .map(move |word| {
-                let mut prefix2 = prefix.clone();
-                prefix2.extend_from_slice(word.as_bytes());
-                prefix2.push(0xff);
+        let iterators = words.clone().into_iter().map(move |word| {
+            let mut prefix2 = prefix.clone();
+            prefix2.extend_from_slice(word.as_bytes());
+            prefix2.push(0xff);
 
-                let mut last_possible_id = prefix2.clone();
-                last_possible_id.extend_from_slice(&u64::MAX.to_be_bytes());
+            let mut last_possible_id = prefix2.clone();
+            last_possible_id.extend_from_slice(&u64::MAX.to_be_bytes());
 
-                Ok::<_, Error>(
-                    self.tokenids
-                        .iter_from(&last_possible_id, true) // Newest pdus first
-                        .take_while(move |(k, _)| k.starts_with(&prefix2))
-                        .map(|(key, _)| {
-                            let pduid_index = key
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, &b)| b == 0xff)
-                                .nth(1)
-                                .ok_or_else(|| Error::bad_database("Invalid tokenid in db."))?
-                                .0
-                                + 1; // +1 because the pdu id starts AFTER the separator
+            self.tokenids
+                .iter_from(&last_possible_id, true) // Newest pdus first
+                .take_while(move |(k, _)| k.starts_with(&prefix2))
+                .map(|(key, _)| {
+                    let pduid_index = key
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, &b)| b == 0xff)
+                        .nth(1)
+                        .ok_or_else(|| Error::bad_database("Invalid tokenid in db."))?
+                        .0
+                        + 1; // +1 because the pdu id starts AFTER the separator
 
-                            let pdu_id = key[pduid_index..].to_vec();
+                    let pdu_id = key[pduid_index..].to_vec();
 
-                            Ok::<_, Error>(pdu_id)
-                        })
-                        .filter_map(|r| r.ok()),
-                )
-            })
-            .filter_map(|r| r.ok());
+                    Ok::<_, Error>(pdu_id)
+                })
+                .filter_map(|r| r.ok())
+        });
 
         Ok((
             utils::common_elements(iterators, |a, b| {
