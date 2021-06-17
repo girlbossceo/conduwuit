@@ -1361,12 +1361,7 @@ impl Rooms {
                     .map_or_else(Vec::new, |users| {
                         users
                             .iter()
-                            .filter_map(|users| {
-                                users
-                                    .get("regex")
-                                    .and_then(|regex| regex.as_str())
-                                    .and_then(|regex| Regex::new(regex).ok())
-                            })
+                            .filter_map(|users| Regex::new(users.get("regex")?.as_str()?).ok())
                             .collect::<Vec<_>>()
                     });
                 let aliases = namespaces
@@ -1375,12 +1370,7 @@ impl Rooms {
                     .map_or_else(Vec::new, |aliases| {
                         aliases
                             .iter()
-                            .filter_map(|aliases| {
-                                aliases
-                                    .get("regex")
-                                    .and_then(|regex| regex.as_str())
-                                    .and_then(|regex| Regex::new(regex).ok())
-                            })
+                            .filter_map(|aliases| Regex::new(aliases.get("regex")?.as_str()?).ok())
                             .collect::<Vec<_>>()
                     });
                 let rooms = namespaces

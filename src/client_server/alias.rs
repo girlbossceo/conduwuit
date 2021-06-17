@@ -97,12 +97,7 @@ pub async fn get_alias_helper(
                     .map_or_else(Vec::new, |aliases| {
                         aliases
                             .iter()
-                            .filter_map(|aliases| {
-                                aliases
-                                    .get("regex")
-                                    .and_then(|regex| regex.as_str())
-                                    .and_then(|regex| Regex::new(regex).ok())
-                            })
+                            .filter_map(|aliases| Regex::new(aliases.get("regex")?.as_str()?).ok())
                             .collect::<Vec<_>>()
                     });
 

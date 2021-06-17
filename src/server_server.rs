@@ -1691,12 +1691,7 @@ pub(crate) fn append_incoming_pdu(
                 .map_or_else(Vec::new, |users| {
                     users
                         .iter()
-                        .filter_map(|users| {
-                            users
-                                .get("regex")
-                                .and_then(|regex| regex.as_str())
-                                .and_then(|regex| Regex::new(regex).ok())
-                        })
+                        .filter_map(|users| Regex::new(users.get("regex")?.as_str()?).ok())
                         .collect::<Vec<_>>()
                 });
             let aliases = namespaces
