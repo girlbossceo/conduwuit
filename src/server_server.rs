@@ -9,10 +9,7 @@ use regex::Regex;
 use rocket::{response::content::Json, State};
 use ruma::{
     api::{
-        client::{
-            error::{Error as RumaError, ErrorKind},
-            r0::to_device,
-        },
+        client::error::{Error as RumaError, ErrorKind},
         federation::{
             authorization::get_event_authorization,
             device::get_devices::{self, v1::UserDevice},
@@ -49,6 +46,7 @@ use ruma::{
     serde::Raw,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, Event, EventMap, RoomVersion, StateMap},
+    to_device::DeviceIdOrAllDevices,
     uint, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
     ServerSigningKeyId, UserId,
 };
@@ -748,13 +746,13 @@ pub async fn send_transaction_message_route(
                 for (target_user_id, map) in &messages {
                     for (target_device_id_maybe, event) in map {
                         match target_device_id_maybe {
-                            to_device::DeviceIdOrAllDevices::DeviceId(target_device_id) => {
+                            DeviceIdOrAllDevices::DeviceId(target_device_id) => {
                                 db.users.add_to_device_event(
                                     &sender,
                                     &target_user_id,
                                     &target_device_id,
-                                    &ev_type,
-                                    serde_json::from_str(event.get()).map_err(|_| {
+                                    &ev_type.to_string(),
+                                    event.deserialize_as().map_err(|_| {
                                         Error::BadRequest(
                                             ErrorKind::InvalidParam,
                                             "Event is invalid",
@@ -764,14 +762,14 @@ pub async fn send_transaction_message_route(
                                 )?
                             }
 
-                            to_device::DeviceIdOrAllDevices::AllDevices => {
+                            DeviceIdOrAllDevices::AllDevices => {
                                 for target_device_id in db.users.all_device_ids(&target_user_id) {
                                     db.users.add_to_device_event(
                                         &sender,
                                         &target_user_id,
                                         &target_device_id?,
-                                        &ev_type,
-                                        serde_json::from_str(event.get()).map_err(|_| {
+                                        &ev_type.to_string(),
+                                        event.deserialize_as().map_err(|_| {
                                             Error::BadRequest(
                                                 ErrorKind::InvalidParam,
                                                 "Event is invalid",

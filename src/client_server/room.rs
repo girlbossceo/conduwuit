@@ -122,9 +122,7 @@ pub async fn create_room_route(
             state_default: 50.into(),
             users,
             users_default: 0.into(),
-            notifications: ruma::events::room::power_levels::NotificationPowerLevels {
-                room: 50.into(),
-            },
+            notifications: ruma::power_levels::NotificationPowerLevels { room: 50.into() },
         })
         .expect("event is valid, we just created it");
 

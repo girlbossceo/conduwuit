@@ -719,7 +719,7 @@ impl Users {
         sender: &UserId,
         target_user_id: &UserId,
         target_device_id: &DeviceId,
-        event_type: &EventType,
+        event_type: &str,
         content: serde_json::Value,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -730,7 +730,7 @@ impl Users {
         key.extend_from_slice(&globals.next_count()?.to_be_bytes());
 
         let mut json = serde_json::Map::new();
-        json.insert("type".to_owned(), event_type.to_string().into());
+        json.insert("type".to_owned(), event_type.to_owned().into());
         json.insert("sender".to_owned(), sender.to_string().into());
         json.insert("content".to_owned(), content);
 

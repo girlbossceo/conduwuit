@@ -295,7 +295,7 @@ pub async fn register_route(
                         state_default: 50.into(),
                         users,
                         users_default: 0.into(),
-                        notifications: ruma::events::room::power_levels::NotificationPowerLevels {
+                        notifications: ruma::power_levels::NotificationPowerLevels {
                             room: 50.into(),
                         },
                     },
