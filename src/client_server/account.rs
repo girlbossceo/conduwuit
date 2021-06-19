@@ -88,7 +88,7 @@ pub async fn register_route(
     db: State<'_, Arc<Database>>,
     body: Ruma<register::Request<'_>>,
 ) -> ConduitResult<register::Response> {
-    if !db.globals.allow_registration() {
+    if !db.globals.allow_registration() && !body.from_appservice {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "Registration has been disabled.",
