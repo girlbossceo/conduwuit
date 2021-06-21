@@ -20,17 +20,32 @@ pub async fn search_events_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let search_criteria = body.search_categories.room_events.as_ref().unwrap();
-    let filter = search_criteria.filter.as_ref().unwrap();
+    let filter = search_criteria.filter.clone().unwrap_or_default();
 
-    let room_id = filter.rooms.as_ref().unwrap().first().unwrap();
+    let room_ids = filter.rooms.clone().unwrap_or_else(|| {
+        db.rooms
+            .rooms_joined(&sender_user)
+            .filter_map(|r| r.ok())
+            .collect()
+    });
 
     let limit = filter.limit.map_or(10, |l| u64::from(l) as usize);
 
-    if !db.rooms.is_joined(sender_user, &room_id)? {
-        return Err(Error::BadRequest(
-            ErrorKind::Forbidden,
-            "You don't have permission to view this room.",
-        ));
+    let mut searches = Vec::new();
+
+    for room_id in room_ids {
+        if !db.rooms.is_joined(sender_user, &room_id)? {
+            return Err(Error::BadRequest(
+                ErrorKind::Forbidden,
+                "You don't have permission to view this room.",
+            ));
+        }
+
+        let search = db
+            .rooms
+            .search_pdus(&room_id, &search_criteria.search_term)?;
+
+        searches.push(search.0.peekable());
     }
 
     let skip = match body.next_batch.as_ref().map(|s| s.parse()) {
@@ -44,12 +59,20 @@ pub async fn search_events_route(
         None => 0, // Default to the start
     };
 
-    let search = db
-        .rooms
-        .search_pdus(&room_id, &search_criteria.search_term)?;
+    let mut results = Vec::new();
+    for _ in 0..skip + limit {
+        if let Some(s) = searches
+            .iter_mut()
+            .map(|s| (s.peek().cloned(), s))
+            .max_by_key(|(peek, _)| peek.clone())
+            .and_then(|(_, i)| i.next())
+        {
+            results.push(s);
+        }
+    }
 
-    let results = search
-        .0
+    let results = results
+        .iter()
         .map(|result| {
             Ok::<_, Error>(SearchResult {
                 context: EventContextResult {
@@ -84,7 +107,11 @@ pub async fn search_events_route(
             next_batch,
             results,
             state: BTreeMap::new(), // TODO
-            highlights: search.1,
+            highlights: search_criteria
+                .search_term
+                .split_terminator(|c: char| !c.is_alphanumeric())
+                .map(str::to_lowercase)
+                .collect::<Vec<_>>(),
         },
     })
     .into())
