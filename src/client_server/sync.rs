@@ -146,11 +146,9 @@ pub async fn sync_events_route(
             let since_state = since_shortstatehash
                 .as_ref()
                 .map(|since_shortstatehash| {
-                    Ok::<_, Error>(
-                        since_shortstatehash
-                            .map(|since_shortstatehash| db.rooms.state_full(since_shortstatehash))
-                            .transpose()?,
-                    )
+                    since_shortstatehash
+                        .map(|since_shortstatehash| db.rooms.state_full(since_shortstatehash))
+                        .transpose()
                 })
                 .transpose()?;
 
@@ -255,7 +253,7 @@ pub async fn sync_events_route(
                 device_list_updates.extend(
                     db.rooms
                         .room_members(&room_id)
-                        .filter_map(|user_id| Some(user_id.ok()?))
+                        .flatten()
                         .filter(|user_id| {
                             // Don't send key updates from the sender to the sender
                             sender_user != user_id
@@ -286,10 +284,8 @@ pub async fn sync_events_route(
                         .filter(|(_, pdu)| pdu.kind == EventType::RoomMember)
                         .map(|(_, pdu)| {
                             let content = serde_json::from_value::<
-                                Raw<ruma::events::room::member::MemberEventContent>,
+                                ruma::events::room::member::MemberEventContent,
                             >(pdu.content.clone())
-                            .expect("Raw::from_value always works")
-                            .deserialize()
                             .map_err(|_| {
                                 Error::bad_database("Invalid member event in database.")
                             })?;
@@ -315,9 +311,10 @@ pub async fn sync_events_route(
                                 Ok(None)
                             }
                         })
-                        .filter_map(|u| u.ok()) // Filter out buggy users
+                        // Filter out buggy users
+                        .filter_map(|u| u.ok())
                         // Filter for possible heroes
-                        .filter_map(|u| u)
+                        .flatten()
                     {
                         if heroes.contains(&hero) || hero == sender_user.as_str() {
                             continue;

@@ -202,10 +202,8 @@ pub async fn logout_all_route(
 ) -> ConduitResult<logout_all::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    for device_id in db.users.all_device_ids(sender_user) {
-        if let Ok(device_id) = device_id {
-            db.users.remove_device(&sender_user, &device_id)?;
-        }
+    for device_id in db.users.all_device_ids(sender_user).flatten() {
+        db.users.remove_device(&sender_user, &device_id)?;
     }
 
     db.flush().await?;

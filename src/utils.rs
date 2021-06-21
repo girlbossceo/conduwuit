@@ -84,22 +84,19 @@ pub fn common_elements(
     let mut other_iterators = iterators.map(|i| i.peekable()).collect::<Vec<_>>();
 
     Some(first_iterator.filter(move |target| {
-        other_iterators
-            .iter_mut()
-            .map(|it| {
-                while let Some(element) = it.peek() {
-                    match check_order(element, target) {
-                        Ordering::Greater => return false, // We went too far
-                        Ordering::Equal => return true,    // Element is in both iters
-                        Ordering::Less => {
-                            // Keep searching
-                            it.next();
-                        }
+        other_iterators.iter_mut().all(|it| {
+            while let Some(element) = it.peek() {
+                match check_order(element, target) {
+                    Ordering::Greater => return false, // We went too far
+                    Ordering::Equal => return true,    // Element is in both iters
+                    Ordering::Less => {
+                        // Keep searching
+                        it.next();
                     }
                 }
-                false
-            })
-            .all(|b| b)
+            }
+            false
+        })
     }))
 }
 

@@ -171,14 +171,14 @@ impl Globals {
     }
 
     pub fn next_count(&self) -> Result<u64> {
-        Ok(utils::u64_from_bytes(&self.globals.increment(COUNTER)?)
-            .map_err(|_| Error::bad_database("Count has invalid bytes."))?)
+        utils::u64_from_bytes(&self.globals.increment(COUNTER)?)
+            .map_err(|_| Error::bad_database("Count has invalid bytes."))
     }
 
     pub fn current_count(&self) -> Result<u64> {
         self.globals.get(COUNTER)?.map_or(Ok(0_u64), |bytes| {
-            Ok(utils::u64_from_bytes(&bytes)
-                .map_err(|_| Error::bad_database("Count has invalid bytes."))?)
+            utils::u64_from_bytes(&bytes)
+                .map_err(|_| Error::bad_database("Count has invalid bytes."))
         })
     }
 

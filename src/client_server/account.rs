@@ -286,18 +286,8 @@ pub async fn register_route(
                 event_type: EventType::RoomPowerLevels,
                 content: serde_json::to_value(
                     ruma::events::room::power_levels::PowerLevelsEventContent {
-                        ban: 50.into(),
-                        events: BTreeMap::new(),
-                        events_default: 0.into(),
-                        invite: 50.into(),
-                        kick: 50.into(),
-                        redact: 50.into(),
-                        state_default: 50.into(),
                         users,
-                        users_default: 0.into(),
-                        notifications: ruma::events::room::power_levels::NotificationPowerLevels {
-                            room: 50.into(),
-                        },
+                        ..Default::default()
                     },
                 )
                 .expect("event is valid, we just created it"),

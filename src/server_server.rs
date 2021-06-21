@@ -9,10 +9,7 @@ use regex::Regex;
 use rocket::{response::content::Json, State};
 use ruma::{
     api::{
-        client::{
-            error::{Error as RumaError, ErrorKind},
-            r0::to_device,
-        },
+        client::error::{Error as RumaError, ErrorKind},
         federation::{
             authorization::get_event_authorization,
             device::get_devices::{self, v1::UserDevice},
@@ -49,6 +46,7 @@ use ruma::{
     serde::Raw,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, Event, EventMap, RoomVersion, StateMap},
+    to_device::DeviceIdOrAllDevices,
     uint, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
     ServerSigningKeyId, UserId,
 };
@@ -534,15 +532,11 @@ pub async fn get_public_rooms_filtered_route(
             .map(|c| {
                 // Convert ruma::api::federation::directory::get_public_rooms::v1::PublicRoomsChunk
                 // to ruma::api::client::r0::directory::PublicRoomsChunk
-                Ok::<_, Error>(
-                    serde_json::from_str(
-                        &serde_json::to_string(&c)
-                            .expect("PublicRoomsChunk::to_string always works"),
-                    )
-                    .expect("federation and client-server PublicRoomsChunk are the same type"),
+                serde_json::from_str(
+                    &serde_json::to_string(&c).expect("PublicRoomsChunk::to_string always works"),
                 )
+                .expect("federation and client-server PublicRoomsChunk are the same type")
             })
-            .filter_map(|r| r.ok())
             .collect(),
         prev_batch: response.prev_batch,
         next_batch: response.next_batch,
@@ -582,15 +576,11 @@ pub async fn get_public_rooms_route(
             .map(|c| {
                 // Convert ruma::api::federation::directory::get_public_rooms::v1::PublicRoomsChunk
                 // to ruma::api::client::r0::directory::PublicRoomsChunk
-                Ok::<_, Error>(
-                    serde_json::from_str(
-                        &serde_json::to_string(&c)
-                            .expect("PublicRoomsChunk::to_string always works"),
-                    )
-                    .expect("federation and client-server PublicRoomsChunk are the same type"),
+                serde_json::from_str(
+                    &serde_json::to_string(&c).expect("PublicRoomsChunk::to_string always works"),
                 )
+                .expect("federation and client-server PublicRoomsChunk are the same type")
             })
-            .filter_map(|r| r.ok())
             .collect(),
         prev_batch: response.prev_batch,
         next_batch: response.next_batch,
@@ -748,13 +738,13 @@ pub async fn send_transaction_message_route(
                 for (target_user_id, map) in &messages {
                     for (target_device_id_maybe, event) in map {
                         match target_device_id_maybe {
-                            to_device::DeviceIdOrAllDevices::DeviceId(target_device_id) => {
+                            DeviceIdOrAllDevices::DeviceId(target_device_id) => {
                                 db.users.add_to_device_event(
                                     &sender,
                                     &target_user_id,
                                     &target_device_id,
-                                    &ev_type,
-                                    serde_json::from_str(event.get()).map_err(|_| {
+                                    &ev_type.to_string(),
+                                    event.deserialize_as().map_err(|_| {
                                         Error::BadRequest(
                                             ErrorKind::InvalidParam,
                                             "Event is invalid",
@@ -764,14 +754,14 @@ pub async fn send_transaction_message_route(
                                 )?
                             }
 
-                            to_device::DeviceIdOrAllDevices::AllDevices => {
+                            DeviceIdOrAllDevices::AllDevices => {
                                 for target_device_id in db.users.all_device_ids(&target_user_id) {
                                     db.users.add_to_device_event(
                                         &sender,
                                         &target_user_id,
                                         &target_device_id?,
-                                        &ev_type,
-                                        serde_json::from_str(event.get()).map_err(|_| {
+                                        &ev_type.to_string(),
+                                        event.deserialize_as().map_err(|_| {
                                             Error::BadRequest(
                                                 ErrorKind::InvalidParam,
                                                 "Event is invalid",
@@ -1693,13 +1683,7 @@ pub(crate) fn append_incoming_pdu(
                 .map_or_else(Vec::new, |users| {
                     users
                         .iter()
-                        .map(|users| {
-                            users
-                                .get("regex")
-                                .and_then(|regex| regex.as_str())
-                                .and_then(|regex| Regex::new(regex).ok())
-                        })
-                        .filter_map(|o| o)
+                        .filter_map(|users| Regex::new(users.get("regex")?.as_str()?).ok())
                         .collect::<Vec<_>>()
                 });
             let aliases = namespaces
@@ -2028,12 +2012,10 @@ pub fn create_join_event_template_route(
     let create_event_content = create_event
         .as_ref()
         .map(|create_event| {
-            Ok::<_, Error>(
-                serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                    .expect("Raw::from_value always works.")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))?,
-            )
+            serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
+                .expect("Raw::from_value always works.")
+                .deserialize()
+                .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))
         })
         .transpose()?;
 

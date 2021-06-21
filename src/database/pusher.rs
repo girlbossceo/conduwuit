@@ -51,8 +51,8 @@ impl PushData {
         self.senderkey_pusher
             .get(senderkey)?
             .map(|push| {
-                Ok(serde_json::from_slice(&*push)
-                    .map_err(|_| Error::bad_database("Invalid Pusher in db."))?)
+                serde_json::from_slice(&*push)
+                    .map_err(|_| Error::bad_database("Invalid Pusher in db."))
             })
             .transpose()
     }
@@ -64,8 +64,8 @@ impl PushData {
         self.senderkey_pusher
             .scan_prefix(prefix)
             .map(|(_, push)| {
-                Ok(serde_json::from_slice(&*push)
-                    .map_err(|_| Error::bad_database("Invalid Pusher in db."))?)
+                serde_json::from_slice(&*push)
+                    .map_err(|_| Error::bad_database("Invalid Pusher in db."))
             })
             .collect()
     }

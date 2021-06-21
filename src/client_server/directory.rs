@@ -135,9 +135,7 @@ pub async fn get_public_rooms_filtered_helper(
     filter: &IncomingFilter,
     _network: &IncomingRoomNetwork,
 ) -> ConduitResult<get_public_rooms_filtered::Response> {
-    if let Some(other_server) = server
-        .clone()
-        .filter(|server| *server != db.globals.server_name().as_str())
+    if let Some(other_server) = server.filter(|server| *server != db.globals.server_name().as_str())
     {
         let response = db
             .sending
@@ -162,15 +160,12 @@ pub async fn get_public_rooms_filtered_helper(
                 .map(|c| {
                     // Convert ruma::api::federation::directory::get_public_rooms::v1::PublicRoomsChunk
                     // to ruma::api::client::r0::directory::PublicRoomsChunk
-                    Ok::<_, Error>(
-                        serde_json::from_str(
-                            &serde_json::to_string(&c)
-                                .expect("PublicRoomsChunk::to_string always works"),
-                        )
-                        .expect("federation and client-server PublicRoomsChunk are the same type"),
+                    serde_json::from_str(
+                        &serde_json::to_string(&c)
+                            .expect("PublicRoomsChunk::to_string always works"),
                     )
+                    .expect("federation and client-server PublicRoomsChunk are the same type")
                 })
-                .filter_map(|r| r.ok())
                 .collect(),
             prev_batch: response.prev_batch,
             next_batch: response.next_batch,

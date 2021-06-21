@@ -110,9 +110,9 @@ impl Media {
             let content_type = parts
                 .next()
                 .map(|bytes| {
-                    Ok::<_, Error>(utils::string_from_bytes(bytes).map_err(|_| {
+                    utils::string_from_bytes(bytes).map_err(|_| {
                         Error::bad_database("Content type in mediaid_file is invalid unicode.")
-                    })?)
+                    })
                 })
                 .transpose()?;
 
@@ -199,9 +199,9 @@ impl Media {
             let content_type = parts
                 .next()
                 .map(|bytes| {
-                    Ok::<_, Error>(utils::string_from_bytes(bytes).map_err(|_| {
+                    utils::string_from_bytes(bytes).map_err(|_| {
                         Error::bad_database("Content type in mediaid_file is invalid unicode.")
-                    })?)
+                    })
                 })
                 .transpose()?;
 
@@ -235,9 +235,9 @@ impl Media {
             let content_type = parts
                 .next()
                 .map(|bytes| {
-                    Ok::<_, Error>(utils::string_from_bytes(bytes).map_err(|_| {
+                    utils::string_from_bytes(bytes).map_err(|_| {
                         Error::bad_database("Content type in mediaid_file is invalid unicode.")
-                    })?)
+                    })
                 })
                 .transpose()?;
 

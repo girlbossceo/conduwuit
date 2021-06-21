@@ -306,12 +306,10 @@ impl RoomEdus {
             .typingid_userid
             .scan_prefix(prefix)
             .map(|(_, user_id)| {
-                Ok::<_, Error>(
-                    UserId::try_from(utils::string_from_bytes(&user_id).map_err(|_| {
-                        Error::bad_database("User ID in typingid_userid is invalid unicode.")
-                    })?)
-                    .map_err(|_| Error::bad_database("User ID in typingid_userid is invalid."))?,
-                )
+                UserId::try_from(utils::string_from_bytes(&user_id).map_err(|_| {
+                    Error::bad_database("User ID in typingid_userid is invalid unicode.")
+                })?)
+                .map_err(|_| Error::bad_database("User ID in typingid_userid is invalid."))
             })
         {
             user_ids.insert(user_id?);

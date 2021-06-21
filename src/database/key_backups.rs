@@ -119,9 +119,8 @@ impl KeyBackups {
         self.backupid_algorithm
             .get(&key)?
             .map_or(Ok(None), |bytes| {
-                Ok(serde_json::from_slice(&bytes).map_err(|_| {
-                    Error::bad_database("Algorithm in backupid_algorithm is invalid.")
-                })?)
+                serde_json::from_slice(&bytes)
+                    .map_err(|_| Error::bad_database("Algorithm in backupid_algorithm is invalid."))
             })
     }
 
