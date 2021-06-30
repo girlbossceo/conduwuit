@@ -61,7 +61,6 @@ pub enum Error {
     BadDatabase(&'static str),
     #[error("uiaa")]
     Uiaa(UiaaInfo),
-
     #[error("{0}: {1}")]
     BadRequest(ErrorKind, &'static str),
     #[error("{0}")]
@@ -80,19 +79,16 @@ impl Error {
     }
 }
 
-#[cfg(feature = "conduit_bin")]
-impl<'r, 'o> Responder<'r, 'o> for Error
-where
-    'o: 'r,
-{
-    fn respond_to(self, r: &'r Request<'_>) -> response::Result<'o> {
+impl Error {
+    pub fn to_response(&self) -> RumaResponse<UiaaResponse> {
         if let Self::Uiaa(uiaainfo) = self {
-            return RumaResponse::from(UiaaResponse::AuthResponse(uiaainfo)).respond_to(r);
+            return RumaResponse(UiaaResponse::AuthResponse(uiaainfo.clone()));
         }
 
-        if let Self::FederationError(origin, mut error) = self {
+        if let Self::FederationError(origin, error) = self {
+            let mut error = error.clone();
             error.message = format!("Answer from {}: {}", origin, error.message);
-            return RumaResponse::from(error).respond_to(r);
+            return RumaResponse(UiaaResponse::MatrixError(error));
         }
 
         let message = format!("{}", self);
@@ -119,11 +115,20 @@ where
 
         warn!("{}: {}", status_code, message);
 
-        RumaResponse::from(RumaError {
+        RumaResponse(UiaaResponse::MatrixError(RumaError {
             kind,
             message,
             status_code,
-        })
-        .respond_to(r)
+        }))
+    }
+}
+
+#[cfg(feature = "conduit_bin")]
+impl<'r, 'o> Responder<'r, 'o> for Error
+where
+    'o: 'r,
+{
+    fn respond_to(self, r: &'r Request<'_>) -> response::Result<'o> {
+        self.to_response().respond_to(r)
     }
 }

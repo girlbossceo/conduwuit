@@ -966,7 +966,7 @@ pub fn handle_incoming_pdu<'a>(
             auth_cache
                 .get(&incoming_pdu.auth_events[0])
                 .cloned()
-                .filter(|maybe_create| **maybe_create == create_event)
+                .filter(|maybe_create| **maybe_create == *create_event)
         } else {
             None
         };
@@ -1181,15 +1181,12 @@ pub fn handle_incoming_pdu<'a>(
                     let mut leaf_state = db
                         .rooms
                         .state_full(pdu_shortstatehash)
-                        .map_err(|_| "Failed to ask db for room state.".to_owned())?
-                        .into_iter()
-                        .map(|(k, v)| (k, Arc::new(v)))
-                        .collect::<StateMap<_>>();
+                        .map_err(|_| "Failed to ask db for room state.".to_owned())?;
 
                     if let Some(state_key) = &leaf_pdu.state_key {
                         // Now it's the state after
                         let key = (leaf_pdu.kind.clone(), state_key.clone());
-                        leaf_state.insert(key, Arc::new(leaf_pdu));
+                        leaf_state.insert(key, leaf_pdu);
                     }
 
                     fork_states.insert(leaf_state);
@@ -1209,10 +1206,7 @@ pub fn handle_incoming_pdu<'a>(
         let current_state = db
             .rooms
             .room_state_full(&room_id)
-            .map_err(|_| "Failed to load room state.".to_owned())?
-            .into_iter()
-            .map(|(k, v)| (k, Arc::new(v)))
-            .collect::<BTreeMap<_, _>>();
+            .map_err(|_| "Failed to load room state.".to_owned())?;
 
         fork_states.insert(current_state.clone());
 
@@ -1424,7 +1418,7 @@ pub(crate) fn fetch_and_handle_events<'a>(
                             auth_cache,
                         )
                         .await?;
-                        Arc::new(pdu)
+                        pdu
                     }
                     None => {
                         // d. Ask origin server over federation
@@ -1838,7 +1832,7 @@ pub fn get_event_authorization_route(
                     .difference(&auth_chain_ids)
                     .cloned(),
             );
-            auth_chain_ids.extend(pdu.auth_events.into_iter());
+            auth_chain_ids.extend(pdu.auth_events.clone().into_iter());
 
             let pdu_json = PduEvent::convert_to_outgoing_federation_event(
                 db.rooms.get_pdu_json(&event_id)?.unwrap(),
@@ -1901,7 +1895,7 @@ pub fn get_room_state_route(
                     .difference(&auth_chain_ids)
                     .cloned(),
             );
-            auth_chain_ids.extend(pdu.auth_events.into_iter());
+            auth_chain_ids.extend(pdu.auth_events.clone().into_iter());
 
             let pdu_json = PduEvent::convert_to_outgoing_federation_event(
                 db.rooms.get_pdu_json(&event_id)?.unwrap(),
@@ -1954,7 +1948,7 @@ pub fn get_room_state_ids_route(
                     .difference(&auth_chain_ids)
                     .cloned(),
             );
-            auth_chain_ids.extend(pdu.auth_events.into_iter());
+            auth_chain_ids.extend(pdu.auth_events.clone().into_iter());
         } else {
             warn!("Could not find pdu mentioned in auth events.");
         }
@@ -2022,7 +2016,7 @@ pub fn create_join_event_template_route(
     let create_prev_event = if prev_events.len() == 1
         && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
     {
-        create_event.map(Arc::new)
+        create_event
     } else {
         None
     };
@@ -2066,10 +2060,10 @@ pub fn create_join_event_template_route(
     let mut unsigned = BTreeMap::new();
 
     if let Some(prev_pdu) = db.rooms.room_state_get(&body.room_id, &kind, &state_key)? {
-        unsigned.insert("prev_content".to_owned(), prev_pdu.content);
+        unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
         unsigned.insert(
             "prev_sender".to_owned(),
-            serde_json::to_value(prev_pdu.sender).expect("UserId::to_value always works"),
+            serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
         );
     }
 
@@ -2220,7 +2214,7 @@ pub async fn create_join_event_route(
                     .difference(&auth_chain_ids)
                     .cloned(),
             );
-            auth_chain_ids.extend(pdu.auth_events.into_iter());
+            auth_chain_ids.extend(pdu.auth_events.clone().into_iter());
         } else {
             warn!("Could not find pdu mentioned in auth events.");
         }

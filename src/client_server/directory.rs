@@ -200,84 +200,84 @@ pub async fn get_public_rooms_filtered_helper(
         }
     }
 
-    let mut all_rooms = db
-        .rooms
-        .public_rooms()
-        .map(|room_id| {
-            let room_id = room_id?;
+    let mut all_rooms =
+        db.rooms
+            .public_rooms()
+            .map(|room_id| {
+                let room_id = room_id?;
 
-            let chunk = PublicRoomsChunk {
-                aliases: Vec::new(),
-                canonical_alias: db
-                    .rooms
-                    .room_state_get(&room_id, &EventType::RoomCanonicalAlias, "")?
-                    .map_or(Ok::<_, Error>(None), |s| {
-                        Ok(
-                            serde_json::from_value::<
+                let chunk = PublicRoomsChunk {
+                    aliases: Vec::new(),
+                    canonical_alias: db
+                        .rooms
+                        .room_state_get(&room_id, &EventType::RoomCanonicalAlias, "")?
+                        .map_or(Ok::<_, Error>(None), |s| {
+                            Ok(serde_json::from_value::<
                                 Raw<canonical_alias::CanonicalAliasEventContent>,
-                            >(s.content)
+                            >(s.content.clone())
                             .expect("from_value::<Raw<..>> can never fail")
                             .deserialize()
                             .map_err(|_| {
                                 Error::bad_database("Invalid canonical alias event in database.")
                             })?
-                            .alias,
-                        )
-                    })?,
-                name: db
-                    .rooms
-                    .room_state_get(&room_id, &EventType::RoomName, "")?
-                    .map_or(Ok::<_, Error>(None), |s| {
-                        Ok(
-                            serde_json::from_value::<Raw<name::NameEventContent>>(s.content)
-                                .expect("from_value::<Raw<..>> can never fail")
-                                .deserialize()
-                                .map_err(|_| {
-                                    Error::bad_database("Invalid room name event in database.")
-                                })?
-                                .name()
-                                .map(|n| n.to_owned()),
-                        )
-                    })?,
-                num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
-                topic: db
-                    .rooms
-                    .room_state_get(&room_id, &EventType::RoomTopic, "")?
-                    .map_or(Ok::<_, Error>(None), |s| {
-                        Ok(Some(
-                            serde_json::from_value::<Raw<topic::TopicEventContent>>(s.content)
+                            .alias)
+                        })?,
+                    name: db
+                        .rooms
+                        .room_state_get(&room_id, &EventType::RoomName, "")?
+                        .map_or(Ok::<_, Error>(None), |s| {
+                            Ok(serde_json::from_value::<Raw<name::NameEventContent>>(
+                                s.content.clone(),
+                            )
+                            .expect("from_value::<Raw<..>> can never fail")
+                            .deserialize()
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room name event in database.")
+                            })?
+                            .name()
+                            .map(|n| n.to_owned()))
+                        })?,
+                    num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
+                    topic: db
+                        .rooms
+                        .room_state_get(&room_id, &EventType::RoomTopic, "")?
+                        .map_or(Ok::<_, Error>(None), |s| {
+                            Ok(Some(
+                                serde_json::from_value::<Raw<topic::TopicEventContent>>(
+                                    s.content.clone(),
+                                )
                                 .expect("from_value::<Raw<..>> can never fail")
                                 .deserialize()
                                 .map_err(|_| {
                                     Error::bad_database("Invalid room topic event in database.")
                                 })?
                                 .topic,
-                        ))
-                    })?,
-                world_readable: db
-                    .rooms
-                    .room_state_get(&room_id, &EventType::RoomHistoryVisibility, "")?
-                    .map_or(Ok::<_, Error>(false), |s| {
-                        Ok(serde_json::from_value::<
-                            Raw<history_visibility::HistoryVisibilityEventContent>,
-                        >(s.content)
-                        .expect("from_value::<Raw<..>> can never fail")
-                        .deserialize()
-                        .map_err(|_| {
-                            Error::bad_database(
-                                "Invalid room history visibility event in database.",
-                            )
-                        })?
-                        .history_visibility
-                            == history_visibility::HistoryVisibility::WorldReadable)
-                    })?,
-                guest_can_join: db
-                    .rooms
-                    .room_state_get(&room_id, &EventType::RoomGuestAccess, "")?
-                    .map_or(Ok::<_, Error>(false), |s| {
-                        Ok(
+                            ))
+                        })?,
+                    world_readable: db
+                        .rooms
+                        .room_state_get(&room_id, &EventType::RoomHistoryVisibility, "")?
+                        .map_or(Ok::<_, Error>(false), |s| {
+                            Ok(serde_json::from_value::<
+                                Raw<history_visibility::HistoryVisibilityEventContent>,
+                            >(s.content.clone())
+                            .expect("from_value::<Raw<..>> can never fail")
+                            .deserialize()
+                            .map_err(|_| {
+                                Error::bad_database(
+                                    "Invalid room history visibility event in database.",
+                                )
+                            })?
+                            .history_visibility
+                                == history_visibility::HistoryVisibility::WorldReadable)
+                        })?,
+                    guest_can_join: db
+                        .rooms
+                        .room_state_get(&room_id, &EventType::RoomGuestAccess, "")?
+                        .map_or(Ok::<_, Error>(false), |s| {
+                            Ok(
                             serde_json::from_value::<Raw<guest_access::GuestAccessEventContent>>(
-                                s.content,
+                                s.content.clone(),
                             )
                             .expect("from_value::<Raw<..>> can never fail")
                             .deserialize()
@@ -287,61 +287,63 @@ pub async fn get_public_rooms_filtered_helper(
                             .guest_access
                                 == guest_access::GuestAccess::CanJoin,
                         )
-                    })?,
-                avatar_url: db
-                    .rooms
-                    .room_state_get(&room_id, &EventType::RoomAvatar, "")?
-                    .map(|s| {
-                        Ok::<_, Error>(
-                            serde_json::from_value::<Raw<avatar::AvatarEventContent>>(s.content)
+                        })?,
+                    avatar_url: db
+                        .rooms
+                        .room_state_get(&room_id, &EventType::RoomAvatar, "")?
+                        .map(|s| {
+                            Ok::<_, Error>(
+                                serde_json::from_value::<Raw<avatar::AvatarEventContent>>(
+                                    s.content.clone(),
+                                )
                                 .expect("from_value::<Raw<..>> can never fail")
                                 .deserialize()
                                 .map_err(|_| {
                                     Error::bad_database("Invalid room avatar event in database.")
                                 })?
                                 .url,
-                        )
-                    })
-                    .transpose()?
-                    // url is now an Option<String> so we must flatten
-                    .flatten(),
-                room_id,
-            };
-            Ok(chunk)
-        })
-        .filter_map(|r: Result<_>| r.ok()) // Filter out buggy rooms
-        .filter(|chunk| {
-            if let Some(query) = filter
-                .generic_search_term
-                .as_ref()
-                .map(|q| q.to_lowercase())
-            {
-                if let Some(name) = &chunk.name {
-                    if name.to_lowercase().contains(&query) {
-                        return true;
+                            )
+                        })
+                        .transpose()?
+                        // url is now an Option<String> so we must flatten
+                        .flatten(),
+                    room_id,
+                };
+                Ok(chunk)
+            })
+            .filter_map(|r: Result<_>| r.ok()) // Filter out buggy rooms
+            .filter(|chunk| {
+                if let Some(query) = filter
+                    .generic_search_term
+                    .as_ref()
+                    .map(|q| q.to_lowercase())
+                {
+                    if let Some(name) = &chunk.name {
+                        if name.to_lowercase().contains(&query) {
+                            return true;
+                        }
                     }
-                }
 
-                if let Some(topic) = &chunk.topic {
-                    if topic.to_lowercase().contains(&query) {
-                        return true;
+                    if let Some(topic) = &chunk.topic {
+                        if topic.to_lowercase().contains(&query) {
+                            return true;
+                        }
                     }
-                }
 
-                if let Some(canonical_alias) = &chunk.canonical_alias {
-                    if canonical_alias.as_str().to_lowercase().contains(&query) {
-                        return true;
+                    if let Some(canonical_alias) = &chunk.canonical_alias {
+                        if canonical_alias.as_str().to_lowercase().contains(&query) {
+                            return true;
+                        }
                     }
-                }
 
-                false
-            } else {
-                // No search term
-                true
-            }
-        })
-        // We need to collect all, so we can sort by member count
-        .collect::<Vec<_>>();
+                    false
+                } else {
+                    // No search term
+                    true
+                }
+            })
+            // We need to collect all, so we can sort by member count
+            .collect::<Vec<_>>();
 
     all_rooms.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 

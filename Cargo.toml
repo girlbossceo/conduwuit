@@ -73,6 +73,7 @@ tracing-subscriber = "0.2.16"
 tracing-opentelemetry = "0.11.0"
 opentelemetry-jaeger = "0.11.0"
 pretty_env_logger = "0.4.0"
+lru-cache = "0.1.2"
 
 [features]
 default = ["conduit_bin", "backend_sled"]

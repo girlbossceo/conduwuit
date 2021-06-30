@@ -1,6 +1,6 @@
 use crate::Error;
 use ruma::{
-    api::OutgoingResponse,
+    api::{client::r0::uiaa::UiaaResponse, OutgoingResponse},
     identifiers::{DeviceId, UserId},
     signatures::CanonicalJsonValue,
     Outgoing, ServerName,
@@ -335,49 +335,60 @@ impl<T: Outgoing> Deref for Ruma<T> {
 /// This struct converts ruma responses into rocket http responses.
 pub type ConduitResult<T> = std::result::Result<RumaResponse<T>, Error>;
 
-pub struct RumaResponse<T: OutgoingResponse>(pub T);
+pub fn response<T: OutgoingResponse>(response: RumaResponse<T>) -> response::Result<'static> {
+    let http_response = response
+        .0
+        .try_into_http_response::<Vec<u8>>()
+        .map_err(|_| Status::InternalServerError)?;
 
-impl<T: OutgoingResponse> From<T> for RumaResponse<T> {
+    let mut response = rocket::response::Response::build();
+
+    let status = http_response.status();
+    response.raw_status(status.into(), "");
+
+    for header in http_response.headers() {
+        response.raw_header(header.0.to_string(), header.1.to_str().unwrap().to_owned());
+    }
+
+    let http_body = http_response.into_body();
+
+    response.sized_body(http_body.len(), Cursor::new(http_body));
+
+    response.raw_header("Access-Control-Allow-Origin", "*");
+    response.raw_header(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, OPTIONS",
+    );
+    response.raw_header(
+        "Access-Control-Allow-Headers",
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+    );
+    response.raw_header("Access-Control-Max-Age", "86400");
+    response.ok()
+}
+
+#[derive(Clone)]
+pub struct RumaResponse<T>(pub T);
+
+impl<T> From<T> for RumaResponse<T> {
     fn from(t: T) -> Self {
         Self(t)
+    }
+}
+
+impl From<Error> for RumaResponse<UiaaResponse> {
+    fn from(t: Error) -> Self {
+        t.to_response()
     }
 }
 
 #[cfg(feature = "conduit_bin")]
 impl<'r, 'o, T> Responder<'r, 'o> for RumaResponse<T>
 where
-    T: Send + OutgoingResponse,
     'o: 'r,
+    T: OutgoingResponse,
 {
     fn respond_to(self, _: &'r Request<'_>) -> response::Result<'o> {
-        let http_response = self
-            .0
-            .try_into_http_response::<Vec<u8>>()
-            .map_err(|_| Status::InternalServerError)?;
-
-        let mut response = rocket::response::Response::build();
-
-        let status = http_response.status();
-        response.raw_status(status.into(), "");
-
-        for header in http_response.headers() {
-            response.raw_header(header.0.to_string(), header.1.to_str().unwrap().to_owned());
-        }
-
-        let http_body = http_response.into_body();
-
-        response.sized_body(http_body.len(), Cursor::new(http_body));
-
-        response.raw_header("Access-Control-Allow-Origin", "*");
-        response.raw_header(
-            "Access-Control-Allow-Methods",
-            "GET, POST, PUT, DELETE, OPTIONS",
-        );
-        response.raw_header(
-            "Access-Control-Allow-Headers",
-            "Origin, X-Requested-With, Content-Type, Accept, Authorization",
-        );
-        response.raw_header("Access-Control-Max-Age", "86400");
-        response.ok()
+        response(self)
     }
 }

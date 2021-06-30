@@ -189,7 +189,8 @@ pub async fn kick_user_route(
                 ErrorKind::BadState,
                 "Cannot kick member that's not in the room.",
             ))?
-            .content,
+            .content
+            .clone(),
     )
     .expect("Raw::from_value always works")
     .deserialize()
@@ -245,11 +246,12 @@ pub async fn ban_user_route(
                 third_party_invite: None,
             }),
             |event| {
-                let mut event =
-                    serde_json::from_value::<Raw<member::MemberEventContent>>(event.content)
-                        .expect("Raw::from_value always works")
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid member event in database."))?;
+                let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
+                    event.content.clone(),
+                )
+                .expect("Raw::from_value always works")
+                .deserialize()
+                .map_err(|_| Error::bad_database("Invalid member event in database."))?;
                 event.membership = ruma::events::room::member::MembershipState::Ban;
                 Ok(event)
             },
@@ -295,7 +297,8 @@ pub async fn unban_user_route(
                 ErrorKind::BadState,
                 "Cannot unban a user who is not banned.",
             ))?
-            .content,
+            .content
+            .clone(),
     )
     .expect("from_value::<Raw<..>> can never fail")
     .deserialize()
@@ -753,7 +756,7 @@ pub async fn invite_helper(
         let create_prev_event = if prev_events.len() == 1
             && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
         {
-            create_event.map(Arc::new)
+            create_event
         } else {
             None
         };
@@ -792,10 +795,10 @@ pub async fn invite_helper(
         let mut unsigned = BTreeMap::new();
 
         if let Some(prev_pdu) = db.rooms.room_state_get(room_id, &kind, &state_key)? {
-            unsigned.insert("prev_content".to_owned(), prev_pdu.content);
+            unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
             unsigned.insert(
                 "prev_sender".to_owned(),
-                serde_json::to_value(prev_pdu.sender).expect("UserId::to_value always works"),
+                serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
             );
         }
 

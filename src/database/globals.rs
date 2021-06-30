@@ -1,8 +1,11 @@
-use crate::{database::Config, utils, Error, Result};
+use crate::{database::Config, utils, ConduitResult, Error, Result};
 use log::{error, info};
 use ruma::{
-    api::federation::discovery::{ServerSigningKeys, VerifyKey},
-    EventId, MilliSecondsSinceUnixEpoch, ServerName, ServerSigningKeyId,
+    api::{
+        client::r0::sync::sync_events,
+        federation::discovery::{ServerSigningKeys, VerifyKey},
+    },
+    DeviceId, EventId, MilliSecondsSinceUnixEpoch, ServerName, ServerSigningKeyId, UserId,
 };
 use rustls::{ServerCertVerifier, WebPKIVerifier};
 use std::{
@@ -35,6 +38,15 @@ pub struct Globals {
     pub bad_event_ratelimiter: Arc<RwLock<BTreeMap<EventId, RateLimitState>>>,
     pub bad_signature_ratelimiter: Arc<RwLock<BTreeMap<Vec<String>, RateLimitState>>>,
     pub servername_ratelimiter: Arc<RwLock<BTreeMap<Box<ServerName>, Arc<Semaphore>>>>,
+    pub sync_receivers: RwLock<
+        BTreeMap<
+            (UserId, Box<DeviceId>),
+            (
+                Option<String>,
+                tokio::sync::watch::Receiver<Option<ConduitResult<sync_events::Response>>>,
+            ), // since, rx
+        >,
+    >,
 }
 
 struct MatrixServerVerifier {
@@ -153,6 +165,7 @@ impl Globals {
             bad_event_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
             bad_signature_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
             servername_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
+            sync_receivers: RwLock::new(BTreeMap::new()),
         };
 
         fs::create_dir_all(s.get_media_folder())?;

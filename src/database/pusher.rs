@@ -203,7 +203,7 @@ pub fn get_actions<'a>(
         .rooms
         .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
         .map(|ev| {
-            serde_json::from_value(ev.content)
+            serde_json::from_value(ev.content.clone())
                 .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
         })
         .transpose()?

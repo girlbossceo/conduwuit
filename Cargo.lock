@@ -243,6 +243,7 @@ dependencies = [
  "image",
  "jsonwebtoken",
  "log",
+ "lru-cache",
  "opentelemetry",
  "opentelemetry-jaeger",
  "pretty_env_logger",

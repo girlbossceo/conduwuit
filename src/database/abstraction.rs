@@ -65,7 +65,7 @@ impl DatabaseEngine for SledEngine {
             sled::Config::default()
                 .path(&config.database_path)
                 .cache_capacity(config.cache_capacity as u64)
-                .use_compression(true)
+                .use_compression(false)
                 .open()?,
         )))
     }
