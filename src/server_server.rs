@@ -1313,14 +1313,10 @@ pub fn handle_incoming_pdu<'a>(
 /// Find the event and auth it. Once the event is validated (steps 1 - 8)
 /// it is appended to the outliers Tree.
 ///
-/// a. Look in the auth_cache
-/// b. Look in the main timeline (pduid_pdu tree)
-/// c. Look at outlier pdu tree
-/// d. Ask origin server over federation
-/// e. TODO: Ask other servers over federation?
-///
-/// If the event is unknown to the `auth_cache` it is added. This guarantees that any
-/// event we need to know of will be present.
+/// a. Look in the main timeline (pduid_pdu tree)
+/// b. Look at outlier pdu tree
+/// c. Ask origin server over federation
+/// d. TODO: Ask other servers over federation?
 //#[tracing::instrument(skip(db, key_map, auth_cache))]
 pub(crate) fn fetch_and_handle_events<'a>(
     db: &'a Database,
