@@ -25,7 +25,7 @@ use ruma::{
         EventType,
     },
     serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
-    state_res::{self, EventMap, RoomVersion},
+    state_res::{self, RoomVersion},
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use std::{
@@ -883,7 +883,6 @@ pub async fn invite_helper(
             .await?;
 
         let pub_key_map = RwLock::new(BTreeMap::new());
-        let mut auth_cache = EventMap::new();
 
         // We do not add the event_id field to the pdu here because of signature and hashes checks
         let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(&response.event) {
@@ -906,26 +905,19 @@ pub async fn invite_helper(
         )
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-        let pdu_id = server_server::handle_incoming_pdu(
-            &origin,
-            &event_id,
-            value,
-            true,
-            &db,
-            &pub_key_map,
-            &mut auth_cache,
-        )
-        .await
-        .map_err(|_| {
-            Error::BadRequest(
-                ErrorKind::InvalidParam,
-                "Error while handling incoming PDU.",
-            )
-        })?
-        .ok_or(Error::BadRequest(
-            ErrorKind::InvalidParam,
-            "Could not accept incoming PDU as timeline event.",
-        ))?;
+        let pdu_id =
+            server_server::handle_incoming_pdu(&origin, &event_id, value, true, &db, &pub_key_map)
+                .await
+                .map_err(|_| {
+                    Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Error while handling incoming PDU.",
+                    )
+                })?
+                .ok_or(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "Could not accept incoming PDU as timeline event.",
+                ))?;
 
         for server in db
             .rooms

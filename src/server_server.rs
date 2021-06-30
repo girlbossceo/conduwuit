@@ -45,7 +45,7 @@ use ruma::{
     receipt::ReceiptType,
     serde::Raw,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
-    state_res::{self, Event, EventMap, RoomVersion, StateMap},
+    state_res::{self, Event, RoomVersion, StateMap},
     to_device::DeviceIdOrAllDevices,
     uint, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
     ServerSigningKeyId, UserId,
@@ -612,7 +612,7 @@ pub async fn send_transaction_message_route(
     // TODO: This could potentially also be some sort of trie (suffix tree) like structure so
     // that once an auth event is known it would know (using indexes maybe) all of the auth
     // events that it references.
-    let mut auth_cache = EventMap::new();
+    // let mut auth_cache = EventMap::new();
 
     for pdu in &body.pdus {
         // We do not add the event_id field to the pdu here because of signature and hashes checks
@@ -627,17 +627,9 @@ pub async fn send_transaction_message_route(
         let start_time = Instant::now();
         resolved_map.insert(
             event_id.clone(),
-            handle_incoming_pdu(
-                &body.origin,
-                &event_id,
-                value,
-                true,
-                &db,
-                &pub_key_map,
-                &mut auth_cache,
-            )
-            .await
-            .map(|_| ()),
+            handle_incoming_pdu(&body.origin, &event_id, value, true, &db, &pub_key_map)
+                .await
+                .map(|_| ()),
         );
 
         let elapsed = start_time.elapsed();
@@ -820,7 +812,6 @@ pub fn handle_incoming_pdu<'a>(
     is_timeline_event: bool,
     db: &'a Database,
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-    auth_cache: &'a mut EventMap<Arc<PduEvent>>,
 ) -> AsyncRecursiveResult<'a, Option<Vec<u8>>, String> {
     Box::pin(async move {
         // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we anywhere?: https://matrix.org/docs/spec/rooms/v6#canonical-json
@@ -908,15 +899,9 @@ pub fn handle_incoming_pdu<'a>(
         // 5. Reject "due to auth events" if can't get all the auth events or some of the auth events are also rejected "due to auth events"
         // EDIT: Step 5 is not applied anymore because it failed too often
         debug!("Fetching auth events for {}", incoming_pdu.event_id);
-        fetch_and_handle_events(
-            db,
-            origin,
-            &incoming_pdu.auth_events,
-            pub_key_map,
-            auth_cache,
-        )
-        .await
-        .map_err(|e| e.to_string())?;
+        fetch_and_handle_events(db, origin, &incoming_pdu.auth_events, pub_key_map)
+            .await
+            .map_err(|e| e.to_string())?;
 
         // 6. Reject "due to auth events" if the event doesn't pass auth based on the auth events
         debug!(
@@ -927,9 +912,13 @@ pub fn handle_incoming_pdu<'a>(
         // Build map of auth events
         let mut auth_events = BTreeMap::new();
         for id in &incoming_pdu.auth_events {
-            let auth_event = auth_cache.get(id).ok_or_else(|| {
-                "Auth event not found, event failed recursive auth checks.".to_string()
-            })?;
+            let auth_event = db
+                .rooms
+                .get_pdu(id)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| {
+                    "Auth event not found, event failed recursive auth checks.".to_string()
+                })?;
 
             match auth_events.entry((
                 auth_event.kind.clone(),
@@ -963,9 +952,9 @@ pub fn handle_incoming_pdu<'a>(
         let previous_create = if incoming_pdu.auth_events.len() == 1
             && incoming_pdu.prev_events == incoming_pdu.auth_events
         {
-            auth_cache
-                .get(&incoming_pdu.auth_events[0])
-                .cloned()
+            db.rooms
+                .get_pdu(&incoming_pdu.auth_events[0])
+                .map_err(|e| e.to_string())?
                 .filter(|maybe_create| **maybe_create == *create_event)
         } else {
             None
@@ -1008,7 +997,6 @@ pub fn handle_incoming_pdu<'a>(
 
         debug!("Requesting state at event.");
         let mut state_at_incoming_event = None;
-        let mut incoming_auth_events = Vec::new();
 
         if incoming_pdu.prev_events.len() == 1 {
             let prev_event = &incoming_pdu.prev_events[0];
@@ -1031,7 +1019,7 @@ pub fn handle_incoming_pdu<'a>(
                     state_vec.push(prev_event.clone());
                 }
                 state_at_incoming_event = Some(
-                    fetch_and_handle_events(db, origin, &state_vec, pub_key_map, auth_cache)
+                    fetch_and_handle_events(db, origin, &state_vec, pub_key_map)
                         .await
                         .map_err(|_| "Failed to fetch state events locally".to_owned())?
                         .into_iter()
@@ -1069,18 +1057,12 @@ pub fn handle_incoming_pdu<'a>(
             {
                 Ok(res) => {
                     debug!("Fetching state events at event.");
-                    let state_vec = match fetch_and_handle_events(
-                        &db,
-                        origin,
-                        &res.pdu_ids,
-                        pub_key_map,
-                        auth_cache,
-                    )
-                    .await
-                    {
-                        Ok(state) => state,
-                        Err(_) => return Err("Failed to fetch state events.".to_owned()),
-                    };
+                    let state_vec =
+                        match fetch_and_handle_events(&db, origin, &res.pdu_ids, pub_key_map).await
+                        {
+                            Ok(state) => state,
+                            Err(_) => return Err("Failed to fetch state events.".to_owned()),
+                        };
 
                     let mut state = BTreeMap::new();
                     for pdu in state_vec {
@@ -1106,14 +1088,8 @@ pub fn handle_incoming_pdu<'a>(
                     }
 
                     debug!("Fetching auth chain events at event.");
-                    incoming_auth_events = match fetch_and_handle_events(
-                        &db,
-                        origin,
-                        &res.auth_chain_ids,
-                        pub_key_map,
-                        auth_cache,
-                    )
-                    .await
+                    match fetch_and_handle_events(&db, origin, &res.auth_chain_ids, pub_key_map)
+                        .await
                     {
                         Ok(state) => state,
                         Err(_) => return Err("Failed to fetch auth chain.".to_owned()),
@@ -1243,14 +1219,8 @@ pub fn handle_incoming_pdu<'a>(
             for map in &fork_states {
                 let mut state_auth = vec![];
                 for auth_id in map.values().flat_map(|pdu| &pdu.auth_events) {
-                    match fetch_and_handle_events(
-                        &db,
-                        origin,
-                        &[auth_id.clone()],
-                        pub_key_map,
-                        auth_cache,
-                    )
-                    .await
+                    match fetch_and_handle_events(&db, origin, &[auth_id.clone()], pub_key_map)
+                        .await
                     {
                         // This should always contain exactly one element when Ok
                         Ok(events) => state_auth.extend_from_slice(&events),
@@ -1259,30 +1229,8 @@ pub fn handle_incoming_pdu<'a>(
                         }
                     }
                 }
-                auth_cache.extend(
-                    map.iter()
-                        .map(|pdu| (pdu.1.event_id.clone(), pdu.1.clone())),
-                );
                 auth_events.push(state_auth);
             }
-
-            // Add everything we will need to event_map
-            auth_cache.extend(
-                auth_events
-                    .iter()
-                    .map(|pdus| pdus.iter().map(|pdu| (pdu.event_id.clone(), pdu.clone())))
-                    .flatten(),
-            );
-            auth_cache.extend(
-                incoming_auth_events
-                    .into_iter()
-                    .map(|pdu| (pdu.event_id().clone(), pdu)),
-            );
-            auth_cache.extend(
-                state_after
-                    .into_iter()
-                    .map(|(_, pdu)| (pdu.event_id().clone(), pdu)),
-            );
 
             match state_res::StateResolution::resolve(
                 &room_id,
@@ -1299,7 +1247,13 @@ pub fn handle_incoming_pdu<'a>(
                     .into_iter()
                     .map(|pdus| pdus.into_iter().map(|pdu| pdu.event_id().clone()).collect())
                     .collect(),
-                auth_cache,
+                &|id| {
+                    let res = db.rooms.get_pdu(id);
+                    if let Err(e) = &res {
+                        error!("LOOK AT ME Failed to fetch event: {}", e);
+                    }
+                    res.ok().flatten()
+                },
             ) {
                 Ok(new_state) => new_state,
                 Err(_) => {
@@ -1373,7 +1327,6 @@ pub(crate) fn fetch_and_handle_events<'a>(
     origin: &'a ServerName,
     events: &'a [EventId],
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-    auth_cache: &'a mut EventMap<Arc<PduEvent>>,
 ) -> AsyncRecursiveResult<'a, Vec<Arc<PduEvent>>, Error> {
     Box::pin(async move {
         let back_off = |id| match db.globals.bad_event_ratelimiter.write().unwrap().entry(id) {
@@ -1397,84 +1350,73 @@ pub(crate) fn fetch_and_handle_events<'a>(
                     continue;
                 }
             }
-            // a. Look at auth cache
-            let pdu = match auth_cache.get(id) {
+
+            // a. Look in the main timeline (pduid_pdu tree)
+            // b. Look at outlier pdu tree
+            // (get_pdu checks both)
+            let pdu = match db.rooms.get_pdu(&id)? {
                 Some(pdu) => {
-                    // We already have the auth chain for events in cache
-                    pdu.clone()
+                    trace!("Found {} in db", id);
+                    pdu
                 }
-                // b. Look in the main timeline (pduid_pdu tree)
-                // c. Look at outlier pdu tree
-                // (get_pdu checks both)
-                None => match db.rooms.get_pdu(&id)? {
-                    Some(pdu) => {
-                        trace!("Found {} in db", id);
-                        // We need to fetch the auth chain
-                        let _ = fetch_and_handle_events(
-                            db,
+                None => {
+                    // c. Ask origin server over federation
+                    debug!("Fetching {} over federation.", id);
+                    match db
+                        .sending
+                        .send_federation_request(
+                            &db.globals,
                             origin,
-                            &pdu.auth_events,
-                            pub_key_map,
-                            auth_cache,
+                            get_event::v1::Request { event_id: &id },
                         )
-                        .await?;
-                        pdu
-                    }
-                    None => {
-                        // d. Ask origin server over federation
-                        debug!("Fetching {} over federation.", id);
-                        match db
-                            .sending
-                            .send_federation_request(
-                                &db.globals,
+                        .await
+                    {
+                        Ok(res) => {
+                            debug!("Got {} over federation", id);
+                            let (event_id, mut value) =
+                                crate::pdu::gen_event_id_canonical_json(&res.pdu)?;
+                            // This will also fetch the auth chain
+                            match handle_incoming_pdu(
                                 origin,
-                                get_event::v1::Request { event_id: &id },
+                                &event_id,
+                                value.clone(),
+                                false,
+                                db,
+                                pub_key_map,
                             )
                             .await
-                        {
-                            Ok(res) => {
-                                debug!("Got {} over federation", id);
-                                let (event_id, mut value) =
-                                    crate::pdu::gen_event_id_canonical_json(&res.pdu)?;
-                                // This will also fetch the auth chain
-                                match handle_incoming_pdu(
-                                    origin,
-                                    &event_id,
-                                    value.clone(),
-                                    false,
-                                    db,
-                                    pub_key_map,
-                                    auth_cache,
-                                )
-                                .await
-                                {
-                                    Ok(_) => {
-                                        value.insert(
-                                            "event_id".to_owned(),
-                                            CanonicalJsonValue::String(event_id.into()),
-                                        );
+                            {
+                                Ok(_) => {
+                                    value.insert(
+                                        "event_id".to_owned(),
+                                        CanonicalJsonValue::String(event_id.into()),
+                                    );
 
-                                        Arc::new(serde_json::from_value(
-                                            serde_json::to_value(value).expect("canonicaljsonobject is valid value"),
-                                        ).expect("This is possible because handle_incoming_pdu worked"))
-                                    }
-                                    Err(e) => {
-                                        warn!("Authentication of event {} failed: {:?}", id, e);
-                                        back_off(id.clone());
-                                        continue;
-                                    }
+                                    Arc::new(
+                                        serde_json::from_value(
+                                            serde_json::to_value(value)
+                                                .expect("canonicaljsonobject is valid value"),
+                                        )
+                                        .expect(
+                                            "This is possible because handle_incoming_pdu worked",
+                                        ),
+                                    )
+                                }
+                                Err(e) => {
+                                    warn!("Authentication of event {} failed: {:?}", id, e);
+                                    back_off(id.clone());
+                                    continue;
                                 }
                             }
-                            Err(_) => {
-                                warn!("Failed to fetch event: {}", id);
-                                back_off(id.clone());
-                                continue;
-                            }
+                        }
+                        Err(_) => {
+                            warn!("Failed to fetch event: {}", id);
+                            back_off(id.clone());
+                            continue;
                         }
                     }
-                },
+                }
             };
-            auth_cache.entry(id.clone()).or_insert_with(|| pdu.clone());
             pdus.push(pdu);
         }
         Ok(pdus)
@@ -2155,7 +2097,7 @@ pub async fn create_join_event_route(
             ))?;
 
     let pub_key_map = RwLock::new(BTreeMap::new());
-    let mut auth_cache = EventMap::new();
+    // let mut auth_cache = EventMap::new();
 
     // We do not add the event_id field to the pdu here because of signature and hashes checks
     let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(&body.pdu) {
@@ -2178,26 +2120,18 @@ pub async fn create_join_event_route(
     )
     .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-    let pdu_id = handle_incoming_pdu(
-        &origin,
-        &event_id,
-        value,
-        true,
-        &db,
-        &pub_key_map,
-        &mut auth_cache,
-    )
-    .await
-    .map_err(|_| {
-        Error::BadRequest(
+    let pdu_id = handle_incoming_pdu(&origin, &event_id, value, true, &db, &pub_key_map)
+        .await
+        .map_err(|_| {
+            Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Error while handling incoming PDU.",
+            )
+        })?
+        .ok_or(Error::BadRequest(
             ErrorKind::InvalidParam,
-            "Error while handling incoming PDU.",
-        )
-    })?
-    .ok_or(Error::BadRequest(
-        ErrorKind::InvalidParam,
-        "Could not accept incoming PDU as timeline event.",
-    ))?;
+            "Could not accept incoming PDU as timeline event.",
+        ))?;
 
     let state_ids = db.rooms.state_full_ids(shortstatehash)?;
 
