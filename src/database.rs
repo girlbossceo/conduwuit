@@ -6,6 +6,7 @@ pub mod appservice;
 pub mod globals;
 pub mod key_backups;
 pub mod media;
+pub mod proxy;
 pub mod pusher;
 pub mod rooms;
 pub mod sending;
@@ -28,6 +29,8 @@ use std::{
 };
 use tokio::sync::Semaphore;
 
+use self::proxy::ProxyConfig;
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
     server_name: Box<ServerName>,
@@ -46,6 +49,8 @@ pub struct Config {
     allow_federation: bool,
     #[serde(default = "false_fn")]
     pub allow_jaeger: bool,
+    #[serde(default)]
+    proxy: ProxyConfig,
     jwt_secret: Option<String>,
     #[serde(default = "Vec::new")]
     trusted_servers: Vec<Box<ServerName>>,

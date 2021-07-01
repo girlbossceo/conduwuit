@@ -125,13 +125,15 @@ impl Globals {
         tlsconfig.root_store =
             rustls_native_certs::load_native_certs().expect("Error loading system certificates");
 
-        let reqwest_client = reqwest::Client::builder()
+        let mut reqwest_client_builder = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(30))
             .timeout(Duration::from_secs(60 * 3))
             .pool_max_idle_per_host(1)
-            .use_preconfigured_tls(tlsconfig)
-            .build()
-            .unwrap();
+            .use_preconfigured_tls(tlsconfig);
+        if let Some(proxy) = config.proxy.to_proxy()? {
+            reqwest_client_builder = reqwest_client_builder.proxy(proxy);
+        }
+        let reqwest_client = reqwest_client_builder.build().unwrap();
 
         let jwt_decoding_key = config
             .jwt_secret
