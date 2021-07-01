@@ -320,6 +320,7 @@ where
             }),
             Err(e) => {
                 warn!("{:?}", e);
+                // Bad Json
                 Failure((Status::new(583), ()))
             }
         }
