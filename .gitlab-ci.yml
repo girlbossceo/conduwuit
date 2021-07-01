@@ -1,28 +1,86 @@
-image: "rust:latest"
-
-default:
-    tags: [docker]
-
-cache:
-  paths:
-    - target
-    - cargohome
-
+stages:
+  - test
+  - build
+  - release
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
-  CARGO_HOME: "cargohome"
   FF_USE_FASTZIP: 1
 
-before_script:
-  - mkdir -p $CARGO_HOME && echo "using $CARGO_HOME to cache cargo deps"
-  - apt-get update -yqq
-  - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config
-  - rustup component add clippy rustfmt
 
 test:cargo:
+  stage: "test"
+  needs: []
+  image: "rust:latest"
+  variables:
+    CARGO_HOME: "cargohome"
+  cache:
+    paths:
+      - target
+      - cargohome
+    key: test_cache
+  interruptible: true
+  before_script:
+    - mkdir -p $CARGO_HOME && echo "using $CARGO_HOME to cache cargo deps"
+    - apt-get update -yqq
+    - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config
+    - rustup component add clippy rustfmt
   script:
     - rustc --version && cargo --version  # Print version info for debugging
     - cargo test --workspace --verbose --locked
     - cargo fmt --all -- --check
     - cargo clippy
+
+
+# Compile conduit for different linux target architectures
+build:cargo:
+  stage: "build"
+  needs: []
+  interruptible: true
+  parallel:
+    matrix:
+      - TARGET: "x86_64-unknown-linux-gnu"
+      - TARGET: "armv7-unknown-linux-gnueabihf"
+        NEEDED_PACKAGES: "build-essential gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross"
+      - TARGET: "aarch64-unknown-linux-gnu"
+        NEEDED_PACKAGES: "build-essential gcc-8-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross"
+        TARGET_CC: "/usr/bin/aarch64-linux-gnu-gcc-8"
+        TARGET_AR: "/usr/bin/aarch64-linux-gnu-gcc-ar-8"
+  image: "rust:latest"
+  cache:
+    paths:
+      - target/
+    key: "build_cache-$TARGET"
+  variables:
+    CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
+    CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_RUNNER: "/linux-runner armv7"
+    CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc
+    CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: "/linux-runner aarch64"
+    CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+    CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
+  before_script:
+    - apt-get update -yqq
+    - "apt-get install -yqq --no-install-recommends $NEEDED_PACKAGES"
+    - "rustup target add $TARGET"
+  script:
+    - rustc --version && cargo --version  # Print version info for debugging
+    - cargo build --target $TARGET --release
+    - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
+  artifacts:
+    name: "conduit-$TARGET"
+    paths:
+      - "conduit-$TARGET"
+
+
+# Store the resulting binaries into the GitLab package registry, so they can be downloaded
+publish:package:
+  stage: release
+  image: curlimages/curl:latest
+  script:
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/conduit-x86_64"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-armv7-unknown-linux-gnueabihf "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/conduit-armv7"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-aarch64-unknown-linux-gnu "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/conduit-aarch64"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file README.md "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/README.md"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file LICENSE "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/LICENSE"'
