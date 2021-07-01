@@ -203,7 +203,6 @@ impl<'de> serde::de::Deserialize<'de> for WildCardedDomain {
     }
 }
 
-#[derive(Clone)]
 pub struct Database {
     pub globals: globals::Globals,
     pub users: users::Users,
