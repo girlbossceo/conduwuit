@@ -1,11 +1,13 @@
 stages:
   - test
   - build
-  - release
+  - publish artifacts
+  - release nightly
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   FF_USE_FASTZIP: 1
+  CACHE_COMPRESSION_LEVEL: fastest
 
 
 test:cargo:
@@ -31,56 +33,156 @@ test:cargo:
     - cargo fmt --all -- --check
     - cargo clippy
 
+# --------------------------------------------------------------------- #
+#  Cargo: Compiling for different architectures                         #
+# --------------------------------------------------------------------- #
 
-# Compile conduit for different linux target architectures
-build:cargo:
+.build-cargo-shared-settings:
   stage: "build"
   needs: []
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   interruptible: true
-  parallel:
-    matrix:
-      - TARGET: "x86_64-unknown-linux-gnu"
-      - TARGET: "armv7-unknown-linux-gnueabihf"
-        NEEDED_PACKAGES: "build-essential gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross"
-      - TARGET: "aarch64-unknown-linux-gnu"
-        NEEDED_PACKAGES: "build-essential gcc-8-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross"
-        TARGET_CC: "/usr/bin/aarch64-linux-gnu-gcc-8"
-        TARGET_AR: "/usr/bin/aarch64-linux-gnu-gcc-ar-8"
   image: "rust:latest"
   cache:
     paths:
+      - cargohome
       - target/
     key: "build_cache-$TARGET"
-  variables:
-    CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
-    CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_RUNNER: "/linux-runner armv7"
-    CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc
-    CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++
-    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: "/linux-runner aarch64"
-    CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-    CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
   before_script:
-    - apt-get update -yqq
+    - 'echo "Building for target $TARGET"'
+    - 'mkdir -p cargohome && CARGOHOME="cargohome"'
+    - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
+    - 'apt-get update -yqq'
+    - 'echo "Installing packages: $NEEDED_PACKAGES"'
     - "apt-get install -yqq --no-install-recommends $NEEDED_PACKAGES"
     - "rustup target add $TARGET"
   script:
-    - rustc --version && cargo --version  # Print version info for debugging
-    - cargo build --target $TARGET --release
+    - time cargo build --target $TARGET --release
     - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
   artifacts:
     name: "conduit-$TARGET"
+    expose_as: "Binary"
     paths:
       - "conduit-$TARGET"
 
+build:cargo:x86_64-unknown-linux-gnu:
+  extends: .build-cargo-shared-settings
+  variables:
+    TARGET: "x86_64-unknown-linux-gnu"
 
-# Store the resulting binaries into the GitLab package registry, so they can be downloaded
-publish:package:
-  stage: release
-  image: curlimages/curl:latest
+build:cargo:armv7-unknown-linux-gnueabihf:
+  extends: .build-cargo-shared-settings
+  variables:
+    TARGET: "armv7-unknown-linux-gnueabihf"
+    NEEDED_PACKAGES: "build-essential gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross"
+    CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
+    CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc
+    CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++
+
+build:cargo:aarch64-unknown-linux-gnu:
+  extends: .build-cargo-shared-settings
+  variables:
+    TARGET: "aarch64-unknown-linux-gnu"
+    NEEDED_PACKAGES: "build-essential gcc-8-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross"
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+    CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+    CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
+    TARGET_CC: "/usr/bin/aarch64-linux-gnu-gcc-8"
+    TARGET_AR: "/usr/bin/aarch64-linux-gnu-gcc-ar-8"
+
+
+# --------------------------------------------------------------------- #
+#  Cargo: Compiling deb packages for different architectures            #
+# --------------------------------------------------------------------- #
+
+
+.build-cargo-deb-shared-settings:
+  stage: "build"
+  needs: []
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  interruptible: true
+  image: "rust:latest"
+  cache:
+    paths:
+      - cargohome
+      - target/
+    key: "build_cache-deb-$TARGET"
+  before_script:
+    - 'echo "Building debian package for target $TARGET"'
+    - 'mkdir -p cargohome && CARGOHOME="cargohome"'
+    - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
+    - 'apt-get update -yqq'
+    - 'echo "Installing packages: $NEEDED_PACKAGES"'
+    - "apt-get install -yqq --no-install-recommends $NEEDED_PACKAGES"
+    - "rustup target add $TARGET"
+    - "cargo install cargo-deb"
   script:
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/conduit-x86_64"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-armv7-unknown-linux-gnueabihf "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/conduit-armv7"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-aarch64-unknown-linux-gnu "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/conduit-aarch64"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file README.md "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/README.md"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file LICENSE "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_JOB_ID}/LICENSE"'
+    - time cargo deb --target $TARGET
+    - 'mv target/$TARGET/debian/*.deb "conduit-$TARGET.deb"'
+  artifacts:
+    name: "conduit-$TARGET.deb"
+    expose_as: "Debian Package"
+    paths:
+      - "conduit-$TARGET.deb"
+
+build:cargo-deb:x86_64-unknown-linux-gnu:
+  extends: .build-cargo-deb-shared-settings
+  variables:
+    TARGET: "x86_64-unknown-linux-gnu"
+    NEEDED_PACKAGES: ""
+
+
+
+
+# --------------------------------------------------------------------- #
+#  Storing and releasing compiled binaries                              #
+# --------------------------------------------------------------------- #
+
+publish:package:
+  stage: "publish artifacts"
+  needs:
+    - "build:cargo:x86_64-unknown-linux-gnu"
+    - "build:cargo:armv7-unknown-linux-gnueabihf"
+    - "build:cargo:aarch64-unknown-linux-gnu"
+    - "build:cargo-deb:x86_64-unknown-linux-gnu"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  image: curlimages/curl:latest
+  variables:
+    GIT_STRATEGY: "none" # Don't need a clean copy of the code, we just operate on artifacts
+  script:
+    - 'BASE_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu "${BASE_URL}/conduit-x86_64-unknown-linux-gnu"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-armv7-unknown-linux-gnueabihf "${BASE_URL}/conduit-armv7-unknown-linux-gnueabihf"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-aarch64-unknown-linux-gnu "${BASE_URL}/conduit-aarch64-unknown-linux-gnu"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu.deb "${BASE_URL}/conduit-x86_64-unknown-linux-gnu.deb"'
+
+
+
+publish:nightly:
+  stage: "release nightly"
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: "publish:package"
+      artifacts: false
+  variables:
+    GIT_STRATEGY: "none" # Don't need a clean copy of the code, we just operate on artifacts
+  script: "echo 'Releasing current state as release'"
+  rules:
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"           # Run this job on the main branch
+  release:
+    name: 'Nightly'
+    description: '⚠️ The latest development version of the day, fresh from the repository. Use at your own risk!'
+    tag_name: '$CI_COMMIT_REF_SLUG'
+    assets: 
+      links:
+        - name: 'conduit-x86_64-unknown-linux-gnu'
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}/conduit-x86_64-unknown-linux-gnu"
+        - name: 'conduit-armv7-unknown-linux-gnueabihf'
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}/conduit-armv7-unknown-linux-gnueabihf"
+        - name: 'conduit-aarch64-unknown-linux-gnu'
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}/conduit-aarch64-unknown-linux-gnu"
+        - name: 'conduit-x86_64-unknown-linux-gnu.deb'
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}/conduit-x86_64-unknown-linux-gnu.deb"
