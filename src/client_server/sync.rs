@@ -1,21 +1,22 @@
 use super::State;
-use crate::{ConduitResult, Database, Error, Result, Ruma};
+use crate::{ConduitResult, Database, Error, Result, Ruma, RumaResponse};
 use log::error;
 use ruma::{
-    api::client::r0::sync::sync_events,
+    api::client::r0::{sync::sync_events, uiaa::UiaaResponse},
     events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
     serde::Raw,
-    RoomId, UserId,
+    DeviceId, RoomId, UserId,
 };
-
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, tokio};
 use std::{
-    collections::{hash_map, BTreeMap, HashMap, HashSet},
+    collections::{btree_map::Entry, hash_map, BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     sync::Arc,
     time::Duration,
 };
+use tokio::sync::watch::Sender;
+
+#[cfg(feature = "conduit_bin")]
+use rocket::{get, tokio};
 
 /// # `GET /_matrix/client/r0/sync`
 ///
@@ -36,21 +37,134 @@ use std::{
 pub async fn sync_events_route(
     db: State<'_, Arc<Database>>,
     body: Ruma<sync_events::Request<'_>>,
-) -> ConduitResult<sync_events::Response> {
+) -> std::result::Result<RumaResponse<sync_events::Response>, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
+    let mut rx = match db
+        .globals
+        .sync_receivers
+        .write()
+        .unwrap()
+        .entry((sender_user.clone(), sender_device.clone()))
+    {
+        Entry::Vacant(v) => {
+            let (tx, rx) = tokio::sync::watch::channel(None);
+
+            tokio::spawn(sync_helper_wrapper(
+                Arc::clone(&db),
+                sender_user.clone(),
+                sender_device.clone(),
+                body.since.clone(),
+                body.full_state,
+                body.timeout,
+                tx,
+            ));
+
+            v.insert((body.since.clone(), rx)).1.clone()
+        }
+        Entry::Occupied(mut o) => {
+            if o.get().0 != body.since {
+                let (tx, rx) = tokio::sync::watch::channel(None);
+
+                tokio::spawn(sync_helper_wrapper(
+                    Arc::clone(&db),
+                    sender_user.clone(),
+                    sender_device.clone(),
+                    body.since.clone(),
+                    body.full_state,
+                    body.timeout,
+                    tx,
+                ));
+
+                o.insert((body.since.clone(), rx.clone()));
+
+                rx
+            } else {
+                o.get().1.clone()
+            }
+        }
+    };
+
+    let we_have_to_wait = rx.borrow().is_none();
+    if we_have_to_wait {
+        let _ = rx.changed().await;
+    }
+
+    let result = match rx
+        .borrow()
+        .as_ref()
+        .expect("When sync channel changes it's always set to some")
+    {
+        Ok(response) => Ok(response.clone()),
+        Err(error) => Err(error.to_response()),
+    };
+
+    result
+}
+
+pub async fn sync_helper_wrapper(
+    db: Arc<Database>,
+    sender_user: UserId,
+    sender_device: Box<DeviceId>,
+    since: Option<String>,
+    full_state: bool,
+    timeout: Option<Duration>,
+    tx: Sender<Option<ConduitResult<sync_events::Response>>>,
+) {
+    let r = sync_helper(
+        Arc::clone(&db),
+        sender_user.clone(),
+        sender_device.clone(),
+        since.clone(),
+        full_state,
+        timeout,
+    )
+    .await;
+
+    if let Ok((_, caching_allowed)) = r {
+        if !caching_allowed {
+            match db
+                .globals
+                .sync_receivers
+                .write()
+                .unwrap()
+                .entry((sender_user, sender_device))
+            {
+                Entry::Occupied(o) => {
+                    // Only remove if the device didn't start a different /sync already
+                    if o.get().0 == since {
+                        o.remove();
+                    }
+                }
+                Entry::Vacant(_) => {}
+            }
+        }
+    }
+
+    let _ = tx.send(Some(r.map(|(r, _)| r.into())));
+}
+
+async fn sync_helper(
+    db: Arc<Database>,
+    sender_user: UserId,
+    sender_device: Box<DeviceId>,
+    since: Option<String>,
+    full_state: bool,
+    timeout: Option<Duration>,
+    // bool = caching allowed
+) -> std::result::Result<(sync_events::Response, bool), Error> {
     // TODO: match body.set_presence {
     db.rooms.edus.ping_presence(&sender_user)?;
 
     // Setup watchers, so if there's no response, we can wait for them
-    let watcher = db.watch(sender_user, sender_device);
+    let watcher = db.watch(&sender_user, &sender_device);
 
-    let next_batch = db.globals.current_count()?.to_string();
+    let next_batch = db.globals.current_count()?;
+    let next_batch_string = next_batch.to_string();
 
     let mut joined_rooms = BTreeMap::new();
-    let since = body
-        .since
+    let since = since
         .clone()
         .and_then(|string| string.parse().ok())
         .unwrap_or(0);
@@ -114,10 +228,11 @@ pub async fn sync_events_route(
         // since and the current room state, meaning there should be no updates.
         // The inner Option is None when there is an event, but there is no state hash associated
         // with it. This can happen for the RoomCreate event, so all updates should arrive.
-        let first_pdu_before_since = db.rooms.pdus_until(sender_user, &room_id, since).next();
+        let first_pdu_before_since = db.rooms.pdus_until(&sender_user, &room_id, since).next();
+
         let pdus_after_since = db
             .rooms
-            .pdus_after(sender_user, &room_id, since)
+            .pdus_after(&sender_user, &room_id, since)
             .next()
             .is_some();
 
@@ -256,11 +371,11 @@ pub async fn sync_events_route(
                         .flatten()
                         .filter(|user_id| {
                             // Don't send key updates from the sender to the sender
-                            sender_user != user_id
+                            &sender_user != user_id
                         })
                         .filter(|user_id| {
                             // Only send keys if the sender doesn't share an encrypted room with the target already
-                            !share_encrypted_room(&db, sender_user, user_id, &room_id)
+                            !share_encrypted_room(&db, &sender_user, user_id, &room_id)
                                 .unwrap_or(false)
                         }),
                 );
@@ -335,7 +450,7 @@ pub async fn sync_events_route(
 
             let state_events = if joined_since_last_sync {
                 current_state
-                    .into_iter()
+                    .iter()
                     .map(|(_, pdu)| pdu.to_sync_state_event())
                     .collect()
             } else {
@@ -520,7 +635,7 @@ pub async fn sync_events_route(
                 account_data: sync_events::RoomAccountData { events: Vec::new() },
                 timeline: sync_events::Timeline {
                     limited: false,
-                    prev_batch: Some(next_batch.clone()),
+                    prev_batch: Some(next_batch_string.clone()),
                     events: Vec::new(),
                 },
                 state: sync_events::State {
@@ -573,10 +688,10 @@ pub async fn sync_events_route(
 
     // Remove all to-device events the device received *last time*
     db.users
-        .remove_to_device_events(sender_user, sender_device, since)?;
+        .remove_to_device_events(&sender_user, &sender_device, since)?;
 
     let response = sync_events::Response {
-        next_batch,
+        next_batch: next_batch_string,
         rooms: sync_events::Rooms {
             leave: left_rooms,
             join: joined_rooms,
@@ -604,20 +719,22 @@ pub async fn sync_events_route(
             changed: device_list_updates.into_iter().collect(),
             left: device_list_left.into_iter().collect(),
         },
-        device_one_time_keys_count: if db.users.last_one_time_keys_update(sender_user)? > since
+        device_one_time_keys_count: if db.users.last_one_time_keys_update(&sender_user)? > since
             || since == 0
         {
-            db.users.count_one_time_keys(sender_user, sender_device)?
+            db.users.count_one_time_keys(&sender_user, &sender_device)?
         } else {
             BTreeMap::new()
         },
         to_device: sync_events::ToDevice {
-            events: db.users.get_to_device_events(sender_user, sender_device)?,
+            events: db
+                .users
+                .get_to_device_events(&sender_user, &sender_device)?,
         },
     };
 
     // TODO: Retry the endpoint instead of returning (waiting for #118)
-    if !body.full_state
+    if !full_state
         && response.rooms.is_empty()
         && response.presence.is_empty()
         && response.account_data.is_empty()
@@ -627,14 +744,15 @@ pub async fn sync_events_route(
     {
         // Hang a few seconds so requests are not spammed
         // Stop hanging if new info arrives
-        let mut duration = body.timeout.unwrap_or_default();
+        let mut duration = timeout.unwrap_or_default();
         if duration.as_secs() > 30 {
             duration = Duration::from_secs(30);
         }
         let _ = tokio::time::timeout(duration, watcher).await;
+        Ok((response, false))
+    } else {
+        Ok((response, since != next_batch)) // Only cache if we made progress
     }
-
-    Ok(response.into())
 }
 
 #[tracing::instrument(skip(db))]

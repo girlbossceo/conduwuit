@@ -25,7 +25,7 @@ use ruma::{
         EventType,
     },
     serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
-    state_res::{self, EventMap, RoomVersion},
+    state_res::{self, RoomVersion},
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use std::{
@@ -189,7 +189,8 @@ pub async fn kick_user_route(
                 ErrorKind::BadState,
                 "Cannot kick member that's not in the room.",
             ))?
-            .content,
+            .content
+            .clone(),
     )
     .expect("Raw::from_value always works")
     .deserialize()
@@ -245,11 +246,12 @@ pub async fn ban_user_route(
                 third_party_invite: None,
             }),
             |event| {
-                let mut event =
-                    serde_json::from_value::<Raw<member::MemberEventContent>>(event.content)
-                        .expect("Raw::from_value always works")
-                        .deserialize()
-                        .map_err(|_| Error::bad_database("Invalid member event in database."))?;
+                let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
+                    event.content.clone(),
+                )
+                .expect("Raw::from_value always works")
+                .deserialize()
+                .map_err(|_| Error::bad_database("Invalid member event in database."))?;
                 event.membership = ruma::events::room::member::MembershipState::Ban;
                 Ok(event)
             },
@@ -295,7 +297,8 @@ pub async fn unban_user_route(
                 ErrorKind::BadState,
                 "Cannot unban a user who is not banned.",
             ))?
-            .content,
+            .content
+            .clone(),
     )
     .expect("from_value::<Raw<..>> can never fail")
     .deserialize()
@@ -753,7 +756,7 @@ pub async fn invite_helper(
         let create_prev_event = if prev_events.len() == 1
             && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
         {
-            create_event.map(Arc::new)
+            create_event
         } else {
             None
         };
@@ -792,10 +795,10 @@ pub async fn invite_helper(
         let mut unsigned = BTreeMap::new();
 
         if let Some(prev_pdu) = db.rooms.room_state_get(room_id, &kind, &state_key)? {
-            unsigned.insert("prev_content".to_owned(), prev_pdu.content);
+            unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
             unsigned.insert(
                 "prev_sender".to_owned(),
-                serde_json::to_value(prev_pdu.sender).expect("UserId::to_value always works"),
+                serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
             );
         }
 
@@ -880,7 +883,6 @@ pub async fn invite_helper(
             .await?;
 
         let pub_key_map = RwLock::new(BTreeMap::new());
-        let mut auth_cache = EventMap::new();
 
         // We do not add the event_id field to the pdu here because of signature and hashes checks
         let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(&response.event) {
@@ -903,26 +905,19 @@ pub async fn invite_helper(
         )
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-        let pdu_id = server_server::handle_incoming_pdu(
-            &origin,
-            &event_id,
-            value,
-            true,
-            &db,
-            &pub_key_map,
-            &mut auth_cache,
-        )
-        .await
-        .map_err(|_| {
-            Error::BadRequest(
-                ErrorKind::InvalidParam,
-                "Error while handling incoming PDU.",
-            )
-        })?
-        .ok_or(Error::BadRequest(
-            ErrorKind::InvalidParam,
-            "Could not accept incoming PDU as timeline event.",
-        ))?;
+        let pdu_id =
+            server_server::handle_incoming_pdu(&origin, &event_id, value, true, &db, &pub_key_map)
+                .await
+                .map_err(|_| {
+                    Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Error while handling incoming PDU.",
+                    )
+                })?
+                .ok_or(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "Could not accept incoming PDU as timeline event.",
+                ))?;
 
         for server in db
             .rooms

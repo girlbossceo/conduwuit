@@ -362,7 +362,8 @@ pub async fn upgrade_room_route(
         db.rooms
             .room_state_get(&body.room_id, &EventType::RoomCreate, "")?
             .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
-            .content,
+            .content
+            .clone(),
     )
     .expect("Raw::from_value always works")
     .deserialize()
@@ -463,7 +464,8 @@ pub async fn upgrade_room_route(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomPowerLevels, "")?
                 .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
-                .content,
+                .content
+                .clone(),
         )
         .expect("database contains invalid PDU")
         .deserialize()
