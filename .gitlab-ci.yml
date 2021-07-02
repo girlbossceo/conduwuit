@@ -175,7 +175,7 @@ publish:nightly:
   release:
     name: 'Nightly'
     description: '⚠️ The latest development version of the day, fresh from the repository. Use at your own risk!'
-    tag_name: '$CI_COMMIT_REF_SLUG'
+    tag_name: 'nightly'
     assets: 
       links:
         - name: 'conduit-x86_64-unknown-linux-gnu'
