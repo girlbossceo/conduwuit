@@ -1,8 +1,7 @@
 stages:
   - test
   - build
-  - publish artifacts
-  - release nightly
+  - upload artifacts
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
@@ -137,11 +136,11 @@ build:cargo-deb:x86_64-unknown-linux-gnu:
 
 
 # --------------------------------------------------------------------- #
-#  Storing and releasing compiled binaries                              #
+#  Store binaries as package so they have download urls                 #
 # --------------------------------------------------------------------- #
 
 publish:package:
-  stage: "publish artifacts"
+  stage: "upload artifacts"
   needs:
     - "build:cargo:x86_64-unknown-linux-gnu"
     - "build:cargo:armv7-unknown-linux-gnueabihf"
@@ -159,30 +158,4 @@ publish:package:
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-aarch64-unknown-linux-gnu "${BASE_URL}/conduit-aarch64-unknown-linux-gnu"'
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu.deb "${BASE_URL}/conduit-x86_64-unknown-linux-gnu.deb"'
 
-
-
-publish:nightly:
-  stage: "release nightly"
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
-  needs:
-    - job: "publish:package"
-      artifacts: false
-  variables:
-    GIT_STRATEGY: "none" # Don't need a clean copy of the code, we just operate on artifacts
-  script: "echo 'Releasing current state as release'"
-  rules:
-    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"           # Run this job on the main branch
-  release:
-    name: 'Nightly'
-    description: '⚠️ The latest development version of the day, fresh from the repository. Use at your own risk!'
-    tag_name: 'nightly'
-    assets: 
-      links:
-        - name: 'conduit-x86_64-unknown-linux-gnu'
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}/conduit-x86_64-unknown-linux-gnu"
-        - name: 'conduit-armv7-unknown-linux-gnueabihf'
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}/conduit-armv7-unknown-linux-gnueabihf"
-        - name: 'conduit-aarch64-unknown-linux-gnu'
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}/conduit-aarch64-unknown-linux-gnu"
-        - name: 'conduit-x86_64-unknown-linux-gnu.deb'
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}/conduit-x86_64-unknown-linux-gnu.deb"
+    
