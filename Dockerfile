@@ -61,8 +61,8 @@ LABEL org.opencontainers.image.created=${CREATED} \
       org.label-schema.docker.build="docker build . -t matrixconduit/matrix-conduit:latest --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)" \
       maintainer="Weasy666"
 
-# Standard port on which Rocket launches
-EXPOSE 8000
+# Standard port on which Conduit launches. You still need to map the port when using the docker command or docker-compose.
+EXPOSE 6167
 
 # Copy config files from context and the binary from
 # the "builder" stage to the current stage into folder
@@ -90,7 +90,10 @@ RUN apk add --no-cache \
 VOLUME ["/srv/conduit/.local/share/conduit"]
 
 # Test if Conduit is still alive, uses the same endpoint as Element
-HEALTHCHECK --start-period=2s CMD curl --fail -s http://localhost:8000/_matrix/client/versions || curl -k --fail -s https://localhost:8000/_matrix/client/versions || exit 1
+HEALTHCHECK --start-period=5s \
+    CMD curl --fail -s "http://localhost:$(grep -m1 -o 'port\s=\s[0-9]*' conduit.toml | grep -m1 -o '[0-9]*')/_matrix/client/versions" || \
+        curl -k --fail -s "https://localhost:$(grep -m1 -o 'port\s=\s[0-9]*' conduit.toml | grep -m1 -o '[0-9]*')/_matrix/client/versions" || \
+        exit 1
 
 # Set user to www-data
 USER www-data
