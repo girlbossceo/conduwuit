@@ -983,9 +983,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d572918e350e82412fe766d24b15e6682fb2ed2bbe018280caa810397cb319"
+checksum = "69ddb889f9d0d08a67338271fa9b62996bc788c7796a5c18cf057420aaed5eaf"
 dependencies = [
  "either",
 ]
@@ -2123,7 +2123,7 @@ name = "ruma-state-res"
 version = "0.2.0"
 source = "git+https://github.com/ruma/ruma?rev=174555857ef90d49e4b9a672be9e2fe0acdc2687#174555857ef90d49e4b9a672be9e2fe0acdc2687"
 dependencies = [
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "js_int",
  "maplit",
  "ruma-common",

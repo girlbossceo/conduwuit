@@ -1,4 +1,4 @@
-use log::{error, warn};
+use log::warn;
 use ruma::{
     api::client::{
         error::{Error as RumaError, ErrorKind},
@@ -12,6 +12,7 @@ use thiserror::Error;
 use {
     crate::RumaResponse,
     http::StatusCode,
+    log::error,
     rocket::{
         response::{self, Responder},
         Request,

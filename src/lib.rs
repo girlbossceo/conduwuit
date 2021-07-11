@@ -10,10 +10,10 @@ mod ruma_wrapper;
 pub mod server_server;
 mod utils;
 
-pub use database::Database;
+pub use database::{Config, Database};
 pub use error::{Error, Result};
 pub use pdu::PduEvent;
-pub use rocket::Config;
+pub use rocket::Config as RocketConfig;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
 use std::ops::Deref;
 
