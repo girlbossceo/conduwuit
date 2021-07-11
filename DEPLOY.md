@@ -8,10 +8,18 @@ If you run into any problems while setting up Conduit, write an email to `timo@k
 
 You may simply download the binary that fits your machine. Run `uname -m` to see
 what you need. Now copy the right url:
-- x84_64: `https://conduit.rs/master/x86_64/conduit-bin`
-- armv7: `https://conduit.rs/master/armv7/conduit-bin`
-- armv8: `https://conduit.rs/master/armv8/conduit-bin`
-- arm: `https://conduit.rs/master/arm/conduit-bin`
+
+| CPU Architecture    | GNU (Debian, ArchLinux, ...) | MUSL (Alpine, ... )     |
+| ------------------- | ---------------------------- | ----------------------- |
+| x84_64 / amd64       | [Download][x84_64-gnu]        | -                       |
+| armv7 (Raspberry Pi) | [Download][armv7-gnu]         | -                       |
+| armv8 / aarch64      | [Download][armv8-gnu]         | -                       |
+| arm                  | [Download][arm]               | -                       |
+
+[x84_64-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-x86_64-unknown-linux-gnu?job=build:cargo:x86_64-unknown-linux-gnu
+[armv7-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-armv7-unknown-linux-gnueabihf?job=build:cargo:armv7-unknown-linux-gnueabihf
+[armv8-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-aarch64-unknown-linux-gnu?job=build:cargo:aarch64-unknown-linux-gnu
+[arm]: https://conduit.rs/master/arm/conduit-bin
 
 ```bash
 $ sudo wget -O /usr/local/bin/matrix-conduit <url>
