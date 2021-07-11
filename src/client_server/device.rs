@@ -116,14 +116,14 @@ pub async fn delete_device_route(
         }
     // Success!
     } else {
-        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(
-            &sender_user,
-            &sender_device,
-            &uiaainfo,
-            &body.json_body.expect("body is json"),
-        )?;
-        return Err(Error::Uiaa(uiaainfo));
+        if let Some(json) = body.json_body {
+            uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+            db.uiaa
+                .create(&sender_user, &sender_device, &uiaainfo, &json)?;
+            return Err(Error::Uiaa(uiaainfo));
+        } else {
+            return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+        }
     }
 
     db.users.remove_device(&sender_user, &body.device_id)?;
@@ -170,14 +170,14 @@ pub async fn delete_devices_route(
         }
     // Success!
     } else {
-        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(
-            &sender_user,
-            &sender_device,
-            &uiaainfo,
-            &body.json_body.expect("body is json"),
-        )?;
-        return Err(Error::Uiaa(uiaainfo));
+        if let Some(json) = body.json_body {
+            uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+            db.uiaa
+                .create(&sender_user, &sender_device, &uiaainfo, &json)?;
+            return Err(Error::Uiaa(uiaainfo));
+        } else {
+            return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+        }
     }
 
     for device_id in &body.devices {

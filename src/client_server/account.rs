@@ -157,15 +157,19 @@ pub async fn register_route(
             }
         // Success!
         } else {
-            uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-            db.uiaa.create(
-                &UserId::parse_with_server_name("", db.globals.server_name())
-                    .expect("we know this is valid"),
-                "".into(),
-                &uiaainfo,
-                &body.json_body.expect("body is json"),
-            )?;
-            return Err(Error::Uiaa(uiaainfo));
+            if let Some(json) = body.json_body {
+                uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+                db.uiaa.create(
+                    &UserId::parse_with_server_name("", db.globals.server_name())
+                        .expect("we know this is valid"),
+                    "".into(),
+                    &uiaainfo,
+                    &json,
+                )?;
+                return Err(Error::Uiaa(uiaainfo));
+            } else {
+                return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+            }
         }
     }
 
@@ -526,14 +530,14 @@ pub async fn change_password_route(
         }
     // Success!
     } else {
-        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(
-            &sender_user,
-            &sender_device,
-            &uiaainfo,
-            &body.json_body.expect("body is json"),
-        )?;
-        return Err(Error::Uiaa(uiaainfo));
+        if let Some(json) = body.json_body {
+            uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+            db.uiaa
+                .create(&sender_user, &sender_device, &uiaainfo, &json)?;
+            return Err(Error::Uiaa(uiaainfo));
+        } else {
+            return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+        }
     }
 
     db.users
@@ -618,14 +622,14 @@ pub async fn deactivate_route(
         }
     // Success!
     } else {
-        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-        db.uiaa.create(
-            &sender_user,
-            &sender_device,
-            &uiaainfo,
-            &body.json_body.expect("body is json"),
-        )?;
-        return Err(Error::Uiaa(uiaainfo));
+        if let Some(json) = body.json_body {
+            uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+            db.uiaa
+                .create(&sender_user, &sender_device, &uiaainfo, &json)?;
+            return Err(Error::Uiaa(uiaainfo));
+        } else {
+            return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+        }
     }
 
     // Leave all joined rooms and reject all invitations
