@@ -60,6 +60,9 @@ test:cargo:
     - "apt-get install -yqq --no-install-recommends $NEEDED_PACKAGES"
     - "rustup target add $TARGET"
   script:
+    # Set some cargo tuning here, because targets overwrite the 'variables'
+    - "export CARGO_INCREMENTAL=true"
+    - "export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16"
     - time cargo build --target $TARGET --release
     - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
   artifacts:
