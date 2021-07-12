@@ -9,10 +9,12 @@ variables:
   CACHE_COMPRESSION_LEVEL: fastest
 
 
+
 test:cargo:
   stage: "test"
   needs: []
   image: "rust:latest"
+  tags: ["docker"]
   variables:
     CARGO_HOME: "cargohome"
   cache:
@@ -43,6 +45,7 @@ test:cargo:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   interruptible: true
   image: "rust:latest"
+  tags: ["docker"]
   cache:
     paths:
       - cargohome
@@ -103,6 +106,7 @@ build:cargo:aarch64-unknown-linux-gnu:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   interruptible: true
   image: "rust:latest"
+  tags: ["docker"]
   cache:
     paths:
       - cargohome
@@ -149,6 +153,7 @@ publish:package:
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   image: curlimages/curl:latest
+  tags: ["docker"]
   variables:
     GIT_STRATEGY: "none" # Don't need a clean copy of the code, we just operate on artifacts
   script:
