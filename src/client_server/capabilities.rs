@@ -1,4 +1,5 @@
 use crate::ConduitResult;
+use crate::Ruma;
 use ruma::{
     api::client::r0::capabilities::{
         get_capabilities, Capabilities, RoomVersionStability, RoomVersionsCapability,
@@ -13,9 +14,14 @@ use rocket::get;
 /// # `GET /_matrix/client/r0/capabilities`
 ///
 /// Get information on this server's supported feature set and other relevent capabilities.
-#[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/capabilities"))]
-#[tracing::instrument]
-pub async fn get_capabilities_route() -> ConduitResult<get_capabilities::Response> {
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/capabilities", data = "<_body>")
+)]
+#[tracing::instrument(skip(_body))]
+pub async fn get_capabilities_route(
+    _body: Ruma<get_capabilities::Request>,
+) -> ConduitResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
     available.insert(RoomVersionId::Version6, RoomVersionStability::Stable);
 
