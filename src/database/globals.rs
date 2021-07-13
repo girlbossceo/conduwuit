@@ -46,6 +46,7 @@ pub struct Globals {
     pub servername_ratelimiter: Arc<RwLock<BTreeMap<Box<ServerName>, Arc<Semaphore>>>>,
     pub sync_receivers: RwLock<BTreeMap<(UserId, Box<DeviceId>), SyncHandle>>,
     pub roomid_mutex: RwLock<BTreeMap<RoomId, Arc<Mutex<()>>>>,
+    pub roomid_mutex_federation: RwLock<BTreeMap<RoomId, Arc<Mutex<()>>>>, // this lock will be held longer
     pub rotate: RotationHandler,
 }
 
@@ -199,6 +200,7 @@ impl Globals {
             bad_signature_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
             servername_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
             roomid_mutex: RwLock::new(BTreeMap::new()),
+            roomid_mutex_federation: RwLock::new(BTreeMap::new()),
             sync_receivers: RwLock::new(BTreeMap::new()),
             rotate: RotationHandler::new(),
         };
