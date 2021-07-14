@@ -30,8 +30,8 @@ test:cargo:
     - rustup component add clippy rustfmt
   script:
     - rustc --version && cargo --version  # Print version info for debugging
-    - cargo test --workspace --verbose --locked
     - cargo fmt --all -- --check
+    - cargo test --workspace --verbose --locked
     - cargo clippy
 
 # --------------------------------------------------------------------- #
