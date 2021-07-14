@@ -21,9 +21,9 @@ use log::error;
 use lru_cache::LruCache;
 use rocket::{
     futures::{channel::mpsc, stream::FuturesUnordered, StreamExt},
-    outcome::IntoOutcome,
+    outcome::{try_outcome, IntoOutcome},
     request::{FromRequest, Request},
-    try_outcome, State,
+    State,
 };
 use ruma::{DeviceId, ServerName, UserId};
 use serde::{de::IgnoredAny, Deserialize};
@@ -608,7 +608,7 @@ impl<'r> FromRequest<'r> for DatabaseGuard {
     type Error = ();
 
     async fn from_request(req: &'r Request<'_>) -> rocket::request::Outcome<Self, ()> {
-        let db = try_outcome!(req.guard::<State<'_, Arc<TokioRwLock<Database>>>>().await);
+        let db = try_outcome!(req.guard::<&State<Arc<TokioRwLock<Database>>>>().await);
 
         Ok(DatabaseGuard(Arc::clone(&db).read_owned().await)).or_forward(())
     }
