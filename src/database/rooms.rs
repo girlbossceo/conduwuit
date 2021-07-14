@@ -533,17 +533,15 @@ impl Rooms {
                     r
                 },
                 |pduid| {
-                    let r = Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
+                    Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
                         Error::bad_database("Invalid pduid in eventid_pduid.")
-                    })?));
-                    r
+                    })?))
                 },
             )?
             .map(|pdu| {
-                let r = serde_json::from_slice(&pdu)
+                serde_json::from_slice(&pdu)
                     .map_err(|_| Error::bad_database("Invalid PDU in db."))
-                    .map(Arc::new);
-                r
+                    .map(Arc::new)
             })
             .transpose()?
         {
@@ -1112,7 +1110,7 @@ impl Rooms {
                 }
             };
 
-            new_state.insert(shortstatekey, shorteventid.into());
+            new_state.insert(shortstatekey, shorteventid);
 
             let new_state_hash = self.calculate_hash(
                 &new_state
