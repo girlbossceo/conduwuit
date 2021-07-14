@@ -10,6 +10,7 @@ use ruma::{
     events::{room::message, EventType},
     UserId,
 };
+use tokio::sync::{RwLock, RwLockReadGuard};
 
 pub enum AdminCommand {
     RegisterAppservice(serde_yaml::Value),
@@ -25,20 +26,23 @@ pub struct Admin {
 impl Admin {
     pub fn start_handler(
         &self,
-        db: Arc<Database>,
+        db: Arc<RwLock<Database>>,
         mut receiver: mpsc::UnboundedReceiver<AdminCommand>,
     ) {
         tokio::spawn(async move {
             // TODO: Use futures when we have long admin commands
             //let mut futures = FuturesUnordered::new();
 
-            let conduit_user = UserId::try_from(format!("@conduit:{}", db.globals.server_name()))
-                .expect("@conduit:server_name is valid");
+            let guard = db.read().await;
 
-            let conduit_room = db
+            let conduit_user =
+                UserId::try_from(format!("@conduit:{}", guard.globals.server_name()))
+                    .expect("@conduit:server_name is valid");
+
+            let conduit_room = guard
                 .rooms
                 .id_from_alias(
-                    &format!("#admins:{}", db.globals.server_name())
+                    &format!("#admins:{}", guard.globals.server_name())
                         .try_into()
                         .expect("#admins:server_name is a valid room alias"),
                 )
@@ -48,48 +52,54 @@ impl Admin {
                 warn!("Conduit instance does not have an #admins room. Logging to that room will not work. Restart Conduit after creating a user to fix this.");
             }
 
-            let send_message = |message: message::MessageEventContent| {
-                if let Some(conduit_room) = &conduit_room {
-                    db.rooms
-                        .build_and_append_pdu(
-                            PduBuilder {
-                                event_type: EventType::RoomMessage,
-                                content: serde_json::to_value(message)
-                                    .expect("event is valid, we just created it"),
-                                unsigned: None,
-                                state_key: None,
-                                redacts: None,
-                            },
-                            &conduit_user,
-                            &conduit_room,
-                            &db,
-                        )
-                        .unwrap();
-                }
-            };
+            drop(guard);
+
+            let send_message =
+                |message: message::MessageEventContent, guard: RwLockReadGuard<'_, Database>| {
+                    if let Some(conduit_room) = &conduit_room {
+                        guard
+                            .rooms
+                            .build_and_append_pdu(
+                                PduBuilder {
+                                    event_type: EventType::RoomMessage,
+                                    content: serde_json::to_value(message)
+                                        .expect("event is valid, we just created it"),
+                                    unsigned: None,
+                                    state_key: None,
+                                    redacts: None,
+                                },
+                                &conduit_user,
+                                &conduit_room,
+                                &guard,
+                            )
+                            .unwrap();
+                    }
+                };
 
             loop {
                 tokio::select! {
                     Some(event) = receiver.next() => {
+                        let guard = db.read().await;
+
                         match event {
                             AdminCommand::RegisterAppservice(yaml) => {
-                                db.appservice.register_appservice(yaml).unwrap(); // TODO handle error
+                                guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error
                             }
                             AdminCommand::ListAppservices => {
-                                if let Ok(appservices) = db.appservice.iter_ids().map(|ids| ids.collect::<Vec<_>>()) {
+                                if let Ok(appservices) = guard.appservice.iter_ids().map(|ids| ids.collect::<Vec<_>>()) {
                                     let count = appservices.len();
                                     let output = format!(
                                         "Appservices ({}): {}",
                                         count,
                                         appservices.into_iter().filter_map(|r| r.ok()).collect::<Vec<_>>().join(", ")
                                     );
-                                    send_message(message::MessageEventContent::text_plain(output));
+                                    send_message(message::MessageEventContent::text_plain(output), guard);
                                 } else {
-                                    send_message(message::MessageEventContent::text_plain("Failed to get appservices."));
+                                    send_message(message::MessageEventContent::text_plain("Failed to get appservices."), guard);
                                 }
                             }
                             AdminCommand::SendMessage(message) => {
-                                send_message(message);
+                                send_message(message, guard)
                             }
                         }
                     }

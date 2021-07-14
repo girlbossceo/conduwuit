@@ -1,7 +1,5 @@
-use super::State;
-use crate::{ConduitResult, Database, Error, Ruma};
+use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
 use ruma::api::client::{error::ErrorKind, r0::search::search_events};
-use std::sync::Arc;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::post;
@@ -14,7 +12,7 @@ use std::collections::BTreeMap;
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn search_events_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<search_events::Request<'_>>,
 ) -> ConduitResult<search_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

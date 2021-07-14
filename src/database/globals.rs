@@ -11,11 +11,12 @@ use rustls::{ServerCertVerifier, WebPKIVerifier};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
+    future::Future,
     path::PathBuf,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
-use tokio::sync::Semaphore;
+use tokio::sync::{broadcast, Semaphore};
 use trust_dns_resolver::TokioAsyncResolver;
 
 use super::abstraction::Tree;
@@ -47,6 +48,7 @@ pub struct Globals {
             ), // since, rx
         >,
     >,
+    pub rotate: RotationHandler,
 }
 
 struct MatrixServerVerifier {
@@ -79,6 +81,31 @@ impl ServerCertVerifier for MatrixServerVerifier {
         }
         self.inner
             .verify_server_cert(roots, presented_certs, dns_name, ocsp_response)
+    }
+}
+
+/// Handles "rotation" of long-polling requests. "Rotation" in this context is similar to "rotation" of log files and the like.
+///
+/// This is utilized to have sync workers return early and release read locks on the database.
+pub struct RotationHandler(broadcast::Sender<()>, broadcast::Receiver<()>);
+
+impl RotationHandler {
+    pub fn new() -> Self {
+        let (s, r) = broadcast::channel::<()>(1);
+
+        Self(s, r)
+    }
+
+    pub fn watch(&self) -> impl Future<Output = ()> {
+        let mut r = self.0.subscribe();
+
+        async move {
+            let _ = r.recv().await;
+        }
+    }
+
+    pub fn fire(&self) {
+        let _ = self.0.send(());
     }
 }
 
@@ -168,6 +195,7 @@ impl Globals {
             bad_signature_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
             servername_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
             sync_receivers: RwLock::new(BTreeMap::new()),
+            rotate: RotationHandler::new(),
         };
 
         fs::create_dir_all(s.get_media_folder())?;
