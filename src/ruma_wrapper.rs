@@ -45,7 +45,10 @@ where
 {
     type Error = ();
 
-    async fn from_data(request: &'a Request<'_>, data: Data) -> data::Outcome<Self, Self::Error> {
+    async fn from_data(
+        request: &'a Request<'_>,
+        data: Data<'a>,
+    ) -> data::Outcome<'a, Self, Self::Error> {
         let metadata = T::Incoming::METADATA;
         let db = request
             .guard::<DatabaseGuard>()
@@ -102,7 +105,7 @@ where
 
                     if !db.users.exists(&user_id).unwrap() {
                         // Forbidden
-                        return Failure((Status::raw(580), ()));
+                        return Failure((Status::new(580), ()));
                     }
 
                     // TODO: Check if appservice is allowed to be that user
@@ -117,7 +120,7 @@ where
                     if let Some(token) = token {
                         match db.users.find_from_token(&token).unwrap() {
                             // Unknown Token
-                            None => return Failure((Status::raw(581), ())),
+                            None => return Failure((Status::new(581), ())),
                             Some((user_id, device_id)) => (
                                 Some(user_id),
                                 Some(Box::<DeviceId>::from(device_id)),
@@ -127,7 +130,7 @@ where
                         }
                     } else {
                         // Missing Token
-                        return Failure((Status::raw(582), ()));
+                        return Failure((Status::new(582), ()));
                     }
                 }
                 AuthScheme::ServerSignatures => {
@@ -149,7 +152,7 @@ where
                             warn!("No Authorization header");
 
                             // Forbidden
-                            return Failure((Status::raw(580), ()));
+                            return Failure((Status::new(580), ()));
                         }
                     };
 
@@ -159,7 +162,7 @@ where
                             warn!("Invalid X-Matrix header origin field: {:?}", x_matrix);
 
                             // Forbidden
-                            return Failure((Status::raw(580), ()));
+                            return Failure((Status::new(580), ()));
                         }
                     };
 
@@ -172,7 +175,7 @@ where
                             );
 
                             // Forbidden
-                            return Failure((Status::raw(580), ()));
+                            return Failure((Status::new(580), ()));
                         }
                     };
 
@@ -182,7 +185,7 @@ where
                             warn!("Invalid X-Matrix header key field: {:?}", x_matrix);
 
                             // Forbidden
-                            return Failure((Status::raw(580), ()));
+                            return Failure((Status::new(580), ()));
                         }
                     };
 
@@ -192,7 +195,7 @@ where
                             warn!("Invalid X-Matrix header sig field: {:?}", x_matrix);
 
                             // Forbidden
-                            return Failure((Status::raw(580), ()));
+                            return Failure((Status::new(580), ()));
                         }
                     };
 
@@ -243,7 +246,7 @@ where
                                 warn!("Failed to fetch signing keys: {}", e);
 
                                 // Forbidden
-                                return Failure((Status::raw(580), ()));
+                                return Failure((Status::new(580), ()));
                             }
                         };
 
@@ -260,7 +263,7 @@ where
                             }
 
                             // Forbidden
-                            return Failure((Status::raw(580), ()));
+                            return Failure((Status::new(580), ()));
                         }
                     }
                 }
@@ -317,7 +320,7 @@ where
             }),
             Err(e) => {
                 warn!("{:?}", e);
-                Failure((Status::raw(583), ()))
+                Failure((Status::new(583), ()))
             }
         }
     }
@@ -343,7 +346,7 @@ pub fn response<T: OutgoingResponse>(response: RumaResponse<T>) -> response::Res
     let mut response = rocket::response::Response::build();
 
     let status = http_response.status();
-    response.raw_status(status.into(), "");
+    response.status(Status::new(status.as_u16()));
 
     for header in http_response.headers() {
         response.raw_header(header.0.to_string(), header.1.to_str().unwrap().to_owned());
