@@ -1,7 +1,6 @@
-use super::State;
-use crate::{utils, ConduitResult, Database, Ruma};
+use crate::{database::DatabaseGuard, utils, ConduitResult, Ruma};
 use ruma::api::client::r0::presence::{get_presence, set_presence};
-use std::{convert::TryInto, sync::Arc, time::Duration};
+use std::{convert::TryInto, time::Duration};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};
@@ -12,7 +11,7 @@ use rocket::{get, put};
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_presence_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<set_presence::Request<'_>>,
 ) -> ConduitResult<set_presence::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -53,7 +52,7 @@ pub async fn set_presence_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_presence_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_presence::Request<'_>>,
 ) -> ConduitResult<get_presence::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

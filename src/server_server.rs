@@ -1,12 +1,13 @@
 use crate::{
     client_server::{self, claim_keys_helper, get_keys_helper},
+    database::DatabaseGuard,
     utils, ConduitResult, Database, Error, PduEvent, Result, Ruma,
 };
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::{debug, error, info, trace, warn};
 use regex::Regex;
-use rocket::{response::content::Json, State};
+use rocket::response::content::Json;
 use ruma::{
     api::{
         client::error::{Error as RumaError, ErrorKind},
@@ -432,7 +433,7 @@ pub async fn request_well_known(
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/federation/v1/version"))]
 #[tracing::instrument(skip(db))]
 pub fn get_server_version_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
 ) -> ConduitResult<get_server_version::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -450,7 +451,7 @@ pub fn get_server_version_route(
 // Response type for this endpoint is Json because we need to calculate a signature for the response
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server"))]
 #[tracing::instrument(skip(db))]
-pub fn get_server_keys_route(db: State<'_, Arc<Database>>) -> Json<String> {
+pub fn get_server_keys_route(db: DatabaseGuard) -> Json<String> {
     if !db.globals.allow_federation() {
         // TODO: Use proper types
         return Json("Federation is disabled.".to_owned());
@@ -497,7 +498,7 @@ pub fn get_server_keys_route(db: State<'_, Arc<Database>>) -> Json<String> {
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server/<_>"))]
 #[tracing::instrument(skip(db))]
-pub fn get_server_keys_deprecated_route(db: State<'_, Arc<Database>>) -> Json<String> {
+pub fn get_server_keys_deprecated_route(db: DatabaseGuard) -> Json<String> {
     get_server_keys_route(db)
 }
 
@@ -507,7 +508,7 @@ pub fn get_server_keys_deprecated_route(db: State<'_, Arc<Database>>) -> Json<St
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_filtered_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_public_rooms_filtered::v1::Request<'_>>,
 ) -> ConduitResult<get_public_rooms_filtered::v1::Response> {
     if !db.globals.allow_federation() {
@@ -551,7 +552,7 @@ pub async fn get_public_rooms_filtered_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_public_rooms::v1::Request<'_>>,
 ) -> ConduitResult<get_public_rooms::v1::Response> {
     if !db.globals.allow_federation() {
@@ -595,7 +596,7 @@ pub async fn get_public_rooms_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn send_transaction_message_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<send_transaction_message::v1::Request<'_>>,
 ) -> ConduitResult<send_transaction_message::v1::Response> {
     if !db.globals.allow_federation() {
@@ -773,6 +774,8 @@ pub async fn send_transaction_message_route(
             Edu::_Custom(_) => {}
         }
     }
+
+    db.flush().await?;
 
     Ok(send_transaction_message::v1::Response { pdus: resolved_map }.into())
 }
@@ -1673,7 +1676,7 @@ pub(crate) fn append_incoming_pdu(
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn get_event_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_event::v1::Request<'_>>,
 ) -> ConduitResult<get_event::v1::Response> {
     if !db.globals.allow_federation() {
@@ -1698,7 +1701,7 @@ pub fn get_event_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn get_missing_events_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_missing_events::v1::Request<'_>>,
 ) -> ConduitResult<get_missing_events::v1::Response> {
     if !db.globals.allow_federation() {
@@ -1747,7 +1750,7 @@ pub fn get_missing_events_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn get_event_authorization_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_event_authorization::v1::Request<'_>>,
 ) -> ConduitResult<get_event_authorization::v1::Response> {
     if !db.globals.allow_federation() {
@@ -1791,7 +1794,7 @@ pub fn get_event_authorization_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn get_room_state_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_room_state::v1::Request<'_>>,
 ) -> ConduitResult<get_room_state::v1::Response> {
     if !db.globals.allow_federation() {
@@ -1854,7 +1857,7 @@ pub fn get_room_state_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn get_room_state_ids_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_room_state_ids::v1::Request<'_>>,
 ) -> ConduitResult<get_room_state_ids::v1::Response> {
     if !db.globals.allow_federation() {
@@ -1906,7 +1909,7 @@ pub fn get_room_state_ids_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn create_join_event_template_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<create_join_event_template::v1::Request<'_>>,
 ) -> ConduitResult<create_join_event_template::v1::Response> {
     if !db.globals.allow_federation() {
@@ -2075,7 +2078,7 @@ pub fn create_join_event_template_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_join_event_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<create_join_event::v2::Request<'_>>,
 ) -> ConduitResult<create_join_event::v2::Response> {
     if !db.globals.allow_federation() {
@@ -2160,6 +2163,8 @@ pub async fn create_join_event_route(
         db.sending.send_pdu(&server, &pdu_id)?;
     }
 
+    db.flush().await?;
+
     Ok(create_join_event::v2::Response {
         room_state: RoomState {
             auth_chain: auth_chain_ids
@@ -2183,7 +2188,7 @@ pub async fn create_join_event_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_invite_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<create_invite::v2::Request>,
 ) -> ConduitResult<create_invite::v2::Response> {
     if !db.globals.allow_federation() {
@@ -2276,6 +2281,8 @@ pub async fn create_invite_route(
         )?;
     }
 
+    db.flush().await?;
+
     Ok(create_invite::v2::Response {
         event: PduEvent::convert_to_outgoing_federation_event(signed_event),
     }
@@ -2288,7 +2295,7 @@ pub async fn create_invite_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn get_devices_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_devices::v1::Request<'_>>,
 ) -> ConduitResult<get_devices::v1::Response> {
     if !db.globals.allow_federation() {
@@ -2328,7 +2335,7 @@ pub fn get_devices_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn get_room_information_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_room_information::v1::Request<'_>>,
 ) -> ConduitResult<get_room_information::v1::Response> {
     if !db.globals.allow_federation() {
@@ -2356,7 +2363,7 @@ pub fn get_room_information_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub fn get_profile_information_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_profile_information::v1::Request<'_>>,
 ) -> ConduitResult<get_profile_information::v1::Response> {
     if !db.globals.allow_federation() {
@@ -2389,8 +2396,8 @@ pub fn get_profile_information_route(
     post("/_matrix/federation/v1/user/keys/query", data = "<body>")
 )]
 #[tracing::instrument(skip(db, body))]
-pub fn get_keys_route(
-    db: State<'_, Arc<Database>>,
+pub async fn get_keys_route(
+    db: DatabaseGuard,
     body: Ruma<get_keys::v1::Request>,
 ) -> ConduitResult<get_keys::v1::Response> {
     if !db.globals.allow_federation() {
@@ -2403,6 +2410,8 @@ pub fn get_keys_route(
         |u| Some(u.server_name()) == body.sender_servername.as_deref(),
         &db,
     )?;
+
+    db.flush().await?;
 
     Ok(get_keys::v1::Response {
         device_keys: result.device_keys,
@@ -2418,7 +2427,7 @@ pub fn get_keys_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn claim_keys_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<claim_keys::v1::Request>,
 ) -> ConduitResult<claim_keys::v1::Response> {
     if !db.globals.allow_federation() {

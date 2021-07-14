@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
-use super::State;
-use crate::{ConduitResult, Database, Error, Ruma};
+use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Ruma};
 use regex::Regex;
 use ruma::{
     api::{
@@ -24,7 +21,7 @@ use rocket::{delete, get, put};
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_alias_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<create_alias::Request<'_>>,
 ) -> ConduitResult<create_alias::Response> {
     if db.rooms.id_from_alias(&body.room_alias)?.is_some() {
@@ -45,7 +42,7 @@ pub async fn create_alias_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn delete_alias_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<delete_alias::Request<'_>>,
 ) -> ConduitResult<delete_alias::Response> {
     db.rooms.set_alias(&body.room_alias, None, &db.globals)?;
@@ -61,7 +58,7 @@ pub async fn delete_alias_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_alias_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_alias::Request<'_>>,
 ) -> ConduitResult<get_alias::Response> {
     get_alias_helper(&db, &body.room_alias).await

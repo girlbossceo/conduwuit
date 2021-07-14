@@ -56,4 +56,4 @@ services:
     #         - homeserver
 
 volumes:
-    db:
+  db:

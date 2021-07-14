@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
-use super::State;
-use crate::{ConduitResult, Database, Error, Ruma};
+use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -24,7 +21,7 @@ use rocket::{delete, get, post, put};
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushrules_all_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_pushrules_all::Request>,
 ) -> ConduitResult<get_pushrules_all::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -49,7 +46,7 @@ pub async fn get_pushrules_all_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_pushrule::Request<'_>>,
 ) -> ConduitResult<get_pushrule::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -103,7 +100,7 @@ pub async fn get_pushrule_route(
 )]
 #[tracing::instrument(skip(db, req))]
 pub async fn set_pushrule_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     req: Ruma<set_pushrule::Request<'_>>,
 ) -> ConduitResult<set_pushrule::Response> {
     let sender_user = req.sender_user.as_ref().expect("user is authenticated");
@@ -206,7 +203,7 @@ pub async fn set_pushrule_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_actions_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_pushrule_actions::Request<'_>>,
 ) -> ConduitResult<get_pushrule_actions::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -265,7 +262,7 @@ pub async fn get_pushrule_actions_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_actions_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<set_pushrule_actions::Request<'_>>,
 ) -> ConduitResult<set_pushrule_actions::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -339,7 +336,7 @@ pub async fn set_pushrule_actions_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_enabled_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_pushrule_enabled::Request<'_>>,
 ) -> ConduitResult<get_pushrule_enabled::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -400,7 +397,7 @@ pub async fn get_pushrule_enabled_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_enabled_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<set_pushrule_enabled::Request<'_>>,
 ) -> ConduitResult<set_pushrule_enabled::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -479,7 +476,7 @@ pub async fn set_pushrule_enabled_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn delete_pushrule_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<delete_pushrule::Request<'_>>,
 ) -> ConduitResult<delete_pushrule::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -548,7 +545,7 @@ pub async fn delete_pushrule_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushers_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_pushers::Request>,
 ) -> ConduitResult<get_pushers::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -565,7 +562,7 @@ pub async fn get_pushers_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_pushers_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<set_pusher::Request>,
 ) -> ConduitResult<set_pusher::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");

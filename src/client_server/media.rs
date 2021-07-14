@@ -1,20 +1,21 @@
-use super::State;
-use crate::{database::media::FileMeta, utils, ConduitResult, Database, Error, Ruma};
+use crate::{
+    database::media::FileMeta, database::DatabaseGuard, utils, ConduitResult, Error, Ruma,
+};
 use ruma::api::client::{
     error::ErrorKind,
     r0::media::{create_content, get_content, get_content_thumbnail, get_media_config},
 };
+use std::convert::TryInto;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};
-use std::{convert::TryInto, sync::Arc};
 
 const MXC_LENGTH: usize = 32;
 
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/media/r0/config"))]
 #[tracing::instrument(skip(db))]
 pub async fn get_media_config_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
 ) -> ConduitResult<get_media_config::Response> {
     Ok(get_media_config::Response {
         upload_size: db.globals.max_request_size().into(),
@@ -28,7 +29,7 @@ pub async fn get_media_config_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_content_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<create_content::Request<'_>>,
 ) -> ConduitResult<create_content::Response> {
     let mxc = format!(
@@ -66,7 +67,7 @@ pub async fn create_content_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_content_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_content::Request<'_>>,
 ) -> ConduitResult<get_content::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
@@ -119,7 +120,7 @@ pub async fn get_content_route(
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_content_thumbnail_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<get_content_thumbnail::Request<'_>>,
 ) -> ConduitResult<get_content_thumbnail::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);

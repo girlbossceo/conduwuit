@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::{database::DatabaseGuard, Error};
 use ruma::{
     api::{client::r0::uiaa::UiaaResponse, OutgoingResponse},
     identifiers::{DeviceId, UserId},
@@ -9,7 +9,7 @@ use std::ops::Deref;
 
 #[cfg(feature = "conduit_bin")]
 use {
-    crate::{server_server, Database},
+    crate::server_server,
     log::{debug, warn},
     rocket::{
         data::{self, ByteUnit, Data, FromData},
@@ -17,13 +17,12 @@ use {
         outcome::Outcome::*,
         response::{self, Responder},
         tokio::io::AsyncReadExt,
-        Request, State,
+        Request,
     },
     ruma::api::{AuthScheme, IncomingRequest},
     std::collections::BTreeMap,
     std::convert::TryFrom,
     std::io::Cursor,
-    std::sync::Arc,
 };
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
@@ -49,7 +48,7 @@ where
     async fn from_data(request: &'a Request<'_>, data: Data) -> data::Outcome<Self, Self::Error> {
         let metadata = T::Incoming::METADATA;
         let db = request
-            .guard::<State<'_, Arc<Database>>>()
+            .guard::<DatabaseGuard>()
             .await
             .expect("database was loaded");
 

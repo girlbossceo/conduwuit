@@ -1,5 +1,4 @@
-use super::State;
-use crate::{ConduitResult, Database, Error, Result, Ruma, RumaResponse};
+use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma, RumaResponse};
 use log::error;
 use ruma::{
     api::client::r0::{sync::sync_events, uiaa::UiaaResponse},
@@ -35,13 +34,15 @@ use rocket::{get, tokio};
 )]
 #[tracing::instrument(skip(db, body))]
 pub async fn sync_events_route(
-    db: State<'_, Arc<Database>>,
+    db: DatabaseGuard,
     body: Ruma<sync_events::Request<'_>>,
 ) -> std::result::Result<RumaResponse<sync_events::Response>, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-    let mut rx = match db
+    let arc_db = Arc::new(db);
+
+    let mut rx = match arc_db
         .globals
         .sync_receivers
         .write()
@@ -52,7 +53,7 @@ pub async fn sync_events_route(
             let (tx, rx) = tokio::sync::watch::channel(None);
 
             tokio::spawn(sync_helper_wrapper(
-                Arc::clone(&db),
+                Arc::clone(&arc_db),
                 sender_user.clone(),
                 sender_device.clone(),
                 body.since.clone(),
@@ -68,7 +69,7 @@ pub async fn sync_events_route(
                 let (tx, rx) = tokio::sync::watch::channel(None);
 
                 tokio::spawn(sync_helper_wrapper(
-                    Arc::clone(&db),
+                    Arc::clone(&arc_db),
                     sender_user.clone(),
                     sender_device.clone(),
                     body.since.clone(),
@@ -104,7 +105,7 @@ pub async fn sync_events_route(
 }
 
 pub async fn sync_helper_wrapper(
-    db: Arc<Database>,
+    db: Arc<DatabaseGuard>,
     sender_user: UserId,
     sender_device: Box<DeviceId>,
     since: Option<String>,
@@ -142,11 +143,13 @@ pub async fn sync_helper_wrapper(
         }
     }
 
+    drop(db);
+
     let _ = tx.send(Some(r.map(|(r, _)| r.into())));
 }
 
 async fn sync_helper(
-    db: Arc<Database>,
+    db: Arc<DatabaseGuard>,
     sender_user: UserId,
     sender_device: Box<DeviceId>,
     since: Option<String>,
