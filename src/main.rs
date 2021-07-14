@@ -220,11 +220,17 @@ async fn main() {
 
     config.warn_deprecated();
 
-    let db = Database::load_or_create(config)
+    let db = Database::load_or_create(&config)
         .await
         .expect("config is valid");
 
-    let rocket = setup_rocket(raw_config, db);
+    let rocket = setup_rocket(raw_config, Arc::clone(&db))
+        .ignite()
+        .await
+        .unwrap();
+
+    Database::start_on_shutdown_tasks(db, rocket.shutdown()).await;
+
     rocket.launch().await.unwrap();
 }
 

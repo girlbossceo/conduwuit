@@ -23,7 +23,7 @@ use rocket::{
     futures::{channel::mpsc, stream::FuturesUnordered, StreamExt},
     outcome::{try_outcome, IntoOutcome},
     request::{FromRequest, Request},
-    State,
+    Shutdown, State,
 };
 use ruma::{DeviceId, ServerName, UserId};
 use serde::{de::IgnoredAny, Deserialize};
@@ -199,7 +199,7 @@ impl Database {
     }
 
     /// Load an existing database or create a new one.
-    pub async fn load_or_create(config: Config) -> Result<Arc<TokioRwLock<Self>>> {
+    pub async fn load_or_create(config: &Config) -> Result<Arc<TokioRwLock<Self>>> {
         Self::check_sled_or_sqlite_db(&config)?;
 
         let builder = Engine::open(&config)?;
@@ -423,6 +423,17 @@ impl Database {
         Self::start_wal_clean_task(&db, &config).await;
 
         Ok(db)
+    }
+
+    #[cfg(feature = "conduit_bin")]
+    pub async fn start_on_shutdown_tasks(db: Arc<TokioRwLock<Self>>, shutdown: Shutdown) {
+        tokio::spawn(async move {
+            shutdown.await;
+
+            log::info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
+
+            db.read().await.globals.rotate.fire();
+        });
     }
 
     pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) {
