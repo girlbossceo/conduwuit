@@ -121,7 +121,7 @@ impl Pool {
 
         let spilled = Self::prepare_conn(&self.path, None).unwrap();
 
-        return HoldingConn::FromOwned(spilled, spill_arc);
+        HoldingConn::FromOwned(spilled, spill_arc)
     }
 }
 
@@ -250,16 +250,7 @@ macro_rules! iter_from_thread {
 
 impl Tree for SqliteTable {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        let guard = self.engine.pool.read_lock();
-
-        // let start = Instant::now();
-
-        let val = self.get_with_guard(&guard, key);
-
-        // debug!("get:       took {:?}", start.elapsed());
-        // debug!("get key: {:?}", &key)
-
-        val
+        self.get_with_guard(&self.engine.pool.read_lock(), key)
     }
 
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {

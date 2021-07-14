@@ -137,7 +137,7 @@ pub fn deserialize_from_str<
         where
             E: serde::de::Error,
         {
-            v.parse().map_err(|e| serde::de::Error::custom(e))
+            v.parse().map_err(serde::de::Error::custom)
         }
     }
     deserializer.deserialize_str(Visitor(std::marker::PhantomData))

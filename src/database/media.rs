@@ -54,6 +54,7 @@ impl Media {
     }
 
     /// Uploads or replaces a file thumbnail.
+    #[allow(clippy::too_many_arguments)]
     pub async fn upload_thumbnail(
         &self,
         mxc: String,

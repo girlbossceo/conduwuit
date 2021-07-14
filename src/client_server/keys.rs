@@ -141,15 +141,13 @@ pub async fn upload_signing_keys_route(
             return Err(Error::Uiaa(uiaainfo));
         }
     // Success!
+    } else if let Some(json) = body.json_body {
+        uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+        db.uiaa
+            .create(&sender_user, &sender_device, &uiaainfo, &json)?;
+        return Err(Error::Uiaa(uiaainfo));
     } else {
-        if let Some(json) = body.json_body {
-            uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-            db.uiaa
-                .create(&sender_user, &sender_device, &uiaainfo, &json)?;
-            return Err(Error::Uiaa(uiaainfo));
-        } else {
-            return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
-        }
+        return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
     }
 
     if let Some(master_key) = &body.master_key {

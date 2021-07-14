@@ -368,7 +368,7 @@ impl Database {
             if db.globals.database_version()? < 3 {
                 // Move media to filesystem
                 for (key, content) in db.media.mediaid_file.iter() {
-                    if content.len() == 0 {
+                    if content.is_empty() {
                         continue;
                     }
 
@@ -614,8 +614,8 @@ impl<'r> FromRequest<'r> for DatabaseGuard {
     }
 }
 
-impl Into<DatabaseGuard> for OwnedRwLockReadGuard<Database> {
-    fn into(self) -> DatabaseGuard {
-        DatabaseGuard(self)
+impl From<OwnedRwLockReadGuard<Database>> for DatabaseGuard {
+    fn from(val: OwnedRwLockReadGuard<Database>) -> Self {
+        Self(val)
     }
 }

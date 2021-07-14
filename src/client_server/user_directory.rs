@@ -25,20 +25,22 @@ pub async fn search_users_route(
             avatar_url: db.users.avatar_url(&user_id).ok()?,
         };
 
-        if !user
+        let user_id_matches = user
             .user_id
             .to_string()
             .to_lowercase()
-            .contains(&body.search_term.to_lowercase())
-            && user
-                .display_name
-                .as_ref()
-                .filter(|name| {
-                    name.to_lowercase()
-                        .contains(&body.search_term.to_lowercase())
-                })
-                .is_none()
-        {
+            .contains(&body.search_term.to_lowercase());
+
+        let user_displayname_matches = user
+            .display_name
+            .as_ref()
+            .filter(|name| {
+                name.to_lowercase()
+                    .contains(&body.search_term.to_lowercase())
+            })
+            .is_some();
+
+        if !user_id_matches && !user_displayname_matches {
             return None;
         }
 

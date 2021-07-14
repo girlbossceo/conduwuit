@@ -16,7 +16,7 @@ use std::{
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
-use tokio::sync::{broadcast, Semaphore};
+use tokio::sync::{broadcast, watch::Receiver, Semaphore};
 use trust_dns_resolver::TokioAsyncResolver;
 
 use super::abstraction::Tree;
@@ -26,6 +26,11 @@ pub const COUNTER: &[u8] = b"c";
 type WellKnownMap = HashMap<Box<ServerName>, (String, String)>;
 type TlsNameMap = HashMap<String, webpki::DNSName>;
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
+type SyncHandle = (
+    Option<String>,                                         // since
+    Receiver<Option<ConduitResult<sync_events::Response>>>, // rx
+);
+
 pub struct Globals {
     pub actual_destination_cache: Arc<RwLock<WellKnownMap>>, // actual_destination, host
     pub tls_name_override: Arc<RwLock<TlsNameMap>>,
@@ -39,15 +44,7 @@ pub struct Globals {
     pub bad_event_ratelimiter: Arc<RwLock<BTreeMap<EventId, RateLimitState>>>,
     pub bad_signature_ratelimiter: Arc<RwLock<BTreeMap<Vec<String>, RateLimitState>>>,
     pub servername_ratelimiter: Arc<RwLock<BTreeMap<Box<ServerName>, Arc<Semaphore>>>>,
-    pub sync_receivers: RwLock<
-        BTreeMap<
-            (UserId, Box<DeviceId>),
-            (
-                Option<String>,
-                tokio::sync::watch::Receiver<Option<ConduitResult<sync_events::Response>>>,
-            ), // since, rx
-        >,
-    >,
+    pub sync_receivers: RwLock<BTreeMap<(UserId, Box<DeviceId>), SyncHandle>>,
     pub rotate: RotationHandler,
 }
 
@@ -106,6 +103,12 @@ impl RotationHandler {
 
     pub fn fire(&self) {
         let _ = self.0.send(());
+    }
+}
+
+impl Default for RotationHandler {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
