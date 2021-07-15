@@ -203,6 +203,16 @@ pub async fn kick_user_route(
     event.membership = ruma::events::room::member::MembershipState::Leave;
     // TODO: reason
 
+    let mutex = Arc::clone(
+        db.globals
+            .roomid_mutex
+            .write()
+            .unwrap()
+            .entry(body.room_id.clone())
+            .or_default(),
+    );
+    let mutex_lock = mutex.lock().await;
+
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
@@ -214,7 +224,10 @@ pub async fn kick_user_route(
         &sender_user,
         &body.room_id,
         &db,
+        &mutex_lock,
     )?;
+
+    drop(mutex_lock);
 
     db.flush().await?;
 
@@ -261,6 +274,16 @@ pub async fn ban_user_route(
             },
         )?;
 
+    let mutex = Arc::clone(
+        db.globals
+            .roomid_mutex
+            .write()
+            .unwrap()
+            .entry(body.room_id.clone())
+            .or_default(),
+    );
+    let mutex_lock = mutex.lock().await;
+
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
@@ -272,7 +295,10 @@ pub async fn ban_user_route(
         &sender_user,
         &body.room_id,
         &db,
+        &mutex_lock,
     )?;
+
+    drop(mutex_lock);
 
     db.flush().await?;
 
@@ -310,6 +336,16 @@ pub async fn unban_user_route(
 
     event.membership = ruma::events::room::member::MembershipState::Leave;
 
+    let mutex = Arc::clone(
+        db.globals
+            .roomid_mutex
+            .write()
+            .unwrap()
+            .entry(body.room_id.clone())
+            .or_default(),
+    );
+    let mutex_lock = mutex.lock().await;
+
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
@@ -321,7 +357,10 @@ pub async fn unban_user_route(
         &sender_user,
         &body.room_id,
         &db,
+        &mutex_lock,
     )?;
+
+    drop(mutex_lock);
 
     db.flush().await?;
 
@@ -445,6 +484,16 @@ async fn join_room_by_id_helper(
     _third_party_signed: Option<&IncomingThirdPartySigned>,
 ) -> ConduitResult<join_room_by_id::Response> {
     let sender_user = sender_user.expect("user is authenticated");
+
+    let mutex = Arc::clone(
+        db.globals
+            .roomid_mutex
+            .write()
+            .unwrap()
+            .entry(room_id.clone())
+            .or_default(),
+    );
+    let mutex_lock = mutex.lock().await;
 
     // Ask a remote server if we don't have this room
     if !db.rooms.exists(&room_id)? && room_id.server_name() != db.globals.server_name() {
@@ -619,16 +668,9 @@ async fn join_room_by_id_helper(
         // pdu without it's state. This is okay because append_pdu can't fail.
         let statehashid = db.rooms.append_to_state(&pdu, &db.globals)?;
 
-        let count = db.globals.next_count()?;
-        let mut pdu_id = room_id.as_bytes().to_vec();
-        pdu_id.push(0xff);
-        pdu_id.extend_from_slice(&count.to_be_bytes());
-
         db.rooms.append_pdu(
             &pdu,
             utils::to_canonical_object(&pdu).expect("Pdu is valid canonical object"),
-            count,
-            &pdu_id,
             &[pdu.event_id.clone()],
             db,
         )?;
@@ -656,8 +698,11 @@ async fn join_room_by_id_helper(
             &sender_user,
             &room_id,
             &db,
+            &mutex_lock,
         )?;
     }
+
+    drop(mutex_lock);
 
     db.flush().await?;
 
@@ -728,13 +773,23 @@ async fn validate_and_add_event_id(
     Ok((event_id, value))
 }
 
-pub async fn invite_helper(
+pub async fn invite_helper<'a>(
     sender_user: &UserId,
     user_id: &UserId,
     room_id: &RoomId,
     db: &Database,
     is_direct: bool,
 ) -> Result<()> {
+    let mutex = Arc::clone(
+        db.globals
+            .roomid_mutex
+            .write()
+            .unwrap()
+            .entry(room_id.clone())
+            .or_default(),
+    );
+    let mutex_lock = mutex.lock().await;
+
     if user_id.server_name() != db.globals.server_name() {
         let prev_events = db
             .rooms
@@ -870,6 +925,8 @@ pub async fn invite_helper(
         )
         .expect("event is valid, we just created it");
 
+        drop(mutex_lock);
+
         let invite_room_state = db.rooms.calculate_invite_state(&pdu)?;
         let response = db
             .sending
@@ -909,19 +966,26 @@ pub async fn invite_helper(
         )
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-        let pdu_id =
-            server_server::handle_incoming_pdu(&origin, &event_id, value, true, &db, &pub_key_map)
-                .await
-                .map_err(|_| {
-                    Error::BadRequest(
-                        ErrorKind::InvalidParam,
-                        "Error while handling incoming PDU.",
-                    )
-                })?
-                .ok_or(Error::BadRequest(
-                    ErrorKind::InvalidParam,
-                    "Could not accept incoming PDU as timeline event.",
-                ))?;
+        let pdu_id = server_server::handle_incoming_pdu(
+            &origin,
+            &event_id,
+            &room_id,
+            value,
+            true,
+            &db,
+            &pub_key_map,
+        )
+        .await
+        .map_err(|_| {
+            Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Error while handling incoming PDU.",
+            )
+        })?
+        .ok_or(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Could not accept incoming PDU as timeline event.",
+        ))?;
 
         for server in db
             .rooms
@@ -953,6 +1017,7 @@ pub async fn invite_helper(
         &sender_user,
         room_id,
         &db,
+        &mutex_lock,
     )?;
 
     Ok(())

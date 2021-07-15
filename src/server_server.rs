@@ -46,7 +46,7 @@ use ruma::{
     receipt::ReceiptType,
     serde::Raw,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
-    state_res::{self, Event, RoomVersion, StateMap},
+    state_res::{self, RoomVersion, StateMap},
     to_device::DeviceIdOrAllDevices,
     uint, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
     ServerSigningKeyId, UserId,
@@ -625,13 +625,44 @@ pub async fn send_transaction_message_route(
             }
         };
 
+        // 0. Check the server is in the room
+        let room_id = match value
+            .get("room_id")
+            .and_then(|id| RoomId::try_from(id.as_str()?).ok())
+        {
+            Some(id) => id,
+            None => {
+                // Event is invalid
+                resolved_map.insert(event_id, Err("Event needs a valid RoomId.".to_string()));
+                continue;
+            }
+        };
+
+        let mutex = Arc::clone(
+            db.globals
+                .roomid_mutex_federation
+                .write()
+                .unwrap()
+                .entry(room_id.clone())
+                .or_default(),
+        );
+        let mutex_lock = mutex.lock().await;
         let start_time = Instant::now();
         resolved_map.insert(
             event_id.clone(),
-            handle_incoming_pdu(&body.origin, &event_id, value, true, &db, &pub_key_map)
-                .await
-                .map(|_| ()),
+            handle_incoming_pdu(
+                &body.origin,
+                &event_id,
+                &room_id,
+                value,
+                true,
+                &db,
+                &pub_key_map,
+            )
+            .await
+            .map(|_| ()),
         );
+        drop(mutex_lock);
 
         let elapsed = start_time.elapsed();
         if elapsed > Duration::from_secs(1) {
@@ -784,8 +815,8 @@ pub async fn send_transaction_message_route(
 type AsyncRecursiveResult<'a, T, E> = Pin<Box<dyn Future<Output = StdResult<T, E>> + 'a + Send>>;
 
 /// When receiving an event one needs to:
-/// 0. Skip the PDU if we already know about it
-/// 1. Check the server is in the room
+/// 0. Check the server is in the room
+/// 1. Skip the PDU if we already know about it
 /// 2. Check signatures, otherwise drop
 /// 3. Check content hash, redact if doesn't match
 /// 4. Fetch any missing auth events doing all checks listed here starting at 1. These are not
@@ -810,6 +841,7 @@ type AsyncRecursiveResult<'a, T, E> = Pin<Box<dyn Future<Output = StdResult<T, E
 pub fn handle_incoming_pdu<'a>(
     origin: &'a ServerName,
     event_id: &'a EventId,
+    room_id: &'a RoomId,
     value: BTreeMap<String, CanonicalJsonValue>,
     is_timeline_event: bool,
     db: &'a Database,
@@ -817,29 +849,16 @@ pub fn handle_incoming_pdu<'a>(
 ) -> AsyncRecursiveResult<'a, Option<Vec<u8>>, String> {
     Box::pin(async move {
         // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we anywhere?: https://matrix.org/docs/spec/rooms/v6#canonical-json
-
-        // 0. Skip the PDU if we already have it as a timeline event
-        if let Ok(Some(pdu_id)) = db.rooms.get_pdu_id(&event_id) {
-            return Ok(Some(pdu_id.to_vec()));
-        }
-
-        // 1. Check the server is in the room
-        let room_id = match value
-            .get("room_id")
-            .and_then(|id| RoomId::try_from(id.as_str()?).ok())
-        {
-            Some(id) => id,
-            None => {
-                // Event is invalid
-                return Err("Event needs a valid RoomId.".to_string());
-            }
-        };
-
         match db.rooms.exists(&room_id) {
             Ok(true) => {}
             _ => {
                 return Err("Room is unknown to this server.".to_string());
             }
+        }
+
+        // 1. Skip the PDU if we already have it as a timeline event
+        if let Ok(Some(pdu_id)) = db.rooms.get_pdu_id(&event_id) {
+            return Ok(Some(pdu_id.to_vec()));
         }
 
         // We go through all the signatures we see on the value and fetch the corresponding signing
@@ -901,7 +920,7 @@ pub fn handle_incoming_pdu<'a>(
         // 5. Reject "due to auth events" if can't get all the auth events or some of the auth events are also rejected "due to auth events"
         // EDIT: Step 5 is not applied anymore because it failed too often
         debug!("Fetching auth events for {}", incoming_pdu.event_id);
-        fetch_and_handle_events(db, origin, &incoming_pdu.auth_events, pub_key_map)
+        fetch_and_handle_events(db, origin, &incoming_pdu.auth_events, &room_id, pub_key_map)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -1002,13 +1021,13 @@ pub fn handle_incoming_pdu<'a>(
 
         if incoming_pdu.prev_events.len() == 1 {
             let prev_event = &incoming_pdu.prev_events[0];
-            let state_vec = db
+            let state = db
                 .rooms
                 .pdu_shortstatehash(prev_event)
                 .map_err(|_| "Failed talking to db".to_owned())?
                 .map(|shortstatehash| db.rooms.state_full_ids(shortstatehash).ok())
                 .flatten();
-            if let Some(mut state_vec) = state_vec {
+            if let Some(mut state) = state {
                 if db
                     .rooms
                     .get_pdu(prev_event)
@@ -1018,25 +1037,31 @@ pub fn handle_incoming_pdu<'a>(
                     .state_key
                     .is_some()
                 {
-                    state_vec.push(prev_event.clone());
+                    state.insert(prev_event.clone());
                 }
                 state_at_incoming_event = Some(
-                    fetch_and_handle_events(db, origin, &state_vec, pub_key_map)
-                        .await
-                        .map_err(|_| "Failed to fetch state events locally".to_owned())?
-                        .into_iter()
-                        .map(|pdu| {
+                    fetch_and_handle_events(
+                        db,
+                        origin,
+                        &state.into_iter().collect::<Vec<_>>(),
+                        &room_id,
+                        pub_key_map,
+                    )
+                    .await
+                    .map_err(|_| "Failed to fetch state events locally".to_owned())?
+                    .into_iter()
+                    .map(|pdu| {
+                        (
                             (
-                                (
-                                    pdu.kind.clone(),
-                                    pdu.state_key
-                                        .clone()
-                                        .expect("events from state_full_ids are state events"),
-                                ),
-                                pdu,
-                            )
-                        })
-                        .collect(),
+                                pdu.kind.clone(),
+                                pdu.state_key
+                                    .clone()
+                                    .expect("events from state_full_ids are state events"),
+                            ),
+                            pdu,
+                        )
+                    })
+                    .collect(),
                 );
             }
             // TODO: set incoming_auth_events?
@@ -1059,12 +1084,18 @@ pub fn handle_incoming_pdu<'a>(
             {
                 Ok(res) => {
                     debug!("Fetching state events at event.");
-                    let state_vec =
-                        match fetch_and_handle_events(&db, origin, &res.pdu_ids, pub_key_map).await
-                        {
-                            Ok(state) => state,
-                            Err(_) => return Err("Failed to fetch state events.".to_owned()),
-                        };
+                    let state_vec = match fetch_and_handle_events(
+                        &db,
+                        origin,
+                        &res.pdu_ids,
+                        &room_id,
+                        pub_key_map,
+                    )
+                    .await
+                    {
+                        Ok(state) => state,
+                        Err(_) => return Err("Failed to fetch state events.".to_owned()),
+                    };
 
                     let mut state = BTreeMap::new();
                     for pdu in state_vec {
@@ -1090,8 +1121,14 @@ pub fn handle_incoming_pdu<'a>(
                     }
 
                     debug!("Fetching auth chain events at event.");
-                    match fetch_and_handle_events(&db, origin, &res.auth_chain_ids, pub_key_map)
-                        .await
+                    match fetch_and_handle_events(
+                        &db,
+                        origin,
+                        &res.auth_chain_ids,
+                        &room_id,
+                        pub_key_map,
+                    )
+                    .await
                     {
                         Ok(state) => state,
                         Err(_) => return Err("Failed to fetch auth chain.".to_owned()),
@@ -1219,18 +1256,10 @@ pub fn handle_incoming_pdu<'a>(
 
             let mut auth_events = vec![];
             for map in &fork_states {
-                let mut state_auth = vec![];
-                for auth_id in map.values().flat_map(|pdu| &pdu.auth_events) {
-                    match fetch_and_handle_events(&db, origin, &[auth_id.clone()], pub_key_map)
-                        .await
-                    {
-                        // This should always contain exactly one element when Ok
-                        Ok(events) => state_auth.extend_from_slice(&events),
-                        Err(e) => {
-                            debug!("Event was not present: {}", e);
-                        }
-                    }
-                }
+                let state_auth = map
+                    .values()
+                    .flat_map(|pdu| pdu.auth_events.clone())
+                    .collect();
                 auth_events.push(state_auth);
             }
 
@@ -1245,10 +1274,7 @@ pub fn handle_incoming_pdu<'a>(
                             .collect::<StateMap<_>>()
                     })
                     .collect::<Vec<_>>(),
-                auth_events
-                    .into_iter()
-                    .map(|pdus| pdus.into_iter().map(|pdu| pdu.event_id().clone()).collect())
-                    .collect(),
+                auth_events,
                 &|id| {
                     let res = db.rooms.get_pdu(id);
                     if let Err(e) = &res {
@@ -1282,11 +1308,13 @@ pub fn handle_incoming_pdu<'a>(
             pdu_id = Some(
                 append_incoming_pdu(
                     &db,
+                    &room_id,
                     &incoming_pdu,
                     val,
                     extremities,
                     &state_at_incoming_event,
                 )
+                .await
                 .map_err(|_| "Failed to add pdu to db.".to_owned())?,
             );
             debug!("Appended incoming pdu.");
@@ -1324,6 +1352,7 @@ pub(crate) fn fetch_and_handle_events<'a>(
     db: &'a Database,
     origin: &'a ServerName,
     events: &'a [EventId],
+    room_id: &'a RoomId,
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
 ) -> AsyncRecursiveResult<'a, Vec<Arc<PduEvent>>, Error> {
     Box::pin(async move {
@@ -1377,6 +1406,7 @@ pub(crate) fn fetch_and_handle_events<'a>(
                             match handle_incoming_pdu(
                                 origin,
                                 &event_id,
+                                &room_id,
                                 value.clone(),
                                 false,
                                 db,
@@ -1583,31 +1613,37 @@ pub(crate) async fn fetch_signing_keys(
 /// Append the incoming event setting the state snapshot to the state from the
 /// server that sent the event.
 #[tracing::instrument(skip(db))]
-pub(crate) fn append_incoming_pdu(
+async fn append_incoming_pdu(
     db: &Database,
+    room_id: &RoomId,
     pdu: &PduEvent,
     pdu_json: CanonicalJsonObject,
     new_room_leaves: HashSet<EventId>,
     state: &StateMap<Arc<PduEvent>>,
 ) -> Result<Vec<u8>> {
-    let count = db.globals.next_count()?;
-    let mut pdu_id = pdu.room_id.as_bytes().to_vec();
-    pdu_id.push(0xff);
-    pdu_id.extend_from_slice(&count.to_be_bytes());
+    let mutex = Arc::clone(
+        db.globals
+            .roomid_mutex
+            .write()
+            .unwrap()
+            .entry(room_id.clone())
+            .or_default(),
+    );
+    let mutex_lock = mutex.lock().await;
 
     // We append to state before appending the pdu, so we don't have a moment in time with the
     // pdu without it's state. This is okay because append_pdu can't fail.
     db.rooms
         .set_event_state(&pdu.event_id, state, &db.globals)?;
 
-    db.rooms.append_pdu(
+    let pdu_id = db.rooms.append_pdu(
         pdu,
         pdu_json,
-        count,
-        &pdu_id,
         &new_room_leaves.into_iter().collect::<Vec<_>>(),
         &db,
     )?;
+
+    drop(mutex_lock);
 
     for appservice in db.appservice.iter_all()?.filter_map(|r| r.ok()) {
         if let Some(namespaces) = appservice.1.get("namespaces") {
@@ -1872,7 +1908,11 @@ pub fn get_room_state_ids_route(
             "Pdu state not found.",
         ))?;
 
-    let pdu_ids = db.rooms.state_full_ids(shortstatehash)?;
+    let pdu_ids = db
+        .rooms
+        .state_full_ids(shortstatehash)?
+        .into_iter()
+        .collect();
 
     let mut auth_chain_ids = BTreeSet::<EventId>::new();
     let mut todo = BTreeSet::new();
@@ -2118,18 +2158,36 @@ pub async fn create_join_event_route(
     )
     .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-    let pdu_id = handle_incoming_pdu(&origin, &event_id, value, true, &db, &pub_key_map)
-        .await
-        .map_err(|_| {
-            Error::BadRequest(
-                ErrorKind::InvalidParam,
-                "Error while handling incoming PDU.",
-            )
-        })?
-        .ok_or(Error::BadRequest(
+    let mutex = Arc::clone(
+        db.globals
+            .roomid_mutex_federation
+            .write()
+            .unwrap()
+            .entry(body.room_id.clone())
+            .or_default(),
+    );
+    let mutex_lock = mutex.lock().await;
+    let pdu_id = handle_incoming_pdu(
+        &origin,
+        &event_id,
+        &body.room_id,
+        value,
+        true,
+        &db,
+        &pub_key_map,
+    )
+    .await
+    .map_err(|_| {
+        Error::BadRequest(
             ErrorKind::InvalidParam,
-            "Could not accept incoming PDU as timeline event.",
-        ))?;
+            "Error while handling incoming PDU.",
+        )
+    })?
+    .ok_or(Error::BadRequest(
+        ErrorKind::InvalidParam,
+        "Could not accept incoming PDU as timeline event.",
+    ))?;
+    drop(mutex_lock);
 
     let state_ids = db.rooms.state_full_ids(shortstatehash)?;
 

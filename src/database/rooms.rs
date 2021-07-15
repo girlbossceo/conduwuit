@@ -2,6 +2,7 @@ mod edus;
 
 pub use edus::RoomEdus;
 use member::MembershipState;
+use tokio::sync::MutexGuard;
 
 use crate::{pdu::PduBuilder, utils, Database, Error, PduEvent, Result};
 use log::{debug, error, warn};
@@ -21,7 +22,7 @@ use ruma::{
     uint, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     mem,
     sync::{Arc, RwLock},
@@ -89,7 +90,7 @@ pub struct Rooms {
 impl Rooms {
     /// Builds a StateMap by iterating over all keys that start
     /// with state_hash, this gives the full state for the given state_hash.
-    pub fn state_full_ids(&self, shortstatehash: u64) -> Result<Vec<EventId>> {
+    pub fn state_full_ids(&self, shortstatehash: u64) -> Result<BTreeSet<EventId>> {
         Ok(self
             .stateid_shorteventid
             .scan_prefix(shortstatehash.to_be_bytes().to_vec())
@@ -666,11 +667,10 @@ impl Rooms {
         &self,
         pdu: &PduEvent,
         mut pdu_json: CanonicalJsonObject,
-        count: u64,
-        pdu_id: &[u8],
         leaves: &[EventId],
         db: &Database,
-    ) -> Result<()> {
+    ) -> Result<Vec<u8>> {
+        // returns pdu id
         // Make unsigned fields correct. This is not properly documented in the spec, but state
         // events need to have previous content in the unsigned field, so clients can easily
         // interpret things like membership changes
@@ -708,20 +708,30 @@ impl Rooms {
 
         self.replace_pdu_leaves(&pdu.room_id, leaves)?;
 
+        let count1 = db.globals.next_count()?;
         // Mark as read first so the sending client doesn't get a notification even if appending
         // fails
         self.edus
-            .private_read_set(&pdu.room_id, &pdu.sender, count, &db.globals)?;
+            .private_read_set(&pdu.room_id, &pdu.sender, count1, &db.globals)?;
         self.reset_notification_counts(&pdu.sender, &pdu.room_id)?;
 
+        let count2 = db.globals.next_count()?;
+        let mut pdu_id = pdu.room_id.as_bytes().to_vec();
+        pdu_id.push(0xff);
+        pdu_id.extend_from_slice(&count2.to_be_bytes());
+
+        // There's a brief moment of time here where the count is updated but the pdu does not
+        // exist. This could theoretically lead to dropped pdus, but it's extremely rare
+
         self.pduid_pdu.insert(
-            pdu_id,
+            &pdu_id,
             &serde_json::to_vec(&pdu_json).expect("CanonicalJsonObject is always a valid"),
         )?;
 
         // This also replaces the eventid of any outliers with the correct
         // pduid, removing the place holder.
-        self.eventid_pduid.insert(pdu.event_id.as_bytes(), pdu_id)?;
+        self.eventid_pduid
+            .insert(pdu.event_id.as_bytes(), &pdu_id)?;
 
         // See if the event matches any known pushers
         for user in db
@@ -909,7 +919,7 @@ impl Rooms {
             _ => {}
         }
 
-        Ok(())
+        Ok(pdu_id)
     }
 
     pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
@@ -1198,6 +1208,7 @@ impl Rooms {
         sender: &UserId,
         room_id: &RoomId,
         db: &Database,
+        _mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room mutex
     ) -> Result<EventId> {
         let PduBuilder {
             event_type,
@@ -1206,7 +1217,7 @@ impl Rooms {
             state_key,
             redacts,
         } = pdu_builder;
-        // TODO: Make sure this isn't called twice in parallel
+
         let prev_events = self
             .get_pdu_leaves(&room_id)?
             .into_iter()
@@ -1354,11 +1365,9 @@ impl Rooms {
         // pdu without it's state. This is okay because append_pdu can't fail.
         let statehashid = self.append_to_state(&pdu, &db.globals)?;
 
-        self.append_pdu(
+        let pdu_id = self.append_pdu(
             &pdu,
             pdu_json,
-            count,
-            &pdu_id,
             // Since this PDU references all pdu_leaves we can update the leaves
             // of the room
             &[pdu.event_id.clone()],
@@ -1495,7 +1504,7 @@ impl Rooms {
         prefix.push(0xff);
 
         let mut current = prefix.clone();
-        current.extend_from_slice(&until.to_be_bytes());
+        current.extend_from_slice(&(until.saturating_sub(1)).to_be_bytes()); // -1 because we don't want event at `until`
 
         let current: &[u8] = &current;
 
@@ -1782,6 +1791,16 @@ impl Rooms {
                 db,
             )?;
         } else {
+            let mutex = Arc::clone(
+                db.globals
+                    .roomid_mutex
+                    .write()
+                    .unwrap()
+                    .entry(room_id.clone())
+                    .or_default(),
+            );
+            let mutex_lock = mutex.lock().await;
+
             let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
                 self.room_state_get(room_id, &EventType::RoomMember, &user_id.to_string())?
                     .ok_or(Error::BadRequest(
@@ -1809,6 +1828,7 @@ impl Rooms {
                 user_id,
                 room_id,
                 db,
+                &mutex_lock,
             )?;
         }
 
