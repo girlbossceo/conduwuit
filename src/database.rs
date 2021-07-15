@@ -543,11 +543,10 @@ impl Database {
 
     #[cfg(feature = "sqlite")]
     pub async fn start_wal_clean_task(lock: &Arc<TokioRwLock<Self>>, config: &Config) {
-        use tokio::{
-            select,
-            signal::unix::{signal, SignalKind},
-            time::{interval, timeout},
-        };
+        use tokio::time::{interval, timeout};
+
+        #[cfg(unix)]
+        use tokio::signal::unix::{signal, SignalKind};
 
         use std::{
             sync::Weak,
@@ -562,10 +561,12 @@ impl Database {
 
         tokio::spawn(async move {
             let mut i = interval(timer_interval);
+            #[cfg(unix)]
             let mut s = signal(SignalKind::hangup()).unwrap();
 
             loop {
-                select! {
+                #[cfg(unix)]
+                tokio::select! {
                     _ = i.tick(), if do_timer => {
                         log::info!(target: "wal-trunc", "Timer ticked")
                     }
@@ -573,7 +574,14 @@ impl Database {
                         log::info!(target: "wal-trunc", "Received SIGHUP")
                     }
                 };
-
+                #[cfg(not(unix))]
+                if do_timer {
+                    i.tick().await;
+                    log::info!(target: "wal-trunc", "Timer ticked")
+                } else {
+                    // timer disabled, and there's no concept of signals on windows, bailing...
+                    return;
+                }
                 if let Some(arc) = Weak::upgrade(&weak) {
                     log::info!(target: "wal-trunc", "Rotating sync helpers...");
                     // This actually creates a very small race condition between firing this and trying to acquire the subsequent write lock.
