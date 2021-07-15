@@ -14,7 +14,7 @@ impl DatabaseEngine for Engine {
         Ok(Arc::new(Engine(
             sled::Config::default()
                 .path(&config.database_path)
-                .cache_capacity((config.db_cache_capacity_mb * 1024 * 1024) as u64)
+                .cache_capacity(config.sled_cache_capacity_bytes)
                 .use_compression(true)
                 .open()?,
         )))

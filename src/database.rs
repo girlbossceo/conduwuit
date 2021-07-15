@@ -45,6 +45,8 @@ pub struct Config {
     database_path: String,
     #[serde(default = "default_db_cache_capacity_mb")]
     db_cache_capacity_mb: f64,
+    #[serde(default = "default_sled_cache_capacity_bytes")]
+    sled_cache_capacity_bytes: u64,
     #[serde(default = "default_sqlite_read_pool_size")]
     sqlite_read_pool_size: usize,
     #[serde(default = "true_fn")]
@@ -107,6 +109,10 @@ fn true_fn() -> bool {
 
 fn default_db_cache_capacity_mb() -> f64 {
     200.0
+}
+
+fn default_sled_cache_capacity_bytes() -> u64 {
+    1024 * 1024 * 1024
 }
 
 fn default_sqlite_read_pool_size() -> usize {
