@@ -7,7 +7,7 @@ use log::debug;
 use parking_lot::{Mutex, MutexGuard, RwLock};
 use rusqlite::{params, Connection, DatabaseName::Main, OptionalExtension};
 use std::{
-    collections::BTreeMap,
+    collections::HashMap,
     future::Future,
     ops::Deref,
     path::{Path, PathBuf},
@@ -206,7 +206,7 @@ impl DatabaseEngine for Engine {
         Ok(Arc::new(SqliteTable {
             engine: Arc::clone(self),
             name: name.to_owned(),
-            watchers: RwLock::new(BTreeMap::new()),
+            watchers: RwLock::new(HashMap::new()),
         }))
     }
 
@@ -266,7 +266,7 @@ impl Engine {
 pub struct SqliteTable {
     engine: Arc<Engine>,
     name: String,
-    watchers: RwLock<BTreeMap<Vec<u8>, Vec<Sender<()>>>>,
+    watchers: RwLock<HashMap<Vec<u8>, Vec<Sender<()>>>>,
 }
 
 type TupleOfBytes = (Vec<u8>, Vec<u8>);

@@ -29,7 +29,7 @@ use ruma::{
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use std::{
-    collections::{btree_map::Entry, BTreeMap, HashSet},
+    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     sync::{Arc, RwLock},
     time::{Duration, Instant},
@@ -607,7 +607,7 @@ async fn join_room_by_id_helper(
         let pdu = PduEvent::from_id_val(&event_id, join_event.clone())
             .map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
 
-        let mut state = BTreeMap::new();
+        let mut state = HashMap::new();
         let pub_key_map = RwLock::new(BTreeMap::new());
 
         for result in futures::future::join_all(

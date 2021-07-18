@@ -33,7 +33,7 @@ use std::{
     io::Write,
     ops::Deref,
     path::Path,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 use tokio::sync::{OwnedRwLockReadGuard, RwLock as TokioRwLock, Semaphore};
 
@@ -292,7 +292,8 @@ impl Database {
 
                 eventid_outlierpdu: builder.open_tree("eventid_outlierpdu")?,
                 prevevent_parent: builder.open_tree("prevevent_parent")?,
-                pdu_cache: RwLock::new(LruCache::new(10_000)),
+                pdu_cache: Mutex::new(LruCache::new(100_000)),
+                auth_chain_cache: Mutex::new(LruCache::new(100_000)),
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,

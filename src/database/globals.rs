@@ -41,12 +41,12 @@ pub struct Globals {
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
     pub(super) server_signingkeys: Arc<dyn Tree>,
-    pub bad_event_ratelimiter: Arc<RwLock<BTreeMap<EventId, RateLimitState>>>,
-    pub bad_signature_ratelimiter: Arc<RwLock<BTreeMap<Vec<String>, RateLimitState>>>,
-    pub servername_ratelimiter: Arc<RwLock<BTreeMap<Box<ServerName>, Arc<Semaphore>>>>,
-    pub sync_receivers: RwLock<BTreeMap<(UserId, Box<DeviceId>), SyncHandle>>,
-    pub roomid_mutex: RwLock<BTreeMap<RoomId, Arc<Mutex<()>>>>,
-    pub roomid_mutex_federation: RwLock<BTreeMap<RoomId, Arc<Mutex<()>>>>, // this lock will be held longer
+    pub bad_event_ratelimiter: Arc<RwLock<HashMap<EventId, RateLimitState>>>,
+    pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
+    pub servername_ratelimiter: Arc<RwLock<HashMap<Box<ServerName>, Arc<Semaphore>>>>,
+    pub sync_receivers: RwLock<HashMap<(UserId, Box<DeviceId>), SyncHandle>>,
+    pub roomid_mutex: RwLock<HashMap<RoomId, Arc<Mutex<()>>>>,
+    pub roomid_mutex_federation: RwLock<HashMap<RoomId, Arc<Mutex<()>>>>, // this lock will be held longer
     pub rotate: RotationHandler,
 }
 
@@ -196,12 +196,12 @@ impl Globals {
             tls_name_override,
             server_signingkeys,
             jwt_decoding_key,
-            bad_event_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
-            bad_signature_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
-            servername_ratelimiter: Arc::new(RwLock::new(BTreeMap::new())),
-            roomid_mutex: RwLock::new(BTreeMap::new()),
-            roomid_mutex_federation: RwLock::new(BTreeMap::new()),
-            sync_receivers: RwLock::new(BTreeMap::new()),
+            bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
+            bad_signature_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
+            servername_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
+            roomid_mutex: RwLock::new(HashMap::new()),
+            roomid_mutex_federation: RwLock::new(HashMap::new()),
+            sync_receivers: RwLock::new(HashMap::new()),
             rotate: RotationHandler::new(),
         };
 

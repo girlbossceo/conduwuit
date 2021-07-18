@@ -7,7 +7,7 @@ use ruma::{
     DeviceId, RoomId, UserId,
 };
 use std::{
-    collections::{btree_map::Entry, hash_map, BTreeMap, HashMap, HashSet},
+    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     sync::Arc,
     time::Duration,
@@ -622,10 +622,10 @@ async fn sync_helper(
                 .presence_since(&room_id, since, &db.rooms, &db.globals)?
         {
             match presence_updates.entry(user_id) {
-                hash_map::Entry::Vacant(v) => {
+                Entry::Vacant(v) => {
                     v.insert(presence);
                 }
-                hash_map::Entry::Occupied(mut o) => {
+                Entry::Occupied(mut o) => {
                     let p = o.get_mut();
 
                     // Update existing presence event with more info
