@@ -1,8 +1,8 @@
 
-<!-- Please describe your changes here in a concise manner -->
+<!-- Please describe your changes here -->
 
 -----------------------------------------------------------------------------
 
-- [ ] I ran `cargo fmt --all`, `cargo test --workspace` and `cargo clippy`
+- [ ] I ran `cargo fmt` and `cargo test`
 - [ ] I agree to release my code and all other changes of this MR under the Apache-2.0 license
 
