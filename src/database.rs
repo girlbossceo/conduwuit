@@ -53,6 +53,10 @@ pub struct Config {
     sqlite_wal_clean_second_interval: u32,
     #[serde(default = "default_sqlite_wal_clean_second_timeout")]
     sqlite_wal_clean_second_timeout: u32,
+    #[serde(default = "default_sqlite_spillover_reap_chunk")]
+    sqlite_spillover_reap_chunk: u32,
+    #[serde(default = "default_sqlite_spillover_reap_interval_secs")]
+    sqlite_spillover_reap_interval_secs: u32,
     #[serde(default = "default_max_request_size")]
     max_request_size: u32,
     #[serde(default = "default_max_concurrent_requests")]
@@ -119,6 +123,14 @@ fn default_sqlite_wal_clean_second_interval() -> u32 {
 
 fn default_sqlite_wal_clean_second_timeout() -> u32 {
     2
+}
+
+fn default_sqlite_spillover_reap_chunk() -> u32 {
+    5
+}
+
+fn default_sqlite_spillover_reap_interval_secs() -> u32 {
+    10
 }
 
 fn default_max_request_size() -> u32 {
@@ -420,7 +432,10 @@ impl Database {
         drop(guard);
 
         #[cfg(feature = "sqlite")]
-        Self::start_wal_clean_task(&db, &config).await;
+        {
+            Self::start_wal_clean_task(&db, &config).await;
+            Self::start_spillover_reap_task(builder, &config).await;
+        }
 
         Ok(db)
     }
@@ -539,6 +554,35 @@ impl Database {
     #[cfg(feature = "sqlite")]
     pub fn flush_wal(&self) -> Result<()> {
         self._db.flush_wal()
+    }
+
+    #[cfg(feature = "sqlite")]
+    pub async fn start_spillover_reap_task(engine: Arc<Engine>, config: &Config) {
+        let chunk_size = match config.sqlite_spillover_reap_chunk {
+            0 => None, // zero means no chunking, reap everything
+            a @ _ => Some(a),
+        };
+        let interval_secs = config.sqlite_spillover_reap_interval_secs as u64;
+
+        let weak = Arc::downgrade(&engine);
+
+        tokio::spawn(async move {
+            use tokio::time::interval;
+
+            use std::{sync::Weak, time::Duration};
+
+            let mut i = interval(Duration::from_secs(interval_secs));
+
+            loop {
+                i.tick().await;
+
+                if let Some(arc) = Weak::upgrade(&weak) {
+                    arc.reap_spillover(chunk_size);
+                } else {
+                    break;
+                }
+            }
+        });
     }
 
     #[cfg(feature = "sqlite")]
