@@ -121,11 +121,6 @@ test:register:element-web-stable:
     - "export CARGO_PROFILE_RELEASE_LTO=thin"
     - time cargo build --target $TARGET --release
     - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
-  artifacts:
-    name: "conduit-$TARGET"
-    expose_as: "Binary"
-    paths:
-      - "conduit-$TARGET"
 
 build:cargo:x86_64-unknown-linux-gnu:
   extends: .build-cargo-shared-settings
@@ -133,6 +128,11 @@ build:cargo:x86_64-unknown-linux-gnu:
     TARGET: "x86_64-unknown-linux-gnu"
   rules:
     - if: "$CI_COMMIT_BRANCH"
+  artifacts:
+    name: "conduit-x86_64-unknown-linux-gnu"
+    paths:
+      - "conduit-x86_64-unknown-linux-gnu"
+    expose_as: "Release binary x86_64-unknown-linux-gnu"
 
 build:cargo:armv7-unknown-linux-gnueabihf:
   extends: .build-cargo-shared-settings
@@ -142,6 +142,11 @@ build:cargo:armv7-unknown-linux-gnueabihf:
     CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
     CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc
     CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++
+  artifacts:
+    name: "conduit-armv7-unknown-linux-gnueabihf"
+    paths:
+      - "conduit-armv7-unknown-linux-gnueabihf"
+    expose_as: "Release binary armv7-unknown-linux-gnueabihf"
 
 build:cargo:aarch64-unknown-linux-gnu:
   extends: .build-cargo-shared-settings
@@ -153,6 +158,11 @@ build:cargo:aarch64-unknown-linux-gnu:
     CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
     TARGET_CC: "/usr/bin/aarch64-linux-gnu-gcc-8"
     TARGET_AR: "/usr/bin/aarch64-linux-gnu-gcc-ar-8"
+  artifacts:
+    name: "conduit-aarch64-unknown-linux-gnu"
+    paths:
+      - "conduit-aarch64-unknown-linux-gnu"
+    expose_as: "Release binary aarch64-unknown-linux-gnu"
 
 build:cargo:x86_64-unknown-linux-musl:
   extends: .build-cargo-shared-settings
@@ -167,6 +177,11 @@ build:cargo:x86_64-unknown-linux-musl:
     - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
     - "rustup target add $TARGET"
     - "apk add libc-dev"
+  artifacts:
+    name: "conduit-x86_64-unknown-linux-musl"
+    paths:
+      - "conduit-x86_64-unknown-linux-musl"
+    expose_as: "Release binary x86_64-unknown-linux-musl"
 
 
 # --------------------------------------------------------------------- #
@@ -199,17 +214,17 @@ build:cargo:x86_64-unknown-linux-musl:
   script:
     - time cargo deb --target $TARGET
     - 'mv target/$TARGET/debian/*.deb "conduit-$TARGET.deb"'
-  artifacts:
-    name: "conduit-$TARGET.deb"
-    expose_as: "Debian Package"
-    paths:
-      - "conduit-$TARGET.deb"
 
 build:cargo-deb:x86_64-unknown-linux-gnu:
   extends: .build-cargo-deb-shared-settings
   variables:
     TARGET: "x86_64-unknown-linux-gnu"
     NEEDED_PACKAGES: ""
+  artifacts:
+    name: "conduit-x86_64-unknown-linux-gnu.deb"
+    paths:
+      - "conduit-x86_64-unknown-linux-gnu.deb"
+    expose_as: "Debian Package x86_64"
 
 
 
