@@ -9,6 +9,7 @@ use rusqlite::{params, Connection, DatabaseName::Main, OptionalExtension};
 use std::{
     collections::BTreeMap,
     future::Future,
+    num::NonZeroU32,
     ops::Deref,
     path::{Path, PathBuf},
     pin::Pin,
@@ -241,19 +242,14 @@ impl Engine {
             .map_err(Into::into)
     }
 
-    // Reaps (at most) X amount of connections if `amount` is Some.
-    // If none, reaps all currently idle connections.
-    pub fn reap_spillover(&self, amount: Option<u32>) {
+    // Reaps (at most) (.len() / `fraction`) (rounded down, min 1) connections.
+    pub fn reap_spillover_by_fraction(&self, fraction: NonZeroU32) {
         let mut reaped = 0;
 
-        if let Some(amount) = amount {
-            for _ in 0..amount {
-                if self.pool.spills.try_take().is_some() {
-                    reaped += 1;
-                }
-            }
-        } else {
-            while let Some(_) = self.pool.spills.try_take() {
+        let amount = ((self.pool.spills.1.len() as u32) / fraction).max(1);
+
+        for _ in 0..amount {
+            if self.pool.spills.try_take().is_some() {
                 reaped += 1;
             }
         }
