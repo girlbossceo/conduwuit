@@ -150,11 +150,16 @@ impl Pool {
             }
         }
 
+        log::debug!("read_lock: All permanent readers locked, obtaining spillover reader...");
+
         // We didn't get a connection from the permanent pool, so we'll dumpster-dive for recycled connections.
         // Either we have a connection or we dont, if we don't, we make a new one.
         let conn = match self.spills.try_take() {
             Some(conn) => conn,
-            None => Self::prepare_conn(&self.path, None).unwrap(),
+            None => {
+                log::debug!("read_lock: No recycled connections left, creating new one...");
+                Self::prepare_conn(&self.path, None).unwrap()
+            }
         };
 
         // Clone the spill Arc to mark how many spilled connections actually exist.
@@ -162,8 +167,6 @@ impl Pool {
 
         // Get a sense of how many connections exist now.
         let now_count = Arc::strong_count(&spill_arc) - 1 /* because one is held by the pool */;
-
-        log::debug!("read_lock: all readers locked, creating spillover reader...");
 
         // If the spillover readers are more than the number of total readers, there might be a problem.
         if now_count > self.readers.len() {
