@@ -272,10 +272,8 @@ fn default_config() -> rocket::Config {
         {
             use rocket::config::Sig;
 
-            let signals = &mut shutdown.signals;
-
-            signals.insert(Sig::Term);
-            signals.insert(Sig::Int);
+            shutdown.signals.insert(Sig::Term);
+            shutdown.signals.insert(Sig::Int);
         }
 
         // Once shutdown is triggered, this is the amount of seconds before rocket
