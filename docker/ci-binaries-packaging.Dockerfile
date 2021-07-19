@@ -69,5 +69,5 @@ WORKDIR /srv/conduit
 ENTRYPOINT [ "/srv/conduit/conduit" ]
 
 
-# Copy the COnduit binary into the image at the latest possible moment to maximise caching:
+# Copy the Conduit binary into the image at the latest possible moment to maximise caching:
 COPY ./conduit-x86_64-unknown-linux-musl /srv/conduit/conduit
