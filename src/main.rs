@@ -185,7 +185,7 @@ async fn main() {
     std::env::set_var("CONDUIT_LOG_LEVEL", "off");
 
     let raw_config =
-        Figment::from(rocket::Config::release_default())
+        Figment::from(default_config())
             .merge(
                 Toml::file(Env::var("CONDUIT_CONFIG").expect(
                     "The CONDUIT_CONFIG env var needs to be set. Example: /etc/conduit.toml",
@@ -260,4 +260,31 @@ fn missing_token_catcher() -> Result<()> {
 #[catch(583)]
 fn bad_json_catcher() -> Result<()> {
     Err(Error::BadRequest(ErrorKind::BadJson, "Bad json."))
+}
+
+fn default_config() -> rocket::Config {
+    let mut config = rocket::Config::release_default();
+
+    {
+        let mut shutdown = &mut config.shutdown;
+
+        #[cfg(unix)]
+        {
+            use rocket::config::Sig;
+
+            shutdown.signals.insert(Sig::Term);
+            shutdown.signals.insert(Sig::Int);
+        }
+
+        // Once shutdown is triggered, this is the amount of seconds before rocket
+        // will forcefully start shutting down connections, this gives enough time to /sync
+        // requests and the like (which havent gotten the memo, somehow) to still complete gracefully.
+        shutdown.grace = 35;
+
+        // After the grace period, rocket starts shutting down connections, and waits at least this
+        // many seconds before forcefully shutting all of them down.
+        shutdown.mercy = 10;
+    }
+
+    config
 }
