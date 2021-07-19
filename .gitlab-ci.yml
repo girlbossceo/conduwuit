@@ -1,14 +1,12 @@
 stages:
-  - test
   - build
+  - test
   - upload artifacts
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   FF_USE_FASTZIP: 1
   CACHE_COMPRESSION_LEVEL: fastest
-
-
 
 test:cargo:
   stage: "test"
@@ -33,6 +31,31 @@ test:cargo:
     - cargo fmt --all -- --check
     - cargo test --workspace --verbose --locked
     - cargo clippy
+
+
+test:register:element-web-stable:
+  stage: "test"
+  needs:
+    - "build:cargo:x86_64-unknown-linux-gnu"
+  image: "buildkite/puppeteer:latest"
+  tags: ["docker"]
+  interruptible: true
+  script:
+    - "CONDUIT_CONFIG=tests/test-config.toml ./conduit-x86_64-unknown-linux-gnu > conduit.log &"
+    - "cd tests/client-element-web/"
+    - "npm install puppeteer"
+    - "node test-element-web-registration.js \"https://app.element.io/\" \"http://localhost:6167\""
+    - "killall --regexp \"conduit\""
+    - "cd ../.."
+    - "cat conduit.log"
+  artifacts:
+    paths:
+      - "tests/client-element-web/*.png"
+      - "*.log"
+    expire_in: 1 week
+    when: always
+  retry: 1
+
 
 # --------------------------------------------------------------------- #
 #  Cargo: Compiling for different architectures                         #
@@ -76,6 +99,8 @@ build:cargo:x86_64-unknown-linux-gnu:
   extends: .build-cargo-shared-settings
   variables:
     TARGET: "x86_64-unknown-linux-gnu"
+  rules:
+    - if: "$CI_COMMIT_BRANCH"
 
 build:cargo:armv7-unknown-linux-gnueabihf:
   extends: .build-cargo-shared-settings
