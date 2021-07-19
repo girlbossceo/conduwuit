@@ -32,6 +32,37 @@ test:cargo:
     - cargo test --workspace --verbose --locked
     - cargo clippy
 
+test:sytest:
+  stage: "test"
+  allow_failure: true
+  needs:
+    - "build:cargo:x86_64-unknown-linux-musl"
+  image:
+    name: "valkum/sytest-conduit:latest"
+    entrypoint: [""]
+  tags: ["docker"]
+  variables:
+    PLUGINS: "https://github.com/valkum/sytest_conduit/archive/master.tar.gz"
+  before_script:
+    - "mkdir -p /app"
+    - "cp ./conduit-x86_64-unknown-linux-musl /app/conduit"
+    - "chmod +x /app/conduit"
+    - "rm -rf /src && ln -s $CI_PROJECT_DIR/ /src"
+    - "mkdir -p /work/server-0/database/ && mkdir -p /work/server-1/database/ && mkdir -p /work/server-2/database/"
+    - "cd /"
+  script:
+    - "SYTEST_EXIT_CODE=0"
+    - "/bootstrap.sh conduit || SYTEST_EXIT_CODE=1"
+    - "perl /sytest/tap-to-junit-xml.pl --puretap --input /logs/results.tap --output $CI_PROJECT_DIR/sytest.xml \"Sytest\" && cp /logs/results.tap $CI_PROJECT_DIR/results.tap"
+    - "exit $SYTEST_EXIT_CODE"
+  artifacts:
+    when: always
+    paths:
+      - "$CI_PROJECT_DIR/sytest.xml"
+      - "$CI_PROJECT_DIR/results.tap"
+    reports:
+      junit: "$CI_PROJECT_DIR/sytest.xml"
+
 
 test:register:element-web-stable:
   stage: "test"
@@ -122,6 +153,20 @@ build:cargo:aarch64-unknown-linux-gnu:
     TARGET_CC: "/usr/bin/aarch64-linux-gnu-gcc-8"
     TARGET_AR: "/usr/bin/aarch64-linux-gnu-gcc-ar-8"
 
+build:cargo:x86_64-unknown-linux-musl:
+  extends: .build-cargo-shared-settings
+  image: "rust:alpine"
+  rules:
+    - if: '$CI_COMMIT_BRANCH' # Always run
+  variables:
+    TARGET: "x86_64-unknown-linux-musl"
+  before_script:
+    - 'echo "Building for target $TARGET"'
+    - 'mkdir -p cargohome && CARGOHOME="cargohome"'
+    - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
+    - "rustup target add $TARGET"
+    - "apk add libc-dev"
+
 
 # --------------------------------------------------------------------- #
 #  Cargo: Compiling deb packages for different architectures            #
@@ -178,6 +223,7 @@ publish:package:
     - "build:cargo:x86_64-unknown-linux-gnu"
     - "build:cargo:armv7-unknown-linux-gnueabihf"
     - "build:cargo:aarch64-unknown-linux-gnu"
+    - "build:cargo:x86_64-unknown-linux-musl"
     - "build:cargo-deb:x86_64-unknown-linux-gnu"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
@@ -190,6 +236,7 @@ publish:package:
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu "${BASE_URL}/conduit-x86_64-unknown-linux-gnu"'
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-armv7-unknown-linux-gnueabihf "${BASE_URL}/conduit-armv7-unknown-linux-gnueabihf"'
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-aarch64-unknown-linux-gnu "${BASE_URL}/conduit-aarch64-unknown-linux-gnu"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-musl" ${BASE_URL}/conduit-x86_64-unknown-linux-musl"'
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu.deb "${BASE_URL}/conduit-x86_64-unknown-linux-gnu.deb"'
 
     
