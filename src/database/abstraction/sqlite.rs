@@ -171,7 +171,7 @@ impl Pool {
         // If the spillover readers are more than the number of total readers, there might be a problem.
         if now_count > self.readers.len() {
             log::warn!(
-                "read_lock: possible high load; now {} spillover readers exist",
+                "Database is under high load. Consider increasing sqlite_read_pool_size ({} spillover readers exist)",
                 now_count
             );
         }
