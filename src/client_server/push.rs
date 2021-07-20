@@ -81,7 +81,7 @@ pub async fn get_pushrule_route(
             .content
             .get(body.rule_id.as_str())
             .map(|rule| rule.clone().into()),
-        RuleKind::_Custom(_) => None,
+        _ => None,
     };
 
     if let Some(rule) = rule {
@@ -181,7 +181,7 @@ pub async fn set_pushrule_route(
                 .into(),
             );
         }
-        RuleKind::_Custom(_) => {}
+        _ => {}
     }
 
     db.account_data.update(
@@ -194,7 +194,7 @@ pub async fn set_pushrule_route(
 
     db.flush().await?;
 
-    Ok(set_pushrule::Response.into())
+    Ok(set_pushrule::Response {}.into())
 }
 
 #[cfg_attr(
@@ -245,7 +245,7 @@ pub async fn get_pushrule_actions_route(
             .content
             .get(body.rule_id.as_str())
             .map(|rule| rule.actions.clone()),
-        RuleKind::_Custom(_) => None,
+        _ => None,
     };
 
     db.flush().await?;
@@ -314,7 +314,7 @@ pub async fn set_pushrule_actions_route(
                 global.content.replace(rule);
             }
         }
-        RuleKind::_Custom(_) => {}
+        _ => {}
     };
 
     db.account_data.update(
@@ -327,7 +327,7 @@ pub async fn set_pushrule_actions_route(
 
     db.flush().await?;
 
-    Ok(set_pushrule_actions::Response.into())
+    Ok(set_pushrule_actions::Response {}.into())
 }
 
 #[cfg_attr(
@@ -383,7 +383,7 @@ pub async fn get_pushrule_enabled_route(
             .iter()
             .find(|rule| rule.rule_id == body.rule_id)
             .map_or(false, |rule| rule.enabled),
-        RuleKind::_Custom(_) => false,
+        _ => false,
     };
 
     db.flush().await?;
@@ -454,7 +454,7 @@ pub async fn set_pushrule_enabled_route(
                 global.content.insert(rule);
             }
         }
-        RuleKind::_Custom(_) => {}
+        _ => {}
     }
 
     db.account_data.update(
@@ -467,7 +467,7 @@ pub async fn set_pushrule_enabled_route(
 
     db.flush().await?;
 
-    Ok(set_pushrule_enabled::Response.into())
+    Ok(set_pushrule_enabled::Response {}.into())
 }
 
 #[cfg_attr(
@@ -523,7 +523,7 @@ pub async fn delete_pushrule_route(
                 global.content.remove(&rule);
             }
         }
-        RuleKind::_Custom(_) => {}
+        _ => {}
     }
 
     db.account_data.update(
@@ -536,7 +536,7 @@ pub async fn delete_pushrule_route(
 
     db.flush().await?;
 
-    Ok(delete_pushrule::Response.into())
+    Ok(delete_pushrule::Response {}.into())
 }
 
 #[cfg_attr(

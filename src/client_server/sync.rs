@@ -1,5 +1,5 @@
 use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma, RumaResponse};
-use log::error;
+use log::{error, warn};
 use ruma::{
     api::client::r0::{sync::sync_events, uiaa::UiaaResponse},
     events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
@@ -7,7 +7,7 @@ use ruma::{
     DeviceId, RoomId, UserId,
 };
 use std::{
-    collections::{btree_map::Entry, hash_map, BTreeMap, HashMap, HashSet},
+    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     sync::Arc,
     time::Duration,
@@ -262,8 +262,12 @@ async fn sync_helper(
                 db.rooms
                     .pdu_shortstatehash(&pdu.1.event_id)
                     .transpose()
-                    .expect("all pdus have state")
+                    .ok_or_else(|| {
+                        warn!("PDU without state: {}", pdu.1.event_id);
+                        Error::bad_database("Found PDU without state")
+                    })
             })
+            .transpose()?
             .transpose()?;
 
         // Calculates joined_member_count, invited_member_count and heroes
@@ -622,10 +626,10 @@ async fn sync_helper(
                 .presence_since(&room_id, since, &db.rooms, &db.globals)?
         {
             match presence_updates.entry(user_id) {
-                hash_map::Entry::Vacant(v) => {
+                Entry::Vacant(v) => {
                     v.insert(presence);
                 }
-                hash_map::Entry::Occupied(mut o) => {
+                Entry::Occupied(mut o) => {
                     let p = o.get_mut();
 
                     // Update existing presence event with more info
@@ -753,6 +757,7 @@ async fn sync_helper(
             leave: left_rooms,
             join: joined_rooms,
             invite: invited_rooms,
+            knock: BTreeMap::new(), // TODO
         },
         presence: sync_events::Presence {
             events: presence_updates

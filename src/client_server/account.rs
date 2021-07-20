@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};
@@ -21,6 +25,7 @@ use ruma::{
         },
         EventType,
     },
+    identifiers::RoomName,
     push, RoomAliasId, RoomId, RoomVersionId, UserId,
 };
 
@@ -278,6 +283,7 @@ pub async fn register_route(
                     avatar_url: None,
                     is_direct: None,
                     third_party_invite: None,
+                    blurhash: None,
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -372,15 +378,14 @@ pub async fn register_route(
         )?;
 
         // 6. Events implied by name and topic
+        let room_name =
+            Box::<RoomName>::try_from(format!("{} Admin Room", db.globals.server_name()))
+                .expect("Room name is valid");
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomName,
-                content: serde_json::to_value(
-                    name::NameEventContent::new("Admin Room".to_owned()).map_err(|_| {
-                        Error::BadRequest(ErrorKind::InvalidParam, "Name is invalid.")
-                    })?,
-                )
-                .expect("event is valid, we just created it"),
+                content: serde_json::to_value(name::NameEventContent::new(Some(room_name)))
+                    .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
                 redacts: None,
@@ -443,6 +448,7 @@ pub async fn register_route(
                     avatar_url: None,
                     is_direct: None,
                     third_party_invite: None,
+                    blurhash: None,
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -463,6 +469,7 @@ pub async fn register_route(
                     avatar_url: None,
                     is_direct: None,
                     third_party_invite: None,
+                    blurhash: None,
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -575,7 +582,7 @@ pub async fn change_password_route(
 
     db.flush().await?;
 
-    Ok(change_password::Response.into())
+    Ok(change_password::Response {}.into())
 }
 
 /// # `GET _matrix/client/r0/account/whoami`
@@ -661,6 +668,7 @@ pub async fn deactivate_route(
             avatar_url: None,
             is_direct: None,
             third_party_invite: None,
+            blurhash: None,
         };
 
         let mutex = Arc::clone(

@@ -11,6 +11,7 @@ use ruma::{
         IncomingResponse, OutgoingRequest, SendAccessToken,
     },
     events::{room::power_levels::PowerLevelsEventContent, EventType},
+    identifiers::RoomName,
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     uint, UInt, UserId,
 };
@@ -299,7 +300,9 @@ async fn send_notice(
             .rooms
             .room_state_get(&event.room_id, &EventType::RoomName, "")?
             .map(|pdu| match pdu.content.get("name") {
-                Some(serde_json::Value::String(s)) => Some(s.to_string()),
+                Some(serde_json::Value::String(s)) => {
+                    Some(Box::<RoomName>::try_from(&**s).expect("room name is valid"))
+                }
                 _ => None,
             })
             .flatten();

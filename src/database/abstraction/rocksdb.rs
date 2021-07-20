@@ -5,14 +5,14 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 use super::{DatabaseEngine, Tree};
 
-use std::{collections::BTreeMap, sync::RwLock};
+use std::{collections::HashMap, sync::RwLock};
 
 pub struct Engine(rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>);
 
 pub struct RocksDbEngineTree<'a> {
     db: Arc<Engine>,
     name: &'a str,
-    watchers: RwLock<BTreeMap<Vec<u8>, Vec<tokio::sync::oneshot::Sender<()>>>>,
+    watchers: RwLock<HashMap<Vec<u8>, Vec<tokio::sync::oneshot::Sender<()>>>>,
 }
 
 impl DatabaseEngine for Engine {
@@ -58,7 +58,7 @@ impl DatabaseEngine for Engine {
         Ok(Arc::new(RocksDbEngineTree {
             name,
             db: Arc::clone(self),
-            watchers: RwLock::new(BTreeMap::new()),
+            watchers: RwLock::new(HashMap::new()),
         }))
     }
 }

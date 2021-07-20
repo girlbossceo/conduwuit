@@ -29,7 +29,7 @@ use ruma::{
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use std::{
-    collections::{btree_map::Entry, BTreeMap, HashSet},
+    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     sync::{Arc, RwLock},
     time::{Duration, Instant},
@@ -165,7 +165,7 @@ pub async fn invite_user_route(
     if let invite_user::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
         invite_helper(sender_user, user_id, &body.room_id, &db, false).await?;
         db.flush().await?;
-        Ok(invite_user::Response.into())
+        Ok(invite_user::Response {}.into())
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "User not found."))
     }
@@ -261,6 +261,7 @@ pub async fn ban_user_route(
                 avatar_url: db.users.avatar_url(&body.user_id)?,
                 is_direct: None,
                 third_party_invite: None,
+                blurhash: db.users.blurhash(&body.user_id)?,
             }),
             |event| {
                 let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
@@ -556,6 +557,7 @@ async fn join_room_by_id_helper(
                 avatar_url: db.users.avatar_url(&sender_user)?,
                 is_direct: None,
                 third_party_invite: None,
+                blurhash: db.users.blurhash(&sender_user)?,
             })
             .expect("event is valid, we just created it"),
         );
@@ -605,7 +607,7 @@ async fn join_room_by_id_helper(
         let pdu = PduEvent::from_id_val(&event_id, join_event.clone())
             .map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
 
-        let mut state = BTreeMap::new();
+        let mut state = HashMap::new();
         let pub_key_map = RwLock::new(BTreeMap::new());
 
         for result in futures::future::join_all(
@@ -685,6 +687,7 @@ async fn join_room_by_id_helper(
             avatar_url: db.users.avatar_url(&sender_user)?,
             is_direct: None,
             third_party_invite: None,
+            blurhash: db.users.blurhash(&sender_user)?,
         };
 
         db.rooms.build_and_append_pdu(
@@ -833,6 +836,7 @@ pub async fn invite_helper<'a>(
             is_direct: Some(is_direct),
             membership: MembershipState::Invite,
             third_party_invite: None,
+            blurhash: db.users.blurhash(&sender_user)?,
         })
         .expect("member event is valid value");
 
@@ -1008,6 +1012,7 @@ pub async fn invite_helper<'a>(
                 avatar_url: db.users.avatar_url(&user_id)?,
                 is_direct: Some(is_direct),
                 third_party_invite: None,
+                blurhash: db.users.blurhash(&sender_user)?,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,

@@ -25,7 +25,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     mem,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex},
 };
 
 use super::{abstraction::Tree, admin::AdminCommand, pusher};
@@ -84,7 +84,8 @@ pub struct Rooms {
     /// RoomId + EventId -> Parent PDU EventId.
     pub(super) prevevent_parent: Arc<dyn Tree>,
 
-    pub(super) pdu_cache: RwLock<LruCache<EventId, Arc<PduEvent>>>,
+    pub(super) pdu_cache: Mutex<LruCache<EventId, Arc<PduEvent>>>,
+    pub(super) auth_chain_cache: Mutex<LruCache<EventId, HashSet<EventId>>>,
 }
 
 impl Rooms {
@@ -109,7 +110,7 @@ impl Rooms {
     pub fn state_full(
         &self,
         shortstatehash: u64,
-    ) -> Result<BTreeMap<(EventType, String), Arc<PduEvent>>> {
+    ) -> Result<HashMap<(EventType, String), Arc<PduEvent>>> {
         let state = self
             .stateid_shorteventid
             .scan_prefix(shortstatehash.to_be_bytes().to_vec())
@@ -282,7 +283,7 @@ impl Rooms {
     pub fn force_state(
         &self,
         room_id: &RoomId,
-        state: BTreeMap<(EventType, String), EventId>,
+        state: HashMap<(EventType, String), EventId>,
         db: &Database,
     ) -> Result<()> {
         let state_hash = self.calculate_hash(
@@ -402,11 +403,11 @@ impl Rooms {
     pub fn room_state_full(
         &self,
         room_id: &RoomId,
-    ) -> Result<BTreeMap<(EventType, String), Arc<PduEvent>>> {
+    ) -> Result<HashMap<(EventType, String), Arc<PduEvent>>> {
         if let Some(current_shortstatehash) = self.current_shortstatehash(room_id)? {
             self.state_full(current_shortstatehash)
         } else {
-            Ok(BTreeMap::new())
+            Ok(HashMap::new())
         }
     }
 
@@ -490,6 +491,27 @@ impl Rooms {
             .transpose()
     }
 
+    /// Returns the json of a pdu.
+    pub fn get_non_outlier_pdu_json(
+        &self,
+        event_id: &EventId,
+    ) -> Result<Option<CanonicalJsonObject>> {
+        self.eventid_pduid
+            .get(event_id.as_bytes())?
+            .map_or_else::<Result<_>, _, _>(
+                || Ok(None),
+                |pduid| {
+                    Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
+                        Error::bad_database("Invalid pduid in eventid_pduid.")
+                    })?))
+                },
+            )?
+            .map(|pdu| {
+                serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
+            })
+            .transpose()
+    }
+
     /// Returns the pdu's id.
     pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>> {
         self.eventid_pduid
@@ -521,7 +543,7 @@ impl Rooms {
     ///
     /// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
     pub fn get_pdu(&self, event_id: &EventId) -> Result<Option<Arc<PduEvent>>> {
-        if let Some(p) = self.pdu_cache.write().unwrap().get_mut(&event_id) {
+        if let Some(p) = self.pdu_cache.lock().unwrap().get_mut(&event_id) {
             return Ok(Some(Arc::clone(p)));
         }
 
@@ -547,7 +569,7 @@ impl Rooms {
             .transpose()?
         {
             self.pdu_cache
-                .write()
+                .lock()
                 .unwrap()
                 .insert(event_id.clone(), Arc::clone(&pdu));
             Ok(Some(pdu))
@@ -631,9 +653,9 @@ impl Rooms {
         Ok(())
     }
 
-    pub fn is_pdu_referenced(&self, pdu: &PduEvent) -> Result<bool> {
-        let mut key = pdu.room_id().as_bytes().to_vec();
-        key.extend_from_slice(pdu.event_id().as_bytes());
+    pub fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
+        let mut key = room_id.as_bytes().to_vec();
+        key.extend_from_slice(event_id.as_bytes());
         Ok(self.prevevent_parent.get(&key)?.is_some())
     }
 
@@ -903,11 +925,59 @@ impl Rooms {
                                 "list_appservices" => {
                                     db.admin.send(AdminCommand::ListAppservices);
                                 }
+                                "get_pdu" => {
+                                    if args.len() == 1 {
+                                        if let Ok(event_id) = EventId::try_from(args[0]) {
+                                            let mut outlier = false;
+                                            let mut pdu_json =
+                                                db.rooms.get_non_outlier_pdu_json(&event_id)?;
+                                            if pdu_json.is_none() {
+                                                outlier = true;
+                                                pdu_json = db.rooms.get_pdu_json(&event_id)?;
+                                            }
+                                            match pdu_json {
+                                                Some(json) => {
+                                                    db.admin.send(AdminCommand::SendMessage(
+                                                        message::MessageEventContent::text_html(
+                                                            format!("{}\n```json\n{:#?}\n```", 
+                                                            if outlier {
+                                                                "PDU is outlier"
+                                                            } else { "PDU was accepted"}, json),
+                                                            format!("<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n", 
+                                                            if outlier {
+                                                                "PDU is outlier"
+                                                            } else { "PDU was accepted"}, serde_json::to_string_pretty(&json).expect("canonical json is valid json"))
+                                                        ),
+                                                    ));
+                                                }
+                                                None => {
+                                                    db.admin.send(AdminCommand::SendMessage(
+                                                        message::MessageEventContent::text_plain(
+                                                            "PDU not found.",
+                                                        ),
+                                                    ));
+                                                }
+                                            }
+                                        } else {
+                                            db.admin.send(AdminCommand::SendMessage(
+                                                message::MessageEventContent::text_plain(
+                                                    "Event ID could not be parsed.",
+                                                ),
+                                            ));
+                                        }
+                                    } else {
+                                        db.admin.send(AdminCommand::SendMessage(
+                                            message::MessageEventContent::text_plain(
+                                                "Usage: get_pdu <eventid>",
+                                            ),
+                                        ));
+                                    }
+                                }
                                 _ => {
                                     db.admin.send(AdminCommand::SendMessage(
                                         message::MessageEventContent::text_plain(format!(
-                                            "Command: {}, Args: {:?}",
-                                            command, args
+                                            "Unrecognized command: {}",
+                                            command
                                         )),
                                     ));
                                 }
@@ -2450,5 +2520,11 @@ impl Rooms {
         userroom_id.extend_from_slice(room_id.as_bytes());
 
         Ok(self.userroomid_leftstate.get(&userroom_id)?.is_some())
+    }
+
+    pub fn auth_chain_cache(
+        &self,
+    ) -> std::sync::MutexGuard<'_, LruCache<EventId, HashSet<EventId>>> {
+        self.auth_chain_cache.lock().unwrap()
     }
 }

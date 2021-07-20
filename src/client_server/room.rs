@@ -92,6 +92,7 @@ pub async fn create_room_route(
                 avatar_url: db.users.avatar_url(&sender_user)?,
                 is_direct: Some(body.is_direct),
                 third_party_invite: None,
+                blurhash: db.users.blurhash(&sender_user)?,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,
@@ -113,7 +114,7 @@ pub async fn create_room_route(
         .unwrap_or_else(|| match &body.visibility {
             room::Visibility::Private => create_room::RoomPreset::PrivateChat,
             room::Visibility::Public => create_room::RoomPreset::PublicChat,
-            room::Visibility::_Custom(_) => create_room::RoomPreset::PrivateChat, // Room visibility should not be custom
+            _ => create_room::RoomPreset::PrivateChat, // Room visibility should not be custom
         });
 
     let mut users = BTreeMap::new();
@@ -251,12 +252,8 @@ pub async fn create_room_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomName,
-                content: serde_json::to_value(
-                    name::NameEventContent::new(name.clone()).map_err(|_| {
-                        Error::BadRequest(ErrorKind::InvalidParam, "Name is invalid.")
-                    })?,
-                )
-                .expect("event is valid, we just created it"),
+                content: serde_json::to_value(name::NameEventContent::new(Some(name.clone())))
+                    .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
                 redacts: None,
@@ -440,6 +437,7 @@ pub async fn upgrade_room_route(
                 avatar_url: db.users.avatar_url(&sender_user)?,
                 is_direct: None,
                 third_party_invite: None,
+                blurhash: db.users.blurhash(&sender_user)?,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,

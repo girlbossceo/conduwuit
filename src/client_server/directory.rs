@@ -87,22 +87,22 @@ pub async fn set_room_visibility_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     match &body.visibility {
-        room::Visibility::_Custom(_s) => {
-            return Err(Error::BadRequest(
-                ErrorKind::InvalidParam,
-                "Room visibility type is not supported.",
-            ));
-        }
         room::Visibility::Public => {
             db.rooms.set_public(&body.room_id, true)?;
             info!("{} made {} public", sender_user, body.room_id);
         }
         room::Visibility::Private => db.rooms.set_public(&body.room_id, false)?,
+        _ => {
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Room visibility type is not supported.",
+            ));
+        }
     }
 
     db.flush().await?;
 
-    Ok(set_room_visibility::Response.into())
+    Ok(set_room_visibility::Response {}.into())
 }
 
 #[cfg_attr(
@@ -231,8 +231,8 @@ pub async fn get_public_rooms_filtered_helper(
                             .map_err(|_| {
                                 Error::bad_database("Invalid room name event in database.")
                             })?
-                            .name()
-                            .map(|n| n.to_owned()))
+                            .name
+                            .map(|n| n.to_owned().into()))
                         })?,
                     num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
                     topic: db
@@ -316,7 +316,7 @@ pub async fn get_public_rooms_filtered_helper(
                     .map(|q| q.to_lowercase())
                 {
                     if let Some(name) = &chunk.name {
-                        if name.to_lowercase().contains(&query) {
+                        if name.as_str().to_lowercase().contains(&query) {
                             return true;
                         }
                     }
