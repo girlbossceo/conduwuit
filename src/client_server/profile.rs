@@ -1,10 +1,13 @@
 use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};
 use ruma::{
-    api::client::{
-        error::ErrorKind,
-        r0::profile::{
-            get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
+    api::{
+        client::{
+            error::ErrorKind,
+            r0::profile::{
+                get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
+            },
         },
+        federation::{self, query::get_profile_information::v1::ProfileField},
     },
     events::EventType,
     serde::Raw,
@@ -120,6 +123,25 @@ pub async fn get_displayname_route(
     db: DatabaseGuard,
     body: Ruma<get_display_name::Request<'_>>,
 ) -> ConduitResult<get_display_name::Response> {
+    if body.user_id.server_name() != db.globals.server_name() {
+        let response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                body.user_id.server_name(),
+                federation::query::get_profile_information::v1::Request {
+                    user_id: &body.user_id,
+                    field: Some(&ProfileField::DisplayName),
+                },
+            )
+            .await?;
+
+        return Ok(get_display_name::Response {
+            displayname: response.displayname,
+        }
+        .into());
+    }
+
     Ok(get_display_name::Response {
         displayname: db.users.displayname(&body.user_id)?,
     }
@@ -234,6 +256,26 @@ pub async fn get_avatar_url_route(
     db: DatabaseGuard,
     body: Ruma<get_avatar_url::Request<'_>>,
 ) -> ConduitResult<get_avatar_url::Response> {
+    if body.user_id.server_name() != db.globals.server_name() {
+        let response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                body.user_id.server_name(),
+                federation::query::get_profile_information::v1::Request {
+                    user_id: &body.user_id,
+                    field: Some(&ProfileField::AvatarUrl),
+                },
+            )
+            .await?;
+
+        return Ok(get_avatar_url::Response {
+            avatar_url: response.avatar_url,
+            blurhash: response.blurhash,
+        }
+        .into());
+    }
+
     Ok(get_avatar_url::Response {
         avatar_url: db.users.avatar_url(&body.user_id)?,
         blurhash: db.users.blurhash(&body.user_id)?,
@@ -250,6 +292,27 @@ pub async fn get_profile_route(
     db: DatabaseGuard,
     body: Ruma<get_profile::Request<'_>>,
 ) -> ConduitResult<get_profile::Response> {
+    if body.user_id.server_name() != db.globals.server_name() {
+        let response = db
+            .sending
+            .send_federation_request(
+                &db.globals,
+                body.user_id.server_name(),
+                federation::query::get_profile_information::v1::Request {
+                    user_id: &body.user_id,
+                    field: None,
+                },
+            )
+            .await?;
+
+        return Ok(get_profile::Response {
+            displayname: response.displayname,
+            avatar_url: response.avatar_url,
+            blurhash: response.blurhash,
+        }
+        .into());
+    }
+
     if !db.users.exists(&body.user_id)? {
         // Return 404 if this user doesn't exist
         return Err(Error::BadRequest(
