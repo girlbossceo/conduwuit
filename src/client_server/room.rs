@@ -9,11 +9,7 @@ use ruma::{
         r0::room::{self, create_room, get_room_event, upgrade_room},
     },
     events::{
-        room::{
-            guest_access, history_visibility, join_rules, member,
-            name::{self, RoomName},
-            topic,
-        },
+        room::{guest_access, history_visibility, join_rules, member, name, topic},
         EventType,
     },
     serde::Raw,
@@ -256,12 +252,8 @@ pub async fn create_room_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomName,
-                content: serde_json::to_value(name::NameEventContent::new(Some(
-                    RoomName::try_from(name.clone()).map_err(|_| {
-                        Error::BadRequest(ErrorKind::InvalidParam, "Name is invalid.")
-                    })?,
-                )))
-                .expect("event is valid, we just created it"),
+                content: serde_json::to_value(name::NameEventContent::new(Some(name.clone())))
+                    .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
                 redacts: None,

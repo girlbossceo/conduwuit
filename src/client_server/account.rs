@@ -20,12 +20,12 @@ use ruma::{
     },
     events::{
         room::{
-            canonical_alias, guest_access, history_visibility, join_rules, member, message,
-            name::{self, RoomName},
+            canonical_alias, guest_access, history_visibility, join_rules, member, message, name,
             topic,
         },
         EventType,
     },
+    identifiers::RoomName,
     push, RoomAliasId, RoomId, RoomVersionId, UserId,
 };
 
@@ -378,13 +378,14 @@ pub async fn register_route(
         )?;
 
         // 6. Events implied by name and topic
+        let room_name =
+            Box::<RoomName>::try_from(format!("{} Admin Room", db.globals.server_name()))
+                .expect("Room name is valid");
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomName,
-                content: serde_json::to_value(name::NameEventContent::new(Some(
-                    RoomName::try_from("Admin Room".to_owned()).expect("Room name is valid"),
-                )))
-                .expect("event is valid, we just created it"),
+                content: serde_json::to_value(name::NameEventContent::new(Some(room_name)))
+                    .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
                 redacts: None,

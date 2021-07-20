@@ -316,7 +316,7 @@ pub async fn get_public_rooms_filtered_helper(
                     .map(|q| q.to_lowercase())
                 {
                     if let Some(name) = &chunk.name {
-                        if name.to_lowercase().contains(&query) {
+                        if name.as_str().to_lowercase().contains(&query) {
                             return true;
                         }
                     }
