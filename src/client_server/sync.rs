@@ -1,5 +1,5 @@
 use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma, RumaResponse};
-use log::error;
+use log::{error, warn};
 use ruma::{
     api::client::r0::{sync::sync_events, uiaa::UiaaResponse},
     events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
@@ -262,9 +262,12 @@ async fn sync_helper(
                 db.rooms
                     .pdu_shortstatehash(&pdu.1.event_id)
                     .transpose()
-                    .expect("all pdus have state")
+                    .ok_or_else(|| {
+                        warn!("PDU without state: {}", pdu.1.event_id);
+                        Error::bad_database("Found PDU without state")
+                    })
             })
-            .transpose()?;
+            .transpose()?.transpose()?;
 
         // Calculates joined_member_count, invited_member_count and heroes
         let calculate_counts = || {
