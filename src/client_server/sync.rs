@@ -267,7 +267,8 @@ async fn sync_helper(
                         Error::bad_database("Found PDU without state")
                     })
             })
-            .transpose()?.transpose()?;
+            .transpose()?
+            .transpose()?;
 
         // Calculates joined_member_count, invited_member_count and heroes
         let calculate_counts = || {

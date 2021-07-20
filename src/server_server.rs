@@ -2198,27 +2198,7 @@ pub async fn create_join_event_route(
     drop(mutex_lock);
 
     let state_ids = db.rooms.state_full_ids(shortstatehash)?;
-
-    let mut auth_chain_ids = HashSet::<EventId>::new();
-    let mut todo = state_ids.iter().cloned().collect::<HashSet<_>>();
-
-    while let Some(event_id) = todo.iter().next().cloned() {
-        if let Some(pdu) = db.rooms.get_pdu(&event_id)? {
-            todo.extend(
-                pdu.auth_events
-                    .clone()
-                    .into_iter()
-                    .collect::<HashSet<_>>()
-                    .difference(&auth_chain_ids)
-                    .cloned(),
-            );
-            auth_chain_ids.extend(pdu.auth_events.clone().into_iter());
-        } else {
-            warn!("Could not find pdu mentioned in auth events.");
-        }
-
-        todo.remove(&event_id);
-    }
+    let auth_chain_ids = get_auth_chain(state_ids.iter().cloned().collect(), &db)?;
 
     for server in db
         .rooms
