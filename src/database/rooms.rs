@@ -653,9 +653,9 @@ impl Rooms {
         Ok(())
     }
 
-    pub fn is_pdu_referenced(&self, pdu: &PduEvent) -> Result<bool> {
-        let mut key = pdu.room_id().as_bytes().to_vec();
-        key.extend_from_slice(pdu.event_id().as_bytes());
+    pub fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
+        let mut key = room_id.as_bytes().to_vec();
+        key.extend_from_slice(event_id.as_bytes());
         Ok(self.prevevent_parent.get(&key)?.is_some())
     }
 

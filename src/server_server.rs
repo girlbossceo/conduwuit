@@ -6,7 +6,6 @@ use crate::{
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
 use log::{debug, error, info, trace, warn};
-use lru_cache::LruCache;
 use regex::Regex;
 use rocket::response::content::Json;
 use ruma::{
@@ -1174,6 +1173,9 @@ pub fn handle_incoming_pdu<'a>(
             }
         }
 
+        // Only keep those extremities we don't have in our timeline yet
+        extremities.retain(|id| !matches!(db.rooms.get_non_outlier_pdu_json(id), Ok(Some(_))));
+
         let mut extremity_statehashes = Vec::new();
 
         for id in &extremities {
@@ -1276,7 +1278,6 @@ pub fn handle_incoming_pdu<'a>(
                 })
                 .collect::<Vec<_>>();
 
-            let auth_chain_t = Instant::now();
             let mut auth_chain_sets = Vec::new();
             for state in fork_states {
                 auth_chain_sets.push(
@@ -1284,9 +1285,7 @@ pub fn handle_incoming_pdu<'a>(
                         .map_err(|_| "Failed to load auth chain.".to_owned())?,
                 );
             }
-            dbg!(auth_chain_t.elapsed());
 
-            let state_res_t = Instant::now();
             let state = match state_res::StateResolution::resolve(
                 &room_id,
                 room_version_id,
@@ -1305,7 +1304,6 @@ pub fn handle_incoming_pdu<'a>(
                     return Err("State resolution failed, either an event could not be found or deserialization".into());
                 }
             };
-            dbg!(state_res_t.elapsed());
             state
         };
 
@@ -1726,37 +1724,40 @@ async fn append_incoming_pdu(
 }
 
 fn get_auth_chain(starting_events: Vec<EventId>, db: &Database) -> Result<HashSet<EventId>> {
-    let mut auth_chain_cache = db.rooms.auth_chain_cache();
+    let mut full_auth_chain = HashSet::new();
 
-    let mut auth_chain = HashSet::new();
+    let mut cache = db.rooms.auth_chain_cache();
+    for event_id in starting_events {
+        let auth_chain = if let Some(cached) = cache.get_mut(&event_id) {
+            cached.clone()
+        } else {
+            drop(cache);
+            let auth_chain = get_auth_chain_recursive(&event_id, db)?;
 
-    for event in starting_events {
-        auth_chain.extend(get_auth_chain_recursive(&event, &mut auth_chain_cache, db)?);
+            cache = db.rooms.auth_chain_cache();
+
+            cache.insert(event_id, auth_chain.clone());
+
+            auth_chain
+        };
+
+        full_auth_chain.extend(auth_chain);
     }
 
-    Ok(auth_chain)
+    Ok(full_auth_chain)
 }
 
-fn get_auth_chain_recursive(
-    event_id: &EventId,
-    auth_chain_cache: &mut std::sync::MutexGuard<'_, LruCache<EventId, HashSet<EventId>>>,
-    db: &Database,
-) -> Result<HashSet<EventId>> {
-    if let Some(cached) = auth_chain_cache.get_mut(event_id) {
-        return Ok(cached.clone());
-    }
-
+fn get_auth_chain_recursive(event_id: &EventId, db: &Database) -> Result<HashSet<EventId>> {
     let mut auth_chain = HashSet::new();
 
     if let Some(pdu) = db.rooms.get_pdu(&event_id)? {
+        auth_chain.extend(pdu.auth_events.iter().cloned());
         for auth_event in &pdu.auth_events {
-            auth_chain.extend(get_auth_chain_recursive(&auth_event, auth_chain_cache, db)?);
+            auth_chain.extend(get_auth_chain_recursive(&auth_event, db)?);
         }
     } else {
         warn!("Could not find pdu mentioned in auth events.");
     }
-
-    auth_chain_cache.insert(event_id.clone(), auth_chain.clone());
 
     Ok(auth_chain)
 }

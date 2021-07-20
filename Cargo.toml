@@ -19,7 +19,7 @@ rocket = { version = "0.5.0-rc.1", features = ["tls"] } # Used to handle request
 
 # Used for matrix spec type definitions and helpers
 #ruma = { git = "https://github.com/ruma/ruma", rev = "c29c2b16ec114fa655e2b70bdd53c82e35859005", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
-ruma = { git = "https://github.com/timokoesters/ruma", rev = "a3fd405d6b331c7bc4c6f366bc1b6ec303b3a386", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
+ruma = { git = "https://github.com/timokoesters/ruma", rev = "74cf83c4ca937fa5e2709fb71e9d11848e72e487", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio
