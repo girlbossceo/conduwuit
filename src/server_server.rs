@@ -2461,7 +2461,8 @@ pub async fn get_keys_route(
         &body.device_keys,
         |u| Some(u.server_name()) == body.sender_servername.as_deref(),
         &db,
-    )?;
+    )
+    .await?;
 
     db.flush().await?;
 
@@ -2486,7 +2487,7 @@ pub async fn claim_keys_route(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    let result = claim_keys_helper(&body.one_time_keys, &db)?;
+    let result = claim_keys_helper(&body.one_time_keys, &db).await?;
 
     db.flush().await?;
 
