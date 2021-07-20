@@ -302,6 +302,7 @@ pub async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                 .entry(user_id.server_name())
                 .or_insert_with(Vec::new)
                 .push((user_id, device_ids));
+            continue;
         }
 
         if device_ids.is_empty() {
@@ -364,20 +365,29 @@ pub async fn get_keys_helper<F: Fn(&UserId) -> bool>(
     let mut failures = BTreeMap::new();
 
     for (server, vec) in get_over_federation {
-        let mut device_keys = BTreeMap::new();
+        let mut device_keys_input_fed = BTreeMap::new();
         for (user_id, keys) in vec {
-            device_keys.insert(user_id.clone(), keys.clone());
+            device_keys_input_fed.insert(user_id.clone(), keys.clone());
         }
-        if let Err(_e) = db
+        match db
             .sending
             .send_federation_request(
                 &db.globals,
                 server,
-                federation::keys::get_keys::v1::Request { device_keys },
+                federation::keys::get_keys::v1::Request {
+                    device_keys: device_keys_input_fed,
+                },
             )
             .await
         {
-            failures.insert(server.to_string(), json!({}));
+            Ok(response) => {
+                master_keys.extend(response.master_keys);
+                self_signing_keys.extend(response.self_signing_keys);
+                device_keys.extend(response.device_keys);
+            }
+            Err(_e) => {
+                failures.insert(server.to_string(), json!({}));
+            }
         }
     }
 

@@ -1,6 +1,12 @@
+use std::collections::BTreeMap;
+
 use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
 use ruma::{
-    api::client::{error::ErrorKind, r0::to_device::send_event_to_device},
+    api::{
+        client::{error::ErrorKind, r0::to_device::send_event_to_device},
+        federation::{self, transactions::edu::DirectDeviceContent},
+    },
+    events::EventType,
     to_device::DeviceIdOrAllDevices,
 };
 
@@ -33,6 +39,28 @@ pub async fn send_event_to_device_route(
 
     for (target_user_id, map) in &body.messages {
         for (target_device_id_maybe, event) in map {
+            if target_user_id.server_name() != db.globals.server_name() {
+                let mut map = BTreeMap::new();
+                map.insert(target_device_id_maybe.clone(), event.clone());
+                let mut messages = BTreeMap::new();
+                messages.insert(target_user_id.clone(), map);
+
+                db.sending.send_reliable_edu(
+                    target_user_id.server_name(),
+                    &serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(
+                        DirectDeviceContent {
+                            sender: sender_user.clone(),
+                            ev_type: EventType::from(&body.event_type),
+                            message_id: body.txn_id.clone(),
+                            messages,
+                        },
+                    ))
+                    .expect("DirectToDevice EDU can be serialized"),
+                )?;
+
+                continue;
+            }
+
             match target_device_id_maybe {
                 DeviceIdOrAllDevices::DeviceId(target_device_id) => db.users.add_to_device_event(
                     sender_user,
