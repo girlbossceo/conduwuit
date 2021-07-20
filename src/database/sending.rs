@@ -165,9 +165,8 @@ impl Sending {
                                 let new_events = guard.sending.servernamepduids
                                     .scan_prefix(prefix.clone())
                                     .filter_map(|(k, _)| {
-                                        Self::parse_servercurrentevent(&k).ok()
+                                        Self::parse_servercurrentevent(&k).ok().map(|ev| (ev, k))
                                     })
-                                    .map(|(_, event)| event)
                                     .take(30)
                                     .collect::<Vec<_>>();
 
@@ -175,16 +174,9 @@ impl Sending {
 
                                 if !new_events.is_empty() {
                                     // Insert pdus we found
-                                    for event in &new_events {
-                                        let mut current_key = prefix.clone();
-                                        match event {
-                                            SendingEventType::Pdu(b) |
-                                            SendingEventType::Edu(b) => {
-                                                current_key.extend_from_slice(&b);
-                                                guard.sending.servercurrentevents.insert(&current_key, &[]).unwrap();
-                                                guard.sending.servernamepduids.remove(&current_key).unwrap();
-                                             }
-                                        }
+                                    for (_, key) in &new_events {
+                                        guard.sending.servercurrentevents.insert(&key, &[]).unwrap();
+                                        guard.sending.servernamepduids.remove(&key).unwrap();
                                     }
 
                                     drop(guard);
@@ -192,7 +184,7 @@ impl Sending {
                                     futures.push(
                                         Self::handle_events(
                                             outgoing_kind.clone(),
-                                            new_events,
+                                            new_events.into_iter().map(|(event, _)| event.1).collect(),
                                             Arc::clone(&db),
                                         )
                                     );

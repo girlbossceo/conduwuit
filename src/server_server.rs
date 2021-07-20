@@ -1058,6 +1058,8 @@ pub fn handle_incoming_pdu<'a>(
                 if let Some(state_key) = &prev_pdu.state_key {
                     state.insert((prev_pdu.kind.clone(), state_key.clone()), prev_pdu);
                 }
+
+                state_at_incoming_event = Some(state);
             }
             // TODO: set incoming_auth_events?
         }
