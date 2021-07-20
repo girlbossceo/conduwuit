@@ -54,7 +54,7 @@ pub struct Config {
     #[serde(default = "default_sqlite_wal_clean_second_timeout")]
     sqlite_wal_clean_second_timeout: u32,
     #[serde(default = "default_sqlite_spillover_reap_fraction")]
-    sqlite_spillover_reap_fraction: u32,
+    sqlite_spillover_reap_fraction: f64,
     #[serde(default = "default_sqlite_spillover_reap_interval_secs")]
     sqlite_spillover_reap_interval_secs: u32,
     #[serde(default = "default_max_request_size")]
@@ -125,8 +125,8 @@ fn default_sqlite_wal_clean_second_timeout() -> u32 {
     2
 }
 
-fn default_sqlite_spillover_reap_fraction() -> u32 {
-    2
+fn default_sqlite_spillover_reap_fraction() -> f64 {
+    2.0
 }
 
 fn default_sqlite_spillover_reap_interval_secs() -> u32 {
@@ -558,9 +558,7 @@ impl Database {
 
     #[cfg(feature = "sqlite")]
     pub async fn start_spillover_reap_task(engine: Arc<Engine>, config: &Config) {
-        use std::convert::TryInto;
-
-        let fraction_factor = config.sqlite_spillover_reap_fraction.max(1).try_into().unwrap(/* We just converted it to be at least 1 */);
+        let fraction_factor = config.sqlite_spillover_reap_fraction.max(1.0);
         let interval_secs = config.sqlite_spillover_reap_interval_secs as u64;
 
         let weak = Arc::downgrade(&engine);
