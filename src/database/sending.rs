@@ -291,12 +291,6 @@ impl Sending {
 
             if let OutgoingKind::Normal(server_name) = outgoing_kind {
                 if let Ok((select_edus, last_count)) = Self::select_edus(db, server_name) {
-                    for edu in &select_edus {
-                        let mut full_key = vec![b'*'];
-                        full_key.extend_from_slice(&edu);
-                        db.sending.servercurrentevents.insert(&full_key, &[])?;
-                    }
-
                     events.extend(select_edus.into_iter().map(SendingEventType::Edu));
 
                     db.sending
