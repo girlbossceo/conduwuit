@@ -126,7 +126,7 @@ fn default_sqlite_wal_clean_second_timeout() -> u32 {
 }
 
 fn default_sqlite_spillover_reap_fraction() -> f64 {
-    2.0
+    0.5
 }
 
 fn default_sqlite_spillover_reap_interval_secs() -> u32 {
@@ -558,7 +558,7 @@ impl Database {
 
     #[cfg(feature = "sqlite")]
     pub async fn start_spillover_reap_task(engine: Arc<Engine>, config: &Config) {
-        let fraction_factor = config.sqlite_spillover_reap_fraction.max(1.0);
+        let fraction = config.sqlite_spillover_reap_fraction.clamp(0.01, 1.0);
         let interval_secs = config.sqlite_spillover_reap_interval_secs as u64;
 
         let weak = Arc::downgrade(&engine);
@@ -574,7 +574,7 @@ impl Database {
                 i.tick().await;
 
                 if let Some(arc) = Weak::upgrade(&weak) {
-                    arc.reap_spillover_by_fraction(fraction_factor);
+                    arc.reap_spillover_by_fraction(fraction);
                 } else {
                     break;
                 }

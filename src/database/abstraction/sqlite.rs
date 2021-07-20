@@ -244,14 +244,14 @@ impl Engine {
             .map_err(Into::into)
     }
 
-    // Reaps (at most) (.len() / `fraction`) (rounded down, min 1) connections.
+    // Reaps (at most) (.len() * `fraction`) (rounded down, min 1) connections.
     pub fn reap_spillover_by_fraction(&self, fraction: f64) {
         let mut reaped = 0;
 
         let spill_amount = self.pool.spills.1.len() as f64;
-        let fraction = fraction.max(1.0 /* Can never be too sure */);
+        let fraction = fraction.clamp(0.01, 1.0);
 
-        let amount = (spill_amount / fraction).max(1.0) as u32;
+        let amount = (spill_amount * fraction).max(1.0) as u32;
 
         for _ in 0..amount {
             if self.pool.spills.try_take().is_some() {
