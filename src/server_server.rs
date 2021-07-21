@@ -1967,15 +1967,6 @@ pub fn create_join_event_template_route(
         ));
     }
 
-    if !body.ver.contains(&RoomVersionId::Version6) {
-        return Err(Error::BadRequest(
-            ErrorKind::IncompatibleRoomVersion {
-                room_version: RoomVersionId::Version6,
-            },
-            "Room version not supported.",
-        ));
-    }
-
     let prev_events = db
         .rooms
         .get_pdu_leaves(&body.room_id)?
@@ -2006,12 +1997,19 @@ pub fn create_join_event_template_route(
     };
 
     // If there was no create event yet, assume we are creating a version 6 room right now
-    let room_version = RoomVersion::new(
-        &create_event_content.map_or(RoomVersionId::Version6, |create_event| {
-            create_event.room_version
-        }),
-    )
-    .expect("room version is supported");
+    let room_version_id = create_event_content.map_or(RoomVersionId::Version6, |create_event| {
+        create_event.room_version
+    });
+    let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
+
+    if !body.ver.contains(&room_version_id) {
+        return Err(Error::BadRequest(
+            ErrorKind::IncompatibleRoomVersion {
+                room_version: room_version_id,
+            },
+            "Room version not supported.",
+        ));
+    }
 
     let content = serde_json::to_value(MemberEventContent {
         avatar_url: None,
@@ -2108,7 +2106,7 @@ pub fn create_join_event_template_route(
     );
 
     Ok(create_join_event_template::v1::Response {
-        room_version: Some(RoomVersionId::Version6),
+        room_version: Some(room_version_id),
         event: serde_json::from_value::<Raw<_>>(
             serde_json::to_value(pdu_json).expect("CanonicalJson is valid serde_json::Value"),
         )
@@ -2238,7 +2236,8 @@ pub async fn create_invite_route(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    if body.room_version < RoomVersionId::Version6 {
+    if body.room_version != RoomVersionId::Version5 && body.room_version != RoomVersionId::Version6
+    {
         return Err(Error::BadRequest(
             ErrorKind::IncompatibleRoomVersion {
                 room_version: body.room_version.clone(),

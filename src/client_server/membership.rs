@@ -511,7 +511,7 @@ async fn join_room_by_id_helper(
                     federation::membership::create_join_event_template::v1::Request {
                         room_id,
                         user_id: sender_user,
-                        ver: &[RoomVersionId::Version6],
+                        ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
                     },
                 )
                 .await;
@@ -526,7 +526,12 @@ async fn join_room_by_id_helper(
         let (make_join_response, remote_server) = make_join_response_and_server?;
 
         let room_version = match make_join_response.room_version {
-            Some(room_version) if room_version == RoomVersionId::Version6 => room_version,
+            Some(room_version)
+                if room_version == RoomVersionId::Version5
+                    || room_version == RoomVersionId::Version6 =>
+            {
+                room_version
+            }
             _ => return Err(Error::BadServerResponse("Room version is not supported")),
         };
 
@@ -940,7 +945,7 @@ pub async fn invite_helper<'a>(
                 create_invite::v2::Request {
                     room_id: room_id.clone(),
                     event_id: ruma::event_id!("$receivingservershouldsetthis"),
-                    room_version: RoomVersionId::Version6,
+                    room_version: room_version_id,
                     event: PduEvent::convert_to_outgoing_federation_event(pdu_json),
                     invite_room_state,
                 },

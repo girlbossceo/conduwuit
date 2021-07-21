@@ -328,6 +328,7 @@ pub(crate) fn gen_event_id_canonical_json(
 
     let event_id = EventId::try_from(&*format!(
         "${}",
+        // Anything higher than version3 behaves the same
         ruma::signatures::reference_hash(&value, &RoomVersionId::Version6)
             .expect("ruma can calculate reference hashes")
     ))
