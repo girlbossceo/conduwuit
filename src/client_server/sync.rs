@@ -421,7 +421,10 @@ async fn sync_helper(
 
             let send_member_count = state_events
                 .iter()
-                .any(|event| event.kind == EventType::RoomMember);
+                .any(|event| event.kind == EventType::RoomMember)
+                || timeline_pdus.iter().any(|(_, event)| {
+                    event.state_key.is_some() && event.kind == EventType::RoomMember
+                });
 
             if encrypted_room {
                 for (user_id, current_member) in db
