@@ -6,7 +6,7 @@ use log::info;
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::room::{self, create_room, get_room_event, upgrade_room},
+        r0::room::{self, aliases, create_room, get_room_event, upgrade_room},
     },
     events::{
         room::{guest_access, history_visibility, join_rules, member, name, topic},
@@ -330,6 +330,34 @@ pub async fn get_room_event_route(
             .get_pdu(&body.event_id)?
             .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?
             .to_room_event(),
+    }
+    .into())
+}
+
+#[cfg_attr(
+    feature = "conduit_bin",
+    get("/_matrix/client/r0/rooms/<_>/aliases", data = "<body>")
+)]
+#[tracing::instrument(skip(db, body))]
+pub async fn get_room_aliases_route(
+    db: DatabaseGuard,
+    body: Ruma<aliases::Request<'_>>,
+) -> ConduitResult<aliases::Response> {
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+    if !db.rooms.is_joined(sender_user, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You don't have permission to view this room.",
+        ));
+    }
+
+    Ok(aliases::Response {
+        aliases: db
+            .rooms
+            .room_aliases(&body.room_id)
+            .filter_map(|a| a.ok())
+            .collect(),
     }
     .into())
 }

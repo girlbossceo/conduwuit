@@ -60,6 +60,7 @@ fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<
                 client_server::set_pushrule_actions_route,
                 client_server::delete_pushrule_route,
                 client_server::get_room_event_route,
+                client_server::get_room_aliases_route,
                 client_server::get_filter_route,
                 client_server::create_filter_route,
                 client_server::set_global_account_data_route,
