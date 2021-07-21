@@ -1,5 +1,6 @@
 stages:
   - build
+  - build docker image
   - test
   - upload artifacts
 
@@ -120,11 +121,6 @@ test:register:element-web-stable:
     - "export CARGO_PROFILE_RELEASE_LTO=thin"
     - time cargo build --target $TARGET --release
     - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
-  artifacts:
-    name: "conduit-$TARGET"
-    expose_as: "Binary"
-    paths:
-      - "conduit-$TARGET"
 
 build:cargo:x86_64-unknown-linux-gnu:
   extends: .build-cargo-shared-settings
@@ -132,6 +128,11 @@ build:cargo:x86_64-unknown-linux-gnu:
     TARGET: "x86_64-unknown-linux-gnu"
   rules:
     - if: "$CI_COMMIT_BRANCH"
+  artifacts:
+    name: "conduit-x86_64-unknown-linux-gnu"
+    paths:
+      - "conduit-x86_64-unknown-linux-gnu"
+    expose_as: "Release binary x86_64-unknown-linux-gnu"
 
 build:cargo:armv7-unknown-linux-gnueabihf:
   extends: .build-cargo-shared-settings
@@ -141,6 +142,11 @@ build:cargo:armv7-unknown-linux-gnueabihf:
     CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
     CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc
     CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++
+  artifacts:
+    name: "conduit-armv7-unknown-linux-gnueabihf"
+    paths:
+      - "conduit-armv7-unknown-linux-gnueabihf"
+    expose_as: "Release binary armv7-unknown-linux-gnueabihf"
 
 build:cargo:aarch64-unknown-linux-gnu:
   extends: .build-cargo-shared-settings
@@ -152,6 +158,11 @@ build:cargo:aarch64-unknown-linux-gnu:
     CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
     TARGET_CC: "/usr/bin/aarch64-linux-gnu-gcc-8"
     TARGET_AR: "/usr/bin/aarch64-linux-gnu-gcc-ar-8"
+  artifacts:
+    name: "conduit-aarch64-unknown-linux-gnu"
+    paths:
+      - "conduit-aarch64-unknown-linux-gnu"
+    expose_as: "Release binary aarch64-unknown-linux-gnu"
 
 build:cargo:x86_64-unknown-linux-musl:
   extends: .build-cargo-shared-settings
@@ -166,6 +177,11 @@ build:cargo:x86_64-unknown-linux-musl:
     - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
     - "rustup target add $TARGET"
     - "apk add libc-dev"
+  artifacts:
+    name: "conduit-x86_64-unknown-linux-musl"
+    paths:
+      - "conduit-x86_64-unknown-linux-musl"
+    expose_as: "Release binary x86_64-unknown-linux-musl"
 
 
 # --------------------------------------------------------------------- #
@@ -198,19 +214,59 @@ build:cargo:x86_64-unknown-linux-musl:
   script:
     - time cargo deb --target $TARGET
     - 'mv target/$TARGET/debian/*.deb "conduit-$TARGET.deb"'
-  artifacts:
-    name: "conduit-$TARGET.deb"
-    expose_as: "Debian Package"
-    paths:
-      - "conduit-$TARGET.deb"
 
 build:cargo-deb:x86_64-unknown-linux-gnu:
   extends: .build-cargo-deb-shared-settings
   variables:
     TARGET: "x86_64-unknown-linux-gnu"
     NEEDED_PACKAGES: ""
+  artifacts:
+    name: "conduit-x86_64-unknown-linux-gnu.deb"
+    paths:
+      - "conduit-x86_64-unknown-linux-gnu.deb"
+    expose_as: "Debian Package x86_64"
 
 
+
+# --------------------------------------------------------------------- #
+#  Create and publish docker image                                      #
+# --------------------------------------------------------------------- #
+
+.docker-shared-settings:
+  stage: "build docker image"
+  needs: []
+  interruptible: true
+  image:
+    name: "gcr.io/kaniko-project/executor:debug"
+    entrypoint: [""]
+  tags: ["docker"]
+  variables:
+    # Configure Kaniko Caching: https://cloud.google.com/build/docs/kaniko-cache
+    KANIKO_CACHE_ARGS: "--cache=true --cache-copy-layers=true --cache-ttl=120h --cache-repo $CI_REGISTRY_IMAGE/kaniko-ci-cache"
+  before_script:
+    - "mkdir -p /kaniko/.docker"
+    - 'echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json'
+
+
+# Build a docker image by packaging up the x86_64-unknown-linux-musl binary into an alpine image
+build:docker:main:
+  extends: .docker-shared-settings
+  needs:
+    - "build:cargo:x86_64-unknown-linux-musl"
+  script:
+    - >
+      /kaniko/executor
+      $KANIKO_CACHE_ARGS
+      --context $CI_PROJECT_DIR
+      --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)
+      --build-arg "GIT_REF=$CI_COMMIT_REF_NAME"
+      --dockerfile "$CI_PROJECT_DIR/docker/ci-binaries-packaging.Dockerfile"
+      --destination "$CI_REGISTRY_IMAGE/conduit:latest"
+      --destination "$CI_REGISTRY_IMAGE/conduit:alpine"
+      --destination "$CI_REGISTRY_IMAGE/conduit:commit-$CI_COMMIT_SHORT_SHA"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 
 # --------------------------------------------------------------------- #
