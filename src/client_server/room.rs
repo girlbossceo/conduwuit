@@ -233,10 +233,9 @@ pub async fn create_room_route(
 
     // 5. Events listed in initial_state
     for event in &body.initial_state {
-        let pdu_builder = serde_json::from_str::<PduBuilder>(
-            &serde_json::to_string(&event).expect("AnyInitialStateEvent::to_string always works"),
-        )
-        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event."))?;
+        let pdu_builder = PduBuilder::from(event.deserialize().map_err(|_| {
+            Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event.")
+        })?);
 
         // Silently skip encryption events if they are not allowed
         if pdu_builder.event_type == EventType::RoomEncryption && !db.globals.allow_encryption() {
