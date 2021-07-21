@@ -1954,7 +1954,11 @@ impl Rooms {
         let (make_leave_response, remote_server) = make_leave_response_and_server?;
 
         let room_version_id = match make_leave_response.room_version {
-            Some(id @ RoomVersionId::Version6) => id,
+            Some(version)
+                if version == RoomVersionId::Version5 || version == RoomVersionId::Version6 =>
+            {
+                version
+            }
             _ => return Err(Error::BadServerResponse("Room version is not supported")),
         };
 

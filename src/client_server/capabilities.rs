@@ -23,6 +23,7 @@ pub async fn get_capabilities_route(
     _body: Ruma<get_capabilities::Request>,
 ) -> ConduitResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
+    available.insert(RoomVersionId::Version5, RoomVersionStability::Stable);
     available.insert(RoomVersionId::Version6, RoomVersionStability::Stable);
 
     let mut capabilities = Capabilities::new();
