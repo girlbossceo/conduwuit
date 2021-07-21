@@ -836,7 +836,7 @@ pub async fn invite_helper<'a>(
             is_direct: Some(is_direct),
             membership: MembershipState::Invite,
             third_party_invite: None,
-            blurhash: db.users.blurhash(&sender_user)?,
+            blurhash: None,
         })
         .expect("member event is valid value");
 
@@ -1012,7 +1012,7 @@ pub async fn invite_helper<'a>(
                 avatar_url: db.users.avatar_url(&user_id)?,
                 is_direct: Some(is_direct),
                 third_party_invite: None,
-                blurhash: db.users.blurhash(&sender_user)?,
+                blurhash: db.users.blurhash(&user_id)?,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,

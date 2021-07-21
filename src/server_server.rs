@@ -1027,42 +1027,39 @@ pub fn handle_incoming_pdu<'a>(
                 .map_err(|_| "Failed talking to db".to_owned())?
                 .map(|shortstatehash| db.rooms.state_full_ids(shortstatehash).ok())
                 .flatten();
-            if let Some(mut state) = state {
-                if db
-                    .rooms
-                    .get_pdu(prev_event)
-                    .ok()
-                    .flatten()
-                    .ok_or_else(|| "Could not find prev event, but we know the state.".to_owned())?
-                    .state_key
-                    .is_some()
-                {
-                    state.insert(prev_event.clone());
-                }
-                state_at_incoming_event = Some(
-                    fetch_and_handle_events(
-                        db,
-                        origin,
-                        &state.into_iter().collect::<Vec<_>>(),
-                        &room_id,
-                        pub_key_map,
-                    )
-                    .await
-                    .map_err(|_| "Failed to fetch state events locally".to_owned())?
-                    .into_iter()
-                    .map(|pdu| {
+            if let Some(state) = state {
+                let mut state = fetch_and_handle_events(
+                    db,
+                    origin,
+                    &state.into_iter().collect::<Vec<_>>(),
+                    &room_id,
+                    pub_key_map,
+                )
+                .await
+                .map_err(|_| "Failed to fetch state events locally".to_owned())?
+                .into_iter()
+                .map(|pdu| {
+                    (
                         (
-                            (
-                                pdu.kind.clone(),
-                                pdu.state_key
-                                    .clone()
-                                    .expect("events from state_full_ids are state events"),
-                            ),
-                            pdu,
-                        )
-                    })
-                    .collect(),
-                );
+                            pdu.kind.clone(),
+                            pdu.state_key
+                                .clone()
+                                .expect("events from state_full_ids are state events"),
+                        ),
+                        pdu,
+                    )
+                })
+                .collect::<HashMap<_, _>>();
+
+                let prev_pdu = db.rooms.get_pdu(prev_event).ok().flatten().ok_or_else(|| {
+                    "Could not find prev event, but we know the state.".to_owned()
+                })?;
+
+                if let Some(state_key) = &prev_pdu.state_key {
+                    state.insert((prev_pdu.kind.clone(), state_key.clone()), prev_pdu);
+                }
+
+                state_at_incoming_event = Some(state);
             }
             // TODO: set incoming_auth_events?
         }
@@ -2461,7 +2458,8 @@ pub async fn get_keys_route(
         &body.device_keys,
         |u| Some(u.server_name()) == body.sender_servername.as_deref(),
         &db,
-    )?;
+    )
+    .await?;
 
     db.flush().await?;
 
@@ -2486,7 +2484,7 @@ pub async fn claim_keys_route(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    let result = claim_keys_helper(&body.one_time_keys, &db)?;
+    let result = claim_keys_helper(&body.one_time_keys, &db).await?;
 
     db.flush().await?;
 

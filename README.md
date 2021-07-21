@@ -38,8 +38,8 @@ are not aware of such a bug today, but we would like to do more testing.
 There are still a few important features missing:
 
 - Database stability (currently you might have to do manual upgrades or even wipe the db for new versions)
-- End-to-end encrypted chats over federation
-- Typing, presence, read receipts etc. over federation
+- Edge cases for end-to-end encryption over federation
+- Typing and presence over federation
 - Lots of testing
 
 Check out the [Conduit 1.0 Release Milestone](https://gitlab.com/famedly/conduit/-/milestones/3).

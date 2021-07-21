@@ -164,8 +164,8 @@ impl Sending {
                                 // Find events that have been added since starting the last request
                                 let new_events = guard.sending.servernamepduids
                                     .scan_prefix(prefix.clone())
-                                    .map(|(k, _)| {
-                                        SendingEventType::Pdu(k[prefix.len()..].to_vec())
+                                    .filter_map(|(k, _)| {
+                                        Self::parse_servercurrentevent(&k).ok().map(|ev| (ev, k))
                                     })
                                     .take(30)
                                     .collect::<Vec<_>>();
@@ -174,16 +174,9 @@ impl Sending {
 
                                 if !new_events.is_empty() {
                                     // Insert pdus we found
-                                    for event in &new_events {
-                                        let mut current_key = prefix.clone();
-                                        match event {
-                                            SendingEventType::Pdu(b) |
-                                            SendingEventType::Edu(b) => {
-                                                current_key.extend_from_slice(&b);
-                                                guard.sending.servercurrentevents.insert(&current_key, &[]).unwrap();
-                                                guard.sending.servernamepduids.remove(&current_key).unwrap();
-                                             }
-                                        }
+                                    for (_, key) in &new_events {
+                                        guard.sending.servercurrentevents.insert(&key, &[]).unwrap();
+                                        guard.sending.servernamepduids.remove(&key).unwrap();
                                     }
 
                                     drop(guard);
@@ -191,7 +184,7 @@ impl Sending {
                                     futures.push(
                                         Self::handle_events(
                                             outgoing_kind.clone(),
-                                            new_events,
+                                            new_events.into_iter().map(|(event, _)| event.1).collect(),
                                             Arc::clone(&db),
                                         )
                                     );
@@ -290,7 +283,8 @@ impl Sending {
 
             if let OutgoingKind::Normal(server_name) = outgoing_kind {
                 if let Ok((select_edus, last_count)) = Self::select_edus(db, server_name) {
-                    events.extend_from_slice(&select_edus);
+                    events.extend(select_edus.into_iter().map(SendingEventType::Edu));
+
                     db.sending
                         .servername_educount
                         .insert(server_name.as_bytes(), &last_count.to_be_bytes())?;
@@ -301,7 +295,7 @@ impl Sending {
         Ok(Some(events))
     }
 
-    pub fn select_edus(db: &Database, server: &ServerName) -> Result<(Vec<SendingEventType>, u64)> {
+    pub fn select_edus(db: &Database, server: &ServerName) -> Result<(Vec<Vec<u8>>, u64)> {
         // u64: count of last edu
         let since = db
             .sending
@@ -366,9 +360,7 @@ impl Sending {
                     }
                 };
 
-                events.push(SendingEventType::Edu(
-                    serde_json::to_vec(&federation_event).expect("json can be serialized"),
-                ));
+                events.push(serde_json::to_vec(&federation_event).expect("json can be serialized"));
 
                 if events.len() >= 20 {
                     break 'outer;
@@ -396,6 +388,18 @@ impl Sending {
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pdu_id);
+        self.servernamepduids.insert(&key, b"")?;
+        self.sender.unbounded_send(key).unwrap();
+
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn send_reliable_edu(&self, server: &ServerName, serialized: &[u8]) -> Result<()> {
+        let mut key = server.as_bytes().to_vec();
+        key.push(0xff);
+        key.push(b'*');
+        key.extend_from_slice(serialized);
         self.servernamepduids.insert(&key, b"")?;
         self.sender.unbounded_send(key).unwrap();
 
