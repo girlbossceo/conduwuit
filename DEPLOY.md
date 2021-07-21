@@ -9,17 +9,16 @@ If you run into any problems while setting up Conduit, write an email to `timo@k
 You may simply download the binary that fits your machine. Run `uname -m` to see
 what you need. Now copy the right url:
 
-| CPU Architecture    | GNU (Debian, ArchLinux, ...) | MUSL (Alpine, ... )     |
-| ------------------- | ---------------------------- | ----------------------- |
-| x84_64 / amd64       | [Download][x84_64-gnu]        | -                       |
-| armv7 (Raspberry Pi) | [Download][armv7-gnu]         | -                       |
-| armv8 / aarch64      | [Download][armv8-gnu]         | -                       |
-| arm                  | [Download][arm]               | -                       |
+| CPU Architecture     | GNU (Ubuntu, Debian, ArchLinux, ...)  | MUSL (Alpine, ... )     |
+| -------------------- | ------------------------------------- | ----------------------- |
+| x84_64 / amd64       | [Download][x84_64-gnu]                | [Download][x84_64-musl] |
+| armv7 (Raspberry Pi) | [Download][armv7-gnu]                 | -                       |
+| armv8 / aarch64      | [Download][armv8-gnu]                 | -                       |
 
 [x84_64-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-x86_64-unknown-linux-gnu?job=build:cargo:x86_64-unknown-linux-gnu
+[x84_64-musl]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-x86_64-unknown-linux-musl?job=build:cargo:x86_64-unknown-linux-musl
 [armv7-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-armv7-unknown-linux-gnueabihf?job=build:cargo:armv7-unknown-linux-gnueabihf
 [armv8-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-aarch64-unknown-linux-gnu?job=build:cargo:aarch64-unknown-linux-gnu
-[arm]: https://conduit.rs/master/arm/conduit-bin
 
 ```bash
 $ sudo wget -O /usr/local/bin/matrix-conduit <url>
@@ -33,6 +32,7 @@ $ cargo build --release
 Note that this currently requires Rust 1.50.
 
 If you want to cross compile Conduit to another architecture, read the [Cross-Compile Guide](CROSS_COMPILE.md).
+
 
 ## Adding a Conduit user
 
