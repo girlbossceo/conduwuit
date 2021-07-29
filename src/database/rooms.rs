@@ -1435,6 +1435,13 @@ impl Rooms {
             CanonicalJsonValue::String(pdu.event_id.as_str().to_owned()),
         );
 
+        // Generate short event id
+        let shorteventid = db.globals.next_count()?;
+        self.eventid_shorteventid
+            .insert(pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())?;
+        self.shorteventid_eventid
+            .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())?;
+
         // Increment the last index and use that
         // This is also the next_batch/since value
         let count = db.globals.next_count()?;
