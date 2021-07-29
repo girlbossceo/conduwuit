@@ -1,5 +1,4 @@
 use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma, RumaResponse};
-use log::{error, warn};
 use ruma::{
     api::client::r0::{sync::sync_events, uiaa::UiaaResponse},
     events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
@@ -13,6 +12,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::watch::Sender;
+use tracing::{error, warn};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, tokio};

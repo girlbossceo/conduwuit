@@ -1,5 +1,4 @@
 use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma};
-use log::info;
 use ruma::{
     api::{
         client::{
@@ -22,6 +21,7 @@ use ruma::{
     serde::Raw,
     ServerName, UInt,
 };
+use tracing::info;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post, put};

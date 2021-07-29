@@ -16,6 +16,7 @@ pub struct AccountData {
 
 impl AccountData {
     /// Places one event in the account data of the user and removes the previous entry.
+    #[tracing::instrument(skip(self, room_id, user_id, event_type, data, globals))]
     pub fn update<T: Serialize>(
         &self,
         room_id: Option<&RoomId>,
@@ -60,6 +61,7 @@ impl AccountData {
     }
 
     /// Searches the account data for a specific kind.
+    #[tracing::instrument(skip(self, room_id, user_id, kind))]
     pub fn get<T: DeserializeOwned>(
         &self,
         room_id: Option<&RoomId>,
@@ -74,7 +76,7 @@ impl AccountData {
     }
 
     /// Returns all changes to the account data that happened after `since`.
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, room_id, user_id, since))]
     pub fn changes_since(
         &self,
         room_id: Option<&RoomId>,
@@ -122,6 +124,7 @@ impl AccountData {
         Ok(userdata)
     }
 
+    #[tracing::instrument(skip(self, room_id, user_id, kind))]
     fn find_event(
         &self,
         room_id: Option<&RoomId>,

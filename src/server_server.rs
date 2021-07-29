@@ -5,7 +5,6 @@ use crate::{
 };
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION, HOST};
-use log::{debug, error, info, trace, warn};
 use regex::Regex;
 use rocket::response::content::Json;
 use ruma::{
@@ -63,7 +62,8 @@ use std::{
     sync::{Arc, RwLock},
     time::{Duration, Instant, SystemTime},
 };
-use tokio::sync::Semaphore;
+use tokio::sync::{MutexGuard, Semaphore};
+use tracing::{debug, error, info, trace, warn};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post, put};
@@ -838,6 +838,7 @@ type AsyncRecursiveResult<'a, T, E> = Pin<Box<dyn Future<Output = StdResult<T, E
 ///     it
 /// 14. Use state resolution to find new room state
 // We use some AsyncRecursiveResult hacks here so we can call this async funtion recursively
+#[tracing::instrument(skip(value, is_timeline_event, db, pub_key_map))]
 pub fn handle_incoming_pdu<'a>(
     origin: &'a ServerName,
     event_id: &'a EventId,
@@ -1156,6 +1157,18 @@ pub fn handle_incoming_pdu<'a>(
         }
         debug!("Auth check succeeded.");
 
+        // We start looking at current room state now, so lets lock the room
+
+        let mutex = Arc::clone(
+            db.globals
+                .roomid_mutex
+                .write()
+                .unwrap()
+                .entry(room_id.clone())
+                .or_default(),
+        );
+        let mutex_lock = mutex.lock().await;
+
         // Now we calculate the set of extremities this room has after the incoming event has been
         // applied. We start with the previous extremities (aka leaves)
         let mut extremities = db
@@ -1170,8 +1183,8 @@ pub fn handle_incoming_pdu<'a>(
             }
         }
 
-        // Only keep those extremities we don't have in our timeline yet
-        extremities.retain(|id| !matches!(db.rooms.get_non_outlier_pdu_json(id), Ok(Some(_))));
+        // Only keep those extremities were not referenced yet
+        extremities.retain(|id| !matches!(db.rooms.is_event_referenced(&room_id, id), Ok(true)));
 
         let mut extremity_statehashes = Vec::new();
 
@@ -1301,9 +1314,11 @@ pub fn handle_incoming_pdu<'a>(
                     return Err("State resolution failed, either an event could not be found or deserialization".into());
                 }
             };
+
             state
         };
 
+        debug!("starting soft fail auth check");
         // 13. Check if the event passes auth based on the "current state" of the room, if not "soft fail" it
         let soft_fail = !state_res::event_auth::auth_check(
             &room_version,
@@ -1322,11 +1337,11 @@ pub fn handle_incoming_pdu<'a>(
             pdu_id = Some(
                 append_incoming_pdu(
                     &db,
-                    &room_id,
                     &incoming_pdu,
                     val,
                     extremities,
                     &state_at_incoming_event,
+                    &mutex_lock,
                 )
                 .await
                 .map_err(|_| "Failed to add pdu to db.".to_owned())?,
@@ -1350,6 +1365,7 @@ pub fn handle_incoming_pdu<'a>(
         }
 
         // Event has passed all auth/stateres checks
+        drop(mutex_lock);
         Ok(pdu_id)
     })
 }
@@ -1626,25 +1642,15 @@ pub(crate) async fn fetch_signing_keys(
 
 /// Append the incoming event setting the state snapshot to the state from the
 /// server that sent the event.
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(skip(db, pdu, pdu_json, new_room_leaves, state, _mutex_lock))]
 async fn append_incoming_pdu(
     db: &Database,
-    room_id: &RoomId,
     pdu: &PduEvent,
     pdu_json: CanonicalJsonObject,
     new_room_leaves: HashSet<EventId>,
     state: &StateMap<Arc<PduEvent>>,
+    _mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room mutex
 ) -> Result<Vec<u8>> {
-    let mutex = Arc::clone(
-        db.globals
-            .roomid_mutex
-            .write()
-            .unwrap()
-            .entry(room_id.clone())
-            .or_default(),
-    );
-    let mutex_lock = mutex.lock().await;
-
     // We append to state before appending the pdu, so we don't have a moment in time with the
     // pdu without it's state. This is okay because append_pdu can't fail.
     db.rooms
@@ -1656,8 +1662,6 @@ async fn append_incoming_pdu(
         &new_room_leaves.into_iter().collect::<Vec<_>>(),
         &db,
     )?;
-
-    drop(mutex_lock);
 
     for appservice in db.appservice.iter_all()?.filter_map(|r| r.ok()) {
         if let Some(namespaces) = appservice.1.get("namespaces") {

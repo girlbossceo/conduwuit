@@ -4,7 +4,6 @@ use crate::{
     pdu::{PduBuilder, PduEvent},
     server_server, utils, ConduitResult, Database, Error, Result, Ruma,
 };
-use log::{debug, error, warn};
 use member::{MemberEventContent, MembershipState};
 use rocket::futures;
 use ruma::{
@@ -34,6 +33,7 @@ use std::{
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
+use tracing::{debug, error, warn};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};

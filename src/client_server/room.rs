@@ -2,7 +2,6 @@ use crate::{
     client_server::invite_helper, database::DatabaseGuard, pdu::PduBuilder, ConduitResult, Error,
     Ruma,
 };
-use log::info;
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -16,6 +15,7 @@ use ruma::{
     RoomAliasId, RoomId, RoomVersionId,
 };
 use std::{cmp::max, collections::BTreeMap, convert::TryFrom, sync::Arc};
+use tracing::info;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};

@@ -1,5 +1,4 @@
 use crate::Error;
-use log::error;
 use ruma::{
     events::{
         pdu::EventHash, room::member::MemberEventContent, AnyEphemeralRoomEvent,
@@ -13,6 +12,7 @@ use ruma::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{cmp::Ordering, collections::BTreeMap, convert::TryFrom};
+use tracing::error;
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct PduEvent {

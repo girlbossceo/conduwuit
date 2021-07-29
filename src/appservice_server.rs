@@ -1,6 +1,5 @@
 use crate::{utils, Error, Result};
 use bytes::BytesMut;
-use log::warn;
 use ruma::api::{IncomingResponse, OutgoingRequest, SendAccessToken};
 use std::{
     convert::{TryFrom, TryInto},
@@ -8,6 +7,7 @@ use std::{
     mem,
     time::Duration,
 };
+use tracing::warn;
 
 pub async fn send_request<T: OutgoingRequest>(
     globals: &crate::database::globals::Globals,

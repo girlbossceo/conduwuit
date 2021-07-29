@@ -116,6 +116,7 @@ impl RoomEdus {
     }
 
     /// Sets a private read marker at `count`.
+    #[tracing::instrument(skip(self, globals))]
     pub fn private_read_set(
         &self,
         room_id: &RoomId,

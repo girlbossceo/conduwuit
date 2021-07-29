@@ -6,7 +6,6 @@ use std::{
 
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};
-use log::info;
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -28,6 +27,7 @@ use ruma::{
     identifiers::RoomName,
     push, RoomAliasId, RoomId, RoomVersionId, UserId,
 };
+use tracing::info;
 
 use register::RegistrationKind;
 #[cfg(feature = "conduit_bin")]

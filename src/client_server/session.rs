@@ -1,6 +1,5 @@
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::{database::DatabaseGuard, utils, ConduitResult, Error, Ruma};
-use log::info;
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -9,6 +8,7 @@ use ruma::{
     UserId,
 };
 use serde::Deserialize;
+use tracing::info;
 
 #[derive(Debug, Deserialize)]
 struct Claims {

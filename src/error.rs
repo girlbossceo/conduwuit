@@ -1,4 +1,3 @@
-use log::warn;
 use ruma::{
     api::client::{
         error::{Error as RumaError, ErrorKind},
@@ -7,17 +6,18 @@ use ruma::{
     ServerName,
 };
 use thiserror::Error;
+use tracing::warn;
 
 #[cfg(feature = "conduit_bin")]
 use {
     crate::RumaResponse,
     http::StatusCode,
-    log::error,
     rocket::{
         response::{self, Responder},
         Request,
     },
     ruma::api::client::r0::uiaa::UiaaResponse,
+    tracing::error,
 };
 
 pub type Result<T> = std::result::Result<T, Error>;

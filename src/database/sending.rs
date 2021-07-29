@@ -10,7 +10,6 @@ use crate::{
     appservice_server, database::pusher, server_server, utils, Database, Error, PduEvent, Result,
 };
 use federation::transactions::send_transaction_message;
-use log::{error, warn};
 use ring::digest;
 use rocket::futures::{
     channel::mpsc,
@@ -34,6 +33,7 @@ use tokio::{
     select,
     sync::{RwLock, Semaphore},
 };
+use tracing::{error, warn};
 
 use super::abstraction::Tree;
 
@@ -45,6 +45,7 @@ pub enum OutgoingKind {
 }
 
 impl OutgoingKind {
+    #[tracing::instrument(skip(self))]
     pub fn get_prefix(&self) -> Vec<u8> {
         let mut prefix = match self {
             OutgoingKind::Appservice(server) => {
@@ -223,6 +224,7 @@ impl Sending {
         });
     }
 
+    #[tracing::instrument(skip(outgoing_kind, new_events, current_transaction_status, db))]
     fn select_events(
         outgoing_kind: &OutgoingKind,
         new_events: Vec<(SendingEventType, Vec<u8>)>, // Events we want to send: event and full key
@@ -295,6 +297,7 @@ impl Sending {
         Ok(Some(events))
     }
 
+    #[tracing::instrument(skip(db, server))]
     pub fn select_edus(db: &Database, server: &ServerName) -> Result<(Vec<Vec<u8>>, u64)> {
         // u64: count of last edu
         let since = db
@@ -371,7 +374,7 @@ impl Sending {
         Ok((events, max_edu_count))
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, pdu_id, senderkey))]
     pub fn send_push_pdu(&self, pdu_id: &[u8], senderkey: Vec<u8>) -> Result<()> {
         let mut key = b"$".to_vec();
         key.extend_from_slice(&senderkey);
@@ -383,7 +386,7 @@ impl Sending {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, server, pdu_id))]
     pub fn send_pdu(&self, server: &ServerName, pdu_id: &[u8]) -> Result<()> {
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
@@ -394,7 +397,7 @@ impl Sending {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, server, serialized))]
     pub fn send_reliable_edu(&self, server: &ServerName, serialized: &[u8]) -> Result<()> {
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
@@ -418,7 +421,7 @@ impl Sending {
         Ok(())
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(keys))]
     fn calculate_hash(keys: &[&[u8]]) -> Vec<u8> {
         // We only hash the pdu's event ids, not the whole pdu
         let bytes = keys.join(&0xff);
@@ -426,7 +429,7 @@ impl Sending {
         hash.as_ref().to_owned()
     }
 
-    #[tracing::instrument(skip(db))]
+    #[tracing::instrument(skip(db, events, kind))]
     async fn handle_events(
         kind: OutgoingKind,
         events: Vec<SendingEventType>,
@@ -658,6 +661,7 @@ impl Sending {
         }
     }
 
+    #[tracing::instrument(skip(key))]
     fn parse_servercurrentevent(key: &[u8]) -> Result<(OutgoingKind, SendingEventType)> {
         // Appservices start with a plus
         Ok::<_, Error>(if key.starts_with(b"+") {
@@ -723,7 +727,7 @@ impl Sending {
         })
     }
 
-    #[tracing::instrument(skip(self, globals))]
+    #[tracing::instrument(skip(self, globals, destination, request))]
     pub async fn send_federation_request<T: OutgoingRequest>(
         &self,
         globals: &crate::database::globals::Globals,
@@ -740,7 +744,7 @@ impl Sending {
         response
     }
 
-    #[tracing::instrument(skip(self, globals))]
+    #[tracing::instrument(skip(self, globals, registration, request))]
     pub async fn send_appservice_request<T: OutgoingRequest>(
         &self,
         globals: &crate::database::globals::Globals,
