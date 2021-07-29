@@ -156,6 +156,9 @@ pub type Engine = abstraction::rocksdb::Engine;
 #[cfg(feature = "sqlite")]
 pub type Engine = abstraction::sqlite::Engine;
 
+#[cfg(feature = "heed")]
+pub type Engine = abstraction::heed::Engine;
+
 pub struct Database {
     _db: Arc<Engine>,
     pub globals: globals::Globals,
@@ -188,24 +191,20 @@ impl Database {
     fn check_sled_or_sqlite_db(config: &Config) -> Result<()> {
         let path = Path::new(&config.database_path);
 
-        #[cfg(feature = "backend_sqlite")]
-        {
-            let sled_exists = path.join("db").exists();
-            let sqlite_exists = path.join("conduit.db").exists();
-            if sled_exists {
-                if sqlite_exists {
-                    // most likely an in-place directory, only warn
-                    warn!("Both sled and sqlite databases are detected in database directory");
-                    warn!("Currently running from the sqlite database, but consider removing sled database files to free up space")
-                } else {
-                    error!(
-                        "Sled database detected, conduit now uses sqlite for database operations"
-                    );
-                    error!("This database must be converted to sqlite, go to https://github.com/ShadowJonathan/conduit_toolbox#conduit_sled_to_sqlite");
-                    return Err(Error::bad_config(
-                        "sled database detected, migrate to sqlite",
-                    ));
-                }
+        let sled_exists = path.join("db").exists();
+        let sqlite_exists = path.join("conduit.db").exists();
+        // TODO: heed
+        if sled_exists {
+            if sqlite_exists {
+                // most likely an in-place directory, only warn
+                warn!("Both sled and sqlite databases are detected in database directory");
+                warn!("Currently running from the sqlite database, but consider removing sled database files to free up space")
+            } else {
+                error!("Sled database detected, conduit now uses sqlite for database operations");
+                error!("This database must be converted to sqlite, go to https://github.com/ShadowJonathan/conduit_toolbox#conduit_sled_to_sqlite");
+                return Err(Error::bad_config(
+                    "sled database detected, migrate to sqlite",
+                ));
             }
         }
 
@@ -313,8 +312,8 @@ impl Database {
             },
             sending: sending::Sending {
                 servername_educount: builder.open_tree("servername_educount")?,
-                servernamepduids: builder.open_tree("servernamepduids")?,
-                servercurrentevents: builder.open_tree("servercurrentevents")?,
+                servernameevent_data: builder.open_tree("servernameevent_data")?,
+                servercurrentevent_data: builder.open_tree("servercurrentevent_data")?,
                 maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
                 sender: sending_sender,
             },

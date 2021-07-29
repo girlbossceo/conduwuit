@@ -42,6 +42,9 @@ pub enum Error {
         #[from]
         source: rusqlite::Error,
     },
+    #[cfg(feature = "heed")]
+    #[error("There was a problem with the connection to the heed database: {error}")]
+    HeedError { error: String },
     #[error("Could not generate an image.")]
     ImageError {
         #[from]

@@ -863,6 +863,7 @@ impl Rooms {
                 if let Some(body) = pdu.content.get("body").and_then(|b| b.as_str()) {
                     for word in body
                         .split_terminator(|c: char| !c.is_alphanumeric())
+                        .filter(|word| word.len() <= 50)
                         .map(str::to_lowercase)
                     {
                         let mut key = pdu.room_id.as_bytes().to_vec();
