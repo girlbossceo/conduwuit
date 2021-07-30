@@ -599,29 +599,25 @@ impl Sending {
                     match event {
                         SendingEventType::Pdu(pdu_id) => {
                             // TODO: check room version and remove event_id if needed
-                            pdu_jsons.push(serde_json::from_str(
-                                PduEvent::convert_to_outgoing_federation_event(
-                                    db.rooms
-                                        .get_pdu_json_from_id(&pdu_id)
-                                        .map_err(|e| (OutgoingKind::Normal(server.clone()), e))?
-                                        .ok_or_else(|| {
-                                            (
-                                                OutgoingKind::Normal(server.clone()),
-                                                Error::bad_database(
-                                                    "[Normal] Event in servernamevent_datas not found in db.",
-                                                ),
-                                            )
-                                        })?,
-                                )
-                                .json()
-                                .get(),
-                            )
-                            .expect("Raw<..> is always valid"));
+                            let raw = PduEvent::convert_to_outgoing_federation_event(
+                                db.rooms
+                                    .get_pdu_json_from_id(&pdu_id)
+                                    .map_err(|e| (OutgoingKind::Normal(server.clone()), e))?
+                                    .ok_or_else(|| {
+                                        (
+                                            OutgoingKind::Normal(server.clone()),
+                                            Error::bad_database(
+                                                "[Normal] Event in servernamevent_datas not found in db.",
+                                            ),
+                                        )
+                                    })?,
+                            );
+                            pdu_jsons.push(raw);
                         }
                         SendingEventType::Edu(edu) => {
-                            edu_jsons.push(
-                                serde_json::from_slice(edu).expect("Raw<..> is always valid"),
-                            );
+                            if let Ok(raw) = serde_json::from_slice(edu) {
+                                edu_jsons.push(raw);
+                            }
                         }
                     }
                 }
@@ -689,7 +685,7 @@ impl Sending {
                     Error::bad_database("Invalid server string in server_currenttransaction")
                 })?),
                 if event.starts_with(b"*") {
-                    SendingEventType::Edu(value.to_vec())
+                    SendingEventType::Edu(value)
                 } else {
                     SendingEventType::Pdu(event.to_vec())
                 },
@@ -707,7 +703,7 @@ impl Sending {
             (
                 OutgoingKind::Push(user.to_vec(), pushkey.to_vec()),
                 if event.starts_with(b"*") {
-                    SendingEventType::Edu(event[1..].to_vec())
+                    SendingEventType::Edu(value)
                 } else {
                     SendingEventType::Pdu(event.to_vec())
                 },

@@ -430,8 +430,8 @@ impl Database {
                 // Upgrade user data store
                 for (roomuserdataid, _) in db.account_data.roomuserdataid_accountdata.iter() {
                     let mut parts = roomuserdataid.split(|&b| b == 0xff);
-                    let user_id = parts.next().unwrap();
                     let room_id = parts.next().unwrap();
+                    let user_id = parts.next().unwrap();
                     let event_type = roomuserdataid.rsplit(|&b| b == 0xff).next().unwrap();
 
                     let mut key = room_id.to_vec();

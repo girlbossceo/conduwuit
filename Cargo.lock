@@ -944,7 +944,7 @@ dependencies = [
 [[package]]
 name = "heed"
 version = "0.10.6"
-source = "git+https://github.com/timokoesters/heed.git?rev=c6b149fd5621999b0d5ef0c28e199015cfc60fa1#c6b149fd5621999b0d5ef0c28e199015cfc60fa1"
+source = "git+https://github.com/timokoesters/heed.git?rev=f6f825da7fb2c758867e05ad973ef800a6fe1d5d#f6f825da7fb2c758867e05ad973ef800a6fe1d5d"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -962,12 +962,12 @@ dependencies = [
 [[package]]
 name = "heed-traits"
 version = "0.7.0"
-source = "git+https://github.com/timokoesters/heed.git?rev=c6b149fd5621999b0d5ef0c28e199015cfc60fa1#c6b149fd5621999b0d5ef0c28e199015cfc60fa1"
+source = "git+https://github.com/timokoesters/heed.git?rev=f6f825da7fb2c758867e05ad973ef800a6fe1d5d#f6f825da7fb2c758867e05ad973ef800a6fe1d5d"
 
 [[package]]
 name = "heed-types"
 version = "0.7.2"
-source = "git+https://github.com/timokoesters/heed.git?rev=c6b149fd5621999b0d5ef0c28e199015cfc60fa1#c6b149fd5621999b0d5ef0c28e199015cfc60fa1"
+source = "git+https://github.com/timokoesters/heed.git?rev=f6f825da7fb2c758867e05ad973ef800a6fe1d5d#f6f825da7fb2c758867e05ad973ef800a6fe1d5d"
 dependencies = [
  "bincode",
  "bytemuck",
