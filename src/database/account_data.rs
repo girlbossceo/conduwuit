@@ -12,6 +12,7 @@ use super::abstraction::Tree;
 
 pub struct AccountData {
     pub(super) roomuserdataid_accountdata: Arc<dyn Tree>, // RoomUserDataId = Room + User + Count + Type
+    pub(super) roomusertype_roomuserdataid: Arc<dyn Tree>, // RoomUserType = Room + User + Type
 }
 
 impl AccountData {
@@ -34,15 +35,13 @@ impl AccountData {
         prefix.extend_from_slice(&user_id.as_bytes());
         prefix.push(0xff);
 
-        // Remove old entry
-        if let Some((old_key, _)) = self.find_event(room_id, user_id, &event_type)? {
-            self.roomuserdataid_accountdata.remove(&old_key)?;
-        }
+        let mut roomuserdataid = prefix.clone();
+        roomuserdataid.extend_from_slice(&globals.next_count()?.to_be_bytes());
+        roomuserdataid.push(0xff);
+        roomuserdataid.extend_from_slice(&event_type.as_bytes());
 
-        let mut key = prefix;
-        key.extend_from_slice(&globals.next_count()?.to_be_bytes());
-        key.push(0xff);
-        key.extend_from_slice(event_type.as_ref().as_bytes());
+        let mut key = prefix.clone();
+        key.extend_from_slice(event_type.as_bytes());
 
         let json = serde_json::to_value(data).expect("all types here can be serialized"); // TODO: maybe add error handling
         if json.get("type").is_none() || json.get("content").is_none() {
@@ -53,9 +52,19 @@ impl AccountData {
         }
 
         self.roomuserdataid_accountdata.insert(
-            &key,
+            &roomuserdataid,
             &serde_json::to_vec(&json).expect("to_vec always works on json values"),
         )?;
+
+        let prev = self.roomusertype_roomuserdataid.get(&key)?;
+
+        self.roomusertype_roomuserdataid
+            .insert(&key, &roomuserdataid)?;
+
+        // Remove old entry
+        if let Some(prev) = prev {
+            self.roomuserdataid_accountdata.remove(&prev)?;
+        }
 
         Ok(())
     }
@@ -68,9 +77,27 @@ impl AccountData {
         user_id: &UserId,
         kind: EventType,
     ) -> Result<Option<T>> {
-        self.find_event(room_id, user_id, &kind)?
-            .map(|(_, v)| {
-                serde_json::from_slice(&v).map_err(|_| Error::bad_database("could not deserialize"))
+        let mut key = room_id
+            .map(|r| r.to_string())
+            .unwrap_or_default()
+            .as_bytes()
+            .to_vec();
+        key.push(0xff);
+        key.extend_from_slice(&user_id.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(kind.as_ref().as_bytes());
+
+        self.roomusertype_roomuserdataid
+            .get(&key)?
+            .and_then(|roomuserdataid| {
+                self.roomuserdataid_accountdata
+                    .get(&roomuserdataid)
+                    .transpose()
+            })
+            .transpose()?
+            .map(|data| {
+                serde_json::from_slice(&data)
+                    .map_err(|_| Error::bad_database("could not deserialize"))
             })
             .transpose()
     }
@@ -122,38 +149,5 @@ impl AccountData {
         }
 
         Ok(userdata)
-    }
-
-    #[tracing::instrument(skip(self, room_id, user_id, kind))]
-    fn find_event(
-        &self,
-        room_id: Option<&RoomId>,
-        user_id: &UserId,
-        kind: &EventType,
-    ) -> Result<Option<(Vec<u8>, Vec<u8>)>> {
-        let mut prefix = room_id
-            .map(|r| r.to_string())
-            .unwrap_or_default()
-            .as_bytes()
-            .to_vec();
-        prefix.push(0xff);
-        prefix.extend_from_slice(&user_id.as_bytes());
-        prefix.push(0xff);
-
-        let mut last_possible_key = prefix.clone();
-        last_possible_key.extend_from_slice(&u64::MAX.to_be_bytes());
-
-        let kind = kind.clone();
-
-        Ok(self
-            .roomuserdataid_accountdata
-            .iter_from(&last_possible_key, true)
-            .take_while(move |(k, _)| k.starts_with(&prefix))
-            .find(move |(k, _)| {
-                k.rsplit(|&b| b == 0xff)
-                    .next()
-                    .map(|current_event_type| current_event_type == kind.as_ref().as_bytes())
-                    .unwrap_or(false)
-            }))
     }
 }

@@ -27,7 +27,6 @@ pub struct EngineTree {
 }
 
 fn convert_error(error: heed::Error) -> Error {
-    panic!(error.to_string());
     Error::HeedError {
         error: error.to_string(),
     }
@@ -40,8 +39,8 @@ impl DatabaseEngine for Engine {
         env_builder.max_readers(126);
         env_builder.max_dbs(128);
         unsafe {
-            env_builder.flag(heed::flags::Flags::MdbNoSync);
-            env_builder.flag(heed::flags::Flags::MdbNoMetaSync);
+            env_builder.flag(heed::flags::Flags::MdbWriteMap);
+            env_builder.flag(heed::flags::Flags::MdbMapAsync);
         }
 
         Ok(Arc::new(Engine {
@@ -79,7 +78,7 @@ impl EngineTree {
         from: Vec<u8>,
         backwards: bool,
     ) -> Box<dyn Iterator<Item = TupleOfBytes> + Send + Sync> {
-        let (s, r) = bounded::<TupleOfBytes>(5);
+        let (s, r) = bounded::<TupleOfBytes>(100);
         let engine = Arc::clone(&self.engine);
 
         let lock = self.engine.iter_pool.lock().unwrap();

@@ -9,10 +9,11 @@ use ruma::{
         },
         IncomingResponse, OutgoingRequest, SendAccessToken,
     },
-    events::{room::power_levels::PowerLevelsEventContent, EventType},
+    events::{room::power_levels::PowerLevelsEventContent, AnySyncRoomEvent, EventType},
     identifiers::RoomName,
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
-    uint, UInt, UserId,
+    serde::Raw,
+    uint, RoomId, UInt, UserId,
 };
 use tracing::{error, info, warn};
 
@@ -172,7 +173,24 @@ pub async fn send_push_notice(
     let mut notify = None;
     let mut tweaks = Vec::new();
 
-    for action in get_actions(user, &ruleset, pdu, db)? {
+    let power_levels: PowerLevelsEventContent = db
+        .rooms
+        .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
+        .map(|ev| {
+            serde_json::from_value(ev.content.clone())
+                .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    for action in get_actions(
+        user,
+        &ruleset,
+        &power_levels,
+        &pdu.to_sync_room_event(),
+        &pdu.room_id,
+        db,
+    )? {
         let n = match action {
             Action::DontNotify => false,
             // TODO: Implement proper support for coalesce
@@ -204,32 +222,24 @@ pub async fn send_push_notice(
 pub fn get_actions<'a>(
     user: &UserId,
     ruleset: &'a Ruleset,
-    pdu: &PduEvent,
+    power_levels: &PowerLevelsEventContent,
+    pdu: &Raw<AnySyncRoomEvent>,
+    room_id: &RoomId,
     db: &Database,
 ) -> Result<&'a [Action]> {
-    let power_levels: PowerLevelsEventContent = db
-        .rooms
-        .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
-        .map(|ev| {
-            serde_json::from_value(ev.content.clone())
-                .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
-        })
-        .transpose()?
-        .unwrap_or_default();
-
     let ctx = PushConditionRoomCtx {
-        room_id: pdu.room_id.clone(),
+        room_id: room_id.clone(),
         member_count: 10_u32.into(), // TODO: get member count efficiently
         user_display_name: db
             .users
             .displayname(&user)?
             .unwrap_or_else(|| user.localpart().to_owned()),
-        users_power_levels: power_levels.users,
+        users_power_levels: power_levels.users.clone(),
         default_power_level: power_levels.users_default,
-        notification_power_levels: power_levels.notifications,
+        notification_power_levels: power_levels.notifications.clone(),
     };
 
-    Ok(ruleset.get_actions(&pdu.to_sync_room_event(), &ctx))
+    Ok(ruleset.get_actions(pdu, &ctx))
 }
 
 #[tracing::instrument(skip(unread, pusher, tweaks, event, db))]

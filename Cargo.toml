@@ -79,10 +79,10 @@ parking_lot = { version = "0.11.1", optional = true }
 crossbeam = { version = "0.8.1", optional = true }
 num_cpus = "1.13.0"
 threadpool = "1.8.1"
-heed = { git = "https://github.com/Kerollmops/heed.git", rev = "b235e9c3e9984737c967b5de1014b48f125dc28b", optional = true }
+heed = { git = "https://github.com/timokoesters/heed.git", rev = "f6f825da7fb2c758867e05ad973ef800a6fe1d5d", optional = true }
 
 [features]
-default = ["conduit_bin", "backend_heed"]
+default = ["conduit_bin", "backend_sqlite"]
 backend_sled = ["sled"]
 backend_rocksdb = ["rocksdb"]
 backend_sqlite = ["sqlite"]

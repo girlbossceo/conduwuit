@@ -15,7 +15,7 @@ use ruma::{
     RoomAliasId, RoomId, RoomVersionId,
 };
 use std::{cmp::max, collections::BTreeMap, convert::TryFrom, sync::Arc};
-use tracing::info;
+use tracing::{info, warn};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};
@@ -233,7 +233,8 @@ pub async fn create_room_route(
 
     // 5. Events listed in initial_state
     for event in &body.initial_state {
-        let pdu_builder = PduBuilder::from(event.deserialize().map_err(|_| {
+        let pdu_builder = PduBuilder::from(event.deserialize().map_err(|e| {
+            warn!("Invalid initial state event: {:?}", e);
             Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event.")
         })?);
 

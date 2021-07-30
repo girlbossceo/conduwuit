@@ -12,7 +12,9 @@ use ruma::{
     api::{client::error::ErrorKind, federation},
     events::{
         ignored_user_list, push_rules,
-        room::{create::CreateEventContent, member, message},
+        room::{
+            create::CreateEventContent, member, message, power_levels::PowerLevelsEventContent,
+        },
         AnyStrippedStateEvent, AnySyncStateEvent, EventType,
     },
     push::{self, Action, Tweak},
@@ -760,6 +762,18 @@ impl Rooms {
             .insert(pdu.event_id.as_bytes(), &pdu_id)?;
 
         // See if the event matches any known pushers
+        let power_levels: PowerLevelsEventContent = db
+            .rooms
+            .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
+            .map(|ev| {
+                serde_json::from_value(ev.content.clone())
+                    .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+            })
+            .transpose()?
+            .unwrap_or_default();
+
+        let sync_pdu = pdu.to_sync_room_event();
+
         for user in db
             .rooms
             .room_members(&pdu.room_id)
@@ -781,7 +795,14 @@ impl Rooms {
             let mut highlight = false;
             let mut notify = false;
 
-            for action in pusher::get_actions(&user, &rules_for_user, pdu, db)? {
+            for action in pusher::get_actions(
+                &user,
+                &rules_for_user,
+                &power_levels,
+                &sync_pdu,
+                &pdu.room_id,
+                db,
+            )? {
                 match action {
                     Action::DontNotify => notify = false,
                     // TODO: Implement proper support for coalesce

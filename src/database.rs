@@ -189,22 +189,26 @@ impl Database {
     }
 
     fn check_sled_or_sqlite_db(config: &Config) -> Result<()> {
-        let path = Path::new(&config.database_path);
+        #[cfg(feature = "backend_sqlite")]
+        {
+            let path = Path::new(&config.database_path);
 
-        let sled_exists = path.join("db").exists();
-        let sqlite_exists = path.join("conduit.db").exists();
-        // TODO: heed
-        if sled_exists {
-            if sqlite_exists {
-                // most likely an in-place directory, only warn
-                warn!("Both sled and sqlite databases are detected in database directory");
-                warn!("Currently running from the sqlite database, but consider removing sled database files to free up space")
-            } else {
-                error!("Sled database detected, conduit now uses sqlite for database operations");
-                error!("This database must be converted to sqlite, go to https://github.com/ShadowJonathan/conduit_toolbox#conduit_sled_to_sqlite");
-                return Err(Error::bad_config(
-                    "sled database detected, migrate to sqlite",
-                ));
+            let sled_exists = path.join("db").exists();
+            let sqlite_exists = path.join("conduit.db").exists();
+            if sled_exists {
+                if sqlite_exists {
+                    // most likely an in-place directory, only warn
+                    warn!("Both sled and sqlite databases are detected in database directory");
+                    warn!("Currently running from the sqlite database, but consider removing sled database files to free up space")
+                } else {
+                    error!(
+                        "Sled database detected, conduit now uses sqlite for database operations"
+                    );
+                    error!("This database must be converted to sqlite, go to https://github.com/ShadowJonathan/conduit_toolbox#conduit_sled_to_sqlite");
+                    return Err(Error::bad_config(
+                        "sled database detected, migrate to sqlite",
+                    ));
+                }
             }
         }
 
@@ -298,6 +302,7 @@ impl Database {
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
+                roomusertype_roomuserdataid: builder.open_tree("roomusertype_roomuserdataid")?,
             },
             media: media::Media {
                 mediaid_file: builder.open_tree("mediaid_file")?,
@@ -420,6 +425,30 @@ impl Database {
 
                 println!("Migration: 3 -> 4 finished");
             }
+
+            if db.globals.database_version()? < 5 {
+                // Upgrade user data store
+                for (roomuserdataid, _) in db.account_data.roomuserdataid_accountdata.iter() {
+                    let mut parts = roomuserdataid.split(|&b| b == 0xff);
+                    let user_id = parts.next().unwrap();
+                    let room_id = parts.next().unwrap();
+                    let event_type = roomuserdataid.rsplit(|&b| b == 0xff).next().unwrap();
+
+                    let mut key = room_id.to_vec();
+                    key.push(0xff);
+                    key.extend_from_slice(user_id);
+                    key.push(0xff);
+                    key.extend_from_slice(event_type);
+
+                    db.account_data
+                        .roomusertype_roomuserdataid
+                        .insert(&key, &roomuserdataid)?;
+                }
+
+                db.globals.bump_database_version(5)?;
+
+                println!("Migration: 4 -> 5 finished");
+            }
         }
 
         let guard = db.read().await;
@@ -516,7 +545,7 @@ impl Database {
 
             futures.push(
                 self.account_data
-                    .roomuserdataid_accountdata
+                    .roomusertype_roomuserdataid
                     .watch_prefix(&roomuser_prefix),
             );
         }
@@ -526,7 +555,7 @@ impl Database {
 
         futures.push(
             self.account_data
-                .roomuserdataid_accountdata
+                .roomusertype_roomuserdataid
                 .watch_prefix(&globaluserdata_prefix),
         );
 
