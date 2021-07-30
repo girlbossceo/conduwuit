@@ -17,6 +17,7 @@ use std::sync::Arc;
 use database::Config;
 pub use database::Database;
 pub use error::{Error, Result};
+use opentelemetry::trace::Tracer;
 pub use pdu::PduEvent;
 pub use rocket::State;
 use ruma::api::client::error::ErrorKind;
@@ -31,8 +32,7 @@ use rocket::{
     routes, Request,
 };
 use tokio::sync::RwLock;
-use tracing::span;
-use tracing_subscriber::{prelude::*, Registry};
+use tracing_subscriber::{prelude::*, EnvFilter};
 
 fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<rocket::Build> {
     rocket::custom(config)
@@ -201,38 +201,57 @@ async fn main() {
         .extract::<Config>()
         .expect("It looks like your config is invalid. Please take a look at the error");
 
-    let mut _span: Option<span::Span> = None;
-    let mut _enter: Option<span::Entered<'_>> = None;
+    let start = async {
+        config.warn_deprecated();
+
+        let db = Database::load_or_create(&config)
+            .await
+            .expect("config is valid");
+
+        let rocket = setup_rocket(raw_config, Arc::clone(&db))
+            .ignite()
+            .await
+            .unwrap();
+
+        Database::start_on_shutdown_tasks(db, rocket.shutdown()).await;
+
+        rocket.launch().await.unwrap();
+    };
 
     if config.allow_jaeger {
-        let (tracer, _uninstall) = opentelemetry_jaeger::new_pipeline()
+        let tracer = opentelemetry_jaeger::new_pipeline()
             .with_service_name("conduit")
-            .install()
+            .install_simple()
             .unwrap();
-        let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-        Registry::default().with(telemetry).try_init().unwrap();
 
-        _span = Some(span!(tracing::Level::INFO, "app_start", work_units = 2));
-        _enter = Some(_span.as_ref().unwrap().enter());
+        let span = tracer.start("conduit");
+        start.await;
+        drop(span);
     } else {
         std::env::set_var("RUST_LOG", &config.log);
-        tracing_subscriber::fmt::init();
+
+        let registry = tracing_subscriber::Registry::default();
+        if config.tracing_flame {
+            let (flame_layer, _guard) =
+                tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+            let flame_layer = flame_layer.with_empty_samples(false);
+
+            let filter_layer = EnvFilter::new("trace,h2=off");
+
+            let subscriber = registry.with(filter_layer).with(flame_layer);
+            tracing::subscriber::set_global_default(subscriber).unwrap();
+            start.await;
+        } else {
+            let fmt_layer = tracing_subscriber::fmt::Layer::new();
+            let filter_layer = EnvFilter::try_from_default_env()
+                .or_else(|_| EnvFilter::try_new("info"))
+                .unwrap();
+
+            let subscriber = registry.with(filter_layer).with(fmt_layer);
+            tracing::subscriber::set_global_default(subscriber).unwrap();
+            start.await;
+        }
     }
-
-    config.warn_deprecated();
-
-    let db = Database::load_or_create(&config)
-        .await
-        .expect("config is valid");
-
-    let rocket = setup_rocket(raw_config, Arc::clone(&db))
-        .ignite()
-        .await
-        .unwrap();
-
-    Database::start_on_shutdown_tasks(db, rocket.shutdown()).await;
-
-    rocket.launch().await.unwrap();
 }
 
 #[catch(404)]

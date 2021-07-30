@@ -1,7 +1,7 @@
 use super::super::Config;
 use crate::{utils, Result};
-use log::warn;
 use std::{future::Future, pin::Pin, sync::Arc};
+use tracing::warn;
 
 use super::{DatabaseEngine, Tree};
 

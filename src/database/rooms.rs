@@ -5,7 +5,6 @@ use member::MembershipState;
 use tokio::sync::MutexGuard;
 
 use crate::{pdu::PduBuilder, utils, Database, Error, PduEvent, Result};
-use log::{debug, error, warn};
 use lru_cache::LruCache;
 use regex::Regex;
 use ring::digest;
@@ -13,7 +12,9 @@ use ruma::{
     api::{client::error::ErrorKind, federation},
     events::{
         ignored_user_list, push_rules,
-        room::{create::CreateEventContent, member, message},
+        room::{
+            create::CreateEventContent, member, message, power_levels::PowerLevelsEventContent,
+        },
         AnyStrippedStateEvent, AnySyncStateEvent, EventType,
     },
     push::{self, Action, Tweak},
@@ -27,6 +28,7 @@ use std::{
     mem,
     sync::{Arc, Mutex},
 };
+use tracing::{debug, error, warn};
 
 use super::{abstraction::Tree, admin::AdminCommand, pusher};
 
@@ -82,7 +84,7 @@ pub struct Rooms {
     pub(super) eventid_outlierpdu: Arc<dyn Tree>,
 
     /// RoomId + EventId -> Parent PDU EventId.
-    pub(super) prevevent_parent: Arc<dyn Tree>,
+    pub(super) referencedevents: Arc<dyn Tree>,
 
     pub(super) pdu_cache: Mutex<LruCache<EventId, Arc<PduEvent>>>,
     pub(super) auth_chain_cache: Mutex<LruCache<EventId, HashSet<EventId>>>,
@@ -617,6 +619,7 @@ impl Rooms {
     }
 
     /// Returns the leaf pdus of a room.
+    #[tracing::instrument(skip(self))]
     pub fn get_pdu_leaves(&self, room_id: &RoomId) -> Result<HashSet<EventId>> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
@@ -636,6 +639,7 @@ impl Rooms {
     ///
     /// The provided `event_ids` become the new leaves, this allows a room to have multiple
     /// `prev_events`.
+    #[tracing::instrument(skip(self))]
     pub fn replace_pdu_leaves(&self, room_id: &RoomId, event_ids: &[EventId]) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
@@ -653,13 +657,15 @@ impl Rooms {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
         let mut key = room_id.as_bytes().to_vec();
         key.extend_from_slice(event_id.as_bytes());
-        Ok(self.prevevent_parent.get(&key)?.is_some())
+        Ok(self.referencedevents.get(&key)?.is_some())
     }
 
     /// Returns the pdu from the outlier tree.
+    #[tracing::instrument(skip(self))]
     pub fn get_pdu_outlier(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
         self.eventid_outlierpdu
             .get(event_id.as_bytes())?
@@ -671,6 +677,7 @@ impl Rooms {
     /// Append the PDU as an outlier.
     ///
     /// Any event given to this will be processed (state-res) on another thread.
+    #[tracing::instrument(skip(self, pdu))]
     pub fn add_pdu_outlier(&self, event_id: &EventId, pdu: &CanonicalJsonObject) -> Result<()> {
         self.eventid_outlierpdu.insert(
             &event_id.as_bytes(),
@@ -684,7 +691,7 @@ impl Rooms {
     ///
     /// By this point the incoming event should be fully authenticated, no auth happens
     /// in `append_pdu`.
-    #[allow(clippy::too_many_arguments)]
+    #[tracing::instrument(skip(self, pdu, pdu_json, leaves, db))]
     pub fn append_pdu(
         &self,
         pdu: &PduEvent,
@@ -721,11 +728,10 @@ impl Rooms {
         }
 
         // We must keep track of all events that have been referenced.
-        for leaf in leaves {
+        for prev in &pdu.prev_events {
             let mut key = pdu.room_id().as_bytes().to_vec();
-            key.extend_from_slice(leaf.as_bytes());
-            self.prevevent_parent
-                .insert(&key, pdu.event_id().as_bytes())?;
+            key.extend_from_slice(prev.as_bytes());
+            self.referencedevents.insert(&key, &[])?;
         }
 
         self.replace_pdu_leaves(&pdu.room_id, leaves)?;
@@ -756,13 +762,24 @@ impl Rooms {
             .insert(pdu.event_id.as_bytes(), &pdu_id)?;
 
         // See if the event matches any known pushers
+        let power_levels: PowerLevelsEventContent = db
+            .rooms
+            .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
+            .map(|ev| {
+                serde_json::from_value(ev.content.clone())
+                    .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+            })
+            .transpose()?
+            .unwrap_or_default();
+
+        let sync_pdu = pdu.to_sync_room_event();
+
         for user in db
-            .users
-            .iter()
+            .rooms
+            .room_members(&pdu.room_id)
             .filter_map(|r| r.ok())
             .filter(|user_id| user_id.server_name() == db.globals.server_name())
             .filter(|user_id| !db.users.is_deactivated(user_id).unwrap_or(false))
-            .filter(|user_id| self.is_joined(&user_id, &pdu.room_id).unwrap_or(false))
         {
             // Don't notify the user of their own events
             if user == pdu.sender {
@@ -778,7 +795,14 @@ impl Rooms {
             let mut highlight = false;
             let mut notify = false;
 
-            for action in pusher::get_actions(&user, &rules_for_user, pdu, db)? {
+            for action in pusher::get_actions(
+                &user,
+                &rules_for_user,
+                &power_levels,
+                &sync_pdu,
+                &pdu.room_id,
+                db,
+            )? {
                 match action {
                     Action::DontNotify => notify = false,
                     // TODO: Implement proper support for coalesce
@@ -860,6 +884,7 @@ impl Rooms {
                 if let Some(body) = pdu.content.get("body").and_then(|b| b.as_str()) {
                     for word in body
                         .split_terminator(|c: char| !c.is_alphanumeric())
+                        .filter(|word| word.len() <= 50)
                         .map(str::to_lowercase)
                     {
                         let mut key = pdu.room_id.as_bytes().to_vec();
@@ -992,6 +1017,7 @@ impl Rooms {
         Ok(pdu_id)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
@@ -1005,6 +1031,7 @@ impl Rooms {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
@@ -1019,6 +1046,7 @@ impl Rooms {
             .unwrap_or(Ok(0))
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
@@ -1037,6 +1065,7 @@ impl Rooms {
     ///
     /// This adds all current state events (not including the incoming event)
     /// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
+    #[tracing::instrument(skip(self, state, globals))]
     pub fn set_event_state(
         &self,
         event_id: &EventId,
@@ -1121,6 +1150,7 @@ impl Rooms {
     ///
     /// This adds all current state events (not including the incoming event)
     /// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
+    #[tracing::instrument(skip(self, new_pdu, globals))]
     pub fn append_to_state(
         &self,
         new_pdu: &PduEvent,
@@ -1227,6 +1257,7 @@ impl Rooms {
         }
     }
 
+    #[tracing::instrument(skip(self, invite_event))]
     pub fn calculate_invite_state(
         &self,
         invite_event: &PduEvent,
@@ -1264,6 +1295,7 @@ impl Rooms {
         Ok(state)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn set_room_state(&self, room_id: &RoomId, shortstatehash: u64) -> Result<()> {
         self.roomid_shortstatehash
             .insert(room_id.as_bytes(), &shortstatehash.to_be_bytes())?;
@@ -1272,6 +1304,7 @@ impl Rooms {
     }
 
     /// Creates a new persisted data unit and adds it to a room.
+    #[tracing::instrument(skip(self, db, _mutex_lock))]
     pub fn build_and_append_pdu(
         &self,
         pdu_builder: PduBuilder,
@@ -1424,6 +1457,13 @@ impl Rooms {
             CanonicalJsonValue::String(pdu.event_id.as_str().to_owned()),
         );
 
+        // Generate short event id
+        let shorteventid = db.globals.next_count()?;
+        self.eventid_shorteventid
+            .insert(pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())?;
+        self.shorteventid_eventid
+            .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())?;
+
         // Increment the last index and use that
         // This is also the next_batch/since value
         let count = db.globals.next_count()?;
@@ -1563,6 +1603,7 @@ impl Rooms {
 
     /// Returns an iterator over all events and their tokens in a room that happened before the
     /// event with id `until` in reverse-chronological order.
+    #[tracing::instrument(skip(self))]
     pub fn pdus_until<'a>(
         &'a self,
         user_id: &UserId,
@@ -1625,6 +1666,7 @@ impl Rooms {
     }
 
     /// Replace a PDU with the redacted form.
+    #[tracing::instrument(skip(self, reason))]
     pub fn redact_pdu(&self, event_id: &EventId, reason: &PduEvent) -> Result<()> {
         if let Some(pdu_id) = self.get_pdu_id(event_id)? {
             let mut pdu = self
@@ -1642,6 +1684,7 @@ impl Rooms {
     }
 
     /// Update current membership data.
+    #[tracing::instrument(skip(self, last_state, db))]
     pub fn update_membership(
         &self,
         room_id: &RoomId,
@@ -2026,6 +2069,7 @@ impl Rooms {
     }
 
     /// Makes a user forget a room.
+    #[tracing::instrument(skip(self))]
     pub fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
@@ -2041,6 +2085,7 @@ impl Rooms {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, globals))]
     pub fn set_alias(
         &self,
         alias: &RoomAliasId,
@@ -2076,6 +2121,7 @@ impl Rooms {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn id_from_alias(&self, alias: &RoomAliasId) -> Result<Option<RoomId>> {
         self.alias_roomid
             .get(alias.alias().as_bytes())?
@@ -2089,6 +2135,7 @@ impl Rooms {
             })
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn room_aliases<'a>(
         &'a self,
         room_id: &RoomId,
@@ -2104,6 +2151,7 @@ impl Rooms {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn set_public(&self, room_id: &RoomId, public: bool) -> Result<()> {
         if public {
             self.publicroomids.insert(room_id.as_bytes(), &[])?;
@@ -2114,10 +2162,12 @@ impl Rooms {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn is_public_room(&self, room_id: &RoomId) -> Result<bool> {
         Ok(self.publicroomids.get(room_id.as_bytes())?.is_some())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn public_rooms(&self) -> impl Iterator<Item = Result<RoomId>> + '_ {
         self.publicroomids.iter().map(|(bytes, _)| {
             RoomId::try_from(
@@ -2219,6 +2269,7 @@ impl Rooms {
     }
 
     /// Returns an iterator of all servers participating in this room.
+    #[tracing::instrument(skip(self))]
     pub fn room_servers<'a>(
         &'a self,
         room_id: &RoomId,
@@ -2242,6 +2293,7 @@ impl Rooms {
     }
 
     /// Returns an iterator of all rooms a server participates in (as far as we know).
+    #[tracing::instrument(skip(self))]
     pub fn server_rooms<'a>(
         &'a self,
         server: &ServerName,
@@ -2287,6 +2339,7 @@ impl Rooms {
     }
 
     /// Returns an iterator over all User IDs who ever joined a room.
+    #[tracing::instrument(skip(self))]
     pub fn room_useroncejoined<'a>(
         &'a self,
         room_id: &RoomId,
@@ -2494,6 +2547,7 @@ impl Rooms {
             })
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
@@ -2502,6 +2556,7 @@ impl Rooms {
         Ok(self.roomuseroncejoinedids.get(&userroom_id)?.is_some())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
@@ -2510,6 +2565,7 @@ impl Rooms {
         Ok(self.userroomid_joined.get(&userroom_id)?.is_some())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
@@ -2518,6 +2574,7 @@ impl Rooms {
         Ok(self.userroomid_invitestate.get(&userroom_id)?.is_some())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
@@ -2526,6 +2583,7 @@ impl Rooms {
         Ok(self.userroomid_leftstate.get(&userroom_id)?.is_some())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn auth_chain_cache(
         &self,
     ) -> std::sync::MutexGuard<'_, LruCache<EventId, HashSet<EventId>>> {

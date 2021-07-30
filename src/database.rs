@@ -17,7 +17,6 @@ pub mod users;
 use crate::{utils, Error, Result};
 use abstraction::DatabaseEngine;
 use directories::ProjectDirs;
-use log::error;
 use lru_cache::LruCache;
 use rocket::{
     futures::{channel::mpsc, stream::FuturesUnordered, StreamExt},
@@ -36,6 +35,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 use tokio::sync::{OwnedRwLockReadGuard, RwLock as TokioRwLock, Semaphore};
+use tracing::{debug, error, warn};
 
 use self::proxy::ProxyConfig;
 
@@ -69,6 +69,8 @@ pub struct Config {
     allow_federation: bool,
     #[serde(default = "false_fn")]
     pub allow_jaeger: bool,
+    #[serde(default = "false_fn")]
+    pub tracing_flame: bool,
     #[serde(default)]
     proxy: ProxyConfig,
     jwt_secret: Option<String>,
@@ -91,12 +93,12 @@ impl Config {
             .keys()
             .filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key))
         {
-            log::warn!("Config parameter {} is deprecated", key);
+            warn!("Config parameter {} is deprecated", key);
             was_deprecated = true;
         }
 
         if was_deprecated {
-            log::warn!("Read conduit documentation and check your configuration if any new configuration parameters should be adjusted");
+            warn!("Read conduit documentation and check your configuration if any new configuration parameters should be adjusted");
         }
     }
 }
@@ -154,6 +156,9 @@ pub type Engine = abstraction::rocksdb::Engine;
 #[cfg(feature = "sqlite")]
 pub type Engine = abstraction::sqlite::Engine;
 
+#[cfg(feature = "heed")]
+pub type Engine = abstraction::heed::Engine;
+
 pub struct Database {
     _db: Arc<Engine>,
     pub globals: globals::Globals,
@@ -184,22 +189,22 @@ impl Database {
     }
 
     fn check_sled_or_sqlite_db(config: &Config) -> Result<()> {
-        let path = Path::new(&config.database_path);
-
         #[cfg(feature = "backend_sqlite")]
         {
+            let path = Path::new(&config.database_path);
+
             let sled_exists = path.join("db").exists();
             let sqlite_exists = path.join("conduit.db").exists();
             if sled_exists {
                 if sqlite_exists {
                     // most likely an in-place directory, only warn
-                    log::warn!("Both sled and sqlite databases are detected in database directory");
-                    log::warn!("Currently running from the sqlite database, but consider removing sled database files to free up space")
+                    warn!("Both sled and sqlite databases are detected in database directory");
+                    warn!("Currently running from the sqlite database, but consider removing sled database files to free up space")
                 } else {
-                    log::error!(
+                    error!(
                         "Sled database detected, conduit now uses sqlite for database operations"
                     );
-                    log::error!("This database must be converted to sqlite, go to https://github.com/ShadowJonathan/conduit_toolbox#conduit_sled_to_sqlite");
+                    error!("This database must be converted to sqlite, go to https://github.com/ShadowJonathan/conduit_toolbox#conduit_sled_to_sqlite");
                     return Err(Error::bad_config(
                         "sled database detected, migrate to sqlite",
                     ));
@@ -291,12 +296,13 @@ impl Database {
                 statehash_shortstatehash: builder.open_tree("statehash_shortstatehash")?,
 
                 eventid_outlierpdu: builder.open_tree("eventid_outlierpdu")?,
-                prevevent_parent: builder.open_tree("prevevent_parent")?,
+                referencedevents: builder.open_tree("referencedevents")?,
                 pdu_cache: Mutex::new(LruCache::new(100_000)),
                 auth_chain_cache: Mutex::new(LruCache::new(100_000)),
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
+                roomusertype_roomuserdataid: builder.open_tree("roomusertype_roomuserdataid")?,
             },
             media: media::Media {
                 mediaid_file: builder.open_tree("mediaid_file")?,
@@ -311,8 +317,8 @@ impl Database {
             },
             sending: sending::Sending {
                 servername_educount: builder.open_tree("servername_educount")?,
-                servernamepduids: builder.open_tree("servernamepduids")?,
-                servercurrentevents: builder.open_tree("servercurrentevents")?,
+                servernameevent_data: builder.open_tree("servernameevent_data")?,
+                servercurrentevent_data: builder.open_tree("servercurrentevent_data")?,
                 maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
                 sender: sending_sender,
             },
@@ -419,6 +425,30 @@ impl Database {
 
                 println!("Migration: 3 -> 4 finished");
             }
+
+            if db.globals.database_version()? < 5 {
+                // Upgrade user data store
+                for (roomuserdataid, _) in db.account_data.roomuserdataid_accountdata.iter() {
+                    let mut parts = roomuserdataid.split(|&b| b == 0xff);
+                    let room_id = parts.next().unwrap();
+                    let user_id = parts.next().unwrap();
+                    let event_type = roomuserdataid.rsplit(|&b| b == 0xff).next().unwrap();
+
+                    let mut key = room_id.to_vec();
+                    key.push(0xff);
+                    key.extend_from_slice(user_id);
+                    key.push(0xff);
+                    key.extend_from_slice(event_type);
+
+                    db.account_data
+                        .roomusertype_roomuserdataid
+                        .insert(&key, &roomuserdataid)?;
+                }
+
+                db.globals.bump_database_version(5)?;
+
+                println!("Migration: 4 -> 5 finished");
+            }
         }
 
         let guard = db.read().await;
@@ -444,10 +474,12 @@ impl Database {
 
     #[cfg(feature = "conduit_bin")]
     pub async fn start_on_shutdown_tasks(db: Arc<TokioRwLock<Self>>, shutdown: Shutdown) {
+        use tracing::info;
+
         tokio::spawn(async move {
             shutdown.await;
 
-            log::info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
+            info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
 
             db.read().await.globals.rotate.fire();
         });
@@ -513,7 +545,7 @@ impl Database {
 
             futures.push(
                 self.account_data
-                    .roomuserdataid_accountdata
+                    .roomusertype_roomuserdataid
                     .watch_prefix(&roomuser_prefix),
             );
         }
@@ -523,7 +555,7 @@ impl Database {
 
         futures.push(
             self.account_data
-                .roomuserdataid_accountdata
+                .roomusertype_roomuserdataid
                 .watch_prefix(&globaluserdata_prefix),
         );
 
@@ -543,22 +575,25 @@ impl Database {
         futures.next().await;
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn flush(&self) -> Result<()> {
         let start = std::time::Instant::now();
 
         let res = self._db.flush();
 
-        log::debug!("flush: took {:?}", start.elapsed());
+        debug!("flush: took {:?}", start.elapsed());
 
         res
     }
 
     #[cfg(feature = "sqlite")]
+    #[tracing::instrument(skip(self))]
     pub fn flush_wal(&self) -> Result<()> {
         self._db.flush_wal()
     }
 
     #[cfg(feature = "sqlite")]
+    #[tracing::instrument(skip(engine, config))]
     pub async fn start_spillover_reap_task(engine: Arc<Engine>, config: &Config) {
         let fraction = config.sqlite_spillover_reap_fraction.clamp(0.01, 1.0);
         let interval_secs = config.sqlite_spillover_reap_interval_secs as u64;
@@ -585,11 +620,13 @@ impl Database {
     }
 
     #[cfg(feature = "sqlite")]
+    #[tracing::instrument(skip(lock, config))]
     pub async fn start_wal_clean_task(lock: &Arc<TokioRwLock<Self>>, config: &Config) {
         use tokio::time::{interval, timeout};
 
         #[cfg(unix)]
         use tokio::signal::unix::{signal, SignalKind};
+        use tracing::info;
 
         use std::{
             sync::Weak,
@@ -611,41 +648,41 @@ impl Database {
                 #[cfg(unix)]
                 tokio::select! {
                     _ = i.tick(), if do_timer => {
-                        log::info!(target: "wal-trunc", "Timer ticked")
+                        info!(target: "wal-trunc", "Timer ticked")
                     }
                     _ = s.recv() => {
-                        log::info!(target: "wal-trunc", "Received SIGHUP")
+                        info!(target: "wal-trunc", "Received SIGHUP")
                     }
                 };
                 #[cfg(not(unix))]
                 if do_timer {
                     i.tick().await;
-                    log::info!(target: "wal-trunc", "Timer ticked")
+                    info!(target: "wal-trunc", "Timer ticked")
                 } else {
                     // timer disabled, and there's no concept of signals on windows, bailing...
                     return;
                 }
                 if let Some(arc) = Weak::upgrade(&weak) {
-                    log::info!(target: "wal-trunc", "Rotating sync helpers...");
+                    info!(target: "wal-trunc", "Rotating sync helpers...");
                     // This actually creates a very small race condition between firing this and trying to acquire the subsequent write lock.
                     // Though it is not a huge deal if the write lock doesn't "catch", as it'll harmlessly time out.
                     arc.read().await.globals.rotate.fire();
 
-                    log::info!(target: "wal-trunc", "Locking...");
+                    info!(target: "wal-trunc", "Locking...");
                     let guard = {
                         if let Ok(guard) = timeout(lock_timeout, arc.write()).await {
                             guard
                         } else {
-                            log::info!(target: "wal-trunc", "Lock failed in timeout, canceled.");
+                            info!(target: "wal-trunc", "Lock failed in timeout, canceled.");
                             continue;
                         }
                     };
-                    log::info!(target: "wal-trunc", "Locked, flushing...");
+                    info!(target: "wal-trunc", "Locked, flushing...");
                     let start = Instant::now();
                     if let Err(e) = guard.flush_wal() {
-                        log::error!(target: "wal-trunc", "Errored: {}", e);
+                        error!(target: "wal-trunc", "Errored: {}", e);
                     } else {
-                        log::info!(target: "wal-trunc", "Flushed in {:?}", start.elapsed());
+                        info!(target: "wal-trunc", "Flushed in {:?}", start.elapsed());
                     }
                 } else {
                     break;

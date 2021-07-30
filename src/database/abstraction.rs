@@ -12,6 +12,9 @@ pub mod sled;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
 
+#[cfg(feature = "heed")]
+pub mod heed;
+
 pub trait DatabaseEngine: Sized {
     fn open(config: &Config) -> Result<Arc<Self>>;
     fn open_tree(self: &Arc<Self>, name: &'static str) -> Result<Arc<dyn Tree>>;

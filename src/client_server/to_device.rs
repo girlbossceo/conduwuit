@@ -47,7 +47,7 @@ pub async fn send_event_to_device_route(
 
                 db.sending.send_reliable_edu(
                     target_user_id.server_name(),
-                    &serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(
+                    serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(
                         DirectDeviceContent {
                             sender: sender_user.clone(),
                             ev_type: EventType::from(&body.event_type),

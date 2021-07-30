@@ -1,5 +1,4 @@
 use crate::{database::Config, utils, ConduitResult, Error, Result};
-use log::{error, info};
 use ruma::{
     api::{
         client::r0::sync::sync_events,
@@ -17,6 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::{broadcast, watch::Receiver, Mutex, Semaphore};
+use tracing::{error, info};
 use trust_dns_resolver::TokioAsyncResolver;
 
 use super::abstraction::Tree;
@@ -56,6 +56,7 @@ struct MatrixServerVerifier {
 }
 
 impl ServerCertVerifier for MatrixServerVerifier {
+    #[tracing::instrument(skip(self, roots, presented_certs, dns_name, ocsp_response))]
     fn verify_server_cert(
         &self,
         roots: &rustls::RootCertStore,
@@ -220,11 +221,13 @@ impl Globals {
         &self.reqwest_client
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn next_count(&self) -> Result<u64> {
         utils::u64_from_bytes(&self.globals.increment(COUNTER)?)
             .map_err(|_| Error::bad_database("Count has invalid bytes."))
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn current_count(&self) -> Result<u64> {
         self.globals.get(COUNTER)?.map_or(Ok(0_u64), |bytes| {
             utils::u64_from_bytes(&bytes)

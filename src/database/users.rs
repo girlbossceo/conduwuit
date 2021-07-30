@@ -8,6 +8,7 @@ use ruma::{
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, UInt, UserId,
 };
 use std::{collections::BTreeMap, convert::TryFrom, mem, sync::Arc};
+use tracing::warn;
 
 use super::abstraction::Tree;
 
@@ -34,11 +35,13 @@ pub struct Users {
 
 impl Users {
     /// Check if a user has an account on this homeserver.
+    #[tracing::instrument(skip(self, user_id))]
     pub fn exists(&self, user_id: &UserId) -> Result<bool> {
         Ok(self.userid_password.get(user_id.as_bytes())?.is_some())
     }
 
     /// Check if account is deactivated
+    #[tracing::instrument(skip(self, user_id))]
     pub fn is_deactivated(&self, user_id: &UserId) -> Result<bool> {
         Ok(self
             .userid_password
@@ -51,17 +54,20 @@ impl Users {
     }
 
     /// Create a new user account on this homeserver.
+    #[tracing::instrument(skip(self, user_id, password))]
     pub fn create(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
         self.set_password(user_id, password)?;
         Ok(())
     }
 
     /// Returns the number of users registered on this server.
+    #[tracing::instrument(skip(self))]
     pub fn count(&self) -> Result<usize> {
         Ok(self.userid_password.iter().count())
     }
 
     /// Find out which user an access token belongs to.
+    #[tracing::instrument(skip(self, token))]
     pub fn find_from_token(&self, token: &str) -> Result<Option<(UserId, String)>> {
         self.token_userdeviceid
             .get(token.as_bytes())?
@@ -89,6 +95,7 @@ impl Users {
     }
 
     /// Returns an iterator over all users on this homeserver.
+    #[tracing::instrument(skip(self))]
     pub fn iter(&self) -> impl Iterator<Item = Result<UserId>> + '_ {
         self.userid_password.iter().map(|(bytes, _)| {
             UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
@@ -99,6 +106,7 @@ impl Users {
     }
 
     /// Returns the password hash for the given user.
+    #[tracing::instrument(skip(self, user_id))]
     pub fn password_hash(&self, user_id: &UserId) -> Result<Option<String>> {
         self.userid_password
             .get(user_id.as_bytes())?
@@ -110,6 +118,7 @@ impl Users {
     }
 
     /// Hash and set the user's password to the Argon2 hash
+    #[tracing::instrument(skip(self, user_id, password))]
     pub fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
         if let Some(password) = password {
             if let Ok(hash) = utils::calculate_hash(&password) {
@@ -129,6 +138,7 @@ impl Users {
     }
 
     /// Returns the displayname of a user on this homeserver.
+    #[tracing::instrument(skip(self, user_id))]
     pub fn displayname(&self, user_id: &UserId) -> Result<Option<String>> {
         self.userid_displayname
             .get(user_id.as_bytes())?
@@ -140,6 +150,7 @@ impl Users {
     }
 
     /// Sets a new displayname or removes it if displayname is None. You still need to nofify all rooms of this change.
+    #[tracing::instrument(skip(self, user_id, displayname))]
     pub fn set_displayname(&self, user_id: &UserId, displayname: Option<String>) -> Result<()> {
         if let Some(displayname) = displayname {
             self.userid_displayname
@@ -152,6 +163,7 @@ impl Users {
     }
 
     /// Get the avatar_url of a user.
+    #[tracing::instrument(skip(self, user_id))]
     pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<MxcUri>> {
         self.userid_avatarurl
             .get(user_id.as_bytes())?
@@ -164,6 +176,7 @@ impl Users {
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
+    #[tracing::instrument(skip(self, user_id, avatar_url))]
     pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<MxcUri>) -> Result<()> {
         if let Some(avatar_url) = avatar_url {
             self.userid_avatarurl
@@ -176,6 +189,7 @@ impl Users {
     }
 
     /// Get the blurhash of a user.
+    #[tracing::instrument(skip(self, user_id))]
     pub fn blurhash(&self, user_id: &UserId) -> Result<Option<String>> {
         self.userid_blurhash
             .get(user_id.as_bytes())?
@@ -189,6 +203,7 @@ impl Users {
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
+    #[tracing::instrument(skip(self, user_id, blurhash))]
     pub fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) -> Result<()> {
         if let Some(blurhash) = blurhash {
             self.userid_blurhash
@@ -201,6 +216,7 @@ impl Users {
     }
 
     /// Adds a new device to a user.
+    #[tracing::instrument(skip(self, user_id, device_id, token, initial_device_display_name))]
     pub fn create_device(
         &self,
         user_id: &UserId,
@@ -235,6 +251,7 @@ impl Users {
     }
 
     /// Removes a device from a user.
+    #[tracing::instrument(skip(self, user_id, device_id))]
     pub fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
         let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
@@ -265,6 +282,7 @@ impl Users {
     }
 
     /// Returns an iterator over all device ids of this user.
+    #[tracing::instrument(skip(self, user_id))]
     pub fn all_device_ids<'a>(
         &'a self,
         user_id: &UserId,
@@ -287,6 +305,7 @@ impl Users {
     }
 
     /// Replaces the access token of one device.
+    #[tracing::instrument(skip(self, user_id, device_id, token))]
     pub fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
         let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
@@ -310,6 +329,14 @@ impl Users {
         Ok(())
     }
 
+    #[tracing::instrument(skip(
+        self,
+        user_id,
+        device_id,
+        one_time_key_key,
+        one_time_key_value,
+        globals
+    ))]
     pub fn add_one_time_key(
         &self,
         user_id: &UserId,
@@ -346,7 +373,7 @@ impl Users {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, user_id))]
     pub fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
         self.userid_lastonetimekeyupdate
             .get(&user_id.as_bytes())?
@@ -358,6 +385,7 @@ impl Users {
             .unwrap_or(Ok(0))
     }
 
+    #[tracing::instrument(skip(self, user_id, device_id, key_algorithm, globals))]
     pub fn take_one_time_key(
         &self,
         user_id: &UserId,
@@ -397,7 +425,7 @@ impl Users {
             .transpose()
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, user_id, device_id))]
     pub fn count_one_time_keys(
         &self,
         user_id: &UserId,
@@ -430,6 +458,7 @@ impl Users {
         Ok(counts)
     }
 
+    #[tracing::instrument(skip(self, user_id, device_id, device_keys, rooms, globals))]
     pub fn add_device_keys(
         &self,
         user_id: &UserId,
@@ -452,6 +481,14 @@ impl Users {
         Ok(())
     }
 
+    #[tracing::instrument(skip(
+        self,
+        master_key,
+        self_signing_key,
+        user_signing_key,
+        rooms,
+        globals
+    ))]
     pub fn add_cross_signing_keys(
         &self,
         user_id: &UserId,
@@ -552,6 +589,7 @@ impl Users {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, target_id, key_id, signature, sender_id, rooms, globals))]
     pub fn sign_key(
         &self,
         target_id: &UserId,
@@ -595,7 +633,7 @@ impl Users {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, user_or_room_id, from, to))]
     pub fn keys_changed<'a>(
         &'a self,
         user_or_room_id: &str,
@@ -608,9 +646,24 @@ impl Users {
         let mut start = prefix.clone();
         start.extend_from_slice(&(from + 1).to_be_bytes());
 
+        let to = to.unwrap_or(u64::MAX);
+
         self.keychangeid_userid
             .iter_from(&start, false)
-            .take_while(move |(k, _)| k.starts_with(&prefix))
+            .take_while(move |(k, _)| {
+                k.starts_with(&prefix)
+                    && if let Some(current) = k.splitn(2, |&b| b == 0xff).nth(1) {
+                        if let Ok(c) = utils::u64_from_bytes(current) {
+                            c <= to
+                        } else {
+                            warn!("BadDatabase: Could not parse keychangeid_userid bytes");
+                            false
+                        }
+                    } else {
+                        warn!("BadDatabase: Could not parse keychangeid_userid");
+                        false
+                    }
+            })
             .map(|(_, bytes)| {
                 UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("User ID in devicekeychangeid_userid is invalid unicode.")
@@ -619,6 +672,7 @@ impl Users {
             })
     }
 
+    #[tracing::instrument(skip(self, user_id, rooms, globals))]
     fn mark_device_key_update(
         &self,
         user_id: &UserId,
@@ -650,6 +704,7 @@ impl Users {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, user_id, device_id))]
     pub fn get_device_keys(
         &self,
         user_id: &UserId,
@@ -666,6 +721,7 @@ impl Users {
         })
     }
 
+    #[tracing::instrument(skip(self, user_id, allowed_signatures))]
     pub fn get_master_key<F: Fn(&UserId) -> bool>(
         &self,
         user_id: &UserId,
@@ -693,6 +749,7 @@ impl Users {
             })
     }
 
+    #[tracing::instrument(skip(self, user_id, allowed_signatures))]
     pub fn get_self_signing_key<F: Fn(&UserId) -> bool>(
         &self,
         user_id: &UserId,
@@ -720,6 +777,7 @@ impl Users {
             })
     }
 
+    #[tracing::instrument(skip(self, user_id))]
     pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<CrossSigningKey>> {
         self.userid_usersigningkeyid
             .get(user_id.as_bytes())?
@@ -732,6 +790,15 @@ impl Users {
             })
     }
 
+    #[tracing::instrument(skip(
+        self,
+        sender,
+        target_user_id,
+        target_device_id,
+        event_type,
+        content,
+        globals
+    ))]
     pub fn add_to_device_event(
         &self,
         sender: &UserId,
@@ -759,7 +826,7 @@ impl Users {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, user_id, device_id))]
     pub fn get_to_device_events(
         &self,
         user_id: &UserId,
@@ -782,7 +849,7 @@ impl Users {
         Ok(events)
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, user_id, device_id, until))]
     pub fn remove_to_device_events(
         &self,
         user_id: &UserId,
@@ -817,6 +884,7 @@ impl Users {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, user_id, device_id, device))]
     pub fn update_device_metadata(
         &self,
         user_id: &UserId,
@@ -842,6 +910,7 @@ impl Users {
     }
 
     /// Get device metadata.
+    #[tracing::instrument(skip(self, user_id, device_id))]
     pub fn get_device_metadata(
         &self,
         user_id: &UserId,
@@ -860,6 +929,7 @@ impl Users {
             })
     }
 
+    #[tracing::instrument(skip(self, user_id))]
     pub fn get_devicelist_version(&self, user_id: &UserId) -> Result<Option<u64>> {
         self.userid_devicelistversion
             .get(user_id.as_bytes())?
@@ -870,6 +940,7 @@ impl Users {
             })
     }
 
+    #[tracing::instrument(skip(self, user_id))]
     pub fn all_devices_metadata<'a>(
         &'a self,
         user_id: &UserId,
@@ -886,6 +957,7 @@ impl Users {
     }
 
     /// Deactivate account
+    #[tracing::instrument(skip(self, user_id))]
     pub fn deactivate_account(&self, user_id: &UserId) -> Result<()> {
         // Remove all associated devices
         for device_id in self.all_device_ids(user_id) {

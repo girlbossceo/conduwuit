@@ -10,7 +10,6 @@ use std::ops::Deref;
 #[cfg(feature = "conduit_bin")]
 use {
     crate::server_server,
-    log::{debug, warn},
     rocket::{
         data::{self, ByteUnit, Data, FromData},
         http::Status,
@@ -23,6 +22,7 @@ use {
     std::collections::BTreeMap,
     std::convert::TryFrom,
     std::io::Cursor,
+    tracing::{debug, warn},
 };
 
 /// This struct converts rocket requests into ruma structs by converting them into http requests
@@ -45,6 +45,7 @@ where
 {
     type Error = ();
 
+    #[tracing::instrument(skip(request, data))]
     async fn from_data(
         request: &'a Request<'_>,
         data: Data<'a>,
@@ -256,7 +257,10 @@ where
                     match ruma::signatures::verify_json(&pub_key_map, &request_map) {
                         Ok(()) => (None, None, Some(origin), false),
                         Err(e) => {
-                            warn!("Failed to verify json request from {}: {}", origin, e);
+                            warn!(
+                                "Failed to verify json request from {}: {}\n{:?}",
+                                origin, e, request_map
+                            );
 
                             if request.uri().to_string().contains('@') {
                                 warn!("Request uri contained '@' character. Make sure your reverse proxy gives Conduit the raw uri (apache: use nocanon)");

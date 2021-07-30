@@ -18,12 +18,12 @@ edition = "2018"
 rocket = { version = "0.5.0-rc.1", features = ["tls"] } # Used to handle requests
 
 # Used for matrix spec type definitions and helpers
-ruma = { git = "https://github.com/ruma/ruma", rev = "eb19b0e08a901b87d11b3be0890ec788cc760492", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
-#ruma = { git = "https://github.com/timokoesters/ruma", rev = "74cf83c4ca937fa5e2709fb71e9d11848e72e487", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
+#ruma = { git = "https://github.com/ruma/ruma", rev = "eb19b0e08a901b87d11b3be0890ec788cc760492", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
+ruma = { git = "https://github.com/timokoesters/ruma", rev = "a2d93500e1dbc87e7032a3c74f3b2479a7f84e93", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio
-tokio = "1.2.0"
+tokio = "1.8.2"
 # Used for storing data permanently
 sled = { version = "0.34.6", features = ["compression", "no_metrics"], optional = true }
 rocksdb = { version = "0.16.0", features = ["multi-threaded-cf"], optional = true }
@@ -31,30 +31,28 @@ rocksdb = { version = "0.16.0", features = ["multi-threaded-cf"], optional = tru
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 bytes = "1.0.1"
-# Used for emitting log entries
-log = "0.4.14"
 # Used for rocket<->ruma conversions
-http = "0.2.3"
+http = "0.2.4"
 # Used to find data directory for default db path
-directories = "3.0.1"
+directories = "3.0.2"
 # Used for ruma wrapper
 serde_json = { version = "1.0.64", features = ["raw_value"] }
 # Used for appservice registration files
 serde_yaml = "0.8.17"
 # Used for pdu definition
-serde = "1.0.123"
+serde = "1.0.126"
 # Used for secure identifiers
-rand = "0.8.3"
+rand = "0.8.4"
 # Used to hash passwords
 rust-argon2 = "0.8.3"
 # Used to send requests
-reqwest = { version = "0.11.3", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
+reqwest = { version = "0.11.4", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
 # Custom TLS verifier
-rustls = { version = "0.19", features = ["dangerous_configuration"] }
+rustls = { version = "0.19.1", features = ["dangerous_configuration"] }
 rustls-native-certs = "0.5.0"
 webpki = "0.21.0"
 # Used for conduit::Error type
-thiserror = "1.0.24"
+thiserror = "1.0.26"
 # Used to generate thumbnails for images
 image = { version = "0.23.14", default-features = false, features = ["jpeg", "png", "gif"] }
 # Used to encode server public key
@@ -62,29 +60,33 @@ base64 = "0.13.0"
 # Used when hashing the state
 ring = "0.16.20"
 # Used when querying the SRV record of other servers
-trust-dns-resolver = "0.20.0"
+trust-dns-resolver = "0.20.3"
 # Used to find matching events for appservices
-regex = "1.4.3"
+regex = "1.5.4"
 # jwt jsonwebtokens
 jsonwebtoken = "7.2.0"
 # Performance measurements
-tracing = "0.1.25"
-opentelemetry = "0.12.0"
-tracing-subscriber = "0.2.16"
-tracing-opentelemetry = "0.11.0"
-opentelemetry-jaeger = "0.11.0"
+tracing = { version = "0.1.26", features = ["release_max_level_warn"] }
+opentelemetry = "0.15.0"
+tracing-subscriber = "0.2.19"
+tracing-opentelemetry = "0.14.0"
+tracing-flame = "0.1.0"
+opentelemetry-jaeger = "0.14.0"
 pretty_env_logger = "0.4.0"
 lru-cache = "0.1.2"
 rusqlite = { version = "0.25.3", optional = true, features = ["bundled"] }
 parking_lot = { version = "0.11.1", optional = true }
 crossbeam = { version = "0.8.1", optional = true }
 num_cpus = "1.13.0"
+threadpool = "1.8.1"
+heed = { git = "https://github.com/timokoesters/heed.git", rev = "f6f825da7fb2c758867e05ad973ef800a6fe1d5d", optional = true }
 
 [features]
 default = ["conduit_bin", "backend_sqlite"]
 backend_sled = ["sled"]
 backend_rocksdb = ["rocksdb"]
 backend_sqlite = ["sqlite"]
+backend_heed = ["heed", "crossbeam"]
 sqlite = ["rusqlite", "parking_lot", "crossbeam", "tokio/signal"]
 conduit_bin = [] # TODO: add rocket to this when it is optional
 
