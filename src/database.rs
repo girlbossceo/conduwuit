@@ -47,12 +47,8 @@ pub struct Config {
     db_cache_capacity_mb: f64,
     #[serde(default = "default_sqlite_read_pool_size")]
     sqlite_read_pool_size: usize,
-    #[serde(default = "true_fn")]
-    sqlite_wal_clean_timer: bool,
     #[serde(default = "default_sqlite_wal_clean_second_interval")]
     sqlite_wal_clean_second_interval: u32,
-    #[serde(default = "default_sqlite_wal_clean_second_timeout")]
-    sqlite_wal_clean_second_timeout: u32,
     #[serde(default = "default_sqlite_spillover_reap_fraction")]
     sqlite_spillover_reap_fraction: f64,
     #[serde(default = "default_sqlite_spillover_reap_interval_secs")]
@@ -120,11 +116,7 @@ fn default_sqlite_read_pool_size() -> usize {
 }
 
 fn default_sqlite_wal_clean_second_interval() -> u32 {
-    60 * 60
-}
-
-fn default_sqlite_wal_clean_second_timeout() -> u32 {
-    2
+    15 * 60 // every 15 minutes
 }
 
 fn default_sqlite_spillover_reap_fraction() -> f64 {
@@ -465,7 +457,7 @@ impl Database {
 
         #[cfg(feature = "sqlite")]
         {
-            Self::start_wal_clean_task(&db, &config).await;
+            Self::start_wal_clean_task(Arc::clone(&db), &config).await;
             Self::start_spillover_reap_task(builder, &config).await;
         }
 
@@ -620,24 +612,17 @@ impl Database {
     }
 
     #[cfg(feature = "sqlite")]
-    #[tracing::instrument(skip(lock, config))]
-    pub async fn start_wal_clean_task(lock: &Arc<TokioRwLock<Self>>, config: &Config) {
-        use tokio::time::{interval, timeout};
+    #[tracing::instrument(skip(db, config))]
+    pub async fn start_wal_clean_task(db: Arc<TokioRwLock<Self>>, config: &Config) {
+        use tokio::time::interval;
 
         #[cfg(unix)]
         use tokio::signal::unix::{signal, SignalKind};
         use tracing::info;
 
-        use std::{
-            sync::Weak,
-            time::{Duration, Instant},
-        };
+        use std::time::{Duration, Instant};
 
-        let weak: Weak<TokioRwLock<Database>> = Arc::downgrade(&lock);
-
-        let lock_timeout = Duration::from_secs(config.sqlite_wal_clean_second_timeout as u64);
         let timer_interval = Duration::from_secs(config.sqlite_wal_clean_second_interval as u64);
-        let do_timer = config.sqlite_wal_clean_timer;
 
         tokio::spawn(async move {
             let mut i = interval(timer_interval);
@@ -647,45 +632,24 @@ impl Database {
             loop {
                 #[cfg(unix)]
                 tokio::select! {
-                    _ = i.tick(), if do_timer => {
-                        info!(target: "wal-trunc", "Timer ticked")
+                    _ = i.tick() => {
+                        info!("wal-trunc: Timer ticked");
                     }
                     _ = s.recv() => {
-                        info!(target: "wal-trunc", "Received SIGHUP")
+                        info!("wal-trunc: Received SIGHUP");
                     }
                 };
                 #[cfg(not(unix))]
-                if do_timer {
+                {
                     i.tick().await;
-                    info!(target: "wal-trunc", "Timer ticked")
-                } else {
-                    // timer disabled, and there's no concept of signals on windows, bailing...
-                    return;
+                    info!("wal-trunc: Timer ticked")
                 }
-                if let Some(arc) = Weak::upgrade(&weak) {
-                    info!(target: "wal-trunc", "Rotating sync helpers...");
-                    // This actually creates a very small race condition between firing this and trying to acquire the subsequent write lock.
-                    // Though it is not a huge deal if the write lock doesn't "catch", as it'll harmlessly time out.
-                    arc.read().await.globals.rotate.fire();
 
-                    info!(target: "wal-trunc", "Locking...");
-                    let guard = {
-                        if let Ok(guard) = timeout(lock_timeout, arc.write()).await {
-                            guard
-                        } else {
-                            info!(target: "wal-trunc", "Lock failed in timeout, canceled.");
-                            continue;
-                        }
-                    };
-                    info!(target: "wal-trunc", "Locked, flushing...");
-                    let start = Instant::now();
-                    if let Err(e) = guard.flush_wal() {
-                        error!(target: "wal-trunc", "Errored: {}", e);
-                    } else {
-                        info!(target: "wal-trunc", "Flushed in {:?}", start.elapsed());
-                    }
+                let start = Instant::now();
+                if let Err(e) = db.read().await.flush_wal() {
+                    error!("wal-trunc: Errored: {}", e);
                 } else {
-                    break;
+                    info!("wal-trunc: Flushed in {:?}", start.elapsed());
                 }
             }
         });

@@ -4,7 +4,7 @@ use crossbeam::channel::{
     bounded, unbounded, Receiver as ChannelReceiver, Sender as ChannelSender, TryRecvError,
 };
 use parking_lot::{Mutex, MutexGuard, RwLock};
-use rusqlite::{params, Connection, DatabaseName::Main, OptionalExtension, Params};
+use rusqlite::{Connection, DatabaseName::Main, OptionalExtension, Params};
 use std::{
     collections::HashMap,
     future::Future,
@@ -122,16 +122,11 @@ impl Pool {
     fn prepare_conn<P: AsRef<Path>>(path: P, cache_size: Option<u32>) -> Result<Connection> {
         let conn = Connection::open(path)?;
 
-        conn.pragma_update(Some(Main), "journal_mode", &"WAL".to_owned())?;
-
-        // conn.pragma_update(Some(Main), "wal_autocheckpoint", &250)?;
-
-        // conn.pragma_update(Some(Main), "wal_checkpoint", &"FULL".to_owned())?;
-
-        conn.pragma_update(Some(Main), "synchronous", &"OFF".to_owned())?;
+        conn.pragma_update(Some(Main), "journal_mode", &"WAL")?;
+        conn.pragma_update(Some(Main), "synchronous", &"NORMAL")?;
 
         if let Some(cache_kib) = cache_size {
-            conn.pragma_update(Some(Main), "cache_size", &(-Into::<i64>::into(cache_kib)))?;
+            conn.pragma_update(Some(Main), "cache_size", &(-i64::from(cache_kib)))?;
         }
 
         Ok(conn)
@@ -193,9 +188,6 @@ impl DatabaseEngine for Engine {
             config.db_cache_capacity_mb,
         )?;
 
-        pool.write_lock()
-            .execute("CREATE TABLE IF NOT EXISTS _noop (\"key\" INT)", params![])?;
-
         let arc = Arc::new(Engine {
             pool,
             iter_pool: Mutex::new(ThreadPool::new(10)),
@@ -205,7 +197,7 @@ impl DatabaseEngine for Engine {
     }
 
     fn open_tree(self: &Arc<Self>, name: &str) -> Result<Arc<dyn Tree>> {
-        self.pool.write_lock().execute(format!("CREATE TABLE IF NOT EXISTS {} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )", name).as_str(), [])?;
+        self.pool.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )", name), [])?;
 
         Ok(Arc::new(SqliteTable {
             engine: Arc::clone(self),
@@ -215,37 +207,15 @@ impl DatabaseEngine for Engine {
     }
 
     fn flush(self: &Arc<Self>) -> Result<()> {
-        self.pool
-            .write_lock()
-            .execute_batch(
-                "
-            PRAGMA synchronous=FULL;
-            BEGIN;
-                DELETE FROM _noop;
-                INSERT INTO _noop VALUES (1);
-            COMMIT;
-            PRAGMA synchronous=OFF;
-            ",
-            )
-            .map_err(Into::into)
+        // we enabled PRAGMA synchronous=normal, so this should not be necessary
+        Ok(())
     }
 }
 
 impl Engine {
     pub fn flush_wal(self: &Arc<Self>) -> Result<()> {
-        self.pool
-            .write_lock()
-            .execute_batch(
-                "
-            PRAGMA synchronous=FULL; PRAGMA wal_checkpoint=TRUNCATE;
-            BEGIN;
-                DELETE FROM _noop;
-                INSERT INTO _noop VALUES (1);
-            COMMIT;
-            PRAGMA wal_checkpoint=PASSIVE; PRAGMA synchronous=OFF;
-            ",
-            )
-            .map_err(Into::into)
+        self.pool.write_lock().pragma_update(Some(Main), "wal_checkpoint", &"RESTART")?;
+        Ok(())
     }
 
     // Reaps (at most) (.len() * `fraction`) (rounded down, min 1) connections.
