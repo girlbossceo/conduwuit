@@ -245,7 +245,7 @@ build:cargo-deb:x86_64-unknown-linux-gnu:
     KANIKO_CACHE_ARGS: "--cache=true --cache-copy-layers=true --cache-ttl=120h --cache-repo $CI_REGISTRY_IMAGE/kaniko-ci-cache"
   before_script:
     - "mkdir -p /kaniko/.docker"
-    - 'echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json'
+    - 'echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"},\"$DOCKER_HUB\":{\"username\":\"$DOCKER_HUB_USER\",\"password\":\"$DOCKER_HUB_PASSWORD\"}}}" > /kaniko/.docker/config.json'
 
 
 # Build a docker image by packaging up the x86_64-unknown-linux-musl binary into an alpine image
@@ -265,6 +265,9 @@ build:docker:main:
       --destination "$CI_REGISTRY_IMAGE/conduit:latest"
       --destination "$CI_REGISTRY_IMAGE/conduit:alpine"
       --destination "$CI_REGISTRY_IMAGE/conduit:commit-$CI_COMMIT_SHORT_SHA"
+      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:latest"
+      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:alpine"
+      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:commit-$CI_COMMIT_SHORT_SHA"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
@@ -295,4 +298,4 @@ publish:package:
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-musl "${BASE_URL}/conduit-x86_64-unknown-linux-musl"'
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu.deb "${BASE_URL}/conduit-x86_64-unknown-linux-gnu.deb"'
 
-    
+
