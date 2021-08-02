@@ -87,7 +87,7 @@ pub async fn send_message_event_route(
 
     drop(mutex_lock);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(send_message_event::Response::new(event_id).into())
 }

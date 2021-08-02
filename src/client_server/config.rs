@@ -43,7 +43,7 @@ pub async fn set_global_account_data_route(
         &db.globals,
     )?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_global_account_data::Response {}.into())
 }
@@ -78,7 +78,7 @@ pub async fn set_room_account_data_route(
         &db.globals,
     )?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_room_account_data::Response {}.into())
 }
@@ -98,7 +98,7 @@ pub async fn get_global_account_data_route(
         .account_data
         .get::<Box<RawJsonValue>>(None, sender_user, body.event_type.clone().into())?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
-    db.flush().await?;
+    db.flush()?;
 
     let account_data = serde_json::from_str::<ExtractGlobalEventContent>(event.get())
         .map_err(|_| Error::bad_database("Invalid account data event in db."))?
@@ -129,7 +129,7 @@ pub async fn get_room_account_data_route(
             body.event_type.clone().into(),
         )?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
-    db.flush().await?;
+    db.flush()?;
 
     let account_data = serde_json::from_str::<ExtractRoomEventContent>(event.get())
         .map_err(|_| Error::bad_database("Invalid account data event in db."))?

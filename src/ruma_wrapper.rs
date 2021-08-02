@@ -75,9 +75,9 @@ where
             registration,
         )) = db
             .appservice
-            .iter_all()
+            .all()
             .unwrap()
-            .filter_map(|r| r.ok())
+            .iter()
             .find(|(_id, registration)| {
                 registration
                     .get("as_token")

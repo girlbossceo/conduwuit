@@ -95,7 +95,7 @@ pub async fn send_event_to_device_route(
     db.transaction_ids
         .add_txnid(sender_user, sender_device, &body.txn_id, &[])?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(send_event_to_device::Response {}.into())
 }

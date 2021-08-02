@@ -100,7 +100,7 @@ pub async fn set_room_visibility_route(
         }
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_room_visibility::Response {}.into())
 }

@@ -806,7 +806,7 @@ pub async fn send_transaction_message_route(
         }
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(send_transaction_message::v1::Response { pdus: resolved_map }.into())
 }
@@ -1343,7 +1343,6 @@ pub fn handle_incoming_pdu<'a>(
                     &state_at_incoming_event,
                     &mutex_lock,
                 )
-                .await
                 .map_err(|_| "Failed to add pdu to db.".to_owned())?,
             );
             debug!("Appended incoming pdu.");
@@ -1643,7 +1642,7 @@ pub(crate) async fn fetch_signing_keys(
 /// Append the incoming event setting the state snapshot to the state from the
 /// server that sent the event.
 #[tracing::instrument(skip(db, pdu, pdu_json, new_room_leaves, state, _mutex_lock))]
-async fn append_incoming_pdu(
+fn append_incoming_pdu(
     db: &Database,
     pdu: &PduEvent,
     pdu_json: CanonicalJsonObject,
@@ -1663,7 +1662,7 @@ async fn append_incoming_pdu(
         &db,
     )?;
 
-    for appservice in db.appservice.iter_all()?.filter_map(|r| r.ok()) {
+    for appservice in db.appservice.all()? {
         if let Some(namespaces) = appservice.1.get("namespaces") {
             let users = namespaces
                 .get("users")
@@ -2208,7 +2207,7 @@ pub async fn create_join_event_route(
         db.sending.send_pdu(&server, &pdu_id)?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(create_join_event::v2::Response {
         room_state: RoomState {
@@ -2327,7 +2326,7 @@ pub async fn create_invite_route(
         )?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(create_invite::v2::Response {
         event: PduEvent::convert_to_outgoing_federation_event(signed_event),
@@ -2464,7 +2463,7 @@ pub async fn get_keys_route(
     )
     .await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(get_keys::v1::Response {
         device_keys: result.device_keys,
@@ -2489,7 +2488,7 @@ pub async fn claim_keys_route(
 
     let result = claim_keys_helper(&body.one_time_keys, &db).await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(claim_keys::v1::Response {
         one_time_keys: result.one_time_keys,

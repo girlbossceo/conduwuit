@@ -186,7 +186,8 @@ async fn sync_helper(
             .filter_map(|r| r.ok()),
     );
 
-    for room_id in db.rooms.rooms_joined(&sender_user) {
+    let all_joined_rooms = db.rooms.rooms_joined(&sender_user).collect::<Vec<_>>();
+    for room_id in all_joined_rooms {
         let room_id = room_id?;
 
         // Get and drop the lock to wait for remaining operations to finish
@@ -198,6 +199,7 @@ async fn sync_helper(
                 .entry(room_id.clone())
                 .or_default(),
         );
+
         let mutex_lock = mutex.lock().await;
         drop(mutex_lock);
 
@@ -658,7 +660,8 @@ async fn sync_helper(
     }
 
     let mut left_rooms = BTreeMap::new();
-    for result in db.rooms.rooms_left(&sender_user) {
+    let all_left_rooms = db.rooms.rooms_left(&sender_user).collect::<Vec<_>>();
+    for result in all_left_rooms {
         let (room_id, left_state_events) = result?;
 
         // Get and drop the lock to wait for remaining operations to finish
@@ -697,7 +700,8 @@ async fn sync_helper(
     }
 
     let mut invited_rooms = BTreeMap::new();
-    for result in db.rooms.rooms_invited(&sender_user) {
+    let all_invited_rooms = db.rooms.rooms_invited(&sender_user).collect::<Vec<_>>();
+    for result in all_invited_rooms {
         let (room_id, invite_state_events) = result?;
 
         // Get and drop the lock to wait for remaining operations to finish

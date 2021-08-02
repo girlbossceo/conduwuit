@@ -26,7 +26,7 @@ pub async fn create_backup_route(
         .key_backups
         .create_backup(&sender_user, &body.algorithm, &db.globals)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(create_backup::Response { version }.into())
 }
@@ -44,7 +44,7 @@ pub async fn update_backup_route(
     db.key_backups
         .update_backup(&sender_user, &body.version, &body.algorithm, &db.globals)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(update_backup::Response {}.into())
 }
@@ -117,7 +117,7 @@ pub async fn delete_backup_route(
 
     db.key_backups.delete_backup(&sender_user, &body.version)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(delete_backup::Response {}.into())
 }
@@ -147,7 +147,7 @@ pub async fn add_backup_keys_route(
         }
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(add_backup_keys::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
@@ -179,7 +179,7 @@ pub async fn add_backup_key_sessions_route(
         )?
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(add_backup_key_sessions::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
@@ -209,7 +209,7 @@ pub async fn add_backup_key_session_route(
         &db.globals,
     )?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(add_backup_key_session::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
@@ -288,7 +288,7 @@ pub async fn delete_backup_keys_route(
     db.key_backups
         .delete_all_keys(&sender_user, &body.version)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(delete_backup_keys::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
@@ -311,7 +311,7 @@ pub async fn delete_backup_key_sessions_route(
     db.key_backups
         .delete_room_keys(&sender_user, &body.version, &body.room_id)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(delete_backup_key_sessions::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),
@@ -334,7 +334,7 @@ pub async fn delete_backup_key_session_route(
     db.key_backups
         .delete_room_key(&sender_user, &body.version, &body.room_id, &body.session_id)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(delete_backup_key_session::Response {
         count: (db.key_backups.count_keys(sender_user, &body.version)? as u32).into(),

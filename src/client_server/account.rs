@@ -504,7 +504,7 @@ pub async fn register_route(
 
     info!("{} registered on this server", user_id);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(register::Response {
         access_token: Some(token),
@@ -580,7 +580,7 @@ pub async fn change_password_route(
         }
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(change_password::Response {}.into())
 }
@@ -656,11 +656,17 @@ pub async fn deactivate_route(
     }
 
     // Leave all joined rooms and reject all invitations
-    for room_id in db.rooms.rooms_joined(&sender_user).chain(
-        db.rooms
-            .rooms_invited(&sender_user)
-            .map(|t| t.map(|(r, _)| r)),
-    ) {
+    let all_rooms = db
+        .rooms
+        .rooms_joined(&sender_user)
+        .chain(
+            db.rooms
+                .rooms_invited(&sender_user)
+                .map(|t| t.map(|(r, _)| r)),
+        )
+        .collect::<Vec<_>>();
+
+    for room_id in all_rooms {
         let room_id = room_id?;
         let event = member::MemberEventContent {
             membership: member::MembershipState::Leave,
@@ -701,7 +707,7 @@ pub async fn deactivate_route(
 
     info!("{} deactivated their account", sender_user);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(deactivate::Response {
         id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,

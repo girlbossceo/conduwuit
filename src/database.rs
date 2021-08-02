@@ -45,14 +45,8 @@ pub struct Config {
     database_path: String,
     #[serde(default = "default_db_cache_capacity_mb")]
     db_cache_capacity_mb: f64,
-    #[serde(default = "default_sqlite_read_pool_size")]
-    sqlite_read_pool_size: usize,
     #[serde(default = "default_sqlite_wal_clean_second_interval")]
     sqlite_wal_clean_second_interval: u32,
-    #[serde(default = "default_sqlite_spillover_reap_fraction")]
-    sqlite_spillover_reap_fraction: f64,
-    #[serde(default = "default_sqlite_spillover_reap_interval_secs")]
-    sqlite_spillover_reap_interval_secs: u32,
     #[serde(default = "default_max_request_size")]
     max_request_size: u32,
     #[serde(default = "default_max_concurrent_requests")]
@@ -111,20 +105,8 @@ fn default_db_cache_capacity_mb() -> f64 {
     200.0
 }
 
-fn default_sqlite_read_pool_size() -> usize {
-    num_cpus::get().max(1)
-}
-
 fn default_sqlite_wal_clean_second_interval() -> u32 {
     15 * 60 // every 15 minutes
-}
-
-fn default_sqlite_spillover_reap_fraction() -> f64 {
-    0.5
-}
-
-fn default_sqlite_spillover_reap_interval_secs() -> u32 {
-    60
 }
 
 fn default_max_request_size() -> u32 {
@@ -458,7 +440,6 @@ impl Database {
         #[cfg(feature = "sqlite")]
         {
             Self::start_wal_clean_task(Arc::clone(&db), &config).await;
-            Self::start_spillover_reap_task(builder, &config).await;
         }
 
         Ok(db)
@@ -568,7 +549,7 @@ impl Database {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn flush(&self) -> Result<()> {
+    pub fn flush(&self) -> Result<()> {
         let start = std::time::Instant::now();
 
         let res = self._db.flush();
@@ -582,33 +563,6 @@ impl Database {
     #[tracing::instrument(skip(self))]
     pub fn flush_wal(&self) -> Result<()> {
         self._db.flush_wal()
-    }
-
-    #[cfg(feature = "sqlite")]
-    #[tracing::instrument(skip(engine, config))]
-    pub async fn start_spillover_reap_task(engine: Arc<Engine>, config: &Config) {
-        let fraction = config.sqlite_spillover_reap_fraction.clamp(0.01, 1.0);
-        let interval_secs = config.sqlite_spillover_reap_interval_secs as u64;
-
-        let weak = Arc::downgrade(&engine);
-
-        tokio::spawn(async move {
-            use tokio::time::interval;
-
-            use std::{sync::Weak, time::Duration};
-
-            let mut i = interval(Duration::from_secs(interval_secs));
-
-            loop {
-                i.tick().await;
-
-                if let Some(arc) = Weak::upgrade(&weak) {
-                    arc.reap_spillover_by_fraction(fraction);
-                } else {
-                    break;
-                }
-            }
-        });
     }
 
     #[cfg(feature = "sqlite")]

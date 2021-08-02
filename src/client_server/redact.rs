@@ -49,7 +49,7 @@ pub async fn redact_event_route(
 
     drop(mutex_lock);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(redact_event::Response { event_id }.into())
 }

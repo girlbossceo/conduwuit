@@ -2,7 +2,6 @@ mod edus;
 
 pub use edus::RoomEdus;
 use member::MembershipState;
-use tokio::sync::MutexGuard;
 
 use crate::{pdu::PduBuilder, utils, Database, Error, PduEvent, Result};
 use lru_cache::LruCache;
@@ -28,6 +27,7 @@ use std::{
     mem,
     sync::{Arc, Mutex},
 };
+use tokio::sync::MutexGuard;
 use tracing::{debug, error, warn};
 
 use super::{abstraction::Tree, admin::AdminCommand, pusher};
@@ -1496,7 +1496,7 @@ impl Rooms {
             db.sending.send_pdu(&server, &pdu_id)?;
         }
 
-        for appservice in db.appservice.iter_all()?.filter_map(|r| r.ok()) {
+        for appservice in db.appservice.all()? {
             if let Some(namespaces) = appservice.1.get("namespaces") {
                 let users = namespaces
                     .get("users")

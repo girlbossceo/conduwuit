@@ -31,7 +31,7 @@ pub async fn create_alias_route(
     db.rooms
         .set_alias(&body.room_alias, Some(&body.room_id), &db.globals)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(create_alias::Response::new().into())
 }
@@ -47,7 +47,7 @@ pub async fn delete_alias_route(
 ) -> ConduitResult<delete_alias::Response> {
     db.rooms.set_alias(&body.room_alias, None, &db.globals)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(delete_alias::Response::new().into())
 }
@@ -85,8 +85,7 @@ pub async fn get_alias_helper(
     match db.rooms.id_from_alias(&room_alias)? {
         Some(r) => room_id = Some(r),
         None => {
-            let iter = db.appservice.iter_all()?;
-            for (_id, registration) in iter.filter_map(|r| r.ok()) {
+            for (_id, registration) in db.appservice.all()? {
                 let aliases = registration
                     .get("namespaces")
                     .and_then(|ns| ns.get("aliases"))

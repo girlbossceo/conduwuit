@@ -301,7 +301,7 @@ pub async fn create_room_route(
 
     info!("{} created a room", sender_user);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(create_room::Response::new(room_id).into())
 }
@@ -561,7 +561,7 @@ pub async fn upgrade_room_route(
 
     drop(mutex_lock);
 
-    db.flush().await?;
+    db.flush()?;
 
     // Return the replacement room id
     Ok(upgrade_room::Response { replacement_room }.into())

@@ -32,9 +32,10 @@ pub async fn set_displayname_route(
         .set_displayname(&sender_user, body.displayname.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
-    for (pdu_builder, room_id) in db
-        .rooms
-        .rooms_joined(&sender_user)
+    let all_rooms_joined = db.rooms.rooms_joined(&sender_user).collect::<Vec<_>>();
+
+    for (pdu_builder, room_id) in all_rooms_joined
+        .into_iter()
         .filter_map(|r| r.ok())
         .map(|room_id| {
             Ok::<_, Error>((
@@ -109,7 +110,7 @@ pub async fn set_displayname_route(
         )?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_display_name::Response {}.into())
 }
@@ -165,9 +166,10 @@ pub async fn set_avatar_url_route(
     db.users.set_blurhash(&sender_user, body.blurhash.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
-    for (pdu_builder, room_id) in db
-        .rooms
-        .rooms_joined(&sender_user)
+    let all_joined_rooms = db.rooms.rooms_joined(&sender_user).collect::<Vec<_>>();
+
+    for (pdu_builder, room_id) in all_joined_rooms
+        .into_iter()
         .filter_map(|r| r.ok())
         .map(|room_id| {
             Ok::<_, Error>((
@@ -242,7 +244,7 @@ pub async fn set_avatar_url_route(
         )?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_avatar_url::Response {}.into())
 }

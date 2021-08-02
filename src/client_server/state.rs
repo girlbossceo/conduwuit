@@ -43,7 +43,7 @@ pub async fn send_state_event_for_key_route(
     )
     .await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(send_state_event::Response { event_id }.into())
 }
@@ -69,7 +69,7 @@ pub async fn send_state_event_for_empty_key_route(
     )
     .await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(send_state_event::Response { event_id }.into())
 }

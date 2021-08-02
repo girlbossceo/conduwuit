@@ -28,20 +28,20 @@ pub trait Tree: Send + Sync {
 
     fn remove(&self, key: &[u8]) -> Result<()>;
 
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + Send + 'a>;
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a>;
 
     fn iter_from<'a>(
         &'a self,
         from: &[u8],
         backwards: bool,
-    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + Send + 'a>;
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a>;
 
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>>;
 
     fn scan_prefix<'a>(
         &'a self,
         prefix: Vec<u8>,
-    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + Send + 'a>;
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a>;
 
     fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 

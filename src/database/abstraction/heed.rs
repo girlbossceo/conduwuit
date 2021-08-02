@@ -81,7 +81,7 @@ impl EngineTree {
         let (s, r) = bounded::<TupleOfBytes>(100);
         let engine = Arc::clone(&self.engine);
 
-        let lock = self.engine.iter_pool.lock().unwrap();
+        let lock = self.engine.iter_pool.lock().await;
         if lock.active_count() < lock.max_count() {
             lock.execute(move || {
                 iter_from_thread_work(tree, &engine.env.read_txn().unwrap(), from, backwards, &s);

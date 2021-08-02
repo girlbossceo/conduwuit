@@ -52,7 +52,7 @@ pub async fn create_content_route(
         )
         .await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(create_content::Response {
         content_uri: mxc.try_into().expect("Invalid mxc:// URI"),

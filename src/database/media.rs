@@ -101,8 +101,8 @@ impl Media {
         prefix.extend_from_slice(&0_u32.to_be_bytes()); // Height = 0 if it's not a thumbnail
         prefix.push(0xff);
 
-        let mut iter = self.mediaid_file.scan_prefix(prefix);
-        if let Some((key, _)) = iter.next() {
+        let first = self.mediaid_file.scan_prefix(prefix).next();
+        if let Some((key, _)) = first {
             let path = globals.get_media_file(&key);
             let mut file = Vec::new();
             File::open(path).await?.read_to_end(&mut file).await?;
@@ -190,7 +190,9 @@ impl Media {
         original_prefix.extend_from_slice(&0_u32.to_be_bytes()); // Height = 0 if it's not a thumbnail
         original_prefix.push(0xff);
 
-        if let Some((key, _)) = self.mediaid_file.scan_prefix(thumbnail_prefix).next() {
+        let first_thumbnailprefix = self.mediaid_file.scan_prefix(thumbnail_prefix).next();
+        let first_originalprefix = self.mediaid_file.scan_prefix(original_prefix).next();
+        if let Some((key, _)) = first_thumbnailprefix {
             // Using saved thumbnail
             let path = globals.get_media_file(&key);
             let mut file = Vec::new();
@@ -225,7 +227,7 @@ impl Media {
                 content_type,
                 file: file.to_vec(),
             }))
-        } else if let Some((key, _)) = self.mediaid_file.scan_prefix(original_prefix).next() {
+        } else if let Some((key, _)) = first_originalprefix {
             // Generate a thumbnail
             let path = globals.get_media_file(&key);
             let mut file = Vec::new();

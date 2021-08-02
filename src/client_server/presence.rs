@@ -41,7 +41,7 @@ pub async fn set_presence_route(
         )?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_presence::Response {}.into())
 }
