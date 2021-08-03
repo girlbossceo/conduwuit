@@ -201,6 +201,21 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, iter))]
+    fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
+        let guard = self.engine.write_lock();
+
+        guard.execute("BEGIN", [])?;
+        for (key, value) in iter {
+            self.insert_with_guard(&guard, &key, &value)?;
+        }
+        guard.execute("COMMIT", [])?;
+
+        drop(guard);
+
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self, key))]
     fn remove(&self, key: &[u8]) -> Result<()> {
         let guard = self.engine.write_lock();
@@ -228,7 +243,7 @@ impl Tree for SqliteTable {
 
         let statement = Box::leak(Box::new(
             guard
-                .prepare(&format!("SELECT key, value FROM {}", &self.name))
+                .prepare(&format!("SELECT key, value FROM {} ORDER BY key ASC", &self.name))
                 .unwrap(),
         ));
 

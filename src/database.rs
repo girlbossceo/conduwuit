@@ -484,6 +484,16 @@ impl Database {
                 .watch_prefix(&userid_prefix),
         );
         futures.push(self.rooms.userroomid_leftstate.watch_prefix(&userid_prefix));
+        futures.push(
+            self.rooms
+                .userroomid_notificationcount
+                .watch_prefix(&userid_prefix),
+        );
+        futures.push(
+            self.rooms
+                .userroomid_highlightcount
+                .watch_prefix(&userid_prefix),
+        );
 
         // Events for rooms we are in
         for room_id in self.rooms.rooms_joined(user_id).filter_map(|r| r.ok()) {

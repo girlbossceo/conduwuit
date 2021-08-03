@@ -25,6 +25,7 @@ pub trait Tree: Send + Sync {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
 
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()>;
+    fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()>;
 
     fn remove(&self, key: &[u8]) -> Result<()>;
 
