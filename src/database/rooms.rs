@@ -313,41 +313,50 @@ impl Rooms {
         let new_state = if !already_existed {
             let mut new_state = HashSet::new();
 
-            for ((event_type, state_key), eventid) in state {
-                new_state.insert(eventid.clone());
+            let batch = state
+                .iter()
+                .filter_map(|((event_type, state_key), eventid)| {
+                    new_state.insert(eventid.clone());
 
-                let mut statekey = event_type.as_ref().as_bytes().to_vec();
-                statekey.push(0xff);
-                statekey.extend_from_slice(&state_key.as_bytes());
+                    let mut statekey = event_type.as_ref().as_bytes().to_vec();
+                    statekey.push(0xff);
+                    statekey.extend_from_slice(&state_key.as_bytes());
 
-                let shortstatekey = match self.statekey_shortstatekey.get(&statekey)? {
-                    Some(shortstatekey) => shortstatekey.to_vec(),
-                    None => {
-                        let shortstatekey = db.globals.next_count()?;
-                        self.statekey_shortstatekey
-                            .insert(&statekey, &shortstatekey.to_be_bytes())?;
-                        shortstatekey.to_be_bytes().to_vec()
-                    }
-                };
+                    let shortstatekey = match self.statekey_shortstatekey.get(&statekey).ok()? {
+                        Some(shortstatekey) => shortstatekey.to_vec(),
+                        None => {
+                            let shortstatekey = db.globals.next_count().ok()?;
+                            self.statekey_shortstatekey
+                                .insert(&statekey, &shortstatekey.to_be_bytes())
+                                .ok()?;
+                            shortstatekey.to_be_bytes().to_vec()
+                        }
+                    };
 
-                let shorteventid = match self.eventid_shorteventid.get(eventid.as_bytes())? {
-                    Some(shorteventid) => shorteventid.to_vec(),
-                    None => {
-                        let shorteventid = db.globals.next_count()?;
-                        self.eventid_shorteventid
-                            .insert(eventid.as_bytes(), &shorteventid.to_be_bytes())?;
-                        self.shorteventid_eventid
-                            .insert(&shorteventid.to_be_bytes(), eventid.as_bytes())?;
-                        shorteventid.to_be_bytes().to_vec()
-                    }
-                };
+                    let shorteventid =
+                        match self.eventid_shorteventid.get(eventid.as_bytes()).ok()? {
+                            Some(shorteventid) => shorteventid.to_vec(),
+                            None => {
+                                let shorteventid = db.globals.next_count().ok()?;
+                                self.eventid_shorteventid
+                                    .insert(eventid.as_bytes(), &shorteventid.to_be_bytes())
+                                    .ok()?;
+                                self.shorteventid_eventid
+                                    .insert(&shorteventid.to_be_bytes(), eventid.as_bytes())
+                                    .ok()?;
+                                shorteventid.to_be_bytes().to_vec()
+                            }
+                        };
 
-                let mut state_id = shortstatehash.to_be_bytes().to_vec();
-                state_id.extend_from_slice(&shortstatekey);
+                    let mut state_id = shortstatehash.to_be_bytes().to_vec();
+                    state_id.extend_from_slice(&shortstatekey);
 
-                self.stateid_shorteventid
-                    .insert(&state_id, &*shorteventid)?;
-            }
+                    Some((state_id, shorteventid))
+                })
+                .collect::<Vec<_>>();
+
+            self.stateid_shorteventid
+                .insert_batch(&mut batch.into_iter())?;
 
             new_state
         } else {
@@ -1120,39 +1129,51 @@ impl Rooms {
             }
         };
 
-        for ((event_type, state_key), pdu) in state {
-            let mut statekey = event_type.as_ref().as_bytes().to_vec();
-            statekey.push(0xff);
-            statekey.extend_from_slice(&state_key.as_bytes());
+        let batch = state
+            .iter()
+            .filter_map(|((event_type, state_key), pdu)| {
+                let mut statekey = event_type.as_ref().as_bytes().to_vec();
+                statekey.push(0xff);
+                statekey.extend_from_slice(&state_key.as_bytes());
 
-            let shortstatekey = match self.statekey_shortstatekey.get(&statekey)? {
-                Some(shortstatekey) => shortstatekey.to_vec(),
-                None => {
-                    let shortstatekey = globals.next_count()?;
-                    self.statekey_shortstatekey
-                        .insert(&statekey, &shortstatekey.to_be_bytes())?;
-                    shortstatekey.to_be_bytes().to_vec()
-                }
-            };
+                let shortstatekey = match self.statekey_shortstatekey.get(&statekey).ok()? {
+                    Some(shortstatekey) => shortstatekey.to_vec(),
+                    None => {
+                        let shortstatekey = globals.next_count().ok()?;
+                        self.statekey_shortstatekey
+                            .insert(&statekey, &shortstatekey.to_be_bytes())
+                            .ok()?;
+                        shortstatekey.to_be_bytes().to_vec()
+                    }
+                };
 
-            let shorteventid = match self.eventid_shorteventid.get(pdu.event_id.as_bytes())? {
-                Some(shorteventid) => shorteventid.to_vec(),
-                None => {
-                    let shorteventid = globals.next_count()?;
-                    self.eventid_shorteventid
-                        .insert(pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())?;
-                    self.shorteventid_eventid
-                        .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())?;
-                    shorteventid.to_be_bytes().to_vec()
-                }
-            };
+                let shorteventid = match self
+                    .eventid_shorteventid
+                    .get(pdu.event_id.as_bytes())
+                    .ok()?
+                {
+                    Some(shorteventid) => shorteventid.to_vec(),
+                    None => {
+                        let shorteventid = globals.next_count().ok()?;
+                        self.eventid_shorteventid
+                            .insert(pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())
+                            .ok()?;
+                        self.shorteventid_eventid
+                            .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())
+                            .ok()?;
+                        shorteventid.to_be_bytes().to_vec()
+                    }
+                };
 
-            let mut state_id = shortstatehash.clone();
-            state_id.extend_from_slice(&shortstatekey);
+                let mut state_id = shortstatehash.clone();
+                state_id.extend_from_slice(&shortstatekey);
 
-            self.stateid_shorteventid
-                .insert(&*state_id, &*shorteventid)?;
-        }
+                Some((state_id, shorteventid))
+            })
+            .collect::<Vec<_>>();
+
+        self.stateid_shorteventid
+            .insert_batch(&mut batch.into_iter())?;
 
         self.shorteventid_shortstatehash
             .insert(&shorteventid, &*shortstatehash)?;
@@ -1257,11 +1278,13 @@ impl Rooms {
                 }
             };
 
-            for (shortstatekey, shorteventid) in new_state {
+            let mut batch = new_state.into_iter().map(|(shortstatekey, shorteventid)| {
                 let mut state_id = shortstatehash.to_be_bytes().to_vec();
                 state_id.extend_from_slice(&shortstatekey);
-                self.stateid_shorteventid.insert(&state_id, &shorteventid)?;
-            }
+                (state_id, shorteventid)
+            });
+
+            self.stateid_shorteventid.insert_batch(&mut batch)?;
 
             Ok(shortstatehash)
         } else {
