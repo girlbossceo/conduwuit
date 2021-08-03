@@ -736,6 +736,16 @@ impl Rooms {
 
         self.replace_pdu_leaves(&pdu.room_id, leaves)?;
 
+        let mutex_insert = Arc::clone(
+            db.globals
+                .roomid_mutex_insert
+                .write()
+                .unwrap()
+                .entry(pdu.room_id.clone())
+                .or_default(),
+        );
+        let insert_lock = mutex_insert.lock().unwrap();
+
         let count1 = db.globals.next_count()?;
         // Mark as read first so the sending client doesn't get a notification even if appending
         // fails
@@ -750,6 +760,8 @@ impl Rooms {
 
         // There's a brief moment of time here where the count is updated but the pdu does not
         // exist. This could theoretically lead to dropped pdus, but it's extremely rare
+        //
+        // Update: We fixed this using insert_lock
 
         self.pduid_pdu.insert(
             &pdu_id,
@@ -760,6 +772,8 @@ impl Rooms {
         // pduid, removing the place holder.
         self.eventid_pduid
             .insert(pdu.event_id.as_bytes(), &pdu_id)?;
+
+        drop(insert_lock);
 
         // See if the event matches any known pushers
         let power_levels: PowerLevelsEventContent = db
@@ -1464,13 +1478,6 @@ impl Rooms {
         self.shorteventid_eventid
             .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())?;
 
-        // Increment the last index and use that
-        // This is also the next_batch/since value
-        let count = db.globals.next_count()?;
-        let mut pdu_id = room_id.as_bytes().to_vec();
-        pdu_id.push(0xff);
-        pdu_id.extend_from_slice(&count.to_be_bytes());
-
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.
         let statehashid = self.append_to_state(&pdu, &db.globals)?;
@@ -1904,15 +1911,15 @@ impl Rooms {
                 db,
             )?;
         } else {
-            let mutex = Arc::clone(
+            let mutex_state = Arc::clone(
                 db.globals
-                    .roomid_mutex
+                    .roomid_mutex_state
                     .write()
                     .unwrap()
                     .entry(room_id.clone())
                     .or_default(),
             );
-            let mutex_lock = mutex.lock().await;
+            let state_lock = mutex_state.lock().await;
 
             let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
                 self.room_state_get(room_id, &EventType::RoomMember, &user_id.to_string())?
@@ -1941,7 +1948,7 @@ impl Rooms {
                 user_id,
                 room_id,
                 db,
-                &mutex_lock,
+                &state_lock,
             )?;
         }
 

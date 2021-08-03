@@ -203,15 +203,15 @@ pub async fn kick_user_route(
     event.membership = ruma::events::room::member::MembershipState::Leave;
     // TODO: reason
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(body.room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -224,10 +224,10 @@ pub async fn kick_user_route(
         &sender_user,
         &body.room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
-    drop(mutex_lock);
+    drop(state_lock);
 
     db.flush()?;
 
@@ -275,15 +275,15 @@ pub async fn ban_user_route(
             },
         )?;
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(body.room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -296,10 +296,10 @@ pub async fn ban_user_route(
         &sender_user,
         &body.room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
-    drop(mutex_lock);
+    drop(state_lock);
 
     db.flush()?;
 
@@ -337,15 +337,15 @@ pub async fn unban_user_route(
 
     event.membership = ruma::events::room::member::MembershipState::Leave;
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(body.room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -358,10 +358,10 @@ pub async fn unban_user_route(
         &sender_user,
         &body.room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
-    drop(mutex_lock);
+    drop(state_lock);
 
     db.flush()?;
 
@@ -486,15 +486,15 @@ async fn join_room_by_id_helper(
 ) -> ConduitResult<join_room_by_id::Response> {
     let sender_user = sender_user.expect("user is authenticated");
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     // Ask a remote server if we don't have this room
     if !db.rooms.exists(&room_id)? && room_id.server_name() != db.globals.server_name() {
@@ -706,11 +706,11 @@ async fn join_room_by_id_helper(
             &sender_user,
             &room_id,
             &db,
-            &mutex_lock,
+            &state_lock,
         )?;
     }
 
-    drop(mutex_lock);
+    drop(state_lock);
 
     db.flush()?;
 
@@ -790,15 +790,15 @@ pub async fn invite_helper<'a>(
 ) -> Result<()> {
     if user_id.server_name() != db.globals.server_name() {
         let (room_version_id, pdu_json, invite_room_state) = {
-            let mutex = Arc::clone(
+            let mutex_state = Arc::clone(
                 db.globals
-                    .roomid_mutex
+                    .roomid_mutex_state
                     .write()
                     .unwrap()
                     .entry(room_id.clone())
                     .or_default(),
             );
-            let mutex_lock = mutex.lock().await;
+            let state_lock = mutex_state.lock().await;
 
             let prev_events = db
                 .rooms
@@ -942,7 +942,7 @@ pub async fn invite_helper<'a>(
 
             let invite_room_state = db.rooms.calculate_invite_state(&pdu)?;
 
-            drop(mutex_lock);
+            drop(state_lock);
 
             (room_version_id, pdu_json, invite_room_state)
         };
@@ -1018,16 +1018,15 @@ pub async fn invite_helper<'a>(
         return Ok(());
     }
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(room_id.clone())
             .or_default(),
     );
-
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -1048,10 +1047,10 @@ pub async fn invite_helper<'a>(
         &sender_user,
         room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
-    drop(mutex_lock);
+    drop(state_lock);
 
     Ok(())
 }

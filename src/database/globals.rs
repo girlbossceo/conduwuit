@@ -12,7 +12,7 @@ use std::{
     fs,
     future::Future,
     path::PathBuf,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
 };
 use tokio::sync::{broadcast, watch::Receiver, Mutex as TokioMutex, Semaphore};
@@ -45,7 +45,8 @@ pub struct Globals {
     pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
     pub servername_ratelimiter: Arc<RwLock<HashMap<Box<ServerName>, Arc<Semaphore>>>>,
     pub sync_receivers: RwLock<HashMap<(UserId, Box<DeviceId>), SyncHandle>>,
-    pub roomid_mutex: RwLock<HashMap<RoomId, Arc<TokioMutex<()>>>>,
+    pub roomid_mutex_insert: RwLock<HashMap<RoomId, Arc<Mutex<()>>>>,
+    pub roomid_mutex_state: RwLock<HashMap<RoomId, Arc<TokioMutex<()>>>>,
     pub roomid_mutex_federation: RwLock<HashMap<RoomId, Arc<TokioMutex<()>>>>, // this lock will be held longer
     pub rotate: RotationHandler,
 }
@@ -200,7 +201,8 @@ impl Globals {
             bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
             bad_signature_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
             servername_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
-            roomid_mutex: RwLock::new(HashMap::new()),
+            roomid_mutex_state: RwLock::new(HashMap::new()),
+            roomid_mutex_insert: RwLock::new(HashMap::new()),
             roomid_mutex_federation: RwLock::new(HashMap::new()),
             sync_receivers: RwLock::new(HashMap::new()),
             rotate: RotationHandler::new(),

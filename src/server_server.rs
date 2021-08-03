@@ -1159,15 +1159,15 @@ pub fn handle_incoming_pdu<'a>(
 
         // We start looking at current room state now, so lets lock the room
 
-        let mutex = Arc::clone(
+        let mutex_state = Arc::clone(
             db.globals
-                .roomid_mutex
+                .roomid_mutex_state
                 .write()
                 .unwrap()
                 .entry(room_id.clone())
                 .or_default(),
         );
-        let mutex_lock = mutex.lock().await;
+        let state_lock = mutex_state.lock().await;
 
         // Now we calculate the set of extremities this room has after the incoming event has been
         // applied. We start with the previous extremities (aka leaves)
@@ -1341,7 +1341,7 @@ pub fn handle_incoming_pdu<'a>(
                     val,
                     extremities,
                     &state_at_incoming_event,
-                    &mutex_lock,
+                    &state_lock,
                 )
                 .map_err(|_| "Failed to add pdu to db.".to_owned())?,
             );
@@ -1364,7 +1364,7 @@ pub fn handle_incoming_pdu<'a>(
         }
 
         // Event has passed all auth/stateres checks
-        drop(mutex_lock);
+        drop(state_lock);
         Ok(pdu_id)
     })
 }
