@@ -1727,9 +1727,13 @@ fn get_auth_chain(starting_events: Vec<EventId>, db: &Database) -> Result<HashSe
     let mut full_auth_chain = HashSet::new();
 
     let mut cache = db.rooms.auth_chain_cache();
-    for event_id in starting_events {
-        let auth_chain = if let Some(cached) = cache.get_mut(&event_id) {
-            cached.clone()
+    if let Some(cached) = cache.get_mut(&starting_events) {
+        return Ok(cached.clone());
+    }
+
+    for event_id in &starting_events {
+        if let Some(cached) = cache.get_mut(&[event_id.clone()][..]) {
+            full_auth_chain.extend(cached.iter().cloned());
         } else {
             drop(cache);
             let start = Instant::now();
@@ -1741,13 +1745,14 @@ fn get_auth_chain(starting_events: Vec<EventId>, db: &Database) -> Result<HashSe
 
             cache = db.rooms.auth_chain_cache();
 
-            cache.insert(event_id, auth_chain.clone());
+            cache.insert(vec![event_id.clone()], auth_chain.clone());
 
-            auth_chain
+            full_auth_chain.extend(auth_chain);
         };
 
-        full_auth_chain.extend(auth_chain);
     }
+
+    cache.insert(starting_events, full_auth_chain.clone());
 
     Ok(full_auth_chain)
 }

@@ -87,7 +87,7 @@ pub struct Rooms {
     pub(super) referencedevents: Arc<dyn Tree>,
 
     pub(super) pdu_cache: Mutex<LruCache<EventId, Arc<PduEvent>>>,
-    pub(super) auth_chain_cache: Mutex<LruCache<EventId, HashSet<EventId>>>,
+    pub(super) auth_chain_cache: Mutex<LruCache<Vec<EventId>, HashSet<EventId>>>,
 }
 
 impl Rooms {
@@ -2618,7 +2618,7 @@ impl Rooms {
     #[tracing::instrument(skip(self))]
     pub fn auth_chain_cache(
         &self,
-    ) -> std::sync::MutexGuard<'_, LruCache<EventId, HashSet<EventId>>> {
+    ) -> std::sync::MutexGuard<'_, LruCache<Vec<EventId>, HashSet<EventId>>> {
         self.auth_chain_cache.lock().unwrap()
     }
 }
