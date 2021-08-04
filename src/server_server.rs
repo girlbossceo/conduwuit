@@ -1,6 +1,6 @@
 use crate::{
     client_server::{self, claim_keys_helper, get_keys_helper},
-    database::{DatabaseGuard},
+    database::DatabaseGuard,
     utils, ConduitResult, Database, Error, PduEvent, Result, Ruma,
 };
 use get_profile_information::v1::ProfileField;

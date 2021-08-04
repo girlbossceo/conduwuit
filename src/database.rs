@@ -125,9 +125,6 @@ fn default_log() -> String {
 #[cfg(feature = "sled")]
 pub type Engine = abstraction::sled::Engine;
 
-#[cfg(feature = "rocksdb")]
-pub type Engine = abstraction::rocksdb::Engine;
-
 #[cfg(feature = "sqlite")]
 pub type Engine = abstraction::sqlite::Engine;
 
@@ -426,7 +423,8 @@ impl Database {
                 println!("Migration: 4 -> 5 finished");
             }
 
-            if db.globals.database_version()? < 9 { // TODO update to 6
+            if db.globals.database_version()? < 6 {
+                // TODO update to 6
                 // Set room member count
                 for (roomid, _) in db.rooms.roomid_shortstatehash.iter() {
                     let room_id =

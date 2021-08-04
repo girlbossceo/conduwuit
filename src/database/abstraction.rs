@@ -3,9 +3,6 @@ use crate::Result;
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
-#[cfg(feature = "rocksdb")]
-pub mod rocksdb;
-
 #[cfg(feature = "sled")]
 pub mod sled;
 

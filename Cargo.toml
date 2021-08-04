@@ -26,7 +26,6 @@ ruma = { git = "https://github.com/timokoesters/ruma", rev = "a2d93500e1dbc87e70
 tokio = "1.8.2"
 # Used for storing data permanently
 sled = { version = "0.34.6", features = ["compression", "no_metrics"], optional = true }
-rocksdb = { version = "0.16.0", features = ["multi-threaded-cf"], optional = true }
 #sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
@@ -84,7 +83,6 @@ heed = { git = "https://github.com/timokoesters/heed.git", rev = "f6f825da7fb2c7
 [features]
 default = ["conduit_bin", "backend_sqlite"]
 backend_sled = ["sled"]
-backend_rocksdb = ["rocksdb"]
 backend_sqlite = ["sqlite"]
 backend_heed = ["heed", "crossbeam"]
 sqlite = ["rusqlite", "parking_lot", "crossbeam", "tokio/signal"]
