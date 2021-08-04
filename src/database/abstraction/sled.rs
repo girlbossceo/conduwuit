@@ -39,12 +39,21 @@ impl Tree for SledEngineTree {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, iter))]
+    fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
+        for (key, value) in iter {
+            self.0.insert(key, value)?;
+        }
+
+        Ok(())
+    }
+
     fn remove(&self, key: &[u8]) -> Result<()> {
         self.0.remove(key)?;
         Ok(())
     }
 
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + Send + 'a> {
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
         Box::new(
             self.0
                 .iter()
@@ -62,7 +71,7 @@ impl Tree for SledEngineTree {
         &self,
         from: &[u8],
         backwards: bool,
-    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + Send> {
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)>> {
         let iter = if backwards {
             self.0.range(..=from)
         } else {
@@ -95,7 +104,7 @@ impl Tree for SledEngineTree {
     fn scan_prefix<'a>(
         &'a self,
         prefix: Vec<u8>,
-    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + Send + 'a> {
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
         let iter = self
             .0
             .scan_prefix(prefix)

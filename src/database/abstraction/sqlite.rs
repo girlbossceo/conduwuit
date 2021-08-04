@@ -55,7 +55,6 @@ impl Engine {
         conn.pragma_update(Some(Main), "journal_mode", &"WAL")?;
         conn.pragma_update(Some(Main), "synchronous", &"NORMAL")?;
         conn.pragma_update(Some(Main), "cache_size", &(-i64::from(cache_size_kb)))?;
-        conn.pragma_update(Some(Main), "wal_autocheckpoint", &0)?;
 
         Ok(conn)
     }

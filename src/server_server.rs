@@ -1,6 +1,6 @@
 use crate::{
     client_server::{self, claim_keys_helper, get_keys_helper},
-    database::{abstraction::sqlite::MILLI, DatabaseGuard},
+    database::{DatabaseGuard},
     utils, ConduitResult, Database, Error, PduEvent, Result, Ruma,
 };
 use get_profile_information::v1::ProfileField;
@@ -1736,20 +1736,11 @@ fn get_auth_chain(starting_events: Vec<EventId>, db: &Database) -> Result<HashSe
             full_auth_chain.extend(cached.iter().cloned());
         } else {
             drop(cache);
-            let start = Instant::now();
             let auth_chain = get_auth_chain_recursive(&event_id, HashSet::new(), db)?;
-            let elapsed = start.elapsed();
-            if elapsed > MILLI {
-                println!("auth chain for {} took {:?}", &event_id, elapsed)
-            }
-
             cache = db.rooms.auth_chain_cache();
-
             cache.insert(vec![event_id.clone()], auth_chain.clone());
-
             full_auth_chain.extend(auth_chain);
         };
-
     }
 
     cache.insert(starting_events, full_auth_chain.clone());

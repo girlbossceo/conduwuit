@@ -55,6 +55,7 @@ pub struct Rooms {
 
     pub(super) userroomid_joined: Arc<dyn Tree>,
     pub(super) roomuserid_joined: Arc<dyn Tree>,
+    pub(super) roomid_joinedcount: Arc<dyn Tree>,
     pub(super) roomuseroncejoinedids: Arc<dyn Tree>,
     pub(super) userroomid_invitestate: Arc<dyn Tree>, // InviteState = Vec<Raw<Pdu>>
     pub(super) roomuserid_invitecount: Arc<dyn Tree>, // InviteCount = Count
@@ -1906,7 +1907,16 @@ impl Rooms {
             _ => {}
         }
 
+        self.update_joined_count(room_id)?;
+
         Ok(())
+    }
+
+    pub fn update_joined_count(&self, room_id: &RoomId) -> Result<()> {
+        self.roomid_joinedcount.insert(
+            room_id.as_bytes(),
+            &(self.room_members(&room_id).count() as u64).to_be_bytes(),
+        )
     }
 
     pub async fn leave_room(
@@ -2368,6 +2378,17 @@ impl Rooms {
             )
             .map_err(|_| Error::bad_database("User ID in roomuserid_joined is invalid."))
         })
+    }
+
+    pub fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
+        Ok(self
+            .roomid_joinedcount
+            .get(room_id.as_bytes())?
+            .map(|b| {
+                utils::u64_from_bytes(&b)
+                    .map_err(|_| Error::bad_database("Invalid joinedcount in db."))
+            })
+            .transpose()?)
     }
 
     /// Returns an iterator over all User IDs who ever joined a room.

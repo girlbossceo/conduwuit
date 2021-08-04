@@ -24,10 +24,11 @@ use rocket::{
     request::{FromRequest, Request},
     Shutdown, State,
 };
-use ruma::{DeviceId, ServerName, UserId};
+use ruma::{DeviceId, RoomId, ServerName, UserId};
 use serde::{de::IgnoredAny, Deserialize};
 use std::{
     collections::{BTreeMap, HashMap},
+    convert::TryFrom,
     fs::{self, remove_dir_all},
     io::Write,
     ops::Deref,
@@ -252,6 +253,7 @@ impl Database {
                 serverroomids: builder.open_tree("serverroomids")?,
                 userroomid_joined: builder.open_tree("userroomid_joined")?,
                 roomuserid_joined: builder.open_tree("roomuserid_joined")?,
+                roomid_joinedcount: builder.open_tree("roomid_joinedcount")?,
                 roomuseroncejoinedids: builder.open_tree("roomuseroncejoinedids")?,
                 userroomid_invitestate: builder.open_tree("userroomid_invitestate")?,
                 roomuserid_invitecount: builder.open_tree("roomuserid_invitecount")?,
@@ -271,8 +273,8 @@ impl Database {
 
                 eventid_outlierpdu: builder.open_tree("eventid_outlierpdu")?,
                 referencedevents: builder.open_tree("referencedevents")?,
-                pdu_cache: Mutex::new(LruCache::new(1_000_000)),
-                auth_chain_cache: Mutex::new(LruCache::new(1_000_000)),
+                pdu_cache: Mutex::new(LruCache::new(0)),
+                auth_chain_cache: Mutex::new(LruCache::new(0)),
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
@@ -422,6 +424,20 @@ impl Database {
                 db.globals.bump_database_version(5)?;
 
                 println!("Migration: 4 -> 5 finished");
+            }
+
+            if db.globals.database_version()? < 9 { // TODO update to 6
+                // Set room member count
+                for (roomid, _) in db.rooms.roomid_shortstatehash.iter() {
+                    let room_id =
+                        RoomId::try_from(utils::string_from_bytes(&roomid).unwrap()).unwrap();
+
+                    db.rooms.update_joined_count(&room_id)?;
+                }
+
+                db.globals.bump_database_version(6)?;
+
+                println!("Migration: 5 -> 6 finished");
             }
         }
 
