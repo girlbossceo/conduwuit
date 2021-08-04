@@ -1267,10 +1267,10 @@ pub fn handle_incoming_pdu<'a>(
         // 14. Use state resolution to find new room state
         let new_room_state = if fork_states.is_empty() {
             return Err("State is empty.".to_owned());
-        } else if fork_states.len() == 1 {
+        } else if fork_states.iter().skip(1).all(|f| &fork_states[0] == f) {
             // There was only one state, so it has to be the room's current state (because that is
             // always included)
-            debug!("Skipping stateres because there is no new state.");
+            warn!("Skipping stateres because there is no new state.");
             fork_states[0]
                 .iter()
                 .map(|(k, pdu)| (k.clone(), pdu.event_id.clone()))
