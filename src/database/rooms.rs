@@ -905,18 +905,20 @@ impl Rooms {
             }
             EventType::RoomMessage => {
                 if let Some(body) = pdu.content.get("body").and_then(|b| b.as_str()) {
-                    for word in body
+                    let mut batch = body
                         .split_terminator(|c: char| !c.is_alphanumeric())
                         .filter(|word| word.len() <= 50)
                         .map(str::to_lowercase)
-                    {
-                        let mut key = pdu.room_id.as_bytes().to_vec();
-                        key.push(0xff);
-                        key.extend_from_slice(word.as_bytes());
-                        key.push(0xff);
-                        key.extend_from_slice(&pdu_id);
-                        self.tokenids.insert(&key, &[])?;
-                    }
+                        .map(|word| {
+                            let mut key = pdu.room_id.as_bytes().to_vec();
+                            key.push(0xff);
+                            key.extend_from_slice(word.as_bytes());
+                            key.push(0xff);
+                            key.extend_from_slice(&pdu_id);
+                            (key, Vec::new())
+                        });
+
+                    self.tokenids.insert_batch(&mut batch)?;
 
                     if body.starts_with(&format!("@conduit:{}: ", db.globals.server_name()))
                         && self
