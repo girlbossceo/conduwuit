@@ -228,10 +228,8 @@ where
         .headers_mut()
         .insert(HOST, HeaderValue::from_str(&host).unwrap());
 
-    let mut reqwest_request = reqwest::Request::try_from(http_request)
+    let reqwest_request = reqwest::Request::try_from(http_request)
         .expect("all http requests are valid reqwest requests");
-
-    *reqwest_request.timeout_mut() = Some(Duration::from_secs(30));
 
     let url = reqwest_request.url().clone();
     let response = globals.reqwest_client().execute(reqwest_request).await;
@@ -273,7 +271,10 @@ where
 
             if status == 200 {
                 let response = T::IncomingResponse::try_from_http_response(http_response);
-                response.map_err(|_| Error::BadServerResponse("Server returned bad 200 response."))
+                response.map_err(|e| {
+                    warn!("Invalid 200 response: {}", e);
+                    Error::BadServerResponse("Server returned bad 200 response.")
+                })
             } else {
                 Err(Error::FederationError(
                     destination.to_owned(),
