@@ -84,15 +84,15 @@ impl Admin {
                 tokio::select! {
                     Some(event) = receiver.next() => {
                         let guard = db.read().await;
-                        let mutex = Arc::clone(
+                        let mutex_state = Arc::clone(
                             guard.globals
-                                .roomid_mutex
+                                .roomid_mutex_state
                                 .write()
                                 .unwrap()
                                 .entry(conduit_room.clone())
                                 .or_default(),
                         );
-                        let mutex_lock = mutex.lock().await;
+                        let state_lock = mutex_state.lock().await;
 
                         match event {
                             AdminCommand::RegisterAppservice(yaml) => {
@@ -106,17 +106,17 @@ impl Admin {
                                         count,
                                         appservices.into_iter().filter_map(|r| r.ok()).collect::<Vec<_>>().join(", ")
                                     );
-                                    send_message(message::MessageEventContent::text_plain(output), guard, &mutex_lock);
+                                    send_message(message::MessageEventContent::text_plain(output), guard, &state_lock);
                                 } else {
-                                    send_message(message::MessageEventContent::text_plain("Failed to get appservices."), guard, &mutex_lock);
+                                    send_message(message::MessageEventContent::text_plain("Failed to get appservices."), guard, &state_lock);
                                 }
                             }
                             AdminCommand::SendMessage(message) => {
-                                send_message(message, guard, &mutex_lock);
+                                send_message(message, guard, &state_lock);
                             }
                         }
 
-                        drop(mutex_lock);
+                        drop(state_lock);
                     }
                 }
             }

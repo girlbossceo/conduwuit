@@ -28,15 +28,15 @@ pub async fn send_message_event_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_deref();
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(body.room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     // Check if this is a new transaction id
     if let Some(response) =
@@ -75,7 +75,7 @@ pub async fn send_message_event_route(
         &sender_user,
         &body.room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
     db.transaction_ids.add_txnid(
@@ -85,9 +85,9 @@ pub async fn send_message_event_route(
         event_id.as_bytes(),
     )?;
 
-    drop(mutex_lock);
+    drop(state_lock);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(send_message_event::Response::new(event_id).into())
 }

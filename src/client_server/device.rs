@@ -71,7 +71,7 @@ pub async fn update_device_route(
     db.users
         .update_device_metadata(&sender_user, &body.device_id, &device)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(update_device::Response {}.into())
 }
@@ -123,7 +123,7 @@ pub async fn delete_device_route(
 
     db.users.remove_device(&sender_user, &body.device_id)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(delete_device::Response {}.into())
 }
@@ -177,7 +177,7 @@ pub async fn delete_devices_route(
         db.users.remove_device(&sender_user, &device_id)?
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(delete_devices::Response {}.into())
 }

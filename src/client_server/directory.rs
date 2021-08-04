@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma};
 use ruma::{
     api::{
@@ -21,7 +23,7 @@ use ruma::{
     serde::Raw,
     ServerName, UInt,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post, put};
@@ -100,7 +102,7 @@ pub async fn set_room_visibility_route(
         }
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_room_visibility::Response {}.into())
 }
@@ -234,7 +236,15 @@ pub async fn get_public_rooms_filtered_helper(
                             .name
                             .map(|n| n.to_owned().into()))
                         })?,
-                    num_joined_members: (db.rooms.room_members(&room_id).count() as u32).into(),
+                    num_joined_members: db
+                        .rooms
+                        .room_joined_count(&room_id)?
+                        .unwrap_or_else(|| {
+                            warn!("Room {} has no member count", room_id);
+                            0
+                        })
+                        .try_into()
+                        .expect("user count should not be that big"),
                     topic: db
                         .rooms
                         .room_state_get(&room_id, &EventType::RoomTopic, "")?

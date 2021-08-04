@@ -2,7 +2,6 @@ mod edus;
 
 pub use edus::RoomEdus;
 use member::MembershipState;
-use tokio::sync::MutexGuard;
 
 use crate::{pdu::PduBuilder, utils, Database, Error, PduEvent, Result};
 use lru_cache::LruCache;
@@ -28,6 +27,7 @@ use std::{
     mem,
     sync::{Arc, Mutex},
 };
+use tokio::sync::MutexGuard;
 use tracing::{debug, error, warn};
 
 use super::{abstraction::Tree, admin::AdminCommand, pusher};
@@ -55,6 +55,7 @@ pub struct Rooms {
 
     pub(super) userroomid_joined: Arc<dyn Tree>,
     pub(super) roomuserid_joined: Arc<dyn Tree>,
+    pub(super) roomid_joinedcount: Arc<dyn Tree>,
     pub(super) roomuseroncejoinedids: Arc<dyn Tree>,
     pub(super) userroomid_invitestate: Arc<dyn Tree>, // InviteState = Vec<Raw<Pdu>>
     pub(super) roomuserid_invitecount: Arc<dyn Tree>, // InviteCount = Count
@@ -87,7 +88,7 @@ pub struct Rooms {
     pub(super) referencedevents: Arc<dyn Tree>,
 
     pub(super) pdu_cache: Mutex<LruCache<EventId, Arc<PduEvent>>>,
-    pub(super) auth_chain_cache: Mutex<LruCache<EventId, HashSet<EventId>>>,
+    pub(super) auth_chain_cache: Mutex<LruCache<Vec<EventId>, HashSet<EventId>>>,
 }
 
 impl Rooms {
@@ -313,41 +314,50 @@ impl Rooms {
         let new_state = if !already_existed {
             let mut new_state = HashSet::new();
 
-            for ((event_type, state_key), eventid) in state {
-                new_state.insert(eventid.clone());
+            let batch = state
+                .iter()
+                .filter_map(|((event_type, state_key), eventid)| {
+                    new_state.insert(eventid.clone());
 
-                let mut statekey = event_type.as_ref().as_bytes().to_vec();
-                statekey.push(0xff);
-                statekey.extend_from_slice(&state_key.as_bytes());
+                    let mut statekey = event_type.as_ref().as_bytes().to_vec();
+                    statekey.push(0xff);
+                    statekey.extend_from_slice(&state_key.as_bytes());
 
-                let shortstatekey = match self.statekey_shortstatekey.get(&statekey)? {
-                    Some(shortstatekey) => shortstatekey.to_vec(),
-                    None => {
-                        let shortstatekey = db.globals.next_count()?;
-                        self.statekey_shortstatekey
-                            .insert(&statekey, &shortstatekey.to_be_bytes())?;
-                        shortstatekey.to_be_bytes().to_vec()
-                    }
-                };
+                    let shortstatekey = match self.statekey_shortstatekey.get(&statekey).ok()? {
+                        Some(shortstatekey) => shortstatekey.to_vec(),
+                        None => {
+                            let shortstatekey = db.globals.next_count().ok()?;
+                            self.statekey_shortstatekey
+                                .insert(&statekey, &shortstatekey.to_be_bytes())
+                                .ok()?;
+                            shortstatekey.to_be_bytes().to_vec()
+                        }
+                    };
 
-                let shorteventid = match self.eventid_shorteventid.get(eventid.as_bytes())? {
-                    Some(shorteventid) => shorteventid.to_vec(),
-                    None => {
-                        let shorteventid = db.globals.next_count()?;
-                        self.eventid_shorteventid
-                            .insert(eventid.as_bytes(), &shorteventid.to_be_bytes())?;
-                        self.shorteventid_eventid
-                            .insert(&shorteventid.to_be_bytes(), eventid.as_bytes())?;
-                        shorteventid.to_be_bytes().to_vec()
-                    }
-                };
+                    let shorteventid =
+                        match self.eventid_shorteventid.get(eventid.as_bytes()).ok()? {
+                            Some(shorteventid) => shorteventid.to_vec(),
+                            None => {
+                                let shorteventid = db.globals.next_count().ok()?;
+                                self.eventid_shorteventid
+                                    .insert(eventid.as_bytes(), &shorteventid.to_be_bytes())
+                                    .ok()?;
+                                self.shorteventid_eventid
+                                    .insert(&shorteventid.to_be_bytes(), eventid.as_bytes())
+                                    .ok()?;
+                                shorteventid.to_be_bytes().to_vec()
+                            }
+                        };
 
-                let mut state_id = shortstatehash.to_be_bytes().to_vec();
-                state_id.extend_from_slice(&shortstatekey);
+                    let mut state_id = shortstatehash.to_be_bytes().to_vec();
+                    state_id.extend_from_slice(&shortstatekey);
 
-                self.stateid_shorteventid
-                    .insert(&state_id, &*shorteventid)?;
-            }
+                    Some((state_id, shorteventid))
+                })
+                .collect::<Vec<_>>();
+
+            self.stateid_shorteventid
+                .insert_batch(&mut batch.into_iter())?;
 
             new_state
         } else {
@@ -736,6 +746,16 @@ impl Rooms {
 
         self.replace_pdu_leaves(&pdu.room_id, leaves)?;
 
+        let mutex_insert = Arc::clone(
+            db.globals
+                .roomid_mutex_insert
+                .write()
+                .unwrap()
+                .entry(pdu.room_id.clone())
+                .or_default(),
+        );
+        let insert_lock = mutex_insert.lock().unwrap();
+
         let count1 = db.globals.next_count()?;
         // Mark as read first so the sending client doesn't get a notification even if appending
         // fails
@@ -750,6 +770,8 @@ impl Rooms {
 
         // There's a brief moment of time here where the count is updated but the pdu does not
         // exist. This could theoretically lead to dropped pdus, but it's extremely rare
+        //
+        // Update: We fixed this using insert_lock
 
         self.pduid_pdu.insert(
             &pdu_id,
@@ -760,6 +782,8 @@ impl Rooms {
         // pduid, removing the place holder.
         self.eventid_pduid
             .insert(pdu.event_id.as_bytes(), &pdu_id)?;
+
+        drop(insert_lock);
 
         // See if the event matches any known pushers
         let power_levels: PowerLevelsEventContent = db
@@ -779,7 +803,7 @@ impl Rooms {
             .room_members(&pdu.room_id)
             .filter_map(|r| r.ok())
             .filter(|user_id| user_id.server_name() == db.globals.server_name())
-            .filter(|user_id| !db.users.is_deactivated(user_id).unwrap_or(false))
+            .filter(|user_id| !db.users.is_deactivated(user_id).unwrap_or(true))
         {
             // Don't notify the user of their own events
             if user == pdu.sender {
@@ -882,18 +906,20 @@ impl Rooms {
             }
             EventType::RoomMessage => {
                 if let Some(body) = pdu.content.get("body").and_then(|b| b.as_str()) {
-                    for word in body
+                    let mut batch = body
                         .split_terminator(|c: char| !c.is_alphanumeric())
                         .filter(|word| word.len() <= 50)
                         .map(str::to_lowercase)
-                    {
-                        let mut key = pdu.room_id.as_bytes().to_vec();
-                        key.push(0xff);
-                        key.extend_from_slice(word.as_bytes());
-                        key.push(0xff);
-                        key.extend_from_slice(&pdu_id);
-                        self.tokenids.insert(&key, &[])?;
-                    }
+                        .map(|word| {
+                            let mut key = pdu.room_id.as_bytes().to_vec();
+                            key.push(0xff);
+                            key.extend_from_slice(word.as_bytes());
+                            key.push(0xff);
+                            key.extend_from_slice(&pdu_id);
+                            (key, Vec::new())
+                        });
+
+                    self.tokenids.insert_batch(&mut batch)?;
 
                     if body.starts_with(&format!("@conduit:{}: ", db.globals.server_name()))
                         && self
@@ -1106,39 +1132,51 @@ impl Rooms {
             }
         };
 
-        for ((event_type, state_key), pdu) in state {
-            let mut statekey = event_type.as_ref().as_bytes().to_vec();
-            statekey.push(0xff);
-            statekey.extend_from_slice(&state_key.as_bytes());
+        let batch = state
+            .iter()
+            .filter_map(|((event_type, state_key), pdu)| {
+                let mut statekey = event_type.as_ref().as_bytes().to_vec();
+                statekey.push(0xff);
+                statekey.extend_from_slice(&state_key.as_bytes());
 
-            let shortstatekey = match self.statekey_shortstatekey.get(&statekey)? {
-                Some(shortstatekey) => shortstatekey.to_vec(),
-                None => {
-                    let shortstatekey = globals.next_count()?;
-                    self.statekey_shortstatekey
-                        .insert(&statekey, &shortstatekey.to_be_bytes())?;
-                    shortstatekey.to_be_bytes().to_vec()
-                }
-            };
+                let shortstatekey = match self.statekey_shortstatekey.get(&statekey).ok()? {
+                    Some(shortstatekey) => shortstatekey.to_vec(),
+                    None => {
+                        let shortstatekey = globals.next_count().ok()?;
+                        self.statekey_shortstatekey
+                            .insert(&statekey, &shortstatekey.to_be_bytes())
+                            .ok()?;
+                        shortstatekey.to_be_bytes().to_vec()
+                    }
+                };
 
-            let shorteventid = match self.eventid_shorteventid.get(pdu.event_id.as_bytes())? {
-                Some(shorteventid) => shorteventid.to_vec(),
-                None => {
-                    let shorteventid = globals.next_count()?;
-                    self.eventid_shorteventid
-                        .insert(pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())?;
-                    self.shorteventid_eventid
-                        .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())?;
-                    shorteventid.to_be_bytes().to_vec()
-                }
-            };
+                let shorteventid = match self
+                    .eventid_shorteventid
+                    .get(pdu.event_id.as_bytes())
+                    .ok()?
+                {
+                    Some(shorteventid) => shorteventid.to_vec(),
+                    None => {
+                        let shorteventid = globals.next_count().ok()?;
+                        self.eventid_shorteventid
+                            .insert(pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())
+                            .ok()?;
+                        self.shorteventid_eventid
+                            .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())
+                            .ok()?;
+                        shorteventid.to_be_bytes().to_vec()
+                    }
+                };
 
-            let mut state_id = shortstatehash.clone();
-            state_id.extend_from_slice(&shortstatekey);
+                let mut state_id = shortstatehash.clone();
+                state_id.extend_from_slice(&shortstatekey);
 
-            self.stateid_shorteventid
-                .insert(&*state_id, &*shorteventid)?;
-        }
+                Some((state_id, shorteventid))
+            })
+            .collect::<Vec<_>>();
+
+        self.stateid_shorteventid
+            .insert_batch(&mut batch.into_iter())?;
 
         self.shorteventid_shortstatehash
             .insert(&shorteventid, &*shortstatehash)?;
@@ -1243,11 +1281,13 @@ impl Rooms {
                 }
             };
 
-            for (shortstatekey, shorteventid) in new_state {
+            let mut batch = new_state.into_iter().map(|(shortstatekey, shorteventid)| {
                 let mut state_id = shortstatehash.to_be_bytes().to_vec();
                 state_id.extend_from_slice(&shortstatekey);
-                self.stateid_shorteventid.insert(&state_id, &shorteventid)?;
-            }
+                (state_id, shorteventid)
+            });
+
+            self.stateid_shorteventid.insert_batch(&mut batch)?;
 
             Ok(shortstatehash)
         } else {
@@ -1464,13 +1504,6 @@ impl Rooms {
         self.shorteventid_eventid
             .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())?;
 
-        // Increment the last index and use that
-        // This is also the next_batch/since value
-        let count = db.globals.next_count()?;
-        let mut pdu_id = room_id.as_bytes().to_vec();
-        pdu_id.push(0xff);
-        pdu_id.extend_from_slice(&count.to_be_bytes());
-
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.
         let statehashid = self.append_to_state(&pdu, &db.globals)?;
@@ -1496,7 +1529,7 @@ impl Rooms {
             db.sending.send_pdu(&server, &pdu_id)?;
         }
 
-        for appservice in db.appservice.iter_all()?.filter_map(|r| r.ok()) {
+        for appservice in db.appservice.all()? {
             if let Some(namespaces) = appservice.1.get("namespaces") {
                 let users = namespaces
                     .get("users")
@@ -1874,7 +1907,16 @@ impl Rooms {
             _ => {}
         }
 
+        self.update_joined_count(room_id)?;
+
         Ok(())
+    }
+
+    pub fn update_joined_count(&self, room_id: &RoomId) -> Result<()> {
+        self.roomid_joinedcount.insert(
+            room_id.as_bytes(),
+            &(self.room_members(&room_id).count() as u64).to_be_bytes(),
+        )
     }
 
     pub async fn leave_room(
@@ -1904,15 +1946,15 @@ impl Rooms {
                 db,
             )?;
         } else {
-            let mutex = Arc::clone(
+            let mutex_state = Arc::clone(
                 db.globals
-                    .roomid_mutex
+                    .roomid_mutex_state
                     .write()
                     .unwrap()
                     .entry(room_id.clone())
                     .or_default(),
             );
-            let mutex_lock = mutex.lock().await;
+            let state_lock = mutex_state.lock().await;
 
             let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
                 self.room_state_get(room_id, &EventType::RoomMember, &user_id.to_string())?
@@ -1941,7 +1983,7 @@ impl Rooms {
                 user_id,
                 room_id,
                 db,
-                &mutex_lock,
+                &state_lock,
             )?;
         }
 
@@ -2338,6 +2380,17 @@ impl Rooms {
         })
     }
 
+    pub fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
+        Ok(self
+            .roomid_joinedcount
+            .get(room_id.as_bytes())?
+            .map(|b| {
+                utils::u64_from_bytes(&b)
+                    .map_err(|_| Error::bad_database("Invalid joinedcount in db."))
+            })
+            .transpose()?)
+    }
+
     /// Returns an iterator over all User IDs who ever joined a room.
     #[tracing::instrument(skip(self))]
     pub fn room_useroncejoined<'a>(
@@ -2586,7 +2639,7 @@ impl Rooms {
     #[tracing::instrument(skip(self))]
     pub fn auth_chain_cache(
         &self,
-    ) -> std::sync::MutexGuard<'_, LruCache<EventId, HashSet<EventId>>> {
+    ) -> std::sync::MutexGuard<'_, LruCache<Vec<EventId>, HashSet<EventId>>> {
         self.auth_chain_cache.lock().unwrap()
     }
 }

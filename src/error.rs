@@ -30,12 +30,6 @@ pub enum Error {
         #[from]
         source: sled::Error,
     },
-    #[cfg(feature = "rocksdb")]
-    #[error("There was a problem with the connection to the rocksdb database: {source}")]
-    RocksDbError {
-        #[from]
-        source: rocksdb::Error,
-    },
     #[cfg(feature = "sqlite")]
     #[error("There was a problem with the connection to the sqlite database: {source}")]
     SqliteError {

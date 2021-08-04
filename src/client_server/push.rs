@@ -192,7 +192,7 @@ pub async fn set_pushrule_route(
         &db.globals,
     )?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_pushrule::Response {}.into())
 }
@@ -248,7 +248,7 @@ pub async fn get_pushrule_actions_route(
         _ => None,
     };
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(get_pushrule_actions::Response {
         actions: actions.unwrap_or_default(),
@@ -325,7 +325,7 @@ pub async fn set_pushrule_actions_route(
         &db.globals,
     )?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_pushrule_actions::Response {}.into())
 }
@@ -386,7 +386,7 @@ pub async fn get_pushrule_enabled_route(
         _ => false,
     };
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(get_pushrule_enabled::Response { enabled }.into())
 }
@@ -465,7 +465,7 @@ pub async fn set_pushrule_enabled_route(
         &db.globals,
     )?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_pushrule_enabled::Response {}.into())
 }
@@ -534,7 +534,7 @@ pub async fn delete_pushrule_route(
         &db.globals,
     )?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(delete_pushrule::Response {}.into())
 }
@@ -570,7 +570,7 @@ pub async fn set_pushers_route(
 
     db.pusher.set_pusher(sender_user, pusher)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_pusher::Response::default().into())
 }

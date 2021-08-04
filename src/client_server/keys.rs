@@ -64,7 +64,7 @@ pub async fn upload_keys_route(
         }
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(upload_keys::Response {
         one_time_key_counts: db.users.count_one_time_keys(sender_user, sender_device)?,
@@ -105,7 +105,7 @@ pub async fn claim_keys_route(
 ) -> ConduitResult<claim_keys::Response> {
     let response = claim_keys_helper(&body.one_time_keys, &db).await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(response.into())
 }
@@ -166,7 +166,7 @@ pub async fn upload_signing_keys_route(
         )?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(upload_signing_keys::Response {}.into())
 }
@@ -227,7 +227,7 @@ pub async fn upload_signatures_route(
         }
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(upload_signatures::Response {}.into())
 }

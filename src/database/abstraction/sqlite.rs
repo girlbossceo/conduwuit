@@ -1,138 +1,60 @@
 use super::{DatabaseEngine, Tree};
 use crate::{database::Config, Result};
-use crossbeam::channel::{
-    bounded, unbounded, Receiver as ChannelReceiver, Sender as ChannelSender, TryRecvError,
-};
 use parking_lot::{Mutex, MutexGuard, RwLock};
-use rusqlite::{params, Connection, DatabaseName::Main, OptionalExtension, Params};
+use rusqlite::{Connection, DatabaseName::Main, OptionalExtension};
 use std::{
+    cell::RefCell,
     collections::HashMap,
     future::Future,
-    ops::Deref,
     path::{Path, PathBuf},
     pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
 };
-use threadpool::ThreadPool;
 use tokio::sync::oneshot::Sender;
 use tracing::{debug, warn};
 
-struct Pool {
-    writer: Mutex<Connection>,
-    readers: Vec<Mutex<Connection>>,
-    spills: ConnectionRecycler,
-    spill_tracker: Arc<()>,
-    path: PathBuf,
-}
-
 pub const MILLI: Duration = Duration::from_millis(1);
 
-enum HoldingConn<'a> {
-    FromGuard(MutexGuard<'a, Connection>),
-    FromRecycled(RecycledConn, Arc<()>),
+thread_local! {
+    static READ_CONNECTION: RefCell<Option<&'static Connection>> = RefCell::new(None);
 }
 
-impl<'a> Deref for HoldingConn<'a> {
-    type Target = Connection;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            HoldingConn::FromGuard(guard) => guard.deref(),
-            HoldingConn::FromRecycled(conn, _) => conn.deref(),
-        }
-    }
+struct PreparedStatementIterator<'a> {
+    pub iterator: Box<dyn Iterator<Item = TupleOfBytes> + 'a>,
+    pub statement_ref: NonAliasingBox<rusqlite::Statement<'a>>,
 }
 
-struct ConnectionRecycler(ChannelSender<Connection>, ChannelReceiver<Connection>);
+impl Iterator for PreparedStatementIterator<'_> {
+    type Item = TupleOfBytes;
 
-impl ConnectionRecycler {
-    fn new() -> Self {
-        let (s, r) = unbounded();
-        Self(s, r)
-    }
-
-    fn recycle(&self, conn: Connection) -> RecycledConn {
-        let sender = self.0.clone();
-
-        RecycledConn(Some(conn), sender)
-    }
-
-    fn try_take(&self) -> Option<Connection> {
-        match self.1.try_recv() {
-            Ok(conn) => Some(conn),
-            Err(TryRecvError::Empty) => None,
-            // as this is pretty impossible, a panic is warranted if it ever occurs
-            Err(TryRecvError::Disconnected) => panic!("Receiving channel was disconnected. A a sender is owned by the current struct, this should never happen(!!!)")
-        }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.next()
     }
 }
 
-struct RecycledConn(
-    Option<Connection>, // To allow moving out of the struct when `Drop` is called.
-    ChannelSender<Connection>,
-);
-
-impl Deref for RecycledConn {
-    type Target = Connection;
-
-    fn deref(&self) -> &Self::Target {
-        self.0
-            .as_ref()
-            .expect("RecycledConn does not have a connection in Option<>")
-    }
-}
-
-impl Drop for RecycledConn {
+struct NonAliasingBox<T>(*mut T);
+impl<T> Drop for NonAliasingBox<T> {
     fn drop(&mut self) {
-        if let Some(conn) = self.0.take() {
-            debug!("Recycled connection");
-            if let Err(e) = self.1.send(conn) {
-                warn!("Recycling a connection led to the following error: {:?}", e)
-            }
-        }
+        unsafe { Box::from_raw(self.0) };
     }
 }
 
-impl Pool {
-    fn new<P: AsRef<Path>>(path: P, num_readers: usize, total_cache_size_mb: f64) -> Result<Self> {
-        // calculates cache-size per permanent connection
-        // 1. convert MB to KiB
-        // 2. divide by permanent connections
-        // 3. round down to nearest integer
-        let cache_size: u32 = ((total_cache_size_mb * 1024.0) / (num_readers + 1) as f64) as u32;
+pub struct Engine {
+    writer: Mutex<Connection>,
 
-        let writer = Mutex::new(Self::prepare_conn(&path, Some(cache_size))?);
+    path: PathBuf,
+    cache_size_per_thread: u32,
+}
 
-        let mut readers = Vec::new();
+impl Engine {
+    fn prepare_conn(path: &Path, cache_size_kb: u32) -> Result<Connection> {
+        let conn = Connection::open(&path)?;
 
-        for _ in 0..num_readers {
-            readers.push(Mutex::new(Self::prepare_conn(&path, Some(cache_size))?))
-        }
-
-        Ok(Self {
-            writer,
-            readers,
-            spills: ConnectionRecycler::new(),
-            spill_tracker: Arc::new(()),
-            path: path.as_ref().to_path_buf(),
-        })
-    }
-
-    fn prepare_conn<P: AsRef<Path>>(path: P, cache_size: Option<u32>) -> Result<Connection> {
-        let conn = Connection::open(path)?;
-
-        conn.pragma_update(Some(Main), "journal_mode", &"WAL".to_owned())?;
-
-        // conn.pragma_update(Some(Main), "wal_autocheckpoint", &250)?;
-
-        // conn.pragma_update(Some(Main), "wal_checkpoint", &"FULL".to_owned())?;
-
-        conn.pragma_update(Some(Main), "synchronous", &"OFF".to_owned())?;
-
-        if let Some(cache_kib) = cache_size {
-            conn.pragma_update(Some(Main), "cache_size", &(-Into::<i64>::into(cache_kib)))?;
-        }
+        conn.pragma_update(Some(Main), "page_size", &32768)?;
+        conn.pragma_update(Some(Main), "journal_mode", &"WAL")?;
+        conn.pragma_update(Some(Main), "synchronous", &"NORMAL")?;
+        conn.pragma_update(Some(Main), "cache_size", &(-i64::from(cache_size_kb)))?;
 
         Ok(conn)
     }
@@ -141,71 +63,52 @@ impl Pool {
         self.writer.lock()
     }
 
-    fn read_lock(&self) -> HoldingConn<'_> {
-        // First try to get a connection from the permanent pool
-        for r in &self.readers {
-            if let Some(reader) = r.try_lock() {
-                return HoldingConn::FromGuard(reader);
+    fn read_lock(&self) -> &'static Connection {
+        READ_CONNECTION.with(|cell| {
+            let connection = &mut cell.borrow_mut();
+
+            if (*connection).is_none() {
+                let c = Box::leak(Box::new(
+                    Self::prepare_conn(&self.path, self.cache_size_per_thread).unwrap(),
+                ));
+                **connection = Some(c);
             }
-        }
 
-        debug!("read_lock: All permanent readers locked, obtaining spillover reader...");
-
-        // We didn't get a connection from the permanent pool, so we'll dumpster-dive for recycled connections.
-        // Either we have a connection or we dont, if we don't, we make a new one.
-        let conn = match self.spills.try_take() {
-            Some(conn) => conn,
-            None => {
-                debug!("read_lock: No recycled connections left, creating new one...");
-                Self::prepare_conn(&self.path, None).unwrap()
-            }
-        };
-
-        // Clone the spill Arc to mark how many spilled connections actually exist.
-        let spill_arc = Arc::clone(&self.spill_tracker);
-
-        // Get a sense of how many connections exist now.
-        let now_count = Arc::strong_count(&spill_arc) - 1 /* because one is held by the pool */;
-
-        // If the spillover readers are more than the number of total readers, there might be a problem.
-        if now_count > self.readers.len() {
-            warn!(
-                "Database is under high load. Consider increasing sqlite_read_pool_size ({} spillover readers exist)",
-                now_count
-            );
-        }
-
-        // Return the recyclable connection.
-        HoldingConn::FromRecycled(self.spills.recycle(conn), spill_arc)
+            connection.unwrap()
+        })
     }
-}
 
-pub struct Engine {
-    pool: Pool,
-    iter_pool: Mutex<ThreadPool>,
+    pub fn flush_wal(self: &Arc<Self>) -> Result<()> {
+        self.write_lock()
+            .pragma_update(Some(Main), "wal_checkpoint", &"TRUNCATE")?;
+        Ok(())
+    }
 }
 
 impl DatabaseEngine for Engine {
     fn open(config: &Config) -> Result<Arc<Self>> {
-        let pool = Pool::new(
-            Path::new(&config.database_path).join("conduit.db"),
-            config.sqlite_read_pool_size,
-            config.db_cache_capacity_mb,
-        )?;
+        let path = Path::new(&config.database_path).join("conduit.db");
 
-        pool.write_lock()
-            .execute("CREATE TABLE IF NOT EXISTS _noop (\"key\" INT)", params![])?;
+        // calculates cache-size per permanent connection
+        // 1. convert MB to KiB
+        // 2. divide by permanent connections
+        // 3. round down to nearest integer
+        let cache_size_per_thread: u32 =
+            ((config.db_cache_capacity_mb * 1024.0) / (num_cpus::get().max(1) + 1) as f64) as u32;
+
+        let writer = Mutex::new(Self::prepare_conn(&path, cache_size_per_thread)?);
 
         let arc = Arc::new(Engine {
-            pool,
-            iter_pool: Mutex::new(ThreadPool::new(10)),
+            writer,
+            path,
+            cache_size_per_thread,
         });
 
         Ok(arc)
     }
 
     fn open_tree(self: &Arc<Self>, name: &str) -> Result<Arc<dyn Tree>> {
-        self.pool.write_lock().execute(format!("CREATE TABLE IF NOT EXISTS {} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )", name).as_str(), [])?;
+        self.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )", name), [])?;
 
         Ok(Arc::new(SqliteTable {
             engine: Arc::clone(self),
@@ -215,55 +118,8 @@ impl DatabaseEngine for Engine {
     }
 
     fn flush(self: &Arc<Self>) -> Result<()> {
-        self.pool
-            .write_lock()
-            .execute_batch(
-                "
-            PRAGMA synchronous=FULL;
-            BEGIN;
-                DELETE FROM _noop;
-                INSERT INTO _noop VALUES (1);
-            COMMIT;
-            PRAGMA synchronous=OFF;
-            ",
-            )
-            .map_err(Into::into)
-    }
-}
-
-impl Engine {
-    pub fn flush_wal(self: &Arc<Self>) -> Result<()> {
-        self.pool
-            .write_lock()
-            .execute_batch(
-                "
-            PRAGMA synchronous=FULL; PRAGMA wal_checkpoint=TRUNCATE;
-            BEGIN;
-                DELETE FROM _noop;
-                INSERT INTO _noop VALUES (1);
-            COMMIT;
-            PRAGMA wal_checkpoint=PASSIVE; PRAGMA synchronous=OFF;
-            ",
-            )
-            .map_err(Into::into)
-    }
-
-    // Reaps (at most) (.len() * `fraction`) (rounded down, min 1) connections.
-    pub fn reap_spillover_by_fraction(&self, fraction: f64) {
-        let mut reaped = 0;
-
-        let spill_amount = self.pool.spills.1.len() as f64;
-        let fraction = fraction.clamp(0.01, 1.0);
-
-        let amount = (spill_amount * fraction).max(1.0) as u32;
-
-        for _ in 0..amount {
-            if self.pool.spills.try_take().is_some() {
-                reaped += 1;
-            }
-        }
-
-        debug!("Reaped {} connections", reaped);
+        // we enabled PRAGMA synchronous=normal, so this should not be necessary
+        Ok(())
     }
 }
 
@@ -288,7 +144,7 @@ impl SqliteTable {
     fn insert_with_guard(&self, guard: &Connection, key: &[u8], value: &[u8]) -> Result<()> {
         guard.execute(
             format!(
-                "INSERT INTO {} (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                "INSERT OR REPLACE INTO {} (key, value) VALUES (?, ?)",
                 self.name
             )
             .as_str(),
@@ -296,70 +152,17 @@ impl SqliteTable {
         )?;
         Ok(())
     }
-
-    #[tracing::instrument(skip(self, sql, param))]
-    fn iter_from_thread(
-        &self,
-        sql: String,
-        param: Option<Vec<u8>>,
-    ) -> Box<dyn Iterator<Item = TupleOfBytes> + Send + Sync> {
-        let (s, r) = bounded::<TupleOfBytes>(5);
-
-        let engine = Arc::clone(&self.engine);
-
-        let lock = self.engine.iter_pool.lock();
-        if lock.active_count() < lock.max_count() {
-            lock.execute(move || {
-                if let Some(param) = param {
-                    iter_from_thread_work(&engine.pool.read_lock(), &s, &sql, [param]);
-                } else {
-                    iter_from_thread_work(&engine.pool.read_lock(), &s, &sql, []);
-                }
-            });
-        } else {
-            std::thread::spawn(move || {
-                if let Some(param) = param {
-                    iter_from_thread_work(&engine.pool.read_lock(), &s, &sql, [param]);
-                } else {
-                    iter_from_thread_work(&engine.pool.read_lock(), &s, &sql, []);
-                }
-            });
-        }
-
-        Box::new(r.into_iter())
-    }
-}
-
-fn iter_from_thread_work<P>(
-    guard: &HoldingConn<'_>,
-    s: &ChannelSender<(Vec<u8>, Vec<u8>)>,
-    sql: &str,
-    params: P,
-) where
-    P: Params,
-{
-    for bob in guard
-        .prepare(sql)
-        .unwrap()
-        .query_map(params, |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
-        .unwrap()
-        .map(|r| r.unwrap())
-    {
-        if s.send(bob).is_err() {
-            return;
-        }
-    }
 }
 
 impl Tree for SqliteTable {
     #[tracing::instrument(skip(self, key))]
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        self.get_with_guard(&self.engine.pool.read_lock(), key)
+        self.get_with_guard(&self.engine.read_lock(), key)
     }
 
     #[tracing::instrument(skip(self, key, value))]
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        let guard = self.engine.pool.write_lock();
+        let guard = self.engine.write_lock();
 
         let start = Instant::now();
 
@@ -367,7 +170,7 @@ impl Tree for SqliteTable {
 
         let elapsed = start.elapsed();
         if elapsed > MILLI {
-            debug!("insert:    took {:012?} : {}", elapsed, &self.name);
+            warn!("insert took {:?} : {}", elapsed, &self.name);
         }
 
         drop(guard);
@@ -397,9 +200,24 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, iter))]
+    fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
+        let guard = self.engine.write_lock();
+
+        guard.execute("BEGIN", [])?;
+        for (key, value) in iter {
+            self.insert_with_guard(&guard, &key, &value)?;
+        }
+        guard.execute("COMMIT", [])?;
+
+        drop(guard);
+
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self, key))]
     fn remove(&self, key: &[u8]) -> Result<()> {
-        let guard = self.engine.pool.write_lock();
+        let guard = self.engine.write_lock();
 
         let start = Instant::now();
 
@@ -419,9 +237,31 @@ impl Tree for SqliteTable {
     }
 
     #[tracing::instrument(skip(self))]
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = TupleOfBytes> + Send + 'a> {
-        let name = self.name.clone();
-        self.iter_from_thread(format!("SELECT key, value FROM {}", name), None)
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
+        let guard = self.engine.read_lock();
+
+        let statement = Box::leak(Box::new(
+            guard
+                .prepare(&format!(
+                    "SELECT key, value FROM {} ORDER BY key ASC",
+                    &self.name
+                ))
+                .unwrap(),
+        ));
+
+        let statement_ref = NonAliasingBox(statement);
+
+        let iterator = Box::new(
+            statement
+                .query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
+                .unwrap()
+                .map(|r| r.unwrap()),
+        );
+
+        Box::new(PreparedStatementIterator {
+            iterator,
+            statement_ref,
+        })
     }
 
     #[tracing::instrument(skip(self, from, backwards))]
@@ -429,31 +269,61 @@ impl Tree for SqliteTable {
         &'a self,
         from: &[u8],
         backwards: bool,
-    ) -> Box<dyn Iterator<Item = TupleOfBytes> + Send + 'a> {
-        let name = self.name.clone();
+    ) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
+        let guard = self.engine.read_lock();
         let from = from.to_vec(); // TODO change interface?
+
         if backwards {
-            self.iter_from_thread(
-                format!(
-                    "SELECT key, value FROM {} WHERE key <= ? ORDER BY key DESC",
-                    name
-                ),
-                Some(from),
-            )
+            let statement = Box::leak(Box::new(
+                guard
+                    .prepare(&format!(
+                        "SELECT key, value FROM {} WHERE key <= ? ORDER BY key DESC",
+                        &self.name
+                    ))
+                    .unwrap(),
+            ));
+
+            let statement_ref = NonAliasingBox(statement);
+
+            let iterator = Box::new(
+                statement
+                    .query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
+                    .unwrap()
+                    .map(|r| r.unwrap()),
+            );
+            Box::new(PreparedStatementIterator {
+                iterator,
+                statement_ref,
+            })
         } else {
-            self.iter_from_thread(
-                format!(
-                    "SELECT key, value FROM {} WHERE key >= ? ORDER BY key ASC",
-                    name
-                ),
-                Some(from),
-            )
+            let statement = Box::leak(Box::new(
+                guard
+                    .prepare(&format!(
+                        "SELECT key, value FROM {} WHERE key >= ? ORDER BY key ASC",
+                        &self.name
+                    ))
+                    .unwrap(),
+            ));
+
+            let statement_ref = NonAliasingBox(statement);
+
+            let iterator = Box::new(
+                statement
+                    .query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
+                    .unwrap()
+                    .map(|r| r.unwrap()),
+            );
+
+            Box::new(PreparedStatementIterator {
+                iterator,
+                statement_ref,
+            })
         }
     }
 
     #[tracing::instrument(skip(self, key))]
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
-        let guard = self.engine.pool.write_lock();
+        let guard = self.engine.write_lock();
 
         let start = Instant::now();
 
@@ -475,10 +345,7 @@ impl Tree for SqliteTable {
     }
 
     #[tracing::instrument(skip(self, prefix))]
-    fn scan_prefix<'a>(
-        &'a self,
-        prefix: Vec<u8>,
-    ) -> Box<dyn Iterator<Item = TupleOfBytes> + Send + 'a> {
+    fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
         // let name = self.name.clone();
         // self.iter_from_thread(
         //     format!(
@@ -513,25 +380,9 @@ impl Tree for SqliteTable {
     fn clear(&self) -> Result<()> {
         debug!("clear: running");
         self.engine
-            .pool
             .write_lock()
             .execute(format!("DELETE FROM {}", self.name).as_str(), [])?;
         debug!("clear: ran");
         Ok(())
     }
 }
-
-// TODO
-// struct Pool<const NUM_READERS: usize> {
-//     writer: Mutex<Connection>,
-//     readers: [Mutex<Connection>; NUM_READERS],
-// }
-
-// // then, to pick a reader:
-// for r in &pool.readers {
-//     if let Ok(reader) = r.try_lock() {
-//         // use reader
-//     }
-// }
-// // none unlocked, pick the next reader
-// pool.readers[pool.counter.fetch_add(1, Relaxed) % NUM_READERS].lock()

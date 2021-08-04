@@ -49,22 +49,23 @@ impl Appservice {
             )
     }
 
-    pub fn iter_ids(&self) -> Result<impl Iterator<Item = Result<String>> + Send + '_> {
+    pub fn iter_ids(&self) -> Result<impl Iterator<Item = Result<String>> + '_> {
         Ok(self.id_appserviceregistrations.iter().map(|(id, _)| {
             utils::string_from_bytes(&id)
                 .map_err(|_| Error::bad_database("Invalid id bytes in id_appserviceregistrations."))
         }))
     }
 
-    pub fn iter_all(
-        &self,
-    ) -> Result<impl Iterator<Item = Result<(String, serde_yaml::Value)>> + '_ + Send> {
-        Ok(self.iter_ids()?.filter_map(|id| id.ok()).map(move |id| {
-            Ok((
-                id.clone(),
-                self.get_registration(&id)?
-                    .expect("iter_ids only returns appservices that exist"),
-            ))
-        }))
+    pub fn all(&self) -> Result<Vec<(String, serde_yaml::Value)>> {
+        self.iter_ids()?
+            .filter_map(|id| id.ok())
+            .map(move |id| {
+                Ok((
+                    id.clone(),
+                    self.get_registration(&id)?
+                        .expect("iter_ids only returns appservices that exist"),
+                ))
+            })
+            .collect()
     }
 }

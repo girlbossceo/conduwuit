@@ -422,7 +422,7 @@ impl RoomEdus {
     }
 
     /// Sets all users to offline who have been quiet for too long.
-    pub fn presence_maintain(
+    fn presence_maintain(
         &self,
         rooms: &super::Rooms,
         globals: &super::super::globals::Globals,
@@ -497,7 +497,7 @@ impl RoomEdus {
         rooms: &super::Rooms,
         globals: &super::super::globals::Globals,
     ) -> Result<HashMap<UserId, PresenceEvent>> {
-        self.presence_maintain(rooms, globals)?;
+        //self.presence_maintain(rooms, globals)?;
 
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);

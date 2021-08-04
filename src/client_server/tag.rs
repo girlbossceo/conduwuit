@@ -40,7 +40,7 @@ pub async fn update_tag_route(
         &db.globals,
     )?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(create_tag::Response {}.into())
 }
@@ -74,7 +74,7 @@ pub async fn delete_tag_route(
         &db.globals,
     )?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(delete_tag::Response {}.into())
 }

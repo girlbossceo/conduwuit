@@ -43,7 +43,7 @@ pub async fn send_state_event_for_key_route(
     )
     .await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(send_state_event::Response { event_id }.into())
 }
@@ -69,7 +69,7 @@ pub async fn send_state_event_for_empty_key_route(
     )
     .await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(send_state_event::Response { event_id }.into())
 }
@@ -259,15 +259,15 @@ pub async fn send_state_event_for_key_helper(
         }
     }
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -280,7 +280,7 @@ pub async fn send_state_event_for_key_helper(
         &sender_user,
         &room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
     Ok(event_id)

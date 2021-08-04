@@ -74,7 +74,7 @@ pub async fn join_room_by_id_route(
     )
     .await;
 
-    db.flush().await?;
+    db.flush()?;
 
     ret
 }
@@ -125,7 +125,7 @@ pub async fn join_room_by_id_or_alias_route(
     )
     .await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(join_room_by_id_or_alias::Response {
         room_id: join_room_response.0.room_id,
@@ -146,7 +146,7 @@ pub async fn leave_room_route(
 
     db.rooms.leave_room(sender_user, &body.room_id, &db).await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(leave_room::Response::new().into())
 }
@@ -164,7 +164,7 @@ pub async fn invite_user_route(
 
     if let invite_user::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
         invite_helper(sender_user, user_id, &body.room_id, &db, false).await?;
-        db.flush().await?;
+        db.flush()?;
         Ok(invite_user::Response {}.into())
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "User not found."))
@@ -203,15 +203,15 @@ pub async fn kick_user_route(
     event.membership = ruma::events::room::member::MembershipState::Leave;
     // TODO: reason
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(body.room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -224,12 +224,12 @@ pub async fn kick_user_route(
         &sender_user,
         &body.room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
-    drop(mutex_lock);
+    drop(state_lock);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(kick_user::Response::new().into())
 }
@@ -275,15 +275,15 @@ pub async fn ban_user_route(
             },
         )?;
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(body.room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -296,12 +296,12 @@ pub async fn ban_user_route(
         &sender_user,
         &body.room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
-    drop(mutex_lock);
+    drop(state_lock);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(ban_user::Response::new().into())
 }
@@ -337,15 +337,15 @@ pub async fn unban_user_route(
 
     event.membership = ruma::events::room::member::MembershipState::Leave;
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(body.room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -358,12 +358,12 @@ pub async fn unban_user_route(
         &sender_user,
         &body.room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
-    drop(mutex_lock);
+    drop(state_lock);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(unban_user::Response::new().into())
 }
@@ -381,7 +381,7 @@ pub async fn forget_room_route(
 
     db.rooms.forget(&body.room_id, &sender_user)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(forget_room::Response::new().into())
 }
@@ -486,15 +486,15 @@ async fn join_room_by_id_helper(
 ) -> ConduitResult<join_room_by_id::Response> {
     let sender_user = sender_user.expect("user is authenticated");
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     // Ask a remote server if we don't have this room
     if !db.rooms.exists(&room_id)? && room_id.server_name() != db.globals.server_name() {
@@ -706,13 +706,13 @@ async fn join_room_by_id_helper(
             &sender_user,
             &room_id,
             &db,
-            &mutex_lock,
+            &state_lock,
         )?;
     }
 
-    drop(mutex_lock);
+    drop(state_lock);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(join_room_by_id::Response::new(room_id.clone()).into())
 }
@@ -788,155 +788,165 @@ pub async fn invite_helper<'a>(
     db: &Database,
     is_direct: bool,
 ) -> Result<()> {
-    let mutex = Arc::clone(
-        db.globals
-            .roomid_mutex
-            .write()
-            .unwrap()
-            .entry(room_id.clone())
-            .or_default(),
-    );
-    let mutex_lock = mutex.lock().await;
-
     if user_id.server_name() != db.globals.server_name() {
-        let prev_events = db
-            .rooms
-            .get_pdu_leaves(room_id)?
-            .into_iter()
-            .take(20)
-            .collect::<Vec<_>>();
-
-        let create_event = db
-            .rooms
-            .room_state_get(room_id, &EventType::RoomCreate, "")?;
-
-        let create_event_content = create_event
-            .as_ref()
-            .map(|create_event| {
-                serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                    .expect("Raw::from_value always works.")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))
-            })
-            .transpose()?;
-
-        let create_prev_event = if prev_events.len() == 1
-            && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
-        {
-            create_event
-        } else {
-            None
-        };
-
-        // If there was no create event yet, assume we are creating a version 6 room right now
-        let room_version_id = create_event_content
-            .map_or(RoomVersionId::Version6, |create_event| {
-                create_event.room_version
-            });
-        let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
-
-        let content = serde_json::to_value(MemberEventContent {
-            avatar_url: None,
-            displayname: None,
-            is_direct: Some(is_direct),
-            membership: MembershipState::Invite,
-            third_party_invite: None,
-            blurhash: None,
-        })
-        .expect("member event is valid value");
-
-        let state_key = user_id.to_string();
-        let kind = EventType::RoomMember;
-
-        let auth_events =
-            db.rooms
-                .get_auth_events(room_id, &kind, &sender_user, Some(&state_key), &content)?;
-
-        // Our depth is the maximum depth of prev_events + 1
-        let depth = prev_events
-            .iter()
-            .filter_map(|event_id| Some(db.rooms.get_pdu(event_id).ok()??.depth))
-            .max()
-            .unwrap_or_else(|| uint!(0))
-            + uint!(1);
-
-        let mut unsigned = BTreeMap::new();
-
-        if let Some(prev_pdu) = db.rooms.room_state_get(room_id, &kind, &state_key)? {
-            unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
-            unsigned.insert(
-                "prev_sender".to_owned(),
-                serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
+        let (room_version_id, pdu_json, invite_room_state) = {
+            let mutex_state = Arc::clone(
+                db.globals
+                    .roomid_mutex_state
+                    .write()
+                    .unwrap()
+                    .entry(room_id.clone())
+                    .or_default(),
             );
-        }
+            let state_lock = mutex_state.lock().await;
 
-        let pdu = PduEvent {
-            event_id: ruma::event_id!("$thiswillbefilledinlater"),
-            room_id: room_id.clone(),
-            sender: sender_user.clone(),
-            origin_server_ts: utils::millis_since_unix_epoch()
-                .try_into()
-                .expect("time is valid"),
-            kind,
-            content,
-            state_key: Some(state_key),
-            prev_events,
-            depth,
-            auth_events: auth_events
+            let prev_events = db
+                .rooms
+                .get_pdu_leaves(room_id)?
+                .into_iter()
+                .take(20)
+                .collect::<Vec<_>>();
+
+            let create_event = db
+                .rooms
+                .room_state_get(room_id, &EventType::RoomCreate, "")?;
+
+            let create_event_content = create_event
+                .as_ref()
+                .map(|create_event| {
+                    serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
+                        .expect("Raw::from_value always works.")
+                        .deserialize()
+                        .map_err(|_| Error::bad_database("Invalid PowerLevels event in db."))
+                })
+                .transpose()?;
+
+            let create_prev_event = if prev_events.len() == 1
+                && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
+            {
+                create_event
+            } else {
+                None
+            };
+
+            // If there was no create event yet, assume we are creating a version 6 room right now
+            let room_version_id = create_event_content
+                .map_or(RoomVersionId::Version6, |create_event| {
+                    create_event.room_version
+                });
+            let room_version =
+                RoomVersion::new(&room_version_id).expect("room version is supported");
+
+            let content = serde_json::to_value(MemberEventContent {
+                avatar_url: None,
+                displayname: None,
+                is_direct: Some(is_direct),
+                membership: MembershipState::Invite,
+                third_party_invite: None,
+                blurhash: None,
+            })
+            .expect("member event is valid value");
+
+            let state_key = user_id.to_string();
+            let kind = EventType::RoomMember;
+
+            let auth_events = db.rooms.get_auth_events(
+                room_id,
+                &kind,
+                &sender_user,
+                Some(&state_key),
+                &content,
+            )?;
+
+            // Our depth is the maximum depth of prev_events + 1
+            let depth = prev_events
                 .iter()
-                .map(|(_, pdu)| pdu.event_id.clone())
-                .collect(),
-            redacts: None,
-            unsigned,
-            hashes: ruma::events::pdu::EventHash {
-                sha256: "aaa".to_owned(),
-            },
-            signatures: BTreeMap::new(),
+                .filter_map(|event_id| Some(db.rooms.get_pdu(event_id).ok()??.depth))
+                .max()
+                .unwrap_or_else(|| uint!(0))
+                + uint!(1);
+
+            let mut unsigned = BTreeMap::new();
+
+            if let Some(prev_pdu) = db.rooms.room_state_get(room_id, &kind, &state_key)? {
+                unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
+                unsigned.insert(
+                    "prev_sender".to_owned(),
+                    serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
+                );
+            }
+
+            let pdu = PduEvent {
+                event_id: ruma::event_id!("$thiswillbefilledinlater"),
+                room_id: room_id.clone(),
+                sender: sender_user.clone(),
+                origin_server_ts: utils::millis_since_unix_epoch()
+                    .try_into()
+                    .expect("time is valid"),
+                kind,
+                content,
+                state_key: Some(state_key),
+                prev_events,
+                depth,
+                auth_events: auth_events
+                    .iter()
+                    .map(|(_, pdu)| pdu.event_id.clone())
+                    .collect(),
+                redacts: None,
+                unsigned,
+                hashes: ruma::events::pdu::EventHash {
+                    sha256: "aaa".to_owned(),
+                },
+                signatures: BTreeMap::new(),
+            };
+
+            let auth_check = state_res::auth_check(
+                &room_version,
+                &Arc::new(pdu.clone()),
+                create_prev_event,
+                &auth_events,
+                None, // TODO: third_party_invite
+            )
+            .map_err(|e| {
+                error!("{:?}", e);
+                Error::bad_database("Auth check failed.")
+            })?;
+
+            if !auth_check {
+                return Err(Error::BadRequest(
+                    ErrorKind::Forbidden,
+                    "Event is not authorized.",
+                ));
+            }
+
+            // Hash and sign
+            let mut pdu_json =
+                utils::to_canonical_object(&pdu).expect("event is valid, we just created it");
+
+            pdu_json.remove("event_id");
+
+            // Add origin because synapse likes that (and it's required in the spec)
+            pdu_json.insert(
+                "origin".to_owned(),
+                to_canonical_value(db.globals.server_name())
+                    .expect("server name is a valid CanonicalJsonValue"),
+            );
+
+            ruma::signatures::hash_and_sign_event(
+                db.globals.server_name().as_str(),
+                db.globals.keypair(),
+                &mut pdu_json,
+                &room_version_id,
+            )
+            .expect("event is valid, we just created it");
+
+            let invite_room_state = db.rooms.calculate_invite_state(&pdu)?;
+
+            drop(state_lock);
+
+            (room_version_id, pdu_json, invite_room_state)
         };
 
-        let auth_check = state_res::auth_check(
-            &room_version,
-            &Arc::new(pdu.clone()),
-            create_prev_event,
-            &auth_events,
-            None, // TODO: third_party_invite
-        )
-        .map_err(|e| {
-            error!("{:?}", e);
-            Error::bad_database("Auth check failed.")
-        })?;
-
-        if !auth_check {
-            return Err(Error::BadRequest(
-                ErrorKind::Forbidden,
-                "Event is not authorized.",
-            ));
-        }
-
-        // Hash and sign
-        let mut pdu_json =
-            utils::to_canonical_object(&pdu).expect("event is valid, we just created it");
-
-        pdu_json.remove("event_id");
-
-        // Add origin because synapse likes that (and it's required in the spec)
-        pdu_json.insert(
-            "origin".to_owned(),
-            to_canonical_value(db.globals.server_name())
-                .expect("server name is a valid CanonicalJsonValue"),
-        );
-
-        ruma::signatures::hash_and_sign_event(
-            db.globals.server_name().as_str(),
-            db.globals.keypair(),
-            &mut pdu_json,
-            &room_version_id,
-        )
-        .expect("event is valid, we just created it");
-
-        drop(mutex_lock);
-
-        let invite_room_state = db.rooms.calculate_invite_state(&pdu)?;
         let response = db
             .sending
             .send_federation_request(
@@ -1008,6 +1018,16 @@ pub async fn invite_helper<'a>(
         return Ok(());
     }
 
+    let mutex_state = Arc::clone(
+        db.globals
+            .roomid_mutex_state
+            .write()
+            .unwrap()
+            .entry(room_id.clone())
+            .or_default(),
+    );
+    let state_lock = mutex_state.lock().await;
+
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
@@ -1027,8 +1047,10 @@ pub async fn invite_helper<'a>(
         &sender_user,
         room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
+
+    drop(state_lock);
 
     Ok(())
 }

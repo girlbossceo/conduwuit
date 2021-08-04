@@ -143,7 +143,7 @@ pub async fn login_route(
 
     info!("{} logged in", user_id);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(login::Response {
         user_id,
@@ -175,7 +175,7 @@ pub async fn logout_route(
 
     db.users.remove_device(&sender_user, sender_device)?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(logout::Response::new().into())
 }
@@ -204,7 +204,7 @@ pub async fn logout_all_route(
         db.users.remove_device(&sender_user, &device_id)?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(logout_all::Response::new().into())
 }

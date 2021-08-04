@@ -24,10 +24,11 @@ use rocket::{
     request::{FromRequest, Request},
     Shutdown, State,
 };
-use ruma::{DeviceId, ServerName, UserId};
+use ruma::{DeviceId, RoomId, ServerName, UserId};
 use serde::{de::IgnoredAny, Deserialize};
 use std::{
     collections::{BTreeMap, HashMap},
+    convert::TryFrom,
     fs::{self, remove_dir_all},
     io::Write,
     ops::Deref,
@@ -45,18 +46,8 @@ pub struct Config {
     database_path: String,
     #[serde(default = "default_db_cache_capacity_mb")]
     db_cache_capacity_mb: f64,
-    #[serde(default = "default_sqlite_read_pool_size")]
-    sqlite_read_pool_size: usize,
-    #[serde(default = "true_fn")]
-    sqlite_wal_clean_timer: bool,
     #[serde(default = "default_sqlite_wal_clean_second_interval")]
     sqlite_wal_clean_second_interval: u32,
-    #[serde(default = "default_sqlite_wal_clean_second_timeout")]
-    sqlite_wal_clean_second_timeout: u32,
-    #[serde(default = "default_sqlite_spillover_reap_fraction")]
-    sqlite_spillover_reap_fraction: f64,
-    #[serde(default = "default_sqlite_spillover_reap_interval_secs")]
-    sqlite_spillover_reap_interval_secs: u32,
     #[serde(default = "default_max_request_size")]
     max_request_size: u32,
     #[serde(default = "default_max_concurrent_requests")]
@@ -115,24 +106,8 @@ fn default_db_cache_capacity_mb() -> f64 {
     200.0
 }
 
-fn default_sqlite_read_pool_size() -> usize {
-    num_cpus::get().max(1)
-}
-
 fn default_sqlite_wal_clean_second_interval() -> u32 {
-    60 * 60
-}
-
-fn default_sqlite_wal_clean_second_timeout() -> u32 {
-    2
-}
-
-fn default_sqlite_spillover_reap_fraction() -> f64 {
-    0.5
-}
-
-fn default_sqlite_spillover_reap_interval_secs() -> u32 {
-    60
+    15 * 60 // every 15 minutes
 }
 
 fn default_max_request_size() -> u32 {
@@ -149,9 +124,6 @@ fn default_log() -> String {
 
 #[cfg(feature = "sled")]
 pub type Engine = abstraction::sled::Engine;
-
-#[cfg(feature = "rocksdb")]
-pub type Engine = abstraction::rocksdb::Engine;
 
 #[cfg(feature = "sqlite")]
 pub type Engine = abstraction::sqlite::Engine;
@@ -278,6 +250,7 @@ impl Database {
                 serverroomids: builder.open_tree("serverroomids")?,
                 userroomid_joined: builder.open_tree("userroomid_joined")?,
                 roomuserid_joined: builder.open_tree("roomuserid_joined")?,
+                roomid_joinedcount: builder.open_tree("roomid_joinedcount")?,
                 roomuseroncejoinedids: builder.open_tree("roomuseroncejoinedids")?,
                 userroomid_invitestate: builder.open_tree("userroomid_invitestate")?,
                 roomuserid_invitecount: builder.open_tree("roomuserid_invitecount")?,
@@ -297,8 +270,8 @@ impl Database {
 
                 eventid_outlierpdu: builder.open_tree("eventid_outlierpdu")?,
                 referencedevents: builder.open_tree("referencedevents")?,
-                pdu_cache: Mutex::new(LruCache::new(100_000)),
-                auth_chain_cache: Mutex::new(LruCache::new(100_000)),
+                pdu_cache: Mutex::new(LruCache::new(0)),
+                auth_chain_cache: Mutex::new(LruCache::new(0)),
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
@@ -449,6 +422,21 @@ impl Database {
 
                 println!("Migration: 4 -> 5 finished");
             }
+
+            if db.globals.database_version()? < 6 {
+                // TODO update to 6
+                // Set room member count
+                for (roomid, _) in db.rooms.roomid_shortstatehash.iter() {
+                    let room_id =
+                        RoomId::try_from(utils::string_from_bytes(&roomid).unwrap()).unwrap();
+
+                    db.rooms.update_joined_count(&room_id)?;
+                }
+
+                db.globals.bump_database_version(6)?;
+
+                println!("Migration: 5 -> 6 finished");
+            }
         }
 
         let guard = db.read().await;
@@ -465,8 +453,7 @@ impl Database {
 
         #[cfg(feature = "sqlite")]
         {
-            Self::start_wal_clean_task(&db, &config).await;
-            Self::start_spillover_reap_task(builder, &config).await;
+            Self::start_wal_clean_task(Arc::clone(&db), &config).await;
         }
 
         Ok(db)
@@ -511,6 +498,16 @@ impl Database {
                 .watch_prefix(&userid_prefix),
         );
         futures.push(self.rooms.userroomid_leftstate.watch_prefix(&userid_prefix));
+        futures.push(
+            self.rooms
+                .userroomid_notificationcount
+                .watch_prefix(&userid_prefix),
+        );
+        futures.push(
+            self.rooms
+                .userroomid_highlightcount
+                .watch_prefix(&userid_prefix),
+        );
 
         // Events for rooms we are in
         for room_id in self.rooms.rooms_joined(user_id).filter_map(|r| r.ok()) {
@@ -576,7 +573,7 @@ impl Database {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn flush(&self) -> Result<()> {
+    pub fn flush(&self) -> Result<()> {
         let start = std::time::Instant::now();
 
         let res = self._db.flush();
@@ -593,51 +590,17 @@ impl Database {
     }
 
     #[cfg(feature = "sqlite")]
-    #[tracing::instrument(skip(engine, config))]
-    pub async fn start_spillover_reap_task(engine: Arc<Engine>, config: &Config) {
-        let fraction = config.sqlite_spillover_reap_fraction.clamp(0.01, 1.0);
-        let interval_secs = config.sqlite_spillover_reap_interval_secs as u64;
-
-        let weak = Arc::downgrade(&engine);
-
-        tokio::spawn(async move {
-            use tokio::time::interval;
-
-            use std::{sync::Weak, time::Duration};
-
-            let mut i = interval(Duration::from_secs(interval_secs));
-
-            loop {
-                i.tick().await;
-
-                if let Some(arc) = Weak::upgrade(&weak) {
-                    arc.reap_spillover_by_fraction(fraction);
-                } else {
-                    break;
-                }
-            }
-        });
-    }
-
-    #[cfg(feature = "sqlite")]
-    #[tracing::instrument(skip(lock, config))]
-    pub async fn start_wal_clean_task(lock: &Arc<TokioRwLock<Self>>, config: &Config) {
-        use tokio::time::{interval, timeout};
+    #[tracing::instrument(skip(db, config))]
+    pub async fn start_wal_clean_task(db: Arc<TokioRwLock<Self>>, config: &Config) {
+        use tokio::time::interval;
 
         #[cfg(unix)]
         use tokio::signal::unix::{signal, SignalKind};
         use tracing::info;
 
-        use std::{
-            sync::Weak,
-            time::{Duration, Instant},
-        };
+        use std::time::{Duration, Instant};
 
-        let weak: Weak<TokioRwLock<Database>> = Arc::downgrade(&lock);
-
-        let lock_timeout = Duration::from_secs(config.sqlite_wal_clean_second_timeout as u64);
         let timer_interval = Duration::from_secs(config.sqlite_wal_clean_second_interval as u64);
-        let do_timer = config.sqlite_wal_clean_timer;
 
         tokio::spawn(async move {
             let mut i = interval(timer_interval);
@@ -647,45 +610,24 @@ impl Database {
             loop {
                 #[cfg(unix)]
                 tokio::select! {
-                    _ = i.tick(), if do_timer => {
-                        info!(target: "wal-trunc", "Timer ticked")
+                    _ = i.tick() => {
+                        info!("wal-trunc: Timer ticked");
                     }
                     _ = s.recv() => {
-                        info!(target: "wal-trunc", "Received SIGHUP")
+                        info!("wal-trunc: Received SIGHUP");
                     }
                 };
                 #[cfg(not(unix))]
-                if do_timer {
+                {
                     i.tick().await;
-                    info!(target: "wal-trunc", "Timer ticked")
-                } else {
-                    // timer disabled, and there's no concept of signals on windows, bailing...
-                    return;
+                    info!("wal-trunc: Timer ticked")
                 }
-                if let Some(arc) = Weak::upgrade(&weak) {
-                    info!(target: "wal-trunc", "Rotating sync helpers...");
-                    // This actually creates a very small race condition between firing this and trying to acquire the subsequent write lock.
-                    // Though it is not a huge deal if the write lock doesn't "catch", as it'll harmlessly time out.
-                    arc.read().await.globals.rotate.fire();
 
-                    info!(target: "wal-trunc", "Locking...");
-                    let guard = {
-                        if let Ok(guard) = timeout(lock_timeout, arc.write()).await {
-                            guard
-                        } else {
-                            info!(target: "wal-trunc", "Lock failed in timeout, canceled.");
-                            continue;
-                        }
-                    };
-                    info!(target: "wal-trunc", "Locked, flushing...");
-                    let start = Instant::now();
-                    if let Err(e) = guard.flush_wal() {
-                        error!(target: "wal-trunc", "Errored: {}", e);
-                    } else {
-                        info!(target: "wal-trunc", "Flushed in {:?}", start.elapsed());
-                    }
+                let start = Instant::now();
+                if let Err(e) = db.read().await.flush_wal() {
+                    error!("wal-trunc: Errored: {}", e);
                 } else {
-                    break;
+                    info!("wal-trunc: Flushed in {:?}", start.elapsed());
                 }
             }
         });

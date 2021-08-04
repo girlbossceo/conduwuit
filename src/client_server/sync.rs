@@ -186,20 +186,22 @@ async fn sync_helper(
             .filter_map(|r| r.ok()),
     );
 
-    for room_id in db.rooms.rooms_joined(&sender_user) {
+    let all_joined_rooms = db.rooms.rooms_joined(&sender_user).collect::<Vec<_>>();
+    for room_id in all_joined_rooms {
         let room_id = room_id?;
 
         // Get and drop the lock to wait for remaining operations to finish
-        let mutex = Arc::clone(
+        // This will make sure the we have all events until next_batch
+        let mutex_insert = Arc::clone(
             db.globals
-                .roomid_mutex
+                .roomid_mutex_insert
                 .write()
                 .unwrap()
                 .entry(room_id.clone())
                 .or_default(),
         );
-        let mutex_lock = mutex.lock().await;
-        drop(mutex_lock);
+        let insert_lock = mutex_insert.lock().unwrap();
+        drop(insert_lock);
 
         let mut non_timeline_pdus = db
             .rooms
@@ -658,20 +660,21 @@ async fn sync_helper(
     }
 
     let mut left_rooms = BTreeMap::new();
-    for result in db.rooms.rooms_left(&sender_user) {
+    let all_left_rooms = db.rooms.rooms_left(&sender_user).collect::<Vec<_>>();
+    for result in all_left_rooms {
         let (room_id, left_state_events) = result?;
 
         // Get and drop the lock to wait for remaining operations to finish
-        let mutex = Arc::clone(
+        let mutex_insert = Arc::clone(
             db.globals
-                .roomid_mutex
+                .roomid_mutex_insert
                 .write()
                 .unwrap()
                 .entry(room_id.clone())
                 .or_default(),
         );
-        let mutex_lock = mutex.lock().await;
-        drop(mutex_lock);
+        let insert_lock = mutex_insert.lock().unwrap();
+        drop(insert_lock);
 
         let left_count = db.rooms.get_left_count(&room_id, &sender_user)?;
 
@@ -697,20 +700,21 @@ async fn sync_helper(
     }
 
     let mut invited_rooms = BTreeMap::new();
-    for result in db.rooms.rooms_invited(&sender_user) {
+    let all_invited_rooms = db.rooms.rooms_invited(&sender_user).collect::<Vec<_>>();
+    for result in all_invited_rooms {
         let (room_id, invite_state_events) = result?;
 
         // Get and drop the lock to wait for remaining operations to finish
-        let mutex = Arc::clone(
+        let mutex_insert = Arc::clone(
             db.globals
-                .roomid_mutex
+                .roomid_mutex_insert
                 .write()
                 .unwrap()
                 .entry(room_id.clone())
                 .or_default(),
         );
-        let mutex_lock = mutex.lock().await;
-        drop(mutex_lock);
+        let insert_lock = mutex_insert.lock().unwrap();
+        drop(insert_lock);
 
         let invite_count = db.rooms.get_invite_count(&room_id, &sender_user)?;
 

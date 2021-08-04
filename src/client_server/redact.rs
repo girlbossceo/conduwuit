@@ -20,15 +20,15 @@ pub async fn redact_event_route(
 ) -> ConduitResult<redact_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let mutex = Arc::clone(
+    let mutex_state = Arc::clone(
         db.globals
-            .roomid_mutex
+            .roomid_mutex_state
             .write()
             .unwrap()
             .entry(body.room_id.clone())
             .or_default(),
     );
-    let mutex_lock = mutex.lock().await;
+    let state_lock = mutex_state.lock().await;
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
@@ -44,12 +44,12 @@ pub async fn redact_event_route(
         &sender_user,
         &body.room_id,
         &db,
-        &mutex_lock,
+        &state_lock,
     )?;
 
-    drop(mutex_lock);
+    drop(state_lock);
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(redact_event::Response { event_id }.into())
 }

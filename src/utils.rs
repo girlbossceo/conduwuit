@@ -17,15 +17,6 @@ pub fn millis_since_unix_epoch() -> u64 {
         .as_millis() as u64
 }
 
-#[cfg(feature = "rocksdb")]
-pub fn increment_rocksdb(
-    _new_key: &[u8],
-    old: Option<&[u8]>,
-    _operands: &mut rocksdb::MergeOperands,
-) -> Option<Vec<u8>> {
-    increment(old)
-}
-
 pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
     let number = match old.map(|bytes| bytes.try_into()) {
         Some(Ok(bytes)) => {

@@ -32,9 +32,10 @@ pub async fn set_displayname_route(
         .set_displayname(&sender_user, body.displayname.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
-    for (pdu_builder, room_id) in db
-        .rooms
-        .rooms_joined(&sender_user)
+    let all_rooms_joined = db.rooms.rooms_joined(&sender_user).collect::<Vec<_>>();
+
+    for (pdu_builder, room_id) in all_rooms_joined
+        .into_iter()
         .filter_map(|r| r.ok())
         .map(|room_id| {
             Ok::<_, Error>((
@@ -72,19 +73,19 @@ pub async fn set_displayname_route(
         })
         .filter_map(|r| r.ok())
     {
-        let mutex = Arc::clone(
+        let mutex_state = Arc::clone(
             db.globals
-                .roomid_mutex
+                .roomid_mutex_state
                 .write()
                 .unwrap()
                 .entry(room_id.clone())
                 .or_default(),
         );
-        let mutex_lock = mutex.lock().await;
+        let state_lock = mutex_state.lock().await;
 
         let _ =
             db.rooms
-                .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db, &mutex_lock);
+                .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db, &state_lock);
 
         // Presence update
         db.rooms.edus.update_presence(
@@ -109,7 +110,7 @@ pub async fn set_displayname_route(
         )?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_display_name::Response {}.into())
 }
@@ -165,9 +166,10 @@ pub async fn set_avatar_url_route(
     db.users.set_blurhash(&sender_user, body.blurhash.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
-    for (pdu_builder, room_id) in db
-        .rooms
-        .rooms_joined(&sender_user)
+    let all_joined_rooms = db.rooms.rooms_joined(&sender_user).collect::<Vec<_>>();
+
+    for (pdu_builder, room_id) in all_joined_rooms
+        .into_iter()
         .filter_map(|r| r.ok())
         .map(|room_id| {
             Ok::<_, Error>((
@@ -205,19 +207,19 @@ pub async fn set_avatar_url_route(
         })
         .filter_map(|r| r.ok())
     {
-        let mutex = Arc::clone(
+        let mutex_state = Arc::clone(
             db.globals
-                .roomid_mutex
+                .roomid_mutex_state
                 .write()
                 .unwrap()
                 .entry(room_id.clone())
                 .or_default(),
         );
-        let mutex_lock = mutex.lock().await;
+        let state_lock = mutex_state.lock().await;
 
         let _ =
             db.rooms
-                .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db, &mutex_lock);
+                .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db, &state_lock);
 
         // Presence update
         db.rooms.edus.update_presence(
@@ -242,7 +244,7 @@ pub async fn set_avatar_url_route(
         )?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(set_avatar_url::Response {}.into())
 }

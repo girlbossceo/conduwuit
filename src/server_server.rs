@@ -806,7 +806,7 @@ pub async fn send_transaction_message_route(
         }
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(send_transaction_message::v1::Response { pdus: resolved_map }.into())
 }
@@ -1159,15 +1159,15 @@ pub fn handle_incoming_pdu<'a>(
 
         // We start looking at current room state now, so lets lock the room
 
-        let mutex = Arc::clone(
+        let mutex_state = Arc::clone(
             db.globals
-                .roomid_mutex
+                .roomid_mutex_state
                 .write()
                 .unwrap()
                 .entry(room_id.clone())
                 .or_default(),
         );
-        let mutex_lock = mutex.lock().await;
+        let state_lock = mutex_state.lock().await;
 
         // Now we calculate the set of extremities this room has after the incoming event has been
         // applied. We start with the previous extremities (aka leaves)
@@ -1267,10 +1267,10 @@ pub fn handle_incoming_pdu<'a>(
         // 14. Use state resolution to find new room state
         let new_room_state = if fork_states.is_empty() {
             return Err("State is empty.".to_owned());
-        } else if fork_states.len() == 1 {
+        } else if fork_states.iter().skip(1).all(|f| &fork_states[0] == f) {
             // There was only one state, so it has to be the room's current state (because that is
             // always included)
-            debug!("Skipping stateres because there is no new state.");
+            warn!("Skipping stateres because there is no new state.");
             fork_states[0]
                 .iter()
                 .map(|(k, pdu)| (k.clone(), pdu.event_id.clone()))
@@ -1341,9 +1341,8 @@ pub fn handle_incoming_pdu<'a>(
                     val,
                     extremities,
                     &state_at_incoming_event,
-                    &mutex_lock,
+                    &state_lock,
                 )
-                .await
                 .map_err(|_| "Failed to add pdu to db.".to_owned())?,
             );
             debug!("Appended incoming pdu.");
@@ -1365,7 +1364,7 @@ pub fn handle_incoming_pdu<'a>(
         }
 
         // Event has passed all auth/stateres checks
-        drop(mutex_lock);
+        drop(state_lock);
         Ok(pdu_id)
     })
 }
@@ -1643,7 +1642,7 @@ pub(crate) async fn fetch_signing_keys(
 /// Append the incoming event setting the state snapshot to the state from the
 /// server that sent the event.
 #[tracing::instrument(skip(db, pdu, pdu_json, new_room_leaves, state, _mutex_lock))]
-async fn append_incoming_pdu(
+fn append_incoming_pdu(
     db: &Database,
     pdu: &PduEvent,
     pdu_json: CanonicalJsonObject,
@@ -1663,7 +1662,7 @@ async fn append_incoming_pdu(
         &db,
     )?;
 
-    for appservice in db.appservice.iter_all()?.filter_map(|r| r.ok()) {
+    for appservice in db.appservice.all()? {
         if let Some(namespaces) = appservice.1.get("namespaces") {
             let users = namespaces
                 .get("users")
@@ -1728,39 +1727,44 @@ fn get_auth_chain(starting_events: Vec<EventId>, db: &Database) -> Result<HashSe
     let mut full_auth_chain = HashSet::new();
 
     let mut cache = db.rooms.auth_chain_cache();
-    for event_id in starting_events {
-        let auth_chain = if let Some(cached) = cache.get_mut(&event_id) {
-            cached.clone()
+    if let Some(cached) = cache.get_mut(&starting_events) {
+        return Ok(cached.clone());
+    }
+
+    for event_id in &starting_events {
+        if let Some(cached) = cache.get_mut(&[event_id.clone()][..]) {
+            full_auth_chain.extend(cached.iter().cloned());
         } else {
             drop(cache);
-            let auth_chain = get_auth_chain_recursive(&event_id, db)?;
-
+            let auth_chain = get_auth_chain_recursive(&event_id, HashSet::new(), db)?;
             cache = db.rooms.auth_chain_cache();
-
-            cache.insert(event_id, auth_chain.clone());
-
-            auth_chain
+            cache.insert(vec![event_id.clone()], auth_chain.clone());
+            full_auth_chain.extend(auth_chain);
         };
-
-        full_auth_chain.extend(auth_chain);
     }
+
+    cache.insert(starting_events, full_auth_chain.clone());
 
     Ok(full_auth_chain)
 }
 
-fn get_auth_chain_recursive(event_id: &EventId, db: &Database) -> Result<HashSet<EventId>> {
-    let mut auth_chain = HashSet::new();
-
+fn get_auth_chain_recursive(
+    event_id: &EventId,
+    mut found: HashSet<EventId>,
+    db: &Database,
+) -> Result<HashSet<EventId>> {
     if let Some(pdu) = db.rooms.get_pdu(&event_id)? {
-        auth_chain.extend(pdu.auth_events.iter().cloned());
         for auth_event in &pdu.auth_events {
-            auth_chain.extend(get_auth_chain_recursive(&auth_event, db)?);
+            if !found.contains(auth_event) {
+                found.insert(auth_event.clone());
+                found = get_auth_chain_recursive(&auth_event, found, db)?;
+            }
         }
     } else {
         warn!("Could not find pdu mentioned in auth events.");
     }
 
-    Ok(auth_chain)
+    Ok(found)
 }
 
 #[cfg_attr(
@@ -2208,7 +2212,7 @@ pub async fn create_join_event_route(
         db.sending.send_pdu(&server, &pdu_id)?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(create_join_event::v2::Response {
         room_state: RoomState {
@@ -2327,7 +2331,7 @@ pub async fn create_invite_route(
         )?;
     }
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(create_invite::v2::Response {
         event: PduEvent::convert_to_outgoing_federation_event(signed_event),
@@ -2464,7 +2468,7 @@ pub async fn get_keys_route(
     )
     .await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(get_keys::v1::Response {
         device_keys: result.device_keys,
@@ -2489,7 +2493,7 @@ pub async fn claim_keys_route(
 
     let result = claim_keys_helper(&body.one_time_keys, &db).await?;
 
-    db.flush().await?;
+    db.flush()?;
 
     Ok(claim_keys::v1::Response {
         one_time_keys: result.one_time_keys,
