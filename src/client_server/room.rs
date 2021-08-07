@@ -65,7 +65,19 @@ pub async fn create_room_route(
     let mut content = ruma::events::room::create::CreateEventContent::new(sender_user.clone());
     content.federate = body.creation_content.federate;
     content.predecessor = body.creation_content.predecessor.clone();
-    content.room_version = RoomVersionId::Version6;
+    content.room_version = match body.room_version.clone() {
+        Some(room_version) => {
+            if room_version == RoomVersionId::Version5 || room_version == RoomVersionId::Version6 {
+                room_version
+            } else {
+                return Err(Error::BadRequest(
+                    ErrorKind::UnsupportedRoomVersion,
+                    "This server does not support that room version.",
+                ));
+            }
+        }
+        None => RoomVersionId::Version6,
+    };
 
     // 1. The room create event
     db.rooms.build_and_append_pdu(
