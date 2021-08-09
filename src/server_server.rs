@@ -272,13 +272,14 @@ where
             if status == 200 {
                 let response = T::IncomingResponse::try_from_http_response(http_response);
                 response.map_err(|e| {
-                    warn!("Invalid 200 response: {}", e);
+                    warn!("Invalid 200 response from {}: {}", &destination, e);
                     Error::BadServerResponse("Server returned bad 200 response.")
                 })
             } else {
                 Err(Error::FederationError(
                     destination.to_owned(),
-                    RumaError::try_from_http_response(http_response).map_err(|_| {
+                    RumaError::try_from_http_response(http_response).map_err(|e| {
+                        warn!("Server returned bad error response: {}", e);
                         Error::BadServerResponse("Server returned bad error response.")
                     })?,
                 ))
@@ -811,7 +812,7 @@ pub async fn send_transaction_message_route(
 }
 
 /// An async function that can recursively call itself.
-type AsyncRecursiveResult<'a, T, E> = Pin<Box<dyn Future<Output = StdResult<T, E>> + 'a + Send>>;
+type AsyncRecursiveType<'a, T> = Pin<Box<dyn Future<Output = T> + 'a + Send>>;
 
 /// When receiving an event one needs to:
 /// 0. Check the server is in the room
@@ -836,7 +837,7 @@ type AsyncRecursiveResult<'a, T, E> = Pin<Box<dyn Future<Output = StdResult<T, E
 /// 13. Check if the event passes auth based on the "current state" of the room, if not "soft fail"
 ///     it
 /// 14. Use state resolution to find new room state
-// We use some AsyncRecursiveResult hacks here so we can call this async funtion recursively
+// We use some AsyncRecursiveType hacks here so we can call this async funtion recursively
 #[tracing::instrument(skip(value, is_timeline_event, db, pub_key_map))]
 pub fn handle_incoming_pdu<'a>(
     origin: &'a ServerName,
@@ -846,7 +847,7 @@ pub fn handle_incoming_pdu<'a>(
     is_timeline_event: bool,
     db: &'a Database,
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-) -> AsyncRecursiveResult<'a, Option<Vec<u8>>, String> {
+) -> AsyncRecursiveType<'a, StdResult<Option<Vec<u8>>, String>> {
     Box::pin(async move {
         // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we anywhere?: https://matrix.org/docs/spec/rooms/v6#canonical-json
         match db.rooms.exists(&room_id) {
@@ -920,9 +921,15 @@ pub fn handle_incoming_pdu<'a>(
         // 5. Reject "due to auth events" if can't get all the auth events or some of the auth events are also rejected "due to auth events"
         // EDIT: Step 5 is not applied anymore because it failed too often
         debug!("Fetching auth events for {}", incoming_pdu.event_id);
-        fetch_and_handle_events(db, origin, &incoming_pdu.auth_events, &room_id, pub_key_map)
-            .await
-            .map_err(|e| e.to_string())?;
+        fetch_and_handle_events(
+            db,
+            origin,
+            &incoming_pdu.auth_events,
+            &room_id,
+            pub_key_map,
+            false,
+        )
+        .await;
 
         // 6. Reject "due to auth events" if the event doesn't pass auth based on the auth events
         debug!(
@@ -1004,9 +1011,27 @@ pub fn handle_incoming_pdu<'a>(
         debug!("Added pdu as outlier.");
 
         // 8. if not timeline event: stop
-        if !is_timeline_event {
+        if !is_timeline_event
+            || incoming_pdu.origin_server_ts
+                < db.rooms
+                    .first_pdu_in_room(&room_id)
+                    .map_err(|_| "Error loading first room event.".to_owned())?
+                    .expect("Room exists")
+                    .origin_server_ts
+        {
             return Ok(None);
         }
+
+        // Load missing prev events first
+        fetch_and_handle_events(
+            db,
+            origin,
+            &incoming_pdu.prev_events,
+            &room_id,
+            pub_key_map,
+            true,
+        )
+        .await;
 
         // TODO: 9. fetch any missing prev events doing all checks listed here starting at 1. These are timeline events
 
@@ -1034,9 +1059,9 @@ pub fn handle_incoming_pdu<'a>(
                     &state.into_iter().collect::<Vec<_>>(),
                     &room_id,
                     pub_key_map,
+                    false,
                 )
                 .await
-                .map_err(|_| "Failed to fetch state events locally".to_owned())?
                 .into_iter()
                 .map(|pdu| {
                     (
@@ -1081,18 +1106,15 @@ pub fn handle_incoming_pdu<'a>(
             {
                 Ok(res) => {
                     debug!("Fetching state events at event.");
-                    let state_vec = match fetch_and_handle_events(
+                    let state_vec = fetch_and_handle_events(
                         &db,
                         origin,
                         &res.pdu_ids,
                         &room_id,
                         pub_key_map,
+                        false,
                     )
-                    .await
-                    {
-                        Ok(state) => state,
-                        Err(_) => return Err("Failed to fetch state events.".to_owned()),
-                    };
+                    .await;
 
                     let mut state = HashMap::new();
                     for pdu in state_vec {
@@ -1118,18 +1140,15 @@ pub fn handle_incoming_pdu<'a>(
                     }
 
                     debug!("Fetching auth chain events at event.");
-                    match fetch_and_handle_events(
+                    fetch_and_handle_events(
                         &db,
                         origin,
                         &res.auth_chain_ids,
                         &room_id,
                         pub_key_map,
+                        false,
                     )
-                    .await
-                    {
-                        Ok(state) => state,
-                        Err(_) => return Err("Failed to fetch auth chain.".to_owned()),
-                    };
+                    .await;
 
                     state_at_incoming_event = Some(state);
                 }
@@ -1381,7 +1400,8 @@ pub(crate) fn fetch_and_handle_events<'a>(
     events: &'a [EventId],
     room_id: &'a RoomId,
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-) -> AsyncRecursiveResult<'a, Vec<Arc<PduEvent>>, Error> {
+    are_timeline_events: bool,
+) -> AsyncRecursiveType<'a, Vec<Arc<PduEvent>>> {
     Box::pin(async move {
         let back_off = |id| match db.globals.bad_event_ratelimiter.write().unwrap().entry(id) {
             Entry::Vacant(e) => {
@@ -1408,7 +1428,12 @@ pub(crate) fn fetch_and_handle_events<'a>(
             // a. Look in the main timeline (pduid_pdu tree)
             // b. Look at outlier pdu tree
             // (get_pdu checks both)
-            let pdu = match db.rooms.get_pdu(&id) {
+            let local_pdu = if are_timeline_events {
+                db.rooms.get_non_outlier_pdu(&id).map(|o| o.map(Arc::new))
+            } else {
+                db.rooms.get_pdu(&id)
+            };
+            let pdu = match local_pdu {
                 Ok(Some(pdu)) => {
                     trace!("Found {} in db", id);
                     pdu
@@ -1439,7 +1464,7 @@ pub(crate) fn fetch_and_handle_events<'a>(
                                 &event_id,
                                 &room_id,
                                 value.clone(),
-                                false,
+                                are_timeline_events,
                                 db,
                                 pub_key_map,
                             )
@@ -1482,7 +1507,7 @@ pub(crate) fn fetch_and_handle_events<'a>(
             };
             pdus.push(pdu);
         }
-        Ok(pdus)
+        pdus
     })
 }
 
@@ -2193,7 +2218,8 @@ pub async fn create_join_event_route(
         &pub_key_map,
     )
     .await
-    .map_err(|_| {
+    .map_err(|e| {
+        warn!("Error while handling incoming send join PDU: {}", e);
         Error::BadRequest(
             ErrorKind::InvalidParam,
             "Error while handling incoming PDU.",
