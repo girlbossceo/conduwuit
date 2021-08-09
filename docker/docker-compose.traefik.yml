@@ -12,8 +12,8 @@ services:
         # build:
         #     context: .
         #     args:
-        #         CREATED:
-        #         VERSION:
+        #         CREATED: '2021-03-16T08:18:27Z'
+        #         VERSION: '0.1.0'
         #         LOCAL: 'false'
         #         GIT_REF: origin/master
         restart: unless-stopped
@@ -28,9 +28,9 @@ services:
             CONDUIT_SERVER_NAME: localhost:6167  # replace with your own name
             CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
             ### Uncomment and change values as desired
-            # CONDUIT_ADDRESS: 127.0.0.1
+            # CONDUIT_ADDRESS: 0.0.0.0
             # CONDUIT_PORT: 6167
-            # CONDUIT_CONFIG: '/srv/conduit/conduit.toml'  # if want to configure purely by env vars, set this to an empty string ''
+            # CONDUIT_CONFIG: '/srv/conduit/conduit.toml'  # if you want to configure purely by env vars, set this to an empty string ''
             # Available levels are: error, warn, info, debug, trace - more info at: https://docs.rs/env_logger/*/env_logger/#enabling-logging
             # CONDUIT_LOG: info  # default is: "info,rocket=off,_=off,sled=off"
             # CONDUIT_ALLOW_JAEGER: 'false'
@@ -59,7 +59,7 @@ volumes:
     db:
 
 networks:
-    # This is the network Traefik listens to, if you network has a different
+    # This is the network Traefik listens to, if your network has a different
     # name, don't forget to change it here and in the docker-compose.override.yml
     proxy:
         external: true

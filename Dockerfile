@@ -5,18 +5,13 @@
 
 ##########################  BUILD IMAGE  ##########################
 # Alpine build image to build Conduit's statically compiled binary
-FROM alpine:3.12 as builder
+FROM alpine:3.14 as builder
 
 # Specifies if the local project is build or if Conduit gets build
 # from the official git repository. Defaults to the git repo.
 ARG LOCAL=false
 # Specifies which revision/commit is build. Defaults to HEAD
 ARG GIT_REF=origin/master
-
-# Add 'edge'-repository to get Rust 1.45
-RUN sed -i \
-	-e 's|v3\.12|edge|' \
-	/etc/apk/repositories
 
 # Install packages needed for building all crates
 RUN apk add --no-cache \
@@ -36,7 +31,7 @@ RUN if [[ $LOCAL == "true" ]]; then \
 ########################## RUNTIME IMAGE ##########################
 # Create new stage with a minimal image for the actual
 # runtime image/container
-FROM alpine:3.12
+FROM alpine:3.14
 
 ARG CREATED
 ARG VERSION
@@ -85,9 +80,6 @@ RUN apk add --no-cache \
         ca-certificates \
         curl \
         libgcc
-
-# Create a volume for the database, to persist its contents
-VOLUME ["/srv/conduit/.local/share/conduit"]
 
 # Test if Conduit is still alive, uses the same endpoint as Element
 HEALTHCHECK --start-period=5s \
