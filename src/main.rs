@@ -50,6 +50,7 @@ fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<
                 client_server::logout_all_route,
                 client_server::change_password_route,
                 client_server::deactivate_route,
+                client_server::third_party_route,
                 client_server::get_capabilities_route,
                 client_server::get_pushrules_all_route,
                 client_server::set_pushrule_route,

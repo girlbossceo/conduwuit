@@ -14,6 +14,7 @@ use ruma::{
                 change_password, deactivate, get_username_availability, register, whoami,
                 ThirdPartyIdRemovalStatus,
             },
+            contact::get_contacts,
             uiaa::{AuthFlow, UiaaInfo},
         },
     },
@@ -715,16 +716,17 @@ pub async fn deactivate_route(
     .into())
 }
 
-/*/
+/// # `GET _matrix/client/r0/account/3pid`
+///
+/// Get a list of third party identifiers associated with this account.
 #[cfg_attr(
     feature = "conduit_bin",
     get("/_matrix/client/r0/account/3pid", data = "<body>")
 )]
 pub async fn third_party_route(
-    body: Ruma<account::add_3pid::Request<'_>>,
-) -> ConduitResult<account::add_3pid::Response> {
+    body: Ruma<get_contacts::Request>,
+) -> ConduitResult<get_contacts::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(account::add_3pid::Response::default().into())
+    Ok(get_contacts::Response::new(Vec::new()).into())
 }
-*/
