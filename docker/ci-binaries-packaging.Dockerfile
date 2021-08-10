@@ -7,7 +7,7 @@
 # Credit's for the original Dockerfile: Weasy666.
 # ---------------------------------------------------------------------------------------------------------
 
-FROM alpine:3.12
+FROM alpine:3.14
 
 ARG CREATED
 ARG VERSION
@@ -51,9 +51,6 @@ RUN apk add --no-cache \
         ca-certificates \
         curl \
         libgcc
-
-# Create a volume for the database, to persist its contents
-VOLUME ["/srv/conduit/.local/share/conduit"]
 
 # Test if Conduit is still alive, uses the same endpoint as Element
 HEALTHCHECK --start-period=5s \
