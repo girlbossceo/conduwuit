@@ -280,6 +280,24 @@ impl Rooms {
             .is_some())
     }
 
+    /// Checks if a room exists.
+    pub fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        // Look for PDUs in that room.
+        self.pduid_pdu
+            .iter_from(&prefix, false)
+            .filter(|(k, _)| k.starts_with(&prefix))
+            .map(|(_, pdu)| {
+                serde_json::from_slice(&pdu)
+                    .map_err(|_| Error::bad_database("Invalid first PDU in db."))
+                    .map(Arc::new)
+            })
+            .next()
+            .transpose()
+    }
+
     /// Force the creation of a new StateHash and insert it into the db.
     ///
     /// Whatever `state` is supplied to `force_state` __is__ the current room state snapshot.
