@@ -192,6 +192,11 @@ pub async fn register_route(
     // Create user
     db.users.create(&user_id, password)?;
 
+    let displayname = format!("{} ⚡️", user_id.localpart());
+
+    db.users
+        .set_displayname(&user_id, Some(displayname.clone()))?;
+
     // Initial data
     db.account_data.update(
         None,
@@ -465,7 +470,7 @@ pub async fn register_route(
                 event_type: EventType::RoomMember,
                 content: serde_json::to_value(member::MemberEventContent {
                     membership: member::MembershipState::Join,
-                    displayname: None,
+                    displayname: Some(displayname),
                     avatar_url: None,
                     is_direct: None,
                     third_party_invite: None,
