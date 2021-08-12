@@ -43,24 +43,24 @@ pub async fn create_room_route(
     );
     let state_lock = mutex_state.lock().await;
 
-    let alias = body
-        .room_alias_name
-        .as_ref()
-        .map_or(Ok(None), |localpart| {
-            // TODO: Check for invalid characters and maximum length
-            let alias =
-                RoomAliasId::try_from(format!("#{}:{}", localpart, db.globals.server_name()))
-                    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
+    let alias: Option<RoomAliasId> =
+        body.room_alias_name
+            .as_ref()
+            .map_or(Ok(None), |localpart| {
+                // TODO: Check for invalid characters and maximum length
+                let alias =
+                    RoomAliasId::try_from(format!("#{}:{}", localpart, db.globals.server_name()))
+                        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
 
-            if db.rooms.id_from_alias(&alias)?.is_some() {
-                Err(Error::BadRequest(
-                    ErrorKind::RoomInUse,
-                    "Room alias already exists.",
-                ))
-            } else {
-                Ok(Some(alias))
-            }
-        })?;
+                if db.rooms.id_from_alias(&alias)?.is_some() {
+                    Err(Error::BadRequest(
+                        ErrorKind::RoomInUse,
+                        "Room alias already exists.",
+                    ))
+                } else {
+                    Ok(Some(alias))
+                }
+            })?;
 
     let mut content = ruma::events::room::create::CreateEventContent::new(sender_user.clone());
     content.federate = body.creation_content.federate;
@@ -172,9 +172,33 @@ pub async fn create_room_route(
         &state_lock,
     )?;
 
-    // 4. Events set by preset
+    // 4. Canonical room alias
 
-    // 4.1 Join Rules
+    if let Some(room_alias_id) = &alias {
+        db.rooms.build_and_append_pdu(
+            PduBuilder {
+                event_type: EventType::RoomCanonicalAlias,
+                content: serde_json::to_value(
+                    ruma::events::room::canonical_alias::CanonicalAliasEventContent {
+                        alias: Some(room_alias_id.clone()),
+                        alt_aliases: vec![],
+                    },
+                )
+                .expect("We checked that alias earlier, it must be fine"),
+                unsigned: None,
+                state_key: Some("".to_owned()),
+                redacts: None,
+            },
+            &sender_user,
+            &room_id,
+            &db,
+            &state_lock,
+        );
+    }
+
+    // 5. Events set by preset
+
+    // 5.1 Join Rules
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomJoinRules,
@@ -199,7 +223,7 @@ pub async fn create_room_route(
         &state_lock,
     )?;
 
-    // 4.2 History Visibility
+    // 5.2 History Visibility
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomHistoryVisibility,
@@ -217,7 +241,7 @@ pub async fn create_room_route(
         &state_lock,
     )?;
 
-    // 4.3 Guest Access
+    // 5.3 Guest Access
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomGuestAccess,
@@ -243,7 +267,7 @@ pub async fn create_room_route(
         &state_lock,
     )?;
 
-    // 5. Events listed in initial_state
+    // 6. Events listed in initial_state
     for event in &body.initial_state {
         let pdu_builder = PduBuilder::from(event.deserialize().map_err(|e| {
             warn!("Invalid initial state event: {:?}", e);
@@ -259,7 +283,7 @@ pub async fn create_room_route(
             .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db, &state_lock)?;
     }
 
-    // 6. Events implied by name and topic
+    // 7. Events implied by name and topic
     if let Some(name) = &body.name {
         db.rooms.build_and_append_pdu(
             PduBuilder {
@@ -296,7 +320,7 @@ pub async fn create_room_route(
         )?;
     }
 
-    // 7. Events implied by invite (and TODO: invite_3pid)
+    // 8. Events implied by invite (and TODO: invite_3pid)
     drop(state_lock);
     for user_id in &body.invite {
         let _ = invite_helper(sender_user, user_id, &room_id, &db, body.is_direct).await;
