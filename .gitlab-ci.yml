@@ -9,85 +9,6 @@ variables:
   FF_USE_FASTZIP: 1
   CACHE_COMPRESSION_LEVEL: fastest
 
-test:cargo:
-  stage: "test"
-  needs: []
-  image: "rust:latest"
-  tags: ["docker"]
-  variables:
-    CARGO_HOME: "cargohome"
-  cache:
-    paths:
-      - target
-      - cargohome
-    key: test_cache
-  interruptible: true
-  before_script:
-    - mkdir -p $CARGO_HOME && echo "using $CARGO_HOME to cache cargo deps"
-    - apt-get update -yqq
-    - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config
-    - rustup component add clippy rustfmt
-  script:
-    - rustc --version && cargo --version  # Print version info for debugging
-    - cargo fmt --all -- --check
-    - cargo test --workspace --verbose --locked
-    - cargo clippy
-
-test:sytest:
-  stage: "test"
-  allow_failure: true
-  needs:
-    - "build:cargo:x86_64-unknown-linux-musl"
-  image:
-    name: "valkum/sytest-conduit:latest"
-    entrypoint: [""]
-  tags: ["docker"]
-  variables:
-    PLUGINS: "https://github.com/valkum/sytest_conduit/archive/master.tar.gz"
-  before_script:
-    - "mkdir -p /app"
-    - "cp ./conduit-x86_64-unknown-linux-musl /app/conduit"
-    - "chmod +x /app/conduit"
-    - "rm -rf /src && ln -s $CI_PROJECT_DIR/ /src"
-    - "mkdir -p /work/server-0/database/ && mkdir -p /work/server-1/database/ && mkdir -p /work/server-2/database/"
-    - "cd /"
-  script:
-    - "SYTEST_EXIT_CODE=0"
-    - "/bootstrap.sh conduit || SYTEST_EXIT_CODE=1"
-    - "perl /sytest/tap-to-junit-xml.pl --puretap --input /logs/results.tap --output $CI_PROJECT_DIR/sytest.xml \"Sytest\" && cp /logs/results.tap $CI_PROJECT_DIR/results.tap"
-    - "exit $SYTEST_EXIT_CODE"
-  artifacts:
-    when: always
-    paths:
-      - "$CI_PROJECT_DIR/sytest.xml"
-      - "$CI_PROJECT_DIR/results.tap"
-    reports:
-      junit: "$CI_PROJECT_DIR/sytest.xml"
-
-
-test:register:element-web-stable:
-  stage: "test"
-  needs:
-    - "build:cargo:x86_64-unknown-linux-gnu"
-  image: "buildkite/puppeteer:latest"
-  tags: ["docker"]
-  interruptible: true
-  script:
-    - "CONDUIT_CONFIG=tests/test-config.toml ./conduit-x86_64-unknown-linux-gnu > conduit.log &"
-    - "cd tests/client-element-web/"
-    - "npm install puppeteer"
-    - "node test-element-web-registration.js \"https://app.element.io/\" \"http://localhost:6167\""
-    - "killall --regexp \"conduit\""
-    - "cd ../.."
-    - "cat conduit.log"
-  artifacts:
-    paths:
-      - "tests/client-element-web/*.png"
-      - "*.log"
-    expire_in: 1 week
-    when: always
-  retry: 1
-
 
 # --------------------------------------------------------------------- #
 #  Cargo: Compiling for different architectures                         #
@@ -105,7 +26,7 @@ test:register:element-web-stable:
     paths:
       - cargohome
       - target/
-    key: "build_cache-$TARGET"
+    key: "build_cache-$TARGET-release"
   before_script:
     - 'echo "Building for target $TARGET"'
     - 'mkdir -p cargohome && CARGOHOME="cargohome"'
@@ -115,26 +36,21 @@ test:register:element-web-stable:
     - "apt-get install -yqq --no-install-recommends $NEEDED_PACKAGES"
     - "rustup target add $TARGET"
   script:
-    # Set some cargo tuning here, because targets overwrite the 'variables'
-    - "export CARGO_INCREMENTAL=true"
-    - "export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16"
-    - "export CARGO_PROFILE_RELEASE_LTO=thin"
     - time cargo build --target $TARGET --release
     - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
 
-build:cargo:x86_64-unknown-linux-gnu:
+
+build:release:cargo:x86_64-unknown-linux-gnu:
   extends: .build-cargo-shared-settings
   variables:
     TARGET: "x86_64-unknown-linux-gnu"
-  rules:
-    - if: "$CI_COMMIT_BRANCH"
   artifacts:
     name: "conduit-x86_64-unknown-linux-gnu"
     paths:
       - "conduit-x86_64-unknown-linux-gnu"
-    expose_as: "Release binary x86_64-unknown-linux-gnu"
+    expose_as: "Conduit for x86_64-unknown-linux-gnu"
 
-build:cargo:armv7-unknown-linux-gnueabihf:
+build:release:cargo:armv7-unknown-linux-gnueabihf:
   extends: .build-cargo-shared-settings
   variables:
     TARGET: "armv7-unknown-linux-gnueabihf"
@@ -146,9 +62,9 @@ build:cargo:armv7-unknown-linux-gnueabihf:
     name: "conduit-armv7-unknown-linux-gnueabihf"
     paths:
       - "conduit-armv7-unknown-linux-gnueabihf"
-    expose_as: "Release binary armv7-unknown-linux-gnueabihf"
+    expose_as: "Conduit for armv7-unknown-linux-gnueabihf"
 
-build:cargo:aarch64-unknown-linux-gnu:
+build:release:cargo:aarch64-unknown-linux-gnu:
   extends: .build-cargo-shared-settings
   variables:
     TARGET: "aarch64-unknown-linux-gnu"
@@ -162,13 +78,11 @@ build:cargo:aarch64-unknown-linux-gnu:
     name: "conduit-aarch64-unknown-linux-gnu"
     paths:
       - "conduit-aarch64-unknown-linux-gnu"
-    expose_as: "Release binary aarch64-unknown-linux-gnu"
+    expose_as: "Conduit for aarch64-unknown-linux-gnu"
 
-build:cargo:x86_64-unknown-linux-musl:
+build:release:cargo:x86_64-unknown-linux-musl:
   extends: .build-cargo-shared-settings
   image: "rust:alpine"
-  rules:
-    - if: '$CI_COMMIT_BRANCH' # Always run
   variables:
     TARGET: "x86_64-unknown-linux-musl"
   before_script:
@@ -181,7 +95,47 @@ build:cargo:x86_64-unknown-linux-musl:
     name: "conduit-x86_64-unknown-linux-musl"
     paths:
       - "conduit-x86_64-unknown-linux-musl"
-    expose_as: "Release binary x86_64-unknown-linux-musl"
+    expose_as: "Conduit for x86_64-unknown-linux-musl"
+
+
+
+.cargo-debug-shared-settings:
+  extends: ".build-cargo-shared-settings"
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+  cache:
+    key: "build_cache-$TARGET-debug"
+  script:
+    - "time cargo build --target $TARGET"
+    - 'mv "target/$TARGET/debug/conduit" "conduit-debug-$TARGET"'
+
+build:debug:cargo:x86_64-unknown-linux-gnu:
+  extends: ".cargo-debug-shared-settings"
+  variables:
+    TARGET: "x86_64-unknown-linux-gnu"
+  artifacts:
+    name: "conduit-debug-x86_64-unknown-linux-gnu"
+    paths:
+      - "conduit-debug-x86_64-unknown-linux-gnu"
+    expose_as: "Conduit DEBUG for x86_64-unknown-linux-gnu"
+
+build:debug:cargo:x86_64-unknown-linux-musl:
+  extends: ".cargo-debug-shared-settings"
+  image: "rust:alpine"
+  variables:
+    TARGET: "x86_64-unknown-linux-musl"
+  before_script:
+    - 'echo "Building for target $TARGET"'
+    - 'mkdir -p cargohome && CARGOHOME="cargohome"'
+    - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
+    - "rustup target add $TARGET"
+    - "apk add libc-dev"
+  artifacts:
+    name: "conduit-debug-x86_64-unknown-linux-musl"
+    paths:
+      - "conduit-debug-x86_64-unknown-linux-musl"
+    expose_as: "Conduit DEBUG for x86_64-unknown-linux-musl"
+
 
 
 # --------------------------------------------------------------------- #
@@ -191,7 +145,7 @@ build:cargo:x86_64-unknown-linux-musl:
 
 .build-cargo-deb-shared-settings:
   stage: "build"
-  needs: []
+  needs: [ ]
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   interruptible: true
@@ -252,7 +206,7 @@ build:cargo-deb:x86_64-unknown-linux-gnu:
 build:docker:main:
   extends: .docker-shared-settings
   needs:
-    - "build:cargo:x86_64-unknown-linux-musl"
+    - "build:release:cargo:x86_64-unknown-linux-musl"
   script:
     - >
       /kaniko/executor
@@ -272,6 +226,91 @@ build:docker:main:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 
+
+# --------------------------------------------------------------------- #
+#  Run tests                                                            #
+# --------------------------------------------------------------------- #
+
+test:cargo:
+  stage: "test"
+  needs: [ ]
+  image: "rust:latest"
+  tags: [ "docker" ]
+  variables:
+    CARGO_HOME: "cargohome"
+  cache:
+    paths:
+      - target
+      - cargohome
+    key: test_cache
+  interruptible: true
+  before_script:
+    - mkdir -p $CARGO_HOME && echo "using $CARGO_HOME to cache cargo deps"
+    - apt-get update -yqq
+    - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config
+    - rustup component add clippy rustfmt
+  script:
+    - rustc --version && cargo --version  # Print version info for debugging
+    - cargo fmt --all -- --check
+    - cargo test --workspace --verbose --locked
+    - cargo clippy
+
+test:sytest:
+  stage: "test"
+  allow_failure: true
+  needs:
+    - "build:debug:cargo:x86_64-unknown-linux-musl"
+  image:
+    name: "valkum/sytest-conduit:latest"
+    entrypoint: [ "" ]
+  tags: [ "docker" ]
+  variables:
+    PLUGINS: "https://github.com/valkum/sytest_conduit/archive/master.tar.gz"
+  before_script:
+    - "mkdir -p /app"
+    - "cp ./conduit-debug-x86_64-unknown-linux-musl /app/conduit"
+    - "chmod +x /app/conduit"
+    - "rm -rf /src && ln -s $CI_PROJECT_DIR/ /src"
+    - "mkdir -p /work/server-0/database/ && mkdir -p /work/server-1/database/ && mkdir -p /work/server-2/database/"
+    - "cd /"
+  script:
+    - "SYTEST_EXIT_CODE=0"
+    - "/bootstrap.sh conduit || SYTEST_EXIT_CODE=1"
+    - "perl /sytest/tap-to-junit-xml.pl --puretap --input /logs/results.tap --output $CI_PROJECT_DIR/sytest.xml \"Sytest\" && cp /logs/results.tap $CI_PROJECT_DIR/results.tap"
+    - "exit $SYTEST_EXIT_CODE"
+  artifacts:
+    when: always
+    paths:
+      - "$CI_PROJECT_DIR/sytest.xml"
+      - "$CI_PROJECT_DIR/results.tap"
+    reports:
+      junit: "$CI_PROJECT_DIR/sytest.xml"
+
+
+test:register:element-web-stable:
+  stage: "test"
+  needs:
+    - "build:debug:cargo:x86_64-unknown-linux-gnu"
+  image: "buildkite/puppeteer:latest"
+  tags: [ "docker" ]
+  interruptible: true
+  script:
+    - "CONDUIT_CONFIG=tests/test-config.toml ./conduit-debug-x86_64-unknown-linux-gnu > conduit.log &"
+    - "cd tests/client-element-web/"
+    - "npm install puppeteer"
+    - "node test-element-web-registration.js \"https://app.element.io/\" \"http://localhost:6167\""
+    - "killall --regexp \"conduit\""
+    - "cd ../.."
+    - "cat conduit.log"
+  artifacts:
+    paths:
+      - "tests/client-element-web/*.png"
+      - "*.log"
+    expire_in: 1 week
+    when: always
+  retry: 1
+
+
 # --------------------------------------------------------------------- #
 #  Store binaries as package so they have download urls                 #
 # --------------------------------------------------------------------- #
@@ -279,10 +318,10 @@ build:docker:main:
 publish:package:
   stage: "upload artifacts"
   needs:
-    - "build:cargo:x86_64-unknown-linux-gnu"
-    - "build:cargo:armv7-unknown-linux-gnueabihf"
-    - "build:cargo:aarch64-unknown-linux-gnu"
-    - "build:cargo:x86_64-unknown-linux-musl"
+    - "build:release:cargo:x86_64-unknown-linux-gnu"
+    - "build:release:cargo:armv7-unknown-linux-gnueabihf"
+    - "build:release:cargo:aarch64-unknown-linux-gnu"
+    - "build:release:cargo:x86_64-unknown-linux-musl"
     - "build:cargo-deb:x86_64-unknown-linux-gnu"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
