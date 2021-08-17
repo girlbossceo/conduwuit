@@ -44,7 +44,7 @@ This also allows you to make sure that the file permissions are correctly set up
 
 In Debian you can use this command to create a Conduit user:
 
-```
+```bash
 sudo adduser --system conduit --no-create-home
 ```
 
@@ -131,13 +131,13 @@ address = "127.0.0.1" # This makes sure Conduit can only be reached using the re
 As we are using a Conduit specific user we need to allow it to read the config.
 To do that you can run this command on Debian:
 
-```
+```bash
 sudo chown -R conduit:nogroup /etc/matrix-conduit
 ```
 
 If you use the default database path you also need to run this:
 
-```
+```bash
 sudo mkdir -p /var/lib/matrix-conduit/conduit_db
 sudo chown -R conduit:nogroup /var/lib/matrix-conduit/conduit_db
 ```
@@ -151,7 +151,7 @@ This depends on whether you use Apache, Nginx or another web server.
 
 Create `/etc/apache2/sites-enabled/050-conduit.conf` and copy-and-paste this:
 
-```
+```apache
 Listen 8448
 
 <VirtualHost *:443 *:8448>
@@ -180,7 +180,7 @@ $ sudo systemctl reload apache2
 If you use Nginx and not Apache, add the following server section inside the
 http section of `/etc/nginx/nginx.conf`
 
-```
+```nginx
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
