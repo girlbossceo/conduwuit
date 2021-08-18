@@ -6,8 +6,7 @@ If you run into any problems while setting up Conduit, write an email to `timo@k
 
 ## Installing Conduit
 
-You may simply download the binary that fits your machine. Run `uname -m` to see
-what you need. Now copy the right url:
+You may simply download the binary that fits your machine. Run `uname -m` to see what you need. Now copy the right url:
 
 | CPU Architecture     | GNU (Ubuntu, Debian, ArchLinux, ...)  | MUSL (Alpine, ... )     |
 | -------------------- | ------------------------------------- | ----------------------- |
@@ -15,10 +14,13 @@ what you need. Now copy the right url:
 | armv7 (Raspberry Pi) | [Download][armv7-gnu]                 | -                       |
 | armv8 / aarch64      | [Download][armv8-gnu]                 | -                       |
 
-[x84_64-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-x86_64-unknown-linux-gnu?job=build:cargo:x86_64-unknown-linux-gnu
-[x84_64-musl]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-x86_64-unknown-linux-musl?job=build:cargo:x86_64-unknown-linux-musl
-[armv7-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-armv7-unknown-linux-gnueabihf?job=build:cargo:armv7-unknown-linux-gnueabihf
-[armv8-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-aarch64-unknown-linux-gnu?job=build:cargo:aarch64-unknown-linux-gnu
+[x84_64-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-x86_64-unknown-linux-gnu?job=build:release:cargo:x86_64-unknown-linux-gnu
+
+[x84_64-musl]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-x86_64-unknown-linux-musl?job=build:release:cargo:x86_64-unknown-linux-musl
+
+[armv7-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-armv7-unknown-linux-gnueabihf?job=build:release:cargo:armv7-unknown-linux-gnueabihf
+
+[armv8-gnu]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-aarch64-unknown-linux-gnu?job=build:release:cargo:aarch64-unknown-linux-gnu
 
 ```bash
 $ sudo wget -O /usr/local/bin/matrix-conduit <url>
@@ -26,6 +28,7 @@ $ sudo chmod +x /usr/local/bin/matrix-conduit
 ```
 
 Alternatively, you may compile the binary yourself using
+
 ```bash
 $ cargo build --release
 ```
