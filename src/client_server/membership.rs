@@ -262,6 +262,7 @@ pub async fn ban_user_route(
                 is_direct: None,
                 third_party_invite: None,
                 blurhash: db.users.blurhash(&body.user_id)?,
+                reason: None,
             }),
             |event| {
                 let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
@@ -563,6 +564,7 @@ async fn join_room_by_id_helper(
                 is_direct: None,
                 third_party_invite: None,
                 blurhash: db.users.blurhash(&sender_user)?,
+                reason: None,
             })
             .expect("event is valid, we just created it"),
         );
@@ -608,6 +610,8 @@ async fn join_room_by_id_helper(
                 },
             )
             .await?;
+
+        db.rooms.get_or_create_shortroomid(&room_id, &db.globals)?;
 
         let pdu = PduEvent::from_id_val(&event_id, join_event.clone())
             .map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
@@ -693,6 +697,7 @@ async fn join_room_by_id_helper(
             is_direct: None,
             third_party_invite: None,
             blurhash: db.users.blurhash(&sender_user)?,
+            reason: None,
         };
 
         db.rooms.build_and_append_pdu(
@@ -844,6 +849,7 @@ pub async fn invite_helper<'a>(
                 membership: MembershipState::Invite,
                 third_party_invite: None,
                 blurhash: None,
+                reason: None,
             })
             .expect("member event is valid value");
 
@@ -1038,6 +1044,7 @@ pub async fn invite_helper<'a>(
                 is_direct: Some(is_direct),
                 third_party_invite: None,
                 blurhash: db.users.blurhash(&user_id)?,
+                reason: None,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,

@@ -24,13 +24,14 @@ use rocket::{
     request::{FromRequest, Request},
     Shutdown, State,
 };
-use ruma::{DeviceId, RoomId, ServerName, UserId};
+use ruma::{DeviceId, EventId, RoomId, ServerName, UserId};
 use serde::{de::IgnoredAny, Deserialize};
 use std::{
-    collections::{BTreeMap, HashMap},
-    convert::TryFrom,
+    collections::{BTreeMap, HashMap, HashSet},
+    convert::{TryFrom, TryInto},
     fs::{self, remove_dir_all},
     io::Write,
+    mem::size_of,
     ops::Deref,
     path::Path,
     sync::{Arc, Mutex, RwLock},
@@ -107,7 +108,7 @@ fn default_db_cache_capacity_mb() -> f64 {
 }
 
 fn default_sqlite_wal_clean_second_interval() -> u32 {
-    15 * 60 // every 15 minutes
+    1 * 60 // every minute
 }
 
 fn default_max_request_size() -> u32 {
@@ -261,7 +262,11 @@ impl Database {
                 userroomid_highlightcount: builder.open_tree("userroomid_highlightcount")?,
 
                 statekey_shortstatekey: builder.open_tree("statekey_shortstatekey")?,
-                stateid_shorteventid: builder.open_tree("stateid_shorteventid")?,
+
+                shortroomid_roomid: builder.open_tree("shortroomid_roomid")?,
+                roomid_shortroomid: builder.open_tree("roomid_shortroomid")?,
+
+                shortstatehash_statediff: builder.open_tree("shortstatehash_statediff")?,
                 eventid_shorteventid: builder.open_tree("eventid_shorteventid")?,
                 shorteventid_eventid: builder.open_tree("shorteventid_eventid")?,
                 shorteventid_shortstatehash: builder.open_tree("shorteventid_shortstatehash")?,
@@ -270,8 +275,12 @@ impl Database {
 
                 eventid_outlierpdu: builder.open_tree("eventid_outlierpdu")?,
                 referencedevents: builder.open_tree("referencedevents")?,
-                pdu_cache: Mutex::new(LruCache::new(1_000_000)),
-                auth_chain_cache: Mutex::new(LruCache::new(1_000_000)),
+                pdu_cache: Mutex::new(LruCache::new(100_000)),
+                auth_chain_cache: Mutex::new(LruCache::new(100_000)),
+                shorteventid_cache: Mutex::new(LruCache::new(1_000_000)),
+                eventidshort_cache: Mutex::new(LruCache::new(1_000_000)),
+                statekeyshort_cache: Mutex::new(LruCache::new(1_000_000)),
+                stateinfo_cache: Mutex::new(LruCache::new(50)),
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
@@ -424,7 +433,6 @@ impl Database {
             }
 
             if db.globals.database_version()? < 6 {
-                // TODO update to 6
                 // Set room member count
                 for (roomid, _) in db.rooms.roomid_shortstatehash.iter() {
                     let room_id =
@@ -436,6 +444,261 @@ impl Database {
                 db.globals.bump_database_version(6)?;
 
                 println!("Migration: 5 -> 6 finished");
+            }
+
+            if db.globals.database_version()? < 7 {
+                // Upgrade state store
+                let mut last_roomstates: HashMap<RoomId, u64> = HashMap::new();
+                let mut current_sstatehash: Option<u64> = None;
+                let mut current_room = None;
+                let mut current_state = HashSet::new();
+                let mut counter = 0;
+
+                let mut handle_state =
+                    |current_sstatehash: u64,
+                     current_room: &RoomId,
+                     current_state: HashSet<_>,
+                     last_roomstates: &mut HashMap<_, _>| {
+                        counter += 1;
+                        println!("counter: {}", counter);
+                        let last_roomsstatehash = last_roomstates.get(current_room);
+
+                        let states_parents = last_roomsstatehash.map_or_else(
+                            || Ok(Vec::new()),
+                            |&last_roomsstatehash| {
+                                db.rooms.load_shortstatehash_info(dbg!(last_roomsstatehash))
+                            },
+                        )?;
+
+                        let (statediffnew, statediffremoved) =
+                            if let Some(parent_stateinfo) = states_parents.last() {
+                                let statediffnew = current_state
+                                    .difference(&parent_stateinfo.1)
+                                    .cloned()
+                                    .collect::<HashSet<_>>();
+
+                                let statediffremoved = parent_stateinfo
+                                    .1
+                                    .difference(&current_state)
+                                    .cloned()
+                                    .collect::<HashSet<_>>();
+
+                                (statediffnew, statediffremoved)
+                            } else {
+                                (current_state, HashSet::new())
+                            };
+
+                        db.rooms.save_state_from_diff(
+                            dbg!(current_sstatehash),
+                            statediffnew,
+                            statediffremoved,
+                            2, // every state change is 2 event changes on average
+                            states_parents,
+                        )?;
+
+                        /*
+                        let mut tmp = db.rooms.load_shortstatehash_info(&current_sstatehash, &db)?;
+                        let state = tmp.pop().unwrap();
+                        println!(
+                            "{}\t{}{:?}: {:?} + {:?} - {:?}",
+                            current_room,
+                            "  ".repeat(tmp.len()),
+                            utils::u64_from_bytes(&current_sstatehash).unwrap(),
+                            tmp.last().map(|b| utils::u64_from_bytes(&b.0).unwrap()),
+                            state
+                                .2
+                                .iter()
+                                .map(|b| utils::u64_from_bytes(&b[size_of::<u64>()..]).unwrap())
+                                .collect::<Vec<_>>(),
+                            state
+                                .3
+                                .iter()
+                                .map(|b| utils::u64_from_bytes(&b[size_of::<u64>()..]).unwrap())
+                                .collect::<Vec<_>>()
+                        );
+                        */
+
+                        Ok::<_, Error>(())
+                    };
+
+                for (k, seventid) in db._db.open_tree("stateid_shorteventid")?.iter() {
+                    let sstatehash = utils::u64_from_bytes(&k[0..size_of::<u64>()])
+                        .expect("number of bytes is correct");
+                    let sstatekey = k[size_of::<u64>()..].to_vec();
+                    if Some(sstatehash) != current_sstatehash {
+                        if let Some(current_sstatehash) = current_sstatehash {
+                            handle_state(
+                                current_sstatehash,
+                                current_room.as_ref().unwrap(),
+                                current_state,
+                                &mut last_roomstates,
+                            )?;
+                            last_roomstates
+                                .insert(current_room.clone().unwrap(), current_sstatehash);
+                        }
+                        current_state = HashSet::new();
+                        current_sstatehash = Some(sstatehash);
+
+                        let event_id = db
+                            .rooms
+                            .shorteventid_eventid
+                            .get(&seventid)
+                            .unwrap()
+                            .unwrap();
+                        let event_id =
+                            EventId::try_from(utils::string_from_bytes(&event_id).unwrap())
+                                .unwrap();
+                        let pdu = db.rooms.get_pdu(&event_id).unwrap().unwrap();
+
+                        if Some(&pdu.room_id) != current_room.as_ref() {
+                            current_room = Some(pdu.room_id.clone());
+                        }
+                    }
+
+                    let mut val = sstatekey;
+                    val.extend_from_slice(&seventid);
+                    current_state.insert(val.try_into().expect("size is correct"));
+                }
+
+                if let Some(current_sstatehash) = current_sstatehash {
+                    handle_state(
+                        current_sstatehash,
+                        current_room.as_ref().unwrap(),
+                        current_state,
+                        &mut last_roomstates,
+                    )?;
+                }
+
+                db.globals.bump_database_version(7)?;
+
+                println!("Migration: 6 -> 7 finished");
+            }
+
+            if db.globals.database_version()? < 8 {
+                // Generate short room ids for all rooms
+                for (room_id, _) in db.rooms.roomid_shortstatehash.iter() {
+                    let shortroomid = db.globals.next_count()?.to_be_bytes();
+                    db.rooms.roomid_shortroomid.insert(&room_id, &shortroomid)?;
+                    db.rooms.shortroomid_roomid.insert(&shortroomid, &room_id)?;
+                    println!("Migration: 8");
+                }
+                // Update pduids db layout
+                let mut batch = db.rooms.pduid_pdu.iter().filter_map(|(key, v)| {
+                    if !key.starts_with(b"!") {
+                        return None;
+                    }
+                    let mut parts = key.splitn(2, |&b| b == 0xff);
+                    let room_id = parts.next().unwrap();
+                    let count = parts.next().unwrap();
+
+                    let short_room_id = db
+                        .rooms
+                        .roomid_shortroomid
+                        .get(&room_id)
+                        .unwrap()
+                        .expect("shortroomid should exist");
+
+                    let mut new_key = short_room_id;
+                    new_key.extend_from_slice(count);
+
+                    Some((new_key, v))
+                });
+
+                db.rooms.pduid_pdu.insert_batch(&mut batch)?;
+
+                let mut batch2 = db.rooms.eventid_pduid.iter().filter_map(|(k, value)| {
+                    if !value.starts_with(b"!") {
+                        return None;
+                    }
+                    let mut parts = value.splitn(2, |&b| b == 0xff);
+                    let room_id = parts.next().unwrap();
+                    let count = parts.next().unwrap();
+
+                    let short_room_id = db
+                        .rooms
+                        .roomid_shortroomid
+                        .get(&room_id)
+                        .unwrap()
+                        .expect("shortroomid should exist");
+
+                    let mut new_value = short_room_id;
+                    new_value.extend_from_slice(count);
+
+                    Some((k, new_value))
+                });
+
+                db.rooms.eventid_pduid.insert_batch(&mut batch2)?;
+
+                db.globals.bump_database_version(8)?;
+
+                println!("Migration: 7 -> 8 finished");
+            }
+
+            if db.globals.database_version()? < 9 {
+                // Update tokenids db layout
+                let batch = db
+                    .rooms
+                    .tokenids
+                    .iter()
+                    .filter_map(|(key, _)| {
+                        if !key.starts_with(b"!") {
+                            return None;
+                        }
+                        let mut parts = key.splitn(4, |&b| b == 0xff);
+                        let room_id = parts.next().unwrap();
+                        let word = parts.next().unwrap();
+                        let _pdu_id_room = parts.next().unwrap();
+                        let pdu_id_count = parts.next().unwrap();
+
+                        let short_room_id = db
+                            .rooms
+                            .roomid_shortroomid
+                            .get(&room_id)
+                            .unwrap()
+                            .expect("shortroomid should exist");
+                        let mut new_key = short_room_id;
+                        new_key.extend_from_slice(word);
+                        new_key.push(0xff);
+                        new_key.extend_from_slice(pdu_id_count);
+                        println!("old {:?}", key);
+                        println!("new {:?}", new_key);
+                        Some((new_key, Vec::new()))
+                    })
+                    .collect::<Vec<_>>();
+
+                let mut iter = batch.into_iter().peekable();
+
+                while iter.peek().is_some() {
+                    db.rooms
+                        .tokenids
+                        .insert_batch(&mut iter.by_ref().take(1000))?;
+                    println!("smaller batch done");
+                }
+
+                println!("Deleting starts");
+
+                let batch2 = db
+                    .rooms
+                    .tokenids
+                    .iter()
+                    .filter_map(|(key, _)| {
+                        if key.starts_with(b"!") {
+                            println!("del {:?}", key);
+                            Some(key)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                for key in batch2 {
+                    println!("del");
+                    db.rooms.tokenids.remove(&key)?;
+                }
+
+                db.globals.bump_database_version(9)?;
+
+                println!("Migration: 8 -> 9 finished");
             }
         }
 

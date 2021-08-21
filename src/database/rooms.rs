@@ -24,7 +24,7 @@ use ruma::{
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     convert::{TryFrom, TryInto},
-    mem,
+    mem::size_of,
     sync::{Arc, Mutex},
 };
 use tokio::sync::MutexGuard;
@@ -37,17 +37,18 @@ use super::{abstraction::Tree, admin::AdminCommand, pusher};
 /// This is created when a state group is added to the database by
 /// hashing the entire state.
 pub type StateHashId = Vec<u8>;
+pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 
 pub struct Rooms {
     pub edus: edus::RoomEdus,
-    pub(super) pduid_pdu: Arc<dyn Tree>, // PduId = RoomId + Count
+    pub(super) pduid_pdu: Arc<dyn Tree>, // PduId = ShortRoomId + Count
     pub(super) eventid_pduid: Arc<dyn Tree>,
     pub(super) roomid_pduleaves: Arc<dyn Tree>,
     pub(super) alias_roomid: Arc<dyn Tree>,
     pub(super) aliasid_alias: Arc<dyn Tree>, // AliasId = RoomId + Count
     pub(super) publicroomids: Arc<dyn Tree>,
 
-    pub(super) tokenids: Arc<dyn Tree>, // TokenId = RoomId + Token + PduId
+    pub(super) tokenids: Arc<dyn Tree>, // TokenId = ShortRoomId + Token + PduIdCount
 
     /// Participating servers in a room.
     pub(super) roomserverids: Arc<dyn Tree>, // RoomServerId = RoomId + ServerName
@@ -71,14 +72,15 @@ pub struct Rooms {
     pub(super) shorteventid_shortstatehash: Arc<dyn Tree>,
     /// StateKey = EventType + StateKey, ShortStateKey = Count
     pub(super) statekey_shortstatekey: Arc<dyn Tree>,
+
+    pub(super) shortroomid_roomid: Arc<dyn Tree>,
+    pub(super) roomid_shortroomid: Arc<dyn Tree>,
+
     pub(super) shorteventid_eventid: Arc<dyn Tree>,
-    /// ShortEventId = Count
     pub(super) eventid_shorteventid: Arc<dyn Tree>,
-    /// ShortEventId = Count
+
     pub(super) statehash_shortstatehash: Arc<dyn Tree>,
-    /// ShortStateHash = Count
-    /// StateId = ShortStateHash + ShortStateKey
-    pub(super) stateid_shorteventid: Arc<dyn Tree>,
+    pub(super) shortstatehash_statediff: Arc<dyn Tree>, // StateDiff = parent (or 0) + (shortstatekey+shorteventid++) + 0_u64 + (shortstatekey+shorteventid--)
 
     /// RoomId + EventId -> outlier PDU.
     /// Any pdu that has passed the steps 1-8 in the incoming event /federation/send/txn.
@@ -88,43 +90,52 @@ pub struct Rooms {
     pub(super) referencedevents: Arc<dyn Tree>,
 
     pub(super) pdu_cache: Mutex<LruCache<EventId, Arc<PduEvent>>>,
-    pub(super) auth_chain_cache: Mutex<LruCache<Vec<EventId>, HashSet<EventId>>>,
+    pub(super) auth_chain_cache: Mutex<LruCache<u64, HashSet<u64>>>,
+    pub(super) shorteventid_cache: Mutex<LruCache<u64, EventId>>,
+    pub(super) eventidshort_cache: Mutex<LruCache<EventId, u64>>,
+    pub(super) statekeyshort_cache: Mutex<LruCache<(EventType, String), u64>>,
+    pub(super) stateinfo_cache: Mutex<
+        LruCache<
+            u64,
+            Vec<(
+                u64,                           // sstatehash
+                HashSet<CompressedStateEvent>, // full state
+                HashSet<CompressedStateEvent>, // added
+                HashSet<CompressedStateEvent>, // removed
+            )>,
+        >,
+    >,
 }
 
 impl Rooms {
     /// Builds a StateMap by iterating over all keys that start
     /// with state_hash, this gives the full state for the given state_hash.
+    #[tracing::instrument(skip(self))]
     pub fn state_full_ids(&self, shortstatehash: u64) -> Result<BTreeSet<EventId>> {
-        Ok(self
-            .stateid_shorteventid
-            .scan_prefix(shortstatehash.to_be_bytes().to_vec())
-            .map(|(_, bytes)| self.shorteventid_eventid.get(&bytes).ok().flatten())
-            .flatten()
-            .map(|bytes| {
-                EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                    Error::bad_database("EventID in stateid_shorteventid is invalid unicode.")
-                })?)
-                .map_err(|_| Error::bad_database("EventId in stateid_shorteventid is invalid."))
-            })
-            .filter_map(|r| r.ok())
-            .collect())
+        let full_state = self
+            .load_shortstatehash_info(shortstatehash)?
+            .pop()
+            .expect("there is always one layer")
+            .1;
+        full_state
+            .into_iter()
+            .map(|compressed| self.parse_compressed_state_event(compressed))
+            .collect()
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn state_full(
         &self,
         shortstatehash: u64,
     ) -> Result<HashMap<(EventType, String), Arc<PduEvent>>> {
-        let state = self
-            .stateid_shorteventid
-            .scan_prefix(shortstatehash.to_be_bytes().to_vec())
-            .map(|(_, bytes)| self.shorteventid_eventid.get(&bytes).ok().flatten())
-            .flatten()
-            .map(|bytes| {
-                EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                    Error::bad_database("EventID in stateid_shorteventid is invalid unicode.")
-                })?)
-                .map_err(|_| Error::bad_database("EventId in stateid_shorteventid is invalid."))
-            })
+        let full_state = self
+            .load_shortstatehash_info(shortstatehash)?
+            .pop()
+            .expect("there is always one layer")
+            .1;
+        Ok(full_state
+            .into_iter()
+            .map(|compressed| self.parse_compressed_state_event(compressed))
             .filter_map(|r| r.ok())
             .map(|eventid| self.get_pdu(&eventid))
             .filter_map(|r| r.ok().flatten())
@@ -141,9 +152,7 @@ impl Rooms {
                 ))
             })
             .filter_map(|r| r.ok())
-            .collect();
-
-        Ok(state)
+            .collect())
     }
 
     /// Returns a single PDU from `room_id` with key (`event_type`, `state_key`).
@@ -154,32 +163,19 @@ impl Rooms {
         event_type: &EventType,
         state_key: &str,
     ) -> Result<Option<EventId>> {
-        let mut key = event_type.as_ref().as_bytes().to_vec();
-        key.push(0xff);
-        key.extend_from_slice(&state_key.as_bytes());
-
-        let shortstatekey = self.statekey_shortstatekey.get(&key)?;
-
-        if let Some(shortstatekey) = shortstatekey {
-            let mut stateid = shortstatehash.to_be_bytes().to_vec();
-            stateid.extend_from_slice(&shortstatekey);
-
-            Ok(self
-                .stateid_shorteventid
-                .get(&stateid)?
-                .map(|bytes| self.shorteventid_eventid.get(&bytes).ok().flatten())
-                .flatten()
-                .map(|bytes| {
-                    EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                        Error::bad_database("EventID in stateid_shorteventid is invalid unicode.")
-                    })?)
-                    .map_err(|_| Error::bad_database("EventId in stateid_shorteventid is invalid."))
-                })
-                .map(|r| r.ok())
-                .flatten())
-        } else {
-            Ok(None)
-        }
+        let shortstatekey = match self.get_shortstatekey(event_type, state_key)? {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+        let full_state = self
+            .load_shortstatehash_info(shortstatehash)?
+            .pop()
+            .expect("there is always one layer")
+            .1;
+        Ok(full_state
+            .into_iter()
+            .find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
+            .and_then(|compressed| self.parse_compressed_state_event(compressed).ok()))
     }
 
     /// Returns a single PDU from `room_id` with key (`event_type`, `state_key`).
@@ -226,6 +222,7 @@ impl Rooms {
     }
 
     /// This fetches auth events from the current state.
+    #[tracing::instrument(skip(self))]
     pub fn get_auth_events(
         &self,
         room_id: &RoomId,
@@ -267,9 +264,12 @@ impl Rooms {
     }
 
     /// Checks if a room exists.
+    #[tracing::instrument(skip(self))]
     pub fn exists(&self, room_id: &RoomId) -> Result<bool> {
-        let mut prefix = room_id.as_bytes().to_vec();
-        prefix.push(0xff);
+        let prefix = match self.get_shortroomid(room_id)? {
+            Some(b) => b.to_be_bytes().to_vec(),
+            None => return Ok(false),
+        };
 
         // Look for PDUs in that room.
         Ok(self
@@ -281,9 +281,13 @@ impl Rooms {
     }
 
     /// Checks if a room exists.
+    #[tracing::instrument(skip(self))]
     pub fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
-        let mut prefix = room_id.as_bytes().to_vec();
-        prefix.push(0xff);
+        let prefix = self
+            .get_shortroomid(room_id)?
+            .expect("room exists")
+            .to_be_bytes()
+            .to_vec();
 
         // Look for PDUs in that room.
         self.pduid_pdu
@@ -300,97 +304,79 @@ impl Rooms {
 
     /// Force the creation of a new StateHash and insert it into the db.
     ///
-    /// Whatever `state` is supplied to `force_state` __is__ the current room state snapshot.
+    /// Whatever `state` is supplied to `force_state` becomes the new current room state snapshot.
+    #[tracing::instrument(skip(self, new_state, db))]
     pub fn force_state(
         &self,
         room_id: &RoomId,
-        state: HashMap<(EventType, String), EventId>,
+        new_state: HashMap<(EventType, String), EventId>,
         db: &Database,
     ) -> Result<()> {
+        let previous_shortstatehash = self.current_shortstatehash(&room_id)?;
+
+        let new_state_ids_compressed = new_state
+            .iter()
+            .filter_map(|((event_type, state_key), event_id)| {
+                let shortstatekey = self
+                    .get_or_create_shortstatekey(event_type, state_key, &db.globals)
+                    .ok()?;
+                Some(
+                    self.compress_state_event(shortstatekey, event_id, &db.globals)
+                        .ok()?,
+                )
+            })
+            .collect::<HashSet<_>>();
+
         let state_hash = self.calculate_hash(
-            &state
+            &new_state
                 .values()
                 .map(|event_id| event_id.as_bytes())
                 .collect::<Vec<_>>(),
         );
 
-        let (shortstatehash, already_existed) =
-            match self.statehash_shortstatehash.get(&state_hash)? {
-                Some(shortstatehash) => (
-                    utils::u64_from_bytes(&shortstatehash)
-                        .map_err(|_| Error::bad_database("Invalid shortstatehash in db."))?,
-                    true,
-                ),
-                None => {
-                    let shortstatehash = db.globals.next_count()?;
-                    self.statehash_shortstatehash
-                        .insert(&state_hash, &shortstatehash.to_be_bytes())?;
-                    (shortstatehash, false)
-                }
-            };
+        let (new_shortstatehash, already_existed) =
+            self.get_or_create_shortstatehash(&state_hash, &db.globals)?;
 
-        let new_state = if !already_existed {
-            let mut new_state = HashSet::new();
+        if Some(new_shortstatehash) == previous_shortstatehash {
+            return Ok(());
+        }
 
-            let batch = state
-                .iter()
-                .filter_map(|((event_type, state_key), eventid)| {
-                    new_state.insert(eventid.clone());
+        let states_parents = previous_shortstatehash
+            .map_or_else(|| Ok(Vec::new()), |p| self.load_shortstatehash_info(p))?;
 
-                    let mut statekey = event_type.as_ref().as_bytes().to_vec();
-                    statekey.push(0xff);
-                    statekey.extend_from_slice(&state_key.as_bytes());
+        let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last()
+        {
+            let statediffnew = new_state_ids_compressed
+                .difference(&parent_stateinfo.1)
+                .cloned()
+                .collect::<HashSet<_>>();
 
-                    let shortstatekey = match self.statekey_shortstatekey.get(&statekey).ok()? {
-                        Some(shortstatekey) => shortstatekey.to_vec(),
-                        None => {
-                            let shortstatekey = db.globals.next_count().ok()?;
-                            self.statekey_shortstatekey
-                                .insert(&statekey, &shortstatekey.to_be_bytes())
-                                .ok()?;
-                            shortstatekey.to_be_bytes().to_vec()
-                        }
-                    };
+            let statediffremoved = parent_stateinfo
+                .1
+                .difference(&new_state_ids_compressed)
+                .cloned()
+                .collect::<HashSet<_>>();
 
-                    let shorteventid =
-                        match self.eventid_shorteventid.get(eventid.as_bytes()).ok()? {
-                            Some(shorteventid) => shorteventid.to_vec(),
-                            None => {
-                                let shorteventid = db.globals.next_count().ok()?;
-                                self.eventid_shorteventid
-                                    .insert(eventid.as_bytes(), &shorteventid.to_be_bytes())
-                                    .ok()?;
-                                self.shorteventid_eventid
-                                    .insert(&shorteventid.to_be_bytes(), eventid.as_bytes())
-                                    .ok()?;
-                                shorteventid.to_be_bytes().to_vec()
-                            }
-                        };
-
-                    let mut state_id = shortstatehash.to_be_bytes().to_vec();
-                    state_id.extend_from_slice(&shortstatekey);
-
-                    Some((state_id, shorteventid))
-                })
-                .collect::<Vec<_>>();
-
-            self.stateid_shorteventid
-                .insert_batch(&mut batch.into_iter())?;
-
-            new_state
+            (statediffnew, statediffremoved)
         } else {
-            self.state_full_ids(shortstatehash)?.into_iter().collect()
+            (new_state_ids_compressed, HashSet::new())
         };
 
-        let old_state = self
-            .current_shortstatehash(&room_id)?
-            .map(|s| self.state_full_ids(s))
-            .transpose()?
-            .map(|vec| vec.into_iter().collect::<HashSet<_>>())
-            .unwrap_or_default();
+        if !already_existed {
+            self.save_state_from_diff(
+                new_shortstatehash,
+                statediffnew.clone(),
+                statediffremoved.clone(),
+                2, // every state change is 2 event changes on average
+                states_parents,
+            )?;
+        };
 
-        for event_id in new_state.difference(&old_state) {
-            if let Some(pdu) = self.get_pdu_json(event_id)? {
+        for event_id in statediffnew
+            .into_iter()
+            .filter_map(|new| self.parse_compressed_state_event(new).ok())
+        {
+            if let Some(pdu) = self.get_pdu_json(&event_id)? {
                 if pdu.get("type").and_then(|val| val.as_str()) == Some("m.room.member") {
                     if let Ok(pdu) = serde_json::from_value::<PduEvent>(
                         serde_json::to_value(&pdu).expect("CanonicalJsonObj is a valid JsonValue"),
@@ -414,6 +400,7 @@ impl Rooms {
                                     &pdu.sender,
                                     None,
                                     db,
+                                    false,
                                 )?;
                             }
                         }
@@ -422,10 +409,441 @@ impl Rooms {
             }
         }
 
+        self.update_joined_count(room_id)?;
+
         self.roomid_shortstatehash
-            .insert(room_id.as_bytes(), &shortstatehash.to_be_bytes())?;
+            .insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes())?;
 
         Ok(())
+    }
+
+    /// Returns a stack with info on shortstatehash, full state, added diff and removed diff for the selected shortstatehash and each parent layer.
+    #[tracing::instrument(skip(self))]
+    pub fn load_shortstatehash_info(
+        &self,
+        shortstatehash: u64,
+    ) -> Result<
+        Vec<(
+            u64,                           // sstatehash
+            HashSet<CompressedStateEvent>, // full state
+            HashSet<CompressedStateEvent>, // added
+            HashSet<CompressedStateEvent>, // removed
+        )>,
+    > {
+        if let Some(r) = self
+            .stateinfo_cache
+            .lock()
+            .unwrap()
+            .get_mut(&shortstatehash)
+        {
+            return Ok(r.clone());
+        }
+
+        let value = self
+            .shortstatehash_statediff
+            .get(&shortstatehash.to_be_bytes())?
+            .ok_or_else(|| Error::bad_database("State hash does not exist"))?;
+        let parent =
+            utils::u64_from_bytes(&value[0..size_of::<u64>()]).expect("bytes have right length");
+
+        let mut add_mode = true;
+        let mut added = HashSet::new();
+        let mut removed = HashSet::new();
+
+        let mut i = size_of::<u64>();
+        while let Some(v) = value.get(i..i + 2 * size_of::<u64>()) {
+            if add_mode && v.starts_with(&0_u64.to_be_bytes()) {
+                add_mode = false;
+                i += size_of::<u64>();
+                continue;
+            }
+            if add_mode {
+                added.insert(v.try_into().expect("we checked the size above"));
+            } else {
+                removed.insert(v.try_into().expect("we checked the size above"));
+            }
+            i += 2 * size_of::<u64>();
+        }
+
+        if parent != 0_u64 {
+            let mut response = self.load_shortstatehash_info(parent)?;
+            let mut state = response.last().unwrap().1.clone();
+            state.extend(added.iter().cloned());
+            for r in &removed {
+                state.remove(r);
+            }
+
+            response.push((shortstatehash, state, added, removed));
+
+            Ok(response)
+        } else {
+            let mut response = Vec::new();
+            response.push((shortstatehash, added.clone(), added, removed));
+            self.stateinfo_cache
+                .lock()
+                .unwrap()
+                .insert(shortstatehash, response.clone());
+            Ok(response)
+        }
+    }
+
+    #[tracing::instrument(skip(self, globals))]
+    pub fn compress_state_event(
+        &self,
+        shortstatekey: u64,
+        event_id: &EventId,
+        globals: &super::globals::Globals,
+    ) -> Result<CompressedStateEvent> {
+        let mut v = shortstatekey.to_be_bytes().to_vec();
+        v.extend_from_slice(
+            &self
+                .get_or_create_shorteventid(event_id, globals)?
+                .to_be_bytes(),
+        );
+        Ok(v.try_into().expect("we checked the size above"))
+    }
+
+    #[tracing::instrument(skip(self, compressed_event))]
+    pub fn parse_compressed_state_event(
+        &self,
+        compressed_event: CompressedStateEvent,
+    ) -> Result<EventId> {
+        self.get_eventid_from_short(
+            utils::u64_from_bytes(&compressed_event[size_of::<u64>()..])
+                .expect("bytes have right length"),
+        )
+    }
+
+    /// Creates a new shortstatehash that often is just a diff to an already existing
+    /// shortstatehash and therefore very efficient.
+    ///
+    /// There are multiple layers of diffs. The bottom layer 0 always contains the full state. Layer
+    /// 1 contains diffs to states of layer 0, layer 2 diffs to layer 1 and so on. If layer n > 0
+    /// grows too big, it will be combined with layer n-1 to create a new diff on layer n-1 that's
+    /// based on layer n-2. If that layer is also too big, it will recursively fix above layers too.
+    ///
+    /// * `shortstatehash` - Shortstatehash of this state
+    /// * `statediffnew` - Added to base. Each vec is shortstatekey+shorteventid
+    /// * `statediffremoved` - Removed from base. Each vec is shortstatekey+shorteventid
+    /// * `diff_to_sibling` - Approximately how much the diff grows each time for this layer
+    /// * `parent_states` - A stack with info on shortstatehash, full state, added diff and removed diff for each parent layer
+    #[tracing::instrument(skip(
+        self,
+        statediffnew,
+        statediffremoved,
+        diff_to_sibling,
+        parent_states
+    ))]
+    pub fn save_state_from_diff(
+        &self,
+        shortstatehash: u64,
+        statediffnew: HashSet<CompressedStateEvent>,
+        statediffremoved: HashSet<CompressedStateEvent>,
+        diff_to_sibling: usize,
+        mut parent_states: Vec<(
+            u64,                           // sstatehash
+            HashSet<CompressedStateEvent>, // full state
+            HashSet<CompressedStateEvent>, // added
+            HashSet<CompressedStateEvent>, // removed
+        )>,
+    ) -> Result<()> {
+        let diffsum = statediffnew.len() + statediffremoved.len();
+
+        if parent_states.len() > 3 {
+            // Number of layers
+            // To many layers, we have to go deeper
+            let parent = parent_states.pop().unwrap();
+
+            let mut parent_new = parent.2;
+            let mut parent_removed = parent.3;
+
+            for removed in statediffremoved {
+                if !parent_new.remove(&removed) {
+                    // It was not added in the parent and we removed it
+                    parent_removed.insert(removed);
+                }
+                // Else it was added in the parent and we removed it again. We can forget this change
+            }
+
+            for new in statediffnew {
+                if !parent_removed.remove(&new) {
+                    // It was not touched in the parent and we added it
+                    parent_new.insert(new);
+                }
+                // Else it was removed in the parent and we added it again. We can forget this change
+            }
+
+            self.save_state_from_diff(
+                shortstatehash,
+                parent_new,
+                parent_removed,
+                diffsum,
+                parent_states,
+            )?;
+
+            return Ok(());
+        }
+
+        if parent_states.len() == 0 {
+            // There is no parent layer, create a new state
+            let mut value = 0_u64.to_be_bytes().to_vec(); // 0 means no parent
+            for new in &statediffnew {
+                value.extend_from_slice(&new[..]);
+            }
+
+            if !statediffremoved.is_empty() {
+                warn!("Tried to create new state with removals");
+            }
+
+            self.shortstatehash_statediff
+                .insert(&shortstatehash.to_be_bytes(), &value)?;
+
+            return Ok(());
+        };
+
+        // Else we have two options.
+        // 1. We add the current diff on top of the parent layer.
+        // 2. We replace a layer above
+
+        let parent = parent_states.pop().unwrap();
+        let parent_diff = parent.2.len() + parent.3.len();
+
+        if diffsum * diffsum >= 2 * diff_to_sibling * parent_diff {
+            // Diff too big, we replace above layer(s)
+            let mut parent_new = parent.2;
+            let mut parent_removed = parent.3;
+
+            for removed in statediffremoved {
+                if !parent_new.remove(&removed) {
+                    // It was not added in the parent and we removed it
+                    parent_removed.insert(removed);
+                }
+                // Else it was added in the parent and we removed it again. We can forget this change
+            }
+
+            for new in statediffnew {
+                if !parent_removed.remove(&new) {
+                    // It was not touched in the parent and we added it
+                    parent_new.insert(new);
+                }
+                // Else it was removed in the parent and we added it again. We can forget this change
+            }
+
+            self.save_state_from_diff(
+                shortstatehash,
+                parent_new,
+                parent_removed,
+                diffsum,
+                parent_states,
+            )?;
+        } else {
+            // Diff small enough, we add diff as layer on top of parent
+            let mut value = parent.0.to_be_bytes().to_vec();
+            for new in &statediffnew {
+                value.extend_from_slice(&new[..]);
+            }
+
+            if !statediffremoved.is_empty() {
+                value.extend_from_slice(&0_u64.to_be_bytes());
+                for removed in &statediffremoved {
+                    value.extend_from_slice(&removed[..]);
+                }
+            }
+
+            self.shortstatehash_statediff
+                .insert(&shortstatehash.to_be_bytes(), &value)?;
+        }
+
+        Ok(())
+    }
+
+    /// Returns (shortstatehash, already_existed)
+    #[tracing::instrument(skip(self, globals))]
+    fn get_or_create_shortstatehash(
+        &self,
+        state_hash: &StateHashId,
+        globals: &super::globals::Globals,
+    ) -> Result<(u64, bool)> {
+        Ok(match self.statehash_shortstatehash.get(&state_hash)? {
+            Some(shortstatehash) => (
+                utils::u64_from_bytes(&shortstatehash)
+                    .map_err(|_| Error::bad_database("Invalid shortstatehash in db."))?,
+                true,
+            ),
+            None => {
+                let shortstatehash = globals.next_count()?;
+                self.statehash_shortstatehash
+                    .insert(&state_hash, &shortstatehash.to_be_bytes())?;
+                (shortstatehash, false)
+            }
+        })
+    }
+
+    #[tracing::instrument(skip(self, globals))]
+    pub fn get_or_create_shorteventid(
+        &self,
+        event_id: &EventId,
+        globals: &super::globals::Globals,
+    ) -> Result<u64> {
+        if let Some(short) = self.eventidshort_cache.lock().unwrap().get_mut(&event_id) {
+            return Ok(*short);
+        }
+
+        let short = match self.eventid_shorteventid.get(event_id.as_bytes())? {
+            Some(shorteventid) => utils::u64_from_bytes(&shorteventid)
+                .map_err(|_| Error::bad_database("Invalid shorteventid in db."))?,
+            None => {
+                let shorteventid = globals.next_count()?;
+                self.eventid_shorteventid
+                    .insert(event_id.as_bytes(), &shorteventid.to_be_bytes())?;
+                self.shorteventid_eventid
+                    .insert(&shorteventid.to_be_bytes(), event_id.as_bytes())?;
+                shorteventid
+            }
+        };
+
+        self.eventidshort_cache
+            .lock()
+            .unwrap()
+            .insert(event_id.clone(), short);
+
+        Ok(short)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_shortroomid(&self, room_id: &RoomId) -> Result<Option<u64>> {
+        self.roomid_shortroomid
+            .get(&room_id.as_bytes())?
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes)
+                    .map_err(|_| Error::bad_database("Invalid shortroomid in db."))
+            })
+            .transpose()
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_shortstatekey(
+        &self,
+        event_type: &EventType,
+        state_key: &str,
+    ) -> Result<Option<u64>> {
+        if let Some(short) = self
+            .statekeyshort_cache
+            .lock()
+            .unwrap()
+            .get_mut(&(event_type.clone(), state_key.to_owned()))
+        {
+            return Ok(Some(*short));
+        }
+
+        let mut statekey = event_type.as_ref().as_bytes().to_vec();
+        statekey.push(0xff);
+        statekey.extend_from_slice(&state_key.as_bytes());
+
+        let short = self
+            .statekey_shortstatekey
+            .get(&statekey)?
+            .map(|shortstatekey| {
+                utils::u64_from_bytes(&shortstatekey)
+                    .map_err(|_| Error::bad_database("Invalid shortstatekey in db."))
+            })
+            .transpose()?;
+
+        if let Some(s) = short {
+            self.statekeyshort_cache
+                .lock()
+                .unwrap()
+                .insert((event_type.clone(), state_key.to_owned()), s);
+        }
+
+        Ok(short)
+    }
+
+    #[tracing::instrument(skip(self, globals))]
+    pub fn get_or_create_shortroomid(
+        &self,
+        room_id: &RoomId,
+        globals: &super::globals::Globals,
+    ) -> Result<u64> {
+        Ok(match self.roomid_shortroomid.get(&room_id.as_bytes())? {
+            Some(short) => utils::u64_from_bytes(&short)
+                .map_err(|_| Error::bad_database("Invalid shortroomid in db."))?,
+            None => {
+                let short = globals.next_count()?;
+                self.roomid_shortroomid
+                    .insert(&room_id.as_bytes(), &short.to_be_bytes())?;
+                short
+            }
+        })
+    }
+
+    #[tracing::instrument(skip(self, globals))]
+    pub fn get_or_create_shortstatekey(
+        &self,
+        event_type: &EventType,
+        state_key: &str,
+        globals: &super::globals::Globals,
+    ) -> Result<u64> {
+        if let Some(short) = self
+            .statekeyshort_cache
+            .lock()
+            .unwrap()
+            .get_mut(&(event_type.clone(), state_key.to_owned()))
+        {
+            return Ok(*short);
+        }
+
+        let mut statekey = event_type.as_ref().as_bytes().to_vec();
+        statekey.push(0xff);
+        statekey.extend_from_slice(&state_key.as_bytes());
+
+        let short = match self.statekey_shortstatekey.get(&statekey)? {
+            Some(shortstatekey) => utils::u64_from_bytes(&shortstatekey)
+                .map_err(|_| Error::bad_database("Invalid shortstatekey in db."))?,
+            None => {
+                let shortstatekey = globals.next_count()?;
+                self.statekey_shortstatekey
+                    .insert(&statekey, &shortstatekey.to_be_bytes())?;
+                shortstatekey
+            }
+        };
+
+        self.statekeyshort_cache
+            .lock()
+            .unwrap()
+            .insert((event_type.clone(), state_key.to_owned()), short);
+
+        Ok(short)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_eventid_from_short(&self, shorteventid: u64) -> Result<EventId> {
+        if let Some(id) = self
+            .shorteventid_cache
+            .lock()
+            .unwrap()
+            .get_mut(&shorteventid)
+        {
+            return Ok(id.clone());
+        }
+
+        let bytes = self
+            .shorteventid_eventid
+            .get(&shorteventid.to_be_bytes())?
+            .ok_or_else(|| Error::bad_database("Shorteventid does not exist"))?;
+
+        let event_id =
+            EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                Error::bad_database("EventID in roomid_pduleaves is invalid unicode.")
+            })?)
+            .map_err(|_| Error::bad_database("EventId in roomid_pduleaves is invalid."))?;
+
+        self.shorteventid_cache
+            .lock()
+            .unwrap()
+            .insert(shorteventid, event_id.clone());
+
+        Ok(event_id)
     }
 
     /// Returns the full room state.
@@ -475,21 +893,26 @@ impl Rooms {
     #[tracing::instrument(skip(self))]
     pub fn pdu_count(&self, pdu_id: &[u8]) -> Result<u64> {
         Ok(
-            utils::u64_from_bytes(&pdu_id[pdu_id.len() - mem::size_of::<u64>()..pdu_id.len()])
+            utils::u64_from_bytes(&pdu_id[pdu_id.len() - size_of::<u64>()..])
                 .map_err(|_| Error::bad_database("PDU has invalid count bytes."))?,
         )
     }
 
     /// Returns the `count` of this pdu's id.
+    #[tracing::instrument(skip(self))]
     pub fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<u64>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
             .map_or(Ok(None), |pdu_id| self.pdu_count(&pdu_id).map(Some))
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn latest_pdu_count(&self, room_id: &RoomId) -> Result<u64> {
-        let mut prefix = room_id.as_bytes().to_vec();
-        prefix.push(0xff);
+        let prefix = self
+            .get_shortroomid(room_id)?
+            .expect("room exists")
+            .to_be_bytes()
+            .to_vec();
 
         let mut last_possible_key = prefix.clone();
         last_possible_key.extend_from_slice(&u64::MAX.to_be_bytes());
@@ -504,6 +927,7 @@ impl Rooms {
     }
 
     /// Returns the json of a pdu.
+    #[tracing::instrument(skip(self))]
     pub fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
@@ -522,6 +946,18 @@ impl Rooms {
     }
 
     /// Returns the json of a pdu.
+    #[tracing::instrument(skip(self))]
+    pub fn get_outlier_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
+        self.eventid_outlierpdu
+            .get(event_id.as_bytes())?
+            .map(|pdu| {
+                serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
+            })
+            .transpose()
+    }
+
+    /// Returns the json of a pdu.
+    #[tracing::instrument(skip(self))]
     pub fn get_non_outlier_pdu_json(
         &self,
         event_id: &EventId,
@@ -543,6 +979,7 @@ impl Rooms {
     }
 
     /// Returns the pdu's id.
+    #[tracing::instrument(skip(self))]
     pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
@@ -552,6 +989,7 @@ impl Rooms {
     /// Returns the pdu.
     ///
     /// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
+    #[tracing::instrument(skip(self))]
     pub fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
@@ -572,6 +1010,7 @@ impl Rooms {
     /// Returns the pdu.
     ///
     /// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
+    #[tracing::instrument(skip(self))]
     pub fn get_pdu(&self, event_id: &EventId) -> Result<Option<Arc<PduEvent>>> {
         if let Some(p) = self.pdu_cache.lock().unwrap().get_mut(&event_id) {
             return Ok(Some(Arc::clone(p)));
@@ -611,6 +1050,7 @@ impl Rooms {
     /// Returns the pdu.
     ///
     /// This does __NOT__ check the outliers `Tree`.
+    #[tracing::instrument(skip(self))]
     pub fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<Option<PduEvent>> {
         self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
             Ok(Some(
@@ -621,6 +1061,7 @@ impl Rooms {
     }
 
     /// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
+    #[tracing::instrument(skip(self))]
     pub fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<CanonicalJsonObject>> {
         self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
             Ok(Some(
@@ -631,6 +1072,7 @@ impl Rooms {
     }
 
     /// Removes a pdu and creates a new one with the same id.
+    #[tracing::instrument(skip(self))]
     fn replace_pdu(&self, pdu_id: &[u8], pdu: &PduEvent) -> Result<()> {
         if self.pduid_pdu.get(&pdu_id)?.is_some() {
             self.pduid_pdu.insert(
@@ -719,6 +1161,8 @@ impl Rooms {
     ///
     /// By this point the incoming event should be fully authenticated, no auth happens
     /// in `append_pdu`.
+    ///
+    /// Returns pdu id
     #[tracing::instrument(skip(self, pdu, pdu_json, leaves, db))]
     pub fn append_pdu(
         &self,
@@ -727,7 +1171,8 @@ impl Rooms {
         leaves: &[EventId],
         db: &Database,
     ) -> Result<Vec<u8>> {
-        // returns pdu id
+        let shortroomid = self.get_shortroomid(&pdu.room_id)?.expect("room exists");
+
         // Make unsigned fields correct. This is not properly documented in the spec, but state
         // events need to have previous content in the unsigned field, so clients can easily
         // interpret things like membership changes
@@ -782,8 +1227,7 @@ impl Rooms {
         self.reset_notification_counts(&pdu.sender, &pdu.room_id)?;
 
         let count2 = db.globals.next_count()?;
-        let mut pdu_id = pdu.room_id.as_bytes().to_vec();
-        pdu_id.push(0xff);
+        let mut pdu_id = shortroomid.to_be_bytes().to_vec();
         pdu_id.extend_from_slice(&count2.to_be_bytes());
 
         // There's a brief moment of time here where the count is updated but the pdu does not
@@ -796,10 +1240,9 @@ impl Rooms {
             &serde_json::to_vec(&pdu_json).expect("CanonicalJsonObject is always a valid"),
         )?;
 
-        // This also replaces the eventid of any outliers with the correct
-        // pduid, removing the place holder.
         self.eventid_pduid
             .insert(pdu.event_id.as_bytes(), &pdu_id)?;
+        self.eventid_outlierpdu.remove(pdu.event_id.as_bytes())?;
 
         drop(insert_lock);
 
@@ -815,6 +1258,9 @@ impl Rooms {
             .unwrap_or_default();
 
         let sync_pdu = pdu.to_sync_room_event();
+
+        let mut notifies = Vec::new();
+        let mut highlights = Vec::new();
 
         for user in db
             .rooms
@@ -861,17 +1307,22 @@ impl Rooms {
             userroom_id.extend_from_slice(pdu.room_id.as_bytes());
 
             if notify {
-                self.userroomid_notificationcount.increment(&userroom_id)?;
+                notifies.push(userroom_id.clone());
             }
 
             if highlight {
-                self.userroomid_highlightcount.increment(&userroom_id)?;
+                highlights.push(userroom_id);
             }
 
             for senderkey in db.pusher.get_pusher_senderkeys(&user) {
                 db.sending.send_push_pdu(&*pdu_id, senderkey)?;
             }
         }
+
+        self.userroomid_notificationcount
+            .increment_batch(&mut notifies.into_iter())?;
+        self.userroomid_highlightcount
+            .increment_batch(&mut highlights.into_iter())?;
 
         match pdu.kind {
             EventType::RoomRedaction => {
@@ -919,6 +1370,7 @@ impl Rooms {
                         &pdu.sender,
                         invite_state,
                         db,
+                        true,
                     )?;
                 }
             }
@@ -926,11 +1378,11 @@ impl Rooms {
                 if let Some(body) = pdu.content.get("body").and_then(|b| b.as_str()) {
                     let mut batch = body
                         .split_terminator(|c: char| !c.is_alphanumeric())
+                        .filter(|s| !s.is_empty())
                         .filter(|word| word.len() <= 50)
                         .map(str::to_lowercase)
                         .map(|word| {
-                            let mut key = pdu.room_id.as_bytes().to_vec();
-                            key.push(0xff);
+                            let mut key = shortroomid.to_be_bytes().to_vec();
                             key.extend_from_slice(word.as_bytes());
                             key.push(0xff);
                             key.extend_from_slice(&pdu_id);
@@ -1113,20 +1565,26 @@ impl Rooms {
     pub fn set_event_state(
         &self,
         event_id: &EventId,
+        room_id: &RoomId,
         state: &StateMap<Arc<PduEvent>>,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        let shorteventid = match self.eventid_shorteventid.get(event_id.as_bytes())? {
-            Some(shorteventid) => shorteventid.to_vec(),
-            None => {
-                let shorteventid = globals.next_count()?;
-                self.eventid_shorteventid
-                    .insert(event_id.as_bytes(), &shorteventid.to_be_bytes())?;
-                self.shorteventid_eventid
-                    .insert(&shorteventid.to_be_bytes(), event_id.as_bytes())?;
-                shorteventid.to_be_bytes().to_vec()
-            }
-        };
+        let shorteventid = self.get_or_create_shorteventid(&event_id, globals)?;
+
+        let previous_shortstatehash = self.current_shortstatehash(&room_id)?;
+
+        let state_ids_compressed = state
+            .iter()
+            .filter_map(|((event_type, state_key), pdu)| {
+                let shortstatekey = self
+                    .get_or_create_shortstatekey(event_type, state_key, globals)
+                    .ok()?;
+                Some(
+                    self.compress_state_event(shortstatekey, &pdu.event_id, globals)
+                        .ok()?,
+                )
+            })
+            .collect::<HashSet<_>>();
 
         let state_hash = self.calculate_hash(
             &state
@@ -1135,69 +1593,41 @@ impl Rooms {
                 .collect::<Vec<_>>(),
         );
 
-        let shortstatehash = match self.statehash_shortstatehash.get(&state_hash)? {
-            Some(shortstatehash) => {
-                // State already existed in db
-                self.shorteventid_shortstatehash
-                    .insert(&shorteventid, &*shortstatehash)?;
-                return Ok(());
-            }
-            None => {
-                let shortstatehash = globals.next_count()?;
-                self.statehash_shortstatehash
-                    .insert(&state_hash, &shortstatehash.to_be_bytes())?;
-                shortstatehash.to_be_bytes().to_vec()
-            }
-        };
+        let (shortstatehash, already_existed) =
+            self.get_or_create_shortstatehash(&state_hash, globals)?;
 
-        let batch = state
-            .iter()
-            .filter_map(|((event_type, state_key), pdu)| {
-                let mut statekey = event_type.as_ref().as_bytes().to_vec();
-                statekey.push(0xff);
-                statekey.extend_from_slice(&state_key.as_bytes());
+        if !already_existed {
+            let states_parents = previous_shortstatehash
+                .map_or_else(|| Ok(Vec::new()), |p| self.load_shortstatehash_info(p))?;
 
-                let shortstatekey = match self.statekey_shortstatekey.get(&statekey).ok()? {
-                    Some(shortstatekey) => shortstatekey.to_vec(),
-                    None => {
-                        let shortstatekey = globals.next_count().ok()?;
-                        self.statekey_shortstatekey
-                            .insert(&statekey, &shortstatekey.to_be_bytes())
-                            .ok()?;
-                        shortstatekey.to_be_bytes().to_vec()
-                    }
+            let (statediffnew, statediffremoved) =
+                if let Some(parent_stateinfo) = states_parents.last() {
+                    let statediffnew = state_ids_compressed
+                        .difference(&parent_stateinfo.1)
+                        .cloned()
+                        .collect::<HashSet<_>>();
+
+                    let statediffremoved = parent_stateinfo
+                        .1
+                        .difference(&state_ids_compressed)
+                        .cloned()
+                        .collect::<HashSet<_>>();
+
+                    (statediffnew, statediffremoved)
+                } else {
+                    (state_ids_compressed, HashSet::new())
                 };
-
-                let shorteventid = match self
-                    .eventid_shorteventid
-                    .get(pdu.event_id.as_bytes())
-                    .ok()?
-                {
-                    Some(shorteventid) => shorteventid.to_vec(),
-                    None => {
-                        let shorteventid = globals.next_count().ok()?;
-                        self.eventid_shorteventid
-                            .insert(pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())
-                            .ok()?;
-                        self.shorteventid_eventid
-                            .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())
-                            .ok()?;
-                        shorteventid.to_be_bytes().to_vec()
-                    }
-                };
-
-                let mut state_id = shortstatehash.clone();
-                state_id.extend_from_slice(&shortstatekey);
-
-                Some((state_id, shorteventid))
-            })
-            .collect::<Vec<_>>();
-
-        self.stateid_shorteventid
-            .insert_batch(&mut batch.into_iter())?;
+            self.save_state_from_diff(
+                shortstatehash,
+                statediffnew.clone(),
+                statediffremoved.clone(),
+                1_000_000, // high number because no state will be based on this one
+                states_parents,
+            )?;
+        }
 
         self.shorteventid_shortstatehash
-            .insert(&shorteventid, &*shortstatehash)?;
+            .insert(&shorteventid.to_be_bytes(), &shortstatehash.to_be_bytes())?;
 
         Ok(())
     }
@@ -1212,106 +1642,59 @@ impl Rooms {
         new_pdu: &PduEvent,
         globals: &super::globals::Globals,
     ) -> Result<u64> {
-        let old_state = if let Some(old_shortstatehash) =
-            self.roomid_shortstatehash.get(new_pdu.room_id.as_bytes())?
-        {
-            // Store state for event. The state does not include the event itself.
-            // Instead it's the state before the pdu, so the room's old state.
+        let shorteventid = self.get_or_create_shorteventid(&new_pdu.event_id, globals)?;
 
-            let shorteventid = match self.eventid_shorteventid.get(new_pdu.event_id.as_bytes())? {
-                Some(shorteventid) => shorteventid.to_vec(),
-                None => {
-                    let shorteventid = globals.next_count()?;
-                    self.eventid_shorteventid
-                        .insert(new_pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())?;
-                    self.shorteventid_eventid
-                        .insert(&shorteventid.to_be_bytes(), new_pdu.event_id.as_bytes())?;
-                    shorteventid.to_be_bytes().to_vec()
-                }
-            };
+        let previous_shortstatehash = self.current_shortstatehash(&new_pdu.room_id)?;
 
+        if let Some(p) = previous_shortstatehash {
             self.shorteventid_shortstatehash
-                .insert(&shorteventid, &old_shortstatehash)?;
-            if new_pdu.state_key.is_none() {
-                return utils::u64_from_bytes(&old_shortstatehash).map_err(|_| {
-                    Error::bad_database("Invalid shortstatehash in roomid_shortstatehash.")
-                });
-            }
-
-            self.stateid_shorteventid
-                .scan_prefix(old_shortstatehash.clone())
-                // Chop the old_shortstatehash out leaving behind the short state key
-                .map(|(k, v)| (k[old_shortstatehash.len()..].to_vec(), v))
-                .collect::<HashMap<Vec<u8>, Vec<u8>>>()
-        } else {
-            HashMap::new()
-        };
+                .insert(&shorteventid.to_be_bytes(), &p.to_be_bytes())?;
+        }
 
         if let Some(state_key) = &new_pdu.state_key {
-            let mut new_state: HashMap<Vec<u8>, Vec<u8>> = old_state;
+            let states_parents = previous_shortstatehash
+                .map_or_else(|| Ok(Vec::new()), |p| self.load_shortstatehash_info(p))?;
 
-            let mut new_state_key = new_pdu.kind.as_ref().as_bytes().to_vec();
-            new_state_key.push(0xff);
-            new_state_key.extend_from_slice(state_key.as_bytes());
+            let shortstatekey =
+                self.get_or_create_shortstatekey(&new_pdu.kind, &state_key, globals)?;
 
-            let shortstatekey = match self.statekey_shortstatekey.get(&new_state_key)? {
-                Some(shortstatekey) => shortstatekey.to_vec(),
-                None => {
-                    let shortstatekey = globals.next_count()?;
-                    self.statekey_shortstatekey
-                        .insert(&new_state_key, &shortstatekey.to_be_bytes())?;
-                    shortstatekey.to_be_bytes().to_vec()
-                }
-            };
+            let new = self.compress_state_event(shortstatekey, &new_pdu.event_id, globals)?;
 
-            let shorteventid = match self.eventid_shorteventid.get(new_pdu.event_id.as_bytes())? {
-                Some(shorteventid) => shorteventid.to_vec(),
-                None => {
-                    let shorteventid = globals.next_count()?;
-                    self.eventid_shorteventid
-                        .insert(new_pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())?;
-                    self.shorteventid_eventid
-                        .insert(&shorteventid.to_be_bytes(), new_pdu.event_id.as_bytes())?;
-                    shorteventid.to_be_bytes().to_vec()
-                }
-            };
+            let replaces = states_parents
+                .last()
+                .map(|info| {
+                    info.1
+                        .iter()
+                        .find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
+                })
+                .unwrap_or_default();
 
-            new_state.insert(shortstatekey, shorteventid);
+            if Some(&new) == replaces {
+                return Ok(previous_shortstatehash.expect("must exist"));
+            }
 
-            let new_state_hash = self.calculate_hash(
-                &new_state
-                    .values()
-                    .map(|event_id| &**event_id)
-                    .collect::<Vec<_>>(),
-            );
+            // TODO: statehash with deterministic inputs
+            let shortstatehash = globals.next_count()?;
 
-            let shortstatehash = match self.statehash_shortstatehash.get(&new_state_hash)? {
-                Some(shortstatehash) => {
-                    warn!("state hash already existed?!");
-                    utils::u64_from_bytes(&shortstatehash)
-                        .map_err(|_| Error::bad_database("PDU has invalid count bytes."))?
-                }
-                None => {
-                    let shortstatehash = globals.next_count()?;
-                    self.statehash_shortstatehash
-                        .insert(&new_state_hash, &shortstatehash.to_be_bytes())?;
-                    shortstatehash
-                }
-            };
+            let mut statediffnew = HashSet::new();
+            statediffnew.insert(new);
 
-            let mut batch = new_state.into_iter().map(|(shortstatekey, shorteventid)| {
-                let mut state_id = shortstatehash.to_be_bytes().to_vec();
-                state_id.extend_from_slice(&shortstatekey);
-                (state_id, shorteventid)
-            });
+            let mut statediffremoved = HashSet::new();
+            if let Some(replaces) = replaces {
+                statediffremoved.insert(replaces.clone());
+            }
 
-            self.stateid_shorteventid.insert_batch(&mut batch)?;
+            self.save_state_from_diff(
+                shortstatehash,
+                statediffnew,
+                statediffremoved,
+                2,
+                states_parents,
+            )?;
 
             Ok(shortstatehash)
         } else {
-            Err(Error::bad_database(
-                "Tried to insert non-state event into room without a state.",
-            ))
+            Ok(previous_shortstatehash.expect("first event in room must be a state event"))
         }
     }
 
@@ -1516,11 +1899,7 @@ impl Rooms {
         );
 
         // Generate short event id
-        let shorteventid = db.globals.next_count()?;
-        self.eventid_shorteventid
-            .insert(pdu.event_id.as_bytes(), &shorteventid.to_be_bytes())?;
-        self.shorteventid_eventid
-            .insert(&shorteventid.to_be_bytes(), pdu.event_id.as_bytes())?;
+        let _shorteventid = self.get_or_create_shorteventid(&pdu.event_id, &db.globals)?;
 
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.
@@ -1618,7 +1997,7 @@ impl Rooms {
         &'a self,
         user_id: &UserId,
         room_id: &RoomId,
-    ) -> impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a {
+    ) -> Result<impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a> {
         self.pdus_since(user_id, room_id, 0)
     }
 
@@ -1630,16 +2009,21 @@ impl Rooms {
         user_id: &UserId,
         room_id: &RoomId,
         since: u64,
-    ) -> impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a {
-        let mut prefix = room_id.as_bytes().to_vec();
-        prefix.push(0xff);
+    ) -> Result<impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a> {
+        let prefix = self
+            .get_shortroomid(room_id)?
+            .expect("room exists")
+            .to_be_bytes()
+            .to_vec();
 
         // Skip the first pdu if it's exactly at since, because we sent that last time
         let mut first_pdu_id = prefix.clone();
         first_pdu_id.extend_from_slice(&(since + 1).to_be_bytes());
 
         let user_id = user_id.clone();
-        self.pduid_pdu
+
+        Ok(self
+            .pduid_pdu
             .iter_from(&first_pdu_id, false)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(move |(pdu_id, v)| {
@@ -1649,7 +2033,7 @@ impl Rooms {
                     pdu.unsigned.remove("transaction_id");
                 }
                 Ok((pdu_id, pdu))
-            })
+            }))
     }
 
     /// Returns an iterator over all events and their tokens in a room that happened before the
@@ -1660,10 +2044,13 @@ impl Rooms {
         user_id: &UserId,
         room_id: &RoomId,
         until: u64,
-    ) -> impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a {
+    ) -> Result<impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a> {
         // Create the first part of the full pdu id
-        let mut prefix = room_id.as_bytes().to_vec();
-        prefix.push(0xff);
+        let prefix = self
+            .get_shortroomid(room_id)?
+            .expect("room exists")
+            .to_be_bytes()
+            .to_vec();
 
         let mut current = prefix.clone();
         current.extend_from_slice(&(until.saturating_sub(1)).to_be_bytes()); // -1 because we don't want event at `until`
@@ -1671,7 +2058,9 @@ impl Rooms {
         let current: &[u8] = &current;
 
         let user_id = user_id.clone();
-        self.pduid_pdu
+
+        Ok(self
+            .pduid_pdu
             .iter_from(current, true)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(move |(pdu_id, v)| {
@@ -1681,7 +2070,7 @@ impl Rooms {
                     pdu.unsigned.remove("transaction_id");
                 }
                 Ok((pdu_id, pdu))
-            })
+            }))
     }
 
     /// Returns an iterator over all events and their token in a room that happened after the event
@@ -1692,10 +2081,13 @@ impl Rooms {
         user_id: &UserId,
         room_id: &RoomId,
         from: u64,
-    ) -> impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a {
+    ) -> Result<impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a> {
         // Create the first part of the full pdu id
-        let mut prefix = room_id.as_bytes().to_vec();
-        prefix.push(0xff);
+        let prefix = self
+            .get_shortroomid(room_id)?
+            .expect("room exists")
+            .to_be_bytes()
+            .to_vec();
 
         let mut current = prefix.clone();
         current.extend_from_slice(&(from + 1).to_be_bytes()); // +1 so we don't send the base event
@@ -1703,7 +2095,9 @@ impl Rooms {
         let current: &[u8] = &current;
 
         let user_id = user_id.clone();
-        self.pduid_pdu
+
+        Ok(self
+            .pduid_pdu
             .iter_from(current, false)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(move |(pdu_id, v)| {
@@ -1713,7 +2107,7 @@ impl Rooms {
                     pdu.unsigned.remove("transaction_id");
                 }
                 Ok((pdu_id, pdu))
-            })
+            }))
     }
 
     /// Replace a PDU with the redacted form.
@@ -1744,6 +2138,7 @@ impl Rooms {
         sender: &UserId,
         last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
         db: &Database,
+        update_joined_count: bool,
     ) -> Result<()> {
         // Keep track what remote users exist by adding them as "deactivated" users
         if user_id.server_name() != db.globals.server_name() {
@@ -1861,8 +2256,10 @@ impl Rooms {
                     }
                 }
 
-                self.roomserverids.insert(&roomserver_id, &[])?;
-                self.serverroomids.insert(&serverroom_id, &[])?;
+                if update_joined_count {
+                    self.roomserverids.insert(&roomserver_id, &[])?;
+                    self.serverroomids.insert(&serverroom_id, &[])?;
+                }
                 self.userroomid_joined.insert(&userroom_id, &[])?;
                 self.roomuserid_joined.insert(&roomuser_id, &[])?;
                 self.userroomid_invitestate.remove(&userroom_id)?;
@@ -1887,8 +2284,10 @@ impl Rooms {
                     return Ok(());
                 }
 
-                self.roomserverids.insert(&roomserver_id, &[])?;
-                self.serverroomids.insert(&serverroom_id, &[])?;
+                if update_joined_count {
+                    self.roomserverids.insert(&roomserver_id, &[])?;
+                    self.serverroomids.insert(&serverroom_id, &[])?;
+                }
                 self.userroomid_invitestate.insert(
                     &userroom_id,
                     &serde_json::to_vec(&last_state.unwrap_or_default())
@@ -1902,14 +2301,16 @@ impl Rooms {
                 self.roomuserid_leftcount.remove(&roomuser_id)?;
             }
             member::MembershipState::Leave | member::MembershipState::Ban => {
-                if self
-                    .room_members(room_id)
-                    .chain(self.room_members_invited(room_id))
-                    .filter_map(|r| r.ok())
-                    .all(|u| u.server_name() != user_id.server_name())
-                {
-                    self.roomserverids.remove(&roomserver_id)?;
-                    self.serverroomids.remove(&serverroom_id)?;
+                if update_joined_count {
+                    if self
+                        .room_members(room_id)
+                        .chain(self.room_members_invited(room_id))
+                        .filter_map(|r| r.ok())
+                        .all(|u| u.server_name() != user_id.server_name())
+                    {
+                        self.roomserverids.remove(&roomserver_id)?;
+                        self.serverroomids.remove(&serverroom_id)?;
+                    }
                 }
                 self.userroomid_leftstate.insert(
                     &userroom_id,
@@ -1925,18 +2326,64 @@ impl Rooms {
             _ => {}
         }
 
-        self.update_joined_count(room_id)?;
+        if update_joined_count {
+            self.update_joined_count(room_id)?;
+        }
 
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn update_joined_count(&self, room_id: &RoomId) -> Result<()> {
-        self.roomid_joinedcount.insert(
-            room_id.as_bytes(),
-            &(self.room_members(&room_id).count() as u64).to_be_bytes(),
-        )
+        let mut joinedcount = 0_u64;
+        let mut joined_servers = HashSet::new();
+
+        for joined in self.room_members(&room_id).filter_map(|r| r.ok()) {
+            joined_servers.insert(joined.server_name().to_owned());
+            joinedcount += 1;
+        }
+
+        for invited in self.room_members_invited(&room_id).filter_map(|r| r.ok()) {
+            joined_servers.insert(invited.server_name().to_owned());
+        }
+
+        self.roomid_joinedcount
+            .insert(room_id.as_bytes(), &joinedcount.to_be_bytes())?;
+
+        for old_joined_server in self.room_servers(room_id).filter_map(|r| r.ok()) {
+            if !joined_servers.remove(&old_joined_server) {
+                // Server not in room anymore
+                let mut roomserver_id = room_id.as_bytes().to_vec();
+                roomserver_id.push(0xff);
+                roomserver_id.extend_from_slice(old_joined_server.as_bytes());
+
+                let mut serverroom_id = old_joined_server.as_bytes().to_vec();
+                serverroom_id.push(0xff);
+                serverroom_id.extend_from_slice(room_id.as_bytes());
+
+                self.roomserverids.remove(&roomserver_id)?;
+                self.serverroomids.remove(&serverroom_id)?;
+            }
+        }
+
+        // Now only new servers are in joined_servers anymore
+        for server in joined_servers {
+            let mut roomserver_id = room_id.as_bytes().to_vec();
+            roomserver_id.push(0xff);
+            roomserver_id.extend_from_slice(server.as_bytes());
+
+            let mut serverroom_id = server.as_bytes().to_vec();
+            serverroom_id.push(0xff);
+            serverroom_id.extend_from_slice(room_id.as_bytes());
+
+            self.roomserverids.insert(&roomserver_id, &[])?;
+            self.serverroomids.insert(&serverroom_id, &[])?;
+        }
+
+        Ok(())
     }
 
+    #[tracing::instrument(skip(self, db))]
     pub async fn leave_room(
         &self,
         user_id: &UserId,
@@ -1962,6 +2409,7 @@ impl Rooms {
                 user_id,
                 last_state,
                 db,
+                true,
             )?;
         } else {
             let mutex_state = Arc::clone(
@@ -2008,6 +2456,7 @@ impl Rooms {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, db))]
     async fn remote_leave_room(
         &self,
         user_id: &UserId,
@@ -2239,16 +2688,22 @@ impl Rooms {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn search_pdus<'a>(
         &'a self,
         room_id: &RoomId,
         search_string: &str,
     ) -> Result<(impl Iterator<Item = Vec<u8>> + 'a, Vec<String>)> {
-        let mut prefix = room_id.as_bytes().to_vec();
-        prefix.push(0xff);
+        let prefix = self
+            .get_shortroomid(room_id)?
+            .expect("room exists")
+            .to_be_bytes()
+            .to_vec();
+        let prefix_clone = prefix.clone();
 
         let words = search_string
             .split_terminator(|c: char| !c.is_alphanumeric())
+            .filter(|s| !s.is_empty())
             .map(str::to_lowercase)
             .collect::<Vec<_>>();
 
@@ -2264,16 +2719,7 @@ impl Rooms {
                 .iter_from(&last_possible_id, true) // Newest pdus first
                 .take_while(move |(k, _)| k.starts_with(&prefix2))
                 .map(|(key, _)| {
-                    let pduid_index = key
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, &b)| b == 0xff)
-                        .nth(1)
-                        .ok_or_else(|| Error::bad_database("Invalid tokenid in db."))?
-                        .0
-                        + 1; // +1 because the pdu id starts AFTER the separator
-
-                    let pdu_id = key[pduid_index..].to_vec();
+                    let pdu_id = key[key.len() - size_of::<u64>()..].to_vec();
 
                     Ok::<_, Error>(pdu_id)
                 })
@@ -2285,7 +2731,12 @@ impl Rooms {
                 // We compare b with a because we reversed the iterator earlier
                 b.cmp(a)
             })
-            .unwrap(),
+            .unwrap()
+            .map(move |id| {
+                let mut pduid = prefix_clone.clone();
+                pduid.extend_from_slice(&id);
+                pduid
+            }),
             words,
         ))
     }
@@ -2398,6 +2849,7 @@ impl Rooms {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
         Ok(self
             .roomid_joinedcount
@@ -2655,9 +3107,7 @@ impl Rooms {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn auth_chain_cache(
-        &self,
-    ) -> std::sync::MutexGuard<'_, LruCache<Vec<EventId>, HashSet<EventId>>> {
+    pub fn auth_chain_cache(&self) -> std::sync::MutexGuard<'_, LruCache<u64, HashSet<u64>>> {
         self.auth_chain_cache.lock().unwrap()
     }
 }

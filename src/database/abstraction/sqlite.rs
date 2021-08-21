@@ -9,15 +9,13 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     sync::Arc,
-    time::{Duration, Instant},
 };
 use tokio::sync::oneshot::Sender;
-use tracing::{debug, warn};
-
-pub const MILLI: Duration = Duration::from_millis(1);
+use tracing::debug;
 
 thread_local! {
     static READ_CONNECTION: RefCell<Option<&'static Connection>> = RefCell::new(None);
+    static READ_CONNECTION_ITERATOR: RefCell<Option<&'static Connection>> = RefCell::new(None);
 }
 
 struct PreparedStatementIterator<'a> {
@@ -51,11 +49,11 @@ impl Engine {
     fn prepare_conn(path: &Path, cache_size_kb: u32) -> Result<Connection> {
         let conn = Connection::open(&path)?;
 
-        conn.pragma_update(Some(Main), "page_size", &32768)?;
+        conn.pragma_update(Some(Main), "page_size", &2048)?;
         conn.pragma_update(Some(Main), "journal_mode", &"WAL")?;
         conn.pragma_update(Some(Main), "synchronous", &"NORMAL")?;
         conn.pragma_update(Some(Main), "cache_size", &(-i64::from(cache_size_kb)))?;
-        conn.pragma_update(Some(Main), "wal_autocheckpoint", &0)?;
+        conn.pragma_update(Some(Main), "wal_autocheckpoint", &2000)?;
 
         Ok(conn)
     }
@@ -79,9 +77,25 @@ impl Engine {
         })
     }
 
+    fn read_lock_iterator(&self) -> &'static Connection {
+        READ_CONNECTION_ITERATOR.with(|cell| {
+            let connection = &mut cell.borrow_mut();
+
+            if (*connection).is_none() {
+                let c = Box::leak(Box::new(
+                    Self::prepare_conn(&self.path, self.cache_size_per_thread).unwrap(),
+                ));
+                **connection = Some(c);
+            }
+
+            connection.unwrap()
+        })
+    }
+
     pub fn flush_wal(self: &Arc<Self>) -> Result<()> {
-        self.write_lock()
-            .pragma_update(Some(Main), "wal_checkpoint", &"TRUNCATE")?;
+        // We use autocheckpoints
+        //self.write_lock()
+        //.pragma_update(Some(Main), "wal_checkpoint", &"TRUNCATE")?;
         Ok(())
     }
 }
@@ -153,6 +167,34 @@ impl SqliteTable {
         )?;
         Ok(())
     }
+
+    pub fn iter_with_guard<'a>(
+        &'a self,
+        guard: &'a Connection,
+    ) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
+        let statement = Box::leak(Box::new(
+            guard
+                .prepare(&format!(
+                    "SELECT key, value FROM {} ORDER BY key ASC",
+                    &self.name
+                ))
+                .unwrap(),
+        ));
+
+        let statement_ref = NonAliasingBox(statement);
+
+        let iterator = Box::new(
+            statement
+                .query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
+                .unwrap()
+                .map(|r| r.unwrap()),
+        );
+
+        Box::new(PreparedStatementIterator {
+            iterator,
+            statement_ref,
+        })
+    }
 }
 
 impl Tree for SqliteTable {
@@ -164,16 +206,7 @@ impl Tree for SqliteTable {
     #[tracing::instrument(skip(self, key, value))]
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
         let guard = self.engine.write_lock();
-
-        let start = Instant::now();
-
         self.insert_with_guard(&guard, key, value)?;
-
-        let elapsed = start.elapsed();
-        if elapsed > MILLI {
-            warn!("insert took {:?} : {}", elapsed, &self.name);
-        }
-
         drop(guard);
 
         let watchers = self.watchers.read();
@@ -216,53 +249,41 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, iter))]
+    fn increment_batch<'a>(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
+        let guard = self.engine.write_lock();
+
+        guard.execute("BEGIN", [])?;
+        for key in iter {
+            let old = self.get_with_guard(&guard, &key)?;
+            let new = crate::utils::increment(old.as_deref())
+                .expect("utils::increment always returns Some");
+            self.insert_with_guard(&guard, &key, &new)?;
+        }
+        guard.execute("COMMIT", [])?;
+
+        drop(guard);
+
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self, key))]
     fn remove(&self, key: &[u8]) -> Result<()> {
         let guard = self.engine.write_lock();
-
-        let start = Instant::now();
 
         guard.execute(
             format!("DELETE FROM {} WHERE key = ?", self.name).as_str(),
             [key],
         )?;
 
-        let elapsed = start.elapsed();
-
-        if elapsed > MILLI {
-            debug!("remove:    took {:012?} : {}", elapsed, &self.name);
-        }
-        // debug!("remove key: {:?}", &key);
-
         Ok(())
     }
 
     #[tracing::instrument(skip(self))]
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
-        let guard = self.engine.read_lock();
+        let guard = self.engine.read_lock_iterator();
 
-        let statement = Box::leak(Box::new(
-            guard
-                .prepare(&format!(
-                    "SELECT key, value FROM {} ORDER BY key ASC",
-                    &self.name
-                ))
-                .unwrap(),
-        ));
-
-        let statement_ref = NonAliasingBox(statement);
-
-        let iterator = Box::new(
-            statement
-                .query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
-                .unwrap()
-                .map(|r| r.unwrap()),
-        );
-
-        Box::new(PreparedStatementIterator {
-            iterator,
-            statement_ref,
-        })
+        self.iter_with_guard(&guard)
     }
 
     #[tracing::instrument(skip(self, from, backwards))]
@@ -271,7 +292,7 @@ impl Tree for SqliteTable {
         from: &[u8],
         backwards: bool,
     ) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
-        let guard = self.engine.read_lock();
+        let guard = self.engine.read_lock_iterator();
         let from = from.to_vec(); // TODO change interface?
 
         if backwards {
@@ -326,8 +347,6 @@ impl Tree for SqliteTable {
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
         let guard = self.engine.write_lock();
 
-        let start = Instant::now();
-
         let old = self.get_with_guard(&guard, key)?;
 
         let new =
@@ -335,26 +354,11 @@ impl Tree for SqliteTable {
 
         self.insert_with_guard(&guard, key, &new)?;
 
-        let elapsed = start.elapsed();
-
-        if elapsed > MILLI {
-            debug!("increment: took {:012?} : {}", elapsed, &self.name);
-        }
-        // debug!("increment key: {:?}", &key);
-
         Ok(new)
     }
 
     #[tracing::instrument(skip(self, prefix))]
     fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
-        // let name = self.name.clone();
-        // self.iter_from_thread(
-        //     format!(
-        //         "SELECT key, value FROM {} WHERE key BETWEEN ?1 AND ?1 || X'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF' ORDER BY key ASC",
-        //         name
-        //     )
-        //     [prefix]
-        // )
         Box::new(
             self.iter_from(&prefix, false)
                 .take_while(move |(key, _)| key.starts_with(&prefix)),

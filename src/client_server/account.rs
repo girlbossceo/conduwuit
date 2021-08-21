@@ -249,6 +249,8 @@ pub async fn register_route(
 
         let room_id = RoomId::new(db.globals.server_name());
 
+        db.rooms.get_or_create_shortroomid(&room_id, &db.globals)?;
+
         let mutex_state = Arc::clone(
             db.globals
                 .roomid_mutex_state
@@ -290,6 +292,7 @@ pub async fn register_route(
                     is_direct: None,
                     third_party_invite: None,
                     blurhash: None,
+                    reason: None,
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -455,6 +458,7 @@ pub async fn register_route(
                     is_direct: None,
                     third_party_invite: None,
                     blurhash: None,
+                    reason: None,
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -476,6 +480,7 @@ pub async fn register_route(
                     is_direct: None,
                     third_party_invite: None,
                     blurhash: None,
+                    reason: None,
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -681,6 +686,7 @@ pub async fn deactivate_route(
             is_direct: None,
             third_party_invite: None,
             blurhash: None,
+            reason: None,
         };
 
         let mutex_state = Arc::clone(
@@ -731,7 +737,7 @@ pub async fn deactivate_route(
 pub async fn third_party_route(
     body: Ruma<get_contacts::Request>,
 ) -> ConduitResult<get_contacts::Response> {
-    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     Ok(get_contacts::Response::new(Vec::new()).into())
 }
