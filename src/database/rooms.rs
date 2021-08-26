@@ -69,6 +69,7 @@ pub struct Rooms {
 
     /// Remember the current state hash of a room.
     pub(super) roomid_shortstatehash: Arc<dyn Tree>,
+    pub(super) roomsynctoken_shortstatehash: Arc<dyn Tree>,
     /// Remember the state hash at events in the past.
     pub(super) shorteventid_shortstatehash: Arc<dyn Tree>,
     /// StateKey = EventType + StateKey, ShortStateKey = Count
@@ -83,6 +84,8 @@ pub struct Rooms {
     pub(super) statehash_shortstatehash: Arc<dyn Tree>,
     pub(super) shortstatehash_statediff: Arc<dyn Tree>, // StateDiff = parent (or 0) + (shortstatekey+shorteventid++) + 0_u64 + (shortstatekey+shorteventid--)
 
+    pub(super) shorteventid_authchain: Arc<dyn Tree>,
+
     /// RoomId + EventId -> outlier PDU.
     /// Any pdu that has passed the steps 1-8 in the incoming event /federation/send/txn.
     pub(super) eventid_outlierpdu: Arc<dyn Tree>,
@@ -91,7 +94,7 @@ pub struct Rooms {
     pub(super) referencedevents: Arc<dyn Tree>,
 
     pub(super) pdu_cache: Mutex<LruCache<EventId, Arc<PduEvent>>>,
-    pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, HashSet<u64>>>,
+    pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<HashSet<u64>>>>,
     pub(super) shorteventid_cache: Mutex<LruCache<u64, EventId>>,
     pub(super) eventidshort_cache: Mutex<LruCache<EventId, u64>>,
     pub(super) statekeyshort_cache: Mutex<LruCache<(EventType, String), u64>>,
@@ -1800,6 +1803,38 @@ impl Rooms {
         Ok(())
     }
 
+    pub fn associate_token_shortstatehash(
+        &self,
+        room_id: &RoomId,
+        token: u64,
+        shortstatehash: u64,
+    ) -> Result<()> {
+        let shortroomid = self.get_shortroomid(room_id)?.expect("room exists");
+
+        let mut key = shortroomid.to_be_bytes().to_vec();
+        key.extend_from_slice(&token.to_be_bytes());
+
+        self.roomsynctoken_shortstatehash
+            .insert(&key, &shortstatehash.to_be_bytes())
+    }
+
+    pub fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>> {
+        let shortroomid = self.get_shortroomid(room_id)?.expect("room exists");
+
+        let mut key = shortroomid.to_be_bytes().to_vec();
+        key.extend_from_slice(&token.to_be_bytes());
+
+        Ok(self
+            .roomsynctoken_shortstatehash
+            .get(&key)?
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("Invalid shortstatehash in roomsynctoken_shortstatehash")
+                })
+            })
+            .transpose()?)
+    }
+
     /// Creates a new persisted data unit and adds it to a room.
     #[tracing::instrument(skip(self, db, _mutex_lock))]
     pub fn build_and_append_pdu(
@@ -3166,7 +3201,64 @@ impl Rooms {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn auth_chain_cache(&self) -> std::sync::MutexGuard<'_, LruCache<Vec<u64>, HashSet<u64>>> {
-        self.auth_chain_cache.lock().unwrap()
+    pub fn get_auth_chain_from_cache<'a>(
+        &'a self,
+        key: &[u64],
+    ) -> Result<Option<Arc<HashSet<u64>>>> {
+        // Check RAM cache
+        if let Some(result) = self.auth_chain_cache.lock().unwrap().get_mut(key) {
+            return Ok(Some(Arc::clone(result)));
+        }
+
+        // Check DB cache
+        if key.len() == 1 {
+            if let Some(chain) =
+                self.shorteventid_authchain
+                    .get(&key[0].to_be_bytes())?
+                    .map(|chain| {
+                        chain
+                            .chunks_exact(size_of::<u64>())
+                            .map(|chunk| {
+                                utils::u64_from_bytes(chunk).expect("byte length is correct")
+                            })
+                            .collect()
+                    })
+            {
+                let chain = Arc::new(chain);
+
+                // Cache in RAM
+                self.auth_chain_cache
+                    .lock()
+                    .unwrap()
+                    .insert(vec![key[0]], Arc::clone(&chain));
+
+                return Ok(Some(chain));
+            }
+        }
+
+        Ok(None)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn cache_auth_chain(&self, key: Vec<u64>, chain: Arc<HashSet<u64>>) -> Result<()> {
+        // Persist in db
+        if key.len() == 1 {
+            self.shorteventid_authchain.insert(
+                &key[0].to_be_bytes(),
+                &chain
+                    .iter()
+                    .map(|s| s.to_be_bytes().to_vec())
+                    .flatten()
+                    .collect::<Vec<u8>>(),
+            )?;
+        }
+
+        // Cache in RAM
+        self.auth_chain_cache
+            .lock()
+            .unwrap()
+            .insert(key.clone(), chain);
+
+        Ok(())
     }
 }

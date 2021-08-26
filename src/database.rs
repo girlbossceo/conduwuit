@@ -264,6 +264,8 @@ impl Database {
                 statekey_shortstatekey: builder.open_tree("statekey_shortstatekey")?,
                 shortstatekey_statekey: builder.open_tree("shortstatekey_statekey")?,
 
+                shorteventid_authchain: builder.open_tree("shorteventid_authchain")?,
+
                 roomid_shortroomid: builder.open_tree("roomid_shortroomid")?,
 
                 shortstatehash_statediff: builder.open_tree("shortstatehash_statediff")?,
@@ -271,12 +273,13 @@ impl Database {
                 shorteventid_eventid: builder.open_tree("shorteventid_eventid")?,
                 shorteventid_shortstatehash: builder.open_tree("shorteventid_shortstatehash")?,
                 roomid_shortstatehash: builder.open_tree("roomid_shortstatehash")?,
+                roomsynctoken_shortstatehash: builder.open_tree("roomsynctoken_shortstatehash")?,
                 statehash_shortstatehash: builder.open_tree("statehash_shortstatehash")?,
 
                 eventid_outlierpdu: builder.open_tree("eventid_outlierpdu")?,
                 referencedevents: builder.open_tree("referencedevents")?,
                 pdu_cache: Mutex::new(LruCache::new(100_000)),
-                auth_chain_cache: Mutex::new(LruCache::new(100_000)),
+                auth_chain_cache: Mutex::new(LruCache::new(1_000_000)),
                 shorteventid_cache: Mutex::new(LruCache::new(1_000_000)),
                 eventidshort_cache: Mutex::new(LruCache::new(1_000_000)),
                 shortstatekey_cache: Mutex::new(LruCache::new(1_000_000)),
@@ -707,6 +710,12 @@ impl Database {
                     db.rooms
                         .shortstatekey_statekey
                         .insert(&shortstatekey, &statekey)?;
+                }
+
+                // Force E2EE device list updates so we can send them over federation
+                for user_id in db.users.iter().filter_map(|r| r.ok()) {
+                    db.users
+                        .mark_device_key_update(&user_id, &db.rooms, &db.globals)?;
                 }
 
                 db.globals.bump_database_version(10)?;
