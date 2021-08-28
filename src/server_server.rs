@@ -4,7 +4,7 @@ use crate::{
     utils, ConduitResult, Database, Error, PduEvent, Result, Ruma,
 };
 use get_profile_information::v1::ProfileField;
-use http::header::{HeaderValue, AUTHORIZATION, HOST};
+use http::header::{HeaderValue, AUTHORIZATION};
 use regex::Regex;
 use rocket::response::content::Json;
 use ruma::{
@@ -83,7 +83,7 @@ use rocket::{get, post, put};
 /// FedDest::Named("198.51.100.5".to_owned(), "".to_owned());
 /// ```
 #[derive(Clone, Debug, PartialEq)]
-enum FedDest {
+pub enum FedDest {
     Literal(SocketAddr),
     Named(String, String),
 }
@@ -109,6 +109,13 @@ impl FedDest {
             Self::Named(host, _) => host.clone(),
         }
     }
+
+    fn port(&self) -> Option<u16> {
+        match &self {
+            Self::Literal(addr) => Some(addr.port()),
+            Self::Named(_, port) => port[1..].parse().ok(),
+        }
+    }
 }
 
 #[tracing::instrument(skip(globals, request))]
@@ -124,41 +131,34 @@ where
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    let maybe_result = globals
+    let mut write_destination_to_cache = false;
+
+    let cached_result = globals
         .actual_destination_cache
         .read()
         .unwrap()
         .get(destination)
         .cloned();
 
-    let (actual_destination, host) = if let Some(result) = maybe_result {
+    let (actual_destination, host) = if let Some(result) = cached_result {
         result
     } else {
+        write_destination_to_cache = true;
+
         let result = find_actual_destination(globals, &destination).await;
-        let (actual_destination, host) = result.clone();
-        let result_string = (result.0.into_https_string(), result.1.into_uri_string());
-        globals
-            .actual_destination_cache
-            .write()
-            .unwrap()
-            .insert(Box::<ServerName>::from(destination), result_string.clone());
-        let dest_hostname = actual_destination.hostname();
-        let host_hostname = host.hostname();
-        if dest_hostname != host_hostname {
-            globals.tls_name_override.write().unwrap().insert(
-                dest_hostname,
-                webpki::DNSNameRef::try_from_ascii_str(&host_hostname)
-                    .unwrap()
-                    .to_owned(),
-            );
-        }
-        result_string
+
+        (result.0, result.1.clone().into_uri_string())
     };
 
+    let actual_destination_str = actual_destination.clone().into_https_string();
+
     let mut http_request = request
-        .try_into_http_request::<Vec<u8>>(&actual_destination, SendAccessToken::IfRequired(""))
+        .try_into_http_request::<Vec<u8>>(&actual_destination_str, SendAccessToken::IfRequired(""))
         .map_err(|e| {
-            warn!("Failed to find destination {}: {}", actual_destination, e);
+            warn!(
+                "Failed to find destination {}: {}",
+                actual_destination_str, e
+            );
             Error::BadServerResponse("Invalid destination")
         })?;
 
@@ -224,15 +224,26 @@ where
         }
     }
 
-    http_request
-        .headers_mut()
-        .insert(HOST, HeaderValue::from_str(&host).unwrap());
-
     let reqwest_request = reqwest::Request::try_from(http_request)
         .expect("all http requests are valid reqwest requests");
 
     let url = reqwest_request.url().clone();
-    let response = globals.reqwest_client().execute(reqwest_request).await;
+
+    let mut client = globals.reqwest_client()?;
+    if let Some((override_name, port)) = globals
+        .tls_name_override
+        .read()
+        .unwrap()
+        .get(&actual_destination.hostname())
+    {
+        client = client.resolve(
+            &actual_destination.hostname(),
+            SocketAddr::new(override_name[0], *port),
+        );
+        // port will be ignored
+    }
+
+    let response = client.build()?.execute(reqwest_request).await;
 
     match response {
         Ok(mut response) => {
@@ -271,6 +282,13 @@ where
 
             if status == 200 {
                 let response = T::IncomingResponse::try_from_http_response(http_response);
+                if response.is_ok() && write_destination_to_cache {
+                    globals.actual_destination_cache.write().unwrap().insert(
+                        Box::<ServerName>::from(destination),
+                        (actual_destination, host),
+                    );
+                }
+
                 response.map_err(|e| {
                     warn!(
                         "Invalid 200 response from {} on: {} {}",
@@ -339,20 +357,49 @@ async fn find_actual_destination(
                 match request_well_known(globals, &destination.as_str()).await {
                     // 3: A .well-known file is available
                     Some(delegated_hostname) => {
-                        hostname = delegated_hostname.clone();
+                        hostname = add_port_to_hostname(&delegated_hostname).into_uri_string();
                         match get_ip_with_port(&delegated_hostname) {
                             Some(host_and_port) => host_and_port, // 3.1: IP literal in .well-known file
                             None => {
-                                if let Some(pos) = destination_str.find(':') {
+                                if let Some(pos) = delegated_hostname.find(':') {
                                     // 3.2: Hostname with port in .well-known file
-                                    let (host, port) = destination_str.split_at(pos);
+                                    let (host, port) = delegated_hostname.split_at(pos);
                                     FedDest::Named(host.to_string(), port.to_string())
                                 } else {
-                                    match query_srv_record(globals, &delegated_hostname).await {
+                                    // Delegated hostname has no port in this branch
+                                    if let Some(hostname_override) =
+                                        query_srv_record(globals, &delegated_hostname).await
+                                    {
                                         // 3.3: SRV lookup successful
-                                        Some(hostname) => hostname,
+                                        let force_port = hostname_override.port();
+
+                                        if let Ok(override_ip) = globals
+                                            .dns_resolver()
+                                            .lookup_ip(hostname_override.hostname())
+                                            .await
+                                        {
+                                            globals.tls_name_override.write().unwrap().insert(
+                                                delegated_hostname.clone(),
+                                                (
+                                                    override_ip.iter().collect(),
+                                                    force_port.unwrap_or(8448),
+                                                ),
+                                            );
+                                        } else {
+                                            warn!("Using SRV record, but could not resolve to IP");
+                                        }
+
+                                        if let Some(port) = force_port {
+                                            FedDest::Named(
+                                                delegated_hostname,
+                                                format!(":{}", port.to_string()),
+                                            )
+                                        } else {
+                                            add_port_to_hostname(&delegated_hostname)
+                                        }
+                                    } else {
                                         // 3.4: No SRV records, just use the hostname from .well-known
-                                        None => add_port_to_hostname(&delegated_hostname),
+                                        add_port_to_hostname(&delegated_hostname)
                                     }
                                 }
                             }
@@ -362,7 +409,31 @@ async fn find_actual_destination(
                     None => {
                         match query_srv_record(globals, &destination_str).await {
                             // 4: SRV record found
-                            Some(hostname) => hostname,
+                            Some(hostname_override) => {
+                                let force_port = hostname_override.port();
+
+                                if let Ok(override_ip) = globals
+                                    .dns_resolver()
+                                    .lookup_ip(hostname_override.hostname())
+                                    .await
+                                {
+                                    globals.tls_name_override.write().unwrap().insert(
+                                        hostname.clone(),
+                                        (override_ip.iter().collect(), force_port.unwrap_or(8448)),
+                                    );
+                                } else {
+                                    warn!("Using SRV record, but could not resolve to IP");
+                                }
+
+                                if let Some(port) = force_port {
+                                    FedDest::Named(
+                                        hostname.clone(),
+                                        format!(":{}", port.to_string()),
+                                    )
+                                } else {
+                                    add_port_to_hostname(&hostname)
+                                }
+                            }
                             // 5: No SRV record found
                             None => add_port_to_hostname(&destination_str),
                         }
@@ -377,12 +448,12 @@ async fn find_actual_destination(
     let hostname = if let Ok(addr) = hostname.parse::<SocketAddr>() {
         FedDest::Literal(addr)
     } else if let Ok(addr) = hostname.parse::<IpAddr>() {
-        FedDest::Named(addr.to_string(), "".to_string())
+        FedDest::Named(addr.to_string(), ":8448".to_string())
     } else if let Some(pos) = hostname.find(':') {
         let (host, port) = hostname.split_at(pos);
         FedDest::Named(host.to_string(), port.to_string())
     } else {
-        FedDest::Named(hostname, "".to_string())
+        FedDest::Named(hostname, ":8448".to_string())
     };
     (actual_destination, hostname)
 }
@@ -423,6 +494,9 @@ pub async fn request_well_known(
     let body: serde_json::Value = serde_json::from_str(
         &globals
             .reqwest_client()
+            .ok()?
+            .build()
+            .ok()?
             .get(&format!(
                 "https://{}/.well-known/matrix/server",
                 destination
@@ -893,7 +967,12 @@ pub async fn handle_incoming_pdu<'a>(
     // 9. Fetch any missing prev events doing all checks listed here starting at 1. These are timeline events
     let mut graph = HashMap::new();
     let mut eventid_info = HashMap::new();
-    let mut todo_outlier_stack = incoming_pdu.prev_events.clone();
+    let mut todo_outlier_stack = incoming_pdu
+        .prev_events
+        .iter()
+        .cloned()
+        .map(Arc::new)
+        .collect::<Vec<_>>();
 
     let mut amount = 0;
 
@@ -929,13 +1008,13 @@ pub async fn handle_incoming_pdu<'a>(
                     amount += 1;
                     for prev_prev in &pdu.prev_events {
                         if !graph.contains_key(prev_prev) {
-                            todo_outlier_stack.push(dbg!(prev_prev.clone()));
+                            todo_outlier_stack.push(dbg!(Arc::new(prev_prev.clone())));
                         }
                     }
 
                     graph.insert(
                         prev_event_id.clone(),
-                        pdu.prev_events.iter().cloned().collect(),
+                        pdu.prev_events.iter().cloned().map(Arc::new).collect(),
                     );
                     eventid_info.insert(prev_event_id.clone(), (pdu, json));
                 } else {
@@ -964,9 +1043,9 @@ pub async fn handle_incoming_pdu<'a>(
                 MilliSecondsSinceUnixEpoch(
                     eventid_info
                         .get(event_id)
-                        .map_or_else(|| uint!(0), |info| info.0.origin_server_ts.clone()),
+                        .map_or_else(|| uint!(0), |info| info.0.origin_server_ts),
                 ),
-                ruma::event_id!("$notimportant"),
+                Arc::new(ruma::event_id!("$notimportant")),
             ))
         })
         .map_err(|_| "Error sorting prev events".to_owned())?;
@@ -1084,7 +1163,12 @@ fn handle_outlier_pdu<'a>(
         fetch_and_handle_outliers(
             db,
             origin,
-            &incoming_pdu.auth_events,
+            &incoming_pdu
+                .auth_events
+                .iter()
+                .cloned()
+                .map(Arc::new)
+                .collect::<Vec<_>>(),
             &create_event,
             &room_id,
             pub_key_map,
@@ -1100,13 +1184,13 @@ fn handle_outlier_pdu<'a>(
         // Build map of auth events
         let mut auth_events = HashMap::new();
         for id in &incoming_pdu.auth_events {
-            let auth_event = db
-                .rooms
-                .get_pdu(id)
-                .map_err(|e| e.to_string())?
-                .ok_or_else(|| {
-                    "Auth event not found, event failed recursive auth checks.".to_string()
-                })?;
+            let auth_event = match db.rooms.get_pdu(id).map_err(|e| e.to_string())? {
+                Some(e) => e,
+                None => {
+                    warn!("Could not find auth event {}", id);
+                    continue;
+                }
+            };
 
             match auth_events.entry((
                 auth_event.kind.clone(),
@@ -1153,7 +1237,7 @@ fn handle_outlier_pdu<'a>(
         if !state_res::event_auth::auth_check(
             &room_version,
             &incoming_pdu,
-            previous_create.clone(),
+            previous_create,
             None, // TODO: third party invite
             |k, s| auth_events.get(&(k.clone(), s.to_owned())).map(Arc::clone),
         )
@@ -1187,6 +1271,15 @@ async fn upgrade_outlier_to_timeline_pdu(
     if let Ok(Some(pduid)) = db.rooms.get_pdu_id(&incoming_pdu.event_id) {
         return Ok(Some(pduid));
     }
+
+    if db
+        .rooms
+        .is_event_soft_failed(&incoming_pdu.event_id)
+        .map_err(|_| "Failed to ask db for soft fail".to_owned())?
+    {
+        return Err("Event has been soft failed".into());
+    }
+
     // 10. Fetch missing state and auth chain events by calling /state_ids at backwards extremities
     //     doing all the checks in this list starting at 1. These are not timeline events.
 
@@ -1219,7 +1312,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                     .get_or_create_shortstatekey(&prev_pdu.kind, state_key, &db.globals)
                     .map_err(|_| "Failed to create shortstatekey.".to_owned())?;
 
-                state.insert(shortstatekey, prev_event.clone());
+                state.insert(shortstatekey, Arc::new(prev_event.clone()));
                 // Now it's the state after the pdu
             }
 
@@ -1249,7 +1342,11 @@ async fn upgrade_outlier_to_timeline_pdu(
                 let state_vec = fetch_and_handle_outliers(
                     &db,
                     origin,
-                    &res.pdu_ids,
+                    &res.pdu_ids
+                        .iter()
+                        .cloned()
+                        .map(Arc::new)
+                        .collect::<Vec<_>>(),
                     &create_event,
                     &room_id,
                     pub_key_map,
@@ -1270,7 +1367,7 @@ async fn upgrade_outlier_to_timeline_pdu(
 
                     match state.entry(shortstatekey) {
                         btree_map::Entry::Vacant(v) => {
-                            v.insert(pdu.event_id.clone());
+                            v.insert(Arc::new(pdu.event_id.clone()));
                         }
                         btree_map::Entry::Occupied(_) => return Err(
                             "State event's type and state_key combination exists multiple times."
@@ -1286,7 +1383,9 @@ async fn upgrade_outlier_to_timeline_pdu(
                     .map_err(|_| "Failed to talk to db.")?
                     .expect("Room exists");
 
-                if state.get(&create_shortstatekey) != Some(&create_event.event_id) {
+                if state.get(&create_shortstatekey).map(|id| id.as_ref())
+                    != Some(&create_event.event_id)
+                {
                     return Err("Incoming event refers to wrong create event.".to_owned());
                 }
 
@@ -1451,7 +1550,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                     .rooms
                     .get_or_create_shortstatekey(&leaf_pdu.kind, state_key, &db.globals)
                     .map_err(|_| "Failed to create shortstatekey.".to_owned())?;
-                leaf_state.insert(shortstatekey, leaf_pdu.event_id.clone());
+                leaf_state.insert(shortstatekey, Arc::new(leaf_pdu.event_id.clone()));
                 // Now it's the state after the pdu
             }
 
@@ -1466,9 +1565,9 @@ async fn upgrade_outlier_to_timeline_pdu(
                 .get_or_create_shortstatekey(&incoming_pdu.kind, state_key, &db.globals)
                 .map_err(|_| "Failed to create shortstatekey.".to_owned())?;
 
-            state_after.insert(shortstatekey, incoming_pdu.event_id.clone());
+            state_after.insert(shortstatekey, Arc::new(incoming_pdu.event_id.clone()));
         }
-        fork_states.push(state_after.clone());
+        fork_states.push(state_after);
 
         let mut update_state = false;
         // 14. Use state resolution to find new room state
@@ -1593,6 +1692,9 @@ async fn upgrade_outlier_to_timeline_pdu(
     if soft_fail {
         // Soft fail, we keep the event as an outlier but don't add it to the timeline
         warn!("Event was soft failed: {:?}", incoming_pdu);
+        db.rooms
+            .mark_event_soft_failed(&incoming_pdu.event_id)
+            .map_err(|_| "Failed to set soft failed flag".to_owned())?;
         return Err("Event has been soft failed".into());
     }
 
@@ -1614,7 +1716,7 @@ async fn upgrade_outlier_to_timeline_pdu(
 pub(crate) fn fetch_and_handle_outliers<'a>(
     db: &'a Database,
     origin: &'a ServerName,
-    events: &'a [EventId],
+    events: &'a [Arc<EventId>],
     create_event: &'a PduEvent,
     room_id: &'a RoomId,
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
@@ -1665,20 +1767,25 @@ pub(crate) fn fetch_and_handle_outliers<'a>(
                     {
                         Ok(res) => {
                             warn!("Got {} over federation", id);
-                            let (event_id, value) =
+                            let (calculated_event_id, value) =
                                 match crate::pdu::gen_event_id_canonical_json(&res.pdu) {
                                     Ok(t) => t,
                                     Err(_) => {
-                                        back_off(id.clone());
+                                        back_off((**id).clone());
                                         continue;
                                     }
                                 };
+
+                            if calculated_event_id != **id {
+                                warn!("Server didn't return event id we requested: requested: {}, we got {}. Event: {:?}",
+                                    id, calculated_event_id, &res.pdu);
+                            }
 
                             // This will also fetch the auth chain
                             match handle_outlier_pdu(
                                 origin,
                                 create_event,
-                                &event_id,
+                                &id,
                                 &room_id,
                                 value.clone(),
                                 db,
@@ -1689,14 +1796,14 @@ pub(crate) fn fetch_and_handle_outliers<'a>(
                                 Ok((pdu, json)) => (pdu, Some(json)),
                                 Err(e) => {
                                     warn!("Authentication of event {} failed: {:?}", id, e);
-                                    back_off(id.clone());
+                                    back_off((**id).clone());
                                     continue;
                                 }
                             }
                         }
                         Err(_) => {
                             warn!("Failed to fetch event: {}", id);
-                            back_off(id.clone());
+                            back_off((**id).clone());
                             continue;
                         }
                     }
@@ -1971,24 +2078,18 @@ fn append_incoming_pdu(
 }
 
 #[tracing::instrument(skip(starting_events, db))]
-fn get_auth_chain(
-    starting_events: Vec<EventId>,
+pub fn get_auth_chain(
+    starting_events: Vec<Arc<EventId>>,
     db: &Database,
-) -> Result<impl Iterator<Item = EventId> + '_> {
+) -> Result<impl Iterator<Item = Arc<EventId>> + '_> {
     const NUM_BUCKETS: usize = 50;
 
     let mut buckets = vec![BTreeSet::new(); NUM_BUCKETS];
 
     for id in starting_events {
-        if let Some(pdu) = db.rooms.get_pdu(&id)? {
-            for auth_event in &pdu.auth_events {
-                let short = db
-                    .rooms
-                    .get_or_create_shorteventid(&auth_event, &db.globals)?;
-                let bucket_id = (short % NUM_BUCKETS as u64) as usize;
-                buckets[bucket_id].insert((short, auth_event.clone()));
-            }
-        }
+        let short = db.rooms.get_or_create_shorteventid(&id, &db.globals)?;
+        let bucket_id = (short % NUM_BUCKETS as u64) as usize;
+        buckets[bucket_id].insert((short, id.clone()));
     }
 
     let mut full_auth_chain = HashSet::new();
@@ -1999,10 +2100,6 @@ fn get_auth_chain(
         if chunk.is_empty() {
             continue;
         }
-
-        // The code below will only get the auth chains, not the events in the chunk. So let's add
-        // them first
-        full_auth_chain.extend(chunk.iter().map(|(id, _)| id));
 
         let chunk_key = chunk
             .iter()
@@ -2178,12 +2275,12 @@ pub fn get_event_authorization_route(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    let auth_chain_ids = get_auth_chain(vec![body.event_id.clone()], &db)?;
+    let auth_chain_ids = get_auth_chain(vec![Arc::new(body.event_id.clone())], &db)?;
 
     Ok(get_event_authorization::v1::Response {
         auth_chain: auth_chain_ids
-            .filter_map(|id| Some(db.rooms.get_pdu_json(&id).ok()??))
-            .map(|event| PduEvent::convert_to_outgoing_federation_event(event))
+            .filter_map(|id| db.rooms.get_pdu_json(&id).ok()?)
+            .map(PduEvent::convert_to_outgoing_federation_event)
             .collect(),
     }
     .into())
@@ -2221,7 +2318,7 @@ pub fn get_room_state_route(
         })
         .collect();
 
-    let auth_chain_ids = get_auth_chain(vec![body.event_id.clone()], &db)?;
+    let auth_chain_ids = get_auth_chain(vec![Arc::new(body.event_id.clone())], &db)?;
 
     Ok(get_room_state::v1::Response {
         auth_chain: auth_chain_ids
@@ -2262,13 +2359,13 @@ pub fn get_room_state_ids_route(
         .rooms
         .state_full_ids(shortstatehash)?
         .into_iter()
-        .map(|(_, id)| id)
+        .map(|(_, id)| (*id).clone())
         .collect();
 
-    let auth_chain_ids = get_auth_chain(vec![body.event_id.clone()], &db)?;
+    let auth_chain_ids = get_auth_chain(vec![Arc::new(body.event_id.clone())], &db)?;
 
     Ok(get_room_state_ids::v1::Response {
-        auth_chain_ids: auth_chain_ids.collect(),
+        auth_chain_ids: auth_chain_ids.map(|id| (*id).clone()).collect(),
         pdu_ids,
     }
     .into())
