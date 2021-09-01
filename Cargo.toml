@@ -6,7 +6,7 @@ authors = ["timokoesters <timo@koesters.xyz>"]
 homepage = "https://conduit.rs"
 repository = "https://gitlab.com/famedly/conduit"
 readme = "README.md"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -18,29 +18,29 @@ edition = "2018"
 rocket = { version = "0.5.0-rc.1", features = ["tls"] } # Used to handle requests
 
 # Used for matrix spec type definitions and helpers
-#ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
+ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { git = "https://github.com/ruma/ruma", rev = "f5ab038e22421ed338396ece977b6b2844772ced", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
-ruma = { git = "https://github.com/timokoesters/ruma", rev = "50c1db7e0a3a21fc794b0cce3b64285a4c750c71", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
+#ruma = { git = "https://github.com/timokoesters/ruma", rev = "50c1db7e0a3a21fc794b0cce3b64285a4c750c71", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 
 # Used for long polling and federation sender, should be the same as rocket::tokio
-tokio = "1.8.2"
+tokio = "1.11.0"
 # Used for storing data permanently
 sled = { version = "0.34.6", features = ["compression", "no_metrics"], optional = true }
 #sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
-bytes = "1.0.1"
+bytes = "1.1.0"
 # Used for rocket<->ruma conversions
 http = "0.2.4"
 # Used to find data directory for default db path
 directories = "3.0.2"
 # Used for ruma wrapper
-serde_json = { version = "1.0.64", features = ["raw_value"] }
+serde_json = { version = "1.0.67", features = ["raw_value"] }
 # Used for appservice registration files
-serde_yaml = "0.8.17"
+serde_yaml = "0.8.20"
 # Used for pdu definition
-serde = "1.0.126"
+serde = "1.0.130"
 # Used for secure identifiers
 rand = "0.8.4"
 # Used to hash passwords
@@ -50,9 +50,9 @@ reqwest = { version = "0.11.4", default-features = false, features = ["rustls-tl
 # Custom TLS verifier
 rustls = { version = "0.19.1", features = ["dangerous_configuration"] }
 rustls-native-certs = "0.5.0"
-webpki = "0.21.0"
+webpki = "0.22.0"
 # Used for conduit::Error type
-thiserror = "1.0.26"
+thiserror = "1.0.28"
 # Used to generate thumbnails for images
 image = { version = "0.23.14", default-features = false, features = ["jpeg", "png", "gif"] }
 # Used to encode server public key
@@ -67,15 +67,15 @@ regex = "1.5.4"
 jsonwebtoken = "7.2.0"
 # Performance measurements
 tracing = { version = "0.1.26", features = ["release_max_level_warn"] }
-tracing-subscriber = "0.2.19"
-tracing-opentelemetry = "0.14.0"
+tracing-subscriber = "0.2.20"
+tracing-opentelemetry = "0.15.0"
 tracing-flame = "0.1.0"
 opentelemetry = { version = "0.16.0", features = ["rt-tokio"] }
 opentelemetry-jaeger = { version = "0.15.0", features = ["rt-tokio"] }
 pretty_env_logger = "0.4.0"
 lru-cache = "0.1.2"
 rusqlite = { version = "0.25.3", optional = true, features = ["bundled"] }
-parking_lot = { version = "0.11.1", optional = true }
+parking_lot = { version = "0.11.2", optional = true }
 crossbeam = { version = "0.8.1", optional = true }
 num_cpus = "1.13.0"
 threadpool = "1.8.1"
