@@ -2880,14 +2880,13 @@ async fn create_join_event(
         db,
     )?;
 
-    for server in db
+    let servers = db
         .rooms
         .room_servers(room_id)
         .filter_map(|r| r.ok())
-        .filter(|server| &**server != db.globals.server_name())
-    {
-        db.sending.send_pdu(&server, &pdu_id)?;
-    }
+        .filter(|server| &**server != db.globals.server_name());
+
+    db.sending.send_pdu(servers, &pdu_id)?;
 
     db.flush()?;
 

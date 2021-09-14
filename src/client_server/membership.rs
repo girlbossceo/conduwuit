@@ -1092,14 +1092,13 @@ pub(crate) async fn invite_helper<'a>(
             "Could not accept incoming PDU as timeline event.",
         ))?;
 
-        for server in db
+        let servers = db
             .rooms
             .room_servers(room_id)
             .filter_map(|r| r.ok())
-            .filter(|server| &**server != db.globals.server_name())
-        {
-            db.sending.send_pdu(&server, &pdu_id)?;
-        }
+            .filter(|server| &**server != db.globals.server_name());
+
+        db.sending.send_pdu(servers, &pdu_id)?;
 
         return Ok(());
     }
