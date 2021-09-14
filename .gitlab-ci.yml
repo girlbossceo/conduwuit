@@ -222,6 +222,7 @@ build:docker:next:
     - >
       /kaniko/executor
       $KANIKO_CACHE_ARGS
+      --force
       --context $CI_PROJECT_DIR
       --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
       --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)
