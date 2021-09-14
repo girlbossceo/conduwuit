@@ -75,12 +75,12 @@ build:release:cargo:aarch64-unknown-linux-gnu:
   extends: .build-cargo-shared-settings
   variables:
     TARGET: "aarch64-unknown-linux-gnu"
-    NEEDED_PACKAGES: "build-essential gcc-8-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross"
+    NEEDED_PACKAGES: "build-essential gcc-10-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross"
     CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
     CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
     CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
-    TARGET_CC: "/usr/bin/aarch64-linux-gnu-gcc-8"
-    TARGET_AR: "/usr/bin/aarch64-linux-gnu-gcc-ar-8"
+    TARGET_CC: "/usr/bin/aarch64-linux-gnu-gcc-10"
+    TARGET_AR: "/usr/bin/aarch64-linux-gnu-gcc-ar-10"
   artifacts:
     name: "conduit-aarch64-unknown-linux-gnu"
     paths:
