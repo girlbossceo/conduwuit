@@ -84,7 +84,7 @@ pub enum SendingEventType {
 pub struct Sending {
     /// The state for a given state hash.
     pub(super) servername_educount: Arc<dyn Tree>, // EduCount: Count of last EDU sync
-    pub(super) servernameevent_data: Arc<dyn Tree>, // ServernamEvent = (+ / $)SenderKey / ServerName / UserId + PduId / Id (for edus), Data = EDU content
+    pub(super) servernameevent_data: Arc<dyn Tree>, // ServernameEvent = (+ / $)SenderKey / ServerName / UserId + PduId / Id (for edus), Data = EDU content
     pub(super) servercurrentevent_data: Arc<dyn Tree>, // ServerCurrentEvents = (+ / $)ServerName / UserId + PduId / Id (for edus), Data = EDU content
     pub(super) maximum_requests: Arc<Semaphore>,
     pub sender: mpsc::UnboundedSender<(Vec<u8>, Vec<u8>)>,
@@ -423,13 +423,23 @@ impl Sending {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, server, pdu_id))]
-    pub fn send_pdu(&self, server: &ServerName, pdu_id: &[u8]) -> Result<()> {
-        let mut key = server.as_bytes().to_vec();
-        key.push(0xff);
-        key.extend_from_slice(pdu_id);
-        self.servernameevent_data.insert(&key, &[])?;
-        self.sender.unbounded_send((key, vec![])).unwrap();
+    #[tracing::instrument(skip(self, servers, pdu_id))]
+    pub fn send_pdu<I: Iterator<Item = Box<ServerName>>>(
+        &self,
+        servers: I,
+        pdu_id: &[u8],
+    ) -> Result<()> {
+        let mut batch = servers.map(|server| {
+            let mut key = server.as_bytes().to_vec();
+            key.push(0xff);
+            key.extend_from_slice(pdu_id);
+
+            self.sender.unbounded_send((key.clone(), vec![])).unwrap();
+
+            (key, Vec::new())
+        });
+
+        self.servernameevent_data.insert_batch(&mut batch)?;
 
         Ok(())
     }
