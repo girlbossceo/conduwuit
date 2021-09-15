@@ -4,44 +4,7 @@
 
 If you run into any problems while setting up an Appservice, write an email to `timo@koesters.xyz`, ask us in `#conduit:matrix.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
 
-## Tested appservices
-
-Here are some appservices we tested and that work with Conduit:
-- [matrix-appservice-discord](https://github.com/Half-Shot/matrix-appservice-discord)
-- [mautrix-hangouts](https://github.com/mautrix/hangouts/)
-- [mautrix-telegram](https://github.com/mautrix/telegram/)
-- [mautrix-signal](https://github.com/mautrix/signal)
-
-There are a few things you need to do, in order for the bridge (at least up to version `0.2.0`) to work. Before following the bridge installation guide, you need to map apply a patch to bridges `portal.py`. How you do this depends upon whether you are running the bridge in `Docker` or `virtualenv`.
-  - Find / create the changed file:
-    - For Docker:
-      -  Go to [portal.py](https://github.com/mautrix/signal/blob/master/mautrix_signal/portal.py) at [mautrix-signal](https://github.com/mautrix/signal) (don't forget to change to the correct commit/version of the file) and copy its content, create a `portal.py` on your host system and paste it in
-    - For virtualenv
-      - Find `./lib/python3.7/site-packages/mautrix_signal/portal.py` (the exact version of Python may be different on your system).
-  - Once you have `portal.py` you now need to change two lines. Lines numbers given here are approximate, you may need to look nearby:
-    - [Edit Line 1020](https://github.com/mautrix/signal/blob/4ea831536f154aba6419d13292479eb383ea3308/mautrix_signal/portal.py#L1020)
-  ```diff
-  --- levels.users[self.main_intent.mxid] = 9001 if is_initial else 100
-  +++ levels.users[self.main_intent.mxid] = 100 if is_initial else 100
-  ```
-   - Add a new line between [Lines 1041 and 1042](https://github.com/mautrix/signal/blob/4ea831536f154aba6419d13292479eb383ea3308/mautrix_signal/portal.py#L1041-L1042)
-
-  ```diff
-      "type": str(EventType.ROOM_POWER_LEVELS),
-  +++ "state_key": "",
-      "content": power_levels.serialize(),
-  ```
-  - Deploy the change
-    - Docker:
-      - Now you just need to map the patched `portal.py` into the `mautrix-signal` container
-      ```yml
-      volumes:
-        - ./<your>/<path>/<on>/<host>/portal.py:/usr/lib/python3.9/site-packages/mautrix_signal/portal.py
-      ```
-    - For virtualenv, that's all you need to do - it uses the edited file directly
-  - Now continue with the bridge [installation instructions](https://docs.mau.fi/bridges/index.html) and the notes below.
-
-## Set up the appservice
+## Set up the appservice - general instructions
 
 Follow whatever instructions are given by the appservice. This usually includes
 downloading, changing its config (setting domain, homeserver url, port etc.)
@@ -76,3 +39,48 @@ Then you are done. Conduit will send messages to the appservices and the
 appservice can send requests to the homeserver. You don't need to restart
 Conduit, but if it doesn't work, restarting while the appservice is running
 could help.
+
+## Appservice-specific instructions
+
+### Tested appservices
+
+These appservices have been tested and work with Conduit without any extra steps:
+
+- [matrix-appservice-discord](https://github.com/Half-Shot/matrix-appservice-discord)
+- [mautrix-hangouts](https://github.com/mautrix/hangouts/)
+- [mautrix-telegram](https://github.com/mautrix/telegram/)
+
+### [mautrix-signal](https://github.com/mautrix/signal)
+
+There are a few things you need to do, in order for the Signal bridge (at least
+up to version `0.2.0`) to work. How you do this depends on whether you use
+Docker or `virtualenv` to run it. In either case you need to modify
+[portal.py](https://github.com/mautrix/signal/blob/master/mautrix_signal/portal.py).
+Do this **before** following the bridge installation guide.
+
+1. **Create a copy of `portal.py`**. Go to
+   [portal.py](https://github.com/mautrix/signal/blob/master/mautrix_signal/portal.py)
+at [mautrix-signal](https://github.com/mautrix/signal) (make sure you change to
+the correct commit/version of mautrix-signal you're using) and copy its
+content. Create a new `portal.py` on your system and paste the content in.
+2. **Patch the copy**. Exact line numbers may be slightly different, look nearby if they don't match: 
+  - [Line 1020](https://github.com/mautrix/signal/blob/4ea831536f154aba6419d13292479eb383ea3308/mautrix_signal/portal.py#L1020)
+    ```diff
+    --- levels.users[self.main_intent.mxid] = 9001 if is_initial else 100
+    +++ levels.users[self.main_intent.mxid] = 100 if is_initial else 100
+    ```
+  - [Between lines 1041 and 1042](https://github.com/mautrix/signal/blob/4ea831536f154aba6419d13292479eb383ea3308/mautrix_signal/portal.py#L1041-L1042) add a new line:
+    ```diff
+        "type": str(EventType.ROOM_POWER_LEVELS),
+    +++ "state_key": "",
+        "content": power_levels.serialize(),
+    ```
+3. **Deploy the patch**. This is different depending on how you have `mautrix-signal` deployed:
+  - [*If using virtualenv*] Copy your patched `portal.py` to `./lib/python3.7/site-packages/mautrix_signal/portal.py` (the exact version of Python may be different on your system).
+  -  [*If using Docker*] Map the patched `portal.py` into the `mautrix-signal` container:
+    
+    ```yaml
+    volumes:
+      - ./your/path/on/host/portal.py:/usr/lib/python3.9/site-packages/mautrix_signal/portal.py
+    ```
+4. Now continue with the [bridge installation instructions ](https://docs.mau.fi/bridges/index.html) and the general bridge notes above.
