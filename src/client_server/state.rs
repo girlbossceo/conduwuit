@@ -73,6 +73,14 @@ pub async fn send_state_event_for_empty_key_route(
 ) -> ConduitResult<send_state_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    // Forbid m.room.encryption if encryption is disabled
+    if &body.event_type == "m.room.encryption" && !db.globals.allow_encryption() {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Encryption has been disabled",
+        ));
+    }
+
     let event_id = send_state_event_for_key_helper(
         &db,
         sender_user,
