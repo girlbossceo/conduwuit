@@ -61,6 +61,16 @@ pub async fn create_room_route(
     );
     let state_lock = mutex_state.lock().await;
 
+    if !db.globals.allow_room_creation()
+        && !body.from_appservice
+        && !db.users.is_admin(sender_user, &db.rooms, &db.globals)?
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Room creation has been disabled.",
+        ));
+    }
+
     let alias: Option<RoomAliasId> =
         body.room_alias_name
             .as_ref()

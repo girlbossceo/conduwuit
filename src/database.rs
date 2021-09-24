@@ -61,6 +61,8 @@ pub struct Config {
     allow_encryption: bool,
     #[serde(default = "false_fn")]
     allow_federation: bool,
+    #[serde(default = "true_fn")]
+    allow_room_creation: bool,
     #[serde(default = "false_fn")]
     pub allow_jaeger: bool,
     #[serde(default = "false_fn")]
