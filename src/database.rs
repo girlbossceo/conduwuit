@@ -80,6 +80,8 @@ pub struct Config {
     turn_password: String,
     #[serde(default = "Vec::new")]
     turn_uris: Vec<String>,
+    #[serde(default)]
+    turn_secret: String,
     #[serde(default = "default_turn_ttl")]
     turn_ttl: u64,
 

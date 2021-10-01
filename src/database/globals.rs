@@ -242,6 +242,10 @@ impl Globals {
         &self.config.turn_username
     }
 
+    pub fn turn_secret(&self) -> &String {
+        &self.config.turn_secret
+    }
+
     /// TODO: the key valid until timestamp is only honored in room version > 4
     /// Remove the outdated keys and insert the new ones.
     ///
