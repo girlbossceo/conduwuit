@@ -226,6 +226,22 @@ impl Globals {
         self.jwt_decoding_key.as_ref()
     }
 
+    pub fn turn_password(&self) -> &String {
+        &self.config.turn_password
+    }
+
+    pub fn turn_ttl(&self) -> u64 {
+        self.config.turn_ttl
+    }
+
+    pub fn turn_uris(&self) -> &[String] {
+        &self.config.turn_uris
+    }
+
+    pub fn turn_username(&self) -> &String {
+        &self.config.turn_username
+    }
+
     /// TODO: the key valid until timestamp is only honored in room version > 4
     /// Remove the outdated keys and insert the new ones.
     ///
