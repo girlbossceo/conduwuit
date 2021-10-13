@@ -65,7 +65,6 @@ use std::{
     mem,
     net::{IpAddr, SocketAddr},
     pin::Pin,
-    result::Result as StdResult,
     sync::{Arc, RwLock, RwLockWriteGuard},
     time::{Duration, Instant, SystemTime},
 };
@@ -956,7 +955,7 @@ pub(crate) async fn handle_incoming_pdu<'a>(
     is_timeline_event: bool,
     db: &'a Database,
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-) -> StdResult<Option<Vec<u8>>, String> {
+) -> Result<Option<Vec<u8>>, String> {
     match db.rooms.exists(room_id) {
         Ok(true) => {}
         _ => {
@@ -1137,8 +1136,7 @@ fn handle_outlier_pdu<'a>(
     value: BTreeMap<String, CanonicalJsonValue>,
     db: &'a Database,
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-) -> AsyncRecursiveType<'a, StdResult<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>), String>>
-{
+) -> AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>), String>> {
     Box::pin(async move {
         // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we anywhere?: https://matrix.org/docs/spec/rooms/v6#canonical-json
 
@@ -1301,7 +1299,7 @@ async fn upgrade_outlier_to_timeline_pdu(
     db: &Database,
     room_id: &RoomId,
     pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-) -> StdResult<Option<Vec<u8>>, String> {
+) -> Result<Option<Vec<u8>>, String> {
     if let Ok(Some(pduid)) = db.rooms.get_pdu_id(&incoming_pdu.event_id) {
         return Ok(Some(pduid));
     }
@@ -1448,7 +1446,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                                 .map_err(|_| "Failed to get_or_create_shortstatekey".to_owned())?;
                             Ok((shortstatekey, Arc::new(event_id)))
                         })
-                        .collect::<StdResult<_, String>>()?,
+                        .collect::<Result<_, String>>()?,
                 ),
                 Err(e) => {
                     warn!("State resolution on prev events failed, either an event could not be found or deserialization: {}", e);
@@ -1630,7 +1628,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                 .compress_state_event(*shortstatekey, id, &db.globals)
                 .map_err(|_| "Failed to compress_state_event".to_owned())
         })
-        .collect::<StdResult<_, _>>()?;
+        .collect::<Result<_, _>>()?;
 
     // 13. Check if the event passes auth based on the "current state" of the room, if not "soft fail" it
     debug!("starting soft fail auth check");
@@ -1750,7 +1748,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                         .compress_state_event(*k, id, &db.globals)
                         .map_err(|_| "Failed to compress_state_event.".to_owned())
                 })
-                .collect::<StdResult<_, _>>()?
+                .collect::<Result<_, _>>()?
         } else {
             // We do need to force an update to this room's state
             update_state = true;
@@ -1812,7 +1810,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                         .compress_state_event(shortstatekey, &event_id, &db.globals)
                         .map_err(|_| "Failed to compress state event".to_owned())
                 })
-                .collect::<StdResult<_, _>>()?
+                .collect::<Result<_, _>>()?
         };
 
         // Set the new room state to the resolved state

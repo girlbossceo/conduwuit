@@ -60,7 +60,7 @@ use rocket::{get, tokio};
 pub async fn sync_events_route(
     db: DatabaseGuard,
     body: Ruma<sync_events::Request<'_>>,
-) -> std::result::Result<RumaResponse<sync_events::Response>, RumaResponse<UiaaResponse>> {
+) -> Result<RumaResponse<sync_events::Response>, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -182,7 +182,7 @@ async fn sync_helper(
     full_state: bool,
     timeout: Option<Duration>,
     // bool = caching allowed
-) -> std::result::Result<(sync_events::Response, bool), Error> {
+) -> Result<(sync_events::Response, bool), Error> {
     // TODO: match body.set_presence {
     db.rooms.edus.ping_presence(&sender_user)?;
 

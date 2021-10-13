@@ -485,7 +485,7 @@ impl Sending {
         kind: OutgoingKind,
         events: Vec<SendingEventType>,
         db: Arc<RwLock<Database>>,
-    ) -> std::result::Result<OutgoingKind, (OutgoingKind, Error)> {
+    ) -> Result<OutgoingKind, (OutgoingKind, Error)> {
         let db = db.read().await;
 
         match &kind {
