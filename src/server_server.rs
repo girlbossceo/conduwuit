@@ -1,6 +1,7 @@
 use crate::{
     client_server::{self, claim_keys_helper, get_keys_helper},
     database::{rooms::CompressedStateEvent, DatabaseGuard},
+    pdu::EventHash,
     utils, ConduitResult, Database, Error, PduEvent, Result, Ruma,
 };
 use get_profile_information::v1::ProfileField;
@@ -39,22 +40,22 @@ use ruma::{
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::{
-        pdu::Pdu,
         receipt::{ReceiptEvent, ReceiptEventContent},
         room::{
-            create::CreateEventContent,
-            member::{MemberEventContent, MembershipState},
+            create::RoomCreateEventContent,
+            member::{MembershipState, RoomMemberEventContent},
         },
         AnyEphemeralRoomEvent, EventType,
     },
+    int,
     receipt::ReceiptType,
-    serde::Raw,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, RoomVersion, StateMap},
     to_device::DeviceIdOrAllDevices,
     uint, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
     ServerSigningKeyId,
 };
+use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
     collections::{btree_map, hash_map, BTreeMap, BTreeSet, HashMap, HashSet},
     convert::{TryFrom, TryInto},
@@ -1071,7 +1072,7 @@ pub(crate) async fn handle_incoming_pdu<'a>(
         // and lexically by event_id.
         println!("{}", event_id);
         Ok((
-            0,
+            int!(0),
             MilliSecondsSinceUnixEpoch(
                 eventid_info
                     .get(event_id)
@@ -1153,14 +1154,13 @@ fn handle_outlier_pdu<'a>(
         // 2. Check signatures, otherwise drop
         // 3. check content hash, redact if doesn't match
 
-        let create_event_content =
-            serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                .expect("Raw::from_value always works.")
-                .deserialize()
-                .map_err(|e| {
-                    warn!("Invalid create event: {}", e);
-                    "Invalid create event in db.".to_owned()
-                })?;
+        let create_event_content = serde_json::from_str::<RoomCreateEventContent>(
+            create_event.content.get(),
+        )
+        .map_err(|e| {
+            warn!("Invalid create event: {}", e);
+            "Invalid create event in db.".to_owned()
+        })?;
 
         let room_version_id = &create_event_content.room_version;
         let room_version = RoomVersion::new(room_version_id).expect("room version is supported");
@@ -1241,7 +1241,7 @@ fn handle_outlier_pdu<'a>(
                     .expect("all auth events have state keys"),
             )) {
                 hash_map::Entry::Vacant(v) => {
-                    v.insert(auth_event.clone());
+                    v.insert(auth_event);
                 }
                 hash_map::Entry::Occupied(_) => {
                     return Err(
@@ -1276,7 +1276,7 @@ fn handle_outlier_pdu<'a>(
         if !state_res::event_auth::auth_check(
             &room_version,
             &incoming_pdu,
-            previous_create,
+            previous_create.as_ref(),
             None::<PduEvent>, // TODO: third party invite
             |k, s| auth_events.get(&(k.clone(), s.to_owned())),
         )
@@ -1319,14 +1319,13 @@ async fn upgrade_outlier_to_timeline_pdu(
         return Err("Event has been soft failed".into());
     }
 
-    let create_event_content =
-        serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-            .expect("Raw::from_value always works.")
-            .deserialize()
-            .map_err(|e| {
-                warn!("Invalid create event: {}", e);
-                "Invalid create event in db.".to_owned()
-            })?;
+    let create_event_content = serde_json::from_str::<RoomCreateEventContent>(
+        create_event.content.get(),
+    )
+    .map_err(|e| {
+        warn!("Invalid create event: {}", e);
+        "Invalid create event in db.".to_owned()
+    })?;
 
     let room_version_id = &create_event_content.room_version;
     let room_version = RoomVersion::new(room_version_id).expect("room version is supported");
@@ -1562,7 +1561,7 @@ async fn upgrade_outlier_to_timeline_pdu(
     let check_result = state_res::event_auth::auth_check(
         &room_version,
         &incoming_pdu,
-        previous_create.as_deref(),
+        previous_create.as_ref(),
         None::<PduEvent>, // TODO: third party invite
         |k, s| {
             db.rooms
@@ -1646,7 +1645,7 @@ async fn upgrade_outlier_to_timeline_pdu(
     let soft_fail = !state_res::event_auth::auth_check(
         &room_version,
         &incoming_pdu,
-        previous_create.as_deref(),
+        previous_create.as_ref(),
         None::<PduEvent>,
         |k, s| auth_events.get(&(k.clone(), s.to_owned())),
     )
@@ -2669,13 +2668,12 @@ pub fn create_join_event_template_route(
     let create_event_content = create_event
         .as_ref()
         .map(|create_event| {
-            serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                .expect("Raw::from_value always works.")
-                .deserialize()
-                .map_err(|e| {
+            serde_json::from_str::<RoomCreateEventContent>(create_event.content.get()).map_err(
+                |e| {
                     warn!("Invalid create event: {}", e);
                     Error::bad_database("Invalid create event in db.")
-                })
+                },
+            )
         })
         .transpose()?;
 
@@ -2702,7 +2700,7 @@ pub fn create_join_event_template_route(
         ));
     }
 
-    let content = serde_json::to_value(MemberEventContent {
+    let content = to_raw_value(&RoomMemberEventContent {
         avatar_url: None,
         blurhash: None,
         displayname: None,
@@ -2738,7 +2736,7 @@ pub fn create_join_event_template_route(
         unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
         unsigned.insert(
             "prev_sender".to_owned(),
-            serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
+            serde_json::from_str(prev_pdu.sender.as_str()).expect("UserId is valid string"),
         );
     }
 
@@ -2759,17 +2757,21 @@ pub fn create_join_event_template_route(
             .map(|(_, pdu)| pdu.event_id.clone())
             .collect(),
         redacts: None,
-        unsigned,
-        hashes: ruma::events::pdu::EventHash {
+        unsigned: if unsigned.is_empty() {
+            None
+        } else {
+            Some(to_raw_value(&unsigned).expect("to_raw_value always works"))
+        },
+        hashes: EventHash {
             sha256: "aaa".to_owned(),
         },
-        signatures: BTreeMap::new(),
+        signatures: None,
     };
 
     let auth_check = state_res::auth_check(
         &room_version,
         &pdu,
-        create_prev_event.as_deref(),
+        create_prev_event,
         None::<PduEvent>, // TODO: third_party_invite
         |k, s| auth_events.get(&(k.clone(), s.to_owned())),
     )
@@ -2799,10 +2801,7 @@ pub fn create_join_event_template_route(
 
     Ok(create_join_event_template::v1::Response {
         room_version: Some(room_version_id),
-        event: serde_json::from_value::<Raw<_>>(
-            serde_json::to_value(pdu_json).expect("CanonicalJson is valid serde_json::Value"),
-        )
-        .expect("Raw::from_value always works"),
+        event: to_raw_value(&pdu_json).expect("CanonicalJson can be serialized to JSON"),
     }
     .into())
 }
@@ -2810,7 +2809,7 @@ pub fn create_join_event_template_route(
 async fn create_join_event(
     db: &DatabaseGuard,
     room_id: &RoomId,
-    pdu: &Raw<ruma::events::pdu::Pdu>,
+    pdu: &RawJsonValue,
 ) -> Result<RoomState> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -2947,7 +2946,7 @@ pub async fn create_join_event_v2_route(
 #[tracing::instrument(skip(db, body))]
 pub async fn create_invite_route(
     db: DatabaseGuard,
-    body: Ruma<create_invite::v2::Request>,
+    body: Ruma<create_invite::v2::Request<'_>>,
 ) -> ConduitResult<create_invite::v2::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -3014,10 +3013,11 @@ pub async fn create_invite_route(
 
     let mut invite_state = body.invite_room_state.clone();
 
-    let mut event = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
-        &body.event.json().to_string(),
-    )
-    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event bytes."))?;
+    let mut event =
+        serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(body.event.get())
+            .map_err(|_| {
+                Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event bytes.")
+            })?;
 
     event.insert("event_id".to_owned(), "$dummy".into());
 
@@ -3280,13 +3280,13 @@ pub(crate) async fn fetch_required_signing_keys(
 // Gets a list of servers for which we don't have the signing key yet. We go over
 // the PDUs and either cache the key or add it to the list that needs to be retrieved.
 fn get_server_keys_from_cache(
-    pdu: &Raw<Pdu>,
+    pdu: &RawJsonValue,
     servers: &mut BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId, QueryCriteria>>,
     room_version: &RoomVersionId,
     pub_key_map: &mut RwLockWriteGuard<'_, BTreeMap<String, BTreeMap<String, String>>>,
     db: &Database,
 ) -> Result<()> {
-    let value = serde_json::from_str::<CanonicalJsonObject>(pdu.json().get()).map_err(|e| {
+    let value = serde_json::from_str::<CanonicalJsonObject>(pdu.get()).map_err(|e| {
         error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
@@ -3385,10 +3385,10 @@ pub(crate) async fn fetch_join_signing_keys(
         // Try to fetch keys, failure is okay
         // Servers we couldn't find in the cache will be added to `servers`
         for pdu in &event.room_state.state {
-            let _ = get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm, db);
+            let _ = get_server_keys_from_cache(&pdu, &mut servers, room_version, &mut pkm, db);
         }
         for pdu in &event.room_state.auth_chain {
-            let _ = get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm, db);
+            let _ = get_server_keys_from_cache(&pdu, &mut servers, room_version, &mut pkm, db);
         }
 
         drop(pkm);

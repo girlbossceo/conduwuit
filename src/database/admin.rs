@@ -6,16 +6,17 @@ use std::{
 use crate::{pdu::PduBuilder, Database};
 use rocket::futures::{channel::mpsc, stream::StreamExt};
 use ruma::{
-    events::{room::message, EventType},
+    events::{room::message::RoomMessageEventContent, EventType},
     UserId,
 };
+use serde_json::value::to_raw_value;
 use tokio::sync::{MutexGuard, RwLock, RwLockReadGuard};
 use tracing::warn;
 
 pub enum AdminCommand {
     RegisterAppservice(serde_yaml::Value),
     ListAppservices,
-    SendMessage(message::MessageEventContent),
+    SendMessage(RoomMessageEventContent),
 }
 
 #[derive(Clone)]
@@ -58,7 +59,7 @@ impl Admin {
 
             drop(guard);
 
-            let send_message = |message: message::MessageEventContent,
+            let send_message = |message: RoomMessageEventContent,
                                 guard: RwLockReadGuard<'_, Database>,
                                 mutex_lock: &MutexGuard<'_, ()>| {
                 guard
@@ -66,7 +67,7 @@ impl Admin {
                     .build_and_append_pdu(
                         PduBuilder {
                             event_type: EventType::RoomMessage,
-                            content: serde_json::to_value(message)
+                            content: to_raw_value(&message)
                                 .expect("event is valid, we just created it"),
                             unsigned: None,
                             state_key: None,
@@ -106,9 +107,9 @@ impl Admin {
                                         count,
                                         appservices.into_iter().filter_map(|r| r.ok()).collect::<Vec<_>>().join(", ")
                                     );
-                                    send_message(message::MessageEventContent::text_plain(output), guard, &state_lock);
+                                    send_message(RoomMessageEventContent::text_plain(output), guard, &state_lock);
                                 } else {
-                                    send_message(message::MessageEventContent::text_plain("Failed to get appservices."), guard, &state_lock);
+                                    send_message(RoomMessageEventContent::text_plain("Failed to get appservices."), guard, &state_lock);
                                 }
                             }
                             AdminCommand::SendMessage(message) => {

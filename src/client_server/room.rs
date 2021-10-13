@@ -8,12 +8,23 @@ use ruma::{
         r0::room::{self, aliases, create_room, get_room_event, upgrade_room},
     },
     events::{
-        room::{guest_access, history_visibility, join_rules, member, name, topic},
+        room::{
+            canonical_alias::RoomCanonicalAliasEventContent,
+            create::RoomCreateEventContent,
+            guest_access::{GuestAccess, RoomGuestAccessEventContent},
+            history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+            join_rules::{JoinRule, RoomJoinRulesEventContent},
+            member::{MembershipState, RoomMemberEventContent},
+            name::RoomNameEventContent,
+            power_levels::RoomPowerLevelsEventContent,
+            tombstone::RoomTombstoneEventContent,
+            topic::RoomTopicEventContent,
+        },
         EventType,
     },
-    serde::Raw,
     RoomAliasId, RoomId, RoomVersionId,
 };
+use serde_json::value::to_raw_value;
 use std::{cmp::max, collections::BTreeMap, convert::TryFrom, sync::Arc};
 use tracing::{info, warn};
 
@@ -80,7 +91,7 @@ pub async fn create_room_route(
                 }
             })?;
 
-    let mut content = ruma::events::room::create::CreateEventContent::new(sender_user.clone());
+    let mut content = RoomCreateEventContent::new(sender_user.clone());
     content.federate = body.creation_content.federate;
     content.predecessor = body.creation_content.predecessor.clone();
     content.room_version = match body.room_version.clone() {
@@ -101,7 +112,7 @@ pub async fn create_room_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomCreate,
-            content: serde_json::to_value(content).expect("event is valid, we just created it"),
+            content: to_raw_value(&content).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some("".to_owned()),
             redacts: None,
@@ -116,8 +127,8 @@ pub async fn create_room_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
-            content: serde_json::to_value(member::MemberEventContent {
-                membership: member::MembershipState::Join,
+            content: to_raw_value(&RoomMemberEventContent {
+                membership: MembershipState::Join,
                 displayname: db.users.displayname(sender_user)?,
                 avatar_url: db.users.avatar_url(sender_user)?,
                 is_direct: Some(body.is_direct),
@@ -157,12 +168,11 @@ pub async fn create_room_route(
         }
     }
 
-    let mut power_levels_content =
-        serde_json::to_value(ruma::events::room::power_levels::PowerLevelsEventContent {
-            users,
-            ..Default::default()
-        })
-        .expect("event is valid, we just created it");
+    let mut power_levels_content = serde_json::to_value(RoomPowerLevelsEventContent {
+        users,
+        ..Default::default()
+    })
+    .expect("event is valid, we just created it");
 
     if let Some(power_level_content_override) = &body.power_level_content_override {
         let json = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
@@ -180,7 +190,8 @@ pub async fn create_room_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomPowerLevels,
-            content: power_levels_content,
+            content: to_raw_value(&power_levels_content)
+                .expect("to_raw_value always works on serde_json::Value"),
             unsigned: None,
             state_key: Some("".to_owned()),
             redacts: None,
@@ -196,12 +207,10 @@ pub async fn create_room_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomCanonicalAlias,
-                content: serde_json::to_value(
-                    ruma::events::room::canonical_alias::CanonicalAliasEventContent {
-                        alias: Some(room_alias_id.clone()),
-                        alt_aliases: vec![],
-                    },
-                )
+                content: to_raw_value(&RoomCanonicalAliasEventContent {
+                    alias: Some(room_alias_id.clone()),
+                    alt_aliases: vec![],
+                })
                 .expect("We checked that alias earlier, it must be fine"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
@@ -220,17 +229,12 @@ pub async fn create_room_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomJoinRules,
-            content: match preset {
-                create_room::RoomPreset::PublicChat => serde_json::to_value(
-                    join_rules::JoinRulesEventContent::new(join_rules::JoinRule::Public),
-                )
-                .expect("event is valid, we just created it"),
+            content: to_raw_value(&RoomJoinRulesEventContent::new(match preset {
+                create_room::RoomPreset::PublicChat => JoinRule::Public,
                 // according to spec "invite" is the default
-                _ => serde_json::to_value(join_rules::JoinRulesEventContent::new(
-                    join_rules::JoinRule::Invite,
-                ))
-                .expect("event is valid, we just created it"),
-            },
+                _ => JoinRule::Invite,
+            }))
+            .expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some("".to_owned()),
             redacts: None,
@@ -245,8 +249,8 @@ pub async fn create_room_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomHistoryVisibility,
-            content: serde_json::to_value(history_visibility::HistoryVisibilityEventContent::new(
-                history_visibility::HistoryVisibility::Shared,
+            content: to_raw_value(&RoomHistoryVisibilityEventContent::new(
+                HistoryVisibility::Shared,
             ))
             .expect("event is valid, we just created it"),
             unsigned: None,
@@ -263,18 +267,11 @@ pub async fn create_room_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomGuestAccess,
-            content: match preset {
-                create_room::RoomPreset::PublicChat => {
-                    serde_json::to_value(guest_access::GuestAccessEventContent::new(
-                        guest_access::GuestAccess::Forbidden,
-                    ))
-                    .expect("event is valid, we just created it")
-                }
-                _ => serde_json::to_value(guest_access::GuestAccessEventContent::new(
-                    guest_access::GuestAccess::CanJoin,
-                ))
-                .expect("event is valid, we just created it"),
-            },
+            content: to_raw_value(&RoomGuestAccessEventContent::new(match preset {
+                create_room::RoomPreset::PublicChat => GuestAccess::Forbidden,
+                _ => GuestAccess::CanJoin,
+            }))
+            .expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some("".to_owned()),
             redacts: None,
@@ -306,7 +303,7 @@ pub async fn create_room_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomName,
-                content: serde_json::to_value(name::NameEventContent::new(Some(name.clone())))
+                content: to_raw_value(&RoomNameEventContent::new(Some(name.clone())))
                     .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
@@ -323,7 +320,7 @@ pub async fn create_room_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomTopic,
-                content: serde_json::to_value(topic::TopicEventContent {
+                content: to_raw_value(&RoomTopicEventContent {
                     topic: topic.clone(),
                 })
                 .expect("event is valid, we just created it"),
@@ -477,7 +474,7 @@ pub async fn upgrade_room_route(
     let tombstone_event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomTombstone,
-            content: serde_json::to_value(ruma::events::room::tombstone::TombstoneEventContent {
+            content: to_raw_value(&RoomTombstoneEventContent {
                 body: "This room has been replaced".to_string(),
                 replacement_room: replacement_room.clone(),
             })
@@ -505,15 +502,13 @@ pub async fn upgrade_room_route(
     let state_lock = mutex_state.lock().await;
 
     // Get the old room federations status
-    let federate = serde_json::from_value::<Raw<ruma::events::room::create::CreateEventContent>>(
+    let federate = serde_json::from_str::<RoomCreateEventContent>(
         db.rooms
             .room_state_get(&body.room_id, &EventType::RoomCreate, "")?
             .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
             .content
-            .clone(),
+            .get(),
     )
-    .expect("Raw::from_value always works")
-    .deserialize()
     .map_err(|_| Error::bad_database("Invalid room event in database."))?
     .federate;
 
@@ -524,8 +519,7 @@ pub async fn upgrade_room_route(
     ));
 
     // Send a m.room.create event containing a predecessor field and the applicable room_version
-    let mut create_event_content =
-        ruma::events::room::create::CreateEventContent::new(sender_user.clone());
+    let mut create_event_content = RoomCreateEventContent::new(sender_user.clone());
     create_event_content.federate = federate;
     create_event_content.room_version = body.new_version.clone();
     create_event_content.predecessor = predecessor;
@@ -533,7 +527,7 @@ pub async fn upgrade_room_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomCreate,
-            content: serde_json::to_value(create_event_content)
+            content: to_raw_value(&create_event_content)
                 .expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some("".to_owned()),
@@ -549,8 +543,8 @@ pub async fn upgrade_room_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
-            content: serde_json::to_value(member::MemberEventContent {
-                membership: member::MembershipState::Join,
+            content: to_raw_value(&RoomMemberEventContent {
+                membership: MembershipState::Join,
                 displayname: db.users.displayname(sender_user)?,
                 avatar_url: db.users.avatar_url(sender_user)?,
                 is_direct: None,
@@ -611,17 +605,14 @@ pub async fn upgrade_room_route(
     }
 
     // Get the old room power levels
-    let mut power_levels_event_content =
-        serde_json::from_value::<Raw<ruma::events::room::power_levels::PowerLevelsEventContent>>(
-            db.rooms
-                .room_state_get(&body.room_id, &EventType::RoomPowerLevels, "")?
-                .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
-                .content
-                .clone(),
-        )
-        .expect("database contains invalid PDU")
-        .deserialize()
-        .map_err(|_| Error::bad_database("Invalid room event in database."))?;
+    let mut power_levels_event_content = serde_json::from_str::<RoomPowerLevelsEventContent>(
+        db.rooms
+            .room_state_get(&body.room_id, &EventType::RoomPowerLevels, "")?
+            .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
+            .content
+            .get(),
+    )
+    .map_err(|_| Error::bad_database("Invalid room event in database."))?;
 
     // Setting events_default and invite to the greater of 50 and users_default + 1
     let new_level = max(
@@ -635,7 +626,7 @@ pub async fn upgrade_room_route(
     let _ = db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomPowerLevels,
-            content: serde_json::to_value(power_levels_event_content)
+            content: to_raw_value(&power_levels_event_content)
                 .expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some("".to_owned()),

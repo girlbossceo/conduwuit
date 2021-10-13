@@ -15,19 +15,28 @@ use ruma::{
                 ThirdPartyIdRemovalStatus,
             },
             contact::get_contacts,
-            uiaa::{AuthFlow, UiaaInfo},
+            uiaa::{AuthFlow, AuthType, UiaaInfo},
         },
     },
     events::{
         room::{
-            canonical_alias, guest_access, history_visibility, join_rules, member, message, name,
-            topic,
+            canonical_alias::RoomCanonicalAliasEventContent,
+            create::RoomCreateEventContent,
+            guest_access::{GuestAccess, RoomGuestAccessEventContent},
+            history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+            join_rules::{JoinRule, RoomJoinRulesEventContent},
+            member::{MembershipState, RoomMemberEventContent},
+            message::RoomMessageEventContent,
+            name::RoomNameEventContent,
+            power_levels::RoomPowerLevelsEventContent,
+            topic::RoomTopicEventContent,
         },
         EventType,
     },
     identifiers::RoomName,
     push, RoomAliasId, RoomId, RoomVersionId, UserId,
 };
+use serde_json::value::to_raw_value;
 use tracing::info;
 
 use register::RegistrationKind;
@@ -147,7 +156,7 @@ pub async fn register_route(
     // UIAA
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.dummy".to_owned()],
+            stages: vec![AuthType::Dummy],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -270,7 +279,7 @@ pub async fn register_route(
         );
         let state_lock = mutex_state.lock().await;
 
-        let mut content = ruma::events::room::create::CreateEventContent::new(conduit_user.clone());
+        let mut content = RoomCreateEventContent::new(conduit_user.clone());
         content.federate = true;
         content.predecessor = None;
         content.room_version = RoomVersionId::Version6;
@@ -279,7 +288,7 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomCreate,
-                content: serde_json::to_value(content).expect("event is valid, we just created it"),
+                content: to_raw_value(&content).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
                 redacts: None,
@@ -294,8 +303,8 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMember,
-                content: serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Join,
+                content: to_raw_value(&RoomMemberEventContent {
+                    membership: MembershipState::Join,
                     displayname: None,
                     avatar_url: None,
                     is_direct: None,
@@ -322,12 +331,10 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomPowerLevels,
-                content: serde_json::to_value(
-                    ruma::events::room::power_levels::PowerLevelsEventContent {
-                        users,
-                        ..Default::default()
-                    },
-                )
+                content: to_raw_value(&RoomPowerLevelsEventContent {
+                    users,
+                    ..Default::default()
+                })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
@@ -343,10 +350,8 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomJoinRules,
-                content: serde_json::to_value(join_rules::JoinRulesEventContent::new(
-                    join_rules::JoinRule::Invite,
-                ))
-                .expect("event is valid, we just created it"),
+                content: to_raw_value(&RoomJoinRulesEventContent::new(JoinRule::Invite))
+                    .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
                 redacts: None,
@@ -361,11 +366,9 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomHistoryVisibility,
-                content: serde_json::to_value(
-                    history_visibility::HistoryVisibilityEventContent::new(
-                        history_visibility::HistoryVisibility::Shared,
-                    ),
-                )
+                content: to_raw_value(&RoomHistoryVisibilityEventContent::new(
+                    HistoryVisibility::Shared,
+                ))
                 .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
@@ -381,10 +384,8 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomGuestAccess,
-                content: serde_json::to_value(guest_access::GuestAccessEventContent::new(
-                    guest_access::GuestAccess::Forbidden,
-                ))
-                .expect("event is valid, we just created it"),
+                content: to_raw_value(&RoomGuestAccessEventContent::new(GuestAccess::Forbidden))
+                    .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
                 redacts: None,
@@ -402,7 +403,7 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomName,
-                content: serde_json::to_value(name::NameEventContent::new(Some(room_name)))
+                content: to_raw_value(&RoomNameEventContent::new(Some(room_name)))
                     .expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
@@ -417,7 +418,7 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomTopic,
-                content: serde_json::to_value(topic::TopicEventContent {
+                content: to_raw_value(&RoomTopicEventContent {
                     topic: format!("Manage {}", db.globals.server_name()),
                 })
                 .expect("event is valid, we just created it"),
@@ -439,7 +440,7 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomCanonicalAlias,
-                content: serde_json::to_value(canonical_alias::CanonicalAliasEventContent {
+                content: to_raw_value(&RoomCanonicalAliasEventContent {
                     alias: Some(alias.clone()),
                     alt_aliases: Vec::new(),
                 })
@@ -460,8 +461,8 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMember,
-                content: serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Invite,
+                content: to_raw_value(&RoomMemberEventContent {
+                    membership: MembershipState::Invite,
                     displayname: None,
                     avatar_url: None,
                     is_direct: None,
@@ -482,8 +483,8 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMember,
-                content: serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Join,
+                content: to_raw_value(&RoomMemberEventContent {
+                    membership: MembershipState::Join,
                     displayname: Some(displayname),
                     avatar_url: None,
                     is_direct: None,
@@ -506,7 +507,7 @@ pub async fn register_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMessage,
-                content: serde_json::to_value(message::MessageEventContent::text_html(
+                content: to_raw_value(&RoomMessageEventContent::text_html(
                         "## Thank you for trying out Conduit!\n\nConduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.\n\nHelpful links:\n> Website: https://conduit.rs\n> Git and Documentation: https://gitlab.com/famedly/conduit\n> Report issues: https://gitlab.com/famedly/conduit/-/issues\n\nHere are some rooms you can join (by typing the command):\n\nConduit room (Ask questions and get notified on updates):\n`/join #conduit:fachschaften.org`\n\nConduit lounge (Off-topic, only Conduit users are allowed to join)\n`/join #conduit-lounge:conduit.rs`".to_owned(),
                         "<h2>Thank you for trying out Conduit!</h2>\n<p>Conduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.</p>\n<p>Helpful links:</p>\n<blockquote>\n<p>Website: https://conduit.rs<br>Git and Documentation: https://gitlab.com/famedly/conduit<br>Report issues: https://gitlab.com/famedly/conduit/-/issues</p>\n</blockquote>\n<p>Here are some rooms you can join (by typing the command):</p>\n<p>Conduit room (Ask questions and get notified on updates):<br><code>/join #conduit:fachschaften.org</code></p>\n<p>Conduit lounge (Off-topic, only Conduit users are allowed to join)<br><code>/join #conduit-lounge:conduit.rs</code></p>\n".to_owned(),
                 ))
@@ -562,7 +563,7 @@ pub async fn change_password_route(
 
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -654,7 +655,7 @@ pub async fn deactivate_route(
 
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -698,8 +699,8 @@ pub async fn deactivate_route(
 
     for room_id in all_rooms {
         let room_id = room_id?;
-        let event = member::MemberEventContent {
-            membership: member::MembershipState::Leave,
+        let event = RoomMemberEventContent {
+            membership: MembershipState::Leave,
             displayname: None,
             avatar_url: None,
             is_direct: None,
@@ -721,7 +722,7 @@ pub async fn deactivate_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMember,
-                content: serde_json::to_value(event).expect("event is valid, we just created it"),
+                content: to_raw_value(&event).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some(sender_user.to_string()),
                 redacts: None,

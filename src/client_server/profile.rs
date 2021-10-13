@@ -9,9 +9,9 @@ use ruma::{
         },
         federation::{self, query::get_profile_information::v1::ProfileField},
     },
-    events::EventType,
-    serde::Raw,
+    events::{room::member::RoomMemberEventContent, EventType},
 };
+use serde_json::value::to_raw_value;
 use std::{convert::TryInto, sync::Arc};
 
 #[cfg(feature = "conduit_bin")]
@@ -45,9 +45,9 @@ pub async fn set_displayname_route(
             Ok::<_, Error>((
                 PduBuilder {
                     event_type: EventType::RoomMember,
-                    content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
+                    content: to_raw_value(&RoomMemberEventContent {
                         displayname: body.displayname.clone(),
-                        ..serde_json::from_value::<Raw<_>>(
+                        ..serde_json::from_str(
                             db.rooms
                                 .room_state_get(
                                     &room_id,
@@ -61,10 +61,8 @@ pub async fn set_displayname_route(
                                     )
                                 })?
                                 .content
-                                .clone(),
+                                .get(),
                         )
-                        .expect("from_value::<Raw<..>> can never fail")
-                        .deserialize()
                         .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
                     })
                     .expect("event is valid, we just created it"),
@@ -190,9 +188,9 @@ pub async fn set_avatar_url_route(
             Ok::<_, Error>((
                 PduBuilder {
                     event_type: EventType::RoomMember,
-                    content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
+                    content: to_raw_value(&RoomMemberEventContent {
                         avatar_url: body.avatar_url.clone(),
-                        ..serde_json::from_value::<Raw<_>>(
+                        ..serde_json::from_str(
                             db.rooms
                                 .room_state_get(
                                     &room_id,
@@ -206,10 +204,8 @@ pub async fn set_avatar_url_route(
                                     )
                                 })?
                                 .content
-                                .clone(),
+                                .get(),
                         )
-                        .expect("from_value::<Raw<..>> can never fail")
-                        .deserialize()
                         .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
                     })
                     .expect("event is valid, we just created it"),

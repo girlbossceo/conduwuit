@@ -398,7 +398,7 @@ impl Sending {
             let edu = Edu::DeviceListUpdate(DeviceListUpdateContent {
                 user_id,
                 device_id: device_id!("dummy"),
-                device_display_name: "Dummy".to_owned(),
+                device_display_name: Some("Dummy".to_owned()),
                 stream_id: uint!(1),
                 prev_id: Vec::new(),
                 deleted: None,
@@ -573,8 +573,14 @@ impl Sending {
 
                 for pdu in pdus {
                     // Redacted events are not notification targets (we don't send push for them)
-                    if pdu.unsigned.get("redacted_because").is_some() {
-                        continue;
+                    if let Some(unsigned) = &pdu.unsigned {
+                        if let Ok(unsigned) =
+                            serde_json::from_str::<serde_json::Value>(unsigned.get())
+                        {
+                            if unsigned.get("redacted_because").is_some() {
+                                continue;
+                            }
+                        }
                     }
 
                     let userid =

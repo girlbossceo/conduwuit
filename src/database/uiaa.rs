@@ -5,7 +5,8 @@ use ruma::{
     api::client::{
         error::ErrorKind,
         r0::uiaa::{
-            IncomingAuthData, IncomingPassword, IncomingUserIdentifier::MatrixId, UiaaInfo,
+            AuthType, IncomingAuthData, IncomingPassword, IncomingUserIdentifier::MatrixId,
+            UiaaInfo,
         },
     },
     signatures::CanonicalJsonValue,
@@ -99,10 +100,10 @@ impl Uiaa {
                 }
 
                 // Password was correct! Let's add it to `completed`
-                uiaainfo.completed.push("m.login.password".to_owned());
+                uiaainfo.completed.push(AuthType::Password);
             }
             IncomingAuthData::Dummy(_) => {
-                uiaainfo.completed.push("m.login.dummy".to_owned());
+                uiaainfo.completed.push(AuthType::Dummy);
             }
             k => error!("type not supported: {:?}", k),
         }

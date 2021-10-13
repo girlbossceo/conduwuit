@@ -10,7 +10,7 @@ use ruma::{
                     claim_keys, get_key_changes, get_keys, upload_keys, upload_signatures,
                     upload_signing_keys,
                 },
-                uiaa::{AuthFlow, UiaaInfo},
+                uiaa::{AuthFlow, AuthType, UiaaInfo},
             },
         },
         federation,
@@ -148,7 +148,7 @@ pub async fn upload_signing_keys_route(
     // UIAA
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),

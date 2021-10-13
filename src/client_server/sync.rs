@@ -1,7 +1,10 @@
 use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma, RumaResponse};
 use ruma::{
     api::client::r0::{sync::sync_events, uiaa::UiaaResponse},
-    events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
+    events::{
+        room::member::{MembershipState, RoomMemberEventContent},
+        AnySyncEphemeralRoomEvent, EventType,
+    },
     serde::Raw,
     DeviceId, RoomId, UserId,
 };
@@ -287,10 +290,11 @@ async fn sync_helper(
                     .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
                     .filter(|(_, pdu)| pdu.kind == EventType::RoomMember)
                     .map(|(_, pdu)| {
-                        let content = serde_json::from_value::<
-                            ruma::events::room::member::MemberEventContent,
-                        >(pdu.content.clone())
-                        .map_err(|_| Error::bad_database("Invalid member event in database."))?;
+                        let content =
+                            serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
+                                .map_err(|_| {
+                                    Error::bad_database("Invalid member event in database.")
+                                })?;
 
                         if let Some(state_key) = &pdu.state_key {
                             let user_id = UserId::try_from(state_key.clone()).map_err(|_| {
@@ -371,13 +375,9 @@ async fn sync_helper(
                     sender_user.as_str(),
                 )?
                 .and_then(|pdu| {
-                    serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
-                        pdu.content.clone(),
-                    )
-                    .expect("Raw::from_value always works")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Invalid PDU in database."))
-                    .ok()
+                    serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
+                        .map_err(|_| Error::bad_database("Invalid PDU in database."))
+                        .ok()
                 });
 
             let joined_since_last_sync = since_sender_member
@@ -432,11 +432,9 @@ async fn sync_helper(
                             continue;
                         }
 
-                        let new_membership = serde_json::from_value::<
-                            Raw<ruma::events::room::member::MemberEventContent>,
-                        >(state_event.content.clone())
-                        .expect("Raw::from_value always works")
-                        .deserialize()
+                        let new_membership = serde_json::from_str::<RoomMemberEventContent>(
+                            state_event.content.get(),
+                        )
                         .map_err(|_| Error::bad_database("Invalid PDU in database."))?
                         .membership;
 
@@ -739,7 +737,7 @@ async fn sync_helper(
         presence: sync_events::Presence {
             events: presence_updates
                 .into_iter()
-                .map(|(_, v)| Raw::from(v))
+                .map(|(_, v)| Raw::new(&v).expect("PresenceEvent always serializes successfully"))
                 .collect(),
         },
         account_data: sync_events::GlobalAccountData {

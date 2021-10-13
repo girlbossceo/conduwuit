@@ -1,9 +1,11 @@
 mod edus;
 
 pub use edus::RoomEdus;
-use member::MembershipState;
 
-use crate::{pdu::PduBuilder, server_server, utils, Database, Error, PduEvent, Result};
+use crate::{
+    pdu::{EventHash, PduBuilder},
+    server_server, utils, Database, Error, PduEvent, Result,
+};
 use lru_cache::LruCache;
 use regex::Regex;
 use ring::digest;
@@ -13,16 +15,22 @@ use ruma::{
     events::{
         ignored_user_list, push_rules,
         room::{
-            create::CreateEventContent, member, message, power_levels::PowerLevelsEventContent,
+            create::RoomCreateEventContent,
+            member::{MembershipState, RoomMemberEventContent},
+            message::RoomMessageEventContent,
+            power_levels::RoomPowerLevelsEventContent,
         },
         AnyStrippedStateEvent, AnySyncStateEvent, EventType,
     },
-    push::{self, Action, Tweak},
+    push::{Action, Ruleset, Tweak},
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
     state_res::{self, RoomVersion, StateMap},
     uint, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
+use serde::Deserialize;
+use serde_json::value::to_raw_value;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     mem::size_of,
@@ -243,7 +251,7 @@ impl Rooms {
         kind: &EventType,
         sender: &UserId,
         state_key: Option<&str>,
-        content: &serde_json::Value,
+        content: &serde_json::value::RawValue,
     ) -> Result<StateMap<Arc<PduEvent>>> {
         let shortstatehash =
             if let Some(current_shortstatehash) = self.current_shortstatehash(room_id)? {
@@ -252,7 +260,8 @@ impl Rooms {
                 return Ok(HashMap::new());
             };
 
-        let auth_events = state_res::auth_types_for_event(kind, sender, state_key, content);
+        let auth_events = state_res::auth_types_for_event(kind, sender, state_key, content)
+            .expect("content is a valid JSON object");
 
         let mut sauthevents = auth_events
             .into_iter()
@@ -391,37 +400,43 @@ impl Rooms {
                 .ok()
                 .map(|(_, id)| id)
         }) {
-            if let Some(pdu) = self.get_pdu_json(&event_id)? {
-                if pdu.get("type").and_then(|val| val.as_str()) == Some("m.room.member") {
-                    if let Ok(pdu) = serde_json::from_value::<PduEvent>(
-                        serde_json::to_value(&pdu).expect("CanonicalJsonObj is a valid JsonValue"),
-                    ) {
-                        if let Some(membership) =
-                            pdu.content.get("membership").and_then(|membership| {
-                                serde_json::from_value::<member::MembershipState>(
-                                    membership.clone(),
-                                )
-                                .ok()
-                            })
-                        {
-                            if let Some(state_key) = pdu
-                                .state_key
-                                .and_then(|state_key| UserId::try_from(state_key).ok())
-                            {
-                                self.update_membership(
-                                    room_id,
-                                    &state_key,
-                                    membership,
-                                    &pdu.sender,
-                                    None,
-                                    db,
-                                    false,
-                                )?;
-                            }
-                        }
-                    }
-                }
+            let pdu = match self.get_pdu_json(&event_id)? {
+                Some(pdu) => pdu,
+                None => continue,
+            };
+
+            if pdu.get("type").and_then(|val| val.as_str()) != Some("m.room.member") {
+                continue;
             }
+
+            let pdu = match serde_json::from_str::<PduEvent>(
+                &serde_json::to_string(&pdu).expect("CanonicalJsonObj can be serialized to JSON"),
+            ) {
+                Ok(pdu) => pdu,
+                Err(_) => continue,
+            };
+
+            #[derive(Deserialize)]
+            struct ExtractMembership {
+                membership: MembershipState,
+            }
+
+            let membership = match serde_json::from_str::<ExtractMembership>(pdu.content.get()) {
+                Ok(e) => e.membership,
+                Err(_) => continue,
+            };
+
+            let state_key = match pdu.state_key {
+                Some(k) => k,
+                None => continue,
+            };
+
+            let user_id = match UserId::try_from(state_key) {
+                Ok(id) => id,
+                Err(_) => continue,
+            };
+
+            self.update_membership(room_id, &user_id, membership, &pdu.sender, None, db, false)?;
         }
 
         self.update_joined_count(room_id, db)?;
@@ -1325,11 +1340,11 @@ impl Rooms {
         drop(insert_lock);
 
         // See if the event matches any known pushers
-        let power_levels: PowerLevelsEventContent = db
+        let power_levels: RoomPowerLevelsEventContent = db
             .rooms
             .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
             .map(|ev| {
-                serde_json::from_value(ev.content.clone())
+                serde_json::from_str(ev.content.get())
                     .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
             })
             .transpose()?
@@ -1350,7 +1365,7 @@ impl Rooms {
                 .account_data
                 .get::<push_rules::PushRulesEvent>(None, user, EventType::PushRules)?
                 .map(|ev| ev.content.global)
-                .unwrap_or_else(|| push::Ruleset::server_default(user));
+                .unwrap_or_else(|| Ruleset::server_default(user));
 
             let mut highlight = false;
             let mut notify = false;
@@ -1404,30 +1419,21 @@ impl Rooms {
             }
             EventType::RoomMember => {
                 if let Some(state_key) = &pdu.state_key {
+                    #[derive(Deserialize)]
+                    struct ExtractMembership {
+                        membership: MembershipState,
+                    }
+
                     // if the state_key fails
                     let target_user_id = UserId::try_from(state_key.clone())
                         .expect("This state_key was previously validated");
 
-                    let membership = serde_json::from_value::<member::MembershipState>(
-                        pdu.content
-                            .get("membership")
-                            .ok_or(Error::BadRequest(
-                                ErrorKind::InvalidParam,
-                                "Invalid member event content",
-                            ))?
-                            .clone(),
-                    )
-                    .map_err(|_| {
-                        Error::BadRequest(
-                            ErrorKind::InvalidParam,
-                            "Invalid membership state content.",
-                        )
-                    })?;
+                    let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
+                        .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
-                    let invite_state = match membership {
-                        member::MembershipState::Invite => {
+                    let invite_state = match content.membership {
+                        MembershipState::Invite => {
                             let state = self.calculate_invite_state(pdu)?;
-
                             Some(state)
                         }
                         _ => None,
@@ -1438,7 +1444,7 @@ impl Rooms {
                     self.update_membership(
                         &pdu.room_id,
                         &target_user_id,
-                        membership,
+                        content.membership,
                         &pdu.sender,
                         invite_state,
                         db,
@@ -1447,7 +1453,16 @@ impl Rooms {
                 }
             }
             EventType::RoomMessage => {
-                if let Some(body) = pdu.content.get("body").and_then(|b| b.as_str()) {
+                #[derive(Deserialize)]
+                struct ExtractBody<'a> {
+                    #[serde(borrow)]
+                    body: Option<Cow<'a, str>>,
+                }
+
+                let content = serde_json::from_str::<ExtractBody<'_>>(pdu.content.get())
+                    .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
+
+                if let Some(body) = content.body {
                     let mut batch = body
                         .split_terminator(|c: char| !c.is_alphanumeric())
                         .filter(|s| !s.is_empty())
@@ -1498,18 +1513,16 @@ impl Rooms {
                                             }
                                             Err(e) => {
                                                 db.admin.send(AdminCommand::SendMessage(
-                                                    message::MessageEventContent::text_plain(
-                                                        format!(
-                                                            "Could not parse appservice config: {}",
-                                                            e
-                                                        ),
-                                                    ),
+                                                    RoomMessageEventContent::text_plain(format!(
+                                                        "Could not parse appservice config: {}",
+                                                        e
+                                                    )),
                                                 ));
                                             }
                                         }
                                     } else {
                                         db.admin.send(AdminCommand::SendMessage(
-                                            message::MessageEventContent::text_plain(
+                                            RoomMessageEventContent::text_plain(
                                                 "Expected code block in command body.",
                                             ),
                                         ));
@@ -1542,12 +1555,10 @@ impl Rooms {
                                                 .count();
                                                 let elapsed = start.elapsed();
                                                 db.admin.send(AdminCommand::SendMessage(
-                                                    message::MessageEventContent::text_plain(
-                                                        format!(
-                                                    "Loaded auth chain with length {} in {:?}",
-                                                    count, elapsed
-                                                ),
-                                                    ),
+                                                    RoomMessageEventContent::text_plain(format!(
+                                                        "Loaded auth chain with length {} in {:?}",
+                                                        count, elapsed
+                                                    )),
                                                 ));
                                             }
                                         }
@@ -1580,14 +1591,17 @@ impl Rooms {
                                                 ) {
                                                     Ok(pdu) => {
                                                         db.admin.send(AdminCommand::SendMessage(
-                                                            message::MessageEventContent::text_plain(
-                                                                format!("EventId: {:?}\n{:#?}", event_id, pdu),
+                                                            RoomMessageEventContent::text_plain(
+                                                                format!(
+                                                                    "EventId: {:?}\n{:#?}",
+                                                                    event_id, pdu
+                                                                ),
                                                             ),
                                                         ));
                                                     }
                                                     Err(e) => {
                                                         db.admin.send(AdminCommand::SendMessage(
-                                                            message::MessageEventContent::text_plain(
+                                                            RoomMessageEventContent::text_plain(
                                                                 format!("EventId: {:?}\nCould not parse event: {}", event_id, e),
                                                             ),
                                                         ));
@@ -1596,18 +1610,16 @@ impl Rooms {
                                             }
                                             Err(e) => {
                                                 db.admin.send(AdminCommand::SendMessage(
-                                                    message::MessageEventContent::text_plain(
-                                                        format!(
-                                                            "Invalid json in command body: {}",
-                                                            e
-                                                        ),
-                                                    ),
+                                                    RoomMessageEventContent::text_plain(format!(
+                                                        "Invalid json in command body: {}",
+                                                        e
+                                                    )),
                                                 ));
                                             }
                                         }
                                     } else {
                                         db.admin.send(AdminCommand::SendMessage(
-                                            message::MessageEventContent::text_plain(
+                                            RoomMessageEventContent::text_plain(
                                                 "Expected code block in command body.",
                                             ),
                                         ));
@@ -1629,7 +1641,7 @@ impl Rooms {
                                                         serde_json::to_string_pretty(&json)
                                                             .expect("canonical json is valid json");
                                                     db.admin.send(AdminCommand::SendMessage(
-                                                        message::MessageEventContent::text_html(
+                                                        RoomMessageEventContent::text_html(
                                                             format!("{}\n```json\n{}\n```",
                                                             if outlier {
                                                                 "PDU is outlier"
@@ -1643,7 +1655,7 @@ impl Rooms {
                                                 }
                                                 None => {
                                                     db.admin.send(AdminCommand::SendMessage(
-                                                        message::MessageEventContent::text_plain(
+                                                        RoomMessageEventContent::text_plain(
                                                             "PDU not found.",
                                                         ),
                                                     ));
@@ -1651,14 +1663,14 @@ impl Rooms {
                                             }
                                         } else {
                                             db.admin.send(AdminCommand::SendMessage(
-                                                message::MessageEventContent::text_plain(
+                                                RoomMessageEventContent::text_plain(
                                                     "Event ID could not be parsed.",
                                                 ),
                                             ));
                                         }
                                     } else {
                                         db.admin.send(AdminCommand::SendMessage(
-                                            message::MessageEventContent::text_plain(
+                                            RoomMessageEventContent::text_plain(
                                                 "Usage: get_pdu <eventid>",
                                             ),
                                         ));
@@ -1666,7 +1678,7 @@ impl Rooms {
                                 }
                                 _ => {
                                     db.admin.send(AdminCommand::SendMessage(
-                                        message::MessageEventContent::text_plain(format!(
+                                        RoomMessageEventContent::text_plain(format!(
                                             "Unrecognized command: {}",
                                             command
                                         )),
@@ -1958,16 +1970,13 @@ impl Rooms {
 
         let create_event = self.room_state_get(room_id, &EventType::RoomCreate, "")?;
 
-        let create_event_content = create_event
+        let create_event_content: Option<RoomCreateEventContent> = create_event
             .as_ref()
             .map(|create_event| {
-                serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                    .expect("Raw::from_value always works.")
-                    .deserialize()
-                    .map_err(|e| {
-                        warn!("Invalid create event: {}", e);
-                        Error::bad_database("Invalid create event in db.")
-                    })
+                serde_json::from_str(create_event.content.get()).map_err(|e| {
+                    warn!("Invalid create event: {}", e);
+                    Error::bad_database("Invalid create event in db.")
+                })
             })
             .transpose()?;
 
@@ -2000,7 +2009,10 @@ impl Rooms {
         let mut unsigned = unsigned.unwrap_or_default();
         if let Some(state_key) = &state_key {
             if let Some(prev_pdu) = self.room_state_get(room_id, &event_type, state_key)? {
-                unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
+                unsigned.insert(
+                    "prev_content".to_owned(),
+                    serde_json::from_str(prev_pdu.content.get()).expect("string is valid json"),
+                );
                 unsigned.insert(
                     "prev_sender".to_owned(),
                     serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
@@ -2025,11 +2037,15 @@ impl Rooms {
                 .map(|(_, pdu)| pdu.event_id.clone())
                 .collect(),
             redacts,
-            unsigned,
-            hashes: ruma::events::pdu::EventHash {
+            unsigned: if unsigned.is_empty() {
+                None
+            } else {
+                Some(to_raw_value(&unsigned).expect("to_raw_value always works"))
+            },
+            hashes: EventHash {
                 sha256: "aaa".to_owned(),
             },
-            signatures: BTreeMap::new(),
+            signatures: None,
         };
 
         let auth_check = state_res::auth_check(
@@ -2205,7 +2221,7 @@ impl Rooms {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
                 if pdu.sender != user_id {
-                    pdu.unsigned.remove("transaction_id");
+                    pdu.remove_transaction_id()?;
                 }
                 Ok((pdu_id, pdu))
             }))
@@ -2242,7 +2258,7 @@ impl Rooms {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
                 if pdu.sender != user_id {
-                    pdu.unsigned.remove("transaction_id");
+                    pdu.remove_transaction_id()?;
                 }
                 Ok((pdu_id, pdu))
             }))
@@ -2279,7 +2295,7 @@ impl Rooms {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
                 if pdu.sender != user_id {
-                    pdu.unsigned.remove("transaction_id");
+                    pdu.remove_transaction_id()?;
                 }
                 Ok((pdu_id, pdu))
             }))
@@ -2309,7 +2325,7 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         user_id: &UserId,
-        membership: member::MembershipState,
+        membership: MembershipState,
         sender: &UserId,
         last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
         db: &Database,
@@ -2338,7 +2354,7 @@ impl Rooms {
         roomuser_id.extend_from_slice(user_id.as_bytes());
 
         match &membership {
-            member::MembershipState::Join => {
+            MembershipState::Join => {
                 // Check if the user never joined this room
                 if !self.once_joined(user_id, room_id)? {
                     // Add the user ID to the join list then
@@ -2348,12 +2364,8 @@ impl Rooms {
                     if let Some(predecessor) = self
                         .room_state_get(room_id, &EventType::RoomCreate, "")?
                         .and_then(|create| {
-                            serde_json::from_value::<
-                                Raw<ruma::events::room::create::CreateEventContent>,
-                            >(create.content.clone())
-                            .expect("Raw::from_value always works")
-                            .deserialize()
-                            .ok()
+                            serde_json::from_str::<RoomCreateEventContent>(create.content.get())
+                                .ok()
                         })
                         .and_then(|content| content.predecessor)
                     {
@@ -2442,7 +2454,7 @@ impl Rooms {
                 self.userroomid_leftstate.remove(&userroom_id)?;
                 self.roomuserid_leftcount.remove(&roomuser_id)?;
             }
-            member::MembershipState::Invite => {
+            MembershipState::Invite => {
                 // We want to know if the sender is ignored by the receiver
                 let is_ignored = db
                     .account_data
@@ -2475,7 +2487,7 @@ impl Rooms {
                 self.userroomid_leftstate.remove(&userroom_id)?;
                 self.roomuserid_leftcount.remove(&roomuser_id)?;
             }
-            member::MembershipState::Leave | member::MembershipState::Ban => {
+            MembershipState::Leave | MembershipState::Ban => {
                 if update_joined_count
                     && self
                         .room_members(room_id)
@@ -2700,26 +2712,23 @@ impl Rooms {
             );
             let state_lock = mutex_state.lock().await;
 
-            let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
+            let mut event = serde_json::from_str::<RoomMemberEventContent>(
                 self.room_state_get(room_id, &EventType::RoomMember, &user_id.to_string())?
                     .ok_or(Error::BadRequest(
                         ErrorKind::BadState,
                         "Cannot leave a room you are not a member of.",
                     ))?
                     .content
-                    .clone(),
+                    .get(),
             )
-            .expect("from_value::<Raw<..>> can never fail")
-            .deserialize()
             .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
-            event.membership = member::MembershipState::Leave;
+            event.membership = MembershipState::Leave;
 
             self.build_and_append_pdu(
                 PduBuilder {
                     event_type: EventType::RoomMember,
-                    content: serde_json::to_value(event)
-                        .expect("event is valid, we just created it"),
+                    content: to_raw_value(&event).expect("event is valid, we just created it"),
                     unsigned: None,
                     state_key: Some(user_id.to_string()),
                     redacts: None,
@@ -2793,10 +2802,9 @@ impl Rooms {
         };
 
         let mut leave_event_stub =
-            serde_json::from_str::<CanonicalJsonObject>(make_leave_response.event.json().get())
-                .map_err(|_| {
-                    Error::BadServerResponse("Invalid make_leave event json received from server.")
-                })?;
+            serde_json::from_str::<CanonicalJsonObject>(make_leave_response.event.get()).map_err(
+                |_| Error::BadServerResponse("Invalid make_leave event json received from server."),
+            )?;
 
         // TODO: Is origin needed?
         leave_event_stub.insert(
@@ -2847,7 +2855,7 @@ impl Rooms {
                 federation::membership::create_leave_event::v2::Request {
                     room_id,
                     event_id: &event_id,
-                    pdu: PduEvent::convert_to_outgoing_federation_event(leave_event.clone()),
+                    pdu: &PduEvent::convert_to_outgoing_federation_event(leave_event.clone()),
                 },
             )
             .await?;

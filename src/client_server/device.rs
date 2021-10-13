@@ -3,7 +3,7 @@ use ruma::api::client::{
     error::ErrorKind,
     r0::{
         device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
-        uiaa::{AuthFlow, UiaaInfo},
+        uiaa::{AuthFlow, AuthType, UiaaInfo},
     },
 };
 
@@ -109,7 +109,7 @@ pub async fn delete_device_route(
     // UIAA
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -172,7 +172,7 @@ pub async fn delete_devices_route(
     // UIAA
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),
