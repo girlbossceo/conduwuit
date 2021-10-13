@@ -30,7 +30,7 @@ pub async fn set_global_account_data_route(
 ) -> ConduitResult<set_global_account_data::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let data = serde_json::from_str::<serde_json::Value>(body.data.get())
+    let data: serde_json::Value = serde_json::from_str(body.data.get())
         .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Data is invalid."))?;
 
     let event_type = body.event_type.to_string();
@@ -68,7 +68,7 @@ pub async fn set_room_account_data_route(
 ) -> ConduitResult<set_room_account_data::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let data = serde_json::from_str::<serde_json::Value>(body.data.get())
+    let data: serde_json::Value = serde_json::from_str(body.data.get())
         .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Data is invalid."))?;
 
     let event_type = body.event_type.to_string();
@@ -103,9 +103,9 @@ pub async fn get_global_account_data_route(
 ) -> ConduitResult<get_global_account_data::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let event = db
+    let event: Box<RawJsonValue> = db
         .account_data
-        .get::<Box<RawJsonValue>>(None, sender_user, body.event_type.clone().into())?
+        .get(None, sender_user, body.event_type.clone().into())?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
     let account_data = serde_json::from_str::<ExtractGlobalEventContent>(event.get())
@@ -132,9 +132,9 @@ pub async fn get_room_account_data_route(
 ) -> ConduitResult<get_room_account_data::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let event = db
+    let event: Box<RawJsonValue> = db
         .account_data
-        .get::<Box<RawJsonValue>>(
+        .get(
             Some(&body.room_id),
             sender_user,
             body.event_type.clone().into(),

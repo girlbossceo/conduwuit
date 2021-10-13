@@ -69,8 +69,8 @@ impl PduEvent {
             _ => &[],
         };
 
-        let mut old_content =
-            serde_json::from_str::<BTreeMap<String, serde_json::Value>>(self.content.get())
+        let mut old_content: BTreeMap<String, serde_json::Value> =
+            serde_json::from_str(self.content.get())
                 .map_err(|_| Error::bad_database("PDU in db has invalid content."))?;
 
         let mut new_content = serde_json::Map::new();
@@ -92,8 +92,8 @@ impl PduEvent {
 
     pub fn remove_transaction_id(&mut self) -> crate::Result<()> {
         if let Some(unsigned) = &self.unsigned {
-            let mut unsigned =
-                serde_json::from_str::<BTreeMap<String, Box<RawJsonValue>>>(unsigned.get())
+            let mut unsigned: BTreeMap<String, Box<RawJsonValue>> =
+                serde_json::from_str(unsigned.get())
                     .map_err(|_| Error::bad_database("Invalid unsigned in pdu event"))?;
             unsigned.remove("transaction_id");
             self.unsigned = Some(to_raw_value(&unsigned).expect("unsigned is valid"));

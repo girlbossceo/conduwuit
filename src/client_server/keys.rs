@@ -395,7 +395,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 
     let mut failures = BTreeMap::new();
 
-    let mut futures = get_over_federation
+    let mut futures: FuturesUnordered<_> = get_over_federation
         .into_iter()
         .map(|(server, vec)| async move {
             let mut device_keys_input_fed = BTreeMap::new();
@@ -415,7 +415,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                     .await,
             )
         })
-        .collect::<FuturesUnordered<_>>();
+        .collect();
 
     while let Some((server, response)) = futures.next().await {
         match response {

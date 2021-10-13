@@ -22,6 +22,7 @@ use ruma::{
         },
         EventType,
     },
+    serde::JsonObject,
     RoomAliasId, RoomId, RoomVersionId,
 };
 use serde_json::value::to_raw_value;
@@ -175,12 +176,10 @@ pub async fn create_room_route(
     .expect("event is valid, we just created it");
 
     if let Some(power_level_content_override) = &body.power_level_content_override {
-        let json = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
-            power_level_content_override.json().get(),
-        )
-        .map_err(|_| {
-            Error::BadRequest(ErrorKind::BadJson, "Invalid power_level_content_override.")
-        })?;
+        let json: JsonObject = serde_json::from_str(power_level_content_override.json().get())
+            .map_err(|_| {
+                Error::BadRequest(ErrorKind::BadJson, "Invalid power_level_content_override.")
+            })?;
 
         for (key, value) in json {
             power_levels_content[key] = value;
@@ -605,7 +604,7 @@ pub async fn upgrade_room_route(
     }
 
     // Get the old room power levels
-    let mut power_levels_event_content = serde_json::from_str::<RoomPowerLevelsEventContent>(
+    let mut power_levels_event_content: RoomPowerLevelsEventContent = serde_json::from_str(
         db.rooms
             .room_state_get(&body.room_id, &EventType::RoomPowerLevels, "")?
             .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?

@@ -27,7 +27,7 @@ use ruma::{
         OutgoingRequest,
     },
     device_id,
-    events::{push_rules, AnySyncEphemeralRoomEvent, EventType},
+    events::{push_rules::PushRulesEvent, AnySyncEphemeralRoomEvent, EventType},
     push,
     receipt::ReceiptType,
     uint, MilliSecondsSinceUnixEpoch, ServerName, UInt, UserId,
@@ -165,13 +165,13 @@ impl Sending {
                                 }
 
                                 // Find events that have been added since starting the last request
-                                let new_events = guard.sending.servernameevent_data
+                                let new_events: Vec<_> = guard.sending.servernameevent_data
                                     .scan_prefix(prefix.clone())
                                     .filter_map(|(k, v)| {
                                         Self::parse_servercurrentevent(&k, v).ok().map(|ev| (ev, k))
                                     })
                                     .take(30)
-                                    .collect::<Vec<_>>();
+                                    .collect::<>();
 
                                 // TODO: find edus
 
@@ -344,8 +344,8 @@ impl Sending {
                     continue;
                 }
 
-                let event =
-                    serde_json::from_str::<AnySyncEphemeralRoomEvent>(read_receipt.json().get())
+                let event: AnySyncEphemeralRoomEvent =
+                    serde_json::from_str(read_receipt.json().get())
                         .map_err(|_| Error::bad_database("Invalid edu event in read_receipts."))?;
                 let federation_event = match event {
                     AnySyncEphemeralRoomEvent::Receipt(r) => {
@@ -612,9 +612,9 @@ impl Sending {
 
                     let rules_for_user = db
                         .account_data
-                        .get::<push_rules::PushRulesEvent>(None, &userid, EventType::PushRules)
+                        .get(None, &userid, EventType::PushRules)
                         .unwrap_or_default()
-                        .map(|ev| ev.content.global)
+                        .map(|ev: PushRulesEvent| ev.content.global)
                         .unwrap_or_else(|| push::Ruleset::server_default(&userid));
 
                     let unread: UInt = db

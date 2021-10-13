@@ -1,7 +1,10 @@
 use crate::{database::DatabaseGuard, ConduitResult, Ruma};
 use ruma::{
     api::client::r0::tag::{create_tag, delete_tag, get_tags},
-    events::EventType,
+    events::{
+        tag::{TagEvent, TagEventContent},
+        EventType,
+    },
 };
 use std::collections::BTreeMap;
 
@@ -26,9 +29,9 @@ pub async fn update_tag_route(
 
     let mut tags_event = db
         .account_data
-        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_user, EventType::Tag)?
-        .unwrap_or_else(|| ruma::events::tag::TagEvent {
-            content: ruma::events::tag::TagEventContent {
+        .get(Some(&body.room_id), sender_user, EventType::Tag)?
+        .unwrap_or_else(|| TagEvent {
+            content: TagEventContent {
                 tags: BTreeMap::new(),
             },
         });
@@ -68,9 +71,9 @@ pub async fn delete_tag_route(
 
     let mut tags_event = db
         .account_data
-        .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_user, EventType::Tag)?
-        .unwrap_or_else(|| ruma::events::tag::TagEvent {
-            content: ruma::events::tag::TagEventContent {
+        .get(Some(&body.room_id), sender_user, EventType::Tag)?
+        .unwrap_or_else(|| TagEvent {
+            content: TagEventContent {
                 tags: BTreeMap::new(),
             },
         });
@@ -108,9 +111,9 @@ pub async fn get_tags_route(
     Ok(get_tags::Response {
         tags: db
             .account_data
-            .get::<ruma::events::tag::TagEvent>(Some(&body.room_id), sender_user, EventType::Tag)?
-            .unwrap_or_else(|| ruma::events::tag::TagEvent {
-                content: ruma::events::tag::TagEventContent {
+            .get(Some(&body.room_id), sender_user, EventType::Tag)?
+            .unwrap_or_else(|| TagEvent {
+                content: TagEventContent {
                     tags: BTreeMap::new(),
                 },
             })

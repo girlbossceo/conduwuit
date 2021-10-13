@@ -175,16 +175,14 @@ impl Uiaa {
 
         self.userdevicesessionid_uiaarequest
             .get(&userdevicesessionid)?
-            .map_or(Ok(None), |bytes| {
-                Ok::<_, Error>(Some(
-                    serde_json::from_str::<CanonicalJsonValue>(
-                        &utils::string_from_bytes(&bytes).map_err(|_| {
-                            Error::bad_database("Invalid uiaa request bytes in db.")
-                        })?,
-                    )
-                    .map_err(|_| Error::bad_database("Invalid uiaa request in db."))?,
-                ))
+            .map(|bytes| {
+                serde_json::from_str::<CanonicalJsonValue>(
+                    &utils::string_from_bytes(&bytes)
+                        .map_err(|_| Error::bad_database("Invalid uiaa request bytes in db."))?,
+                )
+                .map_err(|_| Error::bad_database("Invalid uiaa request in db."))
             })
+            .transpose()
     }
 
     fn update_uiaa_session(
@@ -225,7 +223,7 @@ impl Uiaa {
         userdevicesessionid.push(0xff);
         userdevicesessionid.extend_from_slice(session.as_bytes());
 
-        let uiaainfo = serde_json::from_slice::<UiaaInfo>(
+        serde_json::from_slice(
             &self
                 .userdevicesessionid_uiaainfo
                 .get(&userdevicesessionid)?
@@ -234,8 +232,6 @@ impl Uiaa {
                     "UIAA session does not exist.",
                 ))?,
         )
-        .map_err(|_| Error::bad_database("UiaaInfo in userdeviceid_uiaainfo is invalid."))?;
-
-        Ok(uiaainfo)
+        .map_err(|_| Error::bad_database("UiaaInfo in userdeviceid_uiaainfo is invalid."))
     }
 }

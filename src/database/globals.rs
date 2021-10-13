@@ -57,8 +57,7 @@ pub struct RotationHandler(broadcast::Sender<()>, broadcast::Receiver<()>);
 
 impl RotationHandler {
     pub fn new() -> Self {
-        let (s, r) = broadcast::channel::<()>(1);
-
+        let (s, r) = broadcast::channel(1);
         Self(s, r)
     }
 
@@ -274,8 +273,8 @@ impl Globals {
         let signingkeys = self
             .server_signingkeys
             .get(origin.as_bytes())?
-            .and_then(|bytes| serde_json::from_slice::<ServerSigningKeys>(&bytes).ok())
-            .map(|keys| {
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .map(|keys: ServerSigningKeys| {
                 let mut tree = keys.verify_keys;
                 tree.extend(
                     keys.old_verify_keys

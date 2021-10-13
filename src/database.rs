@@ -699,7 +699,7 @@ impl Database {
 
                 println!("Deleting starts");
 
-                let batch2 = db
+                let batch2: Vec<_> = db
                     .rooms
                     .tokenids
                     .iter()
@@ -711,7 +711,7 @@ impl Database {
                             None
                         }
                     })
-                    .collect::<Vec<_>>();
+                    .collect();
 
                 for key in batch2 {
                     println!("del");

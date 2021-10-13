@@ -223,7 +223,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
         }
     }
 
-    let mut all_rooms = db
+    let mut all_rooms: Vec<_> = db
         .rooms
         .public_rooms()
         .map(|room_id| {
@@ -234,28 +234,22 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                 canonical_alias: db
                     .rooms
                     .room_state_get(&room_id, &EventType::RoomCanonicalAlias, "")?
-                    .map_or(Ok::<_, Error>(None), |s| {
-                        Ok(
-                            serde_json::from_str::<RoomCanonicalAliasEventContent>(s.content.get())
-                                .map_err(|_| {
-                                    Error::bad_database(
-                                        "Invalid canonical alias event in database.",
-                                    )
-                                })?
-                                .alias,
-                        )
+                    .map_or(Ok(None), |s| {
+                        serde_json::from_str(s.content.get())
+                            .map(|c: RoomCanonicalAliasEventContent| c.alias)
+                            .map_err(|_| {
+                                Error::bad_database("Invalid canonical alias event in database.")
+                            })
                     })?,
                 name: db
                     .rooms
                     .room_state_get(&room_id, &EventType::RoomName, "")?
-                    .map_or(Ok::<_, Error>(None), |s| {
-                        Ok(
-                            serde_json::from_str::<RoomNameEventContent>(s.content.get())
-                                .map_err(|_| {
-                                    Error::bad_database("Invalid room name event in database.")
-                                })?
-                                .name,
-                        )
+                    .map_or(Ok(None), |s| {
+                        serde_json::from_str(s.content.get())
+                            .map(|c: RoomNameEventContent| c.name)
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room name event in database.")
+                            })
                     })?,
                 num_joined_members: db
                     .rooms
@@ -269,56 +263,48 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                 topic: db
                     .rooms
                     .room_state_get(&room_id, &EventType::RoomTopic, "")?
-                    .map_or(Ok::<_, Error>(None), |s| {
-                        Ok(Some(
-                            serde_json::from_str::<RoomTopicEventContent>(s.content.get())
-                                .map_err(|_| {
-                                    Error::bad_database("Invalid room topic event in database.")
-                                })?
-                                .topic,
-                        ))
+                    .map_or(Ok(None), |s| {
+                        serde_json::from_str(s.content.get())
+                            .map(|c: RoomTopicEventContent| Some(c.topic))
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room topic event in database.")
+                            })
                     })?,
                 world_readable: db
                     .rooms
                     .room_state_get(&room_id, &EventType::RoomHistoryVisibility, "")?
-                    .map_or(Ok::<_, Error>(false), |s| {
-                        Ok(serde_json::from_str::<RoomHistoryVisibilityEventContent>(
-                            s.content.get(),
-                        )
-                        .map_err(|_| {
-                            Error::bad_database(
-                                "Invalid room history visibility event in database.",
-                            )
-                        })?
-                        .history_visibility
-                            == HistoryVisibility::WorldReadable)
+                    .map_or(Ok(false), |s| {
+                        serde_json::from_str(s.content.get())
+                            .map(|c: RoomHistoryVisibilityEventContent| {
+                                c.history_visibility == HistoryVisibility::WorldReadable
+                            })
+                            .map_err(|_| {
+                                Error::bad_database(
+                                    "Invalid room history visibility event in database.",
+                                )
+                            })
                     })?,
                 guest_can_join: db
                     .rooms
                     .room_state_get(&room_id, &EventType::RoomGuestAccess, "")?
-                    .map_or(Ok::<_, Error>(false), |s| {
-                        Ok(
-                            serde_json::from_str::<RoomGuestAccessEventContent>(s.content.get())
-                                .map_err(|_| {
-                                    Error::bad_database(
-                                        "Invalid room guest access event in database.",
-                                    )
-                                })?
-                                .guest_access
-                                == GuestAccess::CanJoin,
-                        )
+                    .map_or(Ok(false), |s| {
+                        serde_json::from_str(s.content.get())
+                            .map(|c: RoomGuestAccessEventContent| {
+                                c.guest_access == GuestAccess::CanJoin
+                            })
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room guest access event in database.")
+                            })
                     })?,
                 avatar_url: db
                     .rooms
                     .room_state_get(&room_id, &EventType::RoomAvatar, "")?
                     .map(|s| {
-                        Ok::<_, Error>(
-                            serde_json::from_str::<RoomAvatarEventContent>(s.content.get())
-                                .map_err(|_| {
-                                    Error::bad_database("Invalid room avatar event in database.")
-                                })?
-                                .url,
-                        )
+                        serde_json::from_str(s.content.get())
+                            .map(|c: RoomAvatarEventContent| c.url)
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room avatar event in database.")
+                            })
                     })
                     .transpose()?
                     // url is now an Option<String> so we must flatten
@@ -359,17 +345,17 @@ pub(crate) async fn get_public_rooms_filtered_helper(
             }
         })
         // We need to collect all, so we can sort by member count
-        .collect::<Vec<_>>();
+        .collect();
 
     all_rooms.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 
     let total_room_count_estimate = (all_rooms.len() as u32).into();
 
-    let chunk = all_rooms
+    let chunk: Vec<_> = all_rooms
         .into_iter()
         .skip(num_since as usize)
         .take(limit as usize)
-        .collect::<Vec<_>>();
+        .collect();
 
     let prev_batch = if num_since == 0 {
         None

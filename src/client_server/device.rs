@@ -25,11 +25,11 @@ pub async fn get_devices_route(
 ) -> ConduitResult<get_devices::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let devices = db
+    let devices: Vec<device::Device> = db
         .users
         .all_devices_metadata(sender_user)
         .filter_map(|r| r.ok()) // Filter out buggy devices
-        .collect::<Vec<device::Device>>();
+        .collect();
 
     Ok(get_devices::Response { devices }.into())
 }

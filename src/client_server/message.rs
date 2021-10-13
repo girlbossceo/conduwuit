@@ -132,14 +132,11 @@ pub async fn get_message_events_route(
     let to = body.to.as_ref().map(|t| t.parse());
 
     // Use limit or else 10
-    let limit = body
-        .limit
-        .try_into()
-        .map_or(Ok::<_, Error>(10_usize), |l: u32| Ok(l as usize))?;
+    let limit = body.limit.try_into().map_or(10_usize, |l: u32| l as usize);
 
     match body.dir {
         get_message_events::Direction::Forward => {
-            let events_after = db
+            let events_after: Vec<_> = db
                 .rooms
                 .pdus_after(sender_user, &body.room_id, from)?
                 .take(limit)
@@ -151,14 +148,14 @@ pub async fn get_message_events_route(
                         .ok()
                 })
                 .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
-                .collect::<Vec<_>>();
+                .collect();
 
             let end_token = events_after.last().map(|(count, _)| count.to_string());
 
-            let events_after = events_after
+            let events_after: Vec<_> = events_after
                 .into_iter()
                 .map(|(_, pdu)| pdu.to_room_event())
-                .collect::<Vec<_>>();
+                .collect();
 
             let mut resp = get_message_events::Response::new();
             resp.start = Some(body.from.to_owned());
@@ -169,7 +166,7 @@ pub async fn get_message_events_route(
             Ok(resp.into())
         }
         get_message_events::Direction::Backward => {
-            let events_before = db
+            let events_before: Vec<_> = db
                 .rooms
                 .pdus_until(sender_user, &body.room_id, from)?
                 .take(limit)
@@ -181,14 +178,14 @@ pub async fn get_message_events_route(
                         .ok()
                 })
                 .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
-                .collect::<Vec<_>>();
+                .collect();
 
             let start_token = events_before.last().map(|(count, _)| count.to_string());
 
-            let events_before = events_before
+            let events_before: Vec<_> = events_before
                 .into_iter()
                 .map(|(_, pdu)| pdu.to_room_event())
-                .collect::<Vec<_>>();
+                .collect();
 
             let mut resp = get_message_events::Response::new();
             resp.start = Some(body.from.to_owned());

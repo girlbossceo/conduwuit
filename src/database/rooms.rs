@@ -13,13 +13,16 @@ use rocket::http::RawStr;
 use ruma::{
     api::{client::error::ErrorKind, federation},
     events::{
-        ignored_user_list, push_rules,
+        direct::DirectEvent,
+        ignored_user_list::IgnoredUserListEvent,
+        push_rules::PushRulesEvent,
         room::{
             create::RoomCreateEventContent,
             member::{MembershipState, RoomMemberEventContent},
             message::RoomMessageEventContent,
             power_levels::RoomPowerLevelsEventContent,
         },
+        tag::TagEvent,
         AnyStrippedStateEvent, AnySyncStateEvent, EventType,
     },
     push::{Action, Ruleset, Tweak},
@@ -218,16 +221,16 @@ impl Rooms {
         self.eventid_shorteventid
             .get(event_id.as_bytes())?
             .map_or(Ok(None), |shorteventid| {
-                self.shorteventid_shortstatehash.get(&shorteventid)?.map_or(
-                    Ok::<_, Error>(None),
-                    |bytes| {
-                        Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
+                self.shorteventid_shortstatehash
+                    .get(&shorteventid)?
+                    .map(|bytes| {
+                        utils::u64_from_bytes(&bytes).map_err(|_| {
                             Error::bad_database(
                                 "Invalid shortstatehash bytes in shorteventid_shortstatehash",
                             )
-                        })?))
-                    },
-                )
+                        })
+                    })
+                    .transpose()
             })
     }
 
@@ -369,16 +372,16 @@ impl Rooms {
 
         let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last()
         {
-            let statediffnew = new_state_ids_compressed
+            let statediffnew: HashSet<_> = new_state_ids_compressed
                 .difference(&parent_stateinfo.1)
                 .copied()
-                .collect::<HashSet<_>>();
+                .collect();
 
-            let statediffremoved = parent_stateinfo
+            let statediffremoved: HashSet<_> = parent_stateinfo
                 .1
                 .difference(&new_state_ids_compressed)
                 .copied()
-                .collect::<HashSet<_>>();
+                .collect();
 
             (statediffnew, statediffremoved)
         } else {
@@ -409,7 +412,7 @@ impl Rooms {
                 continue;
             }
 
-            let pdu = match serde_json::from_str::<PduEvent>(
+            let pdu: PduEvent = match serde_json::from_str(
                 &serde_json::to_string(&pdu).expect("CanonicalJsonObj can be serialized to JSON"),
             ) {
                 Ok(pdu) => pdu,
@@ -980,7 +983,8 @@ impl Rooms {
     pub fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<u64>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or(Ok(None), |pdu_id| self.pdu_count(&pdu_id).map(Some))
+            .map(|pdu_id| self.pdu_count(&pdu_id))
+            .transpose()
     }
 
     #[tracing::instrument(skip(self))]
@@ -1008,7 +1012,7 @@ impl Rooms {
     pub fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or_else::<Result<_>, _, _>(
+            .map_or_else(
                 || self.eventid_outlierpdu.get(event_id.as_bytes()),
                 |pduid| {
                     Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
@@ -1041,14 +1045,12 @@ impl Rooms {
     ) -> Result<Option<CanonicalJsonObject>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or_else::<Result<_>, _, _>(
-                || Ok(None),
-                |pduid| {
-                    Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
-                        Error::bad_database("Invalid pduid in eventid_pduid.")
-                    })?))
-                },
-            )?
+            .map(|pduid| {
+                self.pduid_pdu
+                    .get(&pduid)?
+                    .ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
+            })
+            .transpose()?
             .map(|pdu| {
                 serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
@@ -1058,9 +1060,7 @@ impl Rooms {
     /// Returns the pdu's id.
     #[tracing::instrument(skip(self))]
     pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>> {
-        self.eventid_pduid
-            .get(event_id.as_bytes())?
-            .map_or(Ok(None), |pdu_id| Ok(Some(pdu_id)))
+        self.eventid_pduid.get(event_id.as_bytes())
     }
 
     /// Returns the pdu.
@@ -1070,14 +1070,12 @@ impl Rooms {
     pub fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or_else::<Result<_>, _, _>(
-                || Ok(None),
-                |pduid| {
-                    Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
-                        Error::bad_database("Invalid pduid in eventid_pduid.")
-                    })?))
-                },
-            )?
+            .map(|pduid| {
+                self.pduid_pdu
+                    .get(&pduid)?
+                    .ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
+            })
+            .transpose()?
             .map(|pdu| {
                 serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
@@ -1096,11 +1094,8 @@ impl Rooms {
         if let Some(pdu) = self
             .eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or_else::<Result<_>, _, _>(
-                || {
-                    let r = self.eventid_outlierpdu.get(event_id.as_bytes());
-                    r
-                },
+            .map_or_else(
+                || self.eventid_outlierpdu.get(event_id.as_bytes()),
                 |pduid| {
                     Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
                         Error::bad_database("Invalid pduid in eventid_pduid.")
@@ -1363,8 +1358,8 @@ impl Rooms {
 
             let rules_for_user = db
                 .account_data
-                .get::<push_rules::PushRulesEvent>(None, user, EventType::PushRules)?
-                .map(|ev| ev.content.global)
+                .get(None, user, EventType::PushRules)?
+                .map(|ev: PushRulesEvent| ev.content.global)
                 .unwrap_or_else(|| Ruleset::server_default(user));
 
             let mut highlight = false;
@@ -1490,11 +1485,11 @@ impl Rooms {
                     {
                         let mut lines = body.lines();
                         let command_line = lines.next().expect("each string has at least one line");
-                        let body = lines.collect::<Vec<_>>();
+                        let body: Vec<_> = lines.collect();
 
                         let mut parts = command_line.split_whitespace().skip(1);
                         if let Some(command) = parts.next() {
-                            let args = parts.collect::<Vec<_>>();
+                            let args: Vec<_> = parts.collect();
 
                             match command {
                                 "register_appservice" => {
@@ -1771,16 +1766,16 @@ impl Rooms {
 
             let (statediffnew, statediffremoved) =
                 if let Some(parent_stateinfo) = states_parents.last() {
-                    let statediffnew = state_ids_compressed
+                    let statediffnew: HashSet<_> = state_ids_compressed
                         .difference(&parent_stateinfo.1)
                         .copied()
-                        .collect::<HashSet<_>>();
+                        .collect();
 
-                    let statediffremoved = parent_stateinfo
+                    let statediffremoved: HashSet<_> = parent_stateinfo
                         .1
                         .difference(&state_ids_compressed)
                         .copied()
-                        .collect::<HashSet<_>>();
+                        .collect();
 
                     (statediffnew, statediffremoved)
                 } else {
@@ -2363,19 +2358,16 @@ impl Rooms {
                     // Check if the room has a predecessor
                     if let Some(predecessor) = self
                         .room_state_get(room_id, &EventType::RoomCreate, "")?
-                        .and_then(|create| {
-                            serde_json::from_str::<RoomCreateEventContent>(create.content.get())
-                                .ok()
-                        })
-                        .and_then(|content| content.predecessor)
+                        .and_then(|create| serde_json::from_str(create.content.get()).ok())
+                        .and_then(|content: RoomCreateEventContent| content.predecessor)
                     {
                         // Copy user settings from predecessor to the current room:
                         // - Push rules
                         //
                         // TODO: finish this once push rules are implemented.
                         //
-                        // let mut push_rules_event_content = account_data
-                        //     .get::<ruma::events::push_rules::PushRulesEvent>(
+                        // let mut push_rules_event_content: PushRulesEvent = account_data
+                        //     .get(
                         //         None,
                         //         user_id,
                         //         EventType::PushRules,
@@ -2395,13 +2387,11 @@ impl Rooms {
                         //     .ok();
 
                         // Copy old tags to new room
-                        if let Some(tag_event) =
-                            db.account_data.get::<ruma::events::tag::TagEvent>(
-                                Some(&predecessor.room_id),
-                                user_id,
-                                EventType::Tag,
-                            )?
-                        {
+                        if let Some(tag_event) = db.account_data.get::<TagEvent>(
+                            Some(&predecessor.room_id),
+                            user_id,
+                            EventType::Tag,
+                        )? {
                             db.account_data
                                 .update(
                                     Some(room_id),
@@ -2415,11 +2405,8 @@ impl Rooms {
 
                         // Copy direct chat flag
                         if let Some(mut direct_event) =
-                            db.account_data.get::<ruma::events::direct::DirectEvent>(
-                                None,
-                                user_id,
-                                EventType::Direct,
-                            )?
+                            db.account_data
+                                .get::<DirectEvent>(None, user_id, EventType::Direct)?
                         {
                             let mut room_ids_updated = false;
 
@@ -2458,7 +2445,7 @@ impl Rooms {
                 // We want to know if the sender is ignored by the receiver
                 let is_ignored = db
                     .account_data
-                    .get::<ignored_user_list::IgnoredUserListEvent>(
+                    .get::<IgnoredUserListEvent>(
                         None,    // Ignored users are in global account data
                         user_id, // Receiver
                         EventType::IgnoredUserList,
@@ -2712,7 +2699,7 @@ impl Rooms {
             );
             let state_lock = mutex_state.lock().await;
 
-            let mut event = serde_json::from_str::<RoomMemberEventContent>(
+            let mut event: RoomMemberEventContent = serde_json::from_str(
                 self.room_state_get(room_id, &EventType::RoomMember, &user_id.to_string())?
                     .ok_or(Error::BadRequest(
                         ErrorKind::BadState,
@@ -2762,16 +2749,14 @@ impl Rooms {
                 "User is not invited.",
             ))?;
 
-        let servers = invite_state
+        let servers: HashSet<_> = invite_state
             .iter()
-            .filter_map(|event| {
-                serde_json::from_str::<serde_json::Value>(&event.json().to_string()).ok()
-            })
-            .filter_map(|event| event.get("sender").cloned())
+            .filter_map(|event| serde_json::from_str(event.json().get()).ok())
+            .filter_map(|event: serde_json::Value| event.get("sender").cloned())
             .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
             .filter_map(|sender| UserId::try_from(sender).ok())
             .map(|user| user.server_name().to_owned())
-            .collect::<HashSet<_>>();
+            .collect();
 
         for remote_server in servers {
             let make_leave_response = db
@@ -2920,14 +2905,13 @@ impl Rooms {
     pub fn id_from_alias(&self, alias: &RoomAliasId) -> Result<Option<RoomId>> {
         self.alias_roomid
             .get(alias.alias().as_bytes())?
-            .map_or(Ok(None), |bytes| {
-                Ok(Some(
-                    RoomId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                        Error::bad_database("Room ID in alias_roomid is invalid unicode.")
-                    })?)
-                    .map_err(|_| Error::bad_database("Room ID in alias_roomid is invalid."))?,
-                ))
+            .map(|bytes| {
+                RoomId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("Room ID in alias_roomid is invalid unicode.")
+                })?)
+                .map_err(|_| Error::bad_database("Room ID in alias_roomid is invalid."))
             })
+            .transpose()
     }
 
     #[tracing::instrument(skip(self))]
@@ -2987,11 +2971,11 @@ impl Rooms {
             .to_vec();
         let prefix_clone = prefix.clone();
 
-        let words = search_string
+        let words: Vec<_> = search_string
             .split_terminator(|c: char| !c.is_alphanumeric())
             .filter(|s| !s.is_empty())
             .map(str::to_lowercase)
-            .collect::<Vec<_>>();
+            .collect();
 
         let iterators = words.clone().into_iter().map(move |word| {
             let mut prefix2 = prefix.clone();
@@ -3004,12 +2988,7 @@ impl Rooms {
             self.tokenids
                 .iter_from(&last_possible_id, true) // Newest pdus first
                 .take_while(move |(k, _)| k.starts_with(&prefix2))
-                .map(|(key, _)| {
-                    let pdu_id = key[key.len() - size_of::<u64>()..].to_vec();
-
-                    Ok::<_, Error>(pdu_id)
-                })
-                .filter_map(|r| r.ok())
+                .map(|(key, _)| key[key.len() - size_of::<u64>()..].to_vec())
         });
 
         Ok((
@@ -3241,11 +3220,11 @@ impl Rooms {
 
         self.roomuserid_leftcount
             .get(&key)?
-            .map_or(Ok(None), |bytes| {
-                Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
-                    Error::bad_database("Invalid leftcount in db.")
-                })?))
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes)
+                    .map_err(|_| Error::bad_database("Invalid leftcount in db."))
             })
+            .transpose()
     }
 
     /// Returns an iterator over all rooms this user joined.

@@ -49,6 +49,7 @@ use ruma::{
     },
     int,
     receipt::ReceiptType,
+    serde::JsonObject,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, RoomVersion, StateMap},
     to_device::DeviceIdOrAllDevices,
@@ -1003,12 +1004,12 @@ pub(crate) async fn handle_incoming_pdu<'a>(
     // 9. Fetch any missing prev events doing all checks listed here starting at 1. These are timeline events
     let mut graph = HashMap::new();
     let mut eventid_info = HashMap::new();
-    let mut todo_outlier_stack = incoming_pdu
+    let mut todo_outlier_stack: Vec<_> = incoming_pdu
         .prev_events
         .iter()
         .cloned()
         .map(Arc::new)
-        .collect::<Vec<_>>();
+        .collect();
 
     let mut amount = 0;
 
@@ -1150,13 +1151,11 @@ fn handle_outlier_pdu<'a>(
         // 2. Check signatures, otherwise drop
         // 3. check content hash, redact if doesn't match
 
-        let create_event_content = serde_json::from_str::<RoomCreateEventContent>(
-            create_event.content.get(),
-        )
-        .map_err(|e| {
-            warn!("Invalid create event: {}", e);
-            "Invalid create event in db.".to_owned()
-        })?;
+        let create_event_content: RoomCreateEventContent =
+            serde_json::from_str(create_event.content.get()).map_err(|e| {
+                warn!("Invalid create event: {}", e);
+                "Invalid create event in db.".to_owned()
+            })?;
 
         let room_version_id = &create_event_content.room_version;
         let room_version = RoomVersion::new(room_version_id).expect("room version is supported");
@@ -1315,13 +1314,11 @@ async fn upgrade_outlier_to_timeline_pdu(
         return Err("Event has been soft failed".into());
     }
 
-    let create_event_content = serde_json::from_str::<RoomCreateEventContent>(
-        create_event.content.get(),
-    )
-    .map_err(|e| {
-        warn!("Invalid create event: {}", e);
-        "Invalid create event in db.".to_owned()
-    })?;
+    let create_event_content: RoomCreateEventContent =
+        serde_json::from_str(create_event.content.get()).map_err(|e| {
+            warn!("Invalid create event: {}", e);
+            "Invalid create event in db.".to_owned()
+        })?;
 
     let room_version_id = &create_event_content.room_version;
     let room_version = RoomVersion::new(room_version_id).expect("room version is supported");
@@ -1633,7 +1630,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                 .compress_state_event(*shortstatekey, id, &db.globals)
                 .map_err(|_| "Failed to compress_state_event".to_owned())
         })
-        .collect::<StdResult<_, String>>()?;
+        .collect::<StdResult<_, _>>()?;
 
     // 13. Check if the event passes auth based on the "current state" of the room, if not "soft fail" it
     debug!("starting soft fail auth check");
@@ -1753,7 +1750,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                         .compress_state_event(*k, id, &db.globals)
                         .map_err(|_| "Failed to compress_state_event.".to_owned())
                 })
-                .collect::<StdResult<_, String>>()?
+                .collect::<StdResult<_, _>>()?
         } else {
             // We do need to force an update to this room's state
             update_state = true;
@@ -1772,7 +1769,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                 );
             }
 
-            let fork_states = &fork_states
+            let fork_states: Vec<_> = fork_states
                 .into_iter()
                 .map(|map| {
                     map.into_iter()
@@ -1783,12 +1780,12 @@ async fn upgrade_outlier_to_timeline_pdu(
                         })
                         .collect::<Result<StateMap<_>>>()
                 })
-                .collect::<Result<Vec<_>>>()
+                .collect::<Result<_>>()
                 .map_err(|_| "Failed to get_statekey_from_short.".to_owned())?;
 
             let state = match state_res::resolve(
                 room_version_id,
-                fork_states,
+                &fork_states,
                 auth_chain_sets,
                 |id| {
                     let res = db.rooms.get_pdu(id);
@@ -1815,7 +1812,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                         .compress_state_event(shortstatekey, &event_id, &db.globals)
                         .map_err(|_| "Failed to compress state event".to_owned())
                 })
-                .collect::<StdResult<_, String>>()?
+                .collect::<StdResult<_, _>>()?
         };
 
         // Set the new room state to the resolved state
@@ -2035,12 +2032,12 @@ pub(crate) async fn fetch_signing_keys(
 
     trace!("Loading signing keys for {}", origin);
 
-    let mut result = db
+    let mut result: BTreeMap<_, _> = db
         .globals
         .signing_keys_for(origin)?
         .into_iter()
         .map(|(k, v)| (k.to_string(), v.key))
-        .collect::<BTreeMap<_, _>>();
+        .collect();
 
     if contains_all_ids(&result) {
         return Ok(result);
@@ -2245,11 +2242,7 @@ pub(crate) fn get_auth_chain<'a>(
             continue;
         }
 
-        let chunk_key = chunk
-            .iter()
-            .map(|(short, _)| short)
-            .copied()
-            .collect::<Vec<u64>>();
+        let chunk_key: Vec<u64> = chunk.iter().map(|(short, _)| short).copied().collect();
         if let Some(cached) = db.rooms.get_auth_chain_from_cache(&chunk_key)? {
             hits += 1;
             full_auth_chain.extend(cached.iter().copied());
@@ -2564,9 +2557,9 @@ pub fn get_room_state_route(
     Ok(get_room_state::v1::Response {
         auth_chain: auth_chain_ids
             .map(|id| {
-                Ok::<_, Error>(PduEvent::convert_to_outgoing_federation_event(
-                    db.rooms.get_pdu_json(&id)?.unwrap(),
-                ))
+                db.rooms.get_pdu_json(&id).map(|maybe_json| {
+                    PduEvent::convert_to_outgoing_federation_event(maybe_json.unwrap())
+                })
             })
             .filter_map(|r| r.ok())
             .collect(),
@@ -2650,26 +2643,24 @@ pub fn create_join_event_template_route(
         ));
     }
 
-    let prev_events = db
+    let prev_events: Vec<_> = db
         .rooms
         .get_pdu_leaves(&body.room_id)?
         .into_iter()
         .take(20)
-        .collect::<Vec<_>>();
+        .collect();
 
     let create_event = db
         .rooms
         .room_state_get(&body.room_id, &EventType::RoomCreate, "")?;
 
-    let create_event_content = create_event
+    let create_event_content: Option<RoomCreateEventContent> = create_event
         .as_ref()
         .map(|create_event| {
-            serde_json::from_str::<RoomCreateEventContent>(create_event.content.get()).map_err(
-                |e| {
-                    warn!("Invalid create event: {}", e);
-                    Error::bad_database("Invalid create event in db.")
-                },
-            )
+            serde_json::from_str(create_event.content.get()).map_err(|e| {
+                warn!("Invalid create event: {}", e);
+                Error::bad_database("Invalid create event in db.")
+            })
         })
         .transpose()?;
 
@@ -2835,7 +2826,7 @@ async fn create_join_event(
         }
     };
 
-    let origin = serde_json::from_value::<Box<ServerName>>(
+    let origin: Box<ServerName> = serde_json::from_value(
         serde_json::to_value(value.get("origin").ok_or(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Event needs an origin field.",
@@ -3009,15 +3000,12 @@ pub async fn create_invite_route(
 
     let mut invite_state = body.invite_room_state.clone();
 
-    let mut event =
-        serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(body.event.get())
-            .map_err(|_| {
-                Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event bytes.")
-            })?;
+    let mut event: JsonObject = serde_json::from_str(body.event.get())
+        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event bytes."))?;
 
     event.insert("event_id".to_owned(), "$dummy".into());
 
-    let pdu = serde_json::from_value::<PduEvent>(event.into()).map_err(|e| {
+    let pdu: PduEvent = serde_json::from_value(event.into()).map_err(|e| {
         warn!("Invalid invite event: {}", e);
         Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event.")
     })?;
@@ -3282,7 +3270,7 @@ fn get_server_keys_from_cache(
     pub_key_map: &mut RwLockWriteGuard<'_, BTreeMap<String, BTreeMap<String, String>>>,
     db: &Database,
 ) -> Result<()> {
-    let value = serde_json::from_str::<CanonicalJsonObject>(pdu.get()).map_err(|e| {
+    let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
         error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
@@ -3343,19 +3331,16 @@ fn get_server_keys_from_cache(
 
         trace!("Loading signing keys for {}", origin);
 
-        let result = db
+        let result: BTreeMap<_, _> = db
             .globals
             .signing_keys_for(origin)?
             .into_iter()
             .map(|(k, v)| (k.to_string(), v.key))
-            .collect::<BTreeMap<_, _>>();
+            .collect();
 
         if !contains_all_ids(&result) {
             trace!("Signing key not loaded for {}", origin);
-            servers.insert(
-                origin.clone(),
-                BTreeMap::<ServerSigningKeyId, QueryCriteria>::new(),
-            );
+            servers.insert(origin.clone(), BTreeMap::new());
         }
 
         pub_key_map.insert(origin.to_string(), result);
@@ -3370,8 +3355,8 @@ pub(crate) async fn fetch_join_signing_keys(
     pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
     db: &Database,
 ) -> Result<()> {
-    let mut servers =
-        BTreeMap::<Box<ServerName>, BTreeMap<ServerSigningKeyId, QueryCriteria>>::new();
+    let mut servers: BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId, QueryCriteria>> =
+        BTreeMap::new();
 
     {
         let mut pkm = pub_key_map
@@ -3436,7 +3421,7 @@ pub(crate) async fn fetch_join_signing_keys(
         }
     }
 
-    let mut futures = servers
+    let mut futures: FuturesUnordered<_> = servers
         .into_iter()
         .map(|(server, _)| async move {
             (
@@ -3450,16 +3435,16 @@ pub(crate) async fn fetch_join_signing_keys(
                 server,
             )
         })
-        .collect::<FuturesUnordered<_>>();
+        .collect();
 
     while let Some(result) = futures.next().await {
         if let (Ok(get_keys_response), origin) = result {
-            let result = db
+            let result: BTreeMap<_, _> = db
                 .globals
                 .add_signing_key(&origin, get_keys_response.server_key.clone())?
                 .into_iter()
                 .map(|(k, v)| (k.to_string(), v.key))
-                .collect::<BTreeMap<_, _>>();
+                .collect();
 
             pub_key_map
                 .write()
