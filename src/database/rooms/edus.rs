@@ -331,7 +331,7 @@ impl RoomEdus {
         &self,
         user_id: &UserId,
         room_id: &RoomId,
-        presence: ruma::events::presence::PresenceEvent,
+        presence: PresenceEvent,
         globals: &super::super::globals::Globals,
     ) -> Result<()> {
         // TODO: Remove old entry? Or maybe just wipe completely from time to time?

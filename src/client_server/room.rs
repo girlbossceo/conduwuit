@@ -475,7 +475,7 @@ pub async fn upgrade_room_route(
         PduBuilder {
             event_type: EventType::RoomTombstone,
             content: to_raw_value(&RoomTombstoneEventContent {
-                body: "This room has been replaced".to_string(),
+                body: "This room has been replaced".to_owned(),
                 replacement_room: replacement_room.clone(),
             })
             .expect("event is valid, we just created it"),

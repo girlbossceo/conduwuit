@@ -257,7 +257,7 @@ impl PduEvent {
         mut json: CanonicalJsonObject,
     ) -> Result<Self, serde_json::Error> {
         json.insert(
-            "event_id".to_string(),
+            "event_id".to_owned(),
             CanonicalJsonValue::String(event_id.as_str().to_owned()),
         );
 

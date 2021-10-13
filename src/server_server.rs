@@ -336,7 +336,7 @@ fn add_port_to_hostname(destination_str: &str) -> FedDest {
         None => (destination_str, ":8448"),
         Some(pos) => destination_str.split_at(pos),
     };
-    FedDest::Named(host.to_string(), port.to_string())
+    FedDest::Named(host.to_owned(), port.to_owned())
 }
 
 /// Returns: actual_destination, host header
@@ -358,7 +358,7 @@ async fn find_actual_destination(
             if let Some(pos) = destination_str.find(':') {
                 // 2: Hostname with included port
                 let (host, port) = destination_str.split_at(pos);
-                FedDest::Named(host.to_string(), port.to_string())
+                FedDest::Named(host.to_owned(), port.to_owned())
             } else {
                 match request_well_known(globals, destination.as_str()).await {
                     // 3: A .well-known file is available
@@ -370,7 +370,7 @@ async fn find_actual_destination(
                                 if let Some(pos) = delegated_hostname.find(':') {
                                     // 3.2: Hostname with port in .well-known file
                                     let (host, port) = delegated_hostname.split_at(pos);
-                                    FedDest::Named(host.to_string(), port.to_string())
+                                    FedDest::Named(host.to_owned(), port.to_owned())
                                 } else {
                                     // Delegated hostname has no port in this branch
                                     if let Some(hostname_override) =
@@ -454,12 +454,12 @@ async fn find_actual_destination(
     let hostname = if let Ok(addr) = hostname.parse::<SocketAddr>() {
         FedDest::Literal(addr)
     } else if let Ok(addr) = hostname.parse::<IpAddr>() {
-        FedDest::Named(addr.to_string(), ":8448".to_string())
+        FedDest::Named(addr.to_string(), ":8448".to_owned())
     } else if let Some(pos) = hostname.find(':') {
         let (host, port) = hostname.split_at(pos);
-        FedDest::Named(host.to_string(), port.to_string())
+        FedDest::Named(host.to_owned(), port.to_owned())
     } else {
-        FedDest::Named(hostname, ":8448".to_string())
+        FedDest::Named(hostname, ":8448".to_owned())
     };
     (actual_destination, hostname)
 }
@@ -476,11 +476,7 @@ async fn query_srv_record(
         .map(|srv| {
             srv.iter().next().map(|result| {
                 FedDest::Named(
-                    result
-                        .target()
-                        .to_string()
-                        .trim_end_matches('.')
-                        .to_string(),
+                    result.target().to_string().trim_end_matches('.').to_owned(),
                     format!(":{}", result.port()),
                 )
             })
@@ -745,7 +741,7 @@ pub async fn send_transaction_message_route(
             Some(id) => id,
             None => {
                 // Event is invalid
-                resolved_map.insert(event_id, Err("Event needs a valid RoomId.".to_string()));
+                resolved_map.insert(event_id, Err("Event needs a valid RoomId.".to_owned()));
                 continue;
             }
         };
@@ -963,7 +959,7 @@ pub(crate) async fn handle_incoming_pdu<'a>(
     match db.rooms.exists(room_id) {
         Ok(true) => {}
         _ => {
-            return Err("Room is unknown to this server.".to_string());
+            return Err("Room is unknown to this server.".to_owned());
         }
     }
 
@@ -1173,14 +1169,14 @@ fn handle_outlier_pdu<'a>(
             Err(e) => {
                 // Drop
                 warn!("Dropping bad event {}: {}", event_id, e);
-                return Err("Signature verification failed".to_string());
+                return Err("Signature verification failed".to_owned());
             }
             Ok(ruma::signatures::Verified::Signatures) => {
                 // Redact
                 warn!("Calculated hash does not match: {}", event_id);
                 match ruma::signatures::redact(&value, room_version_id) {
                     Ok(obj) => obj,
-                    Err(_) => return Err("Redaction failed".to_string()),
+                    Err(_) => return Err("Redaction failed".to_owned()),
                 }
             }
             Ok(ruma::signatures::Verified::All) => value,
@@ -1195,7 +1191,7 @@ fn handle_outlier_pdu<'a>(
         let incoming_pdu = serde_json::from_value::<PduEvent>(
             serde_json::to_value(&val).expect("CanonicalJsonObj is a valid JsonValue"),
         )
-        .map_err(|_| "Event is not a valid PDU.".to_string())?;
+        .map_err(|_| "Event is not a valid PDU.".to_owned())?;
 
         // 4. fetch any missing auth events doing all checks listed here starting at 1. These are not timeline events
         // 5. Reject "due to auth events" if can't get all the auth events or some of the auth events are also rejected "due to auth events"
@@ -1280,9 +1276,9 @@ fn handle_outlier_pdu<'a>(
             None::<PduEvent>, // TODO: third party invite
             |k, s| auth_events.get(&(k.clone(), s.to_owned())),
         )
-        .map_err(|_e| "Auth check failed".to_string())?
+        .map_err(|_e| "Auth check failed".to_owned())?
         {
-            return Err("Event has failed auth check with auth events.".to_string());
+            return Err("Event has failed auth check with auth events.".to_owned());
         }
 
         debug!("Validation successful.");
@@ -2256,7 +2252,7 @@ pub(crate) fn get_auth_chain<'a>(
             .collect::<Vec<u64>>();
         if let Some(cached) = db.rooms.get_auth_chain_from_cache(&chunk_key)? {
             hits += 1;
-            full_auth_chain.extend(cached.iter().cloned());
+            full_auth_chain.extend(cached.iter().copied());
             continue;
         }
         misses += 1;
@@ -2267,7 +2263,7 @@ pub(crate) fn get_auth_chain<'a>(
         for (sevent_id, event_id) in chunk {
             if let Some(cached) = db.rooms.get_auth_chain_from_cache(&[sevent_id])? {
                 hits2 += 1;
-                chunk_cache.extend(cached.iter().cloned());
+                chunk_cache.extend(cached.iter().copied());
             } else {
                 misses2 += 1;
                 let auth_chain = Arc::new(get_auth_chain_inner(room_id, &event_id, db)?);
@@ -3385,10 +3381,10 @@ pub(crate) async fn fetch_join_signing_keys(
         // Try to fetch keys, failure is okay
         // Servers we couldn't find in the cache will be added to `servers`
         for pdu in &event.room_state.state {
-            let _ = get_server_keys_from_cache(&pdu, &mut servers, room_version, &mut pkm, db);
+            let _ = get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm, db);
         }
         for pdu in &event.room_state.auth_chain {
-            let _ = get_server_keys_from_cache(&pdu, &mut servers, room_version, &mut pkm, db);
+            let _ = get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm, db);
         }
 
         drop(pkm);

@@ -81,7 +81,7 @@ impl KeyBackups {
         )?;
         self.backupid_etag
             .insert(&key, &globals.next_count()?.to_be_bytes())?;
-        Ok(version.to_string())
+        Ok(version.to_owned())
     }
 
     pub fn get_latest_backup_version(&self, user_id: &UserId) -> Result<Option<String>> {

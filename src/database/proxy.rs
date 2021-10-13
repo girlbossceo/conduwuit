@@ -136,7 +136,7 @@ impl std::str::FromStr for WildCardedDomain {
         })
     }
 }
-impl<'de> serde::de::Deserialize<'de> for WildCardedDomain {
+impl<'de> Deserialize<'de> for WildCardedDomain {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'de>,

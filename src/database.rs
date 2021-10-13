@@ -499,13 +499,13 @@ impl Database {
                             if let Some(parent_stateinfo) = states_parents.last() {
                                 let statediffnew = current_state
                                     .difference(&parent_stateinfo.1)
-                                    .cloned()
+                                    .copied()
                                     .collect::<HashSet<_>>();
 
                                 let statediffremoved = parent_stateinfo
                                     .1
                                     .difference(&current_state)
-                                    .cloned()
+                                    .copied()
                                     .collect::<HashSet<_>>();
 
                                 (statediffnew, statediffremoved)

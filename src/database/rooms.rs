@@ -50,7 +50,7 @@ pub type StateHashId = Vec<u8>;
 pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 
 pub struct Rooms {
-    pub edus: edus::RoomEdus,
+    pub edus: RoomEdus,
     pub(super) pduid_pdu: Arc<dyn Tree>, // PduId = ShortRoomId + Count
     pub(super) eventid_pduid: Arc<dyn Tree>,
     pub(super) roomid_pduleaves: Arc<dyn Tree>,
@@ -371,13 +371,13 @@ impl Rooms {
         {
             let statediffnew = new_state_ids_compressed
                 .difference(&parent_stateinfo.1)
-                .cloned()
+                .copied()
                 .collect::<HashSet<_>>();
 
             let statediffremoved = parent_stateinfo
                 .1
                 .difference(&new_state_ids_compressed)
-                .cloned()
+                .copied()
                 .collect::<HashSet<_>>();
 
             (statediffnew, statediffremoved)
@@ -498,7 +498,7 @@ impl Rooms {
         if parent != 0_u64 {
             let mut response = self.load_shortstatehash_info(parent)?;
             let mut state = response.last().unwrap().1.clone();
-            state.extend(added.iter().cloned());
+            state.extend(added.iter().copied());
             for r in &removed {
                 state.remove(r);
             }
@@ -1773,13 +1773,13 @@ impl Rooms {
                 if let Some(parent_stateinfo) = states_parents.last() {
                     let statediffnew = state_ids_compressed
                         .difference(&parent_stateinfo.1)
-                        .cloned()
+                        .copied()
                         .collect::<HashSet<_>>();
 
                     let statediffremoved = parent_stateinfo
                         .1
                         .difference(&state_ids_compressed)
-                        .cloned()
+                        .copied()
                         .collect::<HashSet<_>>();
 
                     (statediffnew, statediffremoved)

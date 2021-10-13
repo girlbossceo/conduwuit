@@ -344,7 +344,7 @@ impl<T: Outgoing> Deref for Ruma<T> {
 }
 
 /// This struct converts ruma responses into rocket http responses.
-pub type ConduitResult<T> = std::result::Result<RumaResponse<T>, Error>;
+pub type ConduitResult<T> = Result<RumaResponse<T>, Error>;
 
 pub fn response<T: OutgoingResponse>(response: RumaResponse<T>) -> response::Result<'static> {
     let http_response = response
