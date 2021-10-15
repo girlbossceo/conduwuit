@@ -5,7 +5,8 @@ use ruma::{
     events::{AnyToDeviceEvent, EventType},
     identifiers::MxcUri,
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, UInt, UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, RoomAliasId, UInt,
+    UserId,
 };
 use std::{collections::BTreeMap, convert::TryFrom, mem, sync::Arc};
 use tracing::warn;
@@ -51,6 +52,22 @@ impl Users {
                 "User does not exist.",
             ))?
             .is_empty())
+    }
+
+    /// Check if a user is an admin
+    #[tracing::instrument(skip(self, user_id, rooms, globals))]
+    pub fn is_admin(
+        &self,
+        user_id: &UserId,
+        rooms: &super::rooms::Rooms,
+        globals: &super::globals::Globals,
+    ) -> Result<bool> {
+        let admin_room_alias_id =
+            RoomAliasId::try_from(format!("#admins:{}", globals.server_name()))
+                .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
+        let admin_room_id = rooms.id_from_alias(&admin_room_alias_id)?.unwrap();
+
+        Ok(rooms.is_joined(user_id, &admin_room_id)?)
     }
 
     /// Create a new user account on this homeserver.

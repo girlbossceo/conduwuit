@@ -211,6 +211,10 @@ impl Globals {
         self.config.allow_federation
     }
 
+    pub fn allow_room_creation(&self) -> bool {
+        self.config.allow_room_creation
+    }
+
     pub fn trusted_servers(&self) -> &[Box<ServerName>] {
         &self.config.trusted_servers
     }
