@@ -81,7 +81,7 @@ impl KeyBackups {
         )?;
         self.backupid_etag
             .insert(&key, &globals.next_count()?.to_be_bytes())?;
-        Ok(version.to_string())
+        Ok(version.to_owned())
     }
 
     pub fn get_latest_backup_version(&self, user_id: &UserId) -> Result<Option<String>> {
@@ -94,15 +94,15 @@ impl KeyBackups {
             .iter_from(&last_possible_key, true)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .next()
-            .map_or(Ok(None), |(key, _)| {
+            .map(|(key, _)| {
                 utils::string_from_bytes(
                     key.rsplit(|&b| b == 0xff)
                         .next()
                         .expect("rsplit always returns an element"),
                 )
                 .map_err(|_| Error::bad_database("backupid_algorithm key is invalid."))
-                .map(Some)
             })
+            .transpose()
     }
 
     pub fn get_latest_backup(&self, user_id: &UserId) -> Result<Option<(String, BackupAlgorithm)>> {
@@ -115,7 +115,7 @@ impl KeyBackups {
             .iter_from(&last_possible_key, true)
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .next()
-            .map_or(Ok(None), |(key, value)| {
+            .map(|(key, value)| {
                 let version = utils::string_from_bytes(
                     key.rsplit(|&b| b == 0xff)
                         .next()
@@ -123,13 +123,14 @@ impl KeyBackups {
                 )
                 .map_err(|_| Error::bad_database("backupid_algorithm key is invalid."))?;
 
-                Ok(Some((
+                Ok((
                     version,
                     serde_json::from_slice(&value).map_err(|_| {
                         Error::bad_database("Algorithm in backupid_algorithm is invalid.")
                     })?,
-                )))
+                ))
             })
+            .transpose()
     }
 
     pub fn get_backup(&self, user_id: &UserId, version: &str) -> Result<Option<BackupAlgorithm>> {

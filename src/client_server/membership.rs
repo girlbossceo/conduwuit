@@ -1,10 +1,9 @@
 use crate::{
     client_server,
     database::DatabaseGuard,
-    pdu::{PduBuilder, PduEvent},
+    pdu::{EventHash, PduBuilder, PduEvent},
     server_server, utils, ConduitResult, Database, Error, Result, Ruma,
 };
-use member::{MemberEventContent, MembershipState};
 use ruma::{
     api::{
         client::{
@@ -18,14 +17,17 @@ use ruma::{
         federation::{self, membership::create_invite},
     },
     events::{
-        pdu::Pdu,
-        room::{create::CreateEventContent, member},
+        room::{
+            create::RoomCreateEventContent,
+            member::{MembershipState, RoomMemberEventContent},
+        },
         EventType,
     },
-    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue, Raw},
+    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, RoomVersion},
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
+use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
     collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
@@ -54,19 +56,17 @@ pub async fn join_room_by_id_route(
 ) -> ConduitResult<join_room_by_id::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let mut servers = db
+    let mut servers: HashSet<_> = db
         .rooms
         .invite_state(sender_user, &body.room_id)?
         .unwrap_or_default()
         .iter()
-        .filter_map(|event| {
-            serde_json::from_str::<serde_json::Value>(&event.json().to_string()).ok()
-        })
-        .filter_map(|event| event.get("sender").cloned())
+        .filter_map(|event| serde_json::from_str(event.json().get()).ok())
+        .filter_map(|event: serde_json::Value| event.get("sender").cloned())
         .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
         .filter_map(|sender| UserId::try_from(sender).ok())
         .map(|user| user.server_name().to_owned())
-        .collect::<HashSet<_>>();
+        .collect();
 
     servers.insert(body.room_id.server_name().to_owned());
 
@@ -103,19 +103,17 @@ pub async fn join_room_by_id_or_alias_route(
 
     let (servers, room_id) = match RoomId::try_from(body.room_id_or_alias.clone()) {
         Ok(room_id) => {
-            let mut servers = db
+            let mut servers: HashSet<_> = db
                 .rooms
                 .invite_state(sender_user, &room_id)?
                 .unwrap_or_default()
                 .iter()
-                .filter_map(|event| {
-                    serde_json::from_str::<serde_json::Value>(&event.json().to_string()).ok()
-                })
-                .filter_map(|event| event.get("sender").cloned())
+                .filter_map(|event| serde_json::from_str(event.json().get()).ok())
+                .filter_map(|event: serde_json::Value| event.get("sender").cloned())
                 .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
                 .filter_map(|sender| UserId::try_from(sender).ok())
                 .map(|user| user.server_name().to_owned())
-                .collect::<HashSet<_>>();
+                .collect();
 
             servers.insert(room_id.server_name().to_owned());
             (servers, room_id)
@@ -204,7 +202,7 @@ pub async fn kick_user_route(
 ) -> ConduitResult<kick_user::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let mut event = serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
+    let mut event: RoomMemberEventContent = serde_json::from_str(
         db.rooms
             .room_state_get(
                 &body.room_id,
@@ -216,13 +214,11 @@ pub async fn kick_user_route(
                 "Cannot kick member that's not in the room.",
             ))?
             .content
-            .clone(),
+            .get(),
     )
-    .expect("Raw::from_value always works")
-    .deserialize()
     .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
-    event.membership = ruma::events::room::member::MembershipState::Leave;
+    event.membership = MembershipState::Leave;
     // TODO: reason
 
     let mutex_state = Arc::clone(
@@ -238,7 +234,7 @@ pub async fn kick_user_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
-            content: serde_json::to_value(event).expect("event is valid, we just created it"),
+            content: to_raw_value(&event).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
             redacts: None,
@@ -280,8 +276,8 @@ pub async fn ban_user_route(
             &body.user_id.to_string(),
         )?
         .map_or(
-            Ok::<_, Error>(member::MemberEventContent {
-                membership: member::MembershipState::Ban,
+            Ok(RoomMemberEventContent {
+                membership: MembershipState::Ban,
                 displayname: db.users.displayname(&body.user_id)?,
                 avatar_url: db.users.avatar_url(&body.user_id)?,
                 is_direct: None,
@@ -290,14 +286,12 @@ pub async fn ban_user_route(
                 reason: None,
             }),
             |event| {
-                let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
-                    event.content.clone(),
-                )
-                .expect("Raw::from_value always works")
-                .deserialize()
-                .map_err(|_| Error::bad_database("Invalid member event in database."))?;
-                event.membership = ruma::events::room::member::MembershipState::Ban;
-                Ok(event)
+                serde_json::from_str(event.content.get())
+                    .map(|event: RoomMemberEventContent| RoomMemberEventContent {
+                        membership: MembershipState::Ban,
+                        ..event
+                    })
+                    .map_err(|_| Error::bad_database("Invalid member event in database."))
             },
         )?;
 
@@ -314,7 +308,7 @@ pub async fn ban_user_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
-            content: serde_json::to_value(event).expect("event is valid, we just created it"),
+            content: to_raw_value(&event).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
             redacts: None,
@@ -346,7 +340,7 @@ pub async fn unban_user_route(
 ) -> ConduitResult<unban_user::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let mut event = serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
+    let mut event: RoomMemberEventContent = serde_json::from_str(
         db.rooms
             .room_state_get(
                 &body.room_id,
@@ -358,13 +352,11 @@ pub async fn unban_user_route(
                 "Cannot unban a user who is not banned.",
             ))?
             .content
-            .clone(),
+            .get(),
     )
-    .expect("from_value::<Raw<..>> can never fail")
-    .deserialize()
     .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
-    event.membership = ruma::events::room::member::MembershipState::Leave;
+    event.membership = MembershipState::Leave;
 
     let mutex_state = Arc::clone(
         db.globals
@@ -379,7 +371,7 @@ pub async fn unban_user_route(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
-            content: serde_json::to_value(event).expect("event is valid, we just created it"),
+            content: to_raw_value(&event).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
             redacts: None,
@@ -583,11 +575,10 @@ async fn join_room_by_id_helper(
             _ => return Err(Error::BadServerResponse("Room version is not supported")),
         };
 
-        let mut join_event_stub =
-            serde_json::from_str::<CanonicalJsonObject>(make_join_response.event.json().get())
-                .map_err(|_| {
-                    Error::BadServerResponse("Invalid make_join event json received from server.")
-                })?;
+        let mut join_event_stub: CanonicalJsonObject =
+            serde_json::from_str(make_join_response.event.get()).map_err(|_| {
+                Error::BadServerResponse("Invalid make_join event json received from server.")
+            })?;
 
         // TODO: Is origin needed?
         join_event_stub.insert(
@@ -604,8 +595,8 @@ async fn join_room_by_id_helper(
         );
         join_event_stub.insert(
             "content".to_owned(),
-            to_canonical_value(member::MemberEventContent {
-                membership: member::MembershipState::Join,
+            to_canonical_value(RoomMemberEventContent {
+                membership: MembershipState::Join,
                 displayname: db.users.displayname(sender_user)?,
                 avatar_url: db.users.avatar_url(sender_user)?,
                 is_direct: None,
@@ -653,7 +644,7 @@ async fn join_room_by_id_helper(
                 federation::membership::create_join_event::v2::Request {
                     room_id,
                     event_id: &event_id,
-                    pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+                    pdu: &PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
                 },
             )
             .await?;
@@ -723,7 +714,7 @@ async fn join_room_by_id_helper(
             state
                 .into_iter()
                 .map(|(k, id)| db.rooms.compress_state_event(k, &id, &db.globals))
-                .collect::<Result<HashSet<_>>>()?,
+                .collect::<Result<_>>()?,
             db,
         )?;
 
@@ -756,8 +747,8 @@ async fn join_room_by_id_helper(
         // where events in the current room state do not exist
         db.rooms.set_room_state(room_id, statehashid)?;
     } else {
-        let event = member::MemberEventContent {
-            membership: member::MembershipState::Join,
+        let event = RoomMemberEventContent {
+            membership: MembershipState::Join,
             displayname: db.users.displayname(sender_user)?,
             avatar_url: db.users.avatar_url(sender_user)?,
             is_direct: None,
@@ -769,7 +760,7 @@ async fn join_room_by_id_helper(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMember,
-                content: serde_json::to_value(event).expect("event is valid, we just created it"),
+                content: to_raw_value(&event).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some(sender_user.to_string()),
                 redacts: None,
@@ -789,12 +780,12 @@ async fn join_room_by_id_helper(
 }
 
 fn validate_and_add_event_id(
-    pdu: &Raw<Pdu>,
+    pdu: &RawJsonValue,
     room_version: &RoomVersionId,
     pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
     db: &Database,
 ) -> Result<(EventId, CanonicalJsonObject)> {
-    let mut value = serde_json::from_str::<CanonicalJsonObject>(pdu.json().get()).map_err(|e| {
+    let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
         error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
@@ -870,27 +861,24 @@ pub(crate) async fn invite_helper<'a>(
             );
             let state_lock = mutex_state.lock().await;
 
-            let prev_events = db
+            let prev_events: Vec<_> = db
                 .rooms
                 .get_pdu_leaves(room_id)?
                 .into_iter()
                 .take(20)
-                .collect::<Vec<_>>();
+                .collect();
 
             let create_event = db
                 .rooms
                 .room_state_get(room_id, &EventType::RoomCreate, "")?;
 
-            let create_event_content = create_event
+            let create_event_content: Option<RoomCreateEventContent> = create_event
                 .as_ref()
                 .map(|create_event| {
-                    serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                        .expect("Raw::from_value always works.")
-                        .deserialize()
-                        .map_err(|e| {
-                            warn!("Invalid create event: {}", e);
-                            Error::bad_database("Invalid create event in db.")
-                        })
+                    serde_json::from_str(create_event.content.get()).map_err(|e| {
+                        warn!("Invalid create event: {}", e);
+                        Error::bad_database("Invalid create event in db.")
+                    })
                 })
                 .transpose()?;
 
@@ -910,7 +898,7 @@ pub(crate) async fn invite_helper<'a>(
             let room_version =
                 RoomVersion::new(&room_version_id).expect("room version is supported");
 
-            let content = serde_json::to_value(MemberEventContent {
+            let content = to_raw_value(&RoomMemberEventContent {
                 avatar_url: None,
                 displayname: None,
                 is_direct: Some(is_direct),
@@ -946,7 +934,7 @@ pub(crate) async fn invite_helper<'a>(
                 unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
                 unsigned.insert(
                     "prev_sender".to_owned(),
-                    serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
+                    serde_json::from_str(prev_pdu.sender.as_str()).expect("UserId is valid string"),
                 );
             }
 
@@ -967,11 +955,15 @@ pub(crate) async fn invite_helper<'a>(
                     .map(|(_, pdu)| pdu.event_id.clone())
                     .collect(),
                 redacts: None,
-                unsigned,
-                hashes: ruma::events::pdu::EventHash {
+                unsigned: if unsigned.is_empty() {
+                    None
+                } else {
+                    Some(to_raw_value(&unsigned).expect("to_raw_value always works"))
+                },
+                hashes: EventHash {
                     sha256: "aaa".to_owned(),
                 },
-                signatures: BTreeMap::new(),
+                signatures: None,
             };
 
             let auth_check = state_res::auth_check(
@@ -1035,11 +1027,11 @@ pub(crate) async fn invite_helper<'a>(
                 &db.globals,
                 user_id.server_name(),
                 create_invite::v2::Request {
-                    room_id: room_id.clone(),
-                    event_id: expected_event_id.clone(),
-                    room_version: room_version_id,
-                    event: PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
-                    invite_room_state,
+                    room_id,
+                    event_id: &expected_event_id,
+                    room_version: &room_version_id,
+                    event: &PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
+                    invite_room_state: &invite_room_state,
                 },
             )
             .await?;
@@ -1062,7 +1054,7 @@ pub(crate) async fn invite_helper<'a>(
             warn!("Server {} changed invite event, that's not allowed in the spec: ours: {:?}, theirs: {:?}", user_id.server_name(), pdu_json, value);
         }
 
-        let origin = serde_json::from_value::<Box<ServerName>>(
+        let origin: Box<ServerName> = serde_json::from_value(
             serde_json::to_value(value.get("origin").ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Event needs an origin field.",
@@ -1116,8 +1108,8 @@ pub(crate) async fn invite_helper<'a>(
     db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomMember,
-            content: serde_json::to_value(member::MemberEventContent {
-                membership: member::MembershipState::Invite,
+            content: to_raw_value(&RoomMemberEventContent {
+                membership: MembershipState::Invite,
                 displayname: db.users.displayname(user_id)?,
                 avatar_url: db.users.avatar_url(user_id)?,
                 is_direct: Some(is_direct),

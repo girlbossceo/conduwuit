@@ -74,7 +74,7 @@ pub async fn search_events_route(
         }
     }
 
-    let results = results
+    let results: Vec<_> = results
         .iter()
         .map(|result| {
             Ok::<_, Error>(SearchResult {
@@ -95,7 +95,7 @@ pub async fn search_events_route(
         .filter_map(|r| r.ok())
         .skip(skip)
         .take(limit)
-        .collect::<Vec<_>>();
+        .collect();
 
     let next_batch = if results.len() < limit as usize {
         None
@@ -114,7 +114,7 @@ pub async fn search_events_route(
                 .search_term
                 .split_terminator(|c: char| !c.is_alphanumeric())
                 .map(str::to_lowercase)
-                .collect::<Vec<_>>(),
+                .collect(),
         },
     })
     .into())

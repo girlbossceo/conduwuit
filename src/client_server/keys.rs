@@ -10,7 +10,7 @@ use ruma::{
                     claim_keys, get_key_changes, get_keys, upload_keys, upload_signatures,
                     upload_signing_keys,
                 },
-                uiaa::{AuthFlow, UiaaInfo},
+                uiaa::{AuthFlow, AuthType, UiaaInfo},
             },
         },
         federation,
@@ -148,7 +148,7 @@ pub async fn upload_signing_keys_route(
     // UIAA
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -395,7 +395,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 
     let mut failures = BTreeMap::new();
 
-    let mut futures = get_over_federation
+    let mut futures: FuturesUnordered<_> = get_over_federation
         .into_iter()
         .map(|(server, vec)| async move {
             let mut device_keys_input_fed = BTreeMap::new();
@@ -415,7 +415,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                     .await,
             )
         })
-        .collect::<FuturesUnordered<_>>();
+        .collect();
 
     while let Some((server, response)) = futures.next().await {
         match response {

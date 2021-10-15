@@ -125,7 +125,7 @@ impl WildCardedDomain {
 }
 impl std::str::FromStr for WildCardedDomain {
     type Err = std::convert::Infallible;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         // maybe do some domain validation?
         Ok(if s.starts_with("*.") {
             WildCardedDomain::WildCarded(s[1..].to_owned())
@@ -136,8 +136,8 @@ impl std::str::FromStr for WildCardedDomain {
         })
     }
 }
-impl<'de> serde::de::Deserialize<'de> for WildCardedDomain {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+impl<'de> Deserialize<'de> for WildCardedDomain {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {

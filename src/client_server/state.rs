@@ -10,8 +10,8 @@ use ruma::{
     },
     events::{
         room::{
-            canonical_alias::CanonicalAliasEventContent,
-            history_visibility::{HistoryVisibility, HistoryVisibilityEventContent},
+            canonical_alias::RoomCanonicalAliasEventContent,
+            history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
         },
         AnyStateEventContent, EventType,
     },
@@ -120,13 +120,13 @@ pub async fn get_state_events_route(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
                 .map(|event| {
-                    serde_json::from_value::<HistoryVisibilityEventContent>(event.content.clone())
+                    serde_json::from_str(event.content.get())
+                        .map(|e: RoomHistoryVisibilityEventContent| e.history_visibility)
                         .map_err(|_| {
                             Error::bad_database(
                                 "Invalid room history visibility event in database.",
                             )
                         })
-                        .map(|e| e.history_visibility)
                 }),
             Some(Ok(HistoryVisibility::WorldReadable))
         )
@@ -172,13 +172,13 @@ pub async fn get_state_events_for_key_route(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
                 .map(|event| {
-                    serde_json::from_value::<HistoryVisibilityEventContent>(event.content.clone())
+                    serde_json::from_str(event.content.get())
+                        .map(|e: RoomHistoryVisibilityEventContent| e.history_visibility)
                         .map_err(|_| {
                             Error::bad_database(
                                 "Invalid room history visibility event in database.",
                             )
                         })
-                        .map(|e| e.history_visibility)
                 }),
             Some(Ok(HistoryVisibility::WorldReadable))
         )
@@ -198,7 +198,7 @@ pub async fn get_state_events_for_key_route(
         ))?;
 
     Ok(get_state_events_for_key::Response {
-        content: serde_json::from_value(event.content.clone())
+        content: serde_json::from_str(event.content.get())
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
     .into())
@@ -228,13 +228,13 @@ pub async fn get_state_events_for_empty_key_route(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
                 .map(|event| {
-                    serde_json::from_value::<HistoryVisibilityEventContent>(event.content.clone())
+                    serde_json::from_str(event.content.get())
+                        .map(|e: RoomHistoryVisibilityEventContent| e.history_visibility)
                         .map_err(|_| {
                             Error::bad_database(
                                 "Invalid room history visibility event in database.",
                             )
                         })
-                        .map(|e| e.history_visibility)
                 }),
             Some(Ok(HistoryVisibility::WorldReadable))
         )
@@ -254,7 +254,7 @@ pub async fn get_state_events_for_empty_key_route(
         ))?;
 
     Ok(get_state_events_for_key::Response {
-        content: serde_json::from_value(event.content.clone())
+        content: serde_json::from_str(event.content.get())
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
     .into())
@@ -273,7 +273,7 @@ async fn send_state_event_for_key_helper(
     // TODO: Review this check, error if event is unparsable, use event type, allow alias if it
     // previously existed
     if let Ok(canonical_alias) =
-        serde_json::from_str::<CanonicalAliasEventContent>(json.json().get())
+        serde_json::from_str::<RoomCanonicalAliasEventContent>(json.json().get())
     {
         let mut aliases = canonical_alias.alt_aliases.clone();
 

@@ -620,10 +620,11 @@ impl Users {
         key.push(0xff);
         key.extend_from_slice(key_id.as_bytes());
 
-        let mut cross_signing_key =
-            serde_json::from_slice::<serde_json::Value>(&self.keyid_key.get(&key)?.ok_or(
-                Error::BadRequest(ErrorKind::InvalidParam, "Tried to sign nonexistent key."),
-            )?)
+        let mut cross_signing_key: serde_json::Value =
+            serde_json::from_slice(&self.keyid_key.get(&key)?.ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Tried to sign nonexistent key.",
+            ))?)
             .map_err(|_| Error::bad_database("key in keyid_key is invalid."))?;
 
         let signatures = cross_signing_key

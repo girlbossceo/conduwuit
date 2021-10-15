@@ -3,11 +3,12 @@ use std::sync::Arc;
 use crate::{database::DatabaseGuard, pdu::PduBuilder, ConduitResult, Ruma};
 use ruma::{
     api::client::r0::redact::redact_event,
-    events::{room::redaction, EventType},
+    events::{room::redaction::RoomRedactionEventContent, EventType},
 };
 
 #[cfg(feature = "conduit_bin")]
 use rocket::put;
+use serde_json::value::to_raw_value;
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/redact/{eventId}/{txnId}`
 ///
@@ -38,7 +39,7 @@ pub async fn redact_event_route(
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomRedaction,
-            content: serde_json::to_value(redaction::RedactionEventContent {
+            content: to_raw_value(&RoomRedactionEventContent {
                 reason: body.reason.clone(),
             })
             .expect("event is valid, we just created it"),

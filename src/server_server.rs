@@ -1,6 +1,7 @@
 use crate::{
     client_server::{self, claim_keys_helper, get_keys_helper},
     database::{rooms::CompressedStateEvent, DatabaseGuard},
+    pdu::EventHash,
     utils, ConduitResult, Database, Error, PduEvent, Result, Ruma,
 };
 use get_profile_information::v1::ProfileField;
@@ -39,22 +40,23 @@ use ruma::{
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::{
-        pdu::Pdu,
         receipt::{ReceiptEvent, ReceiptEventContent},
         room::{
-            create::CreateEventContent,
-            member::{MemberEventContent, MembershipState},
+            create::RoomCreateEventContent,
+            member::{MembershipState, RoomMemberEventContent},
         },
         AnyEphemeralRoomEvent, EventType,
     },
+    int,
     receipt::ReceiptType,
-    serde::Raw,
+    serde::JsonObject,
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, RoomVersion, StateMap},
     to_device::DeviceIdOrAllDevices,
     uint, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
     ServerSigningKeyId,
 };
+use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
     collections::{btree_map, hash_map, BTreeMap, BTreeSet, HashMap, HashSet},
     convert::{TryFrom, TryInto},
@@ -63,7 +65,6 @@ use std::{
     mem,
     net::{IpAddr, SocketAddr},
     pin::Pin,
-    result::Result as StdResult,
     sync::{Arc, RwLock, RwLockWriteGuard},
     time::{Duration, Instant, SystemTime},
 };
@@ -335,7 +336,7 @@ fn add_port_to_hostname(destination_str: &str) -> FedDest {
         None => (destination_str, ":8448"),
         Some(pos) => destination_str.split_at(pos),
     };
-    FedDest::Named(host.to_string(), port.to_string())
+    FedDest::Named(host.to_owned(), port.to_owned())
 }
 
 /// Returns: actual_destination, host header
@@ -357,7 +358,7 @@ async fn find_actual_destination(
             if let Some(pos) = destination_str.find(':') {
                 // 2: Hostname with included port
                 let (host, port) = destination_str.split_at(pos);
-                FedDest::Named(host.to_string(), port.to_string())
+                FedDest::Named(host.to_owned(), port.to_owned())
             } else {
                 match request_well_known(globals, destination.as_str()).await {
                     // 3: A .well-known file is available
@@ -369,7 +370,7 @@ async fn find_actual_destination(
                                 if let Some(pos) = delegated_hostname.find(':') {
                                     // 3.2: Hostname with port in .well-known file
                                     let (host, port) = delegated_hostname.split_at(pos);
-                                    FedDest::Named(host.to_string(), port.to_string())
+                                    FedDest::Named(host.to_owned(), port.to_owned())
                                 } else {
                                     // Delegated hostname has no port in this branch
                                     if let Some(hostname_override) =
@@ -453,12 +454,12 @@ async fn find_actual_destination(
     let hostname = if let Ok(addr) = hostname.parse::<SocketAddr>() {
         FedDest::Literal(addr)
     } else if let Ok(addr) = hostname.parse::<IpAddr>() {
-        FedDest::Named(addr.to_string(), ":8448".to_string())
+        FedDest::Named(addr.to_string(), ":8448".to_owned())
     } else if let Some(pos) = hostname.find(':') {
         let (host, port) = hostname.split_at(pos);
-        FedDest::Named(host.to_string(), port.to_string())
+        FedDest::Named(host.to_owned(), port.to_owned())
     } else {
-        FedDest::Named(hostname, ":8448".to_string())
+        FedDest::Named(hostname, ":8448".to_owned())
     };
     (actual_destination, hostname)
 }
@@ -475,11 +476,7 @@ async fn query_srv_record(
         .map(|srv| {
             srv.iter().next().map(|result| {
                 FedDest::Named(
-                    result
-                        .target()
-                        .to_string()
-                        .trim_end_matches('.')
-                        .to_string(),
+                    result.target().to_string().trim_end_matches('.').to_owned(),
                     format!(":{}", result.port()),
                 )
             })
@@ -744,7 +741,7 @@ pub async fn send_transaction_message_route(
             Some(id) => id,
             None => {
                 // Event is invalid
-                resolved_map.insert(event_id, Err("Event needs a valid RoomId.".to_string()));
+                resolved_map.insert(event_id, Err("Event needs a valid RoomId.".to_owned()));
                 continue;
             }
         };
@@ -958,11 +955,11 @@ pub(crate) async fn handle_incoming_pdu<'a>(
     is_timeline_event: bool,
     db: &'a Database,
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-) -> StdResult<Option<Vec<u8>>, String> {
+) -> Result<Option<Vec<u8>>, String> {
     match db.rooms.exists(room_id) {
         Ok(true) => {}
         _ => {
-            return Err("Room is unknown to this server.".to_string());
+            return Err("Room is unknown to this server.".to_owned());
         }
     }
 
@@ -1006,12 +1003,12 @@ pub(crate) async fn handle_incoming_pdu<'a>(
     // 9. Fetch any missing prev events doing all checks listed here starting at 1. These are timeline events
     let mut graph = HashMap::new();
     let mut eventid_info = HashMap::new();
-    let mut todo_outlier_stack = incoming_pdu
+    let mut todo_outlier_stack: Vec<_> = incoming_pdu
         .prev_events
         .iter()
         .cloned()
         .map(Arc::new)
-        .collect::<Vec<_>>();
+        .collect();
 
     let mut amount = 0;
 
@@ -1071,7 +1068,7 @@ pub(crate) async fn handle_incoming_pdu<'a>(
         // and lexically by event_id.
         println!("{}", event_id);
         Ok((
-            0,
+            int!(0),
             MilliSecondsSinceUnixEpoch(
                 eventid_info
                     .get(event_id)
@@ -1139,8 +1136,7 @@ fn handle_outlier_pdu<'a>(
     value: BTreeMap<String, CanonicalJsonValue>,
     db: &'a Database,
     pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-) -> AsyncRecursiveType<'a, StdResult<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>), String>>
-{
+) -> AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>), String>> {
     Box::pin(async move {
         // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we anywhere?: https://matrix.org/docs/spec/rooms/v6#canonical-json
 
@@ -1153,14 +1149,11 @@ fn handle_outlier_pdu<'a>(
         // 2. Check signatures, otherwise drop
         // 3. check content hash, redact if doesn't match
 
-        let create_event_content =
-            serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                .expect("Raw::from_value always works.")
-                .deserialize()
-                .map_err(|e| {
-                    warn!("Invalid create event: {}", e);
-                    "Invalid create event in db.".to_owned()
-                })?;
+        let create_event_content: RoomCreateEventContent =
+            serde_json::from_str(create_event.content.get()).map_err(|e| {
+                warn!("Invalid create event: {}", e);
+                "Invalid create event in db.".to_owned()
+            })?;
 
         let room_version_id = &create_event_content.room_version;
         let room_version = RoomVersion::new(room_version_id).expect("room version is supported");
@@ -1173,14 +1166,14 @@ fn handle_outlier_pdu<'a>(
             Err(e) => {
                 // Drop
                 warn!("Dropping bad event {}: {}", event_id, e);
-                return Err("Signature verification failed".to_string());
+                return Err("Signature verification failed".to_owned());
             }
             Ok(ruma::signatures::Verified::Signatures) => {
                 // Redact
                 warn!("Calculated hash does not match: {}", event_id);
                 match ruma::signatures::redact(&value, room_version_id) {
                     Ok(obj) => obj,
-                    Err(_) => return Err("Redaction failed".to_string()),
+                    Err(_) => return Err("Redaction failed".to_owned()),
                 }
             }
             Ok(ruma::signatures::Verified::All) => value,
@@ -1195,7 +1188,7 @@ fn handle_outlier_pdu<'a>(
         let incoming_pdu = serde_json::from_value::<PduEvent>(
             serde_json::to_value(&val).expect("CanonicalJsonObj is a valid JsonValue"),
         )
-        .map_err(|_| "Event is not a valid PDU.".to_string())?;
+        .map_err(|_| "Event is not a valid PDU.".to_owned())?;
 
         // 4. fetch any missing auth events doing all checks listed here starting at 1. These are not timeline events
         // 5. Reject "due to auth events" if can't get all the auth events or some of the auth events are also rejected "due to auth events"
@@ -1241,7 +1234,7 @@ fn handle_outlier_pdu<'a>(
                     .expect("all auth events have state keys"),
             )) {
                 hash_map::Entry::Vacant(v) => {
-                    v.insert(auth_event.clone());
+                    v.insert(auth_event);
                 }
                 hash_map::Entry::Occupied(_) => {
                     return Err(
@@ -1276,13 +1269,13 @@ fn handle_outlier_pdu<'a>(
         if !state_res::event_auth::auth_check(
             &room_version,
             &incoming_pdu,
-            previous_create,
+            previous_create.as_ref(),
             None::<PduEvent>, // TODO: third party invite
             |k, s| auth_events.get(&(k.clone(), s.to_owned())),
         )
-        .map_err(|_e| "Auth check failed".to_string())?
+        .map_err(|_e| "Auth check failed".to_owned())?
         {
-            return Err("Event has failed auth check with auth events.".to_string());
+            return Err("Event has failed auth check with auth events.".to_owned());
         }
 
         debug!("Validation successful.");
@@ -1306,7 +1299,7 @@ async fn upgrade_outlier_to_timeline_pdu(
     db: &Database,
     room_id: &RoomId,
     pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
-) -> StdResult<Option<Vec<u8>>, String> {
+) -> Result<Option<Vec<u8>>, String> {
     if let Ok(Some(pduid)) = db.rooms.get_pdu_id(&incoming_pdu.event_id) {
         return Ok(Some(pduid));
     }
@@ -1319,14 +1312,11 @@ async fn upgrade_outlier_to_timeline_pdu(
         return Err("Event has been soft failed".into());
     }
 
-    let create_event_content =
-        serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-            .expect("Raw::from_value always works.")
-            .deserialize()
-            .map_err(|e| {
-                warn!("Invalid create event: {}", e);
-                "Invalid create event in db.".to_owned()
-            })?;
+    let create_event_content: RoomCreateEventContent =
+        serde_json::from_str(create_event.content.get()).map_err(|e| {
+            warn!("Invalid create event: {}", e);
+            "Invalid create event in db.".to_owned()
+        })?;
 
     let room_version_id = &create_event_content.room_version;
     let room_version = RoomVersion::new(room_version_id).expect("room version is supported");
@@ -1456,7 +1446,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                                 .map_err(|_| "Failed to get_or_create_shortstatekey".to_owned())?;
                             Ok((shortstatekey, Arc::new(event_id)))
                         })
-                        .collect::<StdResult<_, String>>()?,
+                        .collect::<Result<_, String>>()?,
                 ),
                 Err(e) => {
                     warn!("State resolution on prev events failed, either an event could not be found or deserialization: {}", e);
@@ -1562,7 +1552,7 @@ async fn upgrade_outlier_to_timeline_pdu(
     let check_result = state_res::event_auth::auth_check(
         &room_version,
         &incoming_pdu,
-        previous_create.as_deref(),
+        previous_create.as_ref(),
         None::<PduEvent>, // TODO: third party invite
         |k, s| {
             db.rooms
@@ -1638,7 +1628,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                 .compress_state_event(*shortstatekey, id, &db.globals)
                 .map_err(|_| "Failed to compress_state_event".to_owned())
         })
-        .collect::<StdResult<_, String>>()?;
+        .collect::<Result<_, _>>()?;
 
     // 13. Check if the event passes auth based on the "current state" of the room, if not "soft fail" it
     debug!("starting soft fail auth check");
@@ -1646,7 +1636,7 @@ async fn upgrade_outlier_to_timeline_pdu(
     let soft_fail = !state_res::event_auth::auth_check(
         &room_version,
         &incoming_pdu,
-        previous_create.as_deref(),
+        previous_create.as_ref(),
         None::<PduEvent>,
         |k, s| auth_events.get(&(k.clone(), s.to_owned())),
     )
@@ -1758,7 +1748,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                         .compress_state_event(*k, id, &db.globals)
                         .map_err(|_| "Failed to compress_state_event.".to_owned())
                 })
-                .collect::<StdResult<_, String>>()?
+                .collect::<Result<_, _>>()?
         } else {
             // We do need to force an update to this room's state
             update_state = true;
@@ -1777,7 +1767,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                 );
             }
 
-            let fork_states = &fork_states
+            let fork_states: Vec<_> = fork_states
                 .into_iter()
                 .map(|map| {
                     map.into_iter()
@@ -1788,12 +1778,12 @@ async fn upgrade_outlier_to_timeline_pdu(
                         })
                         .collect::<Result<StateMap<_>>>()
                 })
-                .collect::<Result<Vec<_>>>()
+                .collect::<Result<_>>()
                 .map_err(|_| "Failed to get_statekey_from_short.".to_owned())?;
 
             let state = match state_res::resolve(
                 room_version_id,
-                fork_states,
+                &fork_states,
                 auth_chain_sets,
                 |id| {
                     let res = db.rooms.get_pdu(id);
@@ -1820,7 +1810,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                         .compress_state_event(shortstatekey, &event_id, &db.globals)
                         .map_err(|_| "Failed to compress state event".to_owned())
                 })
-                .collect::<StdResult<_, String>>()?
+                .collect::<Result<_, _>>()?
         };
 
         // Set the new room state to the resolved state
@@ -2040,12 +2030,12 @@ pub(crate) async fn fetch_signing_keys(
 
     trace!("Loading signing keys for {}", origin);
 
-    let mut result = db
+    let mut result: BTreeMap<_, _> = db
         .globals
         .signing_keys_for(origin)?
         .into_iter()
         .map(|(k, v)| (k.to_string(), v.key))
-        .collect::<BTreeMap<_, _>>();
+        .collect();
 
     if contains_all_ids(&result) {
         return Ok(result);
@@ -2250,14 +2240,10 @@ pub(crate) fn get_auth_chain<'a>(
             continue;
         }
 
-        let chunk_key = chunk
-            .iter()
-            .map(|(short, _)| short)
-            .copied()
-            .collect::<Vec<u64>>();
+        let chunk_key: Vec<u64> = chunk.iter().map(|(short, _)| short).copied().collect();
         if let Some(cached) = db.rooms.get_auth_chain_from_cache(&chunk_key)? {
             hits += 1;
-            full_auth_chain.extend(cached.iter().cloned());
+            full_auth_chain.extend(cached.iter().copied());
             continue;
         }
         misses += 1;
@@ -2268,7 +2254,7 @@ pub(crate) fn get_auth_chain<'a>(
         for (sevent_id, event_id) in chunk {
             if let Some(cached) = db.rooms.get_auth_chain_from_cache(&[sevent_id])? {
                 hits2 += 1;
-                chunk_cache.extend(cached.iter().cloned());
+                chunk_cache.extend(cached.iter().copied());
             } else {
                 misses2 += 1;
                 let auth_chain = Arc::new(get_auth_chain_inner(room_id, &event_id, db)?);
@@ -2569,9 +2555,9 @@ pub fn get_room_state_route(
     Ok(get_room_state::v1::Response {
         auth_chain: auth_chain_ids
             .map(|id| {
-                Ok::<_, Error>(PduEvent::convert_to_outgoing_federation_event(
-                    db.rooms.get_pdu_json(&id)?.unwrap(),
-                ))
+                db.rooms.get_pdu_json(&id).map(|maybe_json| {
+                    PduEvent::convert_to_outgoing_federation_event(maybe_json.unwrap())
+                })
             })
             .filter_map(|r| r.ok())
             .collect(),
@@ -2655,27 +2641,24 @@ pub fn create_join_event_template_route(
         ));
     }
 
-    let prev_events = db
+    let prev_events: Vec<_> = db
         .rooms
         .get_pdu_leaves(&body.room_id)?
         .into_iter()
         .take(20)
-        .collect::<Vec<_>>();
+        .collect();
 
     let create_event = db
         .rooms
         .room_state_get(&body.room_id, &EventType::RoomCreate, "")?;
 
-    let create_event_content = create_event
+    let create_event_content: Option<RoomCreateEventContent> = create_event
         .as_ref()
         .map(|create_event| {
-            serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                .expect("Raw::from_value always works.")
-                .deserialize()
-                .map_err(|e| {
-                    warn!("Invalid create event: {}", e);
-                    Error::bad_database("Invalid create event in db.")
-                })
+            serde_json::from_str(create_event.content.get()).map_err(|e| {
+                warn!("Invalid create event: {}", e);
+                Error::bad_database("Invalid create event in db.")
+            })
         })
         .transpose()?;
 
@@ -2702,7 +2685,7 @@ pub fn create_join_event_template_route(
         ));
     }
 
-    let content = serde_json::to_value(MemberEventContent {
+    let content = to_raw_value(&RoomMemberEventContent {
         avatar_url: None,
         blurhash: None,
         displayname: None,
@@ -2738,7 +2721,7 @@ pub fn create_join_event_template_route(
         unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
         unsigned.insert(
             "prev_sender".to_owned(),
-            serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
+            serde_json::from_str(prev_pdu.sender.as_str()).expect("UserId is valid string"),
         );
     }
 
@@ -2759,17 +2742,21 @@ pub fn create_join_event_template_route(
             .map(|(_, pdu)| pdu.event_id.clone())
             .collect(),
         redacts: None,
-        unsigned,
-        hashes: ruma::events::pdu::EventHash {
+        unsigned: if unsigned.is_empty() {
+            None
+        } else {
+            Some(to_raw_value(&unsigned).expect("to_raw_value always works"))
+        },
+        hashes: EventHash {
             sha256: "aaa".to_owned(),
         },
-        signatures: BTreeMap::new(),
+        signatures: None,
     };
 
     let auth_check = state_res::auth_check(
         &room_version,
         &pdu,
-        create_prev_event.as_deref(),
+        create_prev_event,
         None::<PduEvent>, // TODO: third_party_invite
         |k, s| auth_events.get(&(k.clone(), s.to_owned())),
     )
@@ -2799,10 +2786,7 @@ pub fn create_join_event_template_route(
 
     Ok(create_join_event_template::v1::Response {
         room_version: Some(room_version_id),
-        event: serde_json::from_value::<Raw<_>>(
-            serde_json::to_value(pdu_json).expect("CanonicalJson is valid serde_json::Value"),
-        )
-        .expect("Raw::from_value always works"),
+        event: to_raw_value(&pdu_json).expect("CanonicalJson can be serialized to JSON"),
     }
     .into())
 }
@@ -2810,7 +2794,7 @@ pub fn create_join_event_template_route(
 async fn create_join_event(
     db: &DatabaseGuard,
     room_id: &RoomId,
-    pdu: &Raw<ruma::events::pdu::Pdu>,
+    pdu: &RawJsonValue,
 ) -> Result<RoomState> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -2840,7 +2824,7 @@ async fn create_join_event(
         }
     };
 
-    let origin = serde_json::from_value::<Box<ServerName>>(
+    let origin: Box<ServerName> = serde_json::from_value(
         serde_json::to_value(value.get("origin").ok_or(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Event needs an origin field.",
@@ -2947,7 +2931,7 @@ pub async fn create_join_event_v2_route(
 #[tracing::instrument(skip(db, body))]
 pub async fn create_invite_route(
     db: DatabaseGuard,
-    body: Ruma<create_invite::v2::Request>,
+    body: Ruma<create_invite::v2::Request<'_>>,
 ) -> ConduitResult<create_invite::v2::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -3014,14 +2998,12 @@ pub async fn create_invite_route(
 
     let mut invite_state = body.invite_room_state.clone();
 
-    let mut event = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
-        &body.event.json().to_string(),
-    )
-    .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event bytes."))?;
+    let mut event: JsonObject = serde_json::from_str(body.event.get())
+        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event bytes."))?;
 
     event.insert("event_id".to_owned(), "$dummy".into());
 
-    let pdu = serde_json::from_value::<PduEvent>(event.into()).map_err(|e| {
+    let pdu: PduEvent = serde_json::from_value(event.into()).map_err(|e| {
         warn!("Invalid invite event: {}", e);
         Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event.")
     })?;
@@ -3280,13 +3262,13 @@ pub(crate) async fn fetch_required_signing_keys(
 // Gets a list of servers for which we don't have the signing key yet. We go over
 // the PDUs and either cache the key or add it to the list that needs to be retrieved.
 fn get_server_keys_from_cache(
-    pdu: &Raw<Pdu>,
+    pdu: &RawJsonValue,
     servers: &mut BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId, QueryCriteria>>,
     room_version: &RoomVersionId,
     pub_key_map: &mut RwLockWriteGuard<'_, BTreeMap<String, BTreeMap<String, String>>>,
     db: &Database,
 ) -> Result<()> {
-    let value = serde_json::from_str::<CanonicalJsonObject>(pdu.json().get()).map_err(|e| {
+    let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
         error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
@@ -3347,19 +3329,16 @@ fn get_server_keys_from_cache(
 
         trace!("Loading signing keys for {}", origin);
 
-        let result = db
+        let result: BTreeMap<_, _> = db
             .globals
             .signing_keys_for(origin)?
             .into_iter()
             .map(|(k, v)| (k.to_string(), v.key))
-            .collect::<BTreeMap<_, _>>();
+            .collect();
 
         if !contains_all_ids(&result) {
             trace!("Signing key not loaded for {}", origin);
-            servers.insert(
-                origin.clone(),
-                BTreeMap::<ServerSigningKeyId, QueryCriteria>::new(),
-            );
+            servers.insert(origin.clone(), BTreeMap::new());
         }
 
         pub_key_map.insert(origin.to_string(), result);
@@ -3374,8 +3353,8 @@ pub(crate) async fn fetch_join_signing_keys(
     pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
     db: &Database,
 ) -> Result<()> {
-    let mut servers =
-        BTreeMap::<Box<ServerName>, BTreeMap<ServerSigningKeyId, QueryCriteria>>::new();
+    let mut servers: BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId, QueryCriteria>> =
+        BTreeMap::new();
 
     {
         let mut pkm = pub_key_map
@@ -3440,7 +3419,7 @@ pub(crate) async fn fetch_join_signing_keys(
         }
     }
 
-    let mut futures = servers
+    let mut futures: FuturesUnordered<_> = servers
         .into_iter()
         .map(|(server, _)| async move {
             (
@@ -3454,16 +3433,16 @@ pub(crate) async fn fetch_join_signing_keys(
                 server,
             )
         })
-        .collect::<FuturesUnordered<_>>();
+        .collect();
 
     while let Some(result) = futures.next().await {
         if let (Ok(get_keys_response), origin) = result {
-            let result = db
+            let result: BTreeMap<_, _> = db
                 .globals
                 .add_signing_key(&origin, get_keys_response.server_key.clone())?
                 .into_iter()
                 .map(|(k, v)| (k.to_string(), v.key))
-                .collect::<BTreeMap<_, _>>();
+                .collect();
 
             pub_key_map
                 .write()

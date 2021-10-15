@@ -27,7 +27,7 @@ use ruma::{
         OutgoingRequest,
     },
     device_id,
-    events::{push_rules, AnySyncEphemeralRoomEvent, EventType},
+    events::{push_rules::PushRulesEvent, AnySyncEphemeralRoomEvent, EventType},
     push,
     receipt::ReceiptType,
     uint, MilliSecondsSinceUnixEpoch, ServerName, UInt, UserId,
@@ -165,13 +165,13 @@ impl Sending {
                                 }
 
                                 // Find events that have been added since starting the last request
-                                let new_events = guard.sending.servernameevent_data
+                                let new_events: Vec<_> = guard.sending.servernameevent_data
                                     .scan_prefix(prefix.clone())
                                     .filter_map(|(k, v)| {
                                         Self::parse_servercurrentevent(&k, v).ok().map(|ev| (ev, k))
                                     })
                                     .take(30)
-                                    .collect::<Vec<_>>();
+                                    .collect::<>();
 
                                 // TODO: find edus
 
@@ -344,8 +344,8 @@ impl Sending {
                     continue;
                 }
 
-                let event =
-                    serde_json::from_str::<AnySyncEphemeralRoomEvent>(read_receipt.json().get())
+                let event: AnySyncEphemeralRoomEvent =
+                    serde_json::from_str(read_receipt.json().get())
                         .map_err(|_| Error::bad_database("Invalid edu event in read_receipts."))?;
                 let federation_event = match event {
                     AnySyncEphemeralRoomEvent::Receipt(r) => {
@@ -398,7 +398,7 @@ impl Sending {
             let edu = Edu::DeviceListUpdate(DeviceListUpdateContent {
                 user_id,
                 device_id: device_id!("dummy"),
-                device_display_name: "Dummy".to_owned(),
+                device_display_name: Some("Dummy".to_owned()),
                 stream_id: uint!(1),
                 prev_id: Vec::new(),
                 deleted: None,
@@ -485,7 +485,7 @@ impl Sending {
         kind: OutgoingKind,
         events: Vec<SendingEventType>,
         db: Arc<RwLock<Database>>,
-    ) -> std::result::Result<OutgoingKind, (OutgoingKind, Error)> {
+    ) -> Result<OutgoingKind, (OutgoingKind, Error)> {
         let db = db.read().await;
 
         match &kind {
@@ -573,8 +573,14 @@ impl Sending {
 
                 for pdu in pdus {
                     // Redacted events are not notification targets (we don't send push for them)
-                    if pdu.unsigned.get("redacted_because").is_some() {
-                        continue;
+                    if let Some(unsigned) = &pdu.unsigned {
+                        if let Ok(unsigned) =
+                            serde_json::from_str::<serde_json::Value>(unsigned.get())
+                        {
+                            if unsigned.get("redacted_because").is_some() {
+                                continue;
+                            }
+                        }
                     }
 
                     let userid =
@@ -606,9 +612,9 @@ impl Sending {
 
                     let rules_for_user = db
                         .account_data
-                        .get::<push_rules::PushRulesEvent>(None, &userid, EventType::PushRules)
+                        .get(None, &userid, EventType::PushRules)
                         .unwrap_or_default()
-                        .map(|ev| ev.content.global)
+                        .map(|ev: PushRulesEvent| ev.content.global)
                         .unwrap_or_else(|| push::Ruleset::server_default(&userid));
 
                     let unread: UInt = db
