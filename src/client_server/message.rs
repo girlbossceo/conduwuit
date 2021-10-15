@@ -45,6 +45,14 @@ pub async fn send_message_event_route(
     );
     let state_lock = mutex_state.lock().await;
 
+    // Forbid m.room.encrypted if encryption is disabled
+    if &body.event_type == "m.room.encrypted" && !db.globals.allow_encryption() {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Encryption has been disabled",
+        ));
+    }
+
     // Check if this is a new transaction id
     if let Some(response) =
         db.transaction_ids
