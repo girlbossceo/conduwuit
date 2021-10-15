@@ -1,7 +1,10 @@
 use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma, RumaResponse};
 use ruma::{
     api::client::r0::{sync::sync_events, uiaa::UiaaResponse},
-    events::{room::member::MembershipState, AnySyncEphemeralRoomEvent, EventType},
+    events::{
+        room::member::{MembershipState, RoomMemberEventContent},
+        AnySyncEphemeralRoomEvent, EventType,
+    },
     serde::Raw,
     DeviceId, RoomId, UserId,
 };
@@ -57,7 +60,7 @@ use rocket::{get, tokio};
 pub async fn sync_events_route(
     db: DatabaseGuard,
     body: Ruma<sync_events::Request<'_>>,
-) -> std::result::Result<RumaResponse<sync_events::Response>, RumaResponse<UiaaResponse>> {
+) -> Result<RumaResponse<sync_events::Response>, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -179,7 +182,7 @@ async fn sync_helper(
     full_state: bool,
     timeout: Option<Duration>,
     // bool = caching allowed
-) -> std::result::Result<(sync_events::Response, bool), Error> {
+) -> Result<(sync_events::Response, bool), Error> {
     // TODO: match body.set_presence {
     db.rooms.edus.ping_presence(&sender_user)?;
 
@@ -241,13 +244,13 @@ async fn sync_helper(
             });
 
         // Take the last 10 events for the timeline
-        let timeline_pdus = non_timeline_pdus
+        let timeline_pdus: Vec<_> = non_timeline_pdus
             .by_ref()
             .take(10)
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
-            .collect::<Vec<_>>();
+            .collect();
 
         let send_notification_counts = !timeline_pdus.is_empty()
             || db
@@ -287,10 +290,10 @@ async fn sync_helper(
                     .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
                     .filter(|(_, pdu)| pdu.kind == EventType::RoomMember)
                     .map(|(_, pdu)| {
-                        let content = serde_json::from_value::<
-                            ruma::events::room::member::MemberEventContent,
-                        >(pdu.content.clone())
-                        .map_err(|_| Error::bad_database("Invalid member event in database."))?;
+                        let content: RoomMemberEventContent =
+                            serde_json::from_str(pdu.content.get()).map_err(|_| {
+                                Error::bad_database("Invalid member event in database.")
+                            })?;
 
                         if let Some(state_key) = &pdu.state_key {
                             let user_id = UserId::try_from(state_key.clone()).map_err(|_| {
@@ -343,11 +346,11 @@ async fn sync_helper(
             let (joined_member_count, invited_member_count, heroes) = calculate_counts()?;
 
             let current_state_ids = db.rooms.state_full_ids(current_shortstatehash)?;
-            let state_events = current_state_ids
+            let state_events: Vec<_> = current_state_ids
                 .iter()
                 .map(|(_, id)| db.rooms.get_pdu(id))
                 .filter_map(|r| r.ok().flatten())
-                .collect::<Vec<_>>();
+                .collect();
 
             (
                 heroes,
@@ -363,7 +366,7 @@ async fn sync_helper(
             // Incremental /sync
             let since_shortstatehash = since_shortstatehash.unwrap();
 
-            let since_sender_member = db
+            let since_sender_member: Option<RoomMemberEventContent> = db
                 .rooms
                 .state_get(
                     since_shortstatehash,
@@ -371,13 +374,9 @@ async fn sync_helper(
                     sender_user.as_str(),
                 )?
                 .and_then(|pdu| {
-                    serde_json::from_value::<Raw<ruma::events::room::member::MemberEventContent>>(
-                        pdu.content.clone(),
-                    )
-                    .expect("Raw::from_value always works")
-                    .deserialize()
-                    .map_err(|_| Error::bad_database("Invalid PDU in database."))
-                    .ok()
+                    serde_json::from_str(pdu.content.get())
+                        .map_err(|_| Error::bad_database("Invalid PDU in database."))
+                        .ok()
                 });
 
             let joined_since_last_sync = since_sender_member
@@ -432,11 +431,9 @@ async fn sync_helper(
                             continue;
                         }
 
-                        let new_membership = serde_json::from_value::<
-                            Raw<ruma::events::room::member::MemberEventContent>,
-                        >(state_event.content.clone())
-                        .expect("Raw::from_value always works")
-                        .deserialize()
+                        let new_membership = serde_json::from_str::<RoomMemberEventContent>(
+                            state_event.content.get(),
+                        )
                         .map_err(|_| Error::bad_database("Invalid PDU in database."))?
                         .membership;
 
@@ -525,18 +522,18 @@ async fn sync_helper(
                 Ok(Some(db.rooms.pdu_count(pdu_id)?.to_string()))
             })?;
 
-        let room_events = timeline_pdus
+        let room_events: Vec<_> = timeline_pdus
             .iter()
             .map(|(_, pdu)| pdu.to_sync_room_event())
-            .collect::<Vec<_>>();
+            .collect();
 
-        let mut edus = db
+        let mut edus: Vec<_> = db
             .rooms
             .edus
             .readreceipts_since(&room_id, since)
             .filter_map(|r| r.ok()) // Filter out buggy events
             .map(|(_, _, v)| v)
-            .collect::<Vec<_>>();
+            .collect();
 
         if db.rooms.edus.last_typing_update(&room_id, &db.globals)? > since {
             edus.push(
@@ -565,7 +562,7 @@ async fn sync_helper(
                             .map_err(|_| Error::bad_database("Invalid account event in database."))
                             .ok()
                     })
-                    .collect::<Vec<_>>(),
+                    .collect(),
             },
             summary: sync_events::RoomSummary {
                 heroes,
@@ -630,7 +627,7 @@ async fn sync_helper(
     }
 
     let mut left_rooms = BTreeMap::new();
-    let all_left_rooms = db.rooms.rooms_left(&sender_user).collect::<Vec<_>>();
+    let all_left_rooms: Vec<_> = db.rooms.rooms_left(&sender_user).collect();
     for result in all_left_rooms {
         let (room_id, left_state_events) = result?;
 
@@ -670,7 +667,7 @@ async fn sync_helper(
     }
 
     let mut invited_rooms = BTreeMap::new();
-    let all_invited_rooms = db.rooms.rooms_invited(&sender_user).collect::<Vec<_>>();
+    let all_invited_rooms: Vec<_> = db.rooms.rooms_invited(&sender_user).collect();
     for result in all_invited_rooms {
         let (room_id, invite_state_events) = result?;
 
@@ -739,7 +736,7 @@ async fn sync_helper(
         presence: sync_events::Presence {
             events: presence_updates
                 .into_iter()
-                .map(|(_, v)| Raw::from(v))
+                .map(|(_, v)| Raw::new(&v).expect("PresenceEvent always serializes successfully"))
                 .collect(),
         },
         account_data: sync_events::GlobalAccountData {
@@ -752,19 +749,13 @@ async fn sync_helper(
                         .map_err(|_| Error::bad_database("Invalid account event in database."))
                         .ok()
                 })
-                .collect::<Vec<_>>(),
+                .collect(),
         },
         device_lists: sync_events::DeviceLists {
             changed: device_list_updates.into_iter().collect(),
             left: device_list_left.into_iter().collect(),
         },
-        device_one_time_keys_count: if db.users.last_one_time_keys_update(&sender_user)? > since
-            || since == 0
-        {
-            db.users.count_one_time_keys(&sender_user, &sender_device)?
-        } else {
-            BTreeMap::new()
-        },
+        device_one_time_keys_count: db.users.count_one_time_keys(&sender_user, &sender_device)?,
         to_device: sync_events::ToDevice {
             events: db
                 .users

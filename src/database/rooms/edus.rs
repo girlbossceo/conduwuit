@@ -162,11 +162,12 @@ impl RoomEdus {
         Ok(self
             .roomuserid_lastprivatereadupdate
             .get(&key)?
-            .map_or(Ok::<_, Error>(None), |bytes| {
-                Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Count in roomuserid_lastprivatereadupdate is invalid.")
-                })?))
-            })?
+                })
+            })
+            .transpose()?
             .unwrap_or(0))
     }
 
@@ -286,11 +287,12 @@ impl RoomEdus {
         Ok(self
             .roomid_lasttypingupdate
             .get(room_id.as_bytes())?
-            .map_or(Ok::<_, Error>(None), |bytes| {
-                Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Count in roomid_lastroomactiveupdate is invalid.")
-                })?))
-            })?
+                })
+            })
+            .transpose()?
             .unwrap_or(0))
     }
 
@@ -331,7 +333,7 @@ impl RoomEdus {
         &self,
         user_id: &UserId,
         room_id: &RoomId,
-        presence: ruma::events::presence::PresenceEvent,
+        presence: PresenceEvent,
         globals: &super::super::globals::Globals,
     ) -> Result<()> {
         // TODO: Remove old entry? Or maybe just wipe completely from time to time?
@@ -399,7 +401,7 @@ impl RoomEdus {
         self.presenceid_presence
             .get(&presence_id)?
             .map(|value| {
-                let mut presence = serde_json::from_slice::<PresenceEvent>(&value)
+                let mut presence: PresenceEvent = serde_json::from_slice(&value)
                     .map_err(|_| Error::bad_database("Invalid presence event in db."))?;
                 let current_timestamp: UInt = utils::millis_since_unix_epoch()
                     .try_into()
@@ -521,7 +523,7 @@ impl RoomEdus {
             )
             .map_err(|_| Error::bad_database("Invalid UserId in presenceid_presence."))?;
 
-            let mut presence = serde_json::from_slice::<PresenceEvent>(&value)
+            let mut presence: PresenceEvent = serde_json::from_slice(&value)
                 .map_err(|_| Error::bad_database("Invalid presence event in db."))?;
 
             let current_timestamp: UInt = utils::millis_since_unix_epoch()

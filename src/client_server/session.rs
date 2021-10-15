@@ -60,10 +60,10 @@ pub async fn login_route(
     // Validate login method
     // TODO: Other login methods
     let user_id = match &body.login_info {
-        login::IncomingLoginInfo::Password {
+        login::IncomingLoginInfo::Password(login::IncomingPassword {
             identifier,
             password,
-        } => {
+        }) => {
             let username = if let IncomingUserIdentifier::MatrixId(matrix_id) = identifier {
                 matrix_id
             } else {
@@ -97,7 +97,7 @@ pub async fn login_route(
 
             user_id
         }
-        login::IncomingLoginInfo::Token { token } => {
+        login::IncomingLoginInfo::Token(login::IncomingToken { token }) => {
             if let Some(jwt_decoding_key) = db.globals.jwt_decoding_key() {
                 let token = jsonwebtoken::decode::<Claims>(
                     token,
@@ -115,6 +115,12 @@ pub async fn login_route(
                     "Token login is not supported (server has no jwt decoding key).",
                 ));
             }
+        }
+        _ => {
+            return Err(Error::BadRequest(
+                ErrorKind::Unknown,
+                "Unsupported login type.",
+            ));
         }
     };
 

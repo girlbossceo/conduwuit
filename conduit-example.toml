@@ -40,6 +40,7 @@ trusted_servers = ["matrix.org"]
 #workers = 4 # default: cpu core count * 2
 
 address = "127.0.0.1" # This makes sure Conduit can only be reached using the reverse proxy
+#address = "0.0.0.0" # If Conduit is running in a container, make sure the reverse proxy (ie. Traefik) can reach it.
 
 proxy = "none" # more examples can be found at src/database/proxy.rs:6
 

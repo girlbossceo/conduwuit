@@ -48,7 +48,7 @@ pub async fn get_context_route(
         ))?
         .to_room_event();
 
-    let events_before = db
+    let events_before: Vec<_> = db
         .rooms
         .pdus_until(sender_user, &body.room_id, base_token)?
         .take(
@@ -58,19 +58,19 @@ pub async fn get_context_route(
                 / 2,
         )
         .filter_map(|r| r.ok()) // Remove buggy events
-        .collect::<Vec<_>>();
+        .collect();
 
     let start_token = events_before
         .last()
         .and_then(|(pdu_id, _)| db.rooms.pdu_count(pdu_id).ok())
         .map(|count| count.to_string());
 
-    let events_before = events_before
+    let events_before: Vec<_> = events_before
         .into_iter()
         .map(|(_, pdu)| pdu.to_room_event())
-        .collect::<Vec<_>>();
+        .collect();
 
-    let events_after = db
+    let events_after: Vec<_> = db
         .rooms
         .pdus_after(sender_user, &body.room_id, base_token)?
         .take(
@@ -80,17 +80,17 @@ pub async fn get_context_route(
                 / 2,
         )
         .filter_map(|r| r.ok()) // Remove buggy events
-        .collect::<Vec<_>>();
+        .collect();
 
     let end_token = events_after
         .last()
         .and_then(|(pdu_id, _)| db.rooms.pdu_count(pdu_id).ok())
         .map(|count| count.to_string());
 
-    let events_after = events_after
+    let events_after: Vec<_> = events_after
         .into_iter()
         .map(|(_, pdu)| pdu.to_room_event())
-        .collect::<Vec<_>>();
+        .collect();
 
     let mut resp = get_context::Response::new();
     resp.start = start_token;
