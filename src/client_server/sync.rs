@@ -758,13 +758,7 @@ async fn sync_helper(
             changed: device_list_updates.into_iter().collect(),
             left: device_list_left.into_iter().collect(),
         },
-        device_one_time_keys_count: if db.users.last_one_time_keys_update(&sender_user)? > since
-            || since == 0
-        {
-            db.users.count_one_time_keys(&sender_user, &sender_device)?
-        } else {
-            BTreeMap::new()
-        },
+        device_one_time_keys_count: db.users.count_one_time_keys(&sender_user, &sender_device)?,
         to_device: sync_events::ToDevice {
             events: db
                 .users
