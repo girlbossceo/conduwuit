@@ -132,7 +132,7 @@ type TupleOfBytes = (Vec<u8>, Vec<u8>);
 impl SqliteTable {
     #[tracing::instrument(skip(self, guard, key))]
     fn get_with_guard(&self, guard: &Connection, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        //dbg!(&self.name);
+        dbg!(&self.name);
         Ok(guard
             .prepare(format!("SELECT value FROM {} WHERE key = ?", self.name).as_str())?
             .query_row([key], |row| row.get(0))
@@ -141,7 +141,7 @@ impl SqliteTable {
 
     #[tracing::instrument(skip(self, guard, key, value))]
     fn insert_with_guard(&self, guard: &Connection, key: &[u8], value: &[u8]) -> Result<()> {
-        //dbg!(&self.name);
+        dbg!(&self.name);
         guard.execute(
             format!(
                 "INSERT OR REPLACE INTO {} (key, value) VALUES (?, ?)",
@@ -168,14 +168,14 @@ impl SqliteTable {
 
         let statement_ref = NonAliasingBox(statement);
 
-        //let name = self.name.clone();
+        let name = self.name.clone();
 
         let iterator = Box::new(
             statement
                 .query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
                 .unwrap()
                 .map(move |r| {
-                    //dbg!(&name);
+                    dbg!(&name);
                     r.unwrap()
                 }),
         );
@@ -263,7 +263,7 @@ impl Tree for SqliteTable {
         let guard = self.engine.read_lock_iterator();
         let from = from.to_vec(); // TODO change interface?
 
-        //let name = self.name.clone();
+        let name = self.name.clone();
 
         if backwards {
             let statement = Box::leak(Box::new(
@@ -282,7 +282,7 @@ impl Tree for SqliteTable {
                     .query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
                     .unwrap()
                     .map(move |r| {
-                        //dbg!(&name);
+                        dbg!(&name);
                         r.unwrap()
                     }),
             );
@@ -307,7 +307,7 @@ impl Tree for SqliteTable {
                     .query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
                     .unwrap()
                     .map(move |r| {
-                        //dbg!(&name);
+                        dbg!(&name);
                         r.unwrap()
                     }),
             );

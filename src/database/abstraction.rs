@@ -12,7 +12,10 @@ pub mod sqlite;
 #[cfg(feature = "heed")]
 pub mod heed;
 
-#[cfg(any(feature = "sqlite", feature = "heed"))]
+#[cfg(feature = "rocksdb")]
+pub mod rocksdb;
+
+#[cfg(any(feature = "sqlite", feature = "rocksdb", feature = "heed"))]
 pub mod watchers;
 
 pub trait DatabaseEngine: Sized {
