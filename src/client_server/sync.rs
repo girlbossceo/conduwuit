@@ -769,7 +769,6 @@ async fn sync_helper(
         && response.presence.is_empty()
         && response.account_data.is_empty()
         && response.device_lists.is_empty()
-        && response.device_one_time_keys_count.is_empty()
         && response.to_device.is_empty()
     {
         // Hang a few seconds so requests are not spammed
