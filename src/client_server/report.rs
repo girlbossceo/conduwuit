@@ -8,7 +8,7 @@ use ruma::{
 };
 
 #[cfg(feature = "conduit_bin")]
-use rocket::post;
+use rocket::{http::RawStr, post};
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/report/{eventId}`
 ///
@@ -43,10 +43,10 @@ pub async fn report_event_route(
         ));
     };
 
-    if body.reason.chars().count() > 160 {
+    if body.reason.chars().count() > 1000 {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
-            "Reason too long, should be 160 characters or fewer",
+            "Reason too long, should be 1000 characters or fewer",
         ));
     };
 
@@ -61,10 +61,35 @@ pub async fn report_event_route(
     let state_lock = mutex_state.lock().await;
 
     db.admin.send(AdminCommand::SendMessage(
-        message::RoomMessageEventContent::text_plain(format!(
-            "Report received from: {}\r\n\r\nEvent ID: {}\r\nRoom ID: {}\r\nSent By: {}\r\n\r\nReport Score: {}\r\nReport Reason: {}",
-            sender_user, pdu.event_id, pdu.room_id, pdu.sender, body.score, body.reason,
-        )),
+        message::RoomMessageEventContent::text_html(
+            format!(
+                concat!(
+                    "Report received from: {}\r\n\r\n",
+                    "Event ID: {}\r\n",
+                    "Room ID: {}\r\n",
+                    "Sent By: {}\r\n\r\n",
+                    "Report Score: {}\r\n",
+                    "Report Reason: {}"
+                ),
+                sender_user, pdu.event_id, pdu.room_id, pdu.sender, body.score, body.reason
+            )
+            .to_owned(),
+            format!(
+                concat!(
+                    "<details><summary>Report received from: {}</summary><details>",
+                    "<summary>Event Info</summary><p>Event ID: {}<br>Room ID: {}<br>Sent By: {}",
+                    "</p></details><details><summary>Report Info</summary><p>Report Score: {}",
+                    "</br>Report Reason: {}</p></details></details>"
+                ),
+                sender_user,
+                pdu.event_id,
+                pdu.room_id,
+                pdu.sender,
+                body.score,
+                RawStr::new(&body.reason).html_escape()
+            )
+            .to_owned(),
+        ),
     ));
 
     drop(state_lock);
