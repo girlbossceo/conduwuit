@@ -101,6 +101,7 @@ fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<
                 client_server::create_typing_event_route,
                 client_server::create_room_route,
                 client_server::redact_event_route,
+                client_server::report_event_route,
                 client_server::create_alias_route,
                 client_server::delete_alias_route,
                 client_server::get_alias_route,
