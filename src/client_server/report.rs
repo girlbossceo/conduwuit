@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{database::admin::AdminCommand, database::DatabaseGuard, ConduitResult, Error, Ruma};
 use ruma::{
     api::client::{error::ErrorKind, r0::room::report_content},
@@ -25,62 +23,49 @@ pub async fn report_event_route(
 ) -> ConduitResult<report_content::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let pdu = match db.rooms.get_pdu(&body.event_id) {
-        Ok(pdu) if !pdu.is_none() => pdu,
+    let pdu = match db.rooms.get_pdu(&body.event_id)? {
+        Some(pdu) => pdu,
         _ => {
             return Err(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Invalid Event ID",
             ))
         }
-    }
-    .unwrap();
+    };
 
-    if body.score >= Int::from(0) && body.score <= Int::from(-100) {
+    if body.score > Int::from(0) || body.score < Int::from(-100) {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Invalid score, must be within 0 to -100",
         ));
     };
 
-    if body.reason.chars().count() > 1000 {
+    if body.reason.chars().count() > 250 {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
-            "Reason too long, should be 1000 characters or fewer",
+            "Reason too long, should be 250 characters or fewer",
         ));
     };
-
-    let mutex_state = Arc::clone(
-        db.globals
-            .roomid_mutex_state
-            .write()
-            .unwrap()
-            .entry(body.room_id.clone())
-            .or_default(),
-    );
-    let state_lock = mutex_state.lock().await;
 
     db.admin.send(AdminCommand::SendMessage(
         message::RoomMessageEventContent::text_html(
             format!(
-                concat!(
-                    "Report received from: {}\r\n\r\n",
-                    "Event ID: {}\r\n",
-                    "Room ID: {}\r\n",
-                    "Sent By: {}\r\n\r\n",
-                    "Report Score: {}\r\n",
-                    "Report Reason: {}"
-                ),
+                "Report received from: {}\n\n\
+                Event ID: {}\n\
+                Room ID: {}\n\
+                Sent By: {}\n\n\
+                Report Score: {}\n\
+                Report Reason: {}",
                 sender_user, pdu.event_id, pdu.room_id, pdu.sender, body.score, body.reason
             )
             .to_owned(),
             format!(
-                concat!(
-                    "<details><summary>Report received from: {}</summary><details>",
-                    "<summary>Event Info</summary><p>Event ID: {}<br>Room ID: {}<br>Sent By: {}",
-                    "</p></details><details><summary>Report Info</summary><p>Report Score: {}",
-                    "</br>Report Reason: {}</p></details></details>"
-                ),
+                "<details><summary>Report received from: <a href=\"https://matrix.to/#/{0}\">{0}\
+                </a></summary><ul><li>Event Info<ul><li>Event ID: <code>{1}</code>\
+                <a href=\"https://matrix.to/#/{2}/{1}\">🔗</a></li><li>Room ID: <code>{2}</code>\
+                </li><li>Sent By: <a href=\"https://matrix.to/#/{3}\">{3}</a></li></ul></li><li>\
+                Report Info<ul><li>Report Score: {4}</li><li>Report Reason: {5}</li></ul></li>\
+                </ul></details>",
                 sender_user,
                 pdu.event_id,
                 pdu.room_id,
@@ -91,8 +76,6 @@ pub async fn report_event_route(
             .to_owned(),
         ),
     ));
-
-    drop(state_lock);
 
     db.flush()?;
 
