@@ -250,8 +250,7 @@ impl Database {
             },
             uiaa: uiaa::Uiaa {
                 userdevicesessionid_uiaainfo: builder.open_tree("userdevicesessionid_uiaainfo")?,
-                userdevicesessionid_uiaarequest: builder
-                    .open_tree("userdevicesessionid_uiaarequest")?,
+                userdevicesessionid_uiaarequest: RwLock::new(BTreeMap::new()),
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {

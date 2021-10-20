@@ -1,4 +1,6 @@
 use std::sync::Arc;
+use std::sync::RwLock;
+use std::collections::BTreeMap;
 
 use crate::{client_server::SESSION_ID_LENGTH, utils, Error, Result};
 use ruma::{
@@ -18,7 +20,7 @@ use super::abstraction::Tree;
 
 pub struct Uiaa {
     pub(super) userdevicesessionid_uiaainfo: Arc<dyn Tree>, // User-interactive authentication
-    pub(super) userdevicesessionid_uiaarequest: Arc<dyn Tree>, // UiaaRequest = canonical json value
+    pub(super) userdevicesessionid_uiaarequest: RwLock<BTreeMap<Vec<u8>, Vec<u8>>>, // UiaaRequest = canonical json value
 }
 
 impl Uiaa {
@@ -153,10 +155,10 @@ impl Uiaa {
         userdevicesessionid.push(0xff);
         userdevicesessionid.extend_from_slice(session.as_bytes());
 
-        self.userdevicesessionid_uiaarequest.insert(
-            &userdevicesessionid,
-            &serde_json::to_vec(request).expect("json value to vec always works"),
-        )?;
+        self.userdevicesessionid_uiaarequest.write().unwrap().insert(
+            userdevicesessionid,
+            serde_json::to_vec(request).expect("json value to vec always works"),
+        );
 
         Ok(())
     }
@@ -173,8 +175,8 @@ impl Uiaa {
         userdevicesessionid.push(0xff);
         userdevicesessionid.extend_from_slice(session.as_bytes());
 
-        self.userdevicesessionid_uiaarequest
-            .get(&userdevicesessionid)?
+        self.userdevicesessionid_uiaarequest.read().unwrap()
+            .get(&userdevicesessionid)
             .map(|bytes| {
                 serde_json::from_str::<CanonicalJsonValue>(
                     &utils::string_from_bytes(&bytes)
