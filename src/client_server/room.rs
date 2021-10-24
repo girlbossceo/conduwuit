@@ -22,11 +22,16 @@ use ruma::{
         },
         EventType,
     },
-    serde::{JsonObject},
+    serde::{CanonicalJsonObject, JsonObject, Raw},
     RoomAliasId, RoomId, RoomVersionId,
 };
-use serde_json::{value::to_raw_value};
-use std::{cmp::max, collections::BTreeMap, convert::TryFrom, sync::Arc};
+use serde_json::{json, value::to_raw_value};
+use std::{
+    cmp::max,
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 use tracing::{info, warn};
 
 #[cfg(feature = "conduit_bin")]
@@ -102,15 +107,7 @@ pub async fn create_room_route(
                 }
             })?;
 
-    let creation_content = match body.creation_content.clone() {
-        Some(content) => content.deserialize().expect("Invalid creation content"),
-        None => create_room::CreationContent::new(),
-    };
-
-    let mut content = RoomCreateEventContent::new(sender_user.clone());
-    content.federate = creation_content.federate;
-    content.predecessor = creation_content.predecessor.clone();
-    content.room_version = match body.room_version.clone() {
+    let room_version = match body.room_version.clone() {
         Some(room_version) => {
             if room_version == RoomVersionId::Version5 || room_version == RoomVersionId::Version6 {
                 room_version
@@ -122,6 +119,50 @@ pub async fn create_room_route(
             }
         }
         None => RoomVersionId::Version6,
+    };
+
+    let content = match &body.creation_content {
+        Some(content) => {
+            let mut content = content
+                .deserialize_as::<CanonicalJsonObject>()
+                .expect("Invalid creation content");
+            content.insert(
+                "creator".into(),
+                json!(sender_user.clone()).try_into().unwrap(),
+            );
+            content.insert(
+                "room_version".into(),
+                json!(room_version.as_str()).try_into().unwrap(),
+            );
+            content
+        }
+        None => {
+            let mut content = Raw::<CanonicalJsonObject>::from_json(
+                to_raw_value(&RoomCreateEventContent::new(sender_user.clone())).unwrap(),
+            )
+            .deserialize_as::<CanonicalJsonObject>()
+            .unwrap();
+            content.insert(
+                "room_version".into(),
+                json!(room_version.as_str()).try_into().unwrap(),
+            );
+            content
+        }
+    };
+
+    // Validate creation content
+    match Raw::<CanonicalJsonObject>::from_json(
+        to_raw_value(&content).expect("Invalid creation content"),
+    )
+    .deserialize_as::<RoomCreateEventContent>()
+    {
+        Ok(_t) => {}
+        Err(_e) => {
+            return Err(Error::BadRequest(
+                ErrorKind::BadJson,
+                "Invalid creation content",
+            ))
+        }
     };
 
     // 1. The room create event
