@@ -22,10 +22,10 @@ use ruma::{
         },
         EventType,
     },
-    serde::JsonObject,
+    serde::{JsonObject},
     RoomAliasId, RoomId, RoomVersionId,
 };
-use serde_json::value::to_raw_value;
+use serde_json::{value::to_raw_value};
 use std::{cmp::max, collections::BTreeMap, convert::TryFrom, sync::Arc};
 use tracing::{info, warn};
 
@@ -102,9 +102,14 @@ pub async fn create_room_route(
                 }
             })?;
 
+    let creation_content = match body.creation_content.clone() {
+        Some(content) => content.deserialize().expect("Invalid creation content"),
+        None => create_room::CreationContent::new(),
+    };
+
     let mut content = RoomCreateEventContent::new(sender_user.clone());
-    content.federate = body.creation_content.federate;
-    content.predecessor = body.creation_content.predecessor.clone();
+    content.federate = creation_content.federate;
+    content.predecessor = creation_content.predecessor.clone();
     content.room_version = match body.room_version.clone() {
         Some(room_version) => {
             if room_version == RoomVersionId::Version5 || room_version == RoomVersionId::Version6 {
