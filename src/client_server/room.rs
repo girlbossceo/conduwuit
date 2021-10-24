@@ -478,7 +478,7 @@ pub async fn get_room_aliases_route(
     .into())
 }
 
-/// # `GET /_matrix/client/r0/rooms/{roomId}/upgrade`
+/// # `POST /_matrix/client/r0/rooms/{roomId}/upgrade`
 ///
 /// Upgrades the room.
 ///
@@ -556,16 +556,15 @@ pub async fn upgrade_room_route(
     );
     let state_lock = mutex_state.lock().await;
 
-    // Get the old room federations status
-    let federate = serde_json::from_str::<RoomCreateEventContent>(
+    // Get the old room creation event
+    let mut create_event_content = serde_json::from_str::<CanonicalJsonObject>(
         db.rooms
             .room_state_get(&body.room_id, &EventType::RoomCreate, "")?
             .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
             .content
             .get(),
     )
-    .map_err(|_| Error::bad_database("Invalid room event in database."))?
-    .federate;
+    .map_err(|_| Error::bad_database("Invalid room event in database."))?;
 
     // Use the m.room.tombstone event as the predecessor
     let predecessor = Some(ruma::events::room::create::PreviousRoom::new(
@@ -574,10 +573,30 @@ pub async fn upgrade_room_route(
     ));
 
     // Send a m.room.create event containing a predecessor field and the applicable room_version
-    let mut create_event_content = RoomCreateEventContent::new(sender_user.clone());
-    create_event_content.federate = federate;
-    create_event_content.room_version = body.new_version.clone();
-    create_event_content.predecessor = predecessor;
+    create_event_content.insert(
+        "creator".into(),
+        json!(sender_user.clone()).try_into().unwrap(),
+    );
+    create_event_content.insert(
+        "room_version".into(),
+        json!(body.new_version.clone()).try_into().unwrap(),
+    );
+    create_event_content.insert("predecessor".into(), json!(predecessor).try_into().unwrap());
+
+    // Validate creation event content
+    match Raw::<CanonicalJsonObject>::from_json(
+        to_raw_value(&create_event_content).expect("Error forming creation event"),
+    )
+    .deserialize_as::<RoomCreateEventContent>()
+    {
+        Ok(_t) => {}
+        Err(_e) => {
+            return Err(Error::BadRequest(
+                ErrorKind::BadJson,
+                "Error forming creation event",
+            ))
+        }
+    };
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
