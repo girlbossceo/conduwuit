@@ -510,3 +510,4 @@ remote user can join room with version 5
 remote user can join room with version 6
 setting 'm.room.name' respects room powerlevel
 setting 'm.room.power_levels' respects room powerlevel
+Federation publicRoom Name/topic keys are correct
