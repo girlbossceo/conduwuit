@@ -133,6 +133,12 @@ pub struct Rooms {
 }
 
 impl Rooms {
+    /// Returns true if a given room version is supported
+    #[tracing::instrument(skip(self, db))]
+    pub fn is_supported_version(&self, db: &Database, room_version: &RoomVersionId) -> bool {
+        db.globals.supported_room_versions().contains(room_version)
+    }
+
     /// Builds a StateMap by iterating over all keys that start
     /// with state_hash, this gives the full state for the given state_hash.
     #[tracing::instrument(skip(self))]
@@ -1839,9 +1845,13 @@ impl Rooms {
             })
             .transpose()?;
 
-        // If there was no create event yet, assume we are creating a version 6 room right now
+
+        // If there was no create event yet, assume we are creating a room with the default
+        // version right now
         let room_version_id = create_event_content
-            .map_or(RoomVersionId::V6, |create_event| create_event.room_version);
+            .map_or(db.globals.default_room_version(), |create_event| {
+                create_event.room_version
+            });
         let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
 
         let auth_events =
@@ -2672,9 +2682,7 @@ impl Rooms {
         let (make_leave_response, remote_server) = make_leave_response_and_server?;
 
         let room_version_id = match make_leave_response.room_version {
-            Some(version) if version == RoomVersionId::V5 || version == RoomVersionId::V6 => {
-                version
-            }
+            Some(version) if self.is_supported_version(&db, &version) => version,
             _ => return Err(Error::BadServerResponse("Room version is not supported")),
         };
 
