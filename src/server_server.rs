@@ -659,7 +659,7 @@ pub async fn send_transaction_message_route(
 
     for pdu in &body.pdus {
         // We do not add the event_id field to the pdu here because of signature and hashes checks
-        let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu) {
+        let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu, &db) {
             Ok(t) => t,
             Err(_) => {
                 // Event could not be converted to canonical json
@@ -1859,7 +1859,7 @@ pub(crate) fn fetch_and_handle_outliers<'a>(
                     Ok(res) => {
                         warn!("Got {} over federation", next_id);
                         let (calculated_event_id, value) =
-                            match crate::pdu::gen_event_id_canonical_json(&res.pdu) {
+                            match crate::pdu::gen_event_id_canonical_json(&res.pdu, &db) {
                                 Ok(t) => t,
                                 Err(_) => {
                                     back_off((*next_id).to_owned());
@@ -2820,7 +2820,7 @@ async fn create_join_event(
     // let mut auth_cache = EventMap::new();
 
     // We do not add the event_id field to the pdu here because of signature and hashes checks
-    let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu) {
+    let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu, &db) {
         Ok(t) => t,
         Err(_) => {
             // Event could not be converted to canonical json

@@ -151,7 +151,7 @@ impl Globals {
         // Supported and stable room versions
         let stable_room_versions = vec![RoomVersionId::V6];
         // Experimental, partially supported room versions
-        let unstable_room_versions = vec![RoomVersionId::V4, RoomVersionId::V5];
+        let unstable_room_versions = vec![RoomVersionId::V3, RoomVersionId::V4, RoomVersionId::V5];
 
         let s = Self {
             globals,
