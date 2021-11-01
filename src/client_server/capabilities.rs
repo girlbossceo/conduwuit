@@ -1,8 +1,6 @@
 use crate::{database::DatabaseGuard, Result, Ruma};
-use ruma::{
-    api::client::discovery::get_capabilities::{
-        self, Capabilities, RoomVersionStability, RoomVersionsCapability,
-    },
+use ruma::api::client::discovery::get_capabilities::{
+    self, Capabilities, RoomVersionStability, RoomVersionsCapability,
 };
 use std::collections::BTreeMap;
 

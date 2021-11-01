@@ -2592,9 +2592,9 @@ pub async fn create_join_event_template_route(
     acl_check(sender_servername, &body.room_id, &db)?;
 
     // TODO: Conduit does not implement restricted join rules yet, we always reject
-    let join_rules_event = db
-        .rooms
-        .room_state_get(&body.room_id, &StateEventType::RoomJoinRules, "")?;
+    let join_rules_event =
+        db.rooms
+            .room_state_get(&body.room_id, &StateEventType::RoomJoinRules, "")?;
 
     let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
         .as_ref()

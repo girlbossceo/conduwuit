@@ -1845,7 +1845,6 @@ impl Rooms {
             })
             .transpose()?;
 
-
         // If there was no create event yet, assume we are creating a room with the default
         // version right now
         let room_version_id = create_event_content
