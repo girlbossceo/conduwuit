@@ -3440,10 +3440,8 @@ impl Rooms {
 
     /// Returns the room's version.
     #[tracing::instrument(skip(self))]
-    pub fn get_room_version(&self, room_id: &RoomId) -> RoomVersionId {
-        let create_event = self
-            .room_state_get(room_id, &StateEventType::RoomCreate, "")
-            .unwrap();
+    pub fn get_room_version(&self, room_id: &RoomId) -> Result<RoomVersionId> {
+        let create_event = self.room_state_get(room_id, &StateEventType::RoomCreate, "")?;
 
         let create_event_content: Option<RoomCreateEventContent> = create_event
             .as_ref()
@@ -3453,11 +3451,10 @@ impl Rooms {
                     Error::bad_database("Invalid create event in db.")
                 })
             })
-            .transpose()
-            .unwrap();
-
-        create_event_content
+            .transpose()?;
+        let room_version = create_event_content
             .map(|create_event| create_event.room_version)
-            .expect("Invalid room version")
+            .ok_or_else(|| Error::BadDatabase("Invalid room version"))?;
+        Ok(room_version)
     }
 }

@@ -153,7 +153,7 @@ impl Globals {
         // Experimental, partially supported room versions
         let unstable_room_versions = vec![RoomVersionId::V3, RoomVersionId::V4, RoomVersionId::V5];
 
-        let s = Self {
+        let mut s = Self {
             globals,
             config,
             keypair: Arc::new(keypair),
@@ -183,6 +183,14 @@ impl Globals {
         };
 
         fs::create_dir_all(s.get_media_folder())?;
+
+        if !s
+            .supported_room_versions()
+            .contains(&s.config.default_room_version)
+        {
+            error!("Room version in config isn't supported, falling back to Version 6");
+            s.config.default_room_version = RoomVersionId::V6;
+        };
 
         Ok(s)
     }
@@ -247,15 +255,7 @@ impl Globals {
     }
 
     pub fn default_room_version(&self) -> RoomVersionId {
-        if self
-            .supported_room_versions()
-            .contains(&self.config.default_room_version.clone())
-        {
-            self.config.default_room_version.clone()
-        } else {
-            error!("Room version in config isn't supported, falling back to Version 6");
-            RoomVersionId::V6
-        }
+        self.config.default_room_version.clone()
     }
 
     pub fn trusted_servers(&self) -> &[Box<ServerName>] {
@@ -296,13 +296,9 @@ impl Globals {
 
     pub fn supported_room_versions(&self) -> Vec<RoomVersionId> {
         let mut room_versions: Vec<RoomVersionId> = vec![];
-        self.stable_room_versions
-            .iter()
-            .for_each(|room_version| room_versions.push(room_version.clone()));
+        room_versions.extend(self.stable_room_versions.clone());
         if self.allow_unstable_room_versions() {
-            self.unstable_room_versions
-                .iter()
-                .for_each(|room_version| room_versions.push(room_version.clone()));
+            room_versions.extend(self.unstable_room_versions.clone());
         };
         room_versions
     }
