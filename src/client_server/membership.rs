@@ -934,7 +934,7 @@ pub(crate) async fn invite_helper<'a>(
                 unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
                 unsigned.insert(
                     "prev_sender".to_owned(),
-                    serde_json::from_str(prev_pdu.sender.as_str()).expect("UserId is valid string"),
+                    to_raw_value(&prev_pdu.sender).expect("UserId is valid"),
                 );
             }
 
