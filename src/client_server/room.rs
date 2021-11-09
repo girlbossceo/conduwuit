@@ -22,7 +22,7 @@ use ruma::{
         },
         EventType,
     },
-    serde::{CanonicalJsonObject, JsonObject, Raw},
+    serde::{CanonicalJsonObject, JsonObject},
     RoomAliasId, RoomId, RoomVersionId,
 };
 use serde_json::{json, value::to_raw_value};
@@ -128,42 +128,48 @@ pub async fn create_room_route(
                 .expect("Invalid creation content");
             content.insert(
                 "creator".into(),
-                json!(sender_user.clone()).try_into().unwrap(),
+                json!(&sender_user).try_into().map_err(|_| {
+                    Error::BadRequest(ErrorKind::BadJson, "Invalid creation content")
+                })?,
             );
             content.insert(
                 "room_version".into(),
-                json!(room_version.as_str()).try_into().unwrap(),
+                json!(room_version.as_str()).try_into().map_err(|_| {
+                    Error::BadRequest(ErrorKind::BadJson, "Invalid creation content")
+                })?,
             );
             content
         }
         None => {
-            let mut content = Raw::<CanonicalJsonObject>::from_json(
-                to_raw_value(&RoomCreateEventContent::new(sender_user.clone())).unwrap(),
+            let mut content = serde_json::from_str::<CanonicalJsonObject>(
+                to_raw_value(&RoomCreateEventContent::new(sender_user.clone()))
+                    .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid creation content"))?
+                    .get(),
             )
-            .deserialize_as::<CanonicalJsonObject>()
             .unwrap();
             content.insert(
                 "room_version".into(),
-                json!(room_version.as_str()).try_into().unwrap(),
+                json!(room_version.as_str()).try_into().map_err(|_| {
+                    Error::BadRequest(ErrorKind::BadJson, "Invalid creation content")
+                })?,
             );
             content
         }
     };
 
     // Validate creation content
-    match Raw::<CanonicalJsonObject>::from_json(
-        to_raw_value(&content).expect("Invalid creation content"),
-    )
-    .deserialize_as::<RoomCreateEventContent>()
-    {
-        Ok(_t) => {}
-        Err(_e) => {
-            return Err(Error::BadRequest(
-                ErrorKind::BadJson,
-                "Invalid creation content",
-            ))
-        }
-    };
+    let de_result = serde_json::from_str::<CanonicalJsonObject>(
+        to_raw_value(&content)
+            .expect("Invalid creation content")
+            .get(),
+    );
+
+    if let Err(_) = de_result {
+        return Err(Error::BadRequest(
+            ErrorKind::BadJson,
+            "Invalid creation content",
+        ));
+    }
 
     // 1. The room create event
     db.rooms.build_and_append_pdu(
@@ -575,28 +581,36 @@ pub async fn upgrade_room_route(
     // Send a m.room.create event containing a predecessor field and the applicable room_version
     create_event_content.insert(
         "creator".into(),
-        json!(sender_user.clone()).try_into().unwrap(),
+        json!(&sender_user)
+            .try_into()
+            .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"))?,
     );
     create_event_content.insert(
         "room_version".into(),
-        json!(body.new_version.clone()).try_into().unwrap(),
+        json!(&body.new_version)
+            .try_into()
+            .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"))?,
     );
-    create_event_content.insert("predecessor".into(), json!(predecessor).try_into().unwrap());
+    create_event_content.insert(
+        "predecessor".into(),
+        json!(predecessor)
+            .try_into()
+            .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"))?,
+    );
 
     // Validate creation event content
-    match Raw::<CanonicalJsonObject>::from_json(
-        to_raw_value(&create_event_content).expect("Error forming creation event"),
-    )
-    .deserialize_as::<RoomCreateEventContent>()
-    {
-        Ok(_t) => {}
-        Err(_e) => {
-            return Err(Error::BadRequest(
-                ErrorKind::BadJson,
-                "Error forming creation event",
-            ))
-        }
-    };
+    let de_result = serde_json::from_str::<CanonicalJsonObject>(
+        to_raw_value(&create_event_content)
+            .expect("Error forming creation event")
+            .get(),
+    );
+
+    if let Err(_) = de_result {
+        return Err(Error::BadRequest(
+            ErrorKind::BadJson,
+            "Error forming creation event",
+        ));
+    }
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
