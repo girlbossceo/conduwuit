@@ -22,11 +22,16 @@ use ruma::{
         },
         EventType,
     },
-    serde::JsonObject,
+    serde::{CanonicalJsonObject, JsonObject},
     RoomAliasId, RoomId, RoomVersionId,
 };
-use serde_json::value::to_raw_value;
-use std::{cmp::max, collections::BTreeMap, convert::TryFrom, sync::Arc};
+use serde_json::{json, value::to_raw_value};
+use std::{
+    cmp::max,
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 use tracing::{info, warn};
 
 #[cfg(feature = "conduit_bin")]
@@ -102,10 +107,7 @@ pub async fn create_room_route(
                 }
             })?;
 
-    let mut content = RoomCreateEventContent::new(sender_user.clone());
-    content.federate = body.creation_content.federate;
-    content.predecessor = body.creation_content.predecessor.clone();
-    content.room_version = match body.room_version.clone() {
+    let room_version = match body.room_version.clone() {
         Some(room_version) => {
             if room_version == RoomVersionId::Version5 || room_version == RoomVersionId::Version6 {
                 room_version
@@ -118,6 +120,56 @@ pub async fn create_room_route(
         }
         None => RoomVersionId::Version6,
     };
+
+    let content = match &body.creation_content {
+        Some(content) => {
+            let mut content = content
+                .deserialize_as::<CanonicalJsonObject>()
+                .expect("Invalid creation content");
+            content.insert(
+                "creator".into(),
+                json!(&sender_user).try_into().map_err(|_| {
+                    Error::BadRequest(ErrorKind::BadJson, "Invalid creation content")
+                })?,
+            );
+            content.insert(
+                "room_version".into(),
+                json!(room_version.as_str()).try_into().map_err(|_| {
+                    Error::BadRequest(ErrorKind::BadJson, "Invalid creation content")
+                })?,
+            );
+            content
+        }
+        None => {
+            let mut content = serde_json::from_str::<CanonicalJsonObject>(
+                to_raw_value(&RoomCreateEventContent::new(sender_user.clone()))
+                    .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid creation content"))?
+                    .get(),
+            )
+            .unwrap();
+            content.insert(
+                "room_version".into(),
+                json!(room_version.as_str()).try_into().map_err(|_| {
+                    Error::BadRequest(ErrorKind::BadJson, "Invalid creation content")
+                })?,
+            );
+            content
+        }
+    };
+
+    // Validate creation content
+    let de_result = serde_json::from_str::<CanonicalJsonObject>(
+        to_raw_value(&content)
+            .expect("Invalid creation content")
+            .get(),
+    );
+
+    if let Err(_) = de_result {
+        return Err(Error::BadRequest(
+            ErrorKind::BadJson,
+            "Invalid creation content",
+        ));
+    }
 
     // 1. The room create event
     db.rooms.build_and_append_pdu(
@@ -432,7 +484,7 @@ pub async fn get_room_aliases_route(
     .into())
 }
 
-/// # `GET /_matrix/client/r0/rooms/{roomId}/upgrade`
+/// # `POST /_matrix/client/r0/rooms/{roomId}/upgrade`
 ///
 /// Upgrades the room.
 ///
@@ -510,16 +562,15 @@ pub async fn upgrade_room_route(
     );
     let state_lock = mutex_state.lock().await;
 
-    // Get the old room federations status
-    let federate = serde_json::from_str::<RoomCreateEventContent>(
+    // Get the old room creation event
+    let mut create_event_content = serde_json::from_str::<CanonicalJsonObject>(
         db.rooms
             .room_state_get(&body.room_id, &EventType::RoomCreate, "")?
             .ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
             .content
             .get(),
     )
-    .map_err(|_| Error::bad_database("Invalid room event in database."))?
-    .federate;
+    .map_err(|_| Error::bad_database("Invalid room event in database."))?;
 
     // Use the m.room.tombstone event as the predecessor
     let predecessor = Some(ruma::events::room::create::PreviousRoom::new(
@@ -528,10 +579,38 @@ pub async fn upgrade_room_route(
     ));
 
     // Send a m.room.create event containing a predecessor field and the applicable room_version
-    let mut create_event_content = RoomCreateEventContent::new(sender_user.clone());
-    create_event_content.federate = federate;
-    create_event_content.room_version = body.new_version.clone();
-    create_event_content.predecessor = predecessor;
+    create_event_content.insert(
+        "creator".into(),
+        json!(&sender_user)
+            .try_into()
+            .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"))?,
+    );
+    create_event_content.insert(
+        "room_version".into(),
+        json!(&body.new_version)
+            .try_into()
+            .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"))?,
+    );
+    create_event_content.insert(
+        "predecessor".into(),
+        json!(predecessor)
+            .try_into()
+            .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"))?,
+    );
+
+    // Validate creation event content
+    let de_result = serde_json::from_str::<CanonicalJsonObject>(
+        to_raw_value(&create_event_content)
+            .expect("Error forming creation event")
+            .get(),
+    );
+
+    if let Err(_) = de_result {
+        return Err(Error::BadRequest(
+            ErrorKind::BadJson,
+            "Error forming creation event",
+        ));
+    }
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
