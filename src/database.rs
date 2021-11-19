@@ -74,6 +74,16 @@ pub struct Config {
     trusted_servers: Vec<Box<ServerName>>,
     #[serde(default = "default_log")]
     pub log: String,
+    #[serde(default)]
+    turn_username: String,
+    #[serde(default)]
+    turn_password: String,
+    #[serde(default = "Vec::new")]
+    turn_uris: Vec<String>,
+    #[serde(default)]
+    turn_secret: String,
+    #[serde(default = "default_turn_ttl")]
+    turn_ttl: u64,
 
     #[serde(flatten)]
     catchall: BTreeMap<String, IgnoredAny>,
@@ -129,6 +139,10 @@ fn default_max_concurrent_requests() -> u16 {
 
 fn default_log() -> String {
     "info,state_res=warn,rocket=off,_=off,sled=off".to_owned()
+}
+
+fn default_turn_ttl() -> u64 {
+    60 * 60 * 24
 }
 
 #[cfg(feature = "sled")]
