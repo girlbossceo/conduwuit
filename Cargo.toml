@@ -123,13 +123,12 @@ maintainer-scripts = "debian/"
 systemd-units = { unit-name = "matrix-conduit" }
 
 [profile.dev]
-lto = 'thin'
+lto = 'off'
 incremental = true
 
 [profile.release]
 lto = 'thin'
 incremental = true
-
 codegen-units=32
 # If you want to make flamegraphs, enable debug info:
 # debug = true
