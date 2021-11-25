@@ -54,11 +54,11 @@ RUN apk add --no-cache \
 RUN mkdir -p /srv/conduit/.local/share/conduit
 
 # Test if Conduit is still alive, uses the same endpoint as Element
-COPY ./docker/healthcheck.sh /srv/conduit/
+COPY ./docker/healthcheck.sh /srv/conduit/healthcheck.sh
 HEALTHCHECK --start-period=5s --interval=5s CMD ./healthcheck.sh
 
 # Copy over the actual Conduit binary from the builder stage
-COPY --from=builder /usr/src/conduit/target/release/conduit /srv/conduit/
+COPY --from=builder /usr/src/conduit/target/release/conduit /srv/conduit/conduit
 
 # Improve security: Don't run stuff as root, that does not need to run as root:
 # Add www-data user and group with UID 82, as used by alpine

@@ -47,7 +47,7 @@ LABEL org.opencontainers.image.created=${CREATED} \
 RUN mkdir -p /srv/conduit/.local/share/conduit
 
 # Test if Conduit is still alive, uses the same endpoint as Element
-COPY ./docker/healthcheck.sh /srv/conduit/
+COPY ./docker/healthcheck.sh /srv/conduit/healthcheck.sh
 HEALTHCHECK --start-period=5s --interval=5s CMD ./healthcheck.sh
 
 
