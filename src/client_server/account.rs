@@ -11,10 +11,9 @@ use ruma::{
         error::ErrorKind,
         r0::{
             account::{
-                change_password, deactivate, get_username_availability, register, whoami,
-                ThirdPartyIdRemovalStatus,
+                change_password, deactivate, get_3pids, get_username_availability, register,
+                whoami, ThirdPartyIdRemovalStatus,
             },
-            contact::get_contacts,
             uiaa::{AuthFlow, AuthType, UiaaInfo},
         },
     },
@@ -282,7 +281,7 @@ pub async fn register_route(
         let mut content = RoomCreateEventContent::new(conduit_user.clone());
         content.federate = true;
         content.predecessor = None;
-        content.room_version = RoomVersionId::Version6;
+        content.room_version = RoomVersionId::V6;
 
         // 1. The room create event
         db.rooms.build_and_append_pdu(
@@ -433,7 +432,7 @@ pub async fn register_route(
         )?;
 
         // Room alias
-        let alias: RoomAliasId = format!("#admins:{}", db.globals.server_name())
+        let alias: Box<RoomAliasId> = format!("#admins:{}", db.globals.server_name())
             .try_into()
             .expect("#admins:server_name is a valid alias name");
 
@@ -757,9 +756,9 @@ pub async fn deactivate_route(
     get("/_matrix/client/r0/account/3pid", data = "<body>")
 )]
 pub async fn third_party_route(
-    body: Ruma<get_contacts::Request>,
-) -> ConduitResult<get_contacts::Response> {
+    body: Ruma<get_3pids::Request>,
+) -> ConduitResult<get_3pids::Response> {
     let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(get_contacts::Response::new(Vec::new()).into())
+    Ok(get_3pids::Response::new(Vec::new()).into())
 }

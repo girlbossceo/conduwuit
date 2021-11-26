@@ -234,7 +234,7 @@ pub fn get_actions<'a>(
     db: &Database,
 ) -> Result<&'a [Action]> {
     let ctx = PushConditionRoomCtx {
-        room_id: room_id.clone(),
+        room_id: room_id.to_owned(),
         member_count: 10_u32.into(), // TODO: get member count efficiently
         user_display_name: db
             .users
@@ -277,7 +277,7 @@ async fn send_notice(
     let mut data_minus_url = pusher.data.clone();
     // The url must be stripped off according to spec
     data_minus_url.url = None;
-    device.data = Some(data_minus_url);
+    device.data = data_minus_url;
 
     // Tweaks are only added if the format is NOT event_id_only
     if !event_id_only {

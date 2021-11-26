@@ -397,7 +397,7 @@ impl Sending {
             // Because synapse resyncs, we can just insert dummy data
             let edu = Edu::DeviceListUpdate(DeviceListUpdateContent {
                 user_id,
-                device_id: device_id!("dummy"),
+                device_id: device_id!("dummy").to_owned(),
                 device_display_name: Some("Dummy".to_owned()),
                 stream_id: uint!(1),
                 prev_id: Vec::new(),
@@ -584,7 +584,7 @@ impl Sending {
                     }
 
                     let userid =
-                        UserId::try_from(utils::string_from_bytes(user).map_err(|_| {
+                        Box::<UserId>::try_from(utils::string_from_bytes(user).map_err(|_| {
                             (
                                 kind.clone(),
                                 Error::bad_database("Invalid push user string in db."),

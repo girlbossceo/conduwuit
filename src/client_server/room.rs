@@ -88,14 +88,17 @@ pub async fn create_room_route(
         ));
     }
 
-    let alias: Option<RoomAliasId> =
+    let alias: Option<Box<RoomAliasId>> =
         body.room_alias_name
             .as_ref()
             .map_or(Ok(None), |localpart| {
                 // TODO: Check for invalid characters and maximum length
-                let alias =
-                    RoomAliasId::try_from(format!("#{}:{}", localpart, db.globals.server_name()))
-                        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
+                let alias = Box::<RoomAliasId>::try_from(format!(
+                    "#{}:{}",
+                    localpart,
+                    db.globals.server_name(),
+                ))
+                .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
 
                 if db.rooms.id_from_alias(&alias)?.is_some() {
                     Err(Error::BadRequest(
@@ -109,7 +112,7 @@ pub async fn create_room_route(
 
     let room_version = match body.room_version.clone() {
         Some(room_version) => {
-            if room_version == RoomVersionId::Version5 || room_version == RoomVersionId::Version6 {
+            if room_version == RoomVersionId::V5 || room_version == RoomVersionId::V6 {
                 room_version
             } else {
                 return Err(Error::BadRequest(
@@ -118,7 +121,7 @@ pub async fn create_room_route(
                 ));
             }
         }
-        None => RoomVersionId::Version6,
+        None => RoomVersionId::V6,
     };
 
     let content = match &body.creation_content {
@@ -164,7 +167,7 @@ pub async fn create_room_route(
             .get(),
     );
 
-    if let Err(_) = de_result {
+    if de_result.is_err() {
         return Err(Error::BadRequest(
             ErrorKind::BadJson,
             "Invalid creation content",
@@ -269,7 +272,7 @@ pub async fn create_room_route(
             PduBuilder {
                 event_type: EventType::RoomCanonicalAlias,
                 content: to_raw_value(&RoomCanonicalAliasEventContent {
-                    alias: Some(room_alias_id.clone()),
+                    alias: Some(room_alias_id.to_owned()),
                     alt_aliases: vec![],
                 })
                 .expect("We checked that alias earlier, it must be fine"),
@@ -505,10 +508,7 @@ pub async fn upgrade_room_route(
 ) -> ConduitResult<upgrade_room::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if !matches!(
-        body.new_version,
-        RoomVersionId::Version5 | RoomVersionId::Version6
-    ) {
+    if !matches!(body.new_version, RoomVersionId::V5 | RoomVersionId::V6) {
         return Err(Error::BadRequest(
             ErrorKind::UnsupportedRoomVersion,
             "This server does not support that room version.",
@@ -605,7 +605,7 @@ pub async fn upgrade_room_route(
             .get(),
     );
 
-    if let Err(_) = de_result {
+    if de_result.is_err() {
         return Err(Error::BadRequest(
             ErrorKind::BadJson,
             "Error forming creation event",

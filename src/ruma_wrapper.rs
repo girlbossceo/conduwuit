@@ -29,7 +29,7 @@ use {
 /// first.
 pub struct Ruma<T: Outgoing> {
     pub body: T::Incoming,
-    pub sender_user: Option<UserId>,
+    pub sender_user: Option<Box<UserId>>,
     pub sender_device: Option<Box<DeviceId>>,
     pub sender_servername: Option<Box<ServerName>>,
     // This is None when body is not a valid string
@@ -86,7 +86,7 @@ where
                 registration
                     .get("as_token")
                     .and_then(|as_token| as_token.as_str())
-                    .map_or(false, |as_token| token.as_deref() == Some(as_token))
+                    .map_or(false, |as_token| token == Some(as_token))
             }) {
             match metadata.authentication {
                 AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
@@ -103,7 +103,7 @@ where
                             .unwrap()
                         },
                         |string| {
-                            UserId::try_from(string.expect("parsing to string always works"))
+                            Box::<UserId>::try_from(string.expect("parsing to string always works"))
                                 .unwrap()
                         },
                     );

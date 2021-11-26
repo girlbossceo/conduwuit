@@ -64,7 +64,7 @@ pub async fn join_room_by_id_route(
         .filter_map(|event| serde_json::from_str(event.json().get()).ok())
         .filter_map(|event: serde_json::Value| event.get("sender").cloned())
         .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
-        .filter_map(|sender| UserId::try_from(sender).ok())
+        .filter_map(|sender| Box::<UserId>::try_from(sender).ok())
         .map(|user| user.server_name().to_owned())
         .collect();
 
@@ -72,7 +72,7 @@ pub async fn join_room_by_id_route(
 
     let ret = join_room_by_id_helper(
         &db,
-        body.sender_user.as_ref(),
+        body.sender_user.as_deref(),
         &body.room_id,
         &servers,
         body.third_party_signed.as_ref(),
@@ -101,7 +101,7 @@ pub async fn join_room_by_id_or_alias_route(
 ) -> ConduitResult<join_room_by_id_or_alias::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let (servers, room_id) = match RoomId::try_from(body.room_id_or_alias.clone()) {
+    let (servers, room_id) = match Box::<RoomId>::try_from(body.room_id_or_alias.clone()) {
         Ok(room_id) => {
             let mut servers: HashSet<_> = db
                 .rooms
@@ -111,7 +111,7 @@ pub async fn join_room_by_id_or_alias_route(
                 .filter_map(|event| serde_json::from_str(event.json().get()).ok())
                 .filter_map(|event: serde_json::Value| event.get("sender").cloned())
                 .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
-                .filter_map(|sender| UserId::try_from(sender).ok())
+                .filter_map(|sender| Box::<UserId>::try_from(sender).ok())
                 .map(|user| user.server_name().to_owned())
                 .collect();
 
@@ -127,7 +127,7 @@ pub async fn join_room_by_id_or_alias_route(
 
     let join_room_response = join_room_by_id_helper(
         &db,
-        body.sender_user.as_ref(),
+        body.sender_user.as_deref(),
         &room_id,
         &servers,
         body.third_party_signed.as_ref(),
@@ -531,7 +531,7 @@ async fn join_room_by_id_helper(
             .roomid_mutex_state
             .write()
             .unwrap()
-            .entry(room_id.clone())
+            .entry(room_id.to_owned())
             .or_default(),
     );
     let state_lock = mutex_state.lock().await;
@@ -551,7 +551,7 @@ async fn join_room_by_id_helper(
                     federation::membership::create_join_event_template::v1::Request {
                         room_id,
                         user_id: sender_user,
-                        ver: &[RoomVersionId::Version5, RoomVersionId::Version6],
+                        ver: &[RoomVersionId::V5, RoomVersionId::V6],
                     },
                 )
                 .await;
@@ -567,8 +567,7 @@ async fn join_room_by_id_helper(
 
         let room_version = match make_join_response.room_version {
             Some(room_version)
-                if room_version == RoomVersionId::Version5
-                    || room_version == RoomVersionId::Version6 =>
+                if room_version == RoomVersionId::V5 || room_version == RoomVersionId::V6 =>
             {
                 room_version
             }
@@ -620,7 +619,7 @@ async fn join_room_by_id_helper(
         .expect("event is valid, we just created it");
 
         // Generate event id
-        let event_id = EventId::try_from(&*format!(
+        let event_id = Box::<EventId>::try_from(&*format!(
             "${}",
             ruma::signatures::reference_hash(&join_event_stub, &room_version)
                 .expect("ruma can calculate reference hashes")
@@ -776,7 +775,7 @@ async fn join_room_by_id_helper(
 
     db.flush()?;
 
-    Ok(join_room_by_id::Response::new(room_id.clone()).into())
+    Ok(join_room_by_id::Response::new(room_id.to_owned()).into())
 }
 
 fn validate_and_add_event_id(
@@ -784,12 +783,12 @@ fn validate_and_add_event_id(
     room_version: &RoomVersionId,
     pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
     db: &Database,
-) -> Result<(EventId, CanonicalJsonObject)> {
+) -> Result<(Box<EventId>, CanonicalJsonObject)> {
     let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
         error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
-    let event_id = EventId::try_from(&*format!(
+    let event_id = Box::<EventId>::try_from(&*format!(
         "${}",
         ruma::signatures::reference_hash(&value, room_version)
             .expect("ruma can calculate reference hashes")
@@ -856,7 +855,7 @@ pub(crate) async fn invite_helper<'a>(
                     .roomid_mutex_state
                     .write()
                     .unwrap()
-                    .entry(room_id.clone())
+                    .entry(room_id.to_owned())
                     .or_default(),
             );
             let state_lock = mutex_state.lock().await;
@@ -892,9 +891,7 @@ pub(crate) async fn invite_helper<'a>(
 
             // If there was no create event yet, assume we are creating a version 6 room right now
             let room_version_id = create_event_content
-                .map_or(RoomVersionId::Version6, |create_event| {
-                    create_event.room_version
-                });
+                .map_or(RoomVersionId::V6, |create_event| create_event.room_version);
             let room_version =
                 RoomVersion::new(&room_version_id).expect("room version is supported");
 
@@ -939,9 +936,9 @@ pub(crate) async fn invite_helper<'a>(
             }
 
             let pdu = PduEvent {
-                event_id: ruma::event_id!("$thiswillbefilledinlater"),
-                room_id: room_id.clone(),
-                sender: sender_user.clone(),
+                event_id: ruma::event_id!("$thiswillbefilledinlater").to_owned(),
+                room_id: room_id.to_owned(),
+                sender: sender_user.to_owned(),
                 origin_server_ts: utils::millis_since_unix_epoch()
                     .try_into()
                     .expect("time is valid"),
@@ -1014,7 +1011,7 @@ pub(crate) async fn invite_helper<'a>(
         };
 
         // Generate event id
-        let expected_event_id = EventId::try_from(&*format!(
+        let expected_event_id = Box::<EventId>::try_from(&*format!(
             "${}",
             ruma::signatures::reference_hash(&pdu_json, &room_version_id)
                 .expect("ruma can calculate reference hashes")
@@ -1100,7 +1097,7 @@ pub(crate) async fn invite_helper<'a>(
             .roomid_mutex_state
             .write()
             .unwrap()
-            .entry(room_id.clone())
+            .entry(room_id.to_owned())
             .or_default(),
     );
     let state_lock = mutex_state.lock().await;

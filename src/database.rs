@@ -477,7 +477,8 @@ impl Database {
                 // Set room member count
                 for (roomid, _) in db.rooms.roomid_shortstatehash.iter() {
                     let room_id =
-                        RoomId::try_from(utils::string_from_bytes(&roomid).unwrap()).unwrap();
+                        Box::<RoomId>::try_from(utils::string_from_bytes(&roomid).unwrap())
+                            .unwrap();
 
                     db.rooms.update_joined_count(&room_id, &db)?;
                 }
@@ -489,7 +490,7 @@ impl Database {
 
             if db.globals.database_version()? < 7 {
                 // Upgrade state store
-                let mut last_roomstates: HashMap<RoomId, u64> = HashMap::new();
+                let mut last_roomstates: HashMap<Box<RoomId>, u64> = HashMap::new();
                 let mut current_sstatehash: Option<u64> = None;
                 let mut current_room = None;
                 let mut current_state = HashSet::new();
@@ -570,7 +571,7 @@ impl Database {
                         if let Some(current_sstatehash) = current_sstatehash {
                             handle_state(
                                 current_sstatehash,
-                                current_room.as_ref().unwrap(),
+                                current_room.as_deref().unwrap(),
                                 current_state,
                                 &mut last_roomstates,
                             )?;
@@ -587,7 +588,7 @@ impl Database {
                             .unwrap()
                             .unwrap();
                         let event_id =
-                            EventId::try_from(utils::string_from_bytes(&event_id).unwrap())
+                            Box::<EventId>::try_from(utils::string_from_bytes(&event_id).unwrap())
                                 .unwrap();
                         let pdu = db.rooms.get_pdu(&event_id).unwrap().unwrap();
 
@@ -604,7 +605,7 @@ impl Database {
                 if let Some(current_sstatehash) = current_sstatehash {
                     handle_state(
                         current_sstatehash,
-                        current_room.as_ref().unwrap(),
+                        current_room.as_deref().unwrap(),
                         current_state,
                         &mut last_roomstates,
                     )?;

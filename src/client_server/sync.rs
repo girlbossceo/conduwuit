@@ -54,15 +54,17 @@ use rocket::{get, tokio};
 /// `since` will be cached
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/sync", data = "<body>")
+    get("/_matrix/client/r0/sync", data = "<req>")
 )]
-#[tracing::instrument(skip(db, body))]
+#[tracing::instrument(skip(db, req))]
 pub async fn sync_events_route(
     db: DatabaseGuard,
-    body: Ruma<sync_events::Request<'_>>,
+    req: Ruma<sync_events::Request<'_>>,
 ) -> Result<RumaResponse<sync_events::Response>, RumaResponse<UiaaResponse>> {
-    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
+    let body = req.body;
+
+    let sender_user = req.sender_user.expect("user is authenticated");
+    let sender_device = req.sender_device.expect("user is authenticated");
 
     let arc_db = Arc::new(db);
 
@@ -132,7 +134,7 @@ pub async fn sync_events_route(
 
 async fn sync_helper_wrapper(
     db: Arc<DatabaseGuard>,
-    sender_user: UserId,
+    sender_user: Box<UserId>,
     sender_device: Box<DeviceId>,
     since: Option<String>,
     full_state: bool,
@@ -176,7 +178,7 @@ async fn sync_helper_wrapper(
 
 async fn sync_helper(
     db: Arc<DatabaseGuard>,
-    sender_user: UserId,
+    sender_user: Box<UserId>,
     sender_device: Box<DeviceId>,
     since: Option<String>,
     full_state: bool,
@@ -296,9 +298,10 @@ async fn sync_helper(
                             })?;
 
                         if let Some(state_key) = &pdu.state_key {
-                            let user_id = UserId::try_from(state_key.clone()).map_err(|_| {
-                                Error::bad_database("Invalid UserId in member PDU.")
-                            })?;
+                            let user_id =
+                                Box::<UserId>::try_from(state_key.clone()).map_err(|_| {
+                                    Error::bad_database("Invalid UserId in member PDU.")
+                                })?;
 
                             // The membership was and still is invite or join
                             if matches!(
@@ -424,7 +427,7 @@ async fn sync_helper(
                     }
 
                     if let Some(state_key) = &state_event.state_key {
-                        let user_id = UserId::try_from(state_key.clone())
+                        let user_id = Box::<UserId>::try_from(state_key.clone())
                             .map_err(|_| Error::bad_database("Invalid UserId in member PDU."))?;
 
                         if user_id == sender_user {
@@ -793,7 +796,7 @@ fn share_encrypted_room(
 ) -> Result<bool> {
     Ok(db
         .rooms
-        .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])?
+        .get_shared_rooms(vec![sender_user.to_owned(), user_id.to_owned()])?
         .filter_map(|r| r.ok())
         .filter(|room_id| room_id != ignore_room)
         .filter_map(|other_room_id| {

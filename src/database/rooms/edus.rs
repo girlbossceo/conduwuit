@@ -76,8 +76,13 @@ impl RoomEdus {
         &'a self,
         room_id: &RoomId,
         since: u64,
-    ) -> impl Iterator<Item = Result<(UserId, u64, Raw<ruma::events::AnySyncEphemeralRoomEvent>)>> + 'a
-    {
+    ) -> impl Iterator<
+        Item = Result<(
+            Box<UserId>,
+            u64,
+            Raw<ruma::events::AnySyncEphemeralRoomEvent>,
+        )>,
+    > + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
         let prefix2 = prefix.clone();
@@ -92,7 +97,7 @@ impl RoomEdus {
                 let count =
                     utils::u64_from_bytes(&k[prefix.len()..prefix.len() + mem::size_of::<u64>()])
                         .map_err(|_| Error::bad_database("Invalid readreceiptid count in db."))?;
-                let user_id = UserId::try_from(
+                let user_id = Box::<UserId>::try_from(
                     utils::string_from_bytes(&k[prefix.len() + mem::size_of::<u64>() + 1..])
                         .map_err(|_| {
                             Error::bad_database("Invalid readreceiptid userid bytes in db.")
@@ -309,7 +314,7 @@ impl RoomEdus {
             .typingid_userid
             .scan_prefix(prefix)
             .map(|(_, user_id)| {
-                UserId::try_from(utils::string_from_bytes(&user_id).map_err(|_| {
+                Box::<UserId>::try_from(utils::string_from_bytes(&user_id).map_err(|_| {
                     Error::bad_database("User ID in typingid_userid is invalid unicode.")
                 })?)
                 .map_err(|_| Error::bad_database("User ID in typingid_userid is invalid."))
@@ -449,7 +454,7 @@ impl RoomEdus {
         {
             // Send new presence events to set the user offline
             let count = globals.next_count()?.to_be_bytes();
-            let user_id = utils::string_from_bytes(&user_id_bytes)
+            let user_id: Box<_> = utils::string_from_bytes(&user_id_bytes)
                 .map_err(|_| {
                     Error::bad_database("Invalid UserId bytes in userid_lastpresenceupdate.")
                 })?
@@ -475,7 +480,7 @@ impl RoomEdus {
                             presence: PresenceState::Offline,
                             status_msg: None,
                         },
-                        sender: user_id.clone(),
+                        sender: user_id.to_owned(),
                     })
                     .expect("PresenceEvent can be serialized"),
                 )?;
@@ -498,7 +503,7 @@ impl RoomEdus {
         since: u64,
         _rooms: &super::Rooms,
         _globals: &super::super::globals::Globals,
-    ) -> Result<HashMap<UserId, PresenceEvent>> {
+    ) -> Result<HashMap<Box<UserId>, PresenceEvent>> {
         //self.presence_maintain(rooms, globals)?;
 
         let mut prefix = room_id.as_bytes().to_vec();
@@ -513,7 +518,7 @@ impl RoomEdus {
             .iter_from(&*first_possible_edu, false)
             .take_while(|(key, _)| key.starts_with(&prefix))
         {
-            let user_id = UserId::try_from(
+            let user_id = Box::<UserId>::try_from(
                 utils::string_from_bytes(
                     key.rsplit(|&b| b == 0xff)
                         .next()

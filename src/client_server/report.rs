@@ -57,8 +57,7 @@ pub async fn report_event_route(
                 Report Score: {}\n\
                 Report Reason: {}",
                 sender_user, pdu.event_id, pdu.room_id, pdu.sender, body.score, body.reason
-            )
-            .to_owned(),
+            ),
             format!(
                 "<details><summary>Report received from: <a href=\"https://matrix.to/#/{0}\">{0}\
                 </a></summary><ul><li>Event Info<ul><li>Event ID: <code>{1}</code>\
@@ -72,8 +71,7 @@ pub async fn report_event_route(
                 pdu.sender,
                 body.score,
                 RawStr::new(&body.reason).html_escape()
-            )
-            .to_owned(),
+            ),
         ),
     ));
 

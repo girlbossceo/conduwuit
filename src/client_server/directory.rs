@@ -167,7 +167,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                 other_server,
                 federation::directory::get_public_rooms_filtered::v1::Request {
                     limit,
-                    since: since.as_deref(),
+                    since,
                     filter: Filter {
                         generic_search_term: filter.generic_search_term.as_deref(),
                     },

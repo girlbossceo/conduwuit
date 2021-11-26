@@ -67,7 +67,7 @@ pub async fn send_message_event_route(
             ));
         }
 
-        let event_id = EventId::try_from(
+        let event_id = Box::<EventId>::try_from(
             utils::string_from_bytes(&response)
                 .map_err(|_| Error::bad_database("Invalid txnid bytes in database."))?,
         )

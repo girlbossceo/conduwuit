@@ -63,11 +63,11 @@ impl Users {
         globals: &super::globals::Globals,
     ) -> Result<bool> {
         let admin_room_alias_id =
-            RoomAliasId::try_from(format!("#admins:{}", globals.server_name()))
+            Box::<RoomAliasId>::try_from(format!("#admins:{}", globals.server_name()))
                 .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
         let admin_room_id = rooms.id_from_alias(&admin_room_alias_id)?.unwrap();
 
-        Ok(rooms.is_joined(user_id, &admin_room_id)?)
+        rooms.is_joined(user_id, &admin_room_id)
     }
 
     /// Create a new user account on this homeserver.
@@ -85,7 +85,7 @@ impl Users {
 
     /// Find out which user an access token belongs to.
     #[tracing::instrument(skip(self, token))]
-    pub fn find_from_token(&self, token: &str) -> Result<Option<(UserId, String)>> {
+    pub fn find_from_token(&self, token: &str) -> Result<Option<(Box<UserId>, String)>> {
         self.token_userdeviceid
             .get(token.as_bytes())?
             .map_or(Ok(None), |bytes| {
@@ -98,9 +98,11 @@ impl Users {
                 })?;
 
                 Ok(Some((
-                    UserId::try_from(utils::string_from_bytes(user_bytes).map_err(|_| {
-                        Error::bad_database("User ID in token_userdeviceid is invalid unicode.")
-                    })?)
+                    Box::<UserId>::try_from(utils::string_from_bytes(user_bytes).map_err(
+                        |_| {
+                            Error::bad_database("User ID in token_userdeviceid is invalid unicode.")
+                        },
+                    )?)
                     .map_err(|_| {
                         Error::bad_database("User ID in token_userdeviceid is invalid.")
                     })?,
@@ -113,9 +115,9 @@ impl Users {
 
     /// Returns an iterator over all users on this homeserver.
     #[tracing::instrument(skip(self))]
-    pub fn iter(&self) -> impl Iterator<Item = Result<UserId>> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Result<Box<UserId>>> + '_ {
         self.userid_password.iter().map(|(bytes, _)| {
-            UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+            Box::<UserId>::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
                 Error::bad_database("User ID in userid_password is invalid unicode.")
             })?)
             .map_err(|_| Error::bad_database("User ID in userid_password is invalid."))
@@ -181,20 +183,21 @@ impl Users {
 
     /// Get the avatar_url of a user.
     #[tracing::instrument(skip(self, user_id))]
-    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<MxcUri>> {
+    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<Box<MxcUri>>> {
         self.userid_avatarurl
             .get(user_id.as_bytes())?
             .map(|bytes| {
                 let s = utils::string_from_bytes(&bytes)
                     .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))?;
-                MxcUri::try_from(s).map_err(|_| Error::bad_database("Avatar URL in db is invalid."))
+                Box::<MxcUri>::try_from(s)
+                    .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))
             })
             .transpose()
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
     #[tracing::instrument(skip(self, user_id, avatar_url))]
-    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<MxcUri>) -> Result<()> {
+    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<Box<MxcUri>>) -> Result<()> {
         if let Some(avatar_url) = avatar_url {
             self.userid_avatarurl
                 .insert(user_id.as_bytes(), avatar_url.to_string().as_bytes())?;
@@ -409,7 +412,7 @@ impl Users {
         device_id: &DeviceId,
         key_algorithm: &DeviceKeyAlgorithm,
         globals: &super::globals::Globals,
-    ) -> Result<Option<(DeviceKeyId, OneTimeKey)>> {
+    ) -> Result<Option<(Box<DeviceKeyId>, OneTimeKey)>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(device_id.as_bytes());
@@ -459,7 +462,7 @@ impl Users {
                 .scan_prefix(userdeviceid)
                 .map(|(bytes, _)| {
                     Ok::<_, Error>(
-                        serde_json::from_slice::<DeviceKeyId>(
+                        serde_json::from_slice::<Box<DeviceKeyId>>(
                             &*bytes.rsplit(|&b| b == 0xff).next().ok_or_else(|| {
                                 Error::bad_database("OneTimeKey ID in db is invalid.")
                             })?,
@@ -632,7 +635,7 @@ impl Users {
             .ok_or_else(|| Error::bad_database("key in keyid_key has no signatures field."))?
             .as_object_mut()
             .ok_or_else(|| Error::bad_database("key in keyid_key has invalid signatures field."))?
-            .entry(sender_id.clone())
+            .entry(sender_id.to_owned())
             .or_insert_with(|| serde_json::Map::new().into());
 
         signatures
@@ -657,7 +660,7 @@ impl Users {
         user_or_room_id: &str,
         from: u64,
         to: Option<u64>,
-    ) -> impl Iterator<Item = Result<UserId>> + 'a {
+    ) -> impl Iterator<Item = Result<Box<UserId>>> + 'a {
         let mut prefix = user_or_room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -683,7 +686,7 @@ impl Users {
                     }
             })
             .map(|(_, bytes)| {
-                UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                Box::<UserId>::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("User ID in devicekeychangeid_userid is invalid unicode.")
                 })?)
                 .map_err(|_| Error::bad_database("User ID in devicekeychangeid_userid is invalid."))
