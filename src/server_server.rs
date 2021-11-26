@@ -396,10 +396,7 @@ async fn find_actual_destination(
                                         }
 
                                         if let Some(port) = force_port {
-                                            FedDest::Named(
-                                                delegated_hostname,
-                                                format!(":{}", port.to_string()),
-                                            )
+                                            FedDest::Named(delegated_hostname, format!(":{}", port))
                                         } else {
                                             add_port_to_hostname(&delegated_hostname)
                                         }
@@ -432,10 +429,7 @@ async fn find_actual_destination(
                                 }
 
                                 if let Some(port) = force_port {
-                                    FedDest::Named(
-                                        hostname.clone(),
-                                        format!(":{}", port.to_string()),
-                                    )
+                                    FedDest::Named(hostname.clone(), format!(":{}", port))
                                 } else {
                                     add_port_to_hostname(&hostname)
                                 }
