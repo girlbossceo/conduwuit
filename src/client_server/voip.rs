@@ -49,8 +49,8 @@ pub async fn turn_server_route(
     };
 
     Ok(get_turn_server_info::Response {
-        username: username,
-        password: password,
+        username,
+        password,
         uris: db.globals.turn_uris().to_vec(),
         ttl: Duration::from_secs(db.globals.turn_ttl()),
     }
