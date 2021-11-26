@@ -64,7 +64,7 @@ pub async fn join_room_by_id_route(
         .filter_map(|event| serde_json::from_str(event.json().get()).ok())
         .filter_map(|event: serde_json::Value| event.get("sender").cloned())
         .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
-        .filter_map(|sender| Box::<UserId>::try_from(sender).ok())
+        .filter_map(|sender| UserId::parse(sender).ok())
         .map(|user| user.server_name().to_owned())
         .collect();
 
@@ -92,16 +92,17 @@ pub async fn join_room_by_id_route(
 /// - If the server does not know about the room: asks other servers over federation
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/join/<_>", data = "<body>")
+    post("/_matrix/client/r0/join/<_>", data = "<req>")
 )]
-#[tracing::instrument(skip(db, body))]
+#[tracing::instrument(skip(db, req))]
 pub async fn join_room_by_id_or_alias_route(
     db: DatabaseGuard,
-    body: Ruma<join_room_by_id_or_alias::Request<'_>>,
+    req: Ruma<join_room_by_id_or_alias::Request<'_>>,
 ) -> ConduitResult<join_room_by_id_or_alias::Response> {
-    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let body = req.body;
+    let sender_user = req.sender_user.as_ref().expect("user is authenticated");
 
-    let (servers, room_id) = match Box::<RoomId>::try_from(body.room_id_or_alias.clone()) {
+    let (servers, room_id) = match Box::<RoomId>::try_from(body.room_id_or_alias) {
         Ok(room_id) => {
             let mut servers: HashSet<_> = db
                 .rooms
@@ -111,7 +112,7 @@ pub async fn join_room_by_id_or_alias_route(
                 .filter_map(|event| serde_json::from_str(event.json().get()).ok())
                 .filter_map(|event: serde_json::Value| event.get("sender").cloned())
                 .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
-                .filter_map(|sender| Box::<UserId>::try_from(sender).ok())
+                .filter_map(|sender| UserId::parse(sender).ok())
                 .map(|user| user.server_name().to_owned())
                 .collect();
 
@@ -127,7 +128,7 @@ pub async fn join_room_by_id_or_alias_route(
 
     let join_room_response = join_room_by_id_helper(
         &db,
-        body.sender_user.as_deref(),
+        req.sender_user.as_deref(),
         &room_id,
         &servers,
         body.third_party_signed.as_ref(),
@@ -619,12 +620,13 @@ async fn join_room_by_id_helper(
         .expect("event is valid, we just created it");
 
         // Generate event id
-        let event_id = Box::<EventId>::try_from(&*format!(
+        let event_id = format!(
             "${}",
             ruma::signatures::reference_hash(&join_event_stub, &room_version)
                 .expect("ruma can calculate reference hashes")
-        ))
-        .expect("ruma's reference hashes are valid event ids");
+        );
+        let event_id = <&EventId>::try_from(event_id.as_str())
+            .expect("ruma's reference hashes are valid event ids");
 
         // Add event_id back
         join_event_stub.insert(
@@ -642,7 +644,7 @@ async fn join_room_by_id_helper(
                 remote_server,
                 federation::membership::create_join_event::v2::Request {
                     room_id,
-                    event_id: &event_id,
+                    event_id,
                     pdu: &PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
                 },
             )
@@ -650,7 +652,7 @@ async fn join_room_by_id_helper(
 
         db.rooms.get_or_create_shortroomid(room_id, &db.globals)?;
 
-        let pdu = PduEvent::from_id_val(&event_id, join_event.clone())
+        let pdu = PduEvent::from_id_val(event_id, join_event.clone())
             .map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
 
         let mut state = HashMap::new();
@@ -788,7 +790,7 @@ fn validate_and_add_event_id(
         error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
-    let event_id = Box::<EventId>::try_from(&*format!(
+    let event_id = EventId::parse(format!(
         "${}",
         ruma::signatures::reference_hash(&value, room_version)
             .expect("ruma can calculate reference hashes")
@@ -1011,12 +1013,13 @@ pub(crate) async fn invite_helper<'a>(
         };
 
         // Generate event id
-        let expected_event_id = Box::<EventId>::try_from(&*format!(
+        let expected_event_id = format!(
             "${}",
             ruma::signatures::reference_hash(&pdu_json, &room_version_id)
                 .expect("ruma can calculate reference hashes")
-        ))
-        .expect("ruma's reference hashes are valid event ids");
+        );
+        let expected_event_id = <&EventId>::try_from(expected_event_id.as_str())
+            .expect("ruma's reference hashes are valid event ids");
 
         let response = db
             .sending
@@ -1025,7 +1028,7 @@ pub(crate) async fn invite_helper<'a>(
                 user_id.server_name(),
                 create_invite::v2::Request {
                     room_id,
-                    event_id: &expected_event_id,
+                    event_id: expected_event_id,
                     room_version: &room_version_id,
                     event: &PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
                     invite_room_state: &invite_room_state,

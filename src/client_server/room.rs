@@ -26,12 +26,7 @@ use ruma::{
     RoomAliasId, RoomId, RoomVersionId,
 };
 use serde_json::{json, value::to_raw_value};
-use std::{
-    cmp::max,
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-    sync::Arc,
-};
+use std::{cmp::max, collections::BTreeMap, convert::TryInto, sync::Arc};
 use tracing::{info, warn};
 
 #[cfg(feature = "conduit_bin")]
@@ -93,12 +88,11 @@ pub async fn create_room_route(
             .as_ref()
             .map_or(Ok(None), |localpart| {
                 // TODO: Check for invalid characters and maximum length
-                let alias = Box::<RoomAliasId>::try_from(format!(
-                    "#{}:{}",
-                    localpart,
-                    db.globals.server_name(),
-                ))
-                .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
+                let alias =
+                    RoomAliasId::parse(format!("#{}:{}", localpart, db.globals.server_name()))
+                        .map_err(|_| {
+                            Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias.")
+                        })?;
 
                 if db.rooms.id_from_alias(&alias)?.is_some() {
                     Err(Error::BadRequest(

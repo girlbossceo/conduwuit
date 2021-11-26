@@ -6,7 +6,7 @@ use ruma::{
     },
     RoomId, UserId,
 };
-use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use super::abstraction::Tree;
 
@@ -231,7 +231,7 @@ impl KeyBackups {
                         Error::bad_database("backupkeyid_backup session_id is invalid.")
                     })?;
 
-                let room_id = Box::<RoomId>::try_from(
+                let room_id = RoomId::parse(
                     utils::string_from_bytes(parts.next().ok_or_else(|| {
                         Error::bad_database("backupkeyid_backup key is invalid.")
                     })?)

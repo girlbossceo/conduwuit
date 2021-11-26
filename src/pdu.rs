@@ -13,7 +13,7 @@ use serde_json::{
     json,
     value::{to_raw_value, RawValue as RawJsonValue},
 };
-use std::{cmp::Ordering, collections::BTreeMap, convert::TryFrom, ops::Deref};
+use std::{cmp::Ordering, collections::BTreeMap, convert::TryInto, ops::Deref};
 use tracing::warn;
 
 /// Content hashes of a PDU.
@@ -337,12 +337,13 @@ pub(crate) fn gen_event_id_canonical_json(
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
 
-    let event_id = Box::<EventId>::try_from(&*format!(
+    let event_id = format!(
         "${}",
         // Anything higher than version3 behaves the same
         ruma::signatures::reference_hash(&value, &RoomVersionId::V6)
             .expect("ruma can calculate reference hashes")
-    ))
+    )
+    .try_into()
     .expect("ruma's reference hashes are valid event ids");
 
     Ok((event_id, value))

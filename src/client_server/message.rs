@@ -5,13 +5,8 @@ use ruma::{
         r0::message::{get_message_events, send_message_event},
     },
     events::EventType,
-    EventId,
 };
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};
@@ -67,11 +62,10 @@ pub async fn send_message_event_route(
             ));
         }
 
-        let event_id = Box::<EventId>::try_from(
-            utils::string_from_bytes(&response)
-                .map_err(|_| Error::bad_database("Invalid txnid bytes in database."))?,
-        )
-        .map_err(|_| Error::bad_database("Invalid event id in txnid data."))?;
+        let event_id = utils::string_from_bytes(&response)
+            .map_err(|_| Error::bad_database("Invalid txnid bytes in database."))?
+            .try_into()
+            .map_err(|_| Error::bad_database("Invalid event id in txnid data."))?;
         return Ok(send_message_event::Response { event_id }.into());
     }
 

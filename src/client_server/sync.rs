@@ -10,7 +10,7 @@ use ruma::{
 };
 use std::{
     collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
-    convert::{TryFrom, TryInto},
+    convert::TryInto,
     sync::Arc,
     time::Duration,
 };
@@ -298,10 +298,9 @@ async fn sync_helper(
                             })?;
 
                         if let Some(state_key) = &pdu.state_key {
-                            let user_id =
-                                Box::<UserId>::try_from(state_key.clone()).map_err(|_| {
-                                    Error::bad_database("Invalid UserId in member PDU.")
-                                })?;
+                            let user_id = UserId::parse(state_key.clone()).map_err(|_| {
+                                Error::bad_database("Invalid UserId in member PDU.")
+                            })?;
 
                             // The membership was and still is invite or join
                             if matches!(
@@ -427,7 +426,7 @@ async fn sync_helper(
                     }
 
                     if let Some(state_key) = &state_event.state_key {
-                        let user_id = Box::<UserId>::try_from(state_key.clone())
+                        let user_id = UserId::parse(state_key.clone())
                             .map_err(|_| Error::bad_database("Invalid UserId in member PDU."))?;
 
                         if user_id == sender_user {

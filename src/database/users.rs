@@ -8,7 +8,7 @@ use ruma::{
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, RoomAliasId, UInt,
     UserId,
 };
-use std::{collections::BTreeMap, convert::TryFrom, mem, sync::Arc};
+use std::{collections::BTreeMap, convert::TryInto, mem, sync::Arc};
 use tracing::warn;
 
 use super::abstraction::Tree;
@@ -62,9 +62,8 @@ impl Users {
         rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<bool> {
-        let admin_room_alias_id =
-            Box::<RoomAliasId>::try_from(format!("#admins:{}", globals.server_name()))
-                .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
+        let admin_room_alias_id = RoomAliasId::parse(format!("#admins:{}", globals.server_name()))
+            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
         let admin_room_id = rooms.id_from_alias(&admin_room_alias_id)?.unwrap();
 
         rooms.is_joined(user_id, &admin_room_id)
@@ -98,11 +97,9 @@ impl Users {
                 })?;
 
                 Ok(Some((
-                    Box::<UserId>::try_from(utils::string_from_bytes(user_bytes).map_err(
-                        |_| {
-                            Error::bad_database("User ID in token_userdeviceid is invalid unicode.")
-                        },
-                    )?)
+                    UserId::parse(utils::string_from_bytes(user_bytes).map_err(|_| {
+                        Error::bad_database("User ID in token_userdeviceid is invalid unicode.")
+                    })?)
                     .map_err(|_| {
                         Error::bad_database("User ID in token_userdeviceid is invalid.")
                     })?,
@@ -117,7 +114,7 @@ impl Users {
     #[tracing::instrument(skip(self))]
     pub fn iter(&self) -> impl Iterator<Item = Result<Box<UserId>>> + '_ {
         self.userid_password.iter().map(|(bytes, _)| {
-            Box::<UserId>::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+            UserId::parse(utils::string_from_bytes(&bytes).map_err(|_| {
                 Error::bad_database("User ID in userid_password is invalid unicode.")
             })?)
             .map_err(|_| Error::bad_database("User ID in userid_password is invalid."))
@@ -189,7 +186,7 @@ impl Users {
             .map(|bytes| {
                 let s = utils::string_from_bytes(&bytes)
                     .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))?;
-                Box::<MxcUri>::try_from(s)
+                s.try_into()
                     .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))
             })
             .transpose()
@@ -686,7 +683,7 @@ impl Users {
                     }
             })
             .map(|(_, bytes)| {
-                Box::<UserId>::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                UserId::parse(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("User ID in devicekeychangeid_userid is invalid unicode.")
                 })?)
                 .map_err(|_| Error::bad_database("User ID in devicekeychangeid_userid is invalid."))

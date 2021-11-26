@@ -1,10 +1,10 @@
-use std::{convert::TryFrom, sync::Arc};
+use std::{convert::TryInto, sync::Arc};
 
 use crate::{pdu::PduBuilder, Database};
 use rocket::futures::{channel::mpsc, stream::StreamExt};
 use ruma::{
     events::{room::message::RoomMessageEventContent, EventType},
-    RoomAliasId, UserId,
+    UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{MutexGuard, RwLock, RwLockReadGuard};
@@ -33,18 +33,16 @@ impl Admin {
 
             let guard = db.read().await;
 
-            let conduit_user =
-                Box::<UserId>::try_from(format!("@conduit:{}", guard.globals.server_name()))
-                    .expect("@conduit:server_name is valid");
+            let conduit_user = UserId::parse(format!("@conduit:{}", guard.globals.server_name()))
+                .expect("@conduit:server_name is valid");
 
             let conduit_room = guard
                 .rooms
                 .id_from_alias(
-                    &Box::<RoomAliasId>::try_from(format!(
-                        "#admins:{}",
-                        guard.globals.server_name()
-                    ))
-                    .expect("#admins:server_name is a valid room alias"),
+                    format!("#admins:{}", guard.globals.server_name())
+                        .as_str()
+                        .try_into()
+                        .expect("#admins:server_name is a valid room alias"),
                 )
                 .unwrap();
 

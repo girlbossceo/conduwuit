@@ -11,7 +11,7 @@ use ruma::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    convert::{TryFrom, TryInto},
+    convert::TryInto,
     mem,
     sync::Arc,
 };
@@ -97,7 +97,7 @@ impl RoomEdus {
                 let count =
                     utils::u64_from_bytes(&k[prefix.len()..prefix.len() + mem::size_of::<u64>()])
                         .map_err(|_| Error::bad_database("Invalid readreceiptid count in db."))?;
-                let user_id = Box::<UserId>::try_from(
+                let user_id = UserId::parse(
                     utils::string_from_bytes(&k[prefix.len() + mem::size_of::<u64>() + 1..])
                         .map_err(|_| {
                             Error::bad_database("Invalid readreceiptid userid bytes in db.")
@@ -310,17 +310,13 @@ impl RoomEdus {
 
         let mut user_ids = HashSet::new();
 
-        for user_id in self
-            .typingid_userid
-            .scan_prefix(prefix)
-            .map(|(_, user_id)| {
-                Box::<UserId>::try_from(utils::string_from_bytes(&user_id).map_err(|_| {
-                    Error::bad_database("User ID in typingid_userid is invalid unicode.")
-                })?)
-                .map_err(|_| Error::bad_database("User ID in typingid_userid is invalid."))
-            })
-        {
-            user_ids.insert(user_id?);
+        for (_, user_id) in self.typingid_userid.scan_prefix(prefix) {
+            let user_id = UserId::parse(utils::string_from_bytes(&user_id).map_err(|_| {
+                Error::bad_database("User ID in typingid_userid is invalid unicode.")
+            })?)
+            .map_err(|_| Error::bad_database("User ID in typingid_userid is invalid."))?;
+
+            user_ids.insert(user_id);
         }
 
         Ok(SyncEphemeralRoomEvent {
@@ -518,7 +514,7 @@ impl RoomEdus {
             .iter_from(&*first_possible_edu, false)
             .take_while(|(key, _)| key.starts_with(&prefix))
         {
-            let user_id = Box::<UserId>::try_from(
+            let user_id = UserId::parse(
                 utils::string_from_bytes(
                     key.rsplit(|&b| b == 0xff)
                         .next()

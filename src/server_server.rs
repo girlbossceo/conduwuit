@@ -544,12 +544,11 @@ pub fn get_server_keys_route(db: DatabaseGuard) -> Json<String> {
         return Json("Federation is disabled.".to_owned());
     }
 
-    let mut verify_keys = BTreeMap::new();
+    let mut verify_keys: BTreeMap<Box<ServerSigningKeyId>, VerifyKey> = BTreeMap::new();
     verify_keys.insert(
-        Box::<ServerSigningKeyId>::try_from(
-            format!("ed25519:{}", db.globals.keypair().version()).as_str(),
-        )
-        .expect("found invalid server signing keys in DB"),
+        format!("ed25519:{}", db.globals.keypair().version())
+            .try_into()
+            .expect("found invalid server signing keys in DB"),
         VerifyKey {
             key: base64::encode_config(db.globals.keypair().public_key(), base64::STANDARD_NO_PAD),
         },
@@ -730,7 +729,7 @@ pub async fn send_transaction_message_route(
         // 0. Check the server is in the room
         let room_id = match value
             .get("room_id")
-            .and_then(|id| Box::<RoomId>::try_from(id.as_str()?).ok())
+            .and_then(|id| RoomId::parse(id.as_str()?).ok())
         {
             Some(id) => id,
             None => {
@@ -2354,10 +2353,10 @@ pub fn get_event_route(
         .and_then(|val| val.as_str())
         .ok_or_else(|| Error::bad_database("Invalid event in database"))?;
 
-    let room_id = Box::<RoomId>::try_from(room_id_str)
+    let room_id = <&RoomId>::try_from(room_id_str)
         .map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 
-    if !db.rooms.server_in_room(sender_servername, &room_id)? {
+    if !db.rooms.server_in_room(sender_servername, room_id)? {
         return Err(Error::BadRequest(ErrorKind::NotFound, "Event not found."));
     }
 
@@ -2408,7 +2407,7 @@ pub fn get_missing_events_route(
                 .and_then(|val| val.as_str())
                 .ok_or_else(|| Error::bad_database("Invalid event in database"))?;
 
-            let event_room_id = Box::<RoomId>::try_from(room_id_str)
+            let event_room_id = <&RoomId>::try_from(room_id_str)
                 .map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 
             if event_room_id != body.room_id {
@@ -2476,14 +2475,14 @@ pub fn get_event_authorization_route(
         .and_then(|val| val.as_str())
         .ok_or_else(|| Error::bad_database("Invalid event in database"))?;
 
-    let room_id = Box::<RoomId>::try_from(room_id_str)
+    let room_id = <&RoomId>::try_from(room_id_str)
         .map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 
-    if !db.rooms.server_in_room(sender_servername, &room_id)? {
+    if !db.rooms.server_in_room(sender_servername, room_id)? {
         return Err(Error::BadRequest(ErrorKind::NotFound, "Event not found."));
     }
 
-    let auth_chain_ids = get_auth_chain(&room_id, vec![Arc::from(&*body.event_id)], &db)?;
+    let auth_chain_ids = get_auth_chain(room_id, vec![Arc::from(&*body.event_id)], &db)?;
 
     Ok(get_event_authorization::v1::Response {
         auth_chain: auth_chain_ids
@@ -2948,7 +2947,7 @@ pub async fn create_invite_route(
     .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event."))?;
 
     // Generate event id
-    let event_id = Box::<EventId>::try_from(&*format!(
+    let event_id = EventId::parse(format!(
         "${}",
         ruma::signatures::reference_hash(&signed_event, &body.room_version)
             .expect("ruma can calculate reference hashes")
@@ -3224,7 +3223,7 @@ pub(crate) async fn fetch_required_signing_keys(
 
         let fetch_res = fetch_signing_keys(
             db,
-            &Box::<ServerName>::try_from(&**signature_server).map_err(|_| {
+            signature_server.as_str().try_into().map_err(|_| {
                 Error::BadServerResponse("Invalid servername in signatures of server response pdu.")
             })?,
             signature_ids,
@@ -3262,19 +3261,20 @@ fn get_server_keys_from_cache(
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
 
-    let event_id = Box::<EventId>::try_from(&*format!(
+    let event_id = format!(
         "${}",
         ruma::signatures::reference_hash(&value, room_version)
             .expect("ruma can calculate reference hashes")
-    ))
-    .expect("ruma's reference hashes are valid event ids");
+    );
+    let event_id = <&EventId>::try_from(event_id.as_str())
+        .expect("ruma's reference hashes are valid event ids");
 
     if let Some((time, tries)) = db
         .globals
         .bad_event_ratelimiter
         .read()
         .unwrap()
-        .get(&event_id)
+        .get(event_id)
     {
         // Exponential backoff
         let mut min_elapsed_duration = Duration::from_secs(30) * (*tries) * (*tries);
@@ -3308,7 +3308,7 @@ fn get_server_keys_from_cache(
         let contains_all_ids =
             |keys: &BTreeMap<String, String>| signature_ids.iter().all(|id| keys.contains_key(id));
 
-        let origin = &Box::<ServerName>::try_from(&**signature_server).map_err(|_| {
+        let origin = <&ServerName>::try_from(signature_server.as_str()).map_err(|_| {
             Error::BadServerResponse("Invalid servername in signatures of server response pdu.")
         })?;
 
@@ -3327,7 +3327,7 @@ fn get_server_keys_from_cache(
 
         if !contains_all_ids(&result) {
             trace!("Signing key not loaded for {}", origin);
-            servers.insert(origin.clone(), BTreeMap::new());
+            servers.insert(origin.to_owned(), BTreeMap::new());
         }
 
         pub_key_map.insert(origin.to_string(), result);

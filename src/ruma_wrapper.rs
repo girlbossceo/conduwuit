@@ -20,7 +20,6 @@ use {
     },
     ruma::api::{AuthScheme, IncomingRequest},
     std::collections::BTreeMap,
-    std::convert::TryFrom,
     std::io::Cursor,
     tracing::{debug, warn},
 };
@@ -103,8 +102,7 @@ where
                             .unwrap()
                         },
                         |string| {
-                            Box::<UserId>::try_from(string.expect("parsing to string always works"))
-                                .unwrap()
+                            UserId::parse(string.expect("parsing to string always works")).unwrap()
                         },
                     );
 
@@ -171,7 +169,7 @@ where
                         }
                     };
 
-                    let origin = match Box::<ServerName>::try_from(origin_str) {
+                    let origin = match ServerName::parse(origin_str) {
                         Ok(s) => s,
                         _ => {
                             warn!(

@@ -1,8 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};
@@ -396,9 +392,8 @@ pub async fn register_route(
         )?;
 
         // 6. Events implied by name and topic
-        let room_name =
-            Box::<RoomName>::try_from(format!("{} Admin Room", db.globals.server_name()))
-                .expect("Room name is valid");
+        let room_name = RoomName::parse(format!("{} Admin Room", db.globals.server_name()))
+            .expect("Room name is valid");
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomName,

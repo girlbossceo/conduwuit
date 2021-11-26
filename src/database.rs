@@ -476,11 +476,9 @@ impl Database {
             if db.globals.database_version()? < 6 {
                 // Set room member count
                 for (roomid, _) in db.rooms.roomid_shortstatehash.iter() {
-                    let room_id =
-                        Box::<RoomId>::try_from(utils::string_from_bytes(&roomid).unwrap())
-                            .unwrap();
-
-                    db.rooms.update_joined_count(&room_id, &db)?;
+                    let string = utils::string_from_bytes(&roomid).unwrap();
+                    let room_id = <&RoomId>::try_from(string.as_str()).unwrap();
+                    db.rooms.update_joined_count(room_id, &db)?;
                 }
 
                 db.globals.bump_database_version(6)?;
@@ -587,10 +585,9 @@ impl Database {
                             .get(&seventid)
                             .unwrap()
                             .unwrap();
-                        let event_id =
-                            Box::<EventId>::try_from(utils::string_from_bytes(&event_id).unwrap())
-                                .unwrap();
-                        let pdu = db.rooms.get_pdu(&event_id).unwrap().unwrap();
+                        let string = utils::string_from_bytes(&event_id).unwrap();
+                        let event_id = <&EventId>::try_from(string.as_str()).unwrap();
+                        let pdu = db.rooms.get_pdu(event_id).unwrap().unwrap();
 
                         if Some(&pdu.room_id) != current_room.as_ref() {
                             current_room = Some(pdu.room_id.clone());
