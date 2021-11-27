@@ -36,6 +36,8 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
+    fmt::Debug,
+    iter,
     mem::size_of,
     sync::{Arc, Mutex, RwLock},
     time::Instant,
@@ -1191,7 +1193,11 @@ impl Rooms {
     /// The provided `event_ids` become the new leaves, this allows a room to have multiple
     /// `prev_events`.
     #[tracing::instrument(skip(self))]
-    pub fn replace_pdu_leaves(&self, room_id: &RoomId, event_ids: &[Box<EventId>]) -> Result<()> {
+    pub fn replace_pdu_leaves<'a>(
+        &self,
+        room_id: &RoomId,
+        event_ids: impl IntoIterator<Item = &'a EventId> + Debug,
+    ) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -1255,11 +1261,11 @@ impl Rooms {
     ///
     /// Returns pdu id
     #[tracing::instrument(skip(self, pdu, pdu_json, leaves, db))]
-    pub fn append_pdu(
+    pub fn append_pdu<'a>(
         &self,
         pdu: &PduEvent,
         mut pdu_json: CanonicalJsonObject,
-        leaves: &[Box<EventId>],
+        leaves: impl IntoIterator<Item = &'a EventId> + Debug,
         db: &Database,
     ) -> Result<Vec<u8>> {
         let shortroomid = self.get_shortroomid(&pdu.room_id)?.expect("room exists");
@@ -2104,7 +2110,7 @@ impl Rooms {
             pdu_json,
             // Since this PDU references all pdu_leaves we can update the leaves
             // of the room
-            &[pdu.event_id.clone()],
+            iter::once(&*pdu.event_id),
             db,
         )?;
 

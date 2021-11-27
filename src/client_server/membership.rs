@@ -31,6 +31,7 @@ use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
     collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
     convert::{TryFrom, TryInto},
+    iter,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
@@ -740,7 +741,7 @@ async fn join_room_by_id_helper(
         db.rooms.append_pdu(
             &pdu,
             utils::to_canonical_object(&pdu).expect("Pdu is valid canonical object"),
-            &[pdu.event_id.clone()],
+            iter::once(&*pdu.event_id),
             db,
         )?;
 
