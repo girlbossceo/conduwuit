@@ -1,8 +1,11 @@
-use crate::{database::admin::AdminCommand, database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{
+    database::{admin::AdminCommand, DatabaseGuard},
+    ConduitResult, Error, Ruma,
+};
 use ruma::{
     api::client::{error::ErrorKind, r0::room::report_content},
     events::room::message,
-    Int,
+    int,
 };
 
 #[cfg(feature = "conduit_bin")]
@@ -33,7 +36,7 @@ pub async fn report_event_route(
         }
     };
 
-    if body.score > Int::from(0) || body.score < Int::from(-100) {
+    if body.score > int!(0) || body.score < int!(-100) {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Invalid score, must be within 0 to -100",
