@@ -25,6 +25,7 @@ pub async fn redact_event_route(
     body: Ruma<redact_event::Request<'_>>,
 ) -> ConduitResult<redact_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let body = body.body;
 
     let mutex_state = Arc::clone(
         db.globals
@@ -45,7 +46,7 @@ pub async fn redact_event_route(
             .expect("event is valid, we just created it"),
             unsigned: None,
             state_key: None,
-            redacts: Some(body.event_id.clone()),
+            redacts: Some(body.event_id.into()),
         },
         sender_user,
         &body.room_id,
@@ -57,5 +58,6 @@ pub async fn redact_event_route(
 
     db.flush()?;
 
+    let event_id = (*event_id).to_owned();
     Ok(redact_event::Response { event_id }.into())
 }

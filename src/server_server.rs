@@ -995,13 +995,9 @@ pub(crate) async fn handle_incoming_pdu<'a>(
     }
 
     // 9. Fetch any missing prev events doing all checks listed here starting at 1. These are timeline events
-    let mut graph = HashMap::new();
+    let mut graph: HashMap<Arc<EventId>, _> = HashMap::new();
     let mut eventid_info = HashMap::new();
-    let mut todo_outlier_stack: Vec<Arc<EventId>> = incoming_pdu
-        .prev_events
-        .iter()
-        .map(|x| Arc::from(&**x))
-        .collect();
+    let mut todo_outlier_stack: Vec<Arc<EventId>> = incoming_pdu.prev_events.clone();
 
     let mut amount = 0;
 
@@ -1020,7 +1016,7 @@ pub(crate) async fn handle_incoming_pdu<'a>(
             if amount > 100 {
                 // Max limit reached
                 warn!("Max prev event limit reached!");
-                graph.insert((*prev_event_id).to_owned(), HashSet::new());
+                graph.insert(prev_event_id.clone(), HashSet::new());
                 continue;
             }
 
@@ -1031,27 +1027,27 @@ pub(crate) async fn handle_incoming_pdu<'a>(
                     amount += 1;
                     for prev_prev in &pdu.prev_events {
                         if !graph.contains_key(prev_prev) {
-                            todo_outlier_stack.push(dbg!(Arc::from(&**prev_prev)));
+                            todo_outlier_stack.push(dbg!(prev_prev.clone()));
                         }
                     }
 
                     graph.insert(
-                        (*prev_event_id).to_owned(),
+                        prev_event_id.clone(),
                         pdu.prev_events.iter().cloned().collect(),
                     );
                 } else {
                     // Time based check failed
-                    graph.insert((*prev_event_id).to_owned(), HashSet::new());
+                    graph.insert(prev_event_id.clone(), HashSet::new());
                 }
 
                 eventid_info.insert(prev_event_id.clone(), (pdu, json));
             } else {
                 // Get json failed
-                graph.insert((*prev_event_id).to_owned(), HashSet::new());
+                graph.insert(prev_event_id.clone(), HashSet::new());
             }
         } else {
             // Fetch and handle failed
-            graph.insert((*prev_event_id).to_owned(), HashSet::new());
+            graph.insert(prev_event_id.clone(), HashSet::new());
         }
     }
 
@@ -1401,14 +1397,13 @@ async fn upgrade_outlier_to_timeline_pdu(
                         .get_statekey_from_short(k)
                         .map_err(|_| "Failed to get_statekey_from_short.".to_owned())?;
 
-                    state.insert(k, (*id).to_owned());
+                    state.insert(k, id.clone());
                     starting_events.push(id);
                 }
 
                 auth_chain_sets.push(
                     get_auth_chain(room_id, starting_events, db)
                         .map_err(|_| "Failed to load auth chain.".to_owned())?
-                        .map(|event_id| (*event_id).to_owned())
                         .collect(),
                 );
 
@@ -1435,7 +1430,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                                 .rooms
                                 .get_or_create_shortstatekey(&event_type, &state_key, &db.globals)
                                 .map_err(|_| "Failed to get_or_create_shortstatekey".to_owned())?;
-                            Ok((shortstatekey, Arc::from(event_id)))
+                            Ok((shortstatekey, event_id))
                         })
                         .collect::<Result<_, String>>()?,
                 ),
@@ -1752,7 +1747,6 @@ async fn upgrade_outlier_to_timeline_pdu(
                         db,
                     )
                     .map_err(|_| "Failed to load auth chain.".to_owned())?
-                    .map(|event_id| (*event_id).to_owned())
                     .collect(),
                 );
             }
@@ -1761,11 +1755,7 @@ async fn upgrade_outlier_to_timeline_pdu(
                 .into_iter()
                 .map(|map| {
                     map.into_iter()
-                        .map(|(k, id)| {
-                            db.rooms
-                                .get_statekey_from_short(k)
-                                .map(|k| (k, (*id).to_owned()))
-                        })
+                        .map(|(k, id)| db.rooms.get_statekey_from_short(k).map(|k| (k, id)))
                         .collect::<Result<StateMap<_>>>()
                 })
                 .collect::<Result<_>>()
@@ -2136,8 +2126,7 @@ fn append_incoming_pdu<'a>(
     if soft_fail {
         db.rooms
             .mark_as_referenced(&pdu.room_id, &pdu.prev_events)?;
-        db.rooms
-            .replace_pdu_leaves(&pdu.room_id, new_room_leaves.clone())?;
+        db.rooms.replace_pdu_leaves(&pdu.room_id, new_room_leaves)?;
         return Ok(None);
     }
 
@@ -2282,7 +2271,7 @@ fn get_auth_chain_inner(
     event_id: &EventId,
     db: &Database,
 ) -> Result<HashSet<u64>> {
-    let mut todo = vec![event_id.to_owned()];
+    let mut todo = vec![Arc::from(event_id)];
     let mut found = HashSet::new();
 
     while let Some(event_id) = todo.pop() {
@@ -2298,7 +2287,7 @@ fn get_auth_chain_inner(
 
                     if !found.contains(&sauthevent) {
                         found.insert(sauthevent);
-                        todo.push(auth_event.to_owned());
+                        todo.push(auth_event.clone());
                     }
                 }
             }
@@ -2676,6 +2665,7 @@ pub fn create_join_event_template_route(
         membership: MembershipState::Join,
         third_party_invite: None,
         reason: None,
+        join_authorized_via_users_server: None,
     })
     .expect("member event is valid value");
 
@@ -2709,7 +2699,7 @@ pub fn create_join_event_template_route(
     }
 
     let pdu = PduEvent {
-        event_id: ruma::event_id!("$thiswillbefilledinlater").to_owned(),
+        event_id: ruma::event_id!("$thiswillbefilledinlater").into(),
         room_id: body.room_id.clone(),
         sender: body.user_id.clone(),
         origin_server_ts: utils::millis_since_unix_epoch()

@@ -98,7 +98,7 @@ pub async fn send_message_event_route(
 
     db.flush()?;
 
-    Ok(send_message_event::Response::new(event_id).into())
+    Ok(send_message_event::Response::new((*event_id).to_owned()).into())
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/messages`

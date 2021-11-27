@@ -52,6 +52,7 @@ pub async fn send_state_event_for_key_route(
 
     db.flush()?;
 
+    let event_id = (*event_id).to_owned();
     Ok(send_state_event::Response { event_id }.into())
 }
 
@@ -93,6 +94,7 @@ pub async fn send_state_event_for_empty_key_route(
 
     db.flush()?;
 
+    let event_id = (*event_id).to_owned();
     Ok(send_state_event::Response { event_id }.into())
 }
 
@@ -267,7 +269,7 @@ async fn send_state_event_for_key_helper(
     event_type: EventType,
     json: &Raw<AnyStateEventContent>,
     state_key: String,
-) -> Result<Box<EventId>> {
+) -> Result<Arc<EventId>> {
     let sender_user = sender;
 
     // TODO: Review this check, error if event is unparsable, use event type, allow alias if it
