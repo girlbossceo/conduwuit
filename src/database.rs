@@ -754,6 +754,15 @@ impl Database {
 
                 println!("Migration: 9 -> 10 finished");
             }
+
+            if db.globals.database_version()? < 11 {
+                db._db
+                    .open_tree("userdevicesessionid_uiaarequest")?
+                    .clear()?;
+                db.globals.bump_database_version(11)?;
+
+                println!("Migration: 10 -> 11 finished");
+            }
         }
 
         let guard = db.read().await;
