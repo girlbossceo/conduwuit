@@ -26,16 +26,19 @@ variables:
   cache:
     paths:
       - cargohome
-      - target/
-    key: "build_cache--$TARGET--$CI_COMMIT_BRANCH--release"
+    key: "build_cache--$TARGET--$CI_COMMIT_BRANCH"
   variables:
     CARGO_PROFILE_RELEASE_LTO: "true"
     CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+    CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
+    CARGO_HOME: $CI_PROJECT_DIR/cargohome
   before_script:
     - 'echo "Building for target $TARGET"'
-    - 'mkdir -p cargohome && CARGOHOME="cargohome"'
+    - "mkdir -p $CARGO_HOME"
     - "rustc --version && cargo --version && rustup show" # Print version info for debugging
     - "rustup target add $TARGET"
+    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
+    - if [ -n "${SCCACHE_BIN_URL}" ]; then curl $SCCACHE_BIN_URL --output /sccache && chmod +x /sccache && export RUSTC_WRAPPER=/sccache; fi
   script:
     - time cargo build --target $TARGET --release
     - 'cp "target/$TARGET/release/conduit" "conduit-$TARGET"'
@@ -216,20 +219,20 @@ test:cargo:
   image: "rust:latest"
   tags: ["docker"]
   variables:
-    CARGO_HOME: "cargohome"
+    CARGO_HOME: "$CI_PROJECT_DIR/cargohome"
+    CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
   cache:
     paths:
-      - target
       - cargohome
-    key: test_cache
+    key: "test_cache--$CI_COMMIT_BRANCH"
   interruptible: true
   before_script:
-    - mkdir -p $CARGO_HOME && echo "using $CARGO_HOME to cache cargo deps"
+    - mkdir -p $CARGO_HOME
     - apt-get update -yqq
     - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config wget
     - rustup component add clippy rustfmt
-    - wget "https://faulty-storage.de/gitlab-report"
-    - chmod +x ./gitlab-report
+    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
+    - if [ -n "${SCCACHE_BIN_URL}" ]; then curl $SCCACHE_BIN_URL --output /sccache && chmod +x /sccache && export RUSTC_WRAPPER=/sccache; fi
   script:
     - rustc --version && cargo --version # Print version info for debugging
     - cargo fmt --all -- --check
