@@ -1,14 +1,13 @@
 # syntax=docker/dockerfile:1
 # ---------------------------------------------------------------------------------------------------------
 # This Dockerfile is intended to be built as part of Conduit's CI pipeline.
-# It does not build Conduit in Docker, but just copies the matching build artifact from the build job.
-# As a consequence, this is not a multiarch capable image. It always expects and packages a x86_64 binary.
+# It does not build Conduit in Docker, but just copies the matching build artifact from the build jobs.
 #
 # It is mostly based on the normal Conduit Dockerfile, but adjusted in a few places to maximise caching.
 # Credit's for the original Dockerfile: Weasy666.
 # ---------------------------------------------------------------------------------------------------------
 
-FROM docker.io/alpine:3.14 AS runner
+FROM docker.io/alpine:3.15.0 AS runner
 
 # Standard port on which Conduit launches.
 # You still need to map the port when using the docker command or docker-compose.
@@ -21,8 +20,8 @@ ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml"
 #   ca-certificates: for https
 #   libgcc: Apparently this is needed, even if I (@jfowl) don't know exactly why. But whatever, it's not that big.
 RUN apk add --no-cache \
-        ca-certificates \
-        libgcc
+    ca-certificates \
+    libgcc
 
 
 ARG CREATED
@@ -31,17 +30,17 @@ ARG GIT_REF
 # Labels according to https://github.com/opencontainers/image-spec/blob/master/annotations.md
 # including a custom label specifying the build command
 LABEL org.opencontainers.image.created=${CREATED} \
-      org.opencontainers.image.authors="Conduit Contributors" \
-      org.opencontainers.image.title="Conduit" \
-      org.opencontainers.image.version=${VERSION} \
-      org.opencontainers.image.vendor="Conduit Contributors" \
-      org.opencontainers.image.description="A Matrix homeserver written in Rust" \
-      org.opencontainers.image.url="https://conduit.rs/" \
-      org.opencontainers.image.revision=${GIT_REF} \
-      org.opencontainers.image.source="https://gitlab.com/famedly/conduit.git" \
-      org.opencontainers.image.licenses="Apache-2.0" \
-      org.opencontainers.image.documentation="https://gitlab.com/famedly/conduit" \
-      org.opencontainers.image.ref.name=""
+    org.opencontainers.image.authors="Conduit Contributors" \
+    org.opencontainers.image.title="Conduit" \
+    org.opencontainers.image.version=${VERSION} \
+    org.opencontainers.image.vendor="Conduit Contributors" \
+    org.opencontainers.image.description="A Matrix homeserver written in Rust" \
+    org.opencontainers.image.url="https://conduit.rs/" \
+    org.opencontainers.image.revision=${GIT_REF} \
+    org.opencontainers.image.source="https://gitlab.com/famedly/conduit.git" \
+    org.opencontainers.image.licenses="Apache-2.0" \
+    org.opencontainers.image.documentation="https://gitlab.com/famedly/conduit" \
+    org.opencontainers.image.ref.name=""
 
 # Created directory for the database and media files
 RUN mkdir -p /srv/conduit/.local/share/conduit
