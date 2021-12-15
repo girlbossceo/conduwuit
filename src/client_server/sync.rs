@@ -54,17 +54,16 @@ use rocket::{get, tokio};
 /// `since` will be cached
 #[cfg_attr(
     feature = "conduit_bin",
-    get("/_matrix/client/r0/sync", data = "<req>")
+    get("/_matrix/client/r0/sync", data = "<body>")
 )]
-#[tracing::instrument(skip(db, req))]
+#[tracing::instrument(skip(db, body))]
 pub async fn sync_events_route(
     db: DatabaseGuard,
-    req: Ruma<sync_events::Request<'_>>,
+    body: Ruma<sync_events::Request<'_>>,
 ) -> Result<RumaResponse<sync_events::Response>, RumaResponse<UiaaResponse>> {
-    let body = req.body;
-
-    let sender_user = req.sender_user.expect("user is authenticated");
-    let sender_device = req.sender_device.expect("user is authenticated");
+    let sender_user = body.sender_user.expect("user is authenticated");
+    let sender_device = body.sender_device.expect("user is authenticated");
+    let body = body.body;
 
     let arc_db = Arc::new(db);
 

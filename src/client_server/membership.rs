@@ -93,15 +93,15 @@ pub async fn join_room_by_id_route(
 /// - If the server does not know about the room: asks other servers over federation
 #[cfg_attr(
     feature = "conduit_bin",
-    post("/_matrix/client/r0/join/<_>", data = "<req>")
+    post("/_matrix/client/r0/join/<_>", data = "<body>")
 )]
-#[tracing::instrument(skip(db, req))]
+#[tracing::instrument(skip(db, body))]
 pub async fn join_room_by_id_or_alias_route(
     db: DatabaseGuard,
-    req: Ruma<join_room_by_id_or_alias::Request<'_>>,
+    body: Ruma<join_room_by_id_or_alias::Request<'_>>,
 ) -> ConduitResult<join_room_by_id_or_alias::Response> {
-    let body = req.body;
-    let sender_user = req.sender_user.as_ref().expect("user is authenticated");
+    let sender_user = body.sender_user.as_deref().expect("user is authenticated");
+    let body = body.body;
 
     let (servers, room_id) = match Box::<RoomId>::try_from(body.room_id_or_alias) {
         Ok(room_id) => {
@@ -129,7 +129,7 @@ pub async fn join_room_by_id_or_alias_route(
 
     let join_room_response = join_room_by_id_helper(
         &db,
-        req.sender_user.as_deref(),
+        Some(sender_user),
         &room_id,
         &servers,
         body.third_party_signed.as_ref(),
