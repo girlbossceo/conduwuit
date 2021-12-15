@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    convert::{TryFrom, TryInto},
+    convert::TryInto,
     fmt::Debug,
     sync::Arc,
     time::{Duration, Instant},
@@ -397,7 +397,7 @@ impl Sending {
             // Because synapse resyncs, we can just insert dummy data
             let edu = Edu::DeviceListUpdate(DeviceListUpdateContent {
                 user_id,
-                device_id: device_id!("dummy"),
+                device_id: device_id!("dummy").to_owned(),
                 device_display_name: Some("Dummy".to_owned()),
                 stream_id: uint!(1),
                 prev_id: Vec::new(),
@@ -583,19 +583,18 @@ impl Sending {
                         }
                     }
 
-                    let userid =
-                        UserId::try_from(utils::string_from_bytes(user).map_err(|_| {
-                            (
-                                kind.clone(),
-                                Error::bad_database("Invalid push user string in db."),
-                            )
-                        })?)
-                        .map_err(|_| {
-                            (
-                                kind.clone(),
-                                Error::bad_database("Invalid push user id in db."),
-                            )
-                        })?;
+                    let userid = UserId::parse(utils::string_from_bytes(user).map_err(|_| {
+                        (
+                            kind.clone(),
+                            Error::bad_database("Invalid push user string in db."),
+                        )
+                    })?)
+                    .map_err(|_| {
+                        (
+                            kind.clone(),
+                            Error::bad_database("Invalid push user id in db."),
+                        )
+                    })?;
 
                     let mut senderkey = user.clone();
                     senderkey.push(0xff);
@@ -732,7 +731,7 @@ impl Sending {
             })?;
 
             (
-                OutgoingKind::Appservice(Box::<ServerName>::try_from(server).map_err(|_| {
+                OutgoingKind::Appservice(ServerName::parse(server).map_err(|_| {
                     Error::bad_database("Invalid server string in server_currenttransaction")
                 })?),
                 if value.is_empty() {
@@ -771,7 +770,7 @@ impl Sending {
             })?;
 
             (
-                OutgoingKind::Normal(Box::<ServerName>::try_from(server).map_err(|_| {
+                OutgoingKind::Normal(ServerName::parse(server).map_err(|_| {
                     Error::bad_database("Invalid server string in server_currenttransaction")
                 })?),
                 if value.is_empty() {

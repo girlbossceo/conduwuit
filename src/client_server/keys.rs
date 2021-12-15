@@ -316,7 +316,7 @@ pub async fn get_key_changes_route(
 
 pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
     sender_user: Option<&UserId>,
-    device_keys_input: &BTreeMap<UserId, Vec<Box<DeviceId>>>,
+    device_keys_input: &BTreeMap<Box<UserId>, Vec<Box<DeviceId>>>,
     allowed_signatures: F,
     db: &Database,
 ) -> Result<get_keys::Response> {
@@ -328,6 +328,8 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
     let mut get_over_federation = HashMap::new();
 
     for (user_id, device_ids) in device_keys_input {
+        let user_id: &UserId = &**user_id;
+
         if user_id.server_name() != db.globals.server_name() {
             get_over_federation
                 .entry(user_id.server_name())
@@ -355,11 +357,11 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                     container.insert(device_id, keys);
                 }
             }
-            device_keys.insert(user_id.clone(), container);
+            device_keys.insert(user_id.to_owned(), container);
         } else {
             for device_id in device_ids {
                 let mut container = BTreeMap::new();
-                if let Some(mut keys) = db.users.get_device_keys(&user_id.clone(), device_id)? {
+                if let Some(mut keys) = db.users.get_device_keys(user_id, device_id)? {
                     let metadata = db.users.get_device_metadata(user_id, device_id)?.ok_or(
                         Error::BadRequest(
                             ErrorKind::InvalidParam,
@@ -371,24 +373,24 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                         device_display_name: metadata.display_name,
                     };
 
-                    container.insert(device_id.clone(), keys);
+                    container.insert(device_id.to_owned(), keys);
                 }
-                device_keys.insert(user_id.clone(), container);
+                device_keys.insert(user_id.to_owned(), container);
             }
         }
 
         if let Some(master_key) = db.users.get_master_key(user_id, &allowed_signatures)? {
-            master_keys.insert(user_id.clone(), master_key);
+            master_keys.insert(user_id.to_owned(), master_key);
         }
         if let Some(self_signing_key) = db
             .users
             .get_self_signing_key(user_id, &allowed_signatures)?
         {
-            self_signing_keys.insert(user_id.clone(), self_signing_key);
+            self_signing_keys.insert(user_id.to_owned(), self_signing_key);
         }
         if Some(user_id) == sender_user {
             if let Some(user_signing_key) = db.users.get_user_signing_key(user_id)? {
-                user_signing_keys.insert(user_id.clone(), user_signing_key);
+                user_signing_keys.insert(user_id.to_owned(), user_signing_key);
             }
         }
     }
@@ -400,7 +402,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
         .map(|(server, vec)| async move {
             let mut device_keys_input_fed = BTreeMap::new();
             for (user_id, keys) in vec {
-                device_keys_input_fed.insert(user_id.clone(), keys.clone());
+                device_keys_input_fed.insert(user_id.to_owned(), keys.clone());
             }
             (
                 server,
@@ -440,7 +442,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 }
 
 pub(crate) async fn claim_keys_helper(
-    one_time_keys_input: &BTreeMap<UserId, BTreeMap<Box<DeviceId>, DeviceKeyAlgorithm>>,
+    one_time_keys_input: &BTreeMap<Box<UserId>, BTreeMap<Box<DeviceId>, DeviceKeyAlgorithm>>,
     db: &Database,
 ) -> Result<claim_keys::Response> {
     let mut one_time_keys = BTreeMap::new();

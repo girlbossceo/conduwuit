@@ -267,7 +267,7 @@ async fn send_state_event_for_key_helper(
     event_type: EventType,
     json: &Raw<AnyStateEventContent>,
     state_key: String,
-) -> Result<EventId> {
+) -> Result<Box<EventId>> {
     let sender_user = sender;
 
     // TODO: Review this check, error if event is unparsable, use event type, allow alias if it
@@ -303,7 +303,7 @@ async fn send_state_event_for_key_helper(
             .roomid_mutex_state
             .write()
             .unwrap()
-            .entry(room_id.clone())
+            .entry(room_id.to_owned())
             .or_default(),
     );
     let state_lock = mutex_state.lock().await;

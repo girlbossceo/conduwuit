@@ -476,10 +476,9 @@ impl Database {
             if db.globals.database_version()? < 6 {
                 // Set room member count
                 for (roomid, _) in db.rooms.roomid_shortstatehash.iter() {
-                    let room_id =
-                        RoomId::try_from(utils::string_from_bytes(&roomid).unwrap()).unwrap();
-
-                    db.rooms.update_joined_count(&room_id, &db)?;
+                    let string = utils::string_from_bytes(&roomid).unwrap();
+                    let room_id = <&RoomId>::try_from(string.as_str()).unwrap();
+                    db.rooms.update_joined_count(room_id, &db)?;
                 }
 
                 db.globals.bump_database_version(6)?;
@@ -489,7 +488,7 @@ impl Database {
 
             if db.globals.database_version()? < 7 {
                 // Upgrade state store
-                let mut last_roomstates: HashMap<RoomId, u64> = HashMap::new();
+                let mut last_roomstates: HashMap<Box<RoomId>, u64> = HashMap::new();
                 let mut current_sstatehash: Option<u64> = None;
                 let mut current_room = None;
                 let mut current_state = HashSet::new();
@@ -570,7 +569,7 @@ impl Database {
                         if let Some(current_sstatehash) = current_sstatehash {
                             handle_state(
                                 current_sstatehash,
-                                current_room.as_ref().unwrap(),
+                                current_room.as_deref().unwrap(),
                                 current_state,
                                 &mut last_roomstates,
                             )?;
@@ -586,10 +585,9 @@ impl Database {
                             .get(&seventid)
                             .unwrap()
                             .unwrap();
-                        let event_id =
-                            EventId::try_from(utils::string_from_bytes(&event_id).unwrap())
-                                .unwrap();
-                        let pdu = db.rooms.get_pdu(&event_id).unwrap().unwrap();
+                        let string = utils::string_from_bytes(&event_id).unwrap();
+                        let event_id = <&EventId>::try_from(string.as_str()).unwrap();
+                        let pdu = db.rooms.get_pdu(event_id).unwrap().unwrap();
 
                         if Some(&pdu.room_id) != current_room.as_ref() {
                             current_room = Some(pdu.room_id.clone());
@@ -604,7 +602,7 @@ impl Database {
                 if let Some(current_sstatehash) = current_sstatehash {
                     handle_state(
                         current_sstatehash,
-                        current_room.as_ref().unwrap(),
+                        current_room.as_deref().unwrap(),
                         current_state,
                         &mut last_roomstates,
                     )?;

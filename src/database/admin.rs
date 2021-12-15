@@ -1,7 +1,4 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    sync::Arc,
-};
+use std::{convert::TryInto, sync::Arc};
 
 use crate::{pdu::PduBuilder, Database};
 use rocket::futures::{channel::mpsc, stream::StreamExt};
@@ -36,14 +33,14 @@ impl Admin {
 
             let guard = db.read().await;
 
-            let conduit_user =
-                UserId::try_from(format!("@conduit:{}", guard.globals.server_name()))
-                    .expect("@conduit:server_name is valid");
+            let conduit_user = UserId::parse(format!("@conduit:{}", guard.globals.server_name()))
+                .expect("@conduit:server_name is valid");
 
             let conduit_room = guard
                 .rooms
                 .id_from_alias(
-                    &format!("#admins:{}", guard.globals.server_name())
+                    format!("#admins:{}", guard.globals.server_name())
+                        .as_str()
                         .try_into()
                         .expect("#admins:server_name is a valid room alias"),
                 )

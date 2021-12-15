@@ -105,15 +105,15 @@ pub async fn get_pushrule_route(
 /// Creates a single specified push rule for this user.
 #[cfg_attr(
     feature = "conduit_bin",
-    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<req>")
+    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<body>")
 )]
-#[tracing::instrument(skip(db, req))]
+#[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_route(
     db: DatabaseGuard,
-    req: Ruma<set_pushrule::Request<'_>>,
+    body: Ruma<set_pushrule::Request<'_>>,
 ) -> ConduitResult<set_pushrule::Response> {
-    let sender_user = req.sender_user.as_ref().expect("user is authenticated");
-    let body = req.body;
+    let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let body = body.body;
 
     if body.scope != "global" {
         return Err(Error::BadRequest(

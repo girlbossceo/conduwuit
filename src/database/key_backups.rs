@@ -6,7 +6,7 @@ use ruma::{
     },
     RoomId, UserId,
 };
-use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use super::abstraction::Tree;
 
@@ -209,13 +209,13 @@ impl KeyBackups {
         &self,
         user_id: &UserId,
         version: &str,
-    ) -> Result<BTreeMap<RoomId, RoomKeyBackup>> {
+    ) -> Result<BTreeMap<Box<RoomId>, RoomKeyBackup>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(version.as_bytes());
         prefix.push(0xff);
 
-        let mut rooms = BTreeMap::<RoomId, RoomKeyBackup>::new();
+        let mut rooms = BTreeMap::<Box<RoomId>, RoomKeyBackup>::new();
 
         for result in self
             .backupkeyid_backup
@@ -231,7 +231,7 @@ impl KeyBackups {
                         Error::bad_database("backupkeyid_backup session_id is invalid.")
                     })?;
 
-                let room_id = RoomId::try_from(
+                let room_id = RoomId::parse(
                     utils::string_from_bytes(parts.next().ok_or_else(|| {
                         Error::bad_database("backupkeyid_backup key is invalid.")
                     })?)

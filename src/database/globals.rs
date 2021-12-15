@@ -40,13 +40,13 @@ pub struct Globals {
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
     pub(super) server_signingkeys: Arc<dyn Tree>,
-    pub bad_event_ratelimiter: Arc<RwLock<HashMap<EventId, RateLimitState>>>,
+    pub bad_event_ratelimiter: Arc<RwLock<HashMap<Box<EventId>, RateLimitState>>>,
     pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
     pub servername_ratelimiter: Arc<RwLock<HashMap<Box<ServerName>, Arc<Semaphore>>>>,
-    pub sync_receivers: RwLock<HashMap<(UserId, Box<DeviceId>), SyncHandle>>,
-    pub roomid_mutex_insert: RwLock<HashMap<RoomId, Arc<Mutex<()>>>>,
-    pub roomid_mutex_state: RwLock<HashMap<RoomId, Arc<TokioMutex<()>>>>,
-    pub roomid_mutex_federation: RwLock<HashMap<RoomId, Arc<TokioMutex<()>>>>, // this lock will be held longer
+    pub sync_receivers: RwLock<HashMap<(Box<UserId>, Box<DeviceId>), SyncHandle>>,
+    pub roomid_mutex_insert: RwLock<HashMap<Box<RoomId>, Arc<Mutex<()>>>>,
+    pub roomid_mutex_state: RwLock<HashMap<Box<RoomId>, Arc<TokioMutex<()>>>>,
+    pub roomid_mutex_federation: RwLock<HashMap<Box<RoomId>, Arc<TokioMutex<()>>>>, // this lock will be held longer
     pub rotate: RotationHandler,
 }
 
@@ -254,7 +254,7 @@ impl Globals {
         &self,
         origin: &ServerName,
         new_keys: ServerSigningKeys,
-    ) -> Result<BTreeMap<ServerSigningKeyId, VerifyKey>> {
+    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>> {
         // Not atomic, but this is not critical
         let signingkeys = self.server_signingkeys.get(origin.as_bytes())?;
 
@@ -293,7 +293,7 @@ impl Globals {
     pub fn signing_keys_for(
         &self,
         origin: &ServerName,
-    ) -> Result<BTreeMap<ServerSigningKeyId, VerifyKey>> {
+    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>> {
         let signingkeys = self
             .server_signingkeys
             .get(origin.as_bytes())?

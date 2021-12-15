@@ -13,7 +13,7 @@ use serde_json::{
     json,
     value::{to_raw_value, RawValue as RawJsonValue},
 };
-use std::{cmp::Ordering, collections::BTreeMap, convert::TryFrom};
+use std::{cmp::Ordering, collections::BTreeMap, convert::TryInto, ops::Deref};
 use tracing::warn;
 
 /// Content hashes of a PDU.
@@ -25,20 +25,20 @@ pub struct EventHash {
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct PduEvent {
-    pub event_id: EventId,
-    pub room_id: RoomId,
-    pub sender: UserId,
+    pub event_id: Box<EventId>,
+    pub room_id: Box<RoomId>,
+    pub sender: Box<UserId>,
     pub origin_server_ts: UInt,
     #[serde(rename = "type")]
     pub kind: EventType,
     pub content: Box<RawJsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state_key: Option<String>,
-    pub prev_events: Vec<EventId>,
+    pub prev_events: Vec<Box<EventId>>,
     pub depth: UInt,
-    pub auth_events: Vec<EventId>,
+    pub auth_events: Vec<Box<EventId>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub redacts: Option<EventId>,
+    pub redacts: Option<Box<EventId>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unsigned: Option<Box<RawJsonValue>>,
     pub hashes: EventHash,
@@ -295,15 +295,15 @@ impl state_res::Event for PduEvent {
     }
 
     fn prev_events(&self) -> Box<dyn DoubleEndedIterator<Item = &EventId> + '_> {
-        Box::new(self.prev_events.iter())
+        Box::new(self.prev_events.iter().map(Deref::deref))
     }
 
     fn auth_events(&self) -> Box<dyn DoubleEndedIterator<Item = &EventId> + '_> {
-        Box::new(self.auth_events.iter())
+        Box::new(self.auth_events.iter().map(Deref::deref))
     }
 
     fn redacts(&self) -> Option<&EventId> {
-        self.redacts.as_ref()
+        self.redacts.as_deref()
     }
 }
 
@@ -331,18 +331,19 @@ impl Ord for PduEvent {
 /// Returns a tuple of the new `EventId` and the PDU as a `BTreeMap<String, CanonicalJsonValue>`.
 pub(crate) fn gen_event_id_canonical_json(
     pdu: &RawJsonValue,
-) -> crate::Result<(EventId, CanonicalJsonObject)> {
+) -> crate::Result<(Box<EventId>, CanonicalJsonObject)> {
     let value = serde_json::from_str(pdu.get()).map_err(|e| {
         warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
 
-    let event_id = EventId::try_from(&*format!(
+    let event_id = format!(
         "${}",
         // Anything higher than version3 behaves the same
-        ruma::signatures::reference_hash(&value, &RoomVersionId::Version6)
+        ruma::signatures::reference_hash(&value, &RoomVersionId::V6)
             .expect("ruma can calculate reference hashes")
-    ))
+    )
+    .try_into()
     .expect("ruma's reference hashes are valid event ids");
 
     Ok((event_id, value))
@@ -356,7 +357,7 @@ pub struct PduBuilder {
     pub content: Box<RawJsonValue>,
     pub unsigned: Option<BTreeMap<String, serde_json::Value>>,
     pub state_key: Option<String>,
-    pub redacts: Option<EventId>,
+    pub redacts: Option<Box<EventId>>,
 }
 
 /// Direct conversion prevents loss of the empty `state_key` that ruma requires.

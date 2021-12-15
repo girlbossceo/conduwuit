@@ -26,7 +26,7 @@ pub async fn turn_server_route(
 
     let turn_secret = db.globals.turn_secret();
 
-    let (username, password) = if turn_secret != "" {
+    let (username, password) = if !turn_secret.is_empty() {
         let expiry = SecondsSinceUnixEpoch::from_system_time(
             SystemTime::now() + Duration::from_secs(db.globals.turn_ttl()),
         )
@@ -49,8 +49,8 @@ pub async fn turn_server_route(
     };
 
     Ok(get_turn_server_info::Response {
-        username: username,
-        password: password,
+        username,
+        password,
         uris: db.globals.turn_uris().to_vec(),
         ttl: Duration::from_secs(db.globals.turn_ttl()),
     }
