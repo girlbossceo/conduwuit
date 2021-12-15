@@ -32,7 +32,7 @@ RUN touch src/main.rs && touch src/lib.rs && cargo build --release
 # ---------------------------------------------------------------------------------------------------------------
 # Stuff below this line actually ends up in the resulting docker image
 # ---------------------------------------------------------------------------------------------------------------
-FROM docker.io/alpine:3.14 AS runner
+FROM docker.io/alpine:3.15.0 AS runner
 
 # Standard port on which Conduit launches.
 # You still need to map the port when using the docker command or docker-compose.
@@ -45,9 +45,8 @@ ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml"
 #   ca-certificates: for https
 #   libgcc: Apparently this is needed, even if I (@jfowl) don't know exactly why. But whatever, it's not that big.
 RUN apk add --no-cache \
-        ca-certificates \
-        curl \
-        libgcc
+    ca-certificates \
+    libgcc
 
 
 # Created directory for the database and media files
