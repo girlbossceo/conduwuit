@@ -13,7 +13,7 @@ use serde_json::{
     json,
     value::{to_raw_value, RawValue as RawJsonValue},
 };
-use std::{cmp::Ordering, collections::BTreeMap, convert::TryInto, ops::Deref};
+use std::{cmp::Ordering, collections::BTreeMap, convert::TryInto, sync::Arc};
 use tracing::warn;
 
 /// Content hashes of a PDU.
@@ -25,7 +25,7 @@ pub struct EventHash {
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct PduEvent {
-    pub event_id: Box<EventId>,
+    pub event_id: Arc<EventId>,
     pub room_id: Box<RoomId>,
     pub sender: Box<UserId>,
     pub origin_server_ts: UInt,
@@ -34,11 +34,11 @@ pub struct PduEvent {
     pub content: Box<RawJsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state_key: Option<String>,
-    pub prev_events: Vec<Box<EventId>>,
+    pub prev_events: Vec<Arc<EventId>>,
     pub depth: UInt,
-    pub auth_events: Vec<Box<EventId>>,
+    pub auth_events: Vec<Arc<EventId>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub redacts: Option<Box<EventId>>,
+    pub redacts: Option<Arc<EventId>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unsigned: Option<Box<RawJsonValue>>,
     pub hashes: EventHash,
@@ -266,7 +266,9 @@ impl PduEvent {
 }
 
 impl state_res::Event for PduEvent {
-    fn event_id(&self) -> &EventId {
+    type Id = Arc<EventId>;
+
+    fn event_id(&self) -> &Self::Id {
         &self.event_id
     }
 
@@ -294,16 +296,16 @@ impl state_res::Event for PduEvent {
         self.state_key.as_deref()
     }
 
-    fn prev_events(&self) -> Box<dyn DoubleEndedIterator<Item = &EventId> + '_> {
-        Box::new(self.prev_events.iter().map(Deref::deref))
+    fn prev_events(&self) -> Box<dyn DoubleEndedIterator<Item = &Self::Id> + '_> {
+        Box::new(self.prev_events.iter())
     }
 
-    fn auth_events(&self) -> Box<dyn DoubleEndedIterator<Item = &EventId> + '_> {
-        Box::new(self.auth_events.iter().map(Deref::deref))
+    fn auth_events(&self) -> Box<dyn DoubleEndedIterator<Item = &Self::Id> + '_> {
+        Box::new(self.auth_events.iter())
     }
 
-    fn redacts(&self) -> Option<&EventId> {
-        self.redacts.as_deref()
+    fn redacts(&self) -> Option<&Self::Id> {
+        self.redacts.as_ref()
     }
 }
 
@@ -357,7 +359,7 @@ pub struct PduBuilder {
     pub content: Box<RawJsonValue>,
     pub unsigned: Option<BTreeMap<String, serde_json::Value>>,
     pub state_key: Option<String>,
-    pub redacts: Option<Box<EventId>>,
+    pub redacts: Option<Arc<EventId>>,
 }
 
 /// Direct conversion prevents loss of the empty `state_key` that ruma requires.

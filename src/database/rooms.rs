@@ -1162,14 +1162,14 @@ impl Rooms {
 
     /// Returns the leaf pdus of a room.
     #[tracing::instrument(skip(self))]
-    pub fn get_pdu_leaves(&self, room_id: &RoomId) -> Result<HashSet<Box<EventId>>> {
+    pub fn get_pdu_leaves(&self, room_id: &RoomId) -> Result<HashSet<Arc<EventId>>> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.roomid_pduleaves
             .scan_prefix(prefix)
             .map(|(_, bytes)| {
-                EventId::parse(utils::string_from_bytes(&bytes).map_err(|_| {
+                EventId::parse_arc(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("EventID in roomid_pduleaves is invalid unicode.")
                 })?)
                 .map_err(|_| Error::bad_database("EventId in roomid_pduleaves is invalid."))
@@ -1178,7 +1178,7 @@ impl Rooms {
     }
 
     #[tracing::instrument(skip(self, room_id, event_ids))]
-    pub fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Box<EventId>]) -> Result<()> {
+    pub fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()> {
         for prev in event_ids {
             let mut key = room_id.as_bytes().to_vec();
             key.extend_from_slice(prev.as_bytes());
@@ -1953,7 +1953,7 @@ impl Rooms {
         room_id: &RoomId,
         db: &Database,
         _mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room mutex
-    ) -> Result<Box<EventId>> {
+    ) -> Result<Arc<EventId>> {
         let PduBuilder {
             event_type,
             content,
@@ -2019,7 +2019,7 @@ impl Rooms {
         }
 
         let mut pdu = PduEvent {
-            event_id: ruma::event_id!("$thiswillbefilledinlater").to_owned(),
+            event_id: ruma::event_id!("$thiswillbefilledinlater").into(),
             room_id: room_id.to_owned(),
             sender: sender.to_owned(),
             origin_server_ts: utils::millis_since_unix_epoch()
@@ -2086,7 +2086,7 @@ impl Rooms {
         .expect("event is valid, we just created it");
 
         // Generate event id
-        pdu.event_id = EventId::parse(format!(
+        pdu.event_id = EventId::parse_arc(format!(
             "${}",
             ruma::signatures::reference_hash(&pdu_json, &room_version_id)
                 .expect("ruma can calculate reference hashes")

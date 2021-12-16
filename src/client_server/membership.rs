@@ -286,6 +286,7 @@ pub async fn ban_user_route(
                 third_party_invite: None,
                 blurhash: db.users.blurhash(&body.user_id)?,
                 reason: None,
+                join_authorized_via_users_server: None,
             }),
             |event| {
                 serde_json::from_str(event.content.get())
@@ -604,6 +605,7 @@ async fn join_room_by_id_helper(
                 third_party_invite: None,
                 blurhash: db.users.blurhash(sender_user)?,
                 reason: None,
+                join_authorized_via_users_server: None,
             })
             .expect("event is valid, we just created it"),
         );
@@ -757,6 +759,7 @@ async fn join_room_by_id_helper(
             third_party_invite: None,
             blurhash: db.users.blurhash(sender_user)?,
             reason: None,
+            join_authorized_via_users_server: None,
         };
 
         db.rooms.build_and_append_pdu(
@@ -906,6 +909,7 @@ pub(crate) async fn invite_helper<'a>(
                 third_party_invite: None,
                 blurhash: None,
                 reason: None,
+                join_authorized_via_users_server: None,
             })
             .expect("member event is valid value");
 
@@ -939,7 +943,7 @@ pub(crate) async fn invite_helper<'a>(
             }
 
             let pdu = PduEvent {
-                event_id: ruma::event_id!("$thiswillbefilledinlater").to_owned(),
+                event_id: ruma::event_id!("$thiswillbefilledinlater").into(),
                 room_id: room_id.to_owned(),
                 sender: sender_user.to_owned(),
                 origin_server_ts: utils::millis_since_unix_epoch()
@@ -1117,6 +1121,7 @@ pub(crate) async fn invite_helper<'a>(
                 third_party_invite: None,
                 blurhash: db.users.blurhash(user_id)?,
                 reason: None,
+                join_authorized_via_users_server: None,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,

@@ -22,6 +22,7 @@ use ruma::{
         },
         EventType,
     },
+    int,
     serde::{CanonicalJsonObject, JsonObject},
     RoomAliasId, RoomId, RoomVersionId,
 };
@@ -195,6 +196,7 @@ pub async fn create_room_route(
                 third_party_invite: None,
                 blurhash: db.users.blurhash(sender_user)?,
                 reason: None,
+                join_authorized_via_users_server: None,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,
@@ -220,11 +222,11 @@ pub async fn create_room_route(
         });
 
     let mut users = BTreeMap::new();
-    users.insert(sender_user.clone(), 100.into());
+    users.insert(sender_user.clone(), int!(100));
 
     if preset == create_room::RoomPreset::TrustedPrivateChat {
         for invite_ in &body.invite {
-            users.insert(invite_.clone(), 100.into());
+            users.insert(invite_.clone(), int!(100));
         }
     }
 
@@ -569,7 +571,7 @@ pub async fn upgrade_room_route(
     // Use the m.room.tombstone event as the predecessor
     let predecessor = Some(ruma::events::room::create::PreviousRoom::new(
         body.room_id.clone(),
-        tombstone_event_id,
+        (*tombstone_event_id).to_owned(),
     ));
 
     // Send a m.room.create event containing a predecessor field and the applicable room_version
@@ -633,6 +635,7 @@ pub async fn upgrade_room_route(
                 third_party_invite: None,
                 blurhash: db.users.blurhash(sender_user)?,
                 reason: None,
+                join_authorized_via_users_server: None,
             })
             .expect("event is valid, we just created it"),
             unsigned: None,
@@ -697,10 +700,7 @@ pub async fn upgrade_room_route(
     .map_err(|_| Error::bad_database("Invalid room event in database."))?;
 
     // Setting events_default and invite to the greater of 50 and users_default + 1
-    let new_level = max(
-        50.into(),
-        power_levels_event_content.users_default + 1.into(),
-    );
+    let new_level = max(int!(50), power_levels_event_content.users_default + int!(1));
     power_levels_event_content.events_default = new_level;
     power_levels_event_content.invite = new_level;
 

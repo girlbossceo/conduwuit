@@ -306,6 +306,7 @@ pub async fn register_route(
                     third_party_invite: None,
                     blurhash: None,
                     reason: None,
+                    join_authorized_via_users_server: None,
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -463,6 +464,7 @@ pub async fn register_route(
                     third_party_invite: None,
                     blurhash: None,
                     reason: None,
+                    join_authorized_via_users_server: None,
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -485,6 +487,7 @@ pub async fn register_route(
                     third_party_invite: None,
                     blurhash: None,
                     reason: None,
+                    join_authorized_via_users_server: None,
                 })
                 .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -701,6 +704,7 @@ pub async fn deactivate_route(
             third_party_invite: None,
             blurhash: None,
             reason: None,
+            join_authorized_via_users_server: None,
         };
 
         let mutex_state = Arc::clone(
