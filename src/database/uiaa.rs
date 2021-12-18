@@ -21,7 +21,7 @@ use super::abstraction::Tree;
 pub struct Uiaa {
     pub(super) userdevicesessionid_uiaainfo: Arc<dyn Tree>, // User-interactive authentication
     pub(super) userdevicesessionid_uiaarequest:
-        RwLock<BTreeMap<(UserId, String, String), CanonicalJsonValue>>,
+        RwLock<BTreeMap<(String, String, String), CanonicalJsonValue>>,
 }
 
 impl Uiaa {
@@ -155,7 +155,7 @@ impl Uiaa {
             .unwrap()
             .insert(
                 (
-                    user_id.to_owned(),
+                    user_id.to_string(),
                     device_id.to_string(),
                     session.to_string(),
                 ),
@@ -176,7 +176,7 @@ impl Uiaa {
             .read()
             .unwrap()
             .get(&(
-                user_id.to_owned(),
+                user_id.to_string(),
                 device_id.to_string(),
                 session.to_string(),
             ))
