@@ -12,6 +12,7 @@ use tracing::warn;
 
 pub enum AdminCommand {
     RegisterAppservice(serde_yaml::Value),
+    UnregisterAppservice(String),
     ListAppservices,
     SendMessage(RoomMessageEventContent),
 }
@@ -95,6 +96,9 @@ impl Admin {
                         match event {
                             AdminCommand::RegisterAppservice(yaml) => {
                                 guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error
+                            }
+                            AdminCommand::UnregisterAppservice(service_name) => {
+                                guard.appservice.unregister_appservice(&service_name).unwrap(); // TODO: see above
                             }
                             AdminCommand::ListAppservices => {
                                 if let Ok(appservices) = guard.appservice.iter_ids().map(|ids| ids.collect::<Vec<_>>()) {

@@ -27,6 +27,15 @@ impl Appservice {
         Ok(())
     }
 
+    /**
+     * Remove an appservice registration
+     * service_name is the name you send to register the service
+     */
+    pub fn unregister_appservice(&self, service_name: &str) -> Result<()> {
+        self.id_appserviceregistrations.remove(service_name.as_bytes())?;
+        Ok(())
+    }
+
     pub fn get_registration(&self, id: &str) -> Result<Option<serde_yaml::Value>> {
         self.cached_registrations
             .read()
