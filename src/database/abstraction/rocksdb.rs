@@ -1,11 +1,6 @@
-use super::super::Config;
+use super::{super::Config, watchers::Watchers, DatabaseEngine, Tree};
 use crate::{utils, Result};
-
-use std::{future::Future, pin::Pin, sync::Arc};
-
-use super::{DatabaseEngine, Tree};
-
-use std::{collections::HashMap, sync::RwLock};
+use std::{future::Future, pin::Pin, sync::Arc, collections::HashMap, sync::RwLock};
 
 pub struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
@@ -16,6 +11,7 @@ pub struct RocksDbEngineTree<'a> {
     db: Arc<Engine>,
     name: &'a str,
     watchers: Watchers,
+    write_lock: RwLock<()>
 }
 
 impl DatabaseEngine for Engine {
@@ -77,6 +73,7 @@ impl DatabaseEngine for Engine {
             name,
             db: Arc::clone(self),
             watchers: Watchers::default(),
+            write_lock: RwLock::new(()),
         }))
     }
 
@@ -98,8 +95,12 @@ impl Tree for RocksDbEngineTree<'_> {
     }
 
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
+        let lock = self.write_lock.read().unwrap();
         self.db.rocks.put_cf(self.cf(), key, value)?;
+        drop(lock);
+
         self.watchers.wake(key);
+
         Ok(())
     }
 
@@ -148,19 +149,26 @@ impl Tree for RocksDbEngineTree<'_> {
     }
 
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
-        // TODO: make atomic
+        let lock = self.write_lock.write().unwrap();
+
         let old = self.db.rocks.get_cf(self.cf(), &key)?;
         let new = utils::increment(old.as_deref()).unwrap();
         self.db.rocks.put_cf(self.cf(), key, &new)?;
+
+        drop(lock);
         Ok(new)
     }
 
     fn increment_batch<'a>(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
+        let lock = self.write_lock.write().unwrap();
+
         for key in iter {
             let old = self.db.rocks.get_cf(self.cf(), &key)?;
             let new = utils::increment(old.as_deref()).unwrap();
             self.db.rocks.put_cf(self.cf(), key, new)?;
         }
+
+        drop(lock);
 
         Ok(())
     }

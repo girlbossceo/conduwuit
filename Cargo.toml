@@ -90,7 +90,7 @@ backend_sled = ["sled"]
 backend_sqlite = ["sqlite"]
 backend_heed = ["heed", "crossbeam"]
 backend_rocksdb = ["rocksdb"]
-sqlite = ["rusqlite", "parking_lot", "crossbeam", "tokio/signal"]
+sqlite = ["rusqlite", "parking_lot", "tokio/signal"]
 conduit_bin = [] # TODO: add rocket to this when it is optional
 
 [[bin]]
