@@ -27,7 +27,9 @@ impl DatabaseEngine for Engine {
         db_opts.set_num_levels(8);
         db_opts.set_write_buffer_size(2 << 27);
 
-        let rocksdb_cache = rocksdb::Cache::new_lru_cache((config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize).unwrap();
+        let rocksdb_cache =
+            rocksdb::Cache::new_lru_cache((config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize)
+                .unwrap();
 
         let mut block_based_options = rocksdb::BlockBasedOptions::default();
         block_based_options.set_block_size(2 << 19);
