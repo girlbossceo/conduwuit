@@ -1530,10 +1530,14 @@ impl Rooms {
                                 }
                                 "unregister_appservice" => {
                                     if args.len() == 1 {
-                                        db.admin.send(AdminCommand::UnregisterAppservice(args[0].to_owned()));
+                                        db.admin.send(AdminCommand::UnregisterAppservice(
+                                            args[0].to_owned(),
+                                        ));
                                     } else {
                                         db.admin.send(AdminCommand::SendMessage(
-                                            RoomMessageEventContent::text_plain("Missing appservice identifier"),
+                                            RoomMessageEventContent::text_plain(
+                                                "Missing appservice identifier",
+                                            ),
                                         ));
                                     }
                                 }

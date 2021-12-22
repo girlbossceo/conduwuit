@@ -27,12 +27,14 @@ impl Appservice {
         Ok(())
     }
 
-    /**
-     * Remove an appservice registration
-     * service_name is the name you send to register the service
-     */
+    /// Remove an appservice registration
+    /// 
+    /// # Arguments
+    /// 
+    /// * `service_name` - the name you send to register the service previously
     pub fn unregister_appservice(&self, service_name: &str) -> Result<()> {
-        self.id_appserviceregistrations.remove(service_name.as_bytes())?;
+        self.id_appserviceregistrations
+            .remove(service_name.as_bytes())?;
         Ok(())
     }
 
