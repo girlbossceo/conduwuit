@@ -35,6 +35,10 @@ impl Appservice {
     pub fn unregister_appservice(&self, service_name: &str) -> Result<()> {
         self.id_appserviceregistrations
             .remove(service_name.as_bytes())?;
+        self.cached_registrations.
+            write().
+            unwrap().
+            remove(service_name);
         Ok(())
     }
 
