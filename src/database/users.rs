@@ -8,7 +8,12 @@ use ruma::{
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, RoomAliasId, UInt,
     UserId,
 };
-use std::{collections::BTreeMap, convert::TryInto, mem, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    mem,
+    sync::Arc,
+};
 use tracing::warn;
 
 use super::abstraction::Tree;
@@ -359,7 +364,7 @@ impl Users {
         user_id: &UserId,
         device_id: &DeviceId,
         one_time_key_key: &DeviceKeyId,
-        one_time_key_value: &OneTimeKey,
+        one_time_key_value: &Raw<OneTimeKey>,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let mut key = user_id.as_bytes().to_vec();
@@ -409,7 +414,7 @@ impl Users {
         device_id: &DeviceId,
         key_algorithm: &DeviceKeyAlgorithm,
         globals: &super::globals::Globals,
-    ) -> Result<Option<(Box<DeviceKeyId>, OneTimeKey)>> {
+    ) -> Result<Option<(Box<DeviceKeyId>, Raw<OneTimeKey>)>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(device_id.as_bytes());
@@ -480,7 +485,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-        device_keys: &DeviceKeys,
+        device_keys: &Raw<DeviceKeys>,
         rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -509,9 +514,9 @@ impl Users {
     pub fn add_cross_signing_keys(
         &self,
         user_id: &UserId,
-        master_key: &CrossSigningKey,
-        self_signing_key: &Option<CrossSigningKey>,
-        user_signing_key: &Option<CrossSigningKey>,
+        master_key: &Raw<CrossSigningKey>,
+        self_signing_key: &Option<Raw<CrossSigningKey>>,
+        user_signing_key: &Option<Raw<CrossSigningKey>>,
         rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -521,7 +526,12 @@ impl Users {
         prefix.push(0xff);
 
         // Master key
-        let mut master_key_ids = master_key.keys.values();
+        let master_key_map = master_key
+            .deserialize()
+            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid master key"))?
+            .keys;
+        let mut master_key_ids = master_key_map.values();
+
         let master_key_id = master_key_ids.next().ok_or(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Master key contained no key.",
@@ -537,17 +547,21 @@ impl Users {
         let mut master_key_key = prefix.clone();
         master_key_key.extend_from_slice(master_key_id.as_bytes());
 
-        self.keyid_key.insert(
-            &master_key_key,
-            &serde_json::to_vec(&master_key).expect("CrossSigningKey::to_vec always works"),
-        )?;
+        self.keyid_key
+            .insert(&master_key_key, master_key.json().get().as_bytes())?;
 
         self.userid_masterkeyid
             .insert(user_id.as_bytes(), &master_key_key)?;
 
         // Self-signing key
         if let Some(self_signing_key) = self_signing_key {
-            let mut self_signing_key_ids = self_signing_key.keys.values();
+            let self_signing_key_map = self_signing_key
+                .deserialize()
+                .map_err(|_| {
+                    Error::BadRequest(ErrorKind::InvalidParam, "Invalid self signing key")
+                })?
+                .keys;
+            let mut self_signing_key_ids = self_signing_key_map.values();
             let self_signing_key_id = self_signing_key_ids.next().ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Self signing key contained no key.",
@@ -565,8 +579,7 @@ impl Users {
 
             self.keyid_key.insert(
                 &self_signing_key_key,
-                &serde_json::to_vec(&self_signing_key)
-                    .expect("CrossSigningKey::to_vec always works"),
+                self_signing_key.json().get().as_bytes(),
             )?;
 
             self.userid_selfsigningkeyid
@@ -575,7 +588,13 @@ impl Users {
 
         // User-signing key
         if let Some(user_signing_key) = user_signing_key {
-            let mut user_signing_key_ids = user_signing_key.keys.values();
+            let user_signing_key_map = user_signing_key
+                .deserialize()
+                .map_err(|_| {
+                    Error::BadRequest(ErrorKind::InvalidParam, "Invalid user signing key")
+                })?
+                .keys;
+            let mut user_signing_key_ids = user_signing_key_map.values();
             let user_signing_key_id = user_signing_key_ids.next().ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "User signing key contained no key.",
@@ -593,8 +612,7 @@ impl Users {
 
             self.keyid_key.insert(
                 &user_signing_key_key,
-                &serde_json::to_vec(&user_signing_key)
-                    .expect("CrossSigningKey::to_vec always works"),
+                user_signing_key.json().get().as_bytes(),
             )?;
 
             self.userid_usersigningkeyid
@@ -727,7 +745,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-    ) -> Result<Option<DeviceKeys>> {
+    ) -> Result<Option<Raw<DeviceKeys>>> {
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());
@@ -744,25 +762,19 @@ impl Users {
         &self,
         user_id: &UserId,
         allowed_signatures: F,
-    ) -> Result<Option<CrossSigningKey>> {
+    ) -> Result<Option<Raw<CrossSigningKey>>> {
         self.userid_masterkeyid
             .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
                 self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
-                    let mut cross_signing_key = serde_json::from_slice::<CrossSigningKey>(&bytes)
-                        .map_err(|_| {
-                        Error::bad_database("CrossSigningKey in db is invalid.")
-                    })?;
+                    let mut cross_signing_key = serde_json::from_slice::<serde_json::Value>(&bytes)
+                        .map_err(|_| Error::bad_database("CrossSigningKey in db is invalid."))?;
+                    clean_signatures(&mut cross_signing_key, user_id, allowed_signatures)?;
 
-                    // A user is not allowed to see signatures from users other than himself and
-                    // the target user
-                    cross_signing_key.signatures = cross_signing_key
-                        .signatures
-                        .into_iter()
-                        .filter(|(user, _)| allowed_signatures(user))
-                        .collect();
-
-                    Ok(Some(cross_signing_key))
+                    Ok(Some(Raw::from_json(
+                        serde_json::value::to_raw_value(&cross_signing_key)
+                            .expect("Value to RawValue serialization"),
+                    )))
                 })
             })
     }
@@ -772,31 +784,25 @@ impl Users {
         &self,
         user_id: &UserId,
         allowed_signatures: F,
-    ) -> Result<Option<CrossSigningKey>> {
+    ) -> Result<Option<Raw<CrossSigningKey>>> {
         self.userid_selfsigningkeyid
             .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
                 self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
-                    let mut cross_signing_key = serde_json::from_slice::<CrossSigningKey>(&bytes)
-                        .map_err(|_| {
-                        Error::bad_database("CrossSigningKey in db is invalid.")
-                    })?;
+                    let mut cross_signing_key = serde_json::from_slice::<serde_json::Value>(&bytes)
+                        .map_err(|_| Error::bad_database("CrossSigningKey in db is invalid."))?;
+                    clean_signatures(&mut cross_signing_key, user_id, allowed_signatures)?;
 
-                    // A user is not allowed to see signatures from users other than himself and
-                    // the target user
-                    cross_signing_key.signatures = cross_signing_key
-                        .signatures
-                        .into_iter()
-                        .filter(|(user, _)| user == user_id || allowed_signatures(user))
-                        .collect();
-
-                    Ok(Some(cross_signing_key))
+                    Ok(Some(Raw::from_json(
+                        serde_json::value::to_raw_value(&cross_signing_key)
+                            .expect("Value to RawValue serialization"),
+                    )))
                 })
             })
     }
 
     #[tracing::instrument(skip(self, user_id))]
-    pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<CrossSigningKey>> {
+    pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<Raw<CrossSigningKey>>> {
         self.userid_usersigningkeyid
             .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
@@ -990,4 +996,31 @@ impl Users {
         // TODO: Unhook 3PID
         Ok(())
     }
+}
+
+/// Ensure that a user only sees signatures from themselves and the target user
+fn clean_signatures<F: Fn(&UserId) -> bool>(
+    cross_signing_key: &mut serde_json::Value,
+    user_id: &UserId,
+    allowed_signatures: F,
+) -> Result<(), Error> {
+    if let Some(signatures) = cross_signing_key
+        .get_mut("signatures")
+        .and_then(|v| v.as_object_mut())
+    {
+        // Don't allocate for the full size of the current signatures, but require
+        // at most one resize if nothing is dropped
+        let new_capacity = signatures.len() / 2;
+        for (user, signature) in
+            mem::replace(signatures, serde_json::Map::with_capacity(new_capacity))
+        {
+            let id = <&UserId>::try_from(user.as_str())
+                .map_err(|_| Error::bad_database("Invalid user ID in database."))?;
+            if id == user_id || allowed_signatures(id) {
+                signatures.insert(user, signature);
+            }
+        }
+    }
+
+    Ok(())
 }
