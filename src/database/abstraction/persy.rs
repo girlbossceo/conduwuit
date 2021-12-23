@@ -1,20 +1,14 @@
 use crate::{
     database::{
-        abstraction::{DatabaseEngine, Tree},
+        abstraction::{watchers::Watchers, DatabaseEngine, Tree},
         Config,
     },
     Result,
 };
 use persy::{ByteVec, OpenOptions, Persy, Transaction, TransactionConfig, ValueMode};
 
-use std::{
-    collections::HashMap,
-    future::Future,
-    pin::Pin,
-    sync::{Arc, RwLock},
-};
+use std::{future::Future, pin::Pin, sync::Arc};
 
-use tokio::sync::oneshot::Sender;
 use tracing::warn;
 
 pub struct PersyEngine {
@@ -44,7 +38,7 @@ impl DatabaseEngine for PersyEngine {
         Ok(Arc::new(PersyTree {
             persy: self.persy.clone(),
             name: name.to_owned(),
-            watchers: RwLock::new(HashMap::new()),
+            watchers: Watchers::default(),
         }))
     }
 
@@ -56,7 +50,7 @@ impl DatabaseEngine for PersyEngine {
 pub struct PersyTree {
     persy: Persy,
     name: String,
-    watchers: RwLock<HashMap<Vec<u8>, Vec<Sender<()>>>>,
+    watchers: Watchers,
 }
 
 impl PersyTree {
@@ -81,27 +75,7 @@ impl Tree for PersyTree {
     #[tracing::instrument(skip(self, key, value))]
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
         self.insert_batch(&mut Some((key.to_owned(), value.to_owned())).into_iter())?;
-        let watchers = self.watchers.read().unwrap();
-        let mut triggered = Vec::new();
-
-        for length in 0..=key.len() {
-            if watchers.contains_key(&key[..length]) {
-                triggered.push(&key[..length]);
-            }
-        }
-
-        drop(watchers);
-
-        if !triggered.is_empty() {
-            let mut watchers = self.watchers.write().unwrap();
-            for prefix in triggered {
-                if let Some(txs) = watchers.remove(prefix) {
-                    for tx in txs {
-                        let _ = tx.send(());
-                    }
-                }
-            }
-        }
+        self.watchers.wake(key);
         Ok(())
     }
 
@@ -228,18 +202,6 @@ impl Tree for PersyTree {
 
     #[tracing::instrument(skip(self, prefix))]
     fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-
-        self.watchers
-            .write()
-            .unwrap()
-            .entry(prefix.to_vec())
-            .or_default()
-            .push(tx);
-
-        Box::pin(async move {
-            // Tx is never destroyed
-            rx.await.unwrap();
-        })
+        self.watchers.watch(prefix)
     }
 }

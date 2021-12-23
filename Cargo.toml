@@ -29,9 +29,6 @@ tokio = "1.11.0"
 sled = { version = "0.34.6", features = ["compression", "no_metrics"], optional = true }
 #sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
 persy = { git = "https://gitlab.com/tglman/persy.git", branch="master" , optional = true, features=["background_ops"] }
-# Used by the persy write cache for background flush
-timer = "0.2"
-chrono = "0.4"
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 bytes = "1.1.0"
@@ -91,7 +88,7 @@ sha-1 = "0.9.8"
 [features]
 default = ["conduit_bin", "backend_sqlite", "backend_rocksdb"]
 backend_sled = ["sled"]
-backend_persy = ["persy"]
+backend_persy = ["persy", "parking_lot"]
 backend_sqlite = ["sqlite"]
 backend_heed = ["heed", "crossbeam"]
 backend_rocksdb = ["rocksdb"]
