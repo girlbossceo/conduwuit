@@ -87,7 +87,7 @@ sha-1 = "0.9.8"
 default = ["conduit_bin", "backend_sqlite"]
 backend_sled = ["sled"]
 backend_sqlite = ["sqlite"]
-backend_heed = ["heed", "crossbeam"]
+backend_heed = ["heed", "crossbeam", "parking_lot"]
 sqlite = ["rusqlite", "parking_lot", "crossbeam", "tokio/signal"]
 conduit_bin = [] # TODO: add rocket to this when it is optional
 

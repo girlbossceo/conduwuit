@@ -1,15 +1,13 @@
-use super::super::Config;
+use super::{super::Config, watchers::Watchers};
 use crossbeam::channel::{bounded, Sender as ChannelSender};
 use threadpool::ThreadPool;
 
 use crate::{Error, Result};
 use std::{
-    collections::HashMap,
     future::Future,
     pin::Pin,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
-use tokio::sync::oneshot::Sender;
 
 use super::{DatabaseEngine, Tree};
 
@@ -23,7 +21,7 @@ pub struct Engine {
 pub struct EngineTree {
     engine: Arc<Engine>,
     tree: Arc<heed::UntypedDatabase>,
-    watchers: RwLock<HashMap<Vec<u8>, Vec<Sender<()>>>>,
+    watchers: Watchers,
 }
 
 fn convert_error(error: heed::Error) -> Error {
@@ -60,7 +58,7 @@ impl DatabaseEngine for Engine {
                     .create_database(Some(name))
                     .map_err(convert_error)?,
             ),
-            watchers: RwLock::new(HashMap::new()),
+            watchers: Default::default(),
         }))
     }
 
@@ -145,29 +143,7 @@ impl Tree for EngineTree {
             .put(&mut txn, &key, &value)
             .map_err(convert_error)?;
         txn.commit().map_err(convert_error)?;
-
-        let watchers = self.watchers.read().unwrap();
-        let mut triggered = Vec::new();
-
-        for length in 0..=key.len() {
-            if watchers.contains_key(&key[..length]) {
-                triggered.push(&key[..length]);
-            }
-        }
-
-        drop(watchers);
-
-        if !triggered.is_empty() {
-            let mut watchers = self.watchers.write().unwrap();
-            for prefix in triggered {
-                if let Some(txs) = watchers.remove(prefix) {
-                    for tx in txs {
-                        let _ = tx.send(());
-                    }
-                }
-            }
-        };
-
+        self.watchers.wake(key);
         Ok(())
     }
 
@@ -223,18 +199,6 @@ impl Tree for EngineTree {
 
     #[tracing::instrument(skip(self, prefix))]
     fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-
-        self.watchers
-            .write()
-            .unwrap()
-            .entry(prefix.to_vec())
-            .or_default()
-            .push(tx);
-
-        Box::pin(async move {
-            // Tx is never destroyed
-            rx.await.unwrap();
-        })
+        self.watchers.watch(prefix)
     }
 }
