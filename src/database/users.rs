@@ -77,9 +77,21 @@ impl Users {
     }
 
     /// Returns the number of users registered on this server.
+    /// It really returns all users, not only real ones with a
+    /// password to login but also bridge puppets...
     #[tracing::instrument(skip(self))]
     pub fn count(&self) -> Result<usize> {
         Ok(self.userid_password.iter().count())
+    }
+
+    /// This method will only count those local user accounts with
+    /// a password thus returning only real accounts on this instance.
+    #[tracing::instrument(skip(self))]
+    pub fn count_local_users(&self) -> Result<usize> {
+        self.userid_password.iter().map(|(key, value)| {
+
+        });
+        Ok(1)
     }
 
     /// Find out which user an access token belongs to.

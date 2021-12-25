@@ -96,7 +96,7 @@ impl Admin {
                         match event {
                             AdminCommand::CountUsers => {
                                 // count() does not return an error on failure...
-                                if let Ok(usercount) = guard.users.count() {
+                                if let Ok(usercount) = guard.users.count_local_users() {
                                     let message = format!("Found {} total user accounts", usercount);
                                     send_message(RoomMessageEventContent::text_plain(message), guard, &state_lock);
                                 } else {
