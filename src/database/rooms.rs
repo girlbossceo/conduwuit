@@ -1531,6 +1531,9 @@ impl Rooms {
                                 "list_appservices" => {
                                     db.admin.send(AdminCommand::ListAppservices);
                                 }
+                                "count_local_users" => {
+                                    db.admin.send(AdminCommand::CountUsers);
+                                }
                                 "get_auth_chain" => {
                                     if args.len() == 1 {
                                         if let Ok(event_id) = EventId::parse_arc(args[0]) {
