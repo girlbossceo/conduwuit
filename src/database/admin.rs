@@ -95,7 +95,7 @@ impl Admin {
 
                         match event {
                             AdminCommand::ListLocalUsers => {
-                                // collect all local users
+                                // collect local users only
                                 let users = guard.users.iter_locals();
 
                                 let mut msg: String = format!("Found {} local user account(s):\n", users.len());
@@ -104,7 +104,6 @@ impl Admin {
                                 // send number of local users as plain text:
                                 // TODO: send as Markdown
                                 send_message(RoomMessageEventContent::text_plain(&msg), guard, &state_lock);
-
                             }
                             AdminCommand::RegisterAppservice(yaml) => {
                                 guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error
