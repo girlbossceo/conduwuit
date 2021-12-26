@@ -88,10 +88,8 @@ impl Users {
     /// a password thus returning only real accounts on this instance.
     #[tracing::instrument(skip(self))]
     pub fn count_local_users(&self) -> Result<usize> {
-        self.userid_password.iter().map(|(key, value)| {
-
-        });
-        Ok(1)
+        let n = self.userid_password.iter().filter(|(_, bytes)| bytes.len() > 0).count();
+        Ok(n)
     }
 
     /// Find out which user an access token belongs to.
