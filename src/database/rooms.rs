@@ -1532,7 +1532,7 @@ impl Rooms {
                                     db.admin.send(AdminCommand::ListAppservices);
                                 }
                                 "count_local_users" => {
-                                    db.admin.send(AdminCommand::CountUsers);
+                                    db.admin.send(AdminCommand::CountLocalUsers);
                                 }
                                 "get_auth_chain" => {
                                     if args.len() == 1 {
