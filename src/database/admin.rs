@@ -13,7 +13,7 @@ use tracing::warn;
 pub enum AdminCommand {
     RegisterAppservice(serde_yaml::Value),
     ListAppservices,
-    CountLocalUsers,
+    ListLocalUsers,
     SendMessage(RoomMessageEventContent),
 }
 
@@ -94,15 +94,17 @@ impl Admin {
                         let state_lock = mutex_state.lock().await;
 
                         match event {
-                            AdminCommand::CountLocalUsers => {
-                                // count_local_users() only returns with OK(x) where x is the number of found accounts
-                                if let Ok(usercount) = guard.users.count_local_users() {
-                                    let message = format!("Found {} local user account(s)", usercount);
-                                    send_message(RoomMessageEventContent::text_plain(message), guard, &state_lock);
-                                } else {
-                                    // if count_local_users() only returns with OK(x), then why is this? ;-)
-                                    send_message(RoomMessageEventContent::text_plain("Unable to count local users"), guard, &state_lock);
-                                }
+                            AdminCommand::ListLocalUsers => {
+                                // collect all local users
+                                let users = guard.users.iter_locals();
+
+                                let mut msg: String = format!("Found {} local user account(s):\n", users.len());
+                                msg += &users.join("\n");
+                                
+                                // send number of local users as plain text:
+                                // TODO: send as Markdown
+                                send_message(RoomMessageEventContent::text_plain(&msg), guard, &state_lock);
+
                             }
                             AdminCommand::RegisterAppservice(yaml) => {
                                 guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error

@@ -84,6 +84,8 @@ impl Users {
         Ok(self.userid_password.iter().count())
     }
 
+    /// The method is DEPRECATED and was replaced by iter_locals()
+    /// 
     /// This method will only count those local user accounts with
     /// a password thus returning only real accounts on this instance.
     #[tracing::instrument(skip(self))]
@@ -91,6 +93,7 @@ impl Users {
         let n = self.userid_password.iter().filter(|(_, bytes)| bytes.len() > 0).count();
         Ok(n)
     }
+
 
     /// Find out which user an access token belongs to.
     #[tracing::instrument(skip(self, token))]
@@ -129,6 +132,17 @@ impl Users {
             })?)
             .map_err(|_| Error::bad_database("User ID in userid_password is invalid."))
         })
+    }
+
+    /// Returns a vector of local usernames
+    #[tracing::instrument(skip(self))]
+    pub fn iter_locals(&self) -> Vec<String> {
+        self.userid_password.iter().filter(|(_, pw)| pw.len() > 0).map(|(username, _)| {
+            match utils::string_from_bytes(&username) {
+                Ok(s) => s,
+                Err(e) => e.to_string()
+            }
+        }).collect::<Vec<String>>()
     }
 
     /// Returns the password hash for the given user.
