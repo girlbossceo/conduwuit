@@ -18,10 +18,15 @@ pub mod rocksdb;
 #[cfg(any(feature = "sqlite", feature = "rocksdb", feature = "heed"))]
 pub mod watchers;
 
-pub trait DatabaseEngine: Sized {
-    fn open(config: &Config) -> Result<Arc<Self>>;
-    fn open_tree(self: &Arc<Self>, name: &'static str) -> Result<Arc<dyn Tree>>;
-    fn flush(self: &Arc<Self>) -> Result<()>;
+pub trait DatabaseEngine: Send + Sync {
+    fn open(config: &Config) -> Result<Self>
+    where
+        Self: Sized;
+    fn open_tree(&self, name: &'static str) -> Result<Arc<dyn Tree>>;
+    fn flush(self: &Self) -> Result<()>;
+    fn cleanup(self: &Self) -> Result<()> {
+        Ok(())
+    }
 }
 
 pub trait Tree: Send + Sync {
