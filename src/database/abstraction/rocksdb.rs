@@ -4,6 +4,7 @@ use std::{future::Future, pin::Pin, sync::Arc, collections::HashMap, sync::RwLoc
 
 pub struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
+    cache: rocksdb::Cache,
     old_cfs: Vec<String>,
 }
 
@@ -56,6 +57,7 @@ impl DatabaseEngine for Arc<Engine> {
 
         Ok(Arc::new(Engine {
             rocks: db,
+            cache: rocksdb_cache,
             old_cfs: cfs,
         }))
     }
@@ -84,33 +86,35 @@ impl DatabaseEngine for Arc<Engine> {
     }
 
     fn memory_usage(&self) -> Result<String> {
-        let stats = rocksdb::perf::get_memory_usage_stats(Some(&[&self.rocks]), None)?;
-        Ok(format!("Approximate memory usage of all the mem-tables: {:.3} MB\n\
+        let stats =
+            rocksdb::perf::get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.cache]))?;
+        Ok(format!(
+            "Approximate memory usage of all the mem-tables: {:.3} MB\n\
                    Approximate memory usage of un-flushed mem-tables: {:.3} MB\n\
                    Approximate memory usage of all the table readers: {:.3} MB\n\
                    Approximate memory usage by cache: {:.3} MB",
-                   stats.mem_table_total as f64 / 1024.0 / 1024.0,
-                   stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
-                   stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
-                   stats.cache_total as f64 / 1024.0 / 1024.0
+            stats.mem_table_total as f64 / 1024.0 / 1024.0,
+            stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
+            stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
+            stats.cache_total as f64 / 1024.0 / 1024.0
         ))
     }
 }
 
 impl RocksDbEngineTree<'_> {
-    fn cf(&self) -> rocksdb::BoundColumnFamily<'_> {
+    fn cf(&self) -> Arc<rocksdb::BoundColumnFamily<'_>> {
         self.db.rocks.cf_handle(self.name).unwrap()
     }
 }
 
 impl Tree for RocksDbEngineTree<'_> {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        Ok(self.db.rocks.get_cf(self.cf(), key)?)
+        Ok(self.db.rocks.get_cf(&self.cf(), key)?)
     }
 
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
         let lock = self.write_lock.read().unwrap();
-        self.db.rocks.put_cf(self.cf(), key, value)?;
+        self.db.rocks.put_cf(&self.cf(), key, value)?;
         drop(lock);
 
         self.watchers.wake(key);
@@ -120,21 +124,21 @@ impl Tree for RocksDbEngineTree<'_> {
 
     fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
         for (key, value) in iter {
-            self.db.rocks.put_cf(self.cf(), key, value)?;
+            self.db.rocks.put_cf(&self.cf(), key, value)?;
         }
 
         Ok(())
     }
 
     fn remove(&self, key: &[u8]) -> Result<()> {
-        Ok(self.db.rocks.delete_cf(self.cf(), key)?)
+        Ok(self.db.rocks.delete_cf(&self.cf(), key)?)
     }
 
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
         Box::new(
             self.db
                 .rocks
-                .iterator_cf(self.cf(), rocksdb::IteratorMode::Start)
+                .iterator_cf(&self.cf(), rocksdb::IteratorMode::Start)
                 .map(|(k, v)| (Vec::from(k), Vec::from(v))),
         )
     }
@@ -148,7 +152,7 @@ impl Tree for RocksDbEngineTree<'_> {
             self.db
                 .rocks
                 .iterator_cf(
-                    self.cf(),
+                    &self.cf(),
                     rocksdb::IteratorMode::From(
                         from,
                         if backwards {
@@ -165,9 +169,9 @@ impl Tree for RocksDbEngineTree<'_> {
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
         let lock = self.write_lock.write().unwrap();
 
-        let old = self.db.rocks.get_cf(self.cf(), &key)?;
+        let old = self.db.rocks.get_cf(&self.cf(), &key)?;
         let new = utils::increment(old.as_deref()).unwrap();
-        self.db.rocks.put_cf(self.cf(), key, &new)?;
+        self.db.rocks.put_cf(&self.cf(), key, &new)?;
 
         drop(lock);
         Ok(new)
@@ -177,9 +181,9 @@ impl Tree for RocksDbEngineTree<'_> {
         let lock = self.write_lock.write().unwrap();
 
         for key in iter {
-            let old = self.db.rocks.get_cf(self.cf(), &key)?;
+            let old = self.db.rocks.get_cf(&self.cf(), &key)?;
             let new = utils::increment(old.as_deref()).unwrap();
-            self.db.rocks.put_cf(self.cf(), key, new)?;
+            self.db.rocks.put_cf(&self.cf(), key, new)?;
         }
 
         drop(lock);
@@ -195,7 +199,7 @@ impl Tree for RocksDbEngineTree<'_> {
             self.db
                 .rocks
                 .iterator_cf(
-                    self.cf(),
+                    &self.cf(),
                     rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward),
                 )
                 .map(|(k, v)| (Vec::from(k), Vec::from(v)))
