@@ -17,25 +17,21 @@ pub struct RocksDbEngineTree<'a> {
 
 impl DatabaseEngine for Arc<Engine> {
     fn open(config: &Config) -> Result<Self> {
-        let mut db_opts = rocksdb::Options::default();
-        db_opts.create_if_missing(true);
-        db_opts.set_max_open_files(512);
-        db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
-        db_opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
-        db_opts.set_target_file_size_base(2 << 22);
-        db_opts.set_max_bytes_for_level_base(2 << 24);
-        db_opts.set_max_bytes_for_level_multiplier(2.0);
-        db_opts.set_num_levels(8);
-        db_opts.set_write_buffer_size(2 << 27);
-
         let rocksdb_cache =
             rocksdb::Cache::new_lru_cache((config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize)
                 .unwrap();
 
         let mut block_based_options = rocksdb::BlockBasedOptions::default();
-        block_based_options.set_block_size(2 << 19);
         block_based_options.set_block_cache(&rocksdb_cache);
+
+        let mut db_opts = rocksdb::Options::default();
         db_opts.set_block_based_table_factory(&block_based_options);
+        db_opts.create_if_missing(true);
+        db_opts.increase_parallelism(num_cpus::get() as i32);
+        db_opts.set_max_open_files(512);
+        db_opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
+        db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
+        db_opts.optimize_level_style_compaction((config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize);
 
         let cfs = rocksdb::DBWithThreadMode::<rocksdb::MultiThreaded>::list_cf(
             &db_opts,
@@ -90,13 +86,18 @@ impl DatabaseEngine for Arc<Engine> {
             rocksdb::perf::get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.cache]))?;
         Ok(format!(
             "Approximate memory usage of all the mem-tables: {:.3} MB\n\
-                   Approximate memory usage of un-flushed mem-tables: {:.3} MB\n\
-                   Approximate memory usage of all the table readers: {:.3} MB\n\
-                   Approximate memory usage by cache: {:.3} MB",
+             Approximate memory usage of un-flushed mem-tables: {:.3} MB\n\
+             Approximate memory usage of all the table readers: {:.3} MB\n\
+             Approximate memory usage by cache: {:.3} MB\n\
+             self.cache.get_usage(): {:.3} MB\n\
+             self.cache.get_pinned_usage(): {:.3} MB\n\
+             ",
             stats.mem_table_total as f64 / 1024.0 / 1024.0,
             stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
             stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
-            stats.cache_total as f64 / 1024.0 / 1024.0
+            stats.cache_total as f64 / 1024.0 / 1024.0,
+            self.cache.get_usage() as f64 / 1024.0 / 1024.0,
+            self.cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
         ))
     }
 }
