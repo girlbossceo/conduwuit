@@ -160,7 +160,7 @@ pub async fn get_message_events_route(
                 .collect();
 
             let mut resp = get_message_events::Response::new();
-            resp.start = Some(body.from.to_owned());
+            resp.start = body.from.to_owned();
             resp.end = end_token;
             resp.chunk = events_after;
             resp.state = Vec::new();
@@ -190,7 +190,7 @@ pub async fn get_message_events_route(
                 .collect();
 
             let mut resp = get_message_events::Response::new();
-            resp.start = Some(body.from.to_owned());
+            resp.start = body.from.to_owned();
             resp.end = start_token;
             resp.chunk = events_before;
             resp.state = Vec::new();
