@@ -159,11 +159,12 @@ pub async fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect();
 
-            let mut resp = get_message_events::Response::new();
-            resp.start = Some(body.from.to_owned());
-            resp.end = end_token;
-            resp.chunk = events_after;
-            resp.state = Vec::new();
+            let resp = get_message_events::Response {
+                start: body.from.to_owned(),
+                end: end_token,
+                chunk: events_after,
+                state: Vec::new(),
+            };
 
             Ok(resp.into())
         }
@@ -189,11 +190,12 @@ pub async fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect();
 
-            let mut resp = get_message_events::Response::new();
-            resp.start = Some(body.from.to_owned());
-            resp.end = start_token;
-            resp.chunk = events_before;
-            resp.state = Vec::new();
+            let resp = get_message_events::Response {
+                start: body.from.to_owned(),
+                end: start_token,
+                chunk: events_before,
+                state: Vec::new(),
+            };
 
             Ok(resp.into())
         }

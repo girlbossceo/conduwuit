@@ -154,11 +154,7 @@ impl Uiaa {
             .write()
             .unwrap()
             .insert(
-                (
-                    user_id.to_owned(),
-                    device_id.to_owned(),
-                    session.to_string(),
-                ),
+                (user_id.to_owned(), device_id.to_owned(), session.to_owned()),
                 request.to_owned(),
             );
 
@@ -175,11 +171,7 @@ impl Uiaa {
             .userdevicesessionid_uiaarequest
             .read()
             .unwrap()
-            .get(&(
-                user_id.to_owned(),
-                device_id.to_owned(),
-                session.to_string(),
-            ))
+            .get(&(user_id.to_owned(), device_id.to_owned(), session.to_owned()))
             .map(|j| j.to_owned()))
     }
 
