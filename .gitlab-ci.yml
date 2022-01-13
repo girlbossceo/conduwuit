@@ -23,18 +23,12 @@ variables:
   interruptible: true
   image: "rust:latest"
   tags: ["docker"]
-  cache:
-    paths:
-      - cargohome
-    key: "build_cache--$TARGET--$CI_COMMIT_BRANCH"
   variables:
     CARGO_PROFILE_RELEASE_LTO: "true"
     CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
     CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
-    CARGO_HOME: $CI_PROJECT_DIR/cargohome
   before_script:
     - 'echo "Building for target $TARGET"'
-    - "mkdir -p $CARGO_HOME"
     - "rustc --version && cargo --version && rustup show" # Print version info for debugging
     - "rustup target add $TARGET"
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
@@ -219,15 +213,10 @@ test:cargo:
   image: "rust:latest"
   tags: ["docker"]
   variables:
-    CARGO_HOME: "$CI_PROJECT_DIR/cargohome"
     CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
-  cache:
-    paths:
-      - cargohome
-    key: "test_cache--$CI_COMMIT_BRANCH"
   interruptible: true
   before_script:
-    - mkdir -p $CARGO_HOME
+    #    - mkdir -p $CARGO_HOME
     - apt-get update -yqq
     - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config
     - rustup component add clippy rustfmt
