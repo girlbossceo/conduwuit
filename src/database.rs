@@ -250,8 +250,7 @@ impl Database {
             },
             uiaa: uiaa::Uiaa {
                 userdevicesessionid_uiaainfo: builder.open_tree("userdevicesessionid_uiaainfo")?,
-                userdevicesessionid_uiaarequest: builder
-                    .open_tree("userdevicesessionid_uiaarequest")?,
+                userdevicesessionid_uiaarequest: RwLock::new(BTreeMap::new()),
             },
             rooms: rooms::Rooms {
                 edus: rooms::RoomEdus {
@@ -754,6 +753,15 @@ impl Database {
                 db.globals.bump_database_version(10)?;
 
                 println!("Migration: 9 -> 10 finished");
+            }
+
+            if db.globals.database_version()? < 11 {
+                db._db
+                    .open_tree("userdevicesessionid_uiaarequest")?
+                    .clear()?;
+                db.globals.bump_database_version(11)?;
+
+                println!("Migration: 10 -> 11 finished");
             }
         }
 
