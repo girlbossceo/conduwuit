@@ -17,11 +17,10 @@ use rocket::get;
 #[cfg_attr(feature = "conduit_bin", get("/_matrix/client/versions"))]
 #[tracing::instrument]
 pub async fn get_supported_versions_route() -> ConduitResult<get_supported_versions::Response> {
-    let mut resp =
-        get_supported_versions::Response::new(vec!["r0.5.0".to_owned(), "r0.6.0".to_owned()]);
-
-    resp.unstable_features
-        .insert("org.matrix.e2e_cross_signing".to_owned(), true);
+    let resp = get_supported_versions::Response {
+        versions: vec!["r0.5.0".to_owned(), "r0.6.0".to_owned()],
+        unstable_features: [("org.matrix.e2e_cross_signing".to_owned(), true)].into(),
+    };
 
     Ok(resp.into())
 }

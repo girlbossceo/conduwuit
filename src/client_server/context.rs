@@ -92,18 +92,19 @@ pub async fn get_context_route(
         .map(|(_, pdu)| pdu.to_room_event())
         .collect();
 
-    let mut resp = get_context::Response::new();
-    resp.start = start_token;
-    resp.end = end_token;
-    resp.events_before = events_before;
-    resp.event = Some(base_event);
-    resp.events_after = events_after;
-    resp.state = db // TODO: State at event
-        .rooms
-        .room_state_full(&body.room_id)?
-        .values()
-        .map(|pdu| pdu.to_state_event())
-        .collect();
+    let resp = get_context::Response {
+        start: start_token,
+        end: end_token,
+        events_before,
+        event: Some(base_event),
+        events_after,
+        state: db // TODO: State at event
+            .rooms
+            .room_state_full(&body.room_id)?
+            .values()
+            .map(|pdu| pdu.to_state_event())
+            .collect(),
+    };
 
     Ok(resp.into())
 }
