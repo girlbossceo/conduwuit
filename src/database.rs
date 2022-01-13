@@ -128,7 +128,7 @@ fn default_db_cache_capacity_mb() -> f64 {
 }
 
 fn default_pdu_cache_capacity() -> u32 {
-    100_000
+    1_000_000
 }
 
 fn default_cleanup_second_interval() -> u32 {
