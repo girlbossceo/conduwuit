@@ -11,12 +11,12 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 use tracing::warn;
 
-pub struct PersyEngine {
+pub struct Engine {
     persy: Persy,
 }
 
-impl DatabaseEngine for PersyEngine {
-    fn open(config: &Config) -> Result<Arc<Self>> {
+impl DatabaseEngine for Arc<Engine> {
+    fn open(config: &Config) -> Result<Self> {
         let mut cfg = persy::Config::new();
         cfg.change_cache_size((config.db_cache_capacity_mb * 1024.0 * 1024.0) as u64);
 
@@ -24,10 +24,10 @@ impl DatabaseEngine for PersyEngine {
             .create(true)
             .config(cfg)
             .open(&format!("{}/db.persy", config.database_path))?;
-        Ok(Arc::new(PersyEngine { persy }))
+        Ok(Arc::new(Engine { persy }))
     }
 
-    fn open_tree(self: &Arc<Self>, name: &'static str) -> Result<Arc<dyn Tree>> {
+    fn open_tree(&self, name: &'static str) -> Result<Arc<dyn Tree>> {
         // Create if it doesn't exist
         if !self.persy.exists_index(name)? {
             let mut tx = self.persy.begin()?;
@@ -42,7 +42,7 @@ impl DatabaseEngine for PersyEngine {
         }))
     }
 
-    fn flush(self: &Arc<Self>) -> Result<()> {
+    fn flush(&self) -> Result<()> {
         Ok(())
     }
 }

@@ -18,7 +18,12 @@ pub mod rocksdb;
 #[cfg(feature = "persy")]
 pub mod persy;
 
-#[cfg(any(feature = "sqlite", feature = "rocksdb", feature = "heed", feature="persy"))]
+#[cfg(any(
+    feature = "sqlite",
+    feature = "rocksdb",
+    feature = "heed",
+    feature = "persy"
+))]
 pub mod watchers;
 
 pub trait DatabaseEngine: Send + Sync {
