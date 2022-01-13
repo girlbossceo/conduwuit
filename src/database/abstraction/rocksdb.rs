@@ -108,14 +108,12 @@ impl DatabaseEngine for Arc<Engine> {
              Approximate memory usage of un-flushed mem-tables: {:.3} MB\n\
              Approximate memory usage of all the table readers: {:.3} MB\n\
              Approximate memory usage by cache: {:.3} MB\n\
-             self.cache.get_usage(): {:.3} MB\n\
-             self.cache.get_pinned_usage(): {:.3} MB\n\
+             Approximate memory usage by cache pinned: {:.3} MB\n\
              ",
             stats.mem_table_total as f64 / 1024.0 / 1024.0,
             stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
             stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
             stats.cache_total as f64 / 1024.0 / 1024.0,
-            self.cache.get_usage() as f64 / 1024.0 / 1024.0,
             self.cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
         ))
     }
