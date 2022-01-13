@@ -1,6 +1,6 @@
 use super::{super::Config, watchers::Watchers, DatabaseEngine, Tree};
 use crate::{utils, Result};
-use std::{future::Future, pin::Pin, sync::Arc, collections::HashMap, sync::RwLock};
+use std::{future::Future, pin::Pin, sync::Arc, sync::RwLock};
 
 pub struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
@@ -13,7 +13,7 @@ pub struct RocksDbEngineTree<'a> {
     db: Arc<Engine>,
     name: &'a str,
     watchers: Watchers,
-    write_lock: RwLock<()>
+    write_lock: RwLock<()>,
 }
 
 fn db_options(cache_capacity_bytes: usize, rocksdb_cache: &rocksdb::Cache) -> rocksdb::Options {

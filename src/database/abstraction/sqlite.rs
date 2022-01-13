@@ -172,7 +172,7 @@ impl SqliteTable {
 
         let statement_ref = NonAliasingBox(statement);
 
-        let name = self.name.clone();
+        //let name = self.name.clone();
 
         let iterator = Box::new(
             statement
@@ -267,7 +267,7 @@ impl Tree for SqliteTable {
         let guard = self.engine.read_lock_iterator();
         let from = from.to_vec(); // TODO change interface?
 
-        let name = self.name.clone();
+        //let name = self.name.clone();
 
         if backwards {
             let statement = Box::leak(Box::new(

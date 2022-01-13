@@ -1,8 +1,8 @@
 use std::{
     collections::{hash_map, HashMap},
-    sync::RwLock,
     future::Future,
     pin::Pin,
+    sync::RwLock,
 };
 use tokio::sync::watch;
 
