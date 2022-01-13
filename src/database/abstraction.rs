@@ -12,13 +12,24 @@ pub mod sqlite;
 #[cfg(feature = "heed")]
 pub mod heed;
 
-#[cfg(any(feature = "sqlite", feature = "heed"))]
+#[cfg(feature = "rocksdb")]
+pub mod rocksdb;
+
+#[cfg(any(feature = "sqlite", feature = "rocksdb", feature = "heed"))]
 pub mod watchers;
 
-pub trait DatabaseEngine: Sized {
-    fn open(config: &Config) -> Result<Arc<Self>>;
-    fn open_tree(self: &Arc<Self>, name: &'static str) -> Result<Arc<dyn Tree>>;
-    fn flush(self: &Arc<Self>) -> Result<()>;
+pub trait DatabaseEngine: Send + Sync {
+    fn open(config: &Config) -> Result<Self>
+    where
+        Self: Sized;
+    fn open_tree(&self, name: &'static str) -> Result<Arc<dyn Tree>>;
+    fn flush(self: &Self) -> Result<()>;
+    fn cleanup(self: &Self) -> Result<()> {
+        Ok(())
+    }
+    fn memory_usage(self: &Self) -> Result<String> {
+        Ok("Current database engine does not support memory usage reporting.".to_string())
+    }
 }
 
 pub trait Tree: Send + Sync {

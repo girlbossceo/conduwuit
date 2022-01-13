@@ -14,6 +14,7 @@ pub enum AdminCommand {
     RegisterAppservice(serde_yaml::Value),
     UnregisterAppservice(String),
     ListAppservices,
+    ShowMemoryUsage,
     SendMessage(RoomMessageEventContent),
 }
 
@@ -111,6 +112,13 @@ impl Admin {
                                     send_message(RoomMessageEventContent::text_plain(output), guard, &state_lock);
                                 } else {
                                     send_message(RoomMessageEventContent::text_plain("Failed to get appservices."), guard, &state_lock);
+                                }
+                            }
+                            AdminCommand::ShowMemoryUsage => {
+                                if let Ok(response) = guard._db.memory_usage() {
+                                    send_message(RoomMessageEventContent::text_plain(response), guard, &state_lock);
+                                } else {
+                                    send_message(RoomMessageEventContent::text_plain("Failed to get database memory usage.".to_string()), guard, &state_lock);
                                 }
                             }
                             AdminCommand::SendMessage(message) => {

@@ -85,7 +85,7 @@ pub async fn update_device_route(
     Ok(update_device::Response {}.into())
 }
 
-/// # `PUT /_matrix/client/r0/devices/{deviceId}`
+/// # `DELETE /_matrix/client/r0/devices/{deviceId}`
 ///
 /// Deletes the given device.
 ///

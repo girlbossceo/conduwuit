@@ -1392,12 +1392,11 @@ async fn upgrade_outlier_to_timeline_pdu(
                 let mut starting_events = Vec::with_capacity(leaf_state.len());
 
                 for (k, id) in leaf_state {
-                    let k = db
-                        .rooms
-                        .get_statekey_from_short(k)
-                        .map_err(|_| "Failed to get_statekey_from_short.".to_owned())?;
-
-                    state.insert(k, id.clone());
+                    if let Ok(k) = db.rooms.get_statekey_from_short(k) {
+                        state.insert(k, id.clone());
+                    } else {
+                        warn!("Failed to get_statekey_from_short.");
+                    }
                     starting_events.push(id);
                 }
 
@@ -1687,25 +1686,6 @@ async fn upgrade_outlier_to_timeline_pdu(
         // We do this by adding the current state to the list of fork states
         extremity_sstatehashes.remove(&current_sstatehash);
         fork_states.push(current_state_ids);
-        dbg!(&extremity_sstatehashes);
-
-        for (sstatehash, leaf_pdu) in extremity_sstatehashes {
-            let mut leaf_state = db
-                .rooms
-                .state_full_ids(sstatehash)
-                .map_err(|_| "Failed to ask db for room state.".to_owned())?;
-
-            if let Some(state_key) = &leaf_pdu.state_key {
-                let shortstatekey = db
-                    .rooms
-                    .get_or_create_shortstatekey(&leaf_pdu.kind, state_key, &db.globals)
-                    .map_err(|_| "Failed to create shortstatekey.".to_owned())?;
-                leaf_state.insert(shortstatekey, Arc::from(&*leaf_pdu.event_id));
-                // Now it's the state after the pdu
-            }
-
-            fork_states.push(leaf_state);
-        }
 
         // We also add state after incoming event to the fork states
         let mut state_after = state_at_incoming_event.clone();
@@ -1755,11 +1735,16 @@ async fn upgrade_outlier_to_timeline_pdu(
                 .into_iter()
                 .map(|map| {
                     map.into_iter()
-                        .map(|(k, id)| db.rooms.get_statekey_from_short(k).map(|k| (k, id)))
-                        .collect::<Result<StateMap<_>>>()
+                        .filter_map(|(k, id)| {
+                            db.rooms
+                                .get_statekey_from_short(k)
+                                .map(|k| (k, id))
+                                .map_err(|e| warn!("Failed to get_statekey_from_short: {}", e))
+                                .ok()
+                        })
+                        .collect::<StateMap<_>>()
                 })
-                .collect::<Result<_>>()
-                .map_err(|_| "Failed to get_statekey_from_short.".to_owned())?;
+                .collect();
 
             let state = match state_res::resolve(
                 room_version_id,
@@ -1871,73 +1856,104 @@ pub(crate) fn fetch_and_handle_outliers<'a>(
             // a. Look in the main timeline (pduid_pdu tree)
             // b. Look at outlier pdu tree
             // (get_pdu_json checks both)
-            let local_pdu = db.rooms.get_pdu(id);
-            let pdu = match local_pdu {
-                Ok(Some(pdu)) => {
-                    trace!("Found {} in db", id);
-                    (pdu, None)
-                }
-                Ok(None) => {
-                    // c. Ask origin server over federation
-                    warn!("Fetching {} over federation.", id);
-                    match db
-                        .sending
-                        .send_federation_request(
-                            &db.globals,
-                            origin,
-                            get_event::v1::Request { event_id: id },
-                        )
-                        .await
-                    {
-                        Ok(res) => {
-                            warn!("Got {} over federation", id);
-                            let (calculated_event_id, value) =
-                                match crate::pdu::gen_event_id_canonical_json(&res.pdu) {
-                                    Ok(t) => t,
-                                    Err(_) => {
-                                        back_off((**id).to_owned());
-                                        continue;
-                                    }
-                                };
+            if let Ok(Some(local_pdu)) = db.rooms.get_pdu(id) {
+                trace!("Found {} in db", id);
+                pdus.push((local_pdu, None));
+                continue;
+            }
 
-                            if calculated_event_id != **id {
-                                warn!("Server didn't return event id we requested: requested: {}, we got {}. Event: {:?}",
-                                    id, calculated_event_id, &res.pdu);
-                            }
-
-                            // This will also fetch the auth chain
-                            match handle_outlier_pdu(
-                                origin,
-                                create_event,
-                                id,
-                                room_id,
-                                value.clone(),
-                                db,
-                                pub_key_map,
-                            )
-                            .await
-                            {
-                                Ok((pdu, json)) => (pdu, Some(json)),
-                                Err(e) => {
-                                    warn!("Authentication of event {} failed: {:?}", id, e);
-                                    back_off((**id).to_owned());
-                                    continue;
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            warn!("Failed to fetch event: {}", id);
-                            back_off((**id).to_owned());
-                            continue;
-                        }
-                    }
-                }
-                Err(e) => {
-                    warn!("Error loading {}: {}", id, e);
+            // c. Ask origin server over federation
+            // We also handle its auth chain here so we don't get a stack overflow in
+            // handle_outlier_pdu.
+            let mut todo_auth_events = vec![Arc::clone(id)];
+            let mut events_in_reverse_order = Vec::new();
+            let mut events_all = HashSet::new();
+            while let Some(next_id) = todo_auth_events.pop() {
+                if events_all.contains(&next_id) {
                     continue;
                 }
-            };
-            pdus.push(pdu);
+
+                if let Ok(Some(_)) = db.rooms.get_pdu(&next_id) {
+                    trace!("Found {} in db", id);
+                    continue;
+                }
+
+                warn!("Fetching {} over federation.", next_id);
+                match db
+                    .sending
+                    .send_federation_request(
+                        &db.globals,
+                        origin,
+                        get_event::v1::Request { event_id: &next_id },
+                    )
+                    .await
+                {
+                    Ok(res) => {
+                        warn!("Got {} over federation", next_id);
+                        let (calculated_event_id, value) =
+                            match crate::pdu::gen_event_id_canonical_json(&res.pdu) {
+                                Ok(t) => t,
+                                Err(_) => {
+                                    back_off((*next_id).to_owned());
+                                    continue;
+                                }
+                            };
+
+                        if calculated_event_id != *next_id {
+                            warn!("Server didn't return event id we requested: requested: {}, we got {}. Event: {:?}",
+                                next_id, calculated_event_id, &res.pdu);
+                        }
+
+                        if let Some(auth_events) =
+                            value.get("auth_events").and_then(|c| c.as_array())
+                        {
+                            for auth_event in auth_events {
+                                if let Ok(auth_event) =
+                                    serde_json::from_value(auth_event.clone().into())
+                                {
+                                    let a: Arc<EventId> = auth_event;
+                                    todo_auth_events.push(a);
+                                } else {
+                                    warn!("Auth event id is not valid");
+                                }
+                            }
+                        } else {
+                            warn!("Auth event list invalid");
+                        }
+
+                        events_in_reverse_order.push((next_id.clone(), value));
+                        events_all.insert(next_id);
+                    }
+                    Err(_) => {
+                        warn!("Failed to fetch event: {}", next_id);
+                        back_off((*next_id).to_owned());
+                    }
+                }
+            }
+
+            for (next_id, value) in events_in_reverse_order.iter().rev() {
+                match handle_outlier_pdu(
+                    origin,
+                    create_event,
+                    &next_id,
+                    room_id,
+                    value.clone(),
+                    db,
+                    pub_key_map,
+                )
+                .await
+                {
+                    Ok((pdu, json)) => {
+                        if next_id == id {
+                            pdus.push((pdu, Some(json)));
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Authentication of event {} failed: {:?}", next_id, e);
+                        back_off((**next_id).to_owned());
+                    }
+                }
+            }
         }
         pdus
     })
