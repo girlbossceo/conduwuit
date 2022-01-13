@@ -1,3 +1,5 @@
+use std::{collections::BTreeMap, iter::FromIterator};
+
 use crate::ConduitResult;
 use ruma::api::client::unversioned::get_supported_versions;
 
@@ -19,7 +21,7 @@ use rocket::get;
 pub async fn get_supported_versions_route() -> ConduitResult<get_supported_versions::Response> {
     let resp = get_supported_versions::Response {
         versions: vec!["r0.5.0".to_owned(), "r0.6.0".to_owned()],
-        unstable_features: [("org.matrix.e2e_cross_signing".to_owned(), true)].into(),
+        unstable_features: BTreeMap::from_iter([("org.matrix.e2e_cross_signing".to_owned(), true)]),
     };
 
     Ok(resp.into())
