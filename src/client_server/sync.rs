@@ -762,6 +762,8 @@ async fn sync_helper(
                 .users
                 .get_to_device_events(&sender_user, &sender_device)?,
         },
+        // Fallback keys are not yet supported
+        device_unused_fallback_key_types: None,
     };
 
     // TODO: Retry the endpoint instead of returning (waiting for #118)

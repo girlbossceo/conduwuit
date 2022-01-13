@@ -15,7 +15,7 @@ use ruma::{
         },
         federation,
     },
-    encryption::UnsignedDeviceInfo,
+    serde::Raw,
     DeviceId, DeviceKeyAlgorithm, UserId,
 };
 use serde_json::json;
@@ -42,16 +42,9 @@ pub async fn upload_keys_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-    if let Some(one_time_keys) = &body.one_time_keys {
-        for (key_key, key_value) in one_time_keys {
-            db.users.add_one_time_key(
-                sender_user,
-                sender_device,
-                key_key,
-                key_value,
-                &db.globals,
-            )?;
-        }
+    for (key_key, key_value) in &body.one_time_keys {
+        db.users
+            .add_one_time_key(sender_user, sender_device, key_key, key_value, &db.globals)?;
     }
 
     if let Some(device_keys) = &body.device_keys {
@@ -350,10 +343,8 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                             Error::bad_database("all_device_keys contained nonexistent device.")
                         })?;
 
-                    keys.unsigned = UnsignedDeviceInfo {
-                        device_display_name: metadata.display_name,
-                    };
-
+                    add_unsigned_device_display_name(&mut keys, metadata)
+                        .map_err(|_| Error::bad_database("invalid device keys in database"))?;
                     container.insert(device_id, keys);
                 }
             }
@@ -369,10 +360,8 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                         ),
                     )?;
 
-                    keys.unsigned = UnsignedDeviceInfo {
-                        device_display_name: metadata.display_name,
-                    };
-
+                    add_unsigned_device_display_name(&mut keys, metadata)
+                        .map_err(|_| Error::bad_database("invalid device keys in database"))?;
                     container.insert(device_id.to_owned(), keys);
                 }
                 device_keys.insert(user_id.to_owned(), container);
@@ -439,6 +428,24 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
         device_keys,
         failures,
     })
+}
+
+fn add_unsigned_device_display_name(
+    keys: &mut Raw<ruma::encryption::DeviceKeys>,
+    metadata: ruma::api::client::r0::device::Device,
+) -> serde_json::Result<()> {
+    if let Some(display_name) = metadata.display_name {
+        let mut object = keys.deserialize_as::<serde_json::Map<String, serde_json::Value>>()?;
+
+        let unsigned = object.entry("unsigned").or_insert_with(|| json!({}));
+        if let serde_json::Value::Object(unsigned_object) = unsigned {
+            unsigned_object.insert("device_display_name".to_owned(), display_name.into());
+        }
+
+        *keys = Raw::from_json(serde_json::value::to_raw_value(&object)?);
+    }
+
+    Ok(())
 }
 
 pub(crate) async fn claim_keys_helper(
