@@ -124,7 +124,7 @@ fn default_database_backend() -> String {
 }
 
 fn default_db_cache_capacity_mb() -> f64 {
-    200.0
+    10.0
 }
 
 fn default_pdu_cache_capacity() -> u32 {
