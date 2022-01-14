@@ -49,6 +49,8 @@ pub struct Config {
     database_path: String,
     #[serde(default = "default_db_cache_capacity_mb")]
     db_cache_capacity_mb: f64,
+    #[serde(default = "default_rocksdb_max_open_files")]
+    rocksdb_max_open_files: i32,
     #[serde(default = "default_pdu_cache_capacity")]
     pdu_cache_capacity: u32,
     #[serde(default = "default_cleanup_second_interval")]
@@ -125,6 +127,10 @@ fn default_database_backend() -> String {
 
 fn default_db_cache_capacity_mb() -> f64 {
     10.0
+}
+
+fn default_rocksdb_max_open_files() -> i32 {
+    512
 }
 
 fn default_pdu_cache_capacity() -> u32 {

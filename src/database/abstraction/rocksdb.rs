@@ -5,6 +5,7 @@ use std::{future::Future, pin::Pin, sync::Arc, sync::RwLock};
 pub struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
     cache_capacity_bytes: usize,
+    max_open_files: i32,
     cache: rocksdb::Cache,
     old_cfs: Vec<String>,
 }
@@ -16,7 +17,11 @@ pub struct RocksDbEngineTree<'a> {
     write_lock: RwLock<()>,
 }
 
-fn db_options(cache_capacity_bytes: usize, rocksdb_cache: &rocksdb::Cache) -> rocksdb::Options {
+fn db_options(
+    cache_capacity_bytes: usize,
+    max_open_files: i32,
+    rocksdb_cache: &rocksdb::Cache,
+) -> rocksdb::Options {
     let mut block_based_options = rocksdb::BlockBasedOptions::default();
     block_based_options.set_block_cache(rocksdb_cache);
 
@@ -36,7 +41,7 @@ fn db_options(cache_capacity_bytes: usize, rocksdb_cache: &rocksdb::Cache) -> ro
     //db_opts.set_use_direct_io_for_flush_and_compaction(true);
     db_opts.create_if_missing(true);
     db_opts.increase_parallelism(num_cpus::get() as i32);
-    db_opts.set_max_open_files(512);
+    db_opts.set_max_open_files(max_open_files);
     db_opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
     db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
     db_opts.optimize_level_style_compaction(cache_capacity_bytes);
@@ -52,7 +57,11 @@ impl DatabaseEngine for Arc<Engine> {
         let cache_capacity_bytes = (config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize;
         let rocksdb_cache = rocksdb::Cache::new_lru_cache(cache_capacity_bytes).unwrap();
 
-        let db_opts = db_options(cache_capacity_bytes, &rocksdb_cache);
+        let db_opts = db_options(
+            cache_capacity_bytes,
+            config.rocksdb_max_open_files,
+            &rocksdb_cache,
+        );
 
         let cfs = rocksdb::DBWithThreadMode::<rocksdb::MultiThreaded>::list_cf(
             &db_opts,
@@ -66,7 +75,11 @@ impl DatabaseEngine for Arc<Engine> {
             cfs.iter().map(|name| {
                 rocksdb::ColumnFamilyDescriptor::new(
                     name,
-                    db_options(cache_capacity_bytes, &rocksdb_cache),
+                    db_options(
+                        cache_capacity_bytes,
+                        config.rocksdb_max_open_files,
+                        &rocksdb_cache,
+                    ),
                 )
             }),
         )?;
@@ -74,6 +87,7 @@ impl DatabaseEngine for Arc<Engine> {
         Ok(Arc::new(Engine {
             rocks: db,
             cache_capacity_bytes,
+            max_open_files: config.rocksdb_max_open_files,
             cache: rocksdb_cache,
             old_cfs: cfs,
         }))
@@ -82,9 +96,10 @@ impl DatabaseEngine for Arc<Engine> {
     fn open_tree(&self, name: &'static str) -> Result<Arc<dyn Tree>> {
         if !self.old_cfs.contains(&name.to_owned()) {
             // Create if it didn't exist
-            let _ = self
-                .rocks
-                .create_cf(name, &db_options(self.cache_capacity_bytes, &self.cache));
+            let _ = self.rocks.create_cf(
+                name,
+                &db_options(self.cache_capacity_bytes, self.max_open_files, &self.cache),
+            );
         }
 
         Ok(Arc::new(RocksDbEngineTree {
