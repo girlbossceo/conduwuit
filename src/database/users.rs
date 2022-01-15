@@ -129,20 +129,35 @@ impl Users {
     /// and the function will log the error
     #[tracing::instrument(skip(self))]
     pub fn get_local_users(&self) -> Result<Vec<String>> {
-        self.userid_password
+        let users: Vec<String> = self
+            .userid_password
             .iter()
-            .filter(|(_, pw)| pw.len() > 0)
-            .map(|(username, _)| match utils::string_from_bytes(&username) {
-                Ok(s) => s,
-                Err(e) => {
-                    Error::bad_database(format!(
-                        "Failed to parse username while calling get_local_users(): {}",
-                        e.to_string()
-                    ));
+            .filter_map(|(username, pw)| self.get_username_on_valid_password(&username, &pw))
+            .collect();
+        Ok(users)
+    }
+
+    /// A private helper to avoid double filtering the iterator
+    fn get_username_on_valid_password(&self, username: &[u8], password: &[u8]) -> Option<String> {
+        // A valid password is not empty
+        if password.len() > 0 {
+            match utils::string_from_bytes(username) {
+                Ok(u) => Some(u),
+                Err(_) => {
+                    // TODO: add error cause!
+                    // let msg: String = format!(
+                    //     "Failed to parse username while calling get_local_users(): {}",
+                    //     e.to_string()
+                    // );
+                    Error::bad_database(
+                        "Failed to parse username while calling get_username_on_valid_password",
+                    );
                     None
                 }
-            })
-            .collect::<Result<Vec<String>>>()
+            }
+        } else {
+            None
+        }
     }
 
     /// Returns the password hash for the given user.
