@@ -123,10 +123,11 @@ impl Users {
         })
     }
 
-    /// Returns a list of local usernames, that is, a parseable username
-    /// with a password of length greater then zero bytes.
+    /// Returns a list of local users as list of usernames.
+    ///
+    /// A user account is considered `local` if the length of it's password
+    /// is greater then zero.
     /// If utils::string_from_bytes returns an error that username will be skipped
-    /// and the function will log the error
     #[tracing::instrument(skip(self))]
     pub fn get_local_users(&self) -> Result<Vec<String>> {
         let users: Vec<String> = self
@@ -138,6 +139,7 @@ impl Users {
     }
 
     /// A private helper to avoid double filtering the iterator
+    #[tracing::instrument(skip(self))]
     fn get_username_on_valid_password(&self, username: &[u8], password: &[u8]) -> Option<String> {
         // A valid password is not empty
         if password.len() > 0 {
