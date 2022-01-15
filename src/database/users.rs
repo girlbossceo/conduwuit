@@ -84,16 +84,6 @@ impl Users {
         Ok(self.userid_password.iter().count())
     }
 
-    /// The method is DEPRECATED and was replaced by iter_locals()
-    /// 
-    /// This method will only count those local user accounts with
-    /// a password thus returning only real accounts on this instance.
-    #[tracing::instrument(skip(self))]
-    pub fn count_local_users(&self) -> Result<usize> {
-        let n = self.userid_password.iter().filter(|(_, bytes)| bytes.len() > 0).count();
-        Ok(n)
-    }
-
 
     /// Find out which user an access token belongs to.
     #[tracing::instrument(skip(self, token))]
@@ -134,13 +124,19 @@ impl Users {
         })
     }
 
-    /// Returns a vector of local usernames
+    /// Returns a list of local usernames, that is, a parseable username
+    /// with a password of length greater then zero bytes.
+    /// If utils::string_from_bytes returns an error that username will be skipped
+    /// and the function will log the error
     #[tracing::instrument(skip(self))]
-    pub fn iter_locals(&self) -> Vec<String> {
+    pub fn get_local_users(&self) -> Vec<String> {
         self.userid_password.iter().filter(|(_, pw)| pw.len() > 0).map(|(username, _)| {
             match utils::string_from_bytes(&username) {
                 Ok(s) => s,
-                Err(e) => e.to_string()
+                Err(e) => {
+                    Error::bad_database(format!("Failed to parse username: {}", e.to_string()));
+                    None
+                }
             }
         }).collect::<Vec<String>>()
     }
