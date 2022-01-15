@@ -95,12 +95,16 @@ impl Admin {
 
                         match event {
                             AdminCommand::ListLocalUsers => {
-                                let users = guard.users.get_local_users();
-
-                                let mut msg: String = format!("Found {} local user account(s):\n", users.len());
-                                msg += &users.join("\n");
-                                
-                                send_message(RoomMessageEventContent::text_plain(&msg), guard, &state_lock);
+                                match guard.users.get_local_users() {
+                                    Ok(users) => {
+                                        let mut msg: String = format!("Found {} local user account(s):\n", users.len());
+                                        msg += &users.join("\n");
+                                        send_message(RoomMessageEventContent::text_plain(&msg), guard, &state_lock);
+                                    }
+                                    Err(e) => {
+                                        send_message(RoomMessageEventContent::text_plain(e.to_string()), guard, &state_lock);
+                                    }
+                                }
                             }
                             AdminCommand::RegisterAppservice(yaml) => {
                                 guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error

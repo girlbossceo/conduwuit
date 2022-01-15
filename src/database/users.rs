@@ -84,7 +84,6 @@ impl Users {
         Ok(self.userid_password.iter().count())
     }
 
-
     /// Find out which user an access token belongs to.
     #[tracing::instrument(skip(self, token))]
     pub fn find_from_token(&self, token: &str) -> Result<Option<(Box<UserId>, String)>> {
@@ -129,16 +128,21 @@ impl Users {
     /// If utils::string_from_bytes returns an error that username will be skipped
     /// and the function will log the error
     #[tracing::instrument(skip(self))]
-    pub fn get_local_users(&self) -> Vec<String> {
-        self.userid_password.iter().filter(|(_, pw)| pw.len() > 0).map(|(username, _)| {
-            match utils::string_from_bytes(&username) {
+    pub fn get_local_users(&self) -> Result<Vec<String>> {
+        self.userid_password
+            .iter()
+            .filter(|(_, pw)| pw.len() > 0)
+            .map(|(username, _)| match utils::string_from_bytes(&username) {
                 Ok(s) => s,
                 Err(e) => {
-                    Error::bad_database(format!("Failed to parse username: {}", e.to_string()));
+                    Error::bad_database(format!(
+                        "Failed to parse username while calling get_local_users(): {}",
+                        e.to_string()
+                    ));
                     None
                 }
-            }
-        }).collect::<Vec<String>>()
+            })
+            .collect::<Result<Vec<String>>>()
     }
 
     /// Returns the password hash for the given user.
