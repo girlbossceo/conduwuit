@@ -218,7 +218,7 @@ test:cargo:
   before_script:
     #    - mkdir -p $CARGO_HOME
     - apt-get update -yqq
-    - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config
+    - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config libclang-dev
     - rustup component add clippy rustfmt
     - curl "https://faulty-storage.de/gitlab-report" --output ./gitlab-report && chmod +x ./gitlab-report
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
