@@ -95,7 +95,7 @@ impl Admin {
 
                         match event {
                             AdminCommand::ListLocalUsers => {
-                                match guard.users.get_local_users() {
+                                match guard.users.list_local_users() {
                                     Ok(users) => {
                                         let mut msg: String = format!("Found {} local user account(s):\n", users.len());
                                         msg += &users.join("\n");

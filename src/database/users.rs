@@ -127,7 +127,7 @@ impl Users {
     ///
     /// A user account is considered `local` if the length of it's password is greater then zero.
     #[tracing::instrument(skip(self))]
-    pub fn get_local_users(&self) -> Result<Vec<String>> {
+    pub fn list_local_users(&self) -> Result<Vec<String>> {
         let users: Vec<String> = self
             .userid_password
             .iter()
