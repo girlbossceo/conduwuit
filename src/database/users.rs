@@ -125,28 +125,27 @@ impl Users {
 
     /// Returns a list of local users as list of usernames.
     ///
-    /// A user account is considered `local` if the length of it's password
-    /// is greater then zero.
-    /// If utils::string_from_bytes returns an error that username will be skipped
+    /// A user account is considered `local` if the length of it's password is greater then zero.
     #[tracing::instrument(skip(self))]
     pub fn get_local_users(&self) -> Result<Vec<String>> {
         let users: Vec<String> = self
             .userid_password
             .iter()
-            .filter_map(|(username, pw)| self.get_username_on_valid_password(&username, &pw))
+            .filter_map(|(username, pw)| self.get_username_with_valid_password(&username, &pw))
             .collect();
         Ok(users)
     }
 
-    /// A private helper to avoid double filtering the iterator
+    /// A private helper to avoid double filtering the iterator in get_local_users().
+    /// If utils::string_from_bytes(...) returns an error that username will be skipped
+    /// and the error will be logged. TODO: add error cause.
     #[tracing::instrument(skip(self))]
-    fn get_username_on_valid_password(&self, username: &[u8], password: &[u8]) -> Option<String> {
+    fn get_username_with_valid_password(&self, username: &[u8], password: &[u8]) -> Option<String> {
         // A valid password is not empty
         if password.len() > 0 {
             match utils::string_from_bytes(username) {
                 Ok(u) => Some(u),
                 Err(_) => {
-                    // TODO: add error cause!
                     // let msg: String = format!(
                     //     "Failed to parse username while calling get_local_users(): {}",
                     //     e.to_string()
