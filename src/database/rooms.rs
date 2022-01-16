@@ -3,13 +3,13 @@ mod edus;
 pub use edus::RoomEdus;
 
 use crate::{
+    database::admin::parse_admin_command,
     pdu::{EventHash, PduBuilder},
-    server_server, utils, Database, Error, PduEvent, Result,
+    utils, Database, Error, PduEvent, Result,
 };
 use lru_cache::LruCache;
 use regex::Regex;
 use ring::digest;
-use rocket::http::RawStr;
 use ruma::{
     api::{client::error::ErrorKind, federation},
     events::{
@@ -19,7 +19,6 @@ use ruma::{
         room::{
             create::RoomCreateEventContent,
             member::{MembershipState, RoomMemberEventContent},
-            message::RoomMessageEventContent,
             power_levels::RoomPowerLevelsEventContent,
         },
         tag::TagEvent,
@@ -40,12 +39,11 @@ use std::{
     iter,
     mem::size_of,
     sync::{Arc, Mutex, RwLock},
-    time::Instant,
 };
 use tokio::sync::MutexGuard;
 use tracing::{error, warn};
 
-use super::{abstraction::Tree, admin::AdminCommand, pusher};
+use super::{abstraction::Tree, pusher};
 
 /// The unique identifier of each state group.
 ///
@@ -1496,216 +1494,8 @@ impl Rooms {
                         let command_line = lines.next().expect("each string has at least one line");
                         let body: Vec<_> = lines.collect();
 
-                        let mut parts = command_line.split_whitespace().skip(1);
-                        if let Some(command) = parts.next() {
-                            let args: Vec<_> = parts.collect();
-
-                            match command {
-                                "register_appservice" => {
-                                    if body.len() > 2
-                                        && body[0].trim() == "```"
-                                        && body.last().unwrap().trim() == "```"
-                                    {
-                                        let appservice_config = body[1..body.len() - 1].join("\n");
-                                        let parsed_config = serde_yaml::from_str::<serde_yaml::Value>(
-                                            &appservice_config,
-                                        );
-                                        match parsed_config {
-                                            Ok(yaml) => {
-                                                db.admin
-                                                    .send(AdminCommand::RegisterAppservice(yaml));
-                                            }
-                                            Err(e) => {
-                                                db.admin.send(AdminCommand::SendMessage(
-                                                    RoomMessageEventContent::text_plain(format!(
-                                                        "Could not parse appservice config: {}",
-                                                        e
-                                                    )),
-                                                ));
-                                            }
-                                        }
-                                    } else {
-                                        db.admin.send(AdminCommand::SendMessage(
-                                            RoomMessageEventContent::text_plain(
-                                                "Expected code block in command body.",
-                                            ),
-                                        ));
-                                    }
-                                }
-                                "unregister_appservice" => {
-                                    if args.len() == 1 {
-                                        db.admin.send(AdminCommand::UnregisterAppservice(
-                                            args[0].to_owned(),
-                                        ));
-                                    } else {
-                                        db.admin.send(AdminCommand::SendMessage(
-                                            RoomMessageEventContent::text_plain(
-                                                "Missing appservice identifier",
-                                            ),
-                                        ));
-                                    }
-                                }
-                                "list_appservices" => {
-                                    db.admin.send(AdminCommand::ListAppservices);
-                                }
-                                "get_auth_chain" => {
-                                    if args.len() == 1 {
-                                        if let Ok(event_id) = EventId::parse_arc(args[0]) {
-                                            if let Some(event) = db.rooms.get_pdu_json(&event_id)? {
-                                                let room_id_str = event
-                                                    .get("room_id")
-                                                    .and_then(|val| val.as_str())
-                                                    .ok_or_else(|| {
-                                                        Error::bad_database(
-                                                            "Invalid event in database",
-                                                        )
-                                                    })?;
-
-                                                let room_id = <&RoomId>::try_from(room_id_str)
-                                                    .map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
-                                                let start = Instant::now();
-                                                let count = server_server::get_auth_chain(
-                                                    room_id,
-                                                    vec![event_id],
-                                                    db,
-                                                )?
-                                                .count();
-                                                let elapsed = start.elapsed();
-                                                db.admin.send(AdminCommand::SendMessage(
-                                                    RoomMessageEventContent::text_plain(format!(
-                                                        "Loaded auth chain with length {} in {:?}",
-                                                        count, elapsed
-                                                    )),
-                                                ));
-                                            }
-                                        }
-                                    }
-                                }
-                                "parse_pdu" => {
-                                    if body.len() > 2
-                                        && body[0].trim() == "```"
-                                        && body.last().unwrap().trim() == "```"
-                                    {
-                                        let string = body[1..body.len() - 1].join("\n");
-                                        match serde_json::from_str(&string) {
-                                            Ok(value) => {
-                                                let event_id = EventId::parse(format!(
-                                                    "${}",
-                                                    // Anything higher than version3 behaves the same
-                                                    ruma::signatures::reference_hash(
-                                                        &value,
-                                                        &RoomVersionId::V6
-                                                    )
-                                                    .expect("ruma can calculate reference hashes")
-                                                ))
-                                                .expect(
-                                                    "ruma's reference hashes are valid event ids",
-                                                );
-
-                                                match serde_json::from_value::<PduEvent>(
-                                                    serde_json::to_value(value)
-                                                        .expect("value is json"),
-                                                ) {
-                                                    Ok(pdu) => {
-                                                        db.admin.send(AdminCommand::SendMessage(
-                                                            RoomMessageEventContent::text_plain(
-                                                                format!(
-                                                                    "EventId: {:?}\n{:#?}",
-                                                                    event_id, pdu
-                                                                ),
-                                                            ),
-                                                        ));
-                                                    }
-                                                    Err(e) => {
-                                                        db.admin.send(AdminCommand::SendMessage(
-                                                            RoomMessageEventContent::text_plain(
-                                                                format!("EventId: {:?}\nCould not parse event: {}", event_id, e),
-                                                            ),
-                                                        ));
-                                                    }
-                                                }
-                                            }
-                                            Err(e) => {
-                                                db.admin.send(AdminCommand::SendMessage(
-                                                    RoomMessageEventContent::text_plain(format!(
-                                                        "Invalid json in command body: {}",
-                                                        e
-                                                    )),
-                                                ));
-                                            }
-                                        }
-                                    } else {
-                                        db.admin.send(AdminCommand::SendMessage(
-                                            RoomMessageEventContent::text_plain(
-                                                "Expected code block in command body.",
-                                            ),
-                                        ));
-                                    }
-                                }
-                                "get_pdu" => {
-                                    if args.len() == 1 {
-                                        if let Ok(event_id) = EventId::parse(args[0]) {
-                                            let mut outlier = false;
-                                            let mut pdu_json =
-                                                db.rooms.get_non_outlier_pdu_json(&event_id)?;
-                                            if pdu_json.is_none() {
-                                                outlier = true;
-                                                pdu_json = db.rooms.get_pdu_json(&event_id)?;
-                                            }
-                                            match pdu_json {
-                                                Some(json) => {
-                                                    let json_text =
-                                                        serde_json::to_string_pretty(&json)
-                                                            .expect("canonical json is valid json");
-                                                    db.admin.send(AdminCommand::SendMessage(
-                                                        RoomMessageEventContent::text_html(
-                                                            format!("{}\n```json\n{}\n```",
-                                                            if outlier {
-                                                                "PDU is outlier"
-                                                            } else { "PDU was accepted"}, json_text),
-                                                            format!("<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-                                                            if outlier {
-                                                                "PDU is outlier"
-                                                            } else { "PDU was accepted"}, RawStr::new(&json_text).html_escape())
-                                                        ),
-                                                    ));
-                                                }
-                                                None => {
-                                                    db.admin.send(AdminCommand::SendMessage(
-                                                        RoomMessageEventContent::text_plain(
-                                                            "PDU not found.",
-                                                        ),
-                                                    ));
-                                                }
-                                            }
-                                        } else {
-                                            db.admin.send(AdminCommand::SendMessage(
-                                                RoomMessageEventContent::text_plain(
-                                                    "Event ID could not be parsed.",
-                                                ),
-                                            ));
-                                        }
-                                    } else {
-                                        db.admin.send(AdminCommand::SendMessage(
-                                            RoomMessageEventContent::text_plain(
-                                                "Usage: get_pdu <eventid>",
-                                            ),
-                                        ));
-                                    }
-                                }
-                                "database_memory_usage" => {
-                                    db.admin.send(AdminCommand::ShowMemoryUsage);
-                                }
-                                _ => {
-                                    db.admin.send(AdminCommand::SendMessage(
-                                        RoomMessageEventContent::text_plain(format!(
-                                            "Unrecognized command: {}",
-                                            command
-                                        )),
-                                    ));
-                                }
-                            }
-                        }
+                        let command = parse_admin_command(db, command_line, body);
+                        db.admin.send(command);
                     }
                 }
             }
