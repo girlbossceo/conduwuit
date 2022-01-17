@@ -10,6 +10,7 @@ use ruma::{
 };
 use std::{collections::BTreeMap, convert::TryInto, mem, sync::Arc};
 use tracing::warn;
+use tracing::info;
 
 use super::abstraction::Tree;
 
@@ -144,7 +145,10 @@ impl Users {
         // A valid password is not empty
         if password.len() > 0 {
             match utils::string_from_bytes(username) {
-                Ok(u) => Some(u),
+                Ok(u) => {
+                    info!("list_local_users_test: found user {}", u);
+                    Some(u)
+                },
                 Err(_) => {
                     // let msg: String = format!(
                     //     "Failed to parse username while calling get_local_users(): {}",
