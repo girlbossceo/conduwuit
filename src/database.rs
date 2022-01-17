@@ -134,7 +134,7 @@ fn default_rocksdb_max_open_files() -> i32 {
 }
 
 fn default_pdu_cache_capacity() -> u32 {
-    1_000_000
+    150_000
 }
 
 fn default_cleanup_second_interval() -> u32 {
