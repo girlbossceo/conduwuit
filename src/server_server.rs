@@ -42,6 +42,7 @@ use ruma::{
     events::{
         receipt::{ReceiptEvent, ReceiptEventContent},
         room::{
+            server_acl::RoomServerAclEventContent,
             create::RoomCreateEventContent,
             member::{MembershipState, RoomMemberEventContent},
         },
@@ -49,7 +50,7 @@ use ruma::{
     },
     int,
     receipt::ReceiptType,
-    serde::JsonObject,
+    serde::{Base64, JsonObject},
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, RoomVersion, StateMap},
     to_device::DeviceIdOrAllDevices,
@@ -551,7 +552,7 @@ pub fn get_server_keys_route(db: DatabaseGuard) -> Json<String> {
             .try_into()
             .expect("found invalid server signing keys in DB"),
         VerifyKey {
-            key: base64::encode_config(db.globals.keypair().public_key(), base64::STANDARD_NO_PAD),
+            key: Base64::new(db.globals.keypair().public_key().to_vec()),
         },
     );
     let mut response = serde_json::from_slice(
@@ -740,6 +741,8 @@ pub async fn send_transaction_message_route(
             }
         };
 
+        acl_check(&body.origin, &room_id, &db)?;
+
         let mutex = Arc::clone(
             db.globals
                 .roomid_mutex_federation
@@ -854,7 +857,7 @@ pub async fn send_transaction_message_route(
                 // Check if this is a new transaction id
                 if db
                     .transaction_ids
-                    .existing_txnid(&sender, None, &message_id)?
+                    .existing_txnid(&sender, None, (&*message_id).into())?
                     .is_some()
                 {
                     continue;
@@ -902,7 +905,7 @@ pub async fn send_transaction_message_route(
 
                 // Save transaction id with empty data
                 db.transaction_ids
-                    .add_txnid(&sender, None, &message_id, &[])?;
+                    .add_txnid(&sender, None, (&*message_id).into(), &[])?;
             }
             Edu::_Custom(_) => {}
         }
@@ -948,7 +951,7 @@ pub(crate) async fn handle_incoming_pdu<'a>(
     value: BTreeMap<String, CanonicalJsonValue>,
     is_timeline_event: bool,
     db: &'a Database,
-    pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
+    pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 ) -> Result<Option<Vec<u8>>, String> {
     match db.rooms.exists(room_id) {
         Ok(true) => {}
@@ -1123,7 +1126,7 @@ fn handle_outlier_pdu<'a>(
     room_id: &'a RoomId,
     value: BTreeMap<String, CanonicalJsonValue>,
     db: &'a Database,
-    pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
+    pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 ) -> AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>), String>> {
     Box::pin(async move {
         // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we anywhere?: https://matrix.org/docs/spec/rooms/v6#canonical-json
@@ -1285,7 +1288,7 @@ async fn upgrade_outlier_to_timeline_pdu(
     origin: &ServerName,
     db: &Database,
     room_id: &RoomId,
-    pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
+    pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 ) -> Result<Option<Vec<u8>>, String> {
     if let Ok(Some(pduid)) = db.rooms.get_pdu_id(&incoming_pdu.event_id) {
         return Ok(Some(pduid));
@@ -1827,7 +1830,7 @@ pub(crate) fn fetch_and_handle_outliers<'a>(
     events: &'a [Arc<EventId>],
     create_event: &'a PduEvent,
     room_id: &'a RoomId,
-    pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, String>>>,
+    pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 ) -> AsyncRecursiveType<'a, Vec<(Arc<PduEvent>, Option<BTreeMap<String, CanonicalJsonValue>>)>> {
     Box::pin(async move {
         let back_off = |id| match db.globals.bad_event_ratelimiter.write().unwrap().entry(id) {
@@ -1966,9 +1969,9 @@ pub(crate) async fn fetch_signing_keys(
     db: &Database,
     origin: &ServerName,
     signature_ids: Vec<String>,
-) -> Result<BTreeMap<String, String>> {
+) -> Result<BTreeMap<String, Base64>> {
     let contains_all_ids =
-        |keys: &BTreeMap<String, String>| signature_ids.iter().all(|id| keys.contains_key(id));
+        |keys: &BTreeMap<String, Base64>| signature_ids.iter().all(|id| keys.contains_key(id));
 
     let permit = db
         .globals
@@ -2355,8 +2358,11 @@ pub fn get_event_route(
     let room_id = <&RoomId>::try_from(room_id_str)
         .map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 
-    if !db.rooms.server_in_room(sender_servername, room_id)? {
-        return Err(Error::BadRequest(ErrorKind::NotFound, "Event not found."));
+    if !db.rooms.server_in_room(sender_servername, &room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Server is not in room",
+        ));
     }
 
     Ok(get_event::v1::Response {
@@ -2394,6 +2400,8 @@ pub fn get_missing_events_route(
             "Server is not in room",
         ));
     }
+
+    acl_check(sender_servername, &body.room_id, &db)?;
 
     let mut queued_events = body.latest_events.clone();
     let mut events = Vec::new();
@@ -2464,6 +2472,15 @@ pub fn get_event_authorization_route(
         .as_ref()
         .expect("server is authenticated");
 
+    if !db.rooms.server_in_room(sender_servername, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Server is not in room.",
+        ));
+    }
+
+    acl_check(sender_servername, &body.room_id, &db)?;
+
     let event = db
         .rooms
         .get_pdu_json(&body.event_id)?
@@ -2476,10 +2493,6 @@ pub fn get_event_authorization_route(
 
     let room_id = <&RoomId>::try_from(room_id_str)
         .map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
-
-    if !db.rooms.server_in_room(sender_servername, room_id)? {
-        return Err(Error::BadRequest(ErrorKind::NotFound, "Event not found."));
-    }
 
     let auth_chain_ids = get_auth_chain(room_id, vec![Arc::from(&*body.event_id)], &db)?;
 
@@ -2519,6 +2532,8 @@ pub fn get_room_state_route(
             "Server is not in room.",
         ));
     }
+
+    acl_check(sender_servername, &body.room_id, &db)?;
 
     let shortstatehash = db
         .rooms
@@ -2583,6 +2598,8 @@ pub fn get_room_state_ids_route(
         ));
     }
 
+    acl_check(sender_servername, &body.room_id, &db)?;
+
     let shortstatehash = db
         .rooms
         .pdu_shortstatehash(&body.event_id)?
@@ -2626,9 +2643,16 @@ pub fn create_join_event_template_route(
     if !db.rooms.exists(&body.room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::NotFound,
-            "Server is not in room.",
+            "Room is unknown to this server.",
         ));
     }
+
+    let sender_servername = body
+        .sender_servername
+        .as_ref()
+        .expect("server is authenticated");
+
+    acl_check(sender_servername, &body.room_id, &db)?;
 
     let prev_events: Vec<_> = db
         .rooms
@@ -2782,12 +2806,22 @@ pub fn create_join_event_template_route(
 
 async fn create_join_event(
     db: &DatabaseGuard,
+    sender_servername: &ServerName,
     room_id: &RoomId,
     pdu: &RawJsonValue,
 ) -> Result<RoomState> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
+
+    if !db.rooms.exists(room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Room is unknown to this server.",
+        ));
+    }
+
+    acl_check(sender_servername, room_id, &db)?;
 
     // We need to return the state prior to joining, let's keep a reference to that here
     let shortstatehash = db
@@ -2888,7 +2922,12 @@ pub async fn create_join_event_v1_route(
     db: DatabaseGuard,
     body: Ruma<create_join_event::v1::Request<'_>>,
 ) -> ConduitResult<create_join_event::v1::Response> {
-    let room_state = create_join_event(&db, &body.room_id, &body.pdu).await?;
+    let sender_servername = body
+        .sender_servername
+        .as_ref()
+        .expect("server is authenticated");
+
+    let room_state = create_join_event(&db, sender_servername, &body.room_id, &body.pdu).await?;
 
     Ok(create_join_event::v1::Response { room_state }.into())
 }
@@ -2905,7 +2944,12 @@ pub async fn create_join_event_v2_route(
     db: DatabaseGuard,
     body: Ruma<create_join_event::v2::Request<'_>>,
 ) -> ConduitResult<create_join_event::v2::Response> {
-    let room_state = create_join_event(&db, &body.room_id, &body.pdu).await?;
+    let sender_servername = body
+        .sender_servername
+        .as_ref()
+        .expect("server is authenticated");
+
+    let room_state = create_join_event(&db, sender_servername, &body.room_id, &body.pdu).await?;
 
     Ok(create_join_event::v2::Response { room_state }.into())
 }
@@ -2925,6 +2969,13 @@ pub async fn create_invite_route(
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
+
+    let sender_servername = body
+        .sender_servername
+        .as_ref()
+        .expect("server is authenticated");
+
+    acl_check(sender_servername, &body.room_id, &db)?;
 
     if body.room_version != RoomVersionId::V5 && body.room_version != RoomVersionId::V6 {
         return Err(Error::BadRequest(
@@ -3199,7 +3250,7 @@ pub async fn claim_keys_route(
 #[tracing::instrument(skip(event, pub_key_map, db))]
 pub(crate) async fn fetch_required_signing_keys(
     event: &BTreeMap<String, CanonicalJsonValue>,
-    pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
+    pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     db: &Database,
 ) -> Result<()> {
     let signatures = event
@@ -3253,7 +3304,7 @@ fn get_server_keys_from_cache(
     pdu: &RawJsonValue,
     servers: &mut BTreeMap<Box<ServerName>, BTreeMap<Box<ServerSigningKeyId>, QueryCriteria>>,
     room_version: &RoomVersionId,
-    pub_key_map: &mut RwLockWriteGuard<'_, BTreeMap<String, BTreeMap<String, String>>>,
+    pub_key_map: &mut RwLockWriteGuard<'_, BTreeMap<String, BTreeMap<String, Base64>>>,
     db: &Database,
 ) -> Result<()> {
     let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
@@ -3306,7 +3357,7 @@ fn get_server_keys_from_cache(
         let signature_ids = signature_object.keys().cloned().collect::<Vec<_>>();
 
         let contains_all_ids =
-            |keys: &BTreeMap<String, String>| signature_ids.iter().all(|id| keys.contains_key(id));
+            |keys: &BTreeMap<String, Base64>| signature_ids.iter().all(|id| keys.contains_key(id));
 
         let origin = <&ServerName>::try_from(signature_server.as_str()).map_err(|_| {
             Error::BadServerResponse("Invalid servername in signatures of server response pdu.")
@@ -3339,7 +3390,7 @@ fn get_server_keys_from_cache(
 pub(crate) async fn fetch_join_signing_keys(
     event: &create_join_event::v2::Response,
     room_version: &RoomVersionId,
-    pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
+    pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     db: &Database,
 ) -> Result<()> {
     let mut servers: BTreeMap<Box<ServerName>, BTreeMap<Box<ServerSigningKeyId>, QueryCriteria>> =
@@ -3437,6 +3488,35 @@ pub(crate) async fn fetch_join_signing_keys(
     }
 
     Ok(())
+}
+
+/// Returns Ok if the acl allows the server
+fn acl_check(
+    server_name: &ServerName,
+    room_id: &RoomId,
+    db: &Database,
+) -> Result<()> {
+    let acl_event = match db
+        .rooms
+        .room_state_get(room_id, &EventType::RoomServerAcl, "")? {
+            Some(acl) => acl,
+            None => return Ok(()),
+        };
+
+    let acl_event_content: RoomServerAclEventContent = match
+        serde_json::from_str(acl_event.content.get()) {
+            Ok(content) => content,
+            Err(_) => {
+                warn!("Invalid ACL event");
+                return Ok(());
+            }
+        };
+
+    if acl_event_content.is_allowed(server_name) {
+        Ok(())
+    } else {
+        Err(Error::BadRequest(ErrorKind::Forbidden, "Server was denied by ACL"))
+    }
 }
 
 #[cfg(test)]

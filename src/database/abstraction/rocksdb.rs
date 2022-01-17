@@ -44,7 +44,7 @@ fn db_options(
     db_opts.set_max_open_files(max_open_files);
     db_opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
     db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
-    db_opts.optimize_level_style_compaction(cache_capacity_bytes);
+    db_opts.optimize_level_style_compaction(10 * 1024 * 1024);
 
     let prefix_extractor = rocksdb::SliceTransform::create_fixed_prefix(1);
     db_opts.set_prefix_extractor(prefix_extractor);

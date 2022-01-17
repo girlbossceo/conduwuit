@@ -524,7 +524,7 @@ impl Sending {
                         .unwrap(), // TODO: handle error
                     appservice::event::push_events::v1::Request {
                         events: &pdu_jsons,
-                        txn_id: &base64::encode_config(
+                        txn_id: (&*base64::encode_config(
                             Self::calculate_hash(
                                 &events
                                     .iter()
@@ -534,7 +534,7 @@ impl Sending {
                                     .collect::<Vec<_>>(),
                             ),
                             base64::URL_SAFE_NO_PAD,
-                        ),
+                        )).into(),
                     },
                 )
                 .await
@@ -682,7 +682,7 @@ impl Sending {
                         pdus: &pdu_jsons,
                         edus: &edu_jsons,
                         origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
-                        transaction_id: &base64::encode_config(
+                        transaction_id: (&*base64::encode_config(
                             Self::calculate_hash(
                                 &events
                                     .iter()
@@ -692,7 +692,7 @@ impl Sending {
                                     .collect::<Vec<_>>(),
                             ),
                             base64::URL_SAFE_NO_PAD,
-                        ),
+                        )).into(),
                     },
                 )
                 .await
