@@ -77,8 +77,6 @@ impl Users {
     }
 
     /// Returns the number of users registered on this server.
-    /// It really returns all users, not only real ones with a
-    /// password to login but also bridge puppets...
     #[tracing::instrument(skip(self))]
     pub fn count(&self) -> Result<usize> {
         Ok(self.userid_password.iter().count())
