@@ -534,7 +534,8 @@ impl Sending {
                                     .collect::<Vec<_>>(),
                             ),
                             base64::URL_SAFE_NO_PAD,
-                        )).into(),
+                        ))
+                            .into(),
                     },
                 )
                 .await
@@ -692,7 +693,8 @@ impl Sending {
                                     .collect::<Vec<_>>(),
                             ),
                             base64::URL_SAFE_NO_PAD,
-                        )).into(),
+                        ))
+                            .into(),
                     },
                 )
                 .await

@@ -42,9 +42,9 @@ use ruma::{
     events::{
         receipt::{ReceiptEvent, ReceiptEventContent},
         room::{
-            server_acl::RoomServerAclEventContent,
             create::RoomCreateEventContent,
             member::{MembershipState, RoomMemberEventContent},
+            server_acl::RoomServerAclEventContent,
         },
         AnyEphemeralRoomEvent, EventType,
     },
@@ -3491,20 +3491,17 @@ pub(crate) async fn fetch_join_signing_keys(
 }
 
 /// Returns Ok if the acl allows the server
-fn acl_check(
-    server_name: &ServerName,
-    room_id: &RoomId,
-    db: &Database,
-) -> Result<()> {
+fn acl_check(server_name: &ServerName, room_id: &RoomId, db: &Database) -> Result<()> {
     let acl_event = match db
         .rooms
-        .room_state_get(room_id, &EventType::RoomServerAcl, "")? {
-            Some(acl) => acl,
-            None => return Ok(()),
-        };
+        .room_state_get(room_id, &EventType::RoomServerAcl, "")?
+    {
+        Some(acl) => acl,
+        None => return Ok(()),
+    };
 
-    let acl_event_content: RoomServerAclEventContent = match
-        serde_json::from_str(acl_event.content.get()) {
+    let acl_event_content: RoomServerAclEventContent =
+        match serde_json::from_str(acl_event.content.get()) {
             Ok(content) => content,
             Err(_) => {
                 warn!("Invalid ACL event");
@@ -3515,7 +3512,10 @@ fn acl_check(
     if acl_event_content.is_allowed(server_name) {
         Ok(())
     } else {
-        Err(Error::BadRequest(ErrorKind::Forbidden, "Server was denied by ACL"))
+        Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Server was denied by ACL",
+        ))
     }
 }
 
