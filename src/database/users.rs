@@ -10,7 +10,6 @@ use ruma::{
 };
 use std::{collections::BTreeMap, convert::TryInto, mem, sync::Arc};
 use tracing::warn;
-use tracing::info;
 
 use super::abstraction::Tree;
 
@@ -137,31 +136,23 @@ impl Users {
         Ok(users)
     }
 
-    /// A private helper to avoid double filtering the iterator in get_local_users().
+    /// Will only return with Some(username) if the password was not empty and the
+    /// username could be successfully parsed.
     /// If utils::string_from_bytes(...) returns an error that username will be skipped
-    /// and the error will be logged. TODO: add error cause.
+    /// and the error will be logged.
     #[tracing::instrument(skip(self))]
     fn get_username_with_valid_password(&self, username: &[u8], password: &[u8]) -> Option<String> {
         // A valid password is not empty
-        if password.len() > 0 {
+        if password.is_empty() {
+            None
+        } else {
             match utils::string_from_bytes(username) {
-                Ok(u) => {
-                    info!("list_local_users_test: found user {}", u);
-                    Some(u)
-                },
-                Err(_) => {
-                    // let msg: String = format!(
-                    //     "Failed to parse username while calling get_local_users(): {}",
-                    //     e.to_string()
-                    // );
-                    Error::bad_database(
-                        "Failed to parse username while calling get_username_on_valid_password",
-                    );
+                Ok(u) => Some(u),
+                Err(e) => {
+                    warn!("Failed to parse username while calling get_local_users(): {}", e.to_string());
                     None
                 }
             }
-        } else {
-            None
         }
     }
 
