@@ -21,8 +21,8 @@ use futures_util::{stream::FuturesUnordered, StreamExt};
 use lru_cache::LruCache;
 use ruma::{
     events::{
-        push_rules::PushRulesEventContent, room::message::RoomMessageEventContent, EventType,
-        GlobalAccountDataEvent,
+        push_rules::PushRulesEventContent, room::message::RoomMessageEventContent,
+        GlobalAccountDataEvent, GlobalAccountDataEventType,
     },
     push::Ruleset,
     DeviceId, EventId, RoomId, UserId,
@@ -968,7 +968,7 @@ fn set_emergency_access(db: &Database) -> Result<bool> {
     db.account_data.update(
         None,
         &conduit_user,
-        EventType::PushRules,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
         &GlobalAccountDataEvent {
             content: PushRulesEventContent { global: ruleset },
         },
