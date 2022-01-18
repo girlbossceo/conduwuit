@@ -342,7 +342,7 @@ pub(crate) fn gen_event_id_canonical_json(
     let room_id = value
         .get("room_id")
         .and_then(|id| RoomId::parse(id.as_str()?).ok())
-        .expect("Invalid room id in event");
+        .ok_or_else(|| Error::bad_database("PDU in db has invalid room_id."))?;
 
     let room_version_id = db.rooms.get_room_version(&room_id);
 
