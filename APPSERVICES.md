@@ -18,7 +18,7 @@ First, go into the #admins room of your homeserver. The first person that
 registered on the homeserver automatically joins it. Then send a message into
 the room like this:
 
-    @conduit:your.server.name: register_appservice
+    @conduit:your.server.name: register-appservice
     ```
     paste
     the
@@ -31,7 +31,7 @@ the room like this:
     ```
 
 You can confirm it worked by sending a message like this:
-`@conduit:your.server.name: list_appservices`
+`@conduit:your.server.name: list-appservices`
 
 The @conduit bot should answer with `Appservices (1): your-bridge`
 
@@ -46,9 +46,9 @@ could help.
 
 To remove an appservice go to your admin room and execute
 
-```@conduit:your.server.name: unregister_appservice <name>```
+```@conduit:your.server.name: unregister-appservice <name>```
 
-where `<name>` one of the output of `list_appservices`.
+where `<name>` one of the output of `list-appservices`.
 
 ### Tested appservices
 
