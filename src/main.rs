@@ -7,27 +7,9 @@
 #![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
 
-pub mod appservice_server;
-pub mod client_server;
-pub mod server_server;
-
-mod database;
-mod error;
-mod pdu;
-mod ruma_wrapper;
-mod utils;
-
 use std::sync::Arc;
 
-use database::Config;
-pub use database::Database;
-pub use error::{Error, Result};
 use opentelemetry::trace::{FutureExt, Tracer};
-pub use pdu::PduEvent;
-pub use rocket::State;
-use ruma::api::client::error::ErrorKind;
-pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
-
 use rocket::{
     catch, catchers,
     figment::{
@@ -36,8 +18,12 @@ use rocket::{
     },
     routes, Request,
 };
+use ruma::api::client::error::ErrorKind;
 use tokio::sync::RwLock;
 use tracing_subscriber::{prelude::*, EnvFilter};
+
+pub use conduit::*; // Re-export everything from the library crate
+pub use rocket::State;
 
 fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<rocket::Build> {
     rocket::custom(config)
