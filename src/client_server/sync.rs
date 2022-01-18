@@ -453,38 +453,39 @@ async fn sync_helper(
             let joined_since_last_sync = since_sender_member
                 .map_or(true, |member| member.membership != MembershipState::Join);
 
-            let current_state_ids = db.rooms.state_full_ids(current_shortstatehash)?;
-
-            let since_state_ids = db.rooms.state_full_ids(since_shortstatehash)?;
-
             let mut state_events = Vec::new();
             let mut lazy_loaded = HashSet::new();
 
-            for (key, id) in current_state_ids {
-                if body.full_state || since_state_ids.get(&key) != Some(&id) {
-                    let pdu = match db.rooms.get_pdu(&id)? {
-                        Some(pdu) => pdu,
-                        None => {
-                            error!("Pdu in state not found: {}", id);
-                            continue;
-                        }
-                    };
+            if since_shortstatehash != current_shortstatehash {
+                let current_state_ids = db.rooms.state_full_ids(current_shortstatehash)?;
+                let since_state_ids = db.rooms.state_full_ids(since_shortstatehash)?;
 
-                    if pdu.kind == EventType::RoomMember {
-                        match UserId::parse(
-                            pdu.state_key
-                                .as_ref()
-                                .expect("State event has state key")
-                                .clone(),
-                        ) {
-                            Ok(state_key_userid) => {
-                                lazy_loaded.insert(state_key_userid);
+                for (key, id) in current_state_ids {
+                    if body.full_state || since_state_ids.get(&key) != Some(&id) {
+                        let pdu = match db.rooms.get_pdu(&id)? {
+                            Some(pdu) => pdu,
+                            None => {
+                                error!("Pdu in state not found: {}", id);
+                                continue;
                             }
-                            Err(e) => error!("Invalid state key for member event: {}", e),
-                        }
-                    }
+                        };
 
-                    state_events.push(pdu);
+                        if pdu.kind == EventType::RoomMember {
+                            match UserId::parse(
+                                pdu.state_key
+                                    .as_ref()
+                                    .expect("State event has state key")
+                                    .clone(),
+                            ) {
+                                Ok(state_key_userid) => {
+                                    lazy_loaded.insert(state_key_userid);
+                                }
+                                Err(e) => error!("Invalid state key for member event: {}", e),
+                            }
+                        }
+
+                        state_events.push(pdu);
+                    }
                 }
             }
 

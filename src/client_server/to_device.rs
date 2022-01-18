@@ -53,8 +53,8 @@ pub async fn send_event_to_device_route(
                     serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(
                         DirectDeviceContent {
                             sender: sender_user.clone(),
-                            ev_type: EventType::from(&body.event_type),
-                            message_id: body.txn_id.clone(),
+                            ev_type: EventType::from(&*body.event_type),
+                            message_id: body.txn_id.to_string(),
                             messages,
                         },
                     ))
