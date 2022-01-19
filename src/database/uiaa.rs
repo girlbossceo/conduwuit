@@ -166,13 +166,12 @@ impl Uiaa {
         user_id: &UserId,
         device_id: &DeviceId,
         session: &str,
-    ) -> Result<Option<CanonicalJsonValue>> {
-        Ok(self
-            .userdevicesessionid_uiaarequest
+    ) -> Option<CanonicalJsonValue> {
+        self.userdevicesessionid_uiaarequest
             .read()
             .unwrap()
             .get(&(user_id.to_owned(), device_id.to_owned(), session.to_owned()))
-            .map(|j| j.to_owned()))
+            .map(|j| j.to_owned())
     }
 
     fn update_uiaa_session(
