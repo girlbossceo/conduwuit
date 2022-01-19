@@ -212,28 +212,22 @@ impl Database {
             return Ok(());
         }
 
-        if sled_exists {
-            if config.database_backend != "sled" {
-                return Err(Error::bad_config(
-                    "Found sled at database_path, but is not specified in config.",
-                ));
-            }
+        if sled_exists && config.database_backend != "sled" {
+            return Err(Error::bad_config(
+                "Found sled at database_path, but is not specified in config.",
+            ));
         }
 
-        if sqlite_exists {
-            if config.database_backend != "sqlite" {
-                return Err(Error::bad_config(
-                    "Found sqlite at database_path, but is not specified in config.",
-                ));
-            }
+        if sqlite_exists && config.database_backend != "sqlite" {
+            return Err(Error::bad_config(
+                "Found sqlite at database_path, but is not specified in config.",
+            ));
         }
 
-        if rocksdb_exists {
-            if config.database_backend != "rocksdb" {
-                return Err(Error::bad_config(
-                    "Found rocksdb at database_path, but is not specified in config.",
-                ));
-            }
+        if rocksdb_exists && config.database_backend != "rocksdb" {
+            return Err(Error::bad_config(
+                "Found rocksdb at database_path, but is not specified in config.",
+            ));
         }
 
         Ok(())

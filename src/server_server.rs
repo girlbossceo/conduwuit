@@ -1938,7 +1938,7 @@ pub(crate) fn fetch_and_handle_outliers<'a>(
                 match handle_outlier_pdu(
                     origin,
                     create_event,
-                    &next_id,
+                    next_id,
                     room_id,
                     value.clone(),
                     db,
@@ -2358,7 +2358,7 @@ pub fn get_event_route(
     let room_id = <&RoomId>::try_from(room_id_str)
         .map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 
-    if !db.rooms.server_in_room(sender_servername, &room_id)? {
+    if !db.rooms.server_in_room(sender_servername, room_id)? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "Server is not in room",
@@ -2821,7 +2821,7 @@ async fn create_join_event(
         ));
     }
 
-    acl_check(sender_servername, room_id, &db)?;
+    acl_check(sender_servername, room_id, db)?;
 
     // We need to return the state prior to joining, let's keep a reference to that here
     let shortstatehash = db

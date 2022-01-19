@@ -139,7 +139,7 @@ pub async fn get_message_events_route(
     let to = body.to.as_ref().map(|t| t.parse());
 
     db.rooms
-        .lazy_load_confirm_delivery(&sender_user, &sender_device, &body.room_id, from)?;
+        .lazy_load_confirm_delivery(sender_user, sender_device, &body.room_id, from)?;
 
     // Use limit or else 10
     let limit = body.limit.try_into().map_or(10_usize, |l: u32| l as usize);
@@ -168,8 +168,8 @@ pub async fn get_message_events_route(
 
             for (_, event) in &events_after {
                 if !db.rooms.lazy_load_was_sent_before(
-                    &sender_user,
-                    &sender_device,
+                    sender_user,
+                    sender_device,
                     &body.room_id,
                     &event.sender,
                 )? {
@@ -205,8 +205,8 @@ pub async fn get_message_events_route(
 
             for (_, event) in &events_before {
                 if !db.rooms.lazy_load_was_sent_before(
-                    &sender_user,
-                    &sender_device,
+                    sender_user,
+                    sender_device,
                     &body.room_id,
                     &event.sender,
                 )? {
@@ -239,8 +239,8 @@ pub async fn get_message_events_route(
 
     if let Some(next_token) = next_token {
         db.rooms.lazy_load_mark_sent(
-            &sender_user,
-            &sender_device,
+            sender_user,
+            sender_device,
             &body.room_id,
             lazy_loaded,
             next_token,

@@ -2727,7 +2727,7 @@ impl Rooms {
             let state_lock = mutex_state.lock().await;
 
             let mut event: RoomMemberEventContent = serde_json::from_str(
-                self.room_state_get(room_id, &EventType::RoomMember, &user_id.to_string())?
+                self.room_state_get(room_id, &EventType::RoomMember, user_id.as_str())?
                     .ok_or(Error::BadRequest(
                         ErrorKind::BadState,
                         "Cannot leave a room you are not a member of.",
@@ -3462,8 +3462,7 @@ impl Rooms {
                 &key[0].to_be_bytes(),
                 &chain
                     .iter()
-                    .map(|s| s.to_be_bytes().to_vec())
-                    .flatten()
+                    .flat_map(|s| s.to_be_bytes().to_vec())
                     .collect::<Vec<u8>>(),
             )?;
         }
@@ -3484,11 +3483,11 @@ impl Rooms {
     ) -> Result<bool> {
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(&device_id.as_bytes());
+        key.extend_from_slice(device_id.as_bytes());
         key.push(0xff);
-        key.extend_from_slice(&room_id.as_bytes());
+        key.extend_from_slice(room_id.as_bytes());
         key.push(0xff);
-        key.extend_from_slice(&ll_user.as_bytes());
+        key.extend_from_slice(ll_user.as_bytes());
         Ok(self.lazyloadedids.get(&key)?.is_some())
     }
 
@@ -3528,14 +3527,14 @@ impl Rooms {
         )) {
             let mut prefix = user_id.as_bytes().to_vec();
             prefix.push(0xff);
-            prefix.extend_from_slice(&device_id.as_bytes());
+            prefix.extend_from_slice(device_id.as_bytes());
             prefix.push(0xff);
-            prefix.extend_from_slice(&room_id.as_bytes());
+            prefix.extend_from_slice(room_id.as_bytes());
             prefix.push(0xff);
 
             for ll_id in user_ids {
                 let mut key = prefix.clone();
-                key.extend_from_slice(&ll_id.as_bytes());
+                key.extend_from_slice(ll_id.as_bytes());
                 self.lazyloadedids.insert(&key, &[])?;
             }
         }
@@ -3546,15 +3545,15 @@ impl Rooms {
     #[tracing::instrument(skip(self))]
     pub fn lazy_load_reset(
         &self,
-        user_id: &Box<UserId>,
-        device_id: &Box<DeviceId>,
-        room_id: &Box<RoomId>,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        room_id: &RoomId,
     ) -> Result<()> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
-        prefix.extend_from_slice(&device_id.as_bytes());
+        prefix.extend_from_slice(device_id.as_bytes());
         prefix.push(0xff);
-        prefix.extend_from_slice(&room_id.as_bytes());
+        prefix.extend_from_slice(room_id.as_bytes());
         prefix.push(0xff);
 
         for (key, _) in self.lazyloadedids.scan_prefix(prefix) {
