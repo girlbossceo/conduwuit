@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM docker.io/rust:1.53-alpine AS builder
+FROM docker.io/rust:1.58-alpine AS builder
 WORKDIR /usr/src/conduit
 
 # Install required packages to build Conduit and it's dependencies
@@ -38,7 +38,7 @@ FROM docker.io/alpine:3.15.0 AS runner
 # You still need to map the port when using the docker command or docker-compose.
 EXPOSE 6167
 
-# Note from @jfowl: I would like to remove this in the future and just have the Docker version be configured with envs. 
+# Note from @jfowl: I would like to remove this in the future and just have the Docker version be configured with envs.
 ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml"
 
 # Conduit needs:

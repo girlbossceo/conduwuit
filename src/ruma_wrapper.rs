@@ -296,14 +296,11 @@ where
                 .and_then(|auth| auth.get("session"))
                 .and_then(|session| session.as_str())
                 .and_then(|session| {
-                    db.uiaa
-                        .get_uiaa_request(
-                            &user_id,
-                            &sender_device.clone().unwrap_or_else(|| "".into()),
-                            session,
-                        )
-                        .ok()
-                        .flatten()
+                    db.uiaa.get_uiaa_request(
+                        &user_id,
+                        &sender_device.clone().unwrap_or_else(|| "".into()),
+                        session,
+                    )
                 })
             {
                 for (key, value) in initial_request {

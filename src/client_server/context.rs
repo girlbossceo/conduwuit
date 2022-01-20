@@ -3,8 +3,7 @@ use ruma::{
     api::client::{error::ErrorKind, r0::context::get_context},
     events::EventType,
 };
-use std::collections::HashSet;
-use std::convert::TryFrom;
+use std::{collections::HashSet, convert::TryFrom};
 
 #[cfg(feature = "conduit_bin")]
 use rocket::get;
@@ -55,8 +54,8 @@ pub async fn get_context_route(
         ))?;
 
     if !db.rooms.lazy_load_was_sent_before(
-        &sender_user,
-        &sender_device,
+        sender_user,
+        sender_device,
         &body.room_id,
         &base_event.sender,
     )? {
@@ -79,8 +78,8 @@ pub async fn get_context_route(
 
     for (_, event) in &events_before {
         if !db.rooms.lazy_load_was_sent_before(
-            &sender_user,
-            &sender_device,
+            sender_user,
+            sender_device,
             &body.room_id,
             &event.sender,
         )? {
@@ -112,8 +111,8 @@ pub async fn get_context_route(
 
     for (_, event) in &events_after {
         if !db.rooms.lazy_load_was_sent_before(
-            &sender_user,
-            &sender_device,
+            sender_user,
+            sender_device,
             &body.room_id,
             &event.sender,
         )? {
