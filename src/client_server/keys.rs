@@ -1,6 +1,6 @@
 use super::SESSION_ID_LENGTH;
 use crate::{database::DatabaseGuard, utils, ConduitResult, Database, Error, Result, Ruma};
-use rocket::futures::{prelude::*, stream::FuturesUnordered};
+use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
     api::{
         client::{
@@ -21,19 +21,12 @@ use ruma::{
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post};
-
 /// # `POST /_matrix/client/r0/keys/upload`
 ///
 /// Publish end-to-end encryption keys for the sender device.
 ///
 /// - Adds one time keys
 /// - If there are no device keys yet: Adds device keys (TODO: merge with existing keys?)
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/keys/upload", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn upload_keys_route(
     db: DatabaseGuard,
@@ -80,10 +73,6 @@ pub async fn upload_keys_route(
 /// - Always fetches users from other servers over federation
 /// - Gets master keys, self-signing keys, user signing keys and device keys.
 /// - The master and self-signing keys contain signatures that the user is allowed to see
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/keys/query", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_keys_route(
     db: DatabaseGuard,
@@ -105,10 +94,6 @@ pub async fn get_keys_route(
 /// # `POST /_matrix/client/r0/keys/claim`
 ///
 /// Claims one-time keys
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/keys/claim", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn claim_keys_route(
     db: DatabaseGuard,
@@ -126,10 +111,6 @@ pub async fn claim_keys_route(
 /// Uploads end-to-end key information for the sender user.
 ///
 /// - Requires UIAA to verify password
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/unstable/keys/device_signing/upload", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn upload_signing_keys_route(
     db: DatabaseGuard,
@@ -190,10 +171,6 @@ pub async fn upload_signing_keys_route(
 /// # `POST /_matrix/client/r0/keys/signatures/upload`
 ///
 /// Uploads end-to-end key signatures from the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/unstable/keys/signatures/upload", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn upload_signatures_route(
     db: DatabaseGuard,
@@ -256,10 +233,6 @@ pub async fn upload_signatures_route(
 /// Gets a list of users who have updated their device identity keys since the previous sync token.
 ///
 /// - TODO: left users
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/keys/changes", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_key_changes_route(
     db: DatabaseGuard,

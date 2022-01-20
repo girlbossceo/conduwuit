@@ -9,19 +9,12 @@ use ruma::{
 use std::{collections::HashSet, convert::TryFrom};
 use tracing::error;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::get;
-
 /// # `GET /_matrix/client/r0/rooms/{roomId}/context`
 ///
 /// Allows loading room history around an event.
 ///
 /// - Only works if the user is joined (TODO: always allow, but only show events if the user was
 /// joined, depending on history_visibility)
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/context/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_context_route(
     db: DatabaseGuard,

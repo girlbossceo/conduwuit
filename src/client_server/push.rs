@@ -12,16 +12,9 @@ use ruma::{
     push::{ConditionalPushRuleInit, PatternedPushRuleInit, SimplePushRuleInit},
 };
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{delete, get, post, put};
-
 /// # `GET /_matrix/client/r0/pushrules`
 ///
 /// Retrieves the push rules event for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushrules", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushrules_all_route(
     db: DatabaseGuard,
@@ -46,10 +39,6 @@ pub async fn get_pushrules_all_route(
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
 ///
 /// Retrieves a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_route(
     db: DatabaseGuard,
@@ -103,10 +92,6 @@ pub async fn get_pushrule_route(
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
 ///
 /// Creates a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_route(
     db: DatabaseGuard,
@@ -204,10 +189,6 @@ pub async fn set_pushrule_route(
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
 ///
 /// Gets the actions of a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushrules/<_>/<_>/<_>/actions", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_actions_route(
     db: DatabaseGuard,
@@ -266,10 +247,6 @@ pub async fn get_pushrule_actions_route(
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
 ///
 /// Sets the actions of a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>/actions", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_actions_route(
     db: DatabaseGuard,
@@ -338,10 +315,6 @@ pub async fn set_pushrule_actions_route(
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
 ///
 /// Gets the enabled status of a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushrules/<_>/<_>/<_>/enabled", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_enabled_route(
     db: DatabaseGuard,
@@ -402,10 +375,6 @@ pub async fn get_pushrule_enabled_route(
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
 ///
 /// Sets the enabled status of a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>/enabled", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_enabled_route(
     db: DatabaseGuard,
@@ -479,10 +448,6 @@ pub async fn set_pushrule_enabled_route(
 /// # `DELETE /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
 ///
 /// Deletes a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    delete("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn delete_pushrule_route(
     db: DatabaseGuard,
@@ -546,10 +511,6 @@ pub async fn delete_pushrule_route(
 /// # `GET /_matrix/client/r0/pushers`
 ///
 /// Gets all currently active pushers for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushers", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_pushers_route(
     db: DatabaseGuard,
@@ -568,10 +529,6 @@ pub async fn get_pushers_route(
 /// Adds a pusher for the sender user.
 ///
 /// - TODO: Handle `append`
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/pushers/set", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_pushers_route(
     db: DatabaseGuard,

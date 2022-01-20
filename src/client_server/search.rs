@@ -1,8 +1,6 @@
 use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
 use ruma::api::client::{error::ErrorKind, r0::search::search_events};
 
-#[cfg(feature = "conduit_bin")]
-use rocket::post;
 use search_events::{EventContextResult, ResultCategories, ResultRoomEvents, SearchResult};
 use std::collections::BTreeMap;
 
@@ -11,10 +9,6 @@ use std::collections::BTreeMap;
 /// Searches rooms for messages.
 ///
 /// - Only works if the user is currently joined to the room (TODO: Respect history visibility)
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/search", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn search_events_route(
     db: DatabaseGuard,

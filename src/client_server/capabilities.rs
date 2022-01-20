@@ -7,16 +7,9 @@ use ruma::{
 };
 use std::collections::BTreeMap;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::get;
-
 /// # `GET /_matrix/client/r0/capabilities`
 ///
 /// Get information on the supported feature set and other relevent capabilities of this server.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/capabilities", data = "<_body>")
-)]
 #[tracing::instrument(skip(_body))]
 pub async fn get_capabilities_route(
     _body: Ruma<get_capabilities::Request>,

@@ -11,9 +11,6 @@ use std::{
     sync::Arc,
 };
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, put};
-
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/send/{eventType}/{txnId}`
 ///
 /// Send a message event into the room.
@@ -21,10 +18,6 @@ use rocket::{get, put};
 /// - Is a NOOP if the txn id was already used before and returns the same event id again
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/rooms/<_>/send/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn send_message_event_route(
     db: DatabaseGuard,
@@ -110,10 +103,6 @@ pub async fn send_message_event_route(
 ///
 /// - Only works if the user is joined (TODO: always allow, but only show events where the user was
 /// joined, depending on history_visibility)
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/messages", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_message_events_route(
     db: DatabaseGuard,

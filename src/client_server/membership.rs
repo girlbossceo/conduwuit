@@ -36,19 +36,12 @@ use std::{
 };
 use tracing::{debug, error, warn};
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post};
-
 /// # `POST /_matrix/client/r0/rooms/{roomId}/join`
 ///
 /// Tries to join the sender user into a room.
 ///
 /// - If the server knowns about this room: creates the join event and does auth rules locally
 /// - If the server does not know about the room: asks other servers over federation
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/join", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn join_room_by_id_route(
     db: DatabaseGuard,
@@ -90,10 +83,6 @@ pub async fn join_room_by_id_route(
 ///
 /// - If the server knowns about this room: creates the join event and does auth rules locally
 /// - If the server does not know about the room: asks other servers over federation
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/join/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn join_room_by_id_or_alias_route(
     db: DatabaseGuard,
@@ -148,10 +137,6 @@ pub async fn join_room_by_id_or_alias_route(
 /// Tries to leave the sender user from a room.
 ///
 /// - This should always work if the user is currently joined.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/leave", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn leave_room_route(
     db: DatabaseGuard,
@@ -169,10 +154,6 @@ pub async fn leave_room_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/invite`
 ///
 /// Tries to send an invite event into the room.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/invite", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn invite_user_route(
     db: DatabaseGuard,
@@ -192,10 +173,6 @@ pub async fn invite_user_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/kick`
 ///
 /// Tries to send a kick event into the room.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/kick", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn kick_user_route(
     db: DatabaseGuard,
@@ -256,10 +233,6 @@ pub async fn kick_user_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/ban`
 ///
 /// Tries to send a ban event into the room.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/ban", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn ban_user_route(
     db: DatabaseGuard,
@@ -331,10 +304,6 @@ pub async fn ban_user_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/unban`
 ///
 /// Tries to send an unban event into the room.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/unban", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn unban_user_route(
     db: DatabaseGuard,
@@ -399,10 +368,6 @@ pub async fn unban_user_route(
 ///
 /// Note: Other devices of the user have no way of knowing the room was forgotten, so this has to
 /// be called from every device
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/forget", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn forget_room_route(
     db: DatabaseGuard,
@@ -420,10 +385,6 @@ pub async fn forget_room_route(
 /// # `POST /_matrix/client/r0/joined_rooms`
 ///
 /// Lists all rooms the user has joined.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/joined_rooms", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn joined_rooms_route(
     db: DatabaseGuard,
@@ -446,10 +407,6 @@ pub async fn joined_rooms_route(
 /// Lists all joined users in a room (TODO: at a specific point in time, with a specific membership).
 ///
 /// - Only works if the user is currently joined
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/members", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_member_events_route(
     db: DatabaseGuard,
@@ -483,10 +440,6 @@ pub async fn get_member_events_route(
 ///
 /// - The sender user must be in the room
 /// - TODO: An appservice just needs a puppet joined
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/joined_members", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn joined_members_route(
     db: DatabaseGuard,

@@ -1,4 +1,7 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    net::{IpAddr, Ipv4Addr},
+};
 
 use ruma::ServerName;
 use serde::{de::IgnoredAny, Deserialize};
@@ -10,6 +13,10 @@ use self::proxy::ProxyConfig;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
+    #[serde(default = "default_address")]
+    pub address: IpAddr,
+    #[serde(default = "default_port")]
+    pub port: u16,
     pub server_name: Box<ServerName>,
     #[serde(default = "default_database_backend")]
     pub database_backend: String,
@@ -90,6 +97,14 @@ fn true_fn() -> bool {
     true
 }
 
+fn default_address() -> IpAddr {
+    Ipv4Addr::LOCALHOST.into()
+}
+
+fn default_port() -> u16 {
+    8000
+}
+
 fn default_database_backend() -> String {
     "sqlite".to_owned()
 }
@@ -123,7 +138,7 @@ fn default_max_concurrent_requests() -> u16 {
 }
 
 fn default_log() -> String {
-    "info,state_res=warn,rocket=off,_=off,sled=off".to_owned()
+    "info,state_res=warn,_=off,sled=off".to_owned()
 }
 
 fn default_turn_ttl() -> u64 {

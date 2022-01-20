@@ -29,18 +29,11 @@ use ruma::{
 };
 use tracing::{info, warn};
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post, put};
-
 /// # `POST /_matrix/client/r0/publicRooms`
 ///
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/publicRooms", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_filtered_route(
     db: DatabaseGuard,
@@ -62,10 +55,6 @@ pub async fn get_public_rooms_filtered_route(
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/publicRooms", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_route(
     db: DatabaseGuard,
@@ -96,10 +85,6 @@ pub async fn get_public_rooms_route(
 /// Sets the visibility of a given room in the room directory.
 ///
 /// - TODO: Access control checks
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_room_visibility_route(
     db: DatabaseGuard,
@@ -129,10 +114,6 @@ pub async fn set_room_visibility_route(
 /// # `GET /_matrix/client/r0/directory/list/room/{roomId}`
 ///
 /// Gets the visibility of a given room in the room directory.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/directory/list/room/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_room_visibility_route(
     db: DatabaseGuard,

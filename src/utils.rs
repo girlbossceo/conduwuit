@@ -3,7 +3,7 @@ use cmp::Ordering;
 use rand::prelude::*;
 use ruma::serde::{try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
 use std::{
-    cmp,
+    cmp, fmt,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -139,4 +139,41 @@ pub fn deserialize_from_str<
         }
     }
     deserializer.deserialize_str(Visitor(std::marker::PhantomData))
+}
+
+// Copied from librustdoc:
+// https://github.com/rust-lang/rust/blob/cbaeec14f90b59a91a6b0f17fc046c66fa811892/src/librustdoc/html/escape.rs
+
+/// Wrapper struct which will emit the HTML-escaped version of the contained
+/// string when passed to a format string.
+pub struct HtmlEscape<'a>(pub &'a str);
+
+impl<'a> fmt::Display for HtmlEscape<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Because the internet is always right, turns out there's not that many
+        // characters to escape: http://stackoverflow.com/questions/7381974
+        let HtmlEscape(s) = *self;
+        let pile_o_bits = s;
+        let mut last = 0;
+        for (i, ch) in s.char_indices() {
+            let s = match ch {
+                '>' => "&gt;",
+                '<' => "&lt;",
+                '&' => "&amp;",
+                '\'' => "&#39;",
+                '"' => "&quot;",
+                _ => continue,
+            };
+            fmt.write_str(&pile_o_bits[last..i])?;
+            fmt.write_str(s)?;
+            // NOTE: we only expect single byte characters here - which is fine as long as we
+            // only match single byte characters
+            last = i + 1;
+        }
+
+        if last < s.len() {
+            fmt.write_str(&pile_o_bits[last..])?;
+        }
+        Ok(())
+    }
 }

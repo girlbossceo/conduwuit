@@ -19,16 +19,14 @@ struct Claims {
     exp: usize,
 }
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post};
-
 /// # `GET /_matrix/client/r0/login`
 ///
 /// Get the supported login types of this server. One of these should be used as the `type` field
 /// when logging in.
-#[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/login"))]
-#[tracing::instrument]
-pub async fn get_login_types_route() -> ConduitResult<get_login_types::Response> {
+#[tracing::instrument(skip(_body))]
+pub async fn get_login_types_route(
+    _body: Ruma<get_login_types::Request>,
+) -> ConduitResult<get_login_types::Response> {
     Ok(
         get_login_types::Response::new(vec![get_login_types::LoginType::Password(
             Default::default(),
@@ -48,10 +46,6 @@ pub async fn get_login_types_route() -> ConduitResult<get_login_types::Response>
 ///
 /// Note: You can use [`GET /_matrix/client/r0/login`](fn.get_supported_versions_route.html) to see
 /// supported login types.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/login", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn login_route(
     db: DatabaseGuard,
@@ -173,10 +167,6 @@ pub async fn login_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/logout", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn logout_route(
     db: DatabaseGuard,
@@ -203,10 +193,6 @@ pub async fn logout_route(
 ///
 /// Note: This is equivalent to calling [`GET /_matrix/client/r0/logout`](fn.logout_route.html)
 /// from each device of this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/logout/all", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn logout_all_route(
     db: DatabaseGuard,

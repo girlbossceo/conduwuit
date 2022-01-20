@@ -1,27 +1,20 @@
+use std::convert::Infallible;
+
+use http::StatusCode;
 use ruma::{
     api::client::{
         error::{Error as RumaError, ErrorKind},
-        r0::uiaa::UiaaInfo,
+        r0::uiaa::{UiaaInfo, UiaaResponse},
     },
     ServerName,
 };
 use thiserror::Error;
-use tracing::warn;
+use tracing::{error, warn};
 
 #[cfg(feature = "persy")]
 use persy::PersyError;
 
-#[cfg(feature = "conduit_bin")]
-use {
-    crate::RumaResponse,
-    http::StatusCode,
-    rocket::{
-        response::{self, Responder},
-        Request,
-    },
-    ruma::api::client::r0::uiaa::UiaaResponse,
-    tracing::error,
-};
+use crate::RumaResponse;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -81,6 +74,9 @@ pub enum Error {
     BadRequest(ErrorKind, &'static str),
     #[error("{0}")]
     Conflict(&'static str), // This is only needed for when a room alias already exists
+    #[cfg(feature = "conduit_bin")]
+    #[error("{0}")]
+    ExtensionError(#[from] axum::extract::rejection::ExtensionRejection),
 }
 
 impl Error {
@@ -139,21 +135,24 @@ impl Error {
     }
 }
 
-#[cfg(feature = "conduit_bin")]
-impl<'r, 'o> Responder<'r, 'o> for Error
-where
-    'o: 'r,
-{
-    fn respond_to(self, r: &'r Request<'_>) -> response::Result<'o> {
-        self.to_response().respond_to(r)
-    }
-}
-
 #[cfg(feature = "persy")]
 impl<T: Into<PersyError>> From<persy::PE<T>> for Error {
     fn from(err: persy::PE<T>) -> Self {
         Error::PersyError {
             source: err.error().into(),
         }
+    }
+}
+
+impl From<Infallible> for Error {
+    fn from(i: Infallible) -> Self {
+        match i {}
+    }
+}
+
+#[cfg(feature = "conduit_bin")]
+impl axum::response::IntoResponse for Error {
+    fn into_response(self) -> axum::response::Response {
+        self.to_response().into_response()
     }
 }

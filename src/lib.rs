@@ -7,8 +7,6 @@
 #![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
 
-use std::ops::Deref;
-
 mod config;
 mod database;
 mod error;
@@ -24,16 +22,4 @@ pub use config::Config;
 pub use database::Database;
 pub use error::{Error, Result};
 pub use pdu::PduEvent;
-pub use rocket::Config as RocketConfig;
 pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
-
-pub struct State<'r, T: Send + Sync + 'static>(pub &'r T);
-
-impl<'r, T: Send + Sync + 'static> Deref for State<'r, T> {
-    type Target = T;
-
-    #[inline(always)]
-    fn deref(&self) -> &T {
-        self.0
-    }
-}

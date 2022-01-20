@@ -27,8 +27,6 @@ use serde_json::value::to_raw_value;
 use tracing::{info, warn};
 
 use register::RegistrationKind;
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post};
 
 const GUEST_NAME_LENGTH: usize = 10;
 
@@ -42,10 +40,6 @@ const GUEST_NAME_LENGTH: usize = 10;
 /// - No user or appservice on this server already claimed this username
 ///
 /// Note: This will not reserve the username, so the username might become invalid when trying to register
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/register/available", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_register_available_route(
     db: DatabaseGuard,
@@ -90,10 +84,6 @@ pub async fn get_register_available_route(
 /// - If type is not guest and no username is given: Always fails after UIAA check
 /// - Creates a new account and populates it with default account data
 /// - If `inhibit_login` is false: Creates a device and returns device id and access_token
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/register", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn register_route(
     db: DatabaseGuard,
@@ -279,10 +269,6 @@ pub async fn register_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/account/password", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn change_password_route(
     db: DatabaseGuard,
@@ -348,10 +334,6 @@ pub async fn change_password_route(
 /// Get user_id of the sender user.
 ///
 /// Note: Also works for Application Services
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/account/whoami", data = "<body>")
-)]
 #[tracing::instrument(skip(body))]
 pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -371,10 +353,6 @@ pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::
 /// - Forgets all to-device events
 /// - Triggers device list updates
 /// - Removes ability to log in again
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/account/deactivate", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn deactivate_route(
     db: DatabaseGuard,
@@ -483,10 +461,6 @@ pub async fn deactivate_route(
 /// Get a list of third party identifiers associated with this account.
 ///
 /// - Currently always returns empty list
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/account/3pid", data = "<body>")
-)]
 pub async fn third_party_route(
     body: Ruma<get_3pids::Request>,
 ) -> ConduitResult<get_3pids::Response> {

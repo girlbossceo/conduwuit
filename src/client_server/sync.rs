@@ -20,9 +20,6 @@ use std::{
 use tokio::sync::watch::Sender;
 use tracing::error;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, tokio};
-
 /// # `GET /_matrix/client/r0/sync`
 ///
 /// Synchronize the client's state with the latest state on the server.
@@ -57,10 +54,6 @@ use rocket::{get, tokio};
 ///
 /// - Sync is handled in an async task, multiple requests from the same device with the same
 /// `since` will be cached
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/sync", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn sync_events_route(
     db: DatabaseGuard,

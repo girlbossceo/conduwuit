@@ -12,16 +12,9 @@ use ruma::{
     RoomAliasId,
 };
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{delete, get, put};
-
 /// # `PUT /_matrix/client/r0/directory/room/{roomAlias}`
 ///
 /// Creates a new room alias on this server.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/directory/room/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_alias_route(
     db: DatabaseGuard,
@@ -52,10 +45,6 @@ pub async fn create_alias_route(
 ///
 /// - TODO: additional access control checks
 /// - TODO: Update canonical alias event
-#[cfg_attr(
-    feature = "conduit_bin",
-    delete("/_matrix/client/r0/directory/room/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn delete_alias_route(
     db: DatabaseGuard,
@@ -82,10 +71,6 @@ pub async fn delete_alias_route(
 /// Resolve an alias locally or over federation.
 ///
 /// - TODO: Suggest more servers to join via
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/directory/room/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_alias_route(
     db: DatabaseGuard,

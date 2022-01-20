@@ -10,19 +10,12 @@ use ruma::{
 };
 use std::collections::BTreeMap;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::post;
-
 /// # `POST /_matrix/client/r0/rooms/{roomId}/read_markers`
 ///
 /// Sets different types of read markers.
 ///
 /// - Updates fully-read account data event to `fully_read`
 /// - If `read_receipt` is set: Update private marker and public read receipt EDU
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/read_markers", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_read_marker_route(
     db: DatabaseGuard,
@@ -89,10 +82,6 @@ pub async fn set_read_marker_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/receipt/{receiptType}/{eventId}`
 ///
 /// Sets private read marker and public read receipt EDU.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/receipt/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_receipt_route(
     db: DatabaseGuard,

@@ -6,8 +6,6 @@ use ruma::{
     events::{room::redaction::RoomRedactionEventContent, EventType},
 };
 
-#[cfg(feature = "conduit_bin")]
-use rocket::put;
 use serde_json::value::to_raw_value;
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/redact/{eventId}/{txnId}`
@@ -15,10 +13,6 @@ use serde_json::value::to_raw_value;
 /// Tries to send a redaction event into the room.
 ///
 /// - TODO: Handle txn id
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/rooms/<_>/redact/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn redact_event_route(
     db: DatabaseGuard,

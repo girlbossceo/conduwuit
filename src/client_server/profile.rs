@@ -14,18 +14,11 @@ use ruma::{
 use serde_json::value::to_raw_value;
 use std::sync::Arc;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, put};
-
 /// # `PUT /_matrix/client/r0/profile/{userId}/displayname`
 ///
 /// Updates the displayname.
 ///
 /// - Also makes sure other users receive the update using presence EDUs
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_displayname_route(
     db: DatabaseGuard,
@@ -124,10 +117,6 @@ pub async fn set_displayname_route(
 /// Returns the displayname of the user.
 ///
 /// - If user is on another server: Fetches displayname over federation
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_displayname_route(
     db: DatabaseGuard,
@@ -163,10 +152,6 @@ pub async fn get_displayname_route(
 /// Updates the avatar_url and blurhash.
 ///
 /// - Also makes sure other users receive the update using presence EDUs
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_avatar_url_route(
     db: DatabaseGuard,
@@ -267,10 +252,6 @@ pub async fn set_avatar_url_route(
 /// Returns the avatar_url and blurhash of the user.
 ///
 /// - If user is on another server: Fetches avatar_url and blurhash over federation
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_avatar_url_route(
     db: DatabaseGuard,
@@ -308,10 +289,6 @@ pub async fn get_avatar_url_route(
 /// Returns the displayname, avatar_url and blurhash of the user.
 ///
 /// - If user is on another server: Fetches profile over federation
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/profile/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_profile_route(
     db: DatabaseGuard,

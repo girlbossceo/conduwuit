@@ -30,9 +30,6 @@ use serde_json::{json, value::to_raw_value};
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
 use tracing::{info, warn};
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post};
-
 /// # `POST /_matrix/client/r0/createRoom`
 ///
 /// Creates a new room.
@@ -49,10 +46,6 @@ use rocket::{get, post};
 /// - Send events listed in initial state
 /// - Send events implied by `name` and `topic`
 /// - Send invite events
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/createRoom", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_room_route(
     db: DatabaseGuard,
@@ -425,10 +418,6 @@ pub async fn create_room_route(
 /// Gets a single event.
 ///
 /// - You have to currently be joined to the room (TODO: Respect history visibility)
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/event/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_room_event_route(
     db: DatabaseGuard,
@@ -458,10 +447,6 @@ pub async fn get_room_event_route(
 /// Lists all aliases of the room.
 ///
 /// - Only users joined to the room are allowed to call this TODO: Allow any user to call it if history_visibility is world readable
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/aliases", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_room_aliases_route(
     db: DatabaseGuard,
@@ -496,10 +481,6 @@ pub async fn get_room_aliases_route(
 /// - Transfers some state events
 /// - Moves local aliases
 /// - Modifies old room power levels to prevent users from speaking
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/upgrade", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn upgrade_room_route(
     db: DatabaseGuard,

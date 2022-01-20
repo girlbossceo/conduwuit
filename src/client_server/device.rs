@@ -8,16 +8,10 @@ use ruma::api::client::{
 };
 
 use super::SESSION_ID_LENGTH;
-#[cfg(feature = "conduit_bin")]
-use rocket::{delete, get, post, put};
 
 /// # `GET /_matrix/client/r0/devices`
 ///
 /// Get metadata on all devices of the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/devices", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_devices_route(
     db: DatabaseGuard,
@@ -37,10 +31,6 @@ pub async fn get_devices_route(
 /// # `GET /_matrix/client/r0/devices/{deviceId}`
 ///
 /// Get metadata on a single device of the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/devices/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_device_route(
     db: DatabaseGuard,
@@ -59,10 +49,6 @@ pub async fn get_device_route(
 /// # `PUT /_matrix/client/r0/devices/{deviceId}`
 ///
 /// Updates the metadata on a given device of the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/devices/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn update_device_route(
     db: DatabaseGuard,
@@ -94,10 +80,6 @@ pub async fn update_device_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[cfg_attr(
-    feature = "conduit_bin",
-    delete("/_matrix/client/r0/devices/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn delete_device_route(
     db: DatabaseGuard,
@@ -157,10 +139,6 @@ pub async fn delete_device_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/delete_devices", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn delete_devices_route(
     db: DatabaseGuard,

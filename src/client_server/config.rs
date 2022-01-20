@@ -13,16 +13,9 @@ use ruma::{
 use serde::Deserialize;
 use serde_json::{json, value::RawValue as RawJsonValue};
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, put};
-
 /// # `PUT /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///
 /// Sets some account data for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/user/<_>/account_data/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_global_account_data_route(
     db: DatabaseGuard,
@@ -54,13 +47,6 @@ pub async fn set_global_account_data_route(
 /// # `PUT /_matrix/client/r0/user/{userId}/rooms/{roomId}/account_data/{type}`
 ///
 /// Sets some room account data for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put(
-        "/_matrix/client/r0/user/<_>/rooms/<_>/account_data/<_>",
-        data = "<body>"
-    )
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_room_account_data_route(
     db: DatabaseGuard,
@@ -92,10 +78,6 @@ pub async fn set_room_account_data_route(
 /// # `GET /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///
 /// Gets some account data for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/user/<_>/account_data/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_global_account_data_route(
     db: DatabaseGuard,
@@ -118,13 +100,6 @@ pub async fn get_global_account_data_route(
 /// # `GET /_matrix/client/r0/user/{userId}/rooms/{roomId}/account_data/{type}`
 ///
 /// Gets some room account data for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get(
-        "/_matrix/client/r0/user/<_>/rooms/<_>/account_data/<_>",
-        data = "<body>"
-    )
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_room_account_data_route(
     db: DatabaseGuard,

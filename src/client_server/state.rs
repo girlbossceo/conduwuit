@@ -19,9 +19,6 @@ use ruma::{
     EventId, RoomId, UserId,
 };
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, put};
-
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/state/{eventType}/{stateKey}`
 ///
 /// Sends a state event into the room.
@@ -29,10 +26,6 @@ use rocket::{get, put};
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
 /// - If event is new canonical_alias: Rejects if alias is incorrect
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/rooms/<_>/state/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn send_state_event_for_key_route(
     db: DatabaseGuard,
@@ -63,10 +56,6 @@ pub async fn send_state_event_for_key_route(
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
 /// - If event is new canonical_alias: Rejects if alias is incorrect
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/rooms/<_>/state/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn send_state_event_for_empty_key_route(
     db: DatabaseGuard,
@@ -103,10 +92,6 @@ pub async fn send_state_event_for_empty_key_route(
 /// Get all state events for a room.
 ///
 /// - If not joined: Only works if current room history visibility is world readable
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/state", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_route(
     db: DatabaseGuard,
@@ -155,10 +140,6 @@ pub async fn get_state_events_route(
 /// Get single state event of a room.
 ///
 /// - If not joined: Only works if current room history visibility is world readable
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/state/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_for_key_route(
     db: DatabaseGuard,
@@ -211,10 +192,6 @@ pub async fn get_state_events_for_key_route(
 /// Get single state event of a room.
 ///
 /// - If not joined: Only works if current room history visibility is world readable
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/state/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_for_empty_key_route(
     db: DatabaseGuard,

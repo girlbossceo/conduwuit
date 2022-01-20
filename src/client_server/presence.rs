@@ -2,16 +2,9 @@ use crate::{database::DatabaseGuard, utils, ConduitResult, Ruma};
 use ruma::api::client::r0::presence::{get_presence, set_presence};
 use std::time::Duration;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, put};
-
 /// # `PUT /_matrix/client/r0/presence/{userId}/status`
 ///
 /// Sets the presence state of the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/presence/<_>/status", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_presence_route(
     db: DatabaseGuard,
@@ -54,10 +47,6 @@ pub async fn set_presence_route(
 /// Gets the presence state of the given user.
 ///
 /// - Only works if you share a room with the user
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/presence/<_>/status", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_presence_route(
     db: DatabaseGuard,

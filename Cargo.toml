@@ -13,10 +13,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# Used to handle requests
-# TODO: This can become optional as soon as proper configs are supported
-# rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "801e04bd5369eb39e126c75f6d11e1e9597304d8", features = ["tls"] } # Used to handle requests
-rocket = { version = "0.5.0-rc.1", features = ["tls"] } # Used to handle requests
+# Web framework
+axum = { version = "0.4.4", features = ["headers"], optional = true }
+hyper = "0.14.16"
+tower = { version = "0.4.11", features = ["util"] }
+tower-http = { version = "0.2.1", features = ["add-extension", "cors", "compression-full", "sensitive-headers", "trace", "util"] }
 
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
@@ -24,8 +25,8 @@ ruma = { git = "https://github.com/ruma/ruma", rev = "f7a10a7e471b59d3096be2695c
 #ruma = { git = "https://github.com/timokoesters/ruma", rev = "50c1db7e0a3a21fc794b0cce3b64285a4c750c71", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 
-# Used for long polling and federation sender, should be the same as rocket::tokio
-tokio = "1.11.0"
+# Async runtime and utilities
+tokio = { version = "1.11.0", features = ["fs", "macros", "signal", "sync"] }
 # Used for storing data permanently
 sled = { version = "0.34.6", features = ["compression", "no_metrics"], optional = true }
 #sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
@@ -33,7 +34,6 @@ persy = { version = "1.2" , optional = true, features=["background_ops"] }
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 bytes = "1.1.0"
-# Used for rocket<->ruma conversions
 http = "0.2.4"
 # Used to find data directory for default db path
 directories = "3.0.2"
@@ -84,7 +84,9 @@ hmac = "0.11.0"
 sha-1 = "0.9.8"
 # used for conduit's CLI and admin room command parsing
 clap = { version = "3.0.10", default-features = false, features = ["std", "derive"] }
-maplit = "1.0.2"
+futures-util = { version = "0.3.19", default-features = false }
+# Used for reading the configuration from conduit.toml & environment variables
+figment = { version = "0.10.6", features = ["env", "toml"] }
 
 tikv-jemalloc-ctl = { version = "0.4.2", features = ["use_std"], optional = true }
 tikv-jemallocator = { version = "0.4.1", features = ["unprefixed_malloc_on_supported_platforms"], optional = true }
@@ -98,7 +100,7 @@ backend_heed = ["heed", "crossbeam"]
 backend_rocksdb = ["rocksdb"]
 jemalloc = ["tikv-jemalloc-ctl", "tikv-jemallocator"]
 sqlite = ["rusqlite", "parking_lot", "tokio/signal"]
-conduit_bin = [] # TODO: add rocket to this when it is optional
+conduit_bin = ["axum"]
 
 [[bin]]
 name = "conduit"

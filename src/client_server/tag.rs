@@ -8,18 +8,11 @@ use ruma::{
 };
 use std::collections::BTreeMap;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{delete, get, put};
-
 /// # `PUT /_matrix/client/r0/user/{userId}/rooms/{roomId}/tags/{tag}`
 ///
 /// Adds a tag to the room.
 ///
 /// - Inserts the tag into the tag event of the room account data.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/user/<_>/rooms/<_>/tags/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn update_tag_route(
     db: DatabaseGuard,
@@ -58,10 +51,6 @@ pub async fn update_tag_route(
 /// Deletes a tag from the room.
 ///
 /// - Removes the tag from the tag event of the room account data.
-#[cfg_attr(
-    feature = "conduit_bin",
-    delete("/_matrix/client/r0/user/<_>/rooms/<_>/tags/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn delete_tag_route(
     db: DatabaseGuard,
@@ -97,10 +86,6 @@ pub async fn delete_tag_route(
 /// Returns tags on the room.
 ///
 /// - Gets the tag event of the room account data.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/user/<_>/rooms/<_>/tags", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_tags_route(
     db: DatabaseGuard,

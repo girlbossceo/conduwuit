@@ -10,18 +10,15 @@ use ruma::api::client::{
     },
 };
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post};
-
 const MXC_LENGTH: usize = 32;
 
 /// # `GET /_matrix/media/r0/config`
 ///
 /// Returns max upload size.
-#[cfg_attr(feature = "conduit_bin", get("/_matrix/media/r0/config"))]
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(skip(db, _body))]
 pub async fn get_media_config_route(
     db: DatabaseGuard,
+    _body: Ruma<get_media_config::Request>,
 ) -> ConduitResult<get_media_config::Response> {
     Ok(get_media_config::Response {
         upload_size: db.globals.max_request_size().into(),
@@ -35,10 +32,6 @@ pub async fn get_media_config_route(
 ///
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/media/r0/upload", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_content_route(
     db: DatabaseGuard,
@@ -110,10 +103,6 @@ pub async fn get_remote_content(
 /// Load media from our server or over federation.
 ///
 /// - Only allows federation if `allow_remote` is true
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/media/r0/download/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_content_route(
     db: DatabaseGuard,
@@ -147,10 +136,6 @@ pub async fn get_content_route(
 /// Load media from our server or over federation, permitting desired filename.
 ///
 /// - Only allows federation if `allow_remote` is true
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/media/r0/download/<_>/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_content_as_filename_route(
     db: DatabaseGuard,
@@ -190,10 +175,6 @@ pub async fn get_content_as_filename_route(
 /// Load media thumbnail from our server or over federation.
 ///
 /// - Only allows federation if `allow_remote` is true
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/media/r0/thumbnail/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_content_thumbnail_route(
     db: DatabaseGuard,
