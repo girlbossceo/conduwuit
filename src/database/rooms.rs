@@ -28,7 +28,7 @@ use ruma::{
     push::{Action, Ruleset, Tweak},
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
     state_res::{self, RoomVersion, StateMap},
-    uint, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
+    uint, DeviceId, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde::Deserialize;
 use serde_json::value::to_raw_value;
@@ -79,6 +79,8 @@ pub struct Rooms {
     pub(super) userroomid_leftstate: Arc<dyn Tree>,
     pub(super) roomuserid_leftcount: Arc<dyn Tree>,
 
+    pub(super) lazyloadedids: Arc<dyn Tree>, // LazyLoadedIds = UserId + DeviceId + RoomId + LazyLoadedUserId
+
     pub(super) userroomid_notificationcount: Arc<dyn Tree>, // NotifyCount = u64
     pub(super) userroomid_highlightcount: Arc<dyn Tree>,    // HightlightCount = u64
 
@@ -117,6 +119,8 @@ pub struct Rooms {
     pub(super) shortstatekey_cache: Mutex<LruCache<u64, (EventType, String)>>,
     pub(super) our_real_users_cache: RwLock<HashMap<Box<RoomId>, Arc<HashSet<Box<UserId>>>>>,
     pub(super) appservice_in_room_cache: RwLock<HashMap<Box<RoomId>, HashMap<String, bool>>>,
+    pub(super) lazy_load_waiting:
+        Mutex<HashMap<(Box<UserId>, Box<DeviceId>, Box<RoomId>, u64), HashSet<Box<UserId>>>>,
     pub(super) stateinfo_cache: Mutex<
         LruCache<
             u64,
@@ -1528,6 +1532,19 @@ impl Rooms {
                                         ));
                                     }
                                 }
+                                "unregister_appservice" => {
+                                    if args.len() == 1 {
+                                        db.admin.send(AdminCommand::UnregisterAppservice(
+                                            args[0].to_owned(),
+                                        ));
+                                    } else {
+                                        db.admin.send(AdminCommand::SendMessage(
+                                            RoomMessageEventContent::text_plain(
+                                                "Missing appservice identifier",
+                                            ),
+                                        ));
+                                    }
+                                }
                                 "list_appservices" => {
                                     db.admin.send(AdminCommand::ListAppservices);
                                 }
@@ -1678,6 +1695,9 @@ impl Rooms {
                                             ),
                                         ));
                                     }
+                                }
+                                "database_memory_usage" => {
+                                    db.admin.send(AdminCommand::ShowMemoryUsage);
                                 }
                                 _ => {
                                     db.admin.send(AdminCommand::SendMessage(
@@ -2710,7 +2730,7 @@ impl Rooms {
             let state_lock = mutex_state.lock().await;
 
             let mut event: RoomMemberEventContent = serde_json::from_str(
-                self.room_state_get(room_id, &EventType::RoomMember, &user_id.to_string())?
+                self.room_state_get(room_id, &EventType::RoomMember, user_id.as_str())?
                     .ok_or(Error::BadRequest(
                         ErrorKind::BadState,
                         "Cannot leave a room you are not a member of.",
@@ -3445,14 +3465,103 @@ impl Rooms {
                 &key[0].to_be_bytes(),
                 &chain
                     .iter()
-                    .map(|s| s.to_be_bytes().to_vec())
-                    .flatten()
+                    .flat_map(|s| s.to_be_bytes().to_vec())
                     .collect::<Vec<u8>>(),
             )?;
         }
 
         // Cache in RAM
         self.auth_chain_cache.lock().unwrap().insert(key, chain);
+
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn lazy_load_was_sent_before(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        room_id: &RoomId,
+        ll_user: &UserId,
+    ) -> Result<bool> {
+        let mut key = user_id.as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(device_id.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(room_id.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(ll_user.as_bytes());
+        Ok(self.lazyloadedids.get(&key)?.is_some())
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn lazy_load_mark_sent(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        room_id: &RoomId,
+        lazy_load: HashSet<Box<UserId>>,
+        count: u64,
+    ) {
+        self.lazy_load_waiting.lock().unwrap().insert(
+            (
+                user_id.to_owned(),
+                device_id.to_owned(),
+                room_id.to_owned(),
+                count,
+            ),
+            lazy_load,
+        );
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn lazy_load_confirm_delivery(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        room_id: &RoomId,
+        since: u64,
+    ) -> Result<()> {
+        if let Some(user_ids) = self.lazy_load_waiting.lock().unwrap().remove(&(
+            user_id.to_owned(),
+            device_id.to_owned(),
+            room_id.to_owned(),
+            since,
+        )) {
+            let mut prefix = user_id.as_bytes().to_vec();
+            prefix.push(0xff);
+            prefix.extend_from_slice(device_id.as_bytes());
+            prefix.push(0xff);
+            prefix.extend_from_slice(room_id.as_bytes());
+            prefix.push(0xff);
+
+            for ll_id in user_ids {
+                let mut key = prefix.clone();
+                key.extend_from_slice(ll_id.as_bytes());
+                self.lazyloadedids.insert(&key, &[])?;
+            }
+        }
+
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn lazy_load_reset(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        room_id: &RoomId,
+    ) -> Result<()> {
+        let mut prefix = user_id.as_bytes().to_vec();
+        prefix.push(0xff);
+        prefix.extend_from_slice(device_id.as_bytes());
+        prefix.push(0xff);
+        prefix.extend_from_slice(room_id.as_bytes());
+        prefix.push(0xff);
+
+        for (key, _) in self.lazyloadedids.scan_prefix(prefix) {
+            self.lazyloadedids.remove(&key)?;
+        }
 
         Ok(())
     }

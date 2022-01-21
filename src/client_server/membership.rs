@@ -23,7 +23,7 @@ use ruma::{
         },
         EventType,
     },
-    serde::{to_canonical_value, CanonicalJsonObject, CanonicalJsonValue},
+    serde::{to_canonical_value, Base64, CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, RoomVersion},
     uint, EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
@@ -787,7 +787,7 @@ async fn join_room_by_id_helper(
 fn validate_and_add_event_id(
     pdu: &RawJsonValue,
     room_version: &RoomVersionId,
-    pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, String>>>,
+    pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     db: &Database,
 ) -> Result<(Box<EventId>, CanonicalJsonObject)> {
     let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {

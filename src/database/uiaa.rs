@@ -1,4 +1,6 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::RwLock;
 
 use crate::{client_server::SESSION_ID_LENGTH, utils, Error, Result};
 use ruma::{
@@ -18,7 +20,8 @@ use super::abstraction::Tree;
 
 pub struct Uiaa {
     pub(super) userdevicesessionid_uiaainfo: Arc<dyn Tree>, // User-interactive authentication
-    pub(super) userdevicesessionid_uiaarequest: Arc<dyn Tree>, // UiaaRequest = canonical json value
+    pub(super) userdevicesessionid_uiaarequest:
+        RwLock<BTreeMap<(Box<UserId>, Box<DeviceId>, String), CanonicalJsonValue>>,
 }
 
 impl Uiaa {
@@ -147,16 +150,13 @@ impl Uiaa {
         session: &str,
         request: &CanonicalJsonValue,
     ) -> Result<()> {
-        let mut userdevicesessionid = user_id.as_bytes().to_vec();
-        userdevicesessionid.push(0xff);
-        userdevicesessionid.extend_from_slice(device_id.as_bytes());
-        userdevicesessionid.push(0xff);
-        userdevicesessionid.extend_from_slice(session.as_bytes());
-
-        self.userdevicesessionid_uiaarequest.insert(
-            &userdevicesessionid,
-            &serde_json::to_vec(request).expect("json value to vec always works"),
-        )?;
+        self.userdevicesessionid_uiaarequest
+            .write()
+            .unwrap()
+            .insert(
+                (user_id.to_owned(), device_id.to_owned(), session.to_owned()),
+                request.to_owned(),
+            );
 
         Ok(())
     }
@@ -166,23 +166,12 @@ impl Uiaa {
         user_id: &UserId,
         device_id: &DeviceId,
         session: &str,
-    ) -> Result<Option<CanonicalJsonValue>> {
-        let mut userdevicesessionid = user_id.as_bytes().to_vec();
-        userdevicesessionid.push(0xff);
-        userdevicesessionid.extend_from_slice(device_id.as_bytes());
-        userdevicesessionid.push(0xff);
-        userdevicesessionid.extend_from_slice(session.as_bytes());
-
+    ) -> Option<CanonicalJsonValue> {
         self.userdevicesessionid_uiaarequest
-            .get(&userdevicesessionid)?
-            .map(|bytes| {
-                serde_json::from_str::<CanonicalJsonValue>(
-                    &utils::string_from_bytes(&bytes)
-                        .map_err(|_| Error::bad_database("Invalid uiaa request bytes in db."))?,
-                )
-                .map_err(|_| Error::bad_database("Invalid uiaa request in db."))
-            })
-            .transpose()
+            .read()
+            .unwrap()
+            .get(&(user_id.to_owned(), device_id.to_owned(), session.to_owned()))
+            .map(|j| j.to_owned())
     }
 
     fn update_uiaa_session(

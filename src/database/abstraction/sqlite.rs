@@ -1,17 +1,15 @@
-use super::{DatabaseEngine, Tree};
+use super::{watchers::Watchers, DatabaseEngine, Tree};
 use crate::{database::Config, Result};
-use parking_lot::{Mutex, MutexGuard, RwLock};
+use parking_lot::{Mutex, MutexGuard};
 use rusqlite::{Connection, DatabaseName::Main, OptionalExtension};
 use std::{
     cell::RefCell,
-    collections::{hash_map, HashMap},
     future::Future,
     path::{Path, PathBuf},
     pin::Pin,
     sync::Arc,
 };
 use thread_local::ThreadLocal;
-use tokio::sync::watch;
 use tracing::debug;
 
 thread_local! {
@@ -82,8 +80,8 @@ impl Engine {
     }
 }
 
-impl DatabaseEngine for Engine {
-    fn open(config: &Config) -> Result<Arc<Self>> {
+impl DatabaseEngine for Arc<Engine> {
+    fn open(config: &Config) -> Result<Self> {
         let path = Path::new(&config.database_path).join("conduit.db");
 
         // calculates cache-size per permanent connection
@@ -94,7 +92,7 @@ impl DatabaseEngine for Engine {
             / ((num_cpus::get().max(1) * 2) + 1) as f64)
             as u32;
 
-        let writer = Mutex::new(Self::prepare_conn(&path, cache_size_per_thread)?);
+        let writer = Mutex::new(Engine::prepare_conn(&path, cache_size_per_thread)?);
 
         let arc = Arc::new(Engine {
             writer,
@@ -107,26 +105,30 @@ impl DatabaseEngine for Engine {
         Ok(arc)
     }
 
-    fn open_tree(self: &Arc<Self>, name: &str) -> Result<Arc<dyn Tree>> {
+    fn open_tree(&self, name: &str) -> Result<Arc<dyn Tree>> {
         self.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )", name), [])?;
 
         Ok(Arc::new(SqliteTable {
             engine: Arc::clone(self),
             name: name.to_owned(),
-            watchers: RwLock::new(HashMap::new()),
+            watchers: Watchers::default(),
         }))
     }
 
-    fn flush(self: &Arc<Self>) -> Result<()> {
+    fn flush(&self) -> Result<()> {
         // we enabled PRAGMA synchronous=normal, so this should not be necessary
         Ok(())
+    }
+
+    fn cleanup(&self) -> Result<()> {
+        self.flush_wal()
     }
 }
 
 pub struct SqliteTable {
     engine: Arc<Engine>,
     name: String,
-    watchers: RwLock<HashMap<Vec<u8>, (watch::Sender<()>, watch::Receiver<()>)>>,
+    watchers: Watchers,
 }
 
 type TupleOfBytes = (Vec<u8>, Vec<u8>);
@@ -200,27 +202,7 @@ impl Tree for SqliteTable {
         let guard = self.engine.write_lock();
         self.insert_with_guard(&guard, key, value)?;
         drop(guard);
-
-        let watchers = self.watchers.read();
-        let mut triggered = Vec::new();
-
-        for length in 0..=key.len() {
-            if watchers.contains_key(&key[..length]) {
-                triggered.push(&key[..length]);
-            }
-        }
-
-        drop(watchers);
-
-        if !triggered.is_empty() {
-            let mut watchers = self.watchers.write();
-            for prefix in triggered {
-                if let Some(tx) = watchers.remove(prefix) {
-                    let _ = tx.0.send(());
-                }
-            }
-        };
-
+        self.watchers.wake(key);
         Ok(())
     }
 
@@ -365,19 +347,7 @@ impl Tree for SqliteTable {
 
     #[tracing::instrument(skip(self, prefix))]
     fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        let mut rx = match self.watchers.write().entry(prefix.to_vec()) {
-            hash_map::Entry::Occupied(o) => o.get().1.clone(),
-            hash_map::Entry::Vacant(v) => {
-                let (tx, rx) = tokio::sync::watch::channel(());
-                v.insert((tx, rx.clone()));
-                rx
-            }
-        };
-
-        Box::pin(async move {
-            // Tx is never destroyed
-            rx.changed().await.unwrap();
-        })
+        self.watchers.watch(prefix)
     }
 
     #[tracing::instrument(skip(self))]

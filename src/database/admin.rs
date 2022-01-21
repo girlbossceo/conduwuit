@@ -12,8 +12,10 @@ use tracing::warn;
 
 pub enum AdminCommand {
     RegisterAppservice(serde_yaml::Value),
+    UnregisterAppservice(String),
     ListAppservices,
     ListLocalUsers,
+    ShowMemoryUsage,
     SendMessage(RoomMessageEventContent),
 }
 
@@ -109,6 +111,9 @@ impl Admin {
                             AdminCommand::RegisterAppservice(yaml) => {
                                 guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error
                             }
+                            AdminCommand::UnregisterAppservice(service_name) => {
+                                guard.appservice.unregister_appservice(&service_name).unwrap(); // TODO: see above
+                            }
                             AdminCommand::ListAppservices => {
                                 if let Ok(appservices) = guard.appservice.iter_ids().map(|ids| ids.collect::<Vec<_>>()) {
                                     let count = appservices.len();
@@ -120,6 +125,13 @@ impl Admin {
                                     send_message(RoomMessageEventContent::text_plain(output), guard, &state_lock);
                                 } else {
                                     send_message(RoomMessageEventContent::text_plain("Failed to get appservices."), guard, &state_lock);
+                                }
+                            }
+                            AdminCommand::ShowMemoryUsage => {
+                                if let Ok(response) = guard._db.memory_usage() {
+                                    send_message(RoomMessageEventContent::text_plain(response), guard, &state_lock);
+                                } else {
+                                    send_message(RoomMessageEventContent::text_plain("Failed to get database memory usage.".to_owned()), guard, &state_lock);
                                 }
                             }
                             AdminCommand::SendMessage(message) => {

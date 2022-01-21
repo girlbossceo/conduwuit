@@ -94,26 +94,20 @@ So...step by step:
          server_name <SUBDOMAIN>.<DOMAIN>;
          listen      80 default_server;
 
-         location /.well-known/matrix/ {
-             root /var/www;
-             default_type application/json;
-             add_header Access-Control-Allow-Origin *;
+         location /.well-known/matrix/server {
+            return 200 '{"m.server": "<SUBDOMAIN>.<DOMAIN>:443"}';
+            add_header Content-Type application/json;
          }
-     }
-     ```
 
-   - `./nginx/www/.well-known/matrix/client` (relative to the compose file, you can change this, but then also need to change the volume mapping)
-     ```json
-     {
-       "m.homeserver": {
-         "base_url": "https://<SUBDOMAIN>.<DOMAIN>"
-       }
-     }
-     ```
-   - `./nginx/www/.well-known/matrix/server` (relative to the compose file, you can change this, but then also need to change the volume mapping)
-     ```json
-     {
-       "m.server": "<SUBDOMAIN>.<DOMAIN>:443"
+        location /.well-known/matrix/client {
+            return 200 '{"m.homeserver": {"base_url": "https://<SUBDOMAIN>.<DOMAIN>"}}';
+            add_header Content-Type application/json;
+            add_header "Access-Control-Allow-Origin" *;
+        }
+
+        location / {
+            return 404;
+        }
      }
      ```
 

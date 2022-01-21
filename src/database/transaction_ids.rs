@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::Result;
-use ruma::{DeviceId, UserId};
+use ruma::{identifiers::TransactionId, DeviceId, UserId};
 
 use super::abstraction::Tree;
 
@@ -14,7 +14,7 @@ impl TransactionIds {
         &self,
         user_id: &UserId,
         device_id: Option<&DeviceId>,
-        txn_id: &str,
+        txn_id: &TransactionId,
         data: &[u8],
     ) -> Result<()> {
         let mut key = user_id.as_bytes().to_vec();
@@ -32,7 +32,7 @@ impl TransactionIds {
         &self,
         user_id: &UserId,
         device_id: Option<&DeviceId>,
-        txn_id: &str,
+        txn_id: &TransactionId,
     ) -> Result<Option<Vec<u8>>> {
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);

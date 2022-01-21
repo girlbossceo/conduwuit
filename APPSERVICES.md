@@ -42,6 +42,14 @@ could help.
 
 ## Appservice-specific instructions
 
+### Remove an appservice
+
+To remove an appservice go to your admin room and execute
+
+```@conduit:your.server.name: unregister_appservice <name>```
+
+where `<name>` one of the output of `list_appservices`.
+
 ### Tested appservices
 
 These appservices have been tested and work with Conduit without any extra steps:
