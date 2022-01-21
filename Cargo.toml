@@ -86,8 +86,7 @@ thread_local = "1.1.3"
 hmac = "0.11.0"
 sha-1 = "0.9.8"
 # used for conduit's CLI and admin room command parsing
-structopt = { version = "0.3.25", default-features = false }
-pulldown-cmark = "0.9.1"
+clap = { version = "3.0.10", default-features = false, features = ["std", "derive"] }
 
 [features]
 default = ["conduit_bin", "backend_sqlite", "backend_rocksdb"]
