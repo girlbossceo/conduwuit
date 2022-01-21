@@ -147,7 +147,10 @@ impl Users {
             match utils::string_from_bytes(username) {
                 Ok(u) => Some(u),
                 Err(e) => {
-                    warn!("Failed to parse username while calling get_local_users(): {}", e.to_string());
+                    warn!(
+                        "Failed to parse username while calling get_local_users(): {}",
+                        e.to_string()
+                    );
                     None
                 }
             }
