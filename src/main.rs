@@ -25,6 +25,13 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 pub use conduit::*; // Re-export everything from the library crate
 pub use rocket::State;
 
+#[cfg(not(target_env = "msvc"))]
+use tikv_jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<rocket::Build> {
     rocket::custom(config)
         .manage(data)
