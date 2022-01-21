@@ -531,11 +531,11 @@ impl Users {
         prefix.push(0xff);
 
         // Master key
-        let master_key_map = master_key
+        let mut master_key_ids = master_key
             .deserialize()
             .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid master key"))?
-            .keys;
-        let mut master_key_ids = master_key_map.values();
+            .keys
+            .into_values();
 
         let master_key_id = master_key_ids.next().ok_or(Error::BadRequest(
             ErrorKind::InvalidParam,
@@ -560,13 +560,14 @@ impl Users {
 
         // Self-signing key
         if let Some(self_signing_key) = self_signing_key {
-            let self_signing_key_map = self_signing_key
+            let mut self_signing_key_ids = self_signing_key
                 .deserialize()
                 .map_err(|_| {
                     Error::BadRequest(ErrorKind::InvalidParam, "Invalid self signing key")
                 })?
-                .keys;
-            let mut self_signing_key_ids = self_signing_key_map.values();
+                .keys
+                .into_values();
+
             let self_signing_key_id = self_signing_key_ids.next().ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Self signing key contained no key.",
@@ -593,13 +594,14 @@ impl Users {
 
         // User-signing key
         if let Some(user_signing_key) = user_signing_key {
-            let user_signing_key_map = user_signing_key
+            let mut user_signing_key_ids = user_signing_key
                 .deserialize()
                 .map_err(|_| {
                     Error::BadRequest(ErrorKind::InvalidParam, "Invalid user signing key")
                 })?
-                .keys;
-            let mut user_signing_key_ids = user_signing_key_map.values();
+                .keys
+                .into_values();
+
             let user_signing_key_id = user_signing_key_ids.next().ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "User signing key contained no key.",

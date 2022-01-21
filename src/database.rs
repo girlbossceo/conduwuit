@@ -49,6 +49,8 @@ pub struct Config {
     database_path: String,
     #[serde(default = "default_db_cache_capacity_mb")]
     db_cache_capacity_mb: f64,
+    #[serde(default = "default_rocksdb_max_open_files")]
+    rocksdb_max_open_files: i32,
     #[serde(default = "default_pdu_cache_capacity")]
     pdu_cache_capacity: u32,
     #[serde(default = "default_cleanup_second_interval")]
@@ -127,8 +129,12 @@ fn default_db_cache_capacity_mb() -> f64 {
     10.0
 }
 
+fn default_rocksdb_max_open_files() -> i32 {
+    512
+}
+
 fn default_pdu_cache_capacity() -> u32 {
-    1_000_000
+    150_000
 }
 
 fn default_cleanup_second_interval() -> u32 {
@@ -206,28 +212,22 @@ impl Database {
             return Ok(());
         }
 
-        if sled_exists {
-            if config.database_backend != "sled" {
-                return Err(Error::bad_config(
-                    "Found sled at database_path, but is not specified in config.",
-                ));
-            }
+        if sled_exists && config.database_backend != "sled" {
+            return Err(Error::bad_config(
+                "Found sled at database_path, but is not specified in config.",
+            ));
         }
 
-        if sqlite_exists {
-            if config.database_backend != "sqlite" {
-                return Err(Error::bad_config(
-                    "Found sqlite at database_path, but is not specified in config.",
-                ));
-            }
+        if sqlite_exists && config.database_backend != "sqlite" {
+            return Err(Error::bad_config(
+                "Found sqlite at database_path, but is not specified in config.",
+            ));
         }
 
-        if rocksdb_exists {
-            if config.database_backend != "rocksdb" {
-                return Err(Error::bad_config(
-                    "Found rocksdb at database_path, but is not specified in config.",
-                ));
-            }
+        if rocksdb_exists && config.database_backend != "rocksdb" {
+            return Err(Error::bad_config(
+                "Found rocksdb at database_path, but is not specified in config.",
+            ));
         }
 
         Ok(())

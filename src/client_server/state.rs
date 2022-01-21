@@ -44,7 +44,7 @@ pub async fn send_state_event_for_key_route(
         &db,
         sender_user,
         &body.room_id,
-        EventType::from(&body.event_type),
+        EventType::from(&*body.event_type),
         &body.body.body, // Yes, I hate it too
         body.state_key.to_owned(),
     )
@@ -86,7 +86,7 @@ pub async fn send_state_event_for_empty_key_route(
         &db,
         sender_user,
         &body.room_id,
-        EventType::from(&body.event_type),
+        EventType::from(&*body.event_type),
         &body.body.body,
         body.state_key.to_owned(),
     )

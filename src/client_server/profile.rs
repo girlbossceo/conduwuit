@@ -52,7 +52,7 @@ pub async fn set_displayname_route(
                                 .room_state_get(
                                     &room_id,
                                     &EventType::RoomMember,
-                                    &sender_user.to_string(),
+                                    sender_user.as_str(),
                                 )?
                                 .ok_or_else(|| {
                                     Error::bad_database(
@@ -195,7 +195,7 @@ pub async fn set_avatar_url_route(
                                 .room_state_get(
                                     &room_id,
                                     &EventType::RoomMember,
-                                    &sender_user.to_string(),
+                                    sender_user.as_str(),
                                 )?
                                 .ok_or_else(|| {
                                     Error::bad_database(

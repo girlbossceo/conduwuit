@@ -272,7 +272,7 @@ pub async fn get_key_changes_route(
     device_list_updates.extend(
         db.users
             .keys_changed(
-                &sender_user.to_string(),
+                sender_user.as_str(),
                 body.from
                     .parse()
                     .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
