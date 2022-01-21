@@ -58,3 +58,4 @@ These appservices have been tested and work with Conduit without any extra steps
 - [mautrix-hangouts](https://github.com/mautrix/hangouts/)
 - [mautrix-telegram](https://github.com/mautrix/telegram/)
 - [mautrix-signal](https://github.com/mautrix/signal/) from version `0.2.2` forward.
+- [heisenbridge](https://github.com/hifi/heisenbridge/)
