@@ -33,10 +33,10 @@ variables:
     - "rustup target add $TARGET"
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
     - if [ -n "${SCCACHE_BIN_URL}" ]; then curl $SCCACHE_BIN_URL --output /sccache && chmod +x /sccache && export RUSTC_WRAPPER=/sccache; fi
-    # Make sure that cc-rs links the correct libraries when cross-compiling (required for compiling librocksdb-sys)
+    # Make sure that cc-rs links the correct libraries statically when cross-compiling
     # See https://github.com/alexcrichton/cc-rs#external-configuration-via-environment-variables for more information
-    - 'export TARGET_CFLAGS="-L$TARGET_HOME/lib"'
-    # Make sure that rust-bindgen uses the correct include path when cross-compiling (required for compiling librocksdb-sys)
+    - 'export CARGO_BUILD_RUSTFLAGS="-L$TARGET_HOME/lib" CXXSTDLIB="static=stdc++"'
+    # Make sure that rust-bindgen uses the correct include path when cross-compiling
     # See https://github.com/rust-lang/rust-bindgen#environment-variables for more information
     - 'export BINDGEN_EXTRA_CLANG_ARGS="-I$TARGET_C_INCLUDE_PATH"'
   script:
