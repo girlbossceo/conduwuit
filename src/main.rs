@@ -363,7 +363,7 @@ impl RouterExt for Router {
             Method::POST => MethodFilter::POST,
             Method::PUT => MethodFilter::PUT,
             Method::TRACE => MethodFilter::TRACE,
-            _ => panic!(""),
+            m => panic!("Unsupported HTTP method: {:?}", m),
         };
 
         self.route(meta.path, on(method_filter, handler))
