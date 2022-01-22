@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, utils, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, utils, Error, Result, Ruma};
 use ruma::api::client::{
     error::ErrorKind,
     r0::{
@@ -16,7 +16,7 @@ use super::SESSION_ID_LENGTH;
 pub async fn get_devices_route(
     db: DatabaseGuard,
     body: Ruma<get_devices::Request>,
-) -> ConduitResult<get_devices::Response> {
+) -> Result<get_devices::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let devices: Vec<device::Device> = db
@@ -25,7 +25,7 @@ pub async fn get_devices_route(
         .filter_map(|r| r.ok()) // Filter out buggy devices
         .collect();
 
-    Ok(get_devices::Response { devices }.into())
+    Ok(get_devices::Response { devices })
 }
 
 /// # `GET /_matrix/client/r0/devices/{deviceId}`
@@ -35,7 +35,7 @@ pub async fn get_devices_route(
 pub async fn get_device_route(
     db: DatabaseGuard,
     body: Ruma<get_device::Request<'_>>,
-) -> ConduitResult<get_device::Response> {
+) -> Result<get_device::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let device = db
@@ -43,7 +43,7 @@ pub async fn get_device_route(
         .get_device_metadata(sender_user, &body.body.device_id)?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
 
-    Ok(get_device::Response { device }.into())
+    Ok(get_device::Response { device })
 }
 
 /// # `PUT /_matrix/client/r0/devices/{deviceId}`
@@ -53,7 +53,7 @@ pub async fn get_device_route(
 pub async fn update_device_route(
     db: DatabaseGuard,
     body: Ruma<update_device::Request<'_>>,
-) -> ConduitResult<update_device::Response> {
+) -> Result<update_device::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut device = db
@@ -68,7 +68,7 @@ pub async fn update_device_route(
 
     db.flush()?;
 
-    Ok(update_device::Response {}.into())
+    Ok(update_device::Response {})
 }
 
 /// # `DELETE /_matrix/client/r0/devices/{deviceId}`
@@ -84,7 +84,7 @@ pub async fn update_device_route(
 pub async fn delete_device_route(
     db: DatabaseGuard,
     body: Ruma<delete_device::Request<'_>>,
-) -> ConduitResult<delete_device::Response> {
+) -> Result<delete_device::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -125,7 +125,7 @@ pub async fn delete_device_route(
 
     db.flush()?;
 
-    Ok(delete_device::Response {}.into())
+    Ok(delete_device::Response {})
 }
 
 /// # `PUT /_matrix/client/r0/devices/{deviceId}`
@@ -143,7 +143,7 @@ pub async fn delete_device_route(
 pub async fn delete_devices_route(
     db: DatabaseGuard,
     body: Ruma<delete_devices::Request<'_>>,
-) -> ConduitResult<delete_devices::Response> {
+) -> Result<delete_devices::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -186,5 +186,5 @@ pub async fn delete_devices_route(
 
     db.flush()?;
 
-    Ok(delete_devices::Response {}.into())
+    Ok(delete_devices::Response {})
 }

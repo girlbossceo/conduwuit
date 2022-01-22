@@ -1,5 +1,5 @@
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
-use crate::{database::DatabaseGuard, utils, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, utils, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -26,13 +26,10 @@ struct Claims {
 #[tracing::instrument(skip(_body))]
 pub async fn get_login_types_route(
     _body: Ruma<get_login_types::Request>,
-) -> ConduitResult<get_login_types::Response> {
-    Ok(
-        get_login_types::Response::new(vec![get_login_types::LoginType::Password(
-            Default::default(),
-        )])
-        .into(),
-    )
+) -> Result<get_login_types::Response> {
+    Ok(get_login_types::Response::new(vec![
+        get_login_types::LoginType::Password(Default::default()),
+    ]))
 }
 
 /// # `POST /_matrix/client/r0/login`
@@ -50,7 +47,7 @@ pub async fn get_login_types_route(
 pub async fn login_route(
     db: DatabaseGuard,
     body: Ruma<login::Request<'_>>,
-) -> ConduitResult<login::Response> {
+) -> Result<login::Response> {
     // Validate login method
     // TODO: Other login methods
     let user_id = match &body.login_info {
@@ -155,8 +152,7 @@ pub async fn login_route(
         home_server: Some(db.globals.server_name().to_owned()),
         device_id,
         well_known: None,
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/client/r0/logout`
@@ -171,7 +167,7 @@ pub async fn login_route(
 pub async fn logout_route(
     db: DatabaseGuard,
     body: Ruma<logout::Request>,
-) -> ConduitResult<logout::Response> {
+) -> Result<logout::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -179,7 +175,7 @@ pub async fn logout_route(
 
     db.flush()?;
 
-    Ok(logout::Response::new().into())
+    Ok(logout::Response::new())
 }
 
 /// # `POST /_matrix/client/r0/logout/all`
@@ -197,7 +193,7 @@ pub async fn logout_route(
 pub async fn logout_all_route(
     db: DatabaseGuard,
     body: Ruma<logout_all::Request>,
-) -> ConduitResult<logout_all::Response> {
+) -> Result<logout_all::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     for device_id in db.users.all_device_ids(sender_user).flatten() {
@@ -206,5 +202,5 @@ pub async fn logout_all_route(
 
     db.flush()?;
 
-    Ok(logout_all::Response::new().into())
+    Ok(logout_all::Response::new())
 }

@@ -1,4 +1,4 @@
-use crate::{ConduitResult, Ruma};
+use crate::{Result, Ruma};
 use ruma::api::client::r0::thirdparty::get_protocols;
 
 use std::collections::BTreeMap;
@@ -9,10 +9,9 @@ use std::collections::BTreeMap;
 #[tracing::instrument(skip(_body))]
 pub async fn get_protocols_route(
     _body: Ruma<get_protocols::Request>,
-) -> ConduitResult<get_protocols::Response> {
+) -> Result<get_protocols::Response> {
     // TODO
     Ok(get_protocols::Response {
         protocols: BTreeMap::new(),
-    }
-    .into())
+    })
 }

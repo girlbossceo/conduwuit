@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma};
+use crate::{database::DatabaseGuard, Database, Error, Result, Ruma};
 use ruma::{
     api::{
         client::{
@@ -38,7 +38,7 @@ use tracing::{info, warn};
 pub async fn get_public_rooms_filtered_route(
     db: DatabaseGuard,
     body: Ruma<get_public_rooms_filtered::Request<'_>>,
-) -> ConduitResult<get_public_rooms_filtered::Response> {
+) -> Result<get_public_rooms_filtered::Response> {
     get_public_rooms_filtered_helper(
         &db,
         body.server.as_deref(),
@@ -59,7 +59,7 @@ pub async fn get_public_rooms_filtered_route(
 pub async fn get_public_rooms_route(
     db: DatabaseGuard,
     body: Ruma<get_public_rooms::Request<'_>>,
-) -> ConduitResult<get_public_rooms::Response> {
+) -> Result<get_public_rooms::Response> {
     let response = get_public_rooms_filtered_helper(
         &db,
         body.server.as_deref(),
@@ -68,16 +68,14 @@ pub async fn get_public_rooms_route(
         &IncomingFilter::default(),
         &IncomingRoomNetwork::Matrix,
     )
-    .await?
-    .0;
+    .await?;
 
     Ok(get_public_rooms::Response {
         chunk: response.chunk,
         prev_batch: response.prev_batch,
         next_batch: response.next_batch,
         total_room_count_estimate: response.total_room_count_estimate,
-    }
-    .into())
+    })
 }
 
 /// # `PUT /_matrix/client/r0/directory/list/room/{roomId}`
@@ -89,7 +87,7 @@ pub async fn get_public_rooms_route(
 pub async fn set_room_visibility_route(
     db: DatabaseGuard,
     body: Ruma<set_room_visibility::Request<'_>>,
-) -> ConduitResult<set_room_visibility::Response> {
+) -> Result<set_room_visibility::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     match &body.visibility {
@@ -108,7 +106,7 @@ pub async fn set_room_visibility_route(
 
     db.flush()?;
 
-    Ok(set_room_visibility::Response {}.into())
+    Ok(set_room_visibility::Response {})
 }
 
 /// # `GET /_matrix/client/r0/directory/list/room/{roomId}`
@@ -118,15 +116,14 @@ pub async fn set_room_visibility_route(
 pub async fn get_room_visibility_route(
     db: DatabaseGuard,
     body: Ruma<get_room_visibility::Request<'_>>,
-) -> ConduitResult<get_room_visibility::Response> {
+) -> Result<get_room_visibility::Response> {
     Ok(get_room_visibility::Response {
         visibility: if db.rooms.is_public_room(&body.room_id)? {
             room::Visibility::Public
         } else {
             room::Visibility::Private
         },
-    }
-    .into())
+    })
 }
 
 pub(crate) async fn get_public_rooms_filtered_helper(
@@ -136,7 +133,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
     since: Option<&str>,
     filter: &IncomingFilter,
     _network: &IncomingRoomNetwork,
-) -> ConduitResult<get_public_rooms_filtered::Response> {
+) -> Result<get_public_rooms_filtered::Response> {
     if let Some(other_server) = server.filter(|server| *server != db.globals.server_name().as_str())
     {
         let response = db
@@ -172,8 +169,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
             prev_batch: response.prev_batch,
             next_batch: response.next_batch,
             total_room_count_estimate: response.total_room_count_estimate,
-        }
-        .into());
+        });
     }
 
     let limit = limit.map_or(10, u64::from);
@@ -353,6 +349,5 @@ pub(crate) async fn get_public_rooms_filtered_helper(
         prev_batch,
         next_batch,
         total_room_count_estimate: Some(total_room_count_estimate),
-    }
-    .into())
+    })
 }

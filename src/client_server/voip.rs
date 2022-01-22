@@ -1,7 +1,6 @@
-use crate::{database::DatabaseGuard, ConduitResult, Ruma};
+use crate::{database::DatabaseGuard, Result, Ruma};
 use hmac::{Hmac, Mac, NewMac};
-use ruma::api::client::r0::voip::get_turn_server_info;
-use ruma::SecondsSinceUnixEpoch;
+use ruma::{api::client::r0::voip::get_turn_server_info, SecondsSinceUnixEpoch};
 use sha1::Sha1;
 use std::time::{Duration, SystemTime};
 
@@ -14,7 +13,7 @@ type HmacSha1 = Hmac<Sha1>;
 pub async fn turn_server_route(
     db: DatabaseGuard,
     body: Ruma<get_turn_server_info::Request>,
-) -> ConduitResult<get_turn_server_info::Response> {
+) -> Result<get_turn_server_info::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let turn_secret = db.globals.turn_secret();
@@ -46,6 +45,5 @@ pub async fn turn_server_route(
         password,
         uris: db.globals.turn_uris().to_vec(),
         ttl: Duration::from_secs(db.globals.turn_ttl()),
-    }
-    .into())
+    })
 }

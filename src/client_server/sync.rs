@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma, RumaResponse};
+use crate::{database::DatabaseGuard, Database, Error, Result, Ruma, RumaResponse};
 use ruma::{
     api::client::r0::{
         filter::{IncomingFilterDefinition, LazyLoadOptions},
@@ -58,7 +58,7 @@ use tracing::error;
 pub async fn sync_events_route(
     db: DatabaseGuard,
     body: Ruma<sync_events::Request<'_>>,
-) -> Result<RumaResponse<sync_events::Response>, RumaResponse<UiaaResponse>> {
+) -> Result<sync_events::Response, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.expect("user is authenticated");
     let sender_device = body.sender_device.expect("user is authenticated");
     let body = body.body;
@@ -132,7 +132,7 @@ async fn sync_helper_wrapper(
     sender_user: Box<UserId>,
     sender_device: Box<DeviceId>,
     body: sync_events::IncomingRequest,
-    tx: Sender<Option<ConduitResult<sync_events::Response>>>,
+    tx: Sender<Option<Result<sync_events::Response>>>,
 ) {
     let since = body.since.clone();
 
@@ -166,7 +166,7 @@ async fn sync_helper_wrapper(
 
     drop(db);
 
-    let _ = tx.send(Some(r.map(|(r, _)| r.into())));
+    let _ = tx.send(Some(r.map(|(r, _)| r)));
 }
 
 async fn sync_helper(

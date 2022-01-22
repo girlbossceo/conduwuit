@@ -4,7 +4,7 @@ use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{
     database::{admin::make_user_admin, DatabaseGuard},
     pdu::PduBuilder,
-    utils, ConduitResult, Error, Ruma,
+    utils, Error, Result, Ruma,
 };
 use ruma::{
     api::client::{
@@ -44,7 +44,7 @@ const GUEST_NAME_LENGTH: usize = 10;
 pub async fn get_register_available_route(
     db: DatabaseGuard,
     body: Ruma<get_username_availability::Request<'_>>,
-) -> ConduitResult<get_username_availability::Response> {
+) -> Result<get_username_availability::Response> {
     // Validate user id
     let user_id =
         UserId::parse_with_server_name(body.username.to_lowercase(), db.globals.server_name())
@@ -68,7 +68,7 @@ pub async fn get_register_available_route(
     // TODO add check for appservice namespaces
 
     // If no if check is true we have an username that's available to be used.
-    Ok(get_username_availability::Response { available: true }.into())
+    Ok(get_username_availability::Response { available: true })
 }
 
 /// # `POST /_matrix/client/r0/register`
@@ -88,7 +88,7 @@ pub async fn get_register_available_route(
 pub async fn register_route(
     db: DatabaseGuard,
     body: Ruma<register::Request<'_>>,
-) -> ConduitResult<register::Response> {
+) -> Result<register::Response> {
     if !db.globals.allow_registration() && !body.from_appservice {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
@@ -212,8 +212,7 @@ pub async fn register_route(
             access_token: None,
             user_id,
             device_id: None,
-        }
-        .into());
+        });
     }
 
     // Generate new device id if the user didn't specify one
@@ -251,8 +250,7 @@ pub async fn register_route(
         access_token: Some(token),
         user_id,
         device_id: Some(device_id),
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/client/r0/account/password`
@@ -273,7 +271,7 @@ pub async fn register_route(
 pub async fn change_password_route(
     db: DatabaseGuard,
     body: Ruma<change_password::Request<'_>>,
-) -> ConduitResult<change_password::Response> {
+) -> Result<change_password::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -326,7 +324,7 @@ pub async fn change_password_route(
 
     db.flush()?;
 
-    Ok(change_password::Response {}.into())
+    Ok(change_password::Response {})
 }
 
 /// # `GET _matrix/client/r0/account/whoami`
@@ -335,12 +333,11 @@ pub async fn change_password_route(
 ///
 /// Note: Also works for Application Services
 #[tracing::instrument(skip(body))]
-pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Response> {
+pub async fn whoami_route(body: Ruma<whoami::Request>) -> Result<whoami::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     Ok(whoami::Response {
         user_id: sender_user.clone(),
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/client/r0/account/deactivate`
@@ -357,7 +354,7 @@ pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::
 pub async fn deactivate_route(
     db: DatabaseGuard,
     body: Ruma<deactivate::Request<'_>>,
-) -> ConduitResult<deactivate::Response> {
+) -> Result<deactivate::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -452,8 +449,7 @@ pub async fn deactivate_route(
 
     Ok(deactivate::Response {
         id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,
-    }
-    .into())
+    })
 }
 
 /// # `GET _matrix/client/r0/account/3pid`
@@ -461,10 +457,8 @@ pub async fn deactivate_route(
 /// Get a list of third party identifiers associated with this account.
 ///
 /// - Currently always returns empty list
-pub async fn third_party_route(
-    body: Ruma<get_3pids::Request>,
-) -> ConduitResult<get_3pids::Response> {
+pub async fn third_party_route(body: Ruma<get_3pids::Request>) -> Result<get_3pids::Response> {
     let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(get_3pids::Response::new(Vec::new()).into())
+    Ok(get_3pids::Response::new(Vec::new()))
 }

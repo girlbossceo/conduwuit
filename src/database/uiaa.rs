@@ -1,6 +1,7 @@
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::sync::RwLock;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
+};
 
 use crate::{client_server::SESSION_ID_LENGTH, utils, Error, Result};
 use ruma::{

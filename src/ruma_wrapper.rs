@@ -29,9 +29,6 @@ impl<T: Outgoing> Deref for Ruma<T> {
     }
 }
 
-/// This struct converts ruma structs to http responses.
-pub type ConduitResult<T> = Result<RumaResponse<T>, Error>;
-
 #[derive(Clone)]
 pub struct RumaResponse<T>(pub T);
 

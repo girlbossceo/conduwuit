@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, iter::FromIterator};
 
-use crate::{ConduitResult, Ruma};
+use crate::{Result, Ruma};
 use ruma::api::client::unversioned::get_supported_versions;
 
 /// # `GET /_matrix/client/versions`
@@ -16,11 +16,11 @@ use ruma::api::client::unversioned::get_supported_versions;
 #[tracing::instrument(skip(_body))]
 pub async fn get_supported_versions_route(
     _body: Ruma<get_supported_versions::Request>,
-) -> ConduitResult<get_supported_versions::Response> {
+) -> Result<get_supported_versions::Response> {
     let resp = get_supported_versions::Response {
         versions: vec!["r0.5.0".to_owned(), "r0.6.0".to_owned()],
         unstable_features: BTreeMap::from_iter([("org.matrix.e2e_cross_signing".to_owned(), true)]),
     };
 
-    Ok(resp.into())
+    Ok(resp)
 }

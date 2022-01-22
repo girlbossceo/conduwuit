@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -19,7 +19,7 @@ use ruma::{
 pub async fn get_pushrules_all_route(
     db: DatabaseGuard,
     body: Ruma<get_pushrules_all::Request>,
-) -> ConduitResult<get_pushrules_all::Response> {
+) -> Result<get_pushrules_all::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event: PushRulesEvent = db
@@ -32,8 +32,7 @@ pub async fn get_pushrules_all_route(
 
     Ok(get_pushrules_all::Response {
         global: event.content.global,
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
@@ -43,7 +42,7 @@ pub async fn get_pushrules_all_route(
 pub async fn get_pushrule_route(
     db: DatabaseGuard,
     body: Ruma<get_pushrule::Request<'_>>,
-) -> ConduitResult<get_pushrule::Response> {
+) -> Result<get_pushrule::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event: PushRulesEvent = db
@@ -80,7 +79,7 @@ pub async fn get_pushrule_route(
     };
 
     if let Some(rule) = rule {
-        Ok(get_pushrule::Response { rule }.into())
+        Ok(get_pushrule::Response { rule })
     } else {
         Err(Error::BadRequest(
             ErrorKind::NotFound,
@@ -96,7 +95,7 @@ pub async fn get_pushrule_route(
 pub async fn set_pushrule_route(
     db: DatabaseGuard,
     body: Ruma<set_pushrule::Request<'_>>,
-) -> ConduitResult<set_pushrule::Response> {
+) -> Result<set_pushrule::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let body = body.body;
 
@@ -183,7 +182,7 @@ pub async fn set_pushrule_route(
 
     db.flush()?;
 
-    Ok(set_pushrule::Response {}.into())
+    Ok(set_pushrule::Response {})
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
@@ -193,7 +192,7 @@ pub async fn set_pushrule_route(
 pub async fn get_pushrule_actions_route(
     db: DatabaseGuard,
     body: Ruma<get_pushrule_actions::Request<'_>>,
-) -> ConduitResult<get_pushrule_actions::Response> {
+) -> Result<get_pushrule_actions::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -240,8 +239,7 @@ pub async fn get_pushrule_actions_route(
 
     Ok(get_pushrule_actions::Response {
         actions: actions.unwrap_or_default(),
-    }
-    .into())
+    })
 }
 
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
@@ -251,7 +249,7 @@ pub async fn get_pushrule_actions_route(
 pub async fn set_pushrule_actions_route(
     db: DatabaseGuard,
     body: Ruma<set_pushrule_actions::Request<'_>>,
-) -> ConduitResult<set_pushrule_actions::Response> {
+) -> Result<set_pushrule_actions::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -309,7 +307,7 @@ pub async fn set_pushrule_actions_route(
 
     db.flush()?;
 
-    Ok(set_pushrule_actions::Response {}.into())
+    Ok(set_pushrule_actions::Response {})
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
@@ -319,7 +317,7 @@ pub async fn set_pushrule_actions_route(
 pub async fn get_pushrule_enabled_route(
     db: DatabaseGuard,
     body: Ruma<get_pushrule_enabled::Request<'_>>,
-) -> ConduitResult<get_pushrule_enabled::Response> {
+) -> Result<get_pushrule_enabled::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -369,7 +367,7 @@ pub async fn get_pushrule_enabled_route(
 
     db.flush()?;
 
-    Ok(get_pushrule_enabled::Response { enabled }.into())
+    Ok(get_pushrule_enabled::Response { enabled })
 }
 
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
@@ -379,7 +377,7 @@ pub async fn get_pushrule_enabled_route(
 pub async fn set_pushrule_enabled_route(
     db: DatabaseGuard,
     body: Ruma<set_pushrule_enabled::Request<'_>>,
-) -> ConduitResult<set_pushrule_enabled::Response> {
+) -> Result<set_pushrule_enabled::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -442,7 +440,7 @@ pub async fn set_pushrule_enabled_route(
 
     db.flush()?;
 
-    Ok(set_pushrule_enabled::Response {}.into())
+    Ok(set_pushrule_enabled::Response {})
 }
 
 /// # `DELETE /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
@@ -452,7 +450,7 @@ pub async fn set_pushrule_enabled_route(
 pub async fn delete_pushrule_route(
     db: DatabaseGuard,
     body: Ruma<delete_pushrule::Request<'_>>,
-) -> ConduitResult<delete_pushrule::Response> {
+) -> Result<delete_pushrule::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -505,7 +503,7 @@ pub async fn delete_pushrule_route(
 
     db.flush()?;
 
-    Ok(delete_pushrule::Response {}.into())
+    Ok(delete_pushrule::Response {})
 }
 
 /// # `GET /_matrix/client/r0/pushers`
@@ -515,13 +513,12 @@ pub async fn delete_pushrule_route(
 pub async fn get_pushers_route(
     db: DatabaseGuard,
     body: Ruma<get_pushers::Request>,
-) -> ConduitResult<get_pushers::Response> {
+) -> Result<get_pushers::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     Ok(get_pushers::Response {
         pushers: db.pusher.get_pushers(sender_user)?,
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/client/r0/pushers/set`
@@ -533,7 +530,7 @@ pub async fn get_pushers_route(
 pub async fn set_pushers_route(
     db: DatabaseGuard,
     body: Ruma<set_pusher::Request>,
-) -> ConduitResult<set_pusher::Response> {
+) -> Result<set_pusher::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let pusher = body.pusher.clone();
 
@@ -541,5 +538,5 @@ pub async fn set_pushers_route(
 
     db.flush()?;
 
-    Ok(set_pusher::Response::default().into())
+    Ok(set_pusher::Response::default())
 }

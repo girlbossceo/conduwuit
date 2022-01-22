@@ -11,7 +11,6 @@ use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{
     extract::{FromRequest, MatchedPath},
-    handler::Handler,
     response::IntoResponse,
     routing::{get, on, MethodFilter},
     Router,
@@ -25,10 +24,7 @@ use http::{
     Method,
 };
 use opentelemetry::trace::{FutureExt, Tracer};
-use ruma::{
-    api::{IncomingRequest, Metadata},
-    Outgoing,
-};
+use ruma::{api::IncomingRequest, Outgoing};
 use tokio::{signal, sync::RwLock};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -353,25 +349,15 @@ impl RouterExt for Router {
         H: RumaHandler<T>,
         T: 'static,
     {
-        let meta = H::METADATA;
-        let method_filter = match meta.method {
-            Method::DELETE => MethodFilter::DELETE,
-            Method::GET => MethodFilter::GET,
-            Method::HEAD => MethodFilter::HEAD,
-            Method::OPTIONS => MethodFilter::OPTIONS,
-            Method::PATCH => MethodFilter::PATCH,
-            Method::POST => MethodFilter::POST,
-            Method::PUT => MethodFilter::PUT,
-            Method::TRACE => MethodFilter::TRACE,
-            m => panic!("Unsupported HTTP method: {:?}", m),
-        };
-
-        self.route(meta.path, on(method_filter, handler))
+        handler.add_to_router(self)
     }
 }
 
-pub trait RumaHandler<T>: Handler<T> {
-    const METADATA: Metadata;
+pub trait RumaHandler<T> {
+    // Can't transform to a handler without boxing or relying on the nightly-only
+    // impl-trait-in-traits feature. Moving a small amount of extra logic into the trait
+    // allows bypassing both.
+    fn add_to_router(self, router: Router) -> Router;
 }
 
 macro_rules! impl_ruma_handler {
@@ -380,17 +366,22 @@ macro_rules! impl_ruma_handler {
         #[allow(non_snake_case)]
         impl<Req, E, F, Fut, $($ty,)*> RumaHandler<($($ty,)* Ruma<Req>,)> for F
         where
-            Req: Outgoing,
+            Req: Outgoing + 'static,
             Req::Incoming: IncomingRequest + Send,
             F: FnOnce($($ty,)* Ruma<Req>) -> Fut + Clone + Send + 'static,
-            Fut: Future<Output = Result<
-                RumaResponse<<Req::Incoming as IncomingRequest>::OutgoingResponse>,
-                E,
-            >> + Send,
+            Fut: Future<Output = Result<<Req::Incoming as IncomingRequest>::OutgoingResponse, E>>
+                + Send,
             E: IntoResponse,
-            $( $ty: FromRequest<axum::body::Body> + Send, )*
+            $( $ty: FromRequest<axum::body::Body> + Send + 'static, )*
         {
-            const METADATA: Metadata = Req::Incoming::METADATA;
+            fn add_to_router(self, router: Router) -> Router {
+                let meta = Req::Incoming::METADATA;
+                let method_filter = method_to_filter(meta.method);
+
+                router.route(meta.path, on(method_filter, |$( $ty: $ty, )* req| async move {
+                    self($($ty,)* req).await.map(RumaResponse)
+                }))
+            }
         }
     };
 }
@@ -404,3 +395,18 @@ impl_ruma_handler!(T1, T2, T3, T4, T5);
 impl_ruma_handler!(T1, T2, T3, T4, T5, T6);
 impl_ruma_handler!(T1, T2, T3, T4, T5, T6, T7);
 impl_ruma_handler!(T1, T2, T3, T4, T5, T6, T7, T8);
+
+fn method_to_filter(method: Method) -> MethodFilter {
+    let method_filter = match method {
+        Method::DELETE => MethodFilter::DELETE,
+        Method::GET => MethodFilter::GET,
+        Method::HEAD => MethodFilter::HEAD,
+        Method::OPTIONS => MethodFilter::OPTIONS,
+        Method::PATCH => MethodFilter::PATCH,
+        Method::POST => MethodFilter::POST,
+        Method::PUT => MethodFilter::PUT,
+        Method::TRACE => MethodFilter::TRACE,
+        m => panic!("Unsupported HTTP method: {:?}", m),
+    };
+    method_filter
+}

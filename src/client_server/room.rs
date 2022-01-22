@@ -1,6 +1,5 @@
 use crate::{
-    client_server::invite_helper, database::DatabaseGuard, pdu::PduBuilder, ConduitResult, Error,
-    Ruma,
+    client_server::invite_helper, database::DatabaseGuard, pdu::PduBuilder, Error, Result, Ruma,
 };
 use ruma::{
     api::client::{
@@ -50,7 +49,7 @@ use tracing::{info, warn};
 pub async fn create_room_route(
     db: DatabaseGuard,
     body: Ruma<create_room::Request<'_>>,
-) -> ConduitResult<create_room::Response> {
+) -> Result<create_room::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let room_id = RoomId::new(db.globals.server_name());
@@ -410,7 +409,7 @@ pub async fn create_room_route(
 
     db.flush()?;
 
-    Ok(create_room::Response::new(room_id).into())
+    Ok(create_room::Response::new(room_id))
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/event/{eventId}`
@@ -422,7 +421,7 @@ pub async fn create_room_route(
 pub async fn get_room_event_route(
     db: DatabaseGuard,
     body: Ruma<get_room_event::Request<'_>>,
-) -> ConduitResult<get_room_event::Response> {
+) -> Result<get_room_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !db.rooms.is_joined(sender_user, &body.room_id)? {
@@ -438,8 +437,7 @@ pub async fn get_room_event_route(
             .get_pdu(&body.event_id)?
             .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?
             .to_room_event(),
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/aliases`
@@ -451,7 +449,7 @@ pub async fn get_room_event_route(
 pub async fn get_room_aliases_route(
     db: DatabaseGuard,
     body: Ruma<aliases::Request<'_>>,
-) -> ConduitResult<aliases::Response> {
+) -> Result<aliases::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !db.rooms.is_joined(sender_user, &body.room_id)? {
@@ -467,8 +465,7 @@ pub async fn get_room_aliases_route(
             .room_aliases(&body.room_id)
             .filter_map(|a| a.ok())
             .collect(),
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/upgrade`
@@ -485,7 +482,7 @@ pub async fn get_room_aliases_route(
 pub async fn upgrade_room_route(
     db: DatabaseGuard,
     body: Ruma<upgrade_room::Request<'_>>,
-) -> ConduitResult<upgrade_room::Response> {
+) -> Result<upgrade_room::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !matches!(body.new_version, RoomVersionId::V5 | RoomVersionId::V6) {
@@ -709,5 +706,5 @@ pub async fn upgrade_room_route(
     db.flush()?;
 
     // Return the replacement room id
-    Ok(upgrade_room::Response { replacement_room }.into())
+    Ok(upgrade_room::Response { replacement_room })
 }

@@ -1,6 +1,6 @@
 use crate::{
     database::{media::FileMeta, DatabaseGuard},
-    utils, ConduitResult, Error, Ruma,
+    utils, Error, Result, Ruma,
 };
 use ruma::api::client::{
     error::ErrorKind,
@@ -19,11 +19,10 @@ const MXC_LENGTH: usize = 32;
 pub async fn get_media_config_route(
     db: DatabaseGuard,
     _body: Ruma<get_media_config::Request>,
-) -> ConduitResult<get_media_config::Response> {
+) -> Result<get_media_config::Response> {
     Ok(get_media_config::Response {
         upload_size: db.globals.max_request_size().into(),
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/media/r0/upload`
@@ -36,7 +35,7 @@ pub async fn get_media_config_route(
 pub async fn create_content_route(
     db: DatabaseGuard,
     body: Ruma<create_content::Request<'_>>,
-) -> ConduitResult<create_content::Response> {
+) -> Result<create_content::Response> {
     let mxc = format!(
         "mxc://{}/{}",
         db.globals.server_name(),
@@ -62,8 +61,7 @@ pub async fn create_content_route(
     Ok(create_content::Response {
         content_uri: mxc.try_into().expect("Invalid mxc:// URI"),
         blurhash: None,
-    }
-    .into())
+    })
 }
 
 pub async fn get_remote_content(
@@ -107,7 +105,7 @@ pub async fn get_remote_content(
 pub async fn get_content_route(
     db: DatabaseGuard,
     body: Ruma<get_content::Request<'_>>,
-) -> ConduitResult<get_content::Response> {
+) -> Result<get_content::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
     if let Some(FileMeta {
@@ -120,12 +118,11 @@ pub async fn get_content_route(
             file,
             content_type,
             content_disposition,
-        }
-        .into())
+        })
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
         let remote_content_response =
             get_remote_content(&db, &mxc, &body.server_name, &body.media_id).await?;
-        Ok(remote_content_response.into())
+        Ok(remote_content_response)
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
     }
@@ -140,7 +137,7 @@ pub async fn get_content_route(
 pub async fn get_content_as_filename_route(
     db: DatabaseGuard,
     body: Ruma<get_content_as_filename::Request<'_>>,
-) -> ConduitResult<get_content_as_filename::Response> {
+) -> Result<get_content_as_filename::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
     if let Some(FileMeta {
@@ -153,8 +150,7 @@ pub async fn get_content_as_filename_route(
             file,
             content_type,
             content_disposition: Some(format!("inline; filename={}", body.filename)),
-        }
-        .into())
+        })
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
         let remote_content_response =
             get_remote_content(&db, &mxc, &body.server_name, &body.media_id).await?;
@@ -163,8 +159,7 @@ pub async fn get_content_as_filename_route(
             content_disposition: Some(format!("inline: filename={}", body.filename)),
             content_type: remote_content_response.content_type,
             file: remote_content_response.file,
-        }
-        .into())
+        })
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
     }
@@ -179,7 +174,7 @@ pub async fn get_content_as_filename_route(
 pub async fn get_content_thumbnail_route(
     db: DatabaseGuard,
     body: Ruma<get_content_thumbnail::Request<'_>>,
-) -> ConduitResult<get_content_thumbnail::Response> {
+) -> Result<get_content_thumbnail::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
     if let Some(FileMeta {
@@ -198,7 +193,7 @@ pub async fn get_content_thumbnail_route(
         )
         .await?
     {
-        Ok(get_content_thumbnail::Response { file, content_type }.into())
+        Ok(get_content_thumbnail::Response { file, content_type })
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
         let get_thumbnail_response = db
             .sending
@@ -228,7 +223,7 @@ pub async fn get_content_thumbnail_route(
             )
             .await?;
 
-        Ok(get_thumbnail_response.into())
+        Ok(get_thumbnail_response)
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
     }

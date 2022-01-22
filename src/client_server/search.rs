@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::api::client::{error::ErrorKind, r0::search::search_events};
 
 use search_events::{EventContextResult, ResultCategories, ResultRoomEvents, SearchResult};
@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 pub async fn search_events_route(
     db: DatabaseGuard,
     body: Ruma<search_events::Request<'_>>,
-) -> ConduitResult<search_events::Response> {
+) -> Result<search_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let search_criteria = body.search_categories.room_events.as_ref().unwrap();
@@ -111,6 +111,5 @@ pub async fn search_events_route(
                 .map(str::to_lowercase)
                 .collect(),
         },
-    })
-    .into())
+    }))
 }

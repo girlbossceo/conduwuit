@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, utils, ConduitResult, Ruma};
+use crate::{database::DatabaseGuard, utils, Result, Ruma};
 use create_typing_event::Typing;
 use ruma::api::client::r0::typing::create_typing_event;
 
@@ -9,7 +9,7 @@ use ruma::api::client::r0::typing::create_typing_event;
 pub async fn create_typing_event_route(
     db: DatabaseGuard,
     body: Ruma<create_typing_event::Request<'_>>,
-) -> ConduitResult<create_typing_event::Response> {
+) -> Result<create_typing_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if let Typing::Yes(duration) = body.state {
@@ -25,5 +25,5 @@ pub async fn create_typing_event_route(
             .typing_remove(sender_user, &body.room_id, &db.globals)?;
     }
 
-    Ok(create_typing_event::Response {}.into())
+    Ok(create_typing_event::Response {})
 }

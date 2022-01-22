@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, Error, Result, Ruma};
 use ruma::{
     api::{
         client::{
@@ -23,7 +23,7 @@ use std::sync::Arc;
 pub async fn set_displayname_route(
     db: DatabaseGuard,
     body: Ruma<set_display_name::Request<'_>>,
-) -> ConduitResult<set_display_name::Response> {
+) -> Result<set_display_name::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
@@ -109,7 +109,7 @@ pub async fn set_displayname_route(
 
     db.flush()?;
 
-    Ok(set_display_name::Response {}.into())
+    Ok(set_display_name::Response {})
 }
 
 /// # `GET /_matrix/client/r0/profile/{userId}/displayname`
@@ -121,7 +121,7 @@ pub async fn set_displayname_route(
 pub async fn get_displayname_route(
     db: DatabaseGuard,
     body: Ruma<get_display_name::Request<'_>>,
-) -> ConduitResult<get_display_name::Response> {
+) -> Result<get_display_name::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -137,14 +137,12 @@ pub async fn get_displayname_route(
 
         return Ok(get_display_name::Response {
             displayname: response.displayname,
-        }
-        .into());
+        });
     }
 
     Ok(get_display_name::Response {
         displayname: db.users.displayname(&body.user_id)?,
-    }
-    .into())
+    })
 }
 
 /// # `PUT /_matrix/client/r0/profile/{userId}/avatar_url`
@@ -156,7 +154,7 @@ pub async fn get_displayname_route(
 pub async fn set_avatar_url_route(
     db: DatabaseGuard,
     body: Ruma<set_avatar_url::Request<'_>>,
-) -> ConduitResult<set_avatar_url::Response> {
+) -> Result<set_avatar_url::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
@@ -244,7 +242,7 @@ pub async fn set_avatar_url_route(
 
     db.flush()?;
 
-    Ok(set_avatar_url::Response {}.into())
+    Ok(set_avatar_url::Response {})
 }
 
 /// # `GET /_matrix/client/r0/profile/{userId}/avatar_url`
@@ -256,7 +254,7 @@ pub async fn set_avatar_url_route(
 pub async fn get_avatar_url_route(
     db: DatabaseGuard,
     body: Ruma<get_avatar_url::Request<'_>>,
-) -> ConduitResult<get_avatar_url::Response> {
+) -> Result<get_avatar_url::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -273,15 +271,13 @@ pub async fn get_avatar_url_route(
         return Ok(get_avatar_url::Response {
             avatar_url: response.avatar_url,
             blurhash: response.blurhash,
-        }
-        .into());
+        });
     }
 
     Ok(get_avatar_url::Response {
         avatar_url: db.users.avatar_url(&body.user_id)?,
         blurhash: db.users.blurhash(&body.user_id)?,
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/client/r0/profile/{userId}`
@@ -293,7 +289,7 @@ pub async fn get_avatar_url_route(
 pub async fn get_profile_route(
     db: DatabaseGuard,
     body: Ruma<get_profile::Request<'_>>,
-) -> ConduitResult<get_profile::Response> {
+) -> Result<get_profile::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -311,8 +307,7 @@ pub async fn get_profile_route(
             displayname: response.displayname,
             avatar_url: response.avatar_url,
             blurhash: response.blurhash,
-        }
-        .into());
+        });
     }
 
     if !db.users.exists(&body.user_id)? {
@@ -327,6 +322,5 @@ pub async fn get_profile_route(
         avatar_url: db.users.avatar_url(&body.user_id)?,
         blurhash: db.users.blurhash(&body.user_id)?,
         displayname: db.users.displayname(&body.user_id)?,
-    }
-    .into())
+    })
 }

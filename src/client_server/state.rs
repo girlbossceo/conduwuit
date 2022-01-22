@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    database::DatabaseGuard, pdu::PduBuilder, ConduitResult, Database, Error, Result, Ruma,
+    database::DatabaseGuard, pdu::PduBuilder, Database, Error, Result, Ruma, RumaResponse,
 };
 use ruma::{
     api::client::{
@@ -30,7 +30,7 @@ use ruma::{
 pub async fn send_state_event_for_key_route(
     db: DatabaseGuard,
     body: Ruma<send_state_event::Request<'_>>,
-) -> ConduitResult<send_state_event::Response> {
+) -> Result<send_state_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event_id = send_state_event_for_key_helper(
@@ -46,7 +46,7 @@ pub async fn send_state_event_for_key_route(
     db.flush()?;
 
     let event_id = (*event_id).to_owned();
-    Ok(send_state_event::Response { event_id }.into())
+    Ok(send_state_event::Response { event_id })
 }
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/state/{eventType}`
@@ -60,7 +60,7 @@ pub async fn send_state_event_for_key_route(
 pub async fn send_state_event_for_empty_key_route(
     db: DatabaseGuard,
     body: Ruma<send_state_event::Request<'_>>,
-) -> ConduitResult<send_state_event::Response> {
+) -> Result<RumaResponse<send_state_event::Response>> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     // Forbid m.room.encryption if encryption is disabled
@@ -96,7 +96,7 @@ pub async fn send_state_event_for_empty_key_route(
 pub async fn get_state_events_route(
     db: DatabaseGuard,
     body: Ruma<get_state_events::Request<'_>>,
-) -> ConduitResult<get_state_events::Response> {
+) -> Result<get_state_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     #[allow(clippy::blocks_in_if_conditions)]
@@ -131,8 +131,7 @@ pub async fn get_state_events_route(
             .values()
             .map(|pdu| pdu.to_state_event())
             .collect(),
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomid}/state/{eventType}/{stateKey}`
@@ -144,7 +143,7 @@ pub async fn get_state_events_route(
 pub async fn get_state_events_for_key_route(
     db: DatabaseGuard,
     body: Ruma<get_state_events_for_key::Request<'_>>,
-) -> ConduitResult<get_state_events_for_key::Response> {
+) -> Result<get_state_events_for_key::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     #[allow(clippy::blocks_in_if_conditions)]
@@ -183,8 +182,7 @@ pub async fn get_state_events_for_key_route(
     Ok(get_state_events_for_key::Response {
         content: serde_json::from_str(event.content.get())
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomid}/state/{eventType}`
@@ -196,7 +194,7 @@ pub async fn get_state_events_for_key_route(
 pub async fn get_state_events_for_empty_key_route(
     db: DatabaseGuard,
     body: Ruma<get_state_events_for_key::Request<'_>>,
-) -> ConduitResult<get_state_events_for_key::Response> {
+) -> Result<RumaResponse<get_state_events_for_key::Response>> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     #[allow(clippy::blocks_in_if_conditions)]

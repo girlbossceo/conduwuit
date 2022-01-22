@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, ConduitResult, Ruma};
+use crate::{database::DatabaseGuard, Result, Ruma};
 use ruma::{
     api::client::r0::tag::{create_tag, delete_tag, get_tags},
     events::{
@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 pub async fn update_tag_route(
     db: DatabaseGuard,
     body: Ruma<create_tag::Request<'_>>,
-) -> ConduitResult<create_tag::Response> {
+) -> Result<create_tag::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
@@ -43,7 +43,7 @@ pub async fn update_tag_route(
 
     db.flush()?;
 
-    Ok(create_tag::Response {}.into())
+    Ok(create_tag::Response {})
 }
 
 /// # `DELETE /_matrix/client/r0/user/{userId}/rooms/{roomId}/tags/{tag}`
@@ -55,7 +55,7 @@ pub async fn update_tag_route(
 pub async fn delete_tag_route(
     db: DatabaseGuard,
     body: Ruma<delete_tag::Request<'_>>,
-) -> ConduitResult<delete_tag::Response> {
+) -> Result<delete_tag::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
@@ -78,7 +78,7 @@ pub async fn delete_tag_route(
 
     db.flush()?;
 
-    Ok(delete_tag::Response {}.into())
+    Ok(delete_tag::Response {})
 }
 
 /// # `GET /_matrix/client/r0/user/{userId}/rooms/{roomId}/tags`
@@ -90,7 +90,7 @@ pub async fn delete_tag_route(
 pub async fn get_tags_route(
     db: DatabaseGuard,
     body: Ruma<get_tags::Request<'_>>,
-) -> ConduitResult<get_tags::Response> {
+) -> Result<get_tags::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     Ok(get_tags::Response {
@@ -104,6 +104,5 @@ pub async fn get_tags_route(
             })
             .content
             .tags,
-    }
-    .into())
+    })
 }

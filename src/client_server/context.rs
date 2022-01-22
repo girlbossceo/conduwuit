@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -19,7 +19,7 @@ use tracing::error;
 pub async fn get_context_route(
     db: DatabaseGuard,
     body: Ruma<get_context::Request<'_>>,
-) -> ConduitResult<get_context::Response> {
+) -> Result<get_context::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -191,5 +191,5 @@ pub async fn get_context_route(
         state,
     };
 
-    Ok(resp.into())
+    Ok(resp)
 }

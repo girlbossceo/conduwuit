@@ -22,4 +22,4 @@ pub use config::Config;
 pub use database::Database;
 pub use error::{Error, Result};
 pub use pdu::PduEvent;
-pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
+pub use ruma_wrapper::{Ruma, RumaResponse};

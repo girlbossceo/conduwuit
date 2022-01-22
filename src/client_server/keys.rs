@@ -1,5 +1,5 @@
 use super::SESSION_ID_LENGTH;
-use crate::{database::DatabaseGuard, utils, ConduitResult, Database, Error, Result, Ruma};
+use crate::{database::DatabaseGuard, utils, Database, Error, Result, Ruma};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
     api::{
@@ -31,7 +31,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 pub async fn upload_keys_route(
     db: DatabaseGuard,
     body: Ruma<upload_keys::Request>,
-) -> ConduitResult<upload_keys::Response> {
+) -> Result<upload_keys::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -62,8 +62,7 @@ pub async fn upload_keys_route(
 
     Ok(upload_keys::Response {
         one_time_key_counts: db.users.count_one_time_keys(sender_user, sender_device)?,
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/client/r0/keys/query`
@@ -77,7 +76,7 @@ pub async fn upload_keys_route(
 pub async fn get_keys_route(
     db: DatabaseGuard,
     body: Ruma<get_keys::Request<'_>>,
-) -> ConduitResult<get_keys::Response> {
+) -> Result<get_keys::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let response = get_keys_helper(
@@ -88,7 +87,7 @@ pub async fn get_keys_route(
     )
     .await?;
 
-    Ok(response.into())
+    Ok(response)
 }
 
 /// # `POST /_matrix/client/r0/keys/claim`
@@ -98,12 +97,12 @@ pub async fn get_keys_route(
 pub async fn claim_keys_route(
     db: DatabaseGuard,
     body: Ruma<claim_keys::Request>,
-) -> ConduitResult<claim_keys::Response> {
+) -> Result<claim_keys::Response> {
     let response = claim_keys_helper(&body.one_time_keys, &db).await?;
 
     db.flush()?;
 
-    Ok(response.into())
+    Ok(response)
 }
 
 /// # `POST /_matrix/client/r0/keys/device_signing/upload`
@@ -115,7 +114,7 @@ pub async fn claim_keys_route(
 pub async fn upload_signing_keys_route(
     db: DatabaseGuard,
     body: Ruma<upload_signing_keys::Request<'_>>,
-) -> ConduitResult<upload_signing_keys::Response> {
+) -> Result<upload_signing_keys::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -165,7 +164,7 @@ pub async fn upload_signing_keys_route(
 
     db.flush()?;
 
-    Ok(upload_signing_keys::Response {}.into())
+    Ok(upload_signing_keys::Response {})
 }
 
 /// # `POST /_matrix/client/r0/keys/signatures/upload`
@@ -175,7 +174,7 @@ pub async fn upload_signing_keys_route(
 pub async fn upload_signatures_route(
     db: DatabaseGuard,
     body: Ruma<upload_signatures::Request>,
-) -> ConduitResult<upload_signatures::Response> {
+) -> Result<upload_signatures::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     for (user_id, signed_keys) in &body.signed_keys {
@@ -225,7 +224,7 @@ pub async fn upload_signatures_route(
 
     db.flush()?;
 
-    Ok(upload_signatures::Response {}.into())
+    Ok(upload_signatures::Response {})
 }
 
 /// # `POST /_matrix/client/r0/keys/changes`
@@ -237,7 +236,7 @@ pub async fn upload_signatures_route(
 pub async fn get_key_changes_route(
     db: DatabaseGuard,
     body: Ruma<get_key_changes::Request<'_>>,
-) -> ConduitResult<get_key_changes::Response> {
+) -> Result<get_key_changes::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut device_list_updates = HashSet::new();
@@ -276,8 +275,7 @@ pub async fn get_key_changes_route(
     Ok(get_key_changes::Response {
         changed: device_list_updates.into_iter().collect(),
         left: Vec::new(), // TODO
-    }
-    .into())
+    })
 }
 
 pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
