@@ -23,6 +23,7 @@ pub enum AdminCommand {
     RegisterAppservice(serde_yaml::Value),
     UnregisterAppservice(String),
     ListAppservices,
+    ListLocalUsers,
     ShowMemoryUsage,
     SendMessage(RoomMessageEventContent),
 }
@@ -104,6 +105,18 @@ impl Admin {
                         let state_lock = mutex_state.lock().await;
 
                         match event {
+                            AdminCommand::ListLocalUsers => {
+                                match guard.users.list_local_users() {
+                                    Ok(users) => {
+                                        let mut msg: String = format!("Found {} local user account(s):\n", users.len());
+                                        msg += &users.join("\n");
+                                        send_message(RoomMessageEventContent::text_plain(&msg), guard, &state_lock);
+                                    }
+                                    Err(e) => {
+                                        send_message(RoomMessageEventContent::text_plain(e.to_string()), guard, &state_lock);
+                                    }
+                                }
+                            }
                             AdminCommand::RegisterAppservice(yaml) => {
                                 guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error
                             }
@@ -226,6 +239,9 @@ enum AdminCommands {
     /// List all the currently registered appservices
     ListAppservices,
 
+    /// List users in the database
+    ListLocalUsers,
+
     /// Get the auth_chain of a PDU
     GetAuthChain {
         /// An event ID (the $ character followed by the base64 reference hash)
@@ -289,6 +305,7 @@ pub fn try_parse_admin_command(
             appservice_identifier,
         } => AdminCommand::UnregisterAppservice(appservice_identifier),
         AdminCommands::ListAppservices => AdminCommand::ListAppservices,
+        AdminCommands::ListLocalUsers => AdminCommand::ListLocalUsers,
         AdminCommands::GetAuthChain { event_id } => {
             let event_id = Arc::<EventId>::from(event_id);
             if let Some(event) = db.rooms.get_pdu_json(&event_id)? {

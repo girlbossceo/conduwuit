@@ -255,6 +255,12 @@ impl Database {
                 #[cfg(feature = "rocksdb")]
                 Arc::new(Arc::<abstraction::rocksdb::Engine>::open(config)?)
             }
+            "persy" => {
+                #[cfg(not(feature = "persy"))]
+                return Err(Error::BadConfig("Database backend not found."));
+                #[cfg(feature = "persy")]
+                Arc::new(Arc::<abstraction::persy::Engine>::open(config)?)
+            }
             _ => {
                 return Err(Error::BadConfig("Database backend not found."));
             }
