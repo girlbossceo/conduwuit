@@ -516,10 +516,9 @@ pub async fn get_server_version_route(
 /// forever.
 // Response type for this endpoint is Json because we need to calculate a signature for the response
 #[tracing::instrument(skip(db))]
-pub async fn get_server_keys_route(db: DatabaseGuard) -> impl IntoResponse {
+pub async fn get_server_keys_route(db: DatabaseGuard) -> Result<impl IntoResponse> {
     if !db.globals.allow_federation() {
-        // TODO: Use proper types
-        return Json("Federation is disabled.").into_response();
+        return Err(Error::bad_config("Federation is disabled."));
     }
 
     let mut verify_keys: BTreeMap<Box<ServerSigningKeyId>, VerifyKey> = BTreeMap::new();
@@ -557,7 +556,7 @@ pub async fn get_server_keys_route(db: DatabaseGuard) -> impl IntoResponse {
     )
     .unwrap();
 
-    Json(response).into_response()
+    Ok(Json(response))
 }
 
 /// # `GET /_matrix/key/v2/server/{keyId}`
