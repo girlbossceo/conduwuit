@@ -12,6 +12,7 @@ use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 use axum::{
     extract::{FromRequest, MatchedPath},
     handler::Handler,
+    response::IntoResponse,
     routing::{get, on, MethodFilter},
     Router,
 };
@@ -256,10 +257,7 @@ fn routes() -> Router {
         .ruma_route(client_server::get_state_events_route)
         .ruma_route(client_server::get_state_events_for_key_route)
         .ruma_route(client_server::get_state_events_for_empty_key_route)
-        .route(
-            "/_matrix/client/r0/sync",
-            get(client_server::sync_events_route),
-        )
+        .ruma_route(client_server::sync_events_route)
         .ruma_route(client_server::get_context_route)
         .ruma_route(client_server::get_message_events_route)
         .ruma_route(client_server::search_events_route)
@@ -375,14 +373,16 @@ macro_rules! impl_ruma_handler {
     ( $($ty:ident),* $(,)? ) => {
         #[axum::async_trait]
         #[allow(non_snake_case)]
-        impl<Req, F, Fut, $($ty,)*> RumaHandler<($($ty,)* Ruma<Req>,)> for F
+        impl<Req, E, F, Fut, $($ty,)*> RumaHandler<($($ty,)* Ruma<Req>,)> for F
         where
             Req: Outgoing,
             Req::Incoming: IncomingRequest + Send,
             F: FnOnce($($ty,)* Ruma<Req>) -> Fut + Clone + Send + 'static,
-            Fut: Future<Output = ConduitResult<
-                <Req::Incoming as IncomingRequest>::OutgoingResponse
+            Fut: Future<Output = Result<
+                RumaResponse<<Req::Incoming as IncomingRequest>::OutgoingResponse>,
+                E,
             >> + Send,
+            E: IntoResponse,
             $( $ty: FromRequest<axum::body::Body> + Send, )*
         {
             const METADATA: Metadata = Req::Incoming::METADATA;
