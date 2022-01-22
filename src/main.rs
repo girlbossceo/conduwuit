@@ -7,7 +7,7 @@
 #![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
 
-use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
+use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{
     extract::{FromRequest, MatchedPath},
@@ -15,6 +15,7 @@ use axum::{
     routing::{get, on, MethodFilter},
     Router,
 };
+use axum_server::{bind, bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
 use figment::{
     providers::{Env, Format, Toml},
     Figment,
@@ -117,8 +118,8 @@ async fn main() {
     }
 }
 
-async fn run_server(config: &Config, db: Arc<RwLock<Database>>) -> hyper::Result<()> {
-    let listen_addr = SocketAddr::from((config.address, config.port));
+async fn run_server(config: &Config, db: Arc<RwLock<Database>>) -> io::Result<()> {
+    let addr = SocketAddr::from((config.address, config.port));
 
     let x_requested_with = HeaderName::from_static("x-requested-with");
 
@@ -157,10 +158,20 @@ async fn run_server(config: &Config, db: Arc<RwLock<Database>>) -> hyper::Result
         )
         .add_extension(db.clone());
 
-    axum::Server::bind(&listen_addr)
-        .serve(routes().layer(middlewares).into_make_service())
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    let app = routes().layer(middlewares).into_make_service();
+    let handle = ServerHandle::new();
+
+    tokio::spawn(shutdown_signal(handle.clone()));
+
+    match &config.tls {
+        Some(tls) => {
+            let conf = RustlsConfig::from_pem_file(&tls.certs, &tls.key).await?;
+            bind_rustls(addr, conf).handle(handle).serve(app).await?;
+        }
+        None => {
+            bind(addr).handle(handle).serve(app).await?;
+        }
+    }
 
     // After serve exits and before exiting, shutdown the DB
     Database::on_shutdown(db).await;
@@ -312,7 +323,7 @@ fn routes() -> Router {
         .ruma_route(server_server::claim_keys_route)
 }
 
-async fn shutdown_signal() {
+async fn shutdown_signal(handle: ServerHandle) {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
@@ -334,6 +345,8 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
+
+    handle.graceful_shutdown(Some(Duration::from_secs(30)));
 }
 
 trait RouterExt {

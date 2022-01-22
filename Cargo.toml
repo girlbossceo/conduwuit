@@ -15,7 +15,7 @@ edition = "2021"
 [dependencies]
 # Web framework
 axum = { version = "0.4.4", features = ["headers"], optional = true }
-hyper = "0.14.16"
+axum-server = { version = "0.3.3", features = ["tls-rustls"] }
 tower = { version = "0.4.11", features = ["util"] }
 tower-http = { version = "0.2.1", features = ["add-extension", "cors", "compression-full", "sensitive-headers", "trace", "util"] }
 

@@ -17,6 +17,8 @@ pub struct Config {
     pub address: IpAddr,
     #[serde(default = "default_port")]
     pub port: u16,
+    pub tls: Option<TlsConfig>,
+
     pub server_name: Box<ServerName>,
     #[serde(default = "default_database_backend")]
     pub database_backend: String,
@@ -67,6 +69,12 @@ pub struct Config {
 
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct TlsConfig {
+    pub certs: String,
+    pub key: String,
 }
 
 const DEPRECATED_KEYS: &[&str] = &["cache_capacity"];
