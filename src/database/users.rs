@@ -131,6 +131,42 @@ impl Users {
         })
     }
 
+    /// Returns a list of local users as list of usernames.
+    ///
+    /// A user account is considered `local` if the length of it's password is greater then zero.
+    #[tracing::instrument(skip(self))]
+    pub fn list_local_users(&self) -> Result<Vec<String>> {
+        let users: Vec<String> = self
+            .userid_password
+            .iter()
+            .filter_map(|(username, pw)| self.get_username_with_valid_password(&username, &pw))
+            .collect();
+        Ok(users)
+    }
+
+    /// Will only return with Some(username) if the password was not empty and the
+    /// username could be successfully parsed.
+    /// If utils::string_from_bytes(...) returns an error that username will be skipped
+    /// and the error will be logged.
+    #[tracing::instrument(skip(self))]
+    fn get_username_with_valid_password(&self, username: &[u8], password: &[u8]) -> Option<String> {
+        // A valid password is not empty
+        if password.is_empty() {
+            None
+        } else {
+            match utils::string_from_bytes(username) {
+                Ok(u) => Some(u),
+                Err(e) => {
+                    warn!(
+                        "Failed to parse username while calling get_local_users(): {}",
+                        e.to_string()
+                    );
+                    None
+                }
+            }
+        }
+    }
+
     /// Returns the password hash for the given user.
     #[tracing::instrument(skip(self, user_id))]
     pub fn password_hash(&self, user_id: &UserId) -> Result<Option<String>> {

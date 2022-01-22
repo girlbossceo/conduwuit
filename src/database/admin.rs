@@ -14,6 +14,7 @@ pub enum AdminCommand {
     RegisterAppservice(serde_yaml::Value),
     UnregisterAppservice(String),
     ListAppservices,
+    ListLocalUsers,
     ShowMemoryUsage,
     SendMessage(RoomMessageEventContent),
 }
@@ -95,6 +96,18 @@ impl Admin {
                         let state_lock = mutex_state.lock().await;
 
                         match event {
+                            AdminCommand::ListLocalUsers => {
+                                match guard.users.list_local_users() {
+                                    Ok(users) => {
+                                        let mut msg: String = format!("Found {} local user account(s):\n", users.len());
+                                        msg += &users.join("\n");
+                                        send_message(RoomMessageEventContent::text_plain(&msg), guard, &state_lock);
+                                    }
+                                    Err(e) => {
+                                        send_message(RoomMessageEventContent::text_plain(e.to_string()), guard, &state_lock);
+                                    }
+                                }
+                            }
                             AdminCommand::RegisterAppservice(yaml) => {
                                 guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error
                             }

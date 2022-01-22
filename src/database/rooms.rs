@@ -1548,6 +1548,9 @@ impl Rooms {
                                 "list_appservices" => {
                                     db.admin.send(AdminCommand::ListAppservices);
                                 }
+                                "list_local_users" => {
+                                    db.admin.send(AdminCommand::ListLocalUsers);
+                                }
                                 "get_auth_chain" => {
                                     if args.len() == 1 {
                                         if let Ok(event_id) = EventId::parse_arc(args[0]) {
