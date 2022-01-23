@@ -22,9 +22,6 @@ $([[ $TARGET =~ arm ]] && echo 'ENV RUSTFLAGS="$RUSTFLAGS -Clink-arg=-lgcc -Clin
 # Strip symbols while compiling in release mode
 $([[ $@ =~ -r ]] && echo 'ENV RUSTFLAGS="$RUSTFLAGS -Clink-arg=-s"')
 
-# Support a rustc wrapper like sccache when cross-compiling
-ENV RUSTC_WRAPPER="$RUSTC_WRAPPER"
-
 # Make sure that rust-bindgen uses the correct include path when cross-compiling
 # See https://github.com/rust-lang/rust-bindgen#environment-variables for more information
 ENV BINDGEN_EXTRA_CLANG_ARGS="-I\$TARGET_PREFIX/include"

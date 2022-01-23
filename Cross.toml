@@ -1,3 +1,15 @@
+[build.env]
+# CI uses an S3 endpoint to store sccache artifacts, so their config needs to
+# be available in the cross container as well
+passthrough = [
+    "RUSTC_WRAPPER",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "SCCACHE_BUCKET",
+    "SCCACHE_ENDPOINT",
+    "SCCACHE_S3_USE_SSL",
+]
+
 [target.aarch64-unknown-linux-musl]
 image = "rust-cross:aarch64-unknown-linux-musl"
 
