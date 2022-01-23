@@ -9,6 +9,7 @@
 
 FROM docker.io/alpine:3.15.0 AS runner
 
+
 # Standard port on which Conduit launches.
 # You still need to map the port when using the docker command or docker-compose.
 EXPOSE 6167
@@ -18,10 +19,8 @@ ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml"
 
 # Conduit needs:
 #   ca-certificates: for https
-#   libgcc: Apparently this is needed, even if I (@jfowl) don't know exactly why. But whatever, it's not that big.
 RUN apk add --no-cache \
-    ca-certificates \
-    libgcc
+    ca-certificates
 
 
 ARG CREATED
