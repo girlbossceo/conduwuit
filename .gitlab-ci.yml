@@ -37,7 +37,6 @@ variables:
     - "rustup show && rustc --version && cargo --version" # Print version info for debugging
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
     - if [ -n "${SCCACHE_BIN_URL}" ]; then curl $SCCACHE_BIN_URL --output /sccache && chmod +x /sccache && export RUSTC_WRAPPER=/sccache; fi
-  script:
     # install cross-compiling prerequisites
     - 'apt-get update && apt-get install -y docker.io && docker version' # install docker
     - 'cargo install cross && cross --version' # install cross
@@ -46,16 +45,17 @@ variables:
     - 'cp -r $CARGO_HOME/bin $SHARED_PATH/cargo'
     - 'cp -r $RUSTUP_HOME $SHARED_PATH'
     - 'export CARGO_HOME=$SHARED_PATH/cargo RUSTUP_HOME=$SHARED_PATH/rustup'
+  script:
     # cross-compile conduit for target
     - 'time ./cross/build.sh --locked --release'
-    - 'cp "target/$TARGET/release/conduit" "conduit-$TARGET"'
+    - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
   cache:
     # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
-    - key: 'cargo-cache-$TARGET'
-      paths:
-        - $SHARED_PATH/cargo/registry/index
-        - $SHARED_PATH/cargo/registry/cache
-        - $SHARED_PATH/cargo/git/db
+    key: 'cargo-cache-$TARGET'
+    paths:
+      - $SHARED_PATH/cargo/registry/index
+      - $SHARED_PATH/cargo/registry/cache
+      - $SHARED_PATH/cargo/git/db
   artifacts:
     expire_in: never
 
@@ -81,6 +81,16 @@ build:release:cargo:x86_64-unknown-linux-musl:
     paths:
       - "conduit-x86_64-unknown-linux-musl"
     expose_as: "Conduit for x86_64-unknown-linux-musl"
+
+build:release:cargo:i686-unknown-linux-musl:
+  extends: .build-cargo-shared-settings
+  variables:
+    TARGET: "i686-unknown-linux-musl"
+  artifacts:
+    name: "conduit-i686-unknown-linux-musl"
+    paths:
+      - "conduit-i686-unknown-linux-musl"
+    expose_as: "Conduit for i686-unknown-linux-musl"
 
 build:release:cargo:arm-unknown-linux-musleabihf:
   extends: .build-cargo-shared-settings
@@ -119,14 +129,14 @@ build:release:cargo:aarch64-unknown-linux-musl:
   cache:
     key: "build_cache--$TARGET--$CI_COMMIT_BRANCH--debug"
   script:
-    - "time cargo build --target $TARGET"
+    # cross-compile conduit for target
+    - 'time ./cross/build.sh --locked'
     - 'mv "target/$TARGET/debug/conduit" "conduit-debug-$TARGET"'
   artifacts:
     expire_in: 4 weeks
 
 build:debug:cargo:x86_64-unknown-linux-musl:
   extends: ".cargo-debug-shared-settings"
-  image: messense/rust-musl-cross:x86_64-musl
   variables:
     TARGET: "x86_64-unknown-linux-musl"
   artifacts:
