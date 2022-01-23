@@ -17,12 +17,13 @@ ENV TARGET_PREFIX="/usr/local/$(echo "${TARGET:?}" | sed -e 's/armv7/arm/' -e 's
 # Make sure that cc-rs links libc/libstdc++ statically when cross-compiling
 # See https://github.com/alexcrichton/cc-rs#external-configuration-via-environment-variables for more information
 ENV RUSTFLAGS="-L\$TARGET_PREFIX/lib" CXXSTDLIB="static=stdc++"
-# Forcefully linking against libatomic and libgcc is required for arm32, otherwise symbols are missing
-$([[ $TARGET =~ arm ]] && echo 'ENV RUSTFLAGS="$RUSTFLAGS -Clink-arg=-lgcc -Clink-arg=-latomic"')
-# Forcefully linking against libc is required for 32-bit, otherwise symbols are missing
-$([[ $TARGET =~ arm|i686 ]] && echo 'ENV RUSTFLAGS="$RUSTFLAGS -lstatic=c"')
+# Forcefully linking against libatomic, libc and libgcc is required for arm32, otherwise symbols are missing
+$([[ $TARGET =~ arm ]] && echo 'ENV RUSTFLAGS="$RUSTFLAGS -Clink-arg=-lgcc -Clink-arg=-latomic -lstatic=c"')
 # Strip symbols while compiling in release mode
 $([[ $@ =~ -r ]] && echo 'ENV RUSTFLAGS="$RUSTFLAGS -Clink-arg=-s"')
+
+# Support a rustc wrapper like sccache when cross-compiling
+ENV RUSTC_WRAPPER="$RUSTC_WRAPPER"
 
 # Make sure that rust-bindgen uses the correct include path when cross-compiling
 # See https://github.com/rust-lang/rust-bindgen#environment-variables for more information

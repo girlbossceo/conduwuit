@@ -35,8 +35,6 @@ variables:
   before_script:
     - 'echo "Building for target $TARGET"'
     - "rustup show && rustc --version && cargo --version" # Print version info for debugging
-    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
-    - if [ -n "${SCCACHE_BIN_URL}" ]; then curl $SCCACHE_BIN_URL --output /sccache && chmod +x /sccache && export RUSTC_WRAPPER=/sccache; fi
     # install cross-compiling prerequisites
     - 'apt-get update && apt-get install -y docker.io && docker version' # install docker
     - 'cargo install cross && cross --version' # install cross
@@ -45,10 +43,14 @@ variables:
     - 'cp -r $CARGO_HOME/bin $SHARED_PATH/cargo'
     - 'cp -r $RUSTUP_HOME $SHARED_PATH'
     - 'export CARGO_HOME=$SHARED_PATH/cargo RUSTUP_HOME=$SHARED_PATH/rustup'
+    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
+    - if [ -n "${SCCACHE_BIN_URL}" ]; then export RUSTC_WRAPPER=$SHARED_PATH/cargo/bin/sccache && curl $SCCACHE_BIN_URL --output $RUSTC_WRAPPER && chmod +x $RUSTC_WRAPPER; fi
   script:
     # cross-compile conduit for target
     - 'time ./cross/build.sh --locked --release'
     - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
+    # assert that the binary is statically linked
+    - 'file conduit-$TARGET | grep "static\(-pie\|ally\) linked"'
   cache:
     # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
     key: 'cargo-cache-$TARGET'
@@ -81,16 +83,6 @@ build:release:cargo:x86_64-unknown-linux-musl:
     paths:
       - "conduit-x86_64-unknown-linux-musl"
     expose_as: "Conduit for x86_64-unknown-linux-musl"
-
-build:release:cargo:i686-unknown-linux-musl:
-  extends: .build-cargo-shared-settings
-  variables:
-    TARGET: "i686-unknown-linux-musl"
-  artifacts:
-    name: "conduit-i686-unknown-linux-musl"
-    paths:
-      - "conduit-i686-unknown-linux-musl"
-    expose_as: "Conduit for i686-unknown-linux-musl"
 
 build:release:cargo:arm-unknown-linux-musleabihf:
   extends: .build-cargo-shared-settings
@@ -132,6 +124,8 @@ build:release:cargo:aarch64-unknown-linux-musl:
     # cross-compile conduit for target
     - 'time ./cross/build.sh --locked'
     - 'mv "target/$TARGET/debug/conduit" "conduit-debug-$TARGET"'
+    # assert that the binary is statically linked
+    - 'file conduit-debug-$TARGET | grep "static\(-pie\|ally\) linked"'
   artifacts:
     expire_in: 4 weeks
 
