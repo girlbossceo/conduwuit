@@ -49,9 +49,9 @@ variables:
     # cross-compile conduit for target
     - 'time ./cross/build.sh --locked --release'
     - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
-    # assert that the binary is statically linked
-    - 'ldd conduit-$TARGET' # print linking information
-    - 'file conduit-$TARGET | sed -e "/static\(-pie\|ally\) linked/!q1"' # print elf information
+    # print information about linking for debugging
+    - 'file conduit-$TARGET' # print file information
+    - 'readelf --dynamic conduit-$TARGET | sed -e "/NEEDED/q1"' # ensure statically linked
   cache:
     # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
     key: 'cargo-cache-$TARGET'
@@ -125,9 +125,9 @@ build:release:cargo:aarch64-unknown-linux-musl:
     # cross-compile conduit for target
     - 'time ./cross/build.sh --locked'
     - 'mv "target/$TARGET/debug/conduit" "conduit-debug-$TARGET"'
-    # assert that the binary is statically linked
-    - 'ldd conduit-debug-$TARGET' # print linking information
-    - 'file conduit-debug-$TARGET | sed -e "/static\(-pie\|ally\) linked/!q1"' # print elf information
+    # print information about linking for debugging
+    - 'file conduit-debug-$TARGET' # print file information
+    - 'readelf --dynamic conduit-debug-$TARGET | sed -e "/NEEDED/q1"' # ensure statically linked
   artifacts:
     expire_in: 4 weeks
 
