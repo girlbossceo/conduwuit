@@ -18,7 +18,7 @@ ENV TARGET_PREFIX="/usr/local/$(echo "${TARGET:?}" | sed -e 's/armv7/arm/' -e 's
 # See https://github.com/alexcrichton/cc-rs#external-configuration-via-environment-variables for more information
 ENV RUSTFLAGS="-L\$TARGET_PREFIX/lib" CXXSTDLIB="static=stdc++"
 # Forcefully linking against libatomic, libc and libgcc is required for arm32, otherwise symbols are missing
-$([[ $TARGET =~ arm ]] && echo 'ENV RUSTFLAGS="$RUSTFLAGS -Clink-arg=-lgcc -Clink-arg=-latomic -lstatic=c"')
+$([[ $TARGET =~ arm ]] && echo 'ENV RUSTFLAGS="$RUSTFLAGS -Clink-arg=-static-libgcc -Clink-arg=-lgcc -lstatic=atomic -lstatic=c"')
 # Strip symbols while compiling in release mode
 $([[ $@ =~ -r ]] && echo 'ENV RUSTFLAGS="$RUSTFLAGS -Clink-arg=-s"')
 
