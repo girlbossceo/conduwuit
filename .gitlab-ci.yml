@@ -8,6 +8,10 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   FF_USE_FASTZIP: 1
   CACHE_COMPRESSION_LEVEL: fastest
+  # Docker in Docker
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
 
 # --------------------------------------------------------------------- #
 #  Cargo: Compiling for different architectures                         #
@@ -25,9 +29,6 @@ variables:
   tags: ["docker"]
   services: ["docker:dind"]
   variables:
-    DOCKER_HOST: tcp://docker:2375/
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_DRIVER: overlay2
     SHARED_PATH: $CI_PROJECT_DIR/shared
     CARGO_PROFILE_RELEASE_LTO: "true"
     CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
@@ -43,8 +44,9 @@ variables:
     - 'cp -r $CARGO_HOME/bin $SHARED_PATH/cargo'
     - 'cp -r $RUSTUP_HOME $SHARED_PATH'
     - 'export CARGO_HOME=$SHARED_PATH/cargo RUSTUP_HOME=$SHARED_PATH/rustup'
-    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
-    - if [ -n "${SCCACHE_BIN_URL}" ]; then export RUSTC_WRAPPER=$SHARED_PATH/cargo/bin/sccache && curl $SCCACHE_BIN_URL --output $RUSTC_WRAPPER && chmod +x $RUSTC_WRAPPER; fi
+    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results.
+    # The sccache binary is stored in the sysroot of the rustc installation since that directory is added to the path of the cross container.
+    - if [ -n "${SCCACHE_BIN_URL}" ]; then RUSTC_SYSROOT=$(rustc --print sysroot) && curl $SCCACHE_BIN_URL --output $RUSTC_SYSROOT/bin/sccache && chmod +x $RUSTC_SYSROOT/bin/sccache && export RUSTC_WRAPPER=sccache; fi
   script:
     # cross-compile conduit for target
     - 'time ./cross/build.sh --locked --release'
@@ -157,9 +159,6 @@ build:debug:cargo:x86_64-unknown-linux-musl:
     - "build:release:cargo:armv7-unknown-linux-musleabihf"
     - "build:release:cargo:aarch64-unknown-linux-musl"
   variables:
-    DOCKER_HOST: tcp://docker:2375/
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_DRIVER: overlay2
     PLATFORMS: "linux/arm/v6,linux/arm/v7,linux/arm64,linux/amd64"
     DOCKER_FILE: "docker/ci-binaries-packaging.Dockerfile"
   cache:
