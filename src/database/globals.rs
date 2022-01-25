@@ -39,6 +39,7 @@ pub struct Globals {
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
+    basic_client: reqwest::Client,
     pub(super) server_signingkeys: Arc<dyn Tree>,
     pub bad_event_ratelimiter: Arc<RwLock<HashMap<Box<EventId>, RateLimitState>>>,
     pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
@@ -132,6 +133,8 @@ impl Globals {
             .as_ref()
             .map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()).into_static());
 
+        let basic_client = reqwest_client_builder(&config, None)?.build()?;
+
         let s = Self {
             globals,
             config,
@@ -141,6 +144,7 @@ impl Globals {
             })?,
             actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
             tls_name_override,
+            basic_client,
             server_signingkeys,
             jwt_decoding_key,
             bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
@@ -163,17 +167,15 @@ impl Globals {
         &self.keypair
     }
 
-    /// Returns a reqwest client which can be used to send requests.
-    pub fn reqwest_client(&self) -> Result<reqwest::ClientBuilder> {
-        let mut reqwest_client_builder = reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(30))
-            .timeout(Duration::from_secs(60 * 3))
-            .pool_max_idle_per_host(1);
-        if let Some(proxy) = self.config.proxy.to_proxy()? {
-            reqwest_client_builder = reqwest_client_builder.proxy(proxy);
-        }
+    /// Returns a reqwest client which can be used to send requests
+    pub fn reqwest_client(&self) -> reqwest::Client {
+        // can't return &Client or else we'll hold a lock around the DB across an await
+        self.basic_client.clone()
+    }
 
-        Ok(reqwest_client_builder)
+    /// Returns a reqwest client builder which can be customized and used to send requests.
+    pub fn reqwest_client_builder(&self) -> Result<reqwest::ClientBuilder> {
+        reqwest_client_builder(&self.config, Some(1))
     }
 
     #[tracing::instrument(skip(self))]
@@ -339,4 +341,22 @@ impl Globals {
         r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));
         r
     }
+}
+
+fn reqwest_client_builder(
+    config: &Config,
+    max_idle: Option<usize>,
+) -> Result<reqwest::ClientBuilder> {
+    let mut reqwest_client_builder = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(60 * 3));
+
+    if let Some(max_idle) = max_idle {
+        reqwest_client_builder = reqwest_client_builder.pool_max_idle_per_host(max_idle);
+    }
+    if let Some(proxy) = config.proxy.to_proxy()? {
+        reqwest_client_builder = reqwest_client_builder.proxy(proxy);
+    }
+
+    Ok(reqwest_client_builder)
 }

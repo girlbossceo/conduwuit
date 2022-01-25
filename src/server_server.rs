@@ -237,21 +237,25 @@ where
 
     let url = reqwest_request.url().clone();
 
-    let mut client = globals.reqwest_client()?;
-    if let Some((override_name, port)) = globals
+    let client = if let Some((override_name, port)) = globals
         .tls_name_override
         .read()
         .unwrap()
         .get(&actual_destination.hostname())
     {
-        client = client.resolve(
-            &actual_destination.hostname(),
-            SocketAddr::new(override_name[0], *port),
-        );
+        globals
+            .reqwest_client_builder()?
+            .resolve(
+                &actual_destination.hostname(),
+                SocketAddr::new(override_name[0], *port),
+            )
+            .build()?
         // port will be ignored
-    }
+    } else {
+        globals.reqwest_client()
+    };
 
-    let response = client.build()?.execute(reqwest_request).await;
+    let response = client.execute(reqwest_request).await;
 
     match response {
         Ok(mut response) => {
@@ -492,9 +496,6 @@ async fn request_well_known(
     let body: serde_json::Value = serde_json::from_str(
         &globals
             .reqwest_client()
-            .ok()?
-            .build()
-            .ok()?
             .get(&format!(
                 "https://{}/.well-known/matrix/server",
                 destination
