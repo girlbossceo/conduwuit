@@ -74,7 +74,7 @@ pub async fn create_content_route(
     .into())
 }
 
-/// # `POST /_matrix/media/r0/download/{serverName}/{mediaId}`
+/// # `GET /_matrix/media/r0/download/{serverName}/{mediaId}`
 ///
 /// Load media from our server or over federation.
 ///
@@ -191,7 +191,7 @@ pub async fn get_content_as_filename_route(
     }
 }
 
-/// # `POST /_matrix/media/r0/thumbnail/{serverName}/{mediaId}`
+/// # `GET /_matrix/media/r0/thumbnail/{serverName}/{mediaId}`
 ///
 /// Load media thumbnail from our server or over federation.
 ///
