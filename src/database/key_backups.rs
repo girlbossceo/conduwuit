@@ -7,7 +7,6 @@ use ruma::{
     serde::Raw,
     RoomId, UserId,
 };
-use serde_json::json;
 use std::{collections::BTreeMap, sync::Arc};
 
 use super::abstraction::Tree;
@@ -212,13 +211,13 @@ impl KeyBackups {
         &self,
         user_id: &UserId,
         version: &str,
-    ) -> Result<BTreeMap<Box<RoomId>, Raw<RoomKeyBackup>>> {
+    ) -> Result<BTreeMap<Box<RoomId>, RoomKeyBackup>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(version.as_bytes());
         prefix.push(0xff);
 
-        let mut rooms = BTreeMap::<Box<RoomId>, Raw<RoomKeyBackup>>::new();
+        let mut rooms = BTreeMap::<Box<RoomId>, RoomKeyBackup>::new();
 
         for result in self
             .backupkeyid_backup
@@ -244,7 +243,7 @@ impl KeyBackups {
                     Error::bad_database("backupkeyid_backup room_id is invalid room id.")
                 })?;
 
-                let key_data: serde_json::Value = serde_json::from_slice(&value).map_err(|_| {
+                let key_data = serde_json::from_slice(&value).map_err(|_| {
                     Error::bad_database("KeyBackupData in backupkeyid_backup is invalid.")
                 })?;
 
@@ -252,25 +251,13 @@ impl KeyBackups {
             })
         {
             let (room_id, session_id, key_data) = result?;
-            let room_key_backup = rooms.entry(room_id).or_insert_with(|| {
-                Raw::new(&RoomKeyBackup {
+            rooms
+                .entry(room_id)
+                .or_insert_with(|| RoomKeyBackup {
                     sessions: BTreeMap::new(),
                 })
-                .expect("RoomKeyBackup serialization")
-            });
-
-            let mut object = room_key_backup
-                .deserialize_as::<serde_json::Map<String, serde_json::Value>>()
-                .map_err(|_| Error::bad_database("RoomKeyBackup is not an object"))?;
-
-            let sessions = object.entry("session").or_insert_with(|| json!({}));
-            if let serde_json::Value::Object(unsigned_object) = sessions {
-                unsigned_object.insert(session_id, key_data);
-            }
-
-            *room_key_backup = Raw::from_json(
-                serde_json::value::to_raw_value(&object).expect("Value => RawValue serialization"),
-            );
+                .sessions
+                .insert(session_id, key_data);
         }
 
         Ok(rooms)
