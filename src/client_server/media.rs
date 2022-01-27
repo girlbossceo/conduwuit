@@ -79,7 +79,7 @@ pub async fn get_remote_content(
     mxc: &str,
     server_name: &ruma::ServerName,
     media_id: &str
-) -> ConduitResult<get_content::Response> {
+) -> Result<get_content::Response, Error> {
     let content_response = db
         .sending
         .send_federation_request(
@@ -103,7 +103,7 @@ pub async fn get_remote_content(
         )
         .await?;
 
-    Ok(content_response.into())
+    Ok(content_response)
 }
 
 /// # `GET /_matrix/media/r0/download/{serverName}/{mediaId}`
@@ -141,7 +141,7 @@ pub async fn get_content_route(
             &body.server_name,
             &body.media_id
             ).await?;
-        Ok(remote_content_response)
+        Ok(remote_content_response.into())
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
     }
@@ -185,8 +185,8 @@ pub async fn get_content_as_filename_route(
 
         Ok(get_content_as_filename::Response {
             content_disposition: Some(format!("inline: filename={}", body.filename)),
-            content_type: remote_content_response.0.content_type,
-            file: remote_content_response.0.file
+            content_type: remote_content_response.content_type,
+            file: remote_content_response.file
         }
         .into())
     } else {
