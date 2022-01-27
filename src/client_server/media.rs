@@ -78,7 +78,7 @@ pub async fn get_remote_content(
     db: &DatabaseGuard,
     mxc: &str,
     server_name: &ruma::ServerName,
-    media_id: &str
+    media_id: &str,
 ) -> Result<get_content::Response, Error> {
     let content_response = db
         .sending
@@ -88,7 +88,7 @@ pub async fn get_remote_content(
             get_content::Request {
                 allow_remote: false,
                 server_name,
-                media_id
+                media_id,
             },
         )
         .await?;
@@ -135,12 +135,8 @@ pub async fn get_content_route(
         }
         .into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
-        let remote_content_response = get_remote_content(
-            &db,
-            &mxc,
-            &body.server_name,
-            &body.media_id
-            ).await?;
+        let remote_content_response =
+            get_remote_content(&db, &mxc, &body.server_name, &body.media_id).await?;
         Ok(remote_content_response.into())
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
@@ -176,17 +172,13 @@ pub async fn get_content_as_filename_route(
         }
         .into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
-        let remote_content_response = get_remote_content(
-            &db,
-            &mxc,
-            &body.server_name,
-            &body.media_id
-            ).await?;
+        let remote_content_response =
+            get_remote_content(&db, &mxc, &body.server_name, &body.media_id).await?;
 
         Ok(get_content_as_filename::Response {
             content_disposition: Some(format!("inline: filename={}", body.filename)),
             content_type: remote_content_response.content_type,
-            file: remote_content_response.file
+            file: remote_content_response.file,
         }
         .into())
     } else {
