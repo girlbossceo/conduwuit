@@ -10,7 +10,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fs,
     future::Future,
-    net::IpAddr,
+    net::{IpAddr, SocketAddr},
     path::PathBuf,
     sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
@@ -39,6 +39,7 @@ pub struct Globals {
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
+    well_known_client: reqwest::Client,
     basic_client: reqwest::Client,
     pub(super) server_signingkeys: Arc<dyn Tree>,
     pub bad_event_ratelimiter: Arc<RwLock<HashMap<Box<EventId>, RateLimitState>>>,
@@ -133,7 +134,16 @@ impl Globals {
             .as_ref()
             .map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()).into_static());
 
-        let basic_client = reqwest_client_builder(&config, None)?.build()?;
+        let basic_client = reqwest_client_builder(&config)?.build()?;
+        let name_override = Arc::clone(&tls_name_override);
+        let well_known_client = reqwest_client_builder(&config)?
+            .resolve_fn(move |domain| {
+                let read_guard = name_override.read().unwrap();
+                let (override_name, port) = read_guard.get(&domain)?;
+                let first_name = override_name.get(0)?;
+                Some(SocketAddr::new(*first_name, *port))
+            })
+            .build()?;
 
         let s = Self {
             globals,
@@ -144,6 +154,7 @@ impl Globals {
             })?,
             actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
             tls_name_override,
+            well_known_client,
             basic_client,
             server_signingkeys,
             jwt_decoding_key,
@@ -173,9 +184,10 @@ impl Globals {
         self.basic_client.clone()
     }
 
-    /// Returns a reqwest client builder which can be customized and used to send requests.
-    pub fn reqwest_client_builder(&self) -> Result<reqwest::ClientBuilder> {
-        reqwest_client_builder(&self.config, Some(1))
+    /// Returns a client used for resolving .well-knowns
+    pub fn well_known_client(&self) -> reqwest::Client {
+        // can't return &Client or else we'll hold a lock around the DB across an await
+        self.well_known_client.clone()
     }
 
     #[tracing::instrument(skip(self))]
@@ -343,17 +355,11 @@ impl Globals {
     }
 }
 
-fn reqwest_client_builder(
-    config: &Config,
-    max_idle: Option<usize>,
-) -> Result<reqwest::ClientBuilder> {
+fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
     let mut reqwest_client_builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(30))
         .timeout(Duration::from_secs(60 * 3));
 
-    if let Some(max_idle) = max_idle {
-        reqwest_client_builder = reqwest_client_builder.pool_max_idle_per_host(max_idle);
-    }
     if let Some(proxy) = config.proxy.to_proxy()? {
         reqwest_client_builder = reqwest_client_builder.proxy(proxy);
     }

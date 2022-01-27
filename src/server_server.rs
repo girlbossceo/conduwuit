@@ -237,25 +237,7 @@ where
 
     let url = reqwest_request.url().clone();
 
-    let client = if let Some((override_name, port)) = globals
-        .tls_name_override
-        .read()
-        .unwrap()
-        .get(&actual_destination.hostname())
-    {
-        globals
-            .reqwest_client_builder()?
-            .resolve(
-                &actual_destination.hostname(),
-                SocketAddr::new(override_name[0], *port),
-            )
-            .build()?
-        // port will be ignored
-    } else {
-        globals.reqwest_client()
-    };
-
-    let response = client.execute(reqwest_request).await;
+    let response = globals.well_known_client().execute(reqwest_request).await;
 
     match response {
         Ok(mut response) => {
