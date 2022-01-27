@@ -207,7 +207,7 @@ pub async fn get_content_thumbnail_route(
     }) = db
         .media
         .get_thumbnail(
-            mxc.clone(),
+            &mxc,
             &db.globals,
             body.width
                 .try_into()
