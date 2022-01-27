@@ -74,6 +74,38 @@ pub async fn create_content_route(
     .into())
 }
 
+pub async fn get_remote_content(
+    db: &DatabaseGuard,
+    mxc: &str,
+    server_name: &ruma::ServerName,
+    media_id: &str
+) -> ConduitResult<get_content::Response> {
+    let content_response = db
+        .sending
+        .send_federation_request(
+            &db.globals,
+            server_name,
+            get_content::Request {
+                allow_remote: false,
+                server_name,
+                media_id
+            },
+        )
+        .await?;
+
+    db.media
+        .create(
+            mxc.to_string(),
+            &db.globals,
+            &content_response.content_disposition.as_deref(),
+            &content_response.content_type.as_deref(),
+            &content_response.file,
+        )
+        .await?;
+
+    Ok(content_response.into())
+}
+
 /// # `GET /_matrix/media/r0/download/{serverName}/{mediaId}`
 ///
 /// Load media from our server or over federation.
@@ -103,30 +135,13 @@ pub async fn get_content_route(
         }
         .into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
-        let get_content_response = db
-            .sending
-            .send_federation_request(
-                &db.globals,
-                &body.server_name,
-                get_content::Request {
-                    allow_remote: false,
-                    server_name: &body.server_name,
-                    media_id: &body.media_id,
-                },
-            )
-            .await?;
-
-        db.media
-            .create(
-                mxc,
-                &db.globals,
-                &get_content_response.content_disposition.as_deref(),
-                &get_content_response.content_type.as_deref(),
-                &get_content_response.file,
-            )
-            .await?;
-
-        Ok(get_content_response.into())
+        let remote_content_response = get_remote_content(
+            &db,
+            &mxc,
+            &body.server_name,
+            &body.media_id
+            ).await?;
+        Ok(remote_content_response)
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
     }
@@ -161,31 +176,19 @@ pub async fn get_content_as_filename_route(
         }
         .into())
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
-        let get_content_response = db
-            .sending
-            .send_federation_request(
-                &db.globals,
-                &body.server_name,
-                get_content_as_filename::Request {
-                    allow_remote: false,
-                    server_name: &body.server_name,
-                    media_id: &body.media_id,
-                    filename: &body.filename,
-                },
-            )
-            .await?;
+        let remote_content_response = get_remote_content(
+            &db,
+            &mxc,
+            &body.server_name,
+            &body.media_id
+            ).await?;
 
-        db.media
-            .create(
-                mxc,
-                &db.globals,
-                &get_content_response.content_disposition.as_deref(),
-                &get_content_response.content_type.as_deref(),
-                &get_content_response.file,
-            )
-            .await?;
-
-        Ok(get_content_response.into())
+        Ok(get_content_as_filename::Response {
+            content_disposition: Some(format!("inline: filename={}", body.filename)),
+            content_type: remote_content_response.0.content_type,
+            file: remote_content_response.0.file
+        }
+        .into())
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
     }
