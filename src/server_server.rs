@@ -237,7 +237,7 @@ where
 
     let url = reqwest_request.url().clone();
 
-    let response = globals.well_known_client().execute(reqwest_request).await;
+    let response = globals.federation_client().execute(reqwest_request).await;
 
     match response {
         Ok(mut response) => {
@@ -477,7 +477,7 @@ async fn request_well_known(
 ) -> Option<String> {
     let body: serde_json::Value = serde_json::from_str(
         &globals
-            .reqwest_client()
+            .default_client()
             .get(&format!(
                 "https://{}/.well-known/matrix/server",
                 destination

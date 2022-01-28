@@ -39,8 +39,8 @@ pub struct Globals {
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
-    well_known_client: reqwest::Client,
-    basic_client: reqwest::Client,
+    federation_client: reqwest::Client,
+    default_client: reqwest::Client,
     pub(super) server_signingkeys: Arc<dyn Tree>,
     pub bad_event_ratelimiter: Arc<RwLock<HashMap<Box<EventId>, RateLimitState>>>,
     pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
@@ -134,9 +134,9 @@ impl Globals {
             .as_ref()
             .map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()).into_static());
 
-        let basic_client = reqwest_client_builder(&config)?.build()?;
+        let default_client = reqwest_client_builder(&config)?.build()?;
         let name_override = Arc::clone(&tls_name_override);
-        let well_known_client = reqwest_client_builder(&config)?
+        let federation_client = reqwest_client_builder(&config)?
             .resolve_fn(move |domain| {
                 let read_guard = name_override.read().unwrap();
                 let (override_name, port) = read_guard.get(&domain)?;
@@ -154,8 +154,8 @@ impl Globals {
             })?,
             actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
             tls_name_override,
-            well_known_client,
-            basic_client,
+            federation_client,
+            default_client,
             server_signingkeys,
             jwt_decoding_key,
             bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
@@ -179,15 +179,15 @@ impl Globals {
     }
 
     /// Returns a reqwest client which can be used to send requests
-    pub fn reqwest_client(&self) -> reqwest::Client {
-        // can't return &Client or else we'll hold a lock around the DB across an await
-        self.basic_client.clone()
+    pub fn default_client(&self) -> reqwest::Client {
+        // Client is cheap to clone (Arc wrapper) and avoids lifetime issues
+        self.default_client.clone()
     }
 
     /// Returns a client used for resolving .well-knowns
-    pub fn well_known_client(&self) -> reqwest::Client {
-        // can't return &Client or else we'll hold a lock around the DB across an await
-        self.well_known_client.clone()
+    pub fn federation_client(&self) -> reqwest::Client {
+        // Client is cheap to clone (Arc wrapper) and avoids lifetime issues
+        self.federation_client.clone()
     }
 
     #[tracing::instrument(skip(self))]
