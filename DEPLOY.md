@@ -29,7 +29,11 @@ $ sudo wget -O /usr/local/bin/matrix-conduit <url>
 $ sudo chmod +x /usr/local/bin/matrix-conduit
 ```
 
-Alternatively, you may compile the binary yourself using
+Alternatively, you may compile the binary yourself
+
+```bash
+$ sudo apt install libclang-dev build-essential
+```
 
 ```bash
 $ cargo build --release
