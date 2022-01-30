@@ -19,25 +19,21 @@ use serde_json::value::to_raw_value;
 use tokio::sync::{MutexGuard, RwLock, RwLockReadGuard};
 use tracing::warn;
 
-pub enum AdminCommand {
-    RegisterAppservice(serde_yaml::Value),
-    UnregisterAppservice(String),
-    ListAppservices,
-    ListLocalUsers,
-    ShowMemoryUsage,
+pub enum AdminRoomEvent {
+    ProcessMessage(String),
     SendMessage(RoomMessageEventContent),
 }
 
 #[derive(Clone)]
 pub struct Admin {
-    pub sender: mpsc::UnboundedSender<AdminCommand>,
+    pub sender: mpsc::UnboundedSender<AdminRoomEvent>,
 }
 
 impl Admin {
     pub fn start_handler(
         &self,
         db: Arc<RwLock<Database>>,
-        mut receiver: mpsc::UnboundedReceiver<AdminCommand>,
+        mut receiver: mpsc::UnboundedReceiver<AdminRoomEvent>,
     ) {
         tokio::spawn(async move {
             // TODO: Use futures when we have long admin commands
@@ -56,7 +52,7 @@ impl Admin {
                         .try_into()
                         .expect("#admins:server_name is a valid room alias"),
                 )
-                .unwrap();
+                .expect("Admin room must exist");
 
             let conduit_room = match conduit_room {
                 None => {
@@ -105,46 +101,13 @@ impl Admin {
                         let state_lock = mutex_state.lock().await;
 
                         match event {
-                            AdminCommand::ListLocalUsers => {
-                                match guard.users.list_local_users() {
-                                    Ok(users) => {
-                                        let mut msg: String = format!("Found {} local user account(s):\n", users.len());
-                                        msg += &users.join("\n");
-                                        send_message(RoomMessageEventContent::text_plain(&msg), guard, &state_lock);
-                                    }
-                                    Err(e) => {
-                                        send_message(RoomMessageEventContent::text_plain(e.to_string()), guard, &state_lock);
-                                    }
-                                }
+                            AdminRoomEvent::SendMessage(content) => {
+                                send_message(content, guard, &state_lock);
                             }
-                            AdminCommand::RegisterAppservice(yaml) => {
-                                guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error
-                            }
-                            AdminCommand::UnregisterAppservice(service_name) => {
-                                guard.appservice.unregister_appservice(&service_name).unwrap(); // TODO: see above
-                            }
-                            AdminCommand::ListAppservices => {
-                                if let Ok(appservices) = guard.appservice.iter_ids().map(|ids| ids.collect::<Vec<_>>()) {
-                                    let count = appservices.len();
-                                    let output = format!(
-                                        "Appservices ({}): {}",
-                                        count,
-                                        appservices.into_iter().filter_map(|r| r.ok()).collect::<Vec<_>>().join(", ")
-                                    );
-                                    send_message(RoomMessageEventContent::text_plain(output), guard, &state_lock);
-                                } else {
-                                    send_message(RoomMessageEventContent::text_plain("Failed to get appservices."), guard, &state_lock);
-                                }
-                            }
-                            AdminCommand::ShowMemoryUsage => {
-                                if let Ok(response) = guard._db.memory_usage() {
-                                    send_message(RoomMessageEventContent::text_plain(response), guard, &state_lock);
-                                } else {
-                                    send_message(RoomMessageEventContent::text_plain("Failed to get database memory usage.".to_owned()), guard, &state_lock);
-                                }
-                            }
-                            AdminCommand::SendMessage(message) => {
-                                send_message(message, guard, &state_lock);
+                            AdminRoomEvent::ProcessMessage(room_message) => {
+                                let reply_message = process_admin_message(&*guard, room_message);
+
+                                send_message(reply_message, guard, &state_lock);
                             }
                         }
 
@@ -155,67 +118,81 @@ impl Admin {
         });
     }
 
-    pub fn send(&self, command: AdminCommand) {
-        self.sender.unbounded_send(command).unwrap();
+    pub fn process_message(&self, room_message: String) {
+        self.sender
+            .unbounded_send(AdminRoomEvent::ProcessMessage(room_message))
+            .unwrap();
+    }
+
+    pub fn send_message(&self, message_content: RoomMessageEventContent) {
+        self.sender
+            .unbounded_send(AdminRoomEvent::SendMessage(message_content))
+            .unwrap();
+    }
+}
+
+// Parse and process a message from the admin room
+pub fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEventContent {
+    let mut lines = room_message.lines();
+    let command_line = lines.next().expect("each string has at least one line");
+    let body: Vec<_> = lines.collect();
+
+    let admin_command = match parse_admin_command(&command_line) {
+        Ok(command) => command,
+        Err(error) => {
+            let message = error
+                .to_string()
+                .replace("example.com", db.globals.server_name().as_str());
+            let html_message = usage_to_html(&message);
+
+            return RoomMessageEventContent::text_html(message, html_message);
+        }
+    };
+
+    match process_admin_command(db, admin_command, body) {
+        Ok(reply_message) => reply_message,
+        Err(error) => {
+            let markdown_message = format!(
+                "Encountered an error while handling the command:\n\
+                ```\n{}\n```",
+                error,
+            );
+            let html_message = format!(
+                "Encountered an error while handling the command:\n\
+                <pre>\n{}\n</pre>",
+                error,
+            );
+
+            RoomMessageEventContent::text_html(markdown_message, html_message)
+        }
     }
 }
 
 // Parse chat messages from the admin room into an AdminCommand object
-pub fn parse_admin_command(db: &Database, command_line: &str, body: Vec<&str>) -> AdminCommand {
-    let mut argv: Vec<_> = command_line.split_whitespace().skip(1).collect();
-
-    let command_name = match argv.get(0) {
-        Some(command) => *command,
-        None => {
-            let markdown_message = "No command given. Use `help` for a list of commands.";
-            let html_message = "No command given. Use <code>help</code> for a list of commands.";
-
-            return AdminCommand::SendMessage(RoomMessageEventContent::text_html(
-                markdown_message,
-                html_message,
-            ));
-        }
-    };
+fn parse_admin_command(command_line: &str) -> std::result::Result<AdminCommand, String> {
+    // Note: argv[0] is `@conduit:servername:`, which is treated as the main command
+    let mut argv: Vec<_> = command_line.split_whitespace().collect();
 
     // Replace `help command` with `command --help`
     // Clap has a help subcommand, but it omits the long help description.
-    if argv[0] == "help" {
-        argv.remove(0);
+    if argv.len() > 1 && argv[1] == "help" {
+        argv.remove(1);
         argv.push("--help");
     }
 
     // Backwards compatibility with `register_appservice`-style commands
     let command_with_dashes;
-    if argv[0].contains("_") {
-        command_with_dashes = argv[0].replace("_", "-");
-        argv[0] = &command_with_dashes;
+    if argv.len() > 1 && argv[1].contains("_") {
+        command_with_dashes = argv[1].replace("_", "-");
+        argv[1] = &command_with_dashes;
     }
 
-    match try_parse_admin_command(db, argv, body) {
-        Ok(admin_command) => admin_command,
-        Err(error) => {
-            let markdown_message = format!(
-                "Encountered an error while handling the `{}` command:\n\
-                ```\n{}\n```",
-                command_name, error,
-            );
-            let html_message = format!(
-                "Encountered an error while handling the <code>{}</code> command:\n\
-                <pre>\n{}\n</pre>",
-                command_name, error,
-            );
-
-            AdminCommand::SendMessage(RoomMessageEventContent::text_html(
-                markdown_message,
-                html_message,
-            ))
-        }
-    }
+    AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
 }
 
 #[derive(Parser)]
 #[clap(name = "@conduit:example.com", version = env!("CARGO_PKG_VERSION"))]
-enum AdminCommands {
+enum AdminCommand {
     #[clap(verbatim_doc_comment)]
     /// Register an appservice using its registration YAML
     ///
@@ -264,49 +241,70 @@ enum AdminCommands {
     DatabaseMemoryUsage,
 }
 
-pub fn try_parse_admin_command(
+fn process_admin_command(
     db: &Database,
-    mut argv: Vec<&str>,
+    command: AdminCommand,
     body: Vec<&str>,
-) -> Result<AdminCommand> {
-    argv.insert(0, "@conduit:example.com:");
-    let command = match AdminCommands::try_parse_from(argv) {
-        Ok(command) => command,
-        Err(error) => {
-            let message = error
-                .to_string()
-                .replace("example.com", db.globals.server_name().as_str());
-            let html_message = usage_to_html(&message);
-
-            return Ok(AdminCommand::SendMessage(
-                RoomMessageEventContent::text_html(message, html_message),
-            ));
-        }
-    };
-
-    let admin_command = match command {
-        AdminCommands::RegisterAppservice => {
+) -> Result<RoomMessageEventContent> {
+    let reply_message_content = match command {
+        AdminCommand::RegisterAppservice => {
             if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```" {
                 let appservice_config = body[1..body.len() - 1].join("\n");
                 let parsed_config = serde_yaml::from_str::<serde_yaml::Value>(&appservice_config);
                 match parsed_config {
-                    Ok(yaml) => AdminCommand::RegisterAppservice(yaml),
-                    Err(e) => AdminCommand::SendMessage(RoomMessageEventContent::text_plain(
-                        format!("Could not parse appservice config: {}", e),
+                    Ok(yaml) => match db.appservice.register_appservice(yaml) {
+                        Ok(()) => RoomMessageEventContent::text_plain("Appservice registered."),
+                        Err(e) => RoomMessageEventContent::text_plain(format!(
+                            "Failed to register appservice: {}",
+                            e
+                        )),
+                    },
+                    Err(e) => RoomMessageEventContent::text_plain(format!(
+                        "Could not parse appservice config: {}",
+                        e
                     )),
                 }
             } else {
-                AdminCommand::SendMessage(RoomMessageEventContent::text_plain(
-                    "Expected code block in command body.",
-                ))
+                RoomMessageEventContent::text_plain(
+                    "Expected code block in command body. Add --help for details.",
+                )
             }
         }
-        AdminCommands::UnregisterAppservice {
+        AdminCommand::UnregisterAppservice {
             appservice_identifier,
-        } => AdminCommand::UnregisterAppservice(appservice_identifier),
-        AdminCommands::ListAppservices => AdminCommand::ListAppservices,
-        AdminCommands::ListLocalUsers => AdminCommand::ListLocalUsers,
-        AdminCommands::GetAuthChain { event_id } => {
+        } => match db.appservice.unregister_appservice(&appservice_identifier) {
+            Ok(()) => RoomMessageEventContent::text_plain("Appservice unregistered."),
+            Err(e) => RoomMessageEventContent::text_plain(format!(
+                "Failed to unregister appservice: {}",
+                e
+            )),
+        },
+        AdminCommand::ListAppservices => {
+            if let Ok(appservices) = db.appservice.iter_ids().map(|ids| ids.collect::<Vec<_>>()) {
+                let count = appservices.len();
+                let output = format!(
+                    "Appservices ({}): {}",
+                    count,
+                    appservices
+                        .into_iter()
+                        .filter_map(|r| r.ok())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                RoomMessageEventContent::text_plain(output)
+            } else {
+                RoomMessageEventContent::text_plain("Failed to get appservices.")
+            }
+        }
+        AdminCommand::ListLocalUsers => match db.users.list_local_users() {
+            Ok(users) => {
+                let mut msg: String = format!("Found {} local user account(s):\n", users.len());
+                msg += &users.join("\n");
+                RoomMessageEventContent::text_plain(&msg)
+            }
+            Err(e) => RoomMessageEventContent::text_plain(e.to_string()),
+        },
+        AdminCommand::GetAuthChain { event_id } => {
             let event_id = Arc::<EventId>::from(event_id);
             if let Some(event) = db.rooms.get_pdu_json(&event_id)? {
                 let room_id_str = event
@@ -320,17 +318,15 @@ pub fn try_parse_admin_command(
                 let start = Instant::now();
                 let count = server_server::get_auth_chain(room_id, vec![event_id], db)?.count();
                 let elapsed = start.elapsed();
-                return Ok(AdminCommand::SendMessage(
-                    RoomMessageEventContent::text_plain(format!(
-                        "Loaded auth chain with length {} in {:?}",
-                        count, elapsed
-                    )),
-                ));
+                RoomMessageEventContent::text_plain(format!(
+                    "Loaded auth chain with length {} in {:?}",
+                    count, elapsed
+                ))
             } else {
-                AdminCommand::SendMessage(RoomMessageEventContent::text_plain("Event not found."))
+                RoomMessageEventContent::text_plain("Event not found.")
             }
         }
-        AdminCommands::ParsePdu => {
+        AdminCommand::ParsePdu => {
             if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```" {
                 let string = body[1..body.len() - 1].join("\n");
                 match serde_json::from_str(&string) {
@@ -346,30 +342,26 @@ pub fn try_parse_admin_command(
                         match serde_json::from_value::<PduEvent>(
                             serde_json::to_value(value).expect("value is json"),
                         ) {
-                            Ok(pdu) => {
-                                AdminCommand::SendMessage(RoomMessageEventContent::text_plain(
-                                    format!("EventId: {:?}\n{:#?}", event_id, pdu),
-                                ))
-                            }
-                            Err(e) => AdminCommand::SendMessage(
-                                RoomMessageEventContent::text_plain(format!(
-                                    "EventId: {:?}\nCould not parse event: {}",
-                                    event_id, e
-                                )),
-                            ),
+                            Ok(pdu) => RoomMessageEventContent::text_plain(format!(
+                                "EventId: {:?}\n{:#?}",
+                                event_id, pdu
+                            )),
+                            Err(e) => RoomMessageEventContent::text_plain(format!(
+                                "EventId: {:?}\nCould not parse event: {}",
+                                event_id, e
+                            )),
                         }
                     }
-                    Err(e) => AdminCommand::SendMessage(RoomMessageEventContent::text_plain(
-                        format!("Invalid json in command body: {}", e),
+                    Err(e) => RoomMessageEventContent::text_plain(format!(
+                        "Invalid json in command body: {}",
+                        e
                     )),
                 }
             } else {
-                AdminCommand::SendMessage(RoomMessageEventContent::text_plain(
-                    "Expected code block in command body.",
-                ))
+                RoomMessageEventContent::text_plain("Expected code block in command body.")
             }
         }
-        AdminCommands::GetPdu { event_id } => {
+        AdminCommand::GetPdu { event_id } => {
             let mut outlier = false;
             let mut pdu_json = db.rooms.get_non_outlier_pdu_json(&event_id)?;
             if pdu_json.is_none() {
@@ -380,7 +372,7 @@ pub fn try_parse_admin_command(
                 Some(json) => {
                     let json_text =
                         serde_json::to_string_pretty(&json).expect("canonical json is valid json");
-                    AdminCommand::SendMessage(RoomMessageEventContent::text_html(
+                    RoomMessageEventContent::text_html(
                         format!(
                             "{}\n```json\n{}\n```",
                             if outlier {
@@ -399,17 +391,21 @@ pub fn try_parse_admin_command(
                             },
                             RawStr::new(&json_text).html_escape()
                         ),
-                    ))
+                    )
                 }
-                None => {
-                    AdminCommand::SendMessage(RoomMessageEventContent::text_plain("PDU not found."))
-                }
+                None => RoomMessageEventContent::text_plain("PDU not found."),
             }
         }
-        AdminCommands::DatabaseMemoryUsage => AdminCommand::ShowMemoryUsage,
+        AdminCommand::DatabaseMemoryUsage => match db._db.memory_usage() {
+            Ok(response) => RoomMessageEventContent::text_plain(response),
+            Err(e) => RoomMessageEventContent::text_plain(format!(
+                "Failed to get database memory usage: {}",
+                e
+            )),
+        },
     };
 
-    Ok(admin_command)
+    Ok(reply_message_content)
 }
 
 // Utility to turn clap's `--help` text to HTML.

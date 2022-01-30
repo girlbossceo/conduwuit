@@ -3,7 +3,6 @@ mod edus;
 pub use edus::RoomEdus;
 
 use crate::{
-    database::admin::parse_admin_command,
     pdu::{EventHash, PduBuilder},
     utils, Database, Error, PduEvent, Result,
 };
@@ -1490,12 +1489,7 @@ impl Rooms {
                             .as_ref()
                             == Some(&pdu.room_id)
                     {
-                        let mut lines = body.lines();
-                        let command_line = lines.next().expect("each string has at least one line");
-                        let body: Vec<_> = lines.collect();
-
-                        let command = parse_admin_command(db, command_line, body);
-                        db.admin.send(command);
+                        db.admin.process_message(body.to_string());
                     }
                 }
             }
