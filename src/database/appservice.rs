@@ -12,7 +12,9 @@ pub struct Appservice {
 }
 
 impl Appservice {
-    pub fn register_appservice(&self, yaml: serde_yaml::Value) -> Result<Option<String>> {
+    /// Registers an appservice and returns the ID to the caller
+    ///
+    pub fn register_appservice(&self, yaml: serde_yaml::Value) -> Result<String> {
         // TODO: Rumaify
         let id = yaml.get("id").unwrap().as_str().unwrap();
         self.id_appserviceregistrations.insert(
@@ -22,9 +24,9 @@ impl Appservice {
         self.cached_registrations
             .write()
             .unwrap()
-            .insert(id.to_owned(), yaml);
+            .insert(id.to_owned(), yaml.to_owned());
 
-        Ok(Some(id.to_owned()))
+        Ok(id.to_owned())
     }
 
     /// Remove an appservice registration
