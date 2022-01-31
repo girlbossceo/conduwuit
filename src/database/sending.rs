@@ -480,6 +480,26 @@ impl Sending {
         hash.as_ref().to_owned()
     }
 
+    /// Cleanup event data
+    /// Used for instance after we remove an appservice registration
+    ///
+    #[tracing::instrument(skip(self))]
+    pub fn cleanup_events(&self, key_id: &str) -> Result<()> {
+        let mut prefix = b"+".to_vec();
+        prefix.extend_from_slice(key_id.as_bytes());
+        prefix.push(0xff);
+
+        for (key, _) in self.servercurrentevent_data.scan_prefix(prefix.clone()) {
+            self.servercurrentevent_data.remove(&key).unwrap();
+        }
+
+        for (key, _) in self.servernameevent_data.scan_prefix(prefix.clone()) {
+            self.servernameevent_data.remove(&key).unwrap();
+        }
+
+        Ok(())
+    }
+
     #[tracing::instrument(skip(db, events, kind))]
     async fn handle_events(
         kind: OutgoingKind,
@@ -520,8 +540,15 @@ impl Sending {
                     &db.globals,
                     db.appservice
                         .get_registration(server.as_str())
-                        .unwrap()
-                        .unwrap(), // TODO: handle error
+                        .map_err(|e| (kind.clone(), e))?
+                        .ok_or_else(|| {
+                            (
+                                kind.clone(),
+                                Error::bad_database(
+                                    "[Appservice] Could not load registration from db.",
+                                ),
+                            )
+                        })?,
                     appservice::event::push_events::v1::Request {
                         events: &pdu_jsons,
                         txn_id: (&*base64::encode_config(
