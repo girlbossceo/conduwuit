@@ -109,7 +109,18 @@ impl Admin {
                                 }
                             }
                             AdminCommand::RegisterAppservice(yaml) => {
-                                guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error
+                                match guard.appservice.register_appservice(yaml) {
+                                    Ok(Some(id)) => {
+                                        let msg: String = format!("OK. Appservice {} created", id);
+                                        send_message(RoomMessageEventContent::text_plain(msg), guard, &state_lock);
+                                    }
+                                    Ok(None) => {
+                                        send_message(RoomMessageEventContent::text_plain("WARN. Appservice created, but its ID was not returned!"), guard, &state_lock);
+                                    }
+                                    Err(_) => {
+                                        send_message(RoomMessageEventContent::text_plain("ERR: Failed register appservice. Check server log"), guard, &state_lock);
+                                    }
+                                }
                             }
                             AdminCommand::UnregisterAppservice(service_name) => {
                                 if let Ok(_) = guard.appservice.unregister_appservice(&service_name) {
