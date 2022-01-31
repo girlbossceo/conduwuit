@@ -109,10 +109,29 @@ impl Admin {
                                 }
                             }
                             AdminCommand::RegisterAppservice(yaml) => {
-                                guard.appservice.register_appservice(yaml).unwrap(); // TODO handle error
+                                match guard.appservice.register_appservice(yaml) {
+                                    Ok(id) => {
+                                        let msg: String = format!("OK. Appservice {} created", id);
+                                        send_message(RoomMessageEventContent::text_plain(msg), guard, &state_lock);
+                                    }
+                                    Err(_) => {
+                                        send_message(RoomMessageEventContent::text_plain("ERR: Failed register appservice. Check server log"), guard, &state_lock);
+                                    }
+                                }
                             }
                             AdminCommand::UnregisterAppservice(service_name) => {
-                                guard.appservice.unregister_appservice(&service_name).unwrap(); // TODO: see above
+                                if let Ok(_) = guard.appservice.unregister_appservice(&service_name) {
+                                    if let Ok(_) = guard.sending.cleanup_events(&service_name) {
+                                        let msg: String = format!("OK. Appservice {} removed", service_name);
+                                        send_message(RoomMessageEventContent::text_plain(msg), guard, &state_lock);
+                                    } else {
+                                        let msg: String = format!("WARN: Appservice {} removed, but failed to cleanup events", service_name);
+                                        send_message(RoomMessageEventContent::text_plain(msg), guard, &state_lock);
+                                    }
+                                } else {
+                                    let msg: String = format!("ERR. Appservice {} not removed", service_name);
+                                    send_message(RoomMessageEventContent::text_plain(msg), guard, &state_lock);
+                                }
                             }
                             AdminCommand::ListAppservices => {
                                 if let Ok(appservices) = guard.appservice.iter_ids().map(|ids| ids.collect::<Vec<_>>()) {
