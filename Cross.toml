@@ -11,13 +11,13 @@ passthrough = [
 ]
 
 [target.aarch64-unknown-linux-musl]
-image = "rust-cross:aarch64-unknown-linux-musl"
+image = "registry.gitlab.com/jfowl/conduit-containers/rust-cross-aarch64-unknown-linux-musl:latest"
 
 [target.arm-unknown-linux-musleabihf]
-image = "rust-cross:arm-unknown-linux-musleabihf"
+image = "registry.gitlab.com/jfowl/conduit-containers/rust-cross-arm-unknown-linux-musleabihf:latest"
 
 [target.armv7-unknown-linux-musleabihf]
-image = "rust-cross:armv7-unknown-linux-musleabihf"
+image = "registry.gitlab.com/jfowl/conduit-containers/rust-cross-armv7-unknown-linux-musleabihf:latest"
 
 [target.x86_64-unknown-linux-musl]
-image = "rust-cross:x86_64-unknown-linux-musl"
+image = "registry.gitlab.com/jfowl/conduit-containers/rust-cross-x86_64-unknown-linux-musl:latest"
