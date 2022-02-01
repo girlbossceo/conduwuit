@@ -49,6 +49,8 @@ pub struct Config {
     database_path: String,
     #[serde(default = "default_db_cache_capacity_mb")]
     db_cache_capacity_mb: f64,
+    #[serde(default = "default_conduit_cache_capacity_modifier")]
+    conduit_cache_capacity_modifier: f64,
     #[serde(default = "default_rocksdb_max_open_files")]
     rocksdb_max_open_files: i32,
     #[serde(default = "default_pdu_cache_capacity")]
@@ -127,6 +129,10 @@ fn default_database_backend() -> String {
 
 fn default_db_cache_capacity_mb() -> f64 {
     10.0
+}
+
+fn default_conduit_cache_capacity_modifier() -> f64 {
+    1.0
 }
 
 fn default_rocksdb_max_open_files() -> i32 {
@@ -361,15 +367,15 @@ impl Database {
                         .try_into()
                         .expect("pdu cache capacity fits into usize"),
                 )),
-                auth_chain_cache: Mutex::new(LruCache::new(100_000)),
-                shorteventid_cache: Mutex::new(LruCache::new(100_000)),
-                eventidshort_cache: Mutex::new(LruCache::new(100_000)),
-                shortstatekey_cache: Mutex::new(LruCache::new(100_000)),
-                statekeyshort_cache: Mutex::new(LruCache::new(100_000)),
+                auth_chain_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
+                shorteventid_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
+                eventidshort_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
+                shortstatekey_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
+                statekeyshort_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
                 our_real_users_cache: RwLock::new(HashMap::new()),
                 appservice_in_room_cache: RwLock::new(HashMap::new()),
                 lazy_load_waiting: Mutex::new(HashMap::new()),
-                stateinfo_cache: Mutex::new(LruCache::new(100)),
+                stateinfo_cache: Mutex::new(LruCache::new((100.0 * config.conduit_cache_capacity_modifier) as usize)),
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
