@@ -19,8 +19,10 @@ ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml"
 
 # Conduit needs:
 #   ca-certificates: for https
+#   iproute2: for `ss` for the healthcheck script
 RUN apk add --no-cache \
-    ca-certificates
+    ca-certificates \
+    iproute2
 
 
 ARG CREATED

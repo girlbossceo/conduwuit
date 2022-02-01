@@ -3,7 +3,7 @@
 # If the config file does not contain a default port and the CONDUIT_PORT env is not set, create
 # try to get port from process list
 if [ -z "${CONDUIT_PORT}" ]; then
-  CONDUIT_PORT=$(netstat -tlp | grep conduit | grep -m1 -o ':[0-9]*' | grep -m1 -o '[0-9]*')
+  CONDUIT_PORT=$(ss -tlpn | grep conduit | grep -m1 -o ':[0-9]*' | grep -m1 -o '[0-9]*')
 fi
 
 # The actual health check.
