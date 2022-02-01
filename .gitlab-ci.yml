@@ -24,8 +24,9 @@ variables:
     - if: '$CI_COMMIT_BRANCH == "master"'
     - if: '$CI_COMMIT_BRANCH == "next"'
     - if: "$CI_COMMIT_TAG"
+    - if: '($CI_MERGE_REQUEST_APPROVED == "true") || $BUILD_EVERYTHING' # Once MR is approved, test all builds. Or if BUILD_EVERYTHING is set.
   interruptible: true
-  image: "rust:1.58"
+  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
   tags: ["docker"]
   services: ["docker:dind"]
   variables:
@@ -36,27 +37,23 @@ variables:
   before_script:
     - 'echo "Building for target $TARGET"'
     - "rustup show && rustc --version && cargo --version" # Print version info for debugging
-    # install cross-compiling prerequisites
-    - 'apt-get update && apt-get install -y docker.io && docker version' # install docker
-    - 'cargo install cross && cross --version' # install cross
     # fix cargo and rustup mounts from this container (https://gitlab.com/gitlab-org/gitlab-foss/-/issues/41227)
-    - 'mkdir -p $SHARED_PATH/cargo'
-    - 'cp -r $CARGO_HOME/bin $SHARED_PATH/cargo'
-    - 'cp -r $RUSTUP_HOME $SHARED_PATH'
-    - 'export CARGO_HOME=$SHARED_PATH/cargo RUSTUP_HOME=$SHARED_PATH/rustup'
+    - "mkdir -p $SHARED_PATH/cargo"
+    - "cp -r $CARGO_HOME/bin $SHARED_PATH/cargo"
+    - "cp -r $RUSTUP_HOME $SHARED_PATH"
+    - "export CARGO_HOME=$SHARED_PATH/cargo RUSTUP_HOME=$SHARED_PATH/rustup"
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results.
-    # The sccache binary is stored in the sysroot of the rustc installation since that directory is added to the path of the cross container.
-    - if [ -n "${SCCACHE_BIN_URL}" ]; then RUSTC_SYSROOT=$(rustc --print sysroot) && curl $SCCACHE_BIN_URL --output $RUSTC_SYSROOT/bin/sccache && chmod +x $RUSTC_SYSROOT/bin/sccache && export RUSTC_WRAPPER=sccache; fi
+    - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/sccache; fi
   script:
     # cross-compile conduit for target
-    - 'time ./cross/build.sh --locked --release'
+    - 'time cross build --target="$TARGET" --locked --release'
     - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
     # print information about linking for debugging
-    - 'file conduit-$TARGET' # print file information
+    - "file conduit-$TARGET" # print file information
     - 'readelf --dynamic conduit-$TARGET | sed -e "/NEEDED/q1"' # ensure statically linked
   cache:
     # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
-    key: 'cargo-cache-$TARGET'
+    key: "cargo-cache-$TARGET"
     paths:
       - $SHARED_PATH/cargo/registry/index
       - $SHARED_PATH/cargo/registry/cache
@@ -125,10 +122,10 @@ build:release:cargo:aarch64-unknown-linux-musl:
     key: "build_cache--$TARGET--$CI_COMMIT_BRANCH--debug"
   script:
     # cross-compile conduit for target
-    - 'time ./cross/build.sh --locked'
+    - 'time time cross build --target="$TARGET" --locked'
     - 'mv "target/$TARGET/debug/conduit" "conduit-debug-$TARGET"'
     # print information about linking for debugging
-    - 'file conduit-debug-$TARGET' # print file information
+    - "file conduit-debug-$TARGET" # print file information
     - 'readelf --dynamic conduit-debug-$TARGET | sed -e "/NEEDED/q1"' # ensure statically linked
   artifacts:
     expire_in: 4 weeks
@@ -230,24 +227,20 @@ docker:master:dockerhub:
 test:cargo:
   stage: "test"
   needs: []
-  image: "rust:latest"
+  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
   tags: ["docker"]
   variables:
     CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
   interruptible: true
   before_script:
-    #    - mkdir -p $CARGO_HOME
-    - apt-get update -yqq
-    - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config libclang-dev
     - rustup component add clippy rustfmt
-    - curl "https://faulty-storage.de/gitlab-report" --output ./gitlab-report && chmod +x ./gitlab-report
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
-    - if [ -n "${SCCACHE_BIN_URL}" ]; then curl $SCCACHE_BIN_URL --output /sccache && chmod +x /sccache && export RUSTC_WRAPPER=/sccache; fi
+    - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/usr/local/cargo/bin/sccache; fi
   script:
     - rustc --version && cargo --version # Print version info for debugging
     - cargo fmt --all -- --check
-    - "cargo test --color always --workspace --verbose --locked --no-fail-fast -- -Z unstable-options --format json | ./gitlab-report -p test > $CI_PROJECT_DIR/report.xml"
-    - "cargo clippy --color always --verbose --message-format=json | ./gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
+    - "cargo test --color always --workspace --verbose --locked --no-fail-fast -- -Z unstable-options --format json | gitlab-report -p test > $CI_PROJECT_DIR/report.xml"
+    - "cargo clippy --color always --verbose --message-format=json | gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
   artifacts:
     when: always
     reports:
