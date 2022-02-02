@@ -1,9 +1,8 @@
 use crate::Error;
 use ruma::{
     events::{
-        room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyInitialStateEvent,
-        AnyRoomEvent, AnyStateEvent, AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent,
-        EventType, StateEvent,
+        room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyRoomEvent, AnyStateEvent,
+        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
     state_res, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, UInt, UserId,
@@ -360,18 +359,4 @@ pub struct PduBuilder {
     pub unsigned: Option<BTreeMap<String, serde_json::Value>>,
     pub state_key: Option<String>,
     pub redacts: Option<Arc<EventId>>,
-}
-
-/// Direct conversion prevents loss of the empty `state_key` that ruma requires.
-impl From<AnyInitialStateEvent> for PduBuilder {
-    fn from(event: AnyInitialStateEvent) -> Self {
-        Self {
-            event_type: EventType::from(event.event_type()),
-            content: to_raw_value(&event.content())
-                .expect("AnyStateEventContent came from JSON and can thus turn back into JSON."),
-            unsigned: None,
-            state_key: Some(event.state_key().to_owned()),
-            redacts: None,
-        }
-    }
 }
