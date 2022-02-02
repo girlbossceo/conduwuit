@@ -14,8 +14,9 @@ FROM docker.io/alpine:3.15.0 AS runner
 # You still need to map the port when using the docker command or docker-compose.
 EXPOSE 6167
 
-# Note from @jfowl: I would like to remove this in the future and just have the Docker version be configured with envs. 
-ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml"
+# Note from @jfowl: I would like to remove the config file in the future and just have the Docker version be configured with envs. 
+ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml" \
+    CONDUIT_PORT=6167
 
 # Conduit needs:
 #   ca-certificates: for https

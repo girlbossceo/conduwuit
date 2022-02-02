@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
-FROM docker.io/rust:1.58-alpine AS builder
+FROM docker.io/rust:1.58-bullseye AS builder
 WORKDIR /usr/src/conduit
 
 # Install required packages to build Conduit and it's dependencies
-RUN apk add musl-dev
+RUN apt update && apt -y install libclang-11-dev
 
 # == Build dependencies without our own code separately for caching ==
 #
@@ -26,28 +26,28 @@ COPY src src
 # Builds conduit and places the binary at /usr/src/conduit/target/release/conduit
 RUN touch src/main.rs && touch src/lib.rs && cargo build --release
 
-
-
-
 # ---------------------------------------------------------------------------------------------------------------
 # Stuff below this line actually ends up in the resulting docker image
 # ---------------------------------------------------------------------------------------------------------------
-FROM docker.io/alpine:3.15.0 AS runner
+FROM docker.io/debian:bullseye-slim AS runner
 
 # Standard port on which Conduit launches.
 # You still need to map the port when using the docker command or docker-compose.
 EXPOSE 6167
 
-# Note from @jfowl: I would like to remove this in the future and just have the Docker version be configured with envs.
-ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml"
+# Note from @jfowl: I would like to remove the config file in the future and just have the Docker version be configured with envs.
+ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml" \
+    CONDUIT_PORT=6167
 
 # Conduit needs:
 #   ca-certificates: for https
-#   libgcc: Apparently this is needed, even if I (@jfowl) don't know exactly why. But whatever, it's not that big.
-RUN apk add --no-cache \
+#   iproute2 & wget: for the healthcheck script
+RUN apt update && apt -y install \
     ca-certificates \
-    libgcc
+    iproute2 \
+    wget
 
+RUN rm -rf /var/lib/apt/lists/*
 
 # Created directory for the database and media files
 RUN mkdir -p /srv/conduit/.local/share/conduit
@@ -59,20 +59,20 @@ HEALTHCHECK --start-period=5s --interval=5s CMD ./healthcheck.sh
 # Copy over the actual Conduit binary from the builder stage
 COPY --from=builder /usr/src/conduit/target/release/conduit /srv/conduit/conduit
 
-# Improve security: Don't run stuff as root, that does not need to run as root:
-# Add www-data user and group with UID 82, as used by alpine
-# https://git.alpinelinux.org/aports/tree/main/nginx/nginx.pre-install
+# Improve security: Don't run stuff as root, that does not need to run as root
+# Add 'conduit' user and group (100:82). The UID:GID choice is to be compatible
+# with previous, Alpine-based containers, where the user and group were both
+# named 'www-data'.
 RUN set -x ; \
-    addgroup -Sg 82 www-data 2>/dev/null ; \
-    adduser -S -D -H -h /srv/conduit -G www-data -g www-data www-data 2>/dev/null ; \
-    addgroup www-data www-data 2>/dev/null && exit 0 ; exit 1
+    groupadd -r -g 82 conduit ; \
+    useradd -r -M -d /srv/conduit -o -u 100 -g conduit conduit && exit 0 ; exit 1
 
-# Change ownership of Conduit files to www-data user and group
-RUN chown -cR www-data:www-data /srv/conduit
-RUN chmod +x /srv/conduit/healthcheck.sh
+# Change ownership of Conduit files to conduit user and group and make the healthcheck executable:
+RUN chown -cR conduit:conduit /srv/conduit && \
+    chmod +x /srv/conduit/healthcheck.sh
 
-# Change user to www-data
-USER www-data
+# Change user to conduit, no root permissions afterwards:
+USER conduit
 # Set container home directory
 WORKDIR /srv/conduit
 
