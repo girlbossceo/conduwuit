@@ -60,15 +60,16 @@ pub async fn get_register_available_route(
     body: Ruma<get_username_availability::Request<'_>>,
 ) -> ConduitResult<get_username_availability::Response> {
     // Validate user id
-    let user_id = UserId::parse_with_server_name(body.username.to_lowercase(), db.globals.server_name())
-        .ok()
-        .filter(|user_id| {
-            !user_id.is_historical() && user_id.server_name() == db.globals.server_name()
-        })
-        .ok_or(Error::BadRequest(
-            ErrorKind::InvalidUsername,
-            "Username is invalid.",
-        ))?;
+    let user_id =
+        UserId::parse_with_server_name(body.username.to_lowercase(), db.globals.server_name())
+            .ok()
+            .filter(|user_id| {
+                !user_id.is_historical() && user_id.server_name() == db.globals.server_name()
+            })
+            .ok_or(Error::BadRequest(
+                ErrorKind::InvalidUsername,
+                "Username is invalid.",
+            ))?;
 
     // Check if username is creative enough
     if db.users.exists(&user_id)? {

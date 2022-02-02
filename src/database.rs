@@ -367,15 +367,27 @@ impl Database {
                         .try_into()
                         .expect("pdu cache capacity fits into usize"),
                 )),
-                auth_chain_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
-                shorteventid_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
-                eventidshort_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
-                shortstatekey_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
-                statekeyshort_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
+                auth_chain_cache: Mutex::new(LruCache::new(
+                    (100_000.0 * config.conduit_cache_capacity_modifier) as usize,
+                )),
+                shorteventid_cache: Mutex::new(LruCache::new(
+                    (100_000.0 * config.conduit_cache_capacity_modifier) as usize,
+                )),
+                eventidshort_cache: Mutex::new(LruCache::new(
+                    (100_000.0 * config.conduit_cache_capacity_modifier) as usize,
+                )),
+                shortstatekey_cache: Mutex::new(LruCache::new(
+                    (100_000.0 * config.conduit_cache_capacity_modifier) as usize,
+                )),
+                statekeyshort_cache: Mutex::new(LruCache::new(
+                    (100_000.0 * config.conduit_cache_capacity_modifier) as usize,
+                )),
                 our_real_users_cache: RwLock::new(HashMap::new()),
                 appservice_in_room_cache: RwLock::new(HashMap::new()),
                 lazy_load_waiting: Mutex::new(HashMap::new()),
-                stateinfo_cache: Mutex::new(LruCache::new((100.0 * config.conduit_cache_capacity_modifier) as usize)),
+                stateinfo_cache: Mutex::new(LruCache::new(
+                    (100.0 * config.conduit_cache_capacity_modifier) as usize,
+                )),
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
