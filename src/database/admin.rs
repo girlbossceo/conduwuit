@@ -132,7 +132,7 @@ impl Admin {
 }
 
 // Parse and process a message from the admin room
-pub fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEventContent {
+fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEventContent {
     let mut lines = room_message.lines();
     let command_line = lines.next().expect("each string has at least one line");
     let body: Vec<_> = lines.collect();
@@ -202,7 +202,10 @@ enum AdminCommand {
     /// Registering a new bridge using the ID of an existing bridge will replace
     /// the old one.
     ///
-    /// [add-yaml-block-to-usage]
+    /// [commandbody]
+    /// # ```
+    /// # yaml content here
+    /// # ```
     RegisterAppservice,
 
     /// Unregister an appservice using its ID
@@ -225,10 +228,16 @@ enum AdminCommand {
         event_id: Box<EventId>,
     },
 
+    #[clap(verbatim_doc_comment)]
     /// Parse and print a PDU from a JSON
     ///
     /// The PDU event is only checked for validity and is not added to the
     /// database.
+    ///
+    /// [commandbody]
+    /// # ```
+    /// # PDU json content here
+    /// # ```
     ParsePdu,
 
     /// Retrieve and print a PDU by ID from the Conduit database
@@ -433,33 +442,51 @@ fn usage_to_html(text: &str) -> String {
         .expect("Regex compilation should not fail");
     let text = re.replace_all(&text, "<code>$1</code>: $4");
 
-    // // Enclose examples in code blocks
-    // // (?ms) enables multi-line mode and dot-matches-all
-    // let re =
-    //     Regex::new("(?ms)^Example:\n(.*?)\nUSAGE:$").expect("Regex compilation should not fail");
-    // let text = re.replace_all(&text, "EXAMPLE:\n<pre>$1</pre>\nUSAGE:");
+    // Look for a `[commandbody]` tag. If it exists, use all lines below it that
+    // start with a `#` in the USAGE section.
+    let mut text_lines: Vec<&str> = text.lines().collect();
+    let mut command_body = String::new();
 
-    let has_yaml_block_marker = text.contains("\n[add-yaml-block-to-usage]\n");
-    let text = text.replace("\n[add-yaml-block-to-usage]\n", "");
+    if let Some(line_index) = text_lines.iter().position(|line| *line == "[commandbody]") {
+        text_lines.remove(line_index);
 
-    // Add HTML line-breaks
-    let text = text.replace("\n", "<br>\n");
+        while text_lines
+            .get(line_index)
+            .map(|line| line.starts_with("#"))
+            .unwrap_or(false)
+        {
+            command_body += if text_lines[line_index].starts_with("# ") {
+                &text_lines[line_index][2..]
+            } else {
+                &text_lines[line_index][1..]
+            };
+            command_body += "[nobr]\n";
+            text_lines.remove(line_index);
+        }
+    }
 
-    let text = if !has_yaml_block_marker {
+    let text = text_lines.join("\n");
+
+    // Improve the usage section
+    let text = if command_body.is_empty() {
         // Wrap the usage line in code tags
-        let re = Regex::new("(?m)^USAGE:<br>\n    (@conduit:.*)<br>$")
+        let re = Regex::new("(?m)^USAGE:\n    (@conduit:.*)$")
             .expect("Regex compilation should not fail");
-        re.replace_all(&text, "USAGE:<br>\n<code>$1</code><br>")
+        re.replace_all(&text, "USAGE:\n<code>$1</code>").to_string()
     } else {
         // Wrap the usage line in a code block, and add a yaml block example
         // This makes the usage of e.g. `register-appservice` more accurate
-        let re = Regex::new("(?m)^USAGE:<br>\n    (.*?)<br>\n<br>\n")
-            .expect("Regex compilation should not fail");
-        re.replace_all(
-            &text,
-            "USAGE:<br>\n<pre>$1\n```\nyaml content here\n```</pre>",
-        )
+        let re =
+            Regex::new("(?m)^USAGE:\n    (.*?)\n\n").expect("Regex compilation should not fail");
+        re.replace_all(&text, "USAGE:\n<pre>$1[nobr]\n[commandbodyblock]</pre>")
+            .replace("[commandbodyblock]", &command_body)
     };
 
-    text.to_string()
+    // Add HTML line-breaks
+    let text = text
+        .replace("\n\n\n", "\n\n")
+        .replace("\n", "<br>\n")
+        .replace("[nobr]<br>", "");
+
+    text
 }
