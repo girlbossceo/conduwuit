@@ -3,7 +3,7 @@ FROM docker.io/rust:1.58-bullseye AS builder
 WORKDIR /usr/src/conduit
 
 # Install required packages to build Conduit and it's dependencies
-RUN apt update && apt -y install libclang-11-dev
+RUN apt update && apt -y install libclang-dev
 
 # == Build dependencies without our own code separately for caching ==
 #
@@ -45,9 +45,8 @@ ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml" \
 RUN apt update && apt -y install \
     ca-certificates \
     iproute2 \
-    wget
-
-RUN rm -rf /var/lib/apt/lists/*
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
 # Created directory for the database and media files
 RUN mkdir -p /srv/conduit/.local/share/conduit
