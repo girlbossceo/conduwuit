@@ -34,7 +34,9 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 use tokio::sync::{OwnedRwLockReadGuard, RwLock as TokioRwLock, Semaphore};
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
+
+use self::admin::create_admin_room;
 
 pub struct Database {
     _db: Arc<dyn DatabaseEngine>,
@@ -301,10 +303,32 @@ impl Database {
             )?,
         }));
 
-        {
-            let db = db.read().await;
+        let guard = db.read().await;
+
+        // Matrix resource ownership is based on the server name; changing it
+        // requires recreating the database from scratch.
+        if guard.users.count()? > 0 {
+            let conduit_user =
+                UserId::parse_with_server_name("conduit", guard.globals.server_name())
+                    .expect("@conduit:server_name is valid");
+
+            if !guard.users.exists(&conduit_user)? {
+                error!(
+                    "The {} server user does not exist, and the database is not new.",
+                    conduit_user
+                );
+                return Err(Error::bad_database(
+                    "Cannot reuse an existing database after changing the server name, please delete the old one first."
+                ));
+            }
+        }
+
+        // If the database has any data, perform data migrations before starting
+        let latest_database_version = 11;
+
+        if guard.users.count()? > 0 {
+            let db = &*guard;
             // MIGRATIONS
-            // TODO: database versions of new dbs should probably not be 0
             if db.globals.database_version()? < 1 {
                 for (roomserverid, _) in db.rooms.roomserverids.iter() {
                     let mut parts = roomserverid.split(|&b| b == 0xff);
@@ -325,7 +349,7 @@ impl Database {
 
                 db.globals.bump_database_version(1)?;
 
-                println!("Migration: 0 -> 1 finished");
+                warn!("Migration: 0 -> 1 finished");
             }
 
             if db.globals.database_version()? < 2 {
@@ -344,7 +368,7 @@ impl Database {
 
                 db.globals.bump_database_version(2)?;
 
-                println!("Migration: 1 -> 2 finished");
+                warn!("Migration: 1 -> 2 finished");
             }
 
             if db.globals.database_version()? < 3 {
@@ -362,7 +386,7 @@ impl Database {
 
                 db.globals.bump_database_version(3)?;
 
-                println!("Migration: 2 -> 3 finished");
+                warn!("Migration: 2 -> 3 finished");
             }
 
             if db.globals.database_version()? < 4 {
@@ -385,7 +409,7 @@ impl Database {
 
                 db.globals.bump_database_version(4)?;
 
-                println!("Migration: 3 -> 4 finished");
+                warn!("Migration: 3 -> 4 finished");
             }
 
             if db.globals.database_version()? < 5 {
@@ -409,7 +433,7 @@ impl Database {
 
                 db.globals.bump_database_version(5)?;
 
-                println!("Migration: 4 -> 5 finished");
+                warn!("Migration: 4 -> 5 finished");
             }
 
             if db.globals.database_version()? < 6 {
@@ -422,7 +446,7 @@ impl Database {
 
                 db.globals.bump_database_version(6)?;
 
-                println!("Migration: 5 -> 6 finished");
+                warn!("Migration: 5 -> 6 finished");
             }
 
             if db.globals.database_version()? < 7 {
@@ -549,7 +573,7 @@ impl Database {
 
                 db.globals.bump_database_version(7)?;
 
-                println!("Migration: 6 -> 7 finished");
+                warn!("Migration: 6 -> 7 finished");
             }
 
             if db.globals.database_version()? < 8 {
@@ -557,7 +581,7 @@ impl Database {
                 for (room_id, _) in db.rooms.roomid_shortstatehash.iter() {
                     let shortroomid = db.globals.next_count()?.to_be_bytes();
                     db.rooms.roomid_shortroomid.insert(&room_id, &shortroomid)?;
-                    println!("Migration: 8");
+                    info!("Migration: 8");
                 }
                 // Update pduids db layout
                 let mut batch = db.rooms.pduid_pdu.iter().filter_map(|(key, v)| {
@@ -608,7 +632,7 @@ impl Database {
 
                 db.globals.bump_database_version(8)?;
 
-                println!("Migration: 7 -> 8 finished");
+                warn!("Migration: 7 -> 8 finished");
             }
 
             if db.globals.database_version()? < 9 {
@@ -650,7 +674,7 @@ impl Database {
                     println!("smaller batch done");
                 }
 
-                println!("Deleting starts");
+                info!("Deleting starts");
 
                 let batch2: Vec<_> = db
                     .rooms
@@ -673,7 +697,7 @@ impl Database {
 
                 db.globals.bump_database_version(9)?;
 
-                println!("Migration: 8 -> 9 finished");
+                warn!("Migration: 8 -> 9 finished");
             }
 
             if db.globals.database_version()? < 10 {
@@ -692,7 +716,7 @@ impl Database {
 
                 db.globals.bump_database_version(10)?;
 
-                println!("Migration: 9 -> 10 finished");
+                warn!("Migration: 9 -> 10 finished");
             }
 
             if db.globals.database_version()? < 11 {
@@ -701,11 +725,28 @@ impl Database {
                     .clear()?;
                 db.globals.bump_database_version(11)?;
 
-                println!("Migration: 10 -> 11 finished");
+                warn!("Migration: 10 -> 11 finished");
             }
-        }
 
-        let guard = db.read().await;
+            assert_eq!(11, latest_database_version);
+
+            info!(
+                "Loaded {} database with version {}",
+                config.database_backend, latest_database_version
+            );
+        } else {
+            guard
+                .globals
+                .bump_database_version(latest_database_version)?;
+
+            // Create the admin room and server user on first run
+            create_admin_room(&guard).await?;
+
+            warn!(
+                "Created new {} database with version {}",
+                config.database_backend, latest_database_version
+            );
+        }
 
         // This data is probably outdated
         guard.rooms.edus.presenceid_presence.clear()?;
@@ -724,8 +765,6 @@ impl Database {
 
     #[cfg(feature = "conduit_bin")]
     pub async fn start_on_shutdown_tasks(db: Arc<TokioRwLock<Self>>, shutdown: Shutdown) {
-        use tracing::info;
-
         tokio::spawn(async move {
             shutdown.await;
 

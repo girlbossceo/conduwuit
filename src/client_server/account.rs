@@ -1,7 +1,11 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
-use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};
+use crate::{
+    database::{admin::make_user_admin, DatabaseGuard},
+    pdu::PduBuilder,
+    utils, ConduitResult, Error, Ruma,
+};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -14,25 +18,13 @@ use ruma::{
         },
     },
     events::{
-        room::{
-            canonical_alias::RoomCanonicalAliasEventContent,
-            create::RoomCreateEventContent,
-            guest_access::{GuestAccess, RoomGuestAccessEventContent},
-            history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
-            join_rules::{JoinRule, RoomJoinRulesEventContent},
-            member::{MembershipState, RoomMemberEventContent},
-            message::RoomMessageEventContent,
-            name::RoomNameEventContent,
-            power_levels::RoomPowerLevelsEventContent,
-            topic::RoomTopicEventContent,
-        },
+        room::member::{MembershipState, RoomMemberEventContent},
         EventType,
     },
-    identifiers::RoomName,
-    push, RoomAliasId, RoomId, RoomVersionId, UserId,
+    push, UserId,
 };
 use serde_json::value::to_raw_value;
-use tracing::info;
+use tracing::{info, warn};
 
 use register::RegistrationKind;
 #[cfg(feature = "conduit_bin")]
@@ -253,275 +245,15 @@ pub async fn register_route(
         body.initial_device_display_name.clone(),
     )?;
 
-    // If this is the first user on this server, create the admin room
-    if db.users.count()? == 1 {
-        // Create a user for the server
-        let conduit_user = UserId::parse_with_server_name("conduit", db.globals.server_name())
-            .expect("@conduit:server_name is valid");
-
-        db.users.create(&conduit_user, None)?;
-
-        let room_id = RoomId::new(db.globals.server_name());
-
-        db.rooms.get_or_create_shortroomid(&room_id, &db.globals)?;
-
-        let mutex_state = Arc::clone(
-            db.globals
-                .roomid_mutex_state
-                .write()
-                .unwrap()
-                .entry(room_id.clone())
-                .or_default(),
-        );
-        let state_lock = mutex_state.lock().await;
-
-        let mut content = RoomCreateEventContent::new(conduit_user.clone());
-        content.federate = true;
-        content.predecessor = None;
-        content.room_version = RoomVersionId::V6;
-
-        // 1. The room create event
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomCreate,
-                content: to_raw_value(&content).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 2. Make conduit bot join
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: to_raw_value(&RoomMemberEventContent {
-                    membership: MembershipState::Join,
-                    displayname: None,
-                    avatar_url: None,
-                    is_direct: None,
-                    third_party_invite: None,
-                    blurhash: None,
-                    reason: None,
-                    join_authorized_via_users_server: None,
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(conduit_user.to_string()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 3. Power levels
-        let mut users = BTreeMap::new();
-        users.insert(conduit_user.clone(), 100.into());
-        users.insert(user_id.clone(), 100.into());
-
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomPowerLevels,
-                content: to_raw_value(&RoomPowerLevelsEventContent {
-                    users,
-                    ..Default::default()
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 4.1 Join Rules
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomJoinRules,
-                content: to_raw_value(&RoomJoinRulesEventContent::new(JoinRule::Invite))
-                    .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 4.2 History Visibility
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomHistoryVisibility,
-                content: to_raw_value(&RoomHistoryVisibilityEventContent::new(
-                    HistoryVisibility::Shared,
-                ))
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 4.3 Guest Access
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomGuestAccess,
-                content: to_raw_value(&RoomGuestAccessEventContent::new(GuestAccess::Forbidden))
-                    .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 6. Events implied by name and topic
-        let room_name = RoomName::parse(format!("{} Admin Room", db.globals.server_name()))
-            .expect("Room name is valid");
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomName,
-                content: to_raw_value(&RoomNameEventContent::new(Some(room_name)))
-                    .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomTopic,
-                content: to_raw_value(&RoomTopicEventContent {
-                    topic: format!("Manage {}", db.globals.server_name()),
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // Room alias
-        let alias: Box<RoomAliasId> = format!("#admins:{}", db.globals.server_name())
-            .try_into()
-            .expect("#admins:server_name is a valid alias name");
-
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomCanonicalAlias,
-                content: to_raw_value(&RoomCanonicalAliasEventContent {
-                    alias: Some(alias.clone()),
-                    alt_aliases: Vec::new(),
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        db.rooms.set_alias(&alias, Some(&room_id), &db.globals)?;
-
-        // Invite and join the real user
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: to_raw_value(&RoomMemberEventContent {
-                    membership: MembershipState::Invite,
-                    displayname: None,
-                    avatar_url: None,
-                    is_direct: None,
-                    third_party_invite: None,
-                    blurhash: None,
-                    reason: None,
-                    join_authorized_via_users_server: None,
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(user_id.to_string()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: to_raw_value(&RoomMemberEventContent {
-                    membership: MembershipState::Join,
-                    displayname: Some(displayname),
-                    avatar_url: None,
-                    is_direct: None,
-                    third_party_invite: None,
-                    blurhash: None,
-                    reason: None,
-                    join_authorized_via_users_server: None,
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(user_id.to_string()),
-                redacts: None,
-            },
-            &user_id,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // Send welcome message
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMessage,
-                content: to_raw_value(&RoomMessageEventContent::text_html(
-                        "## Thank you for trying out Conduit!\n\nConduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.\n\nHelpful links:\n> Website: https://conduit.rs\n> Git and Documentation: https://gitlab.com/famedly/conduit\n> Report issues: https://gitlab.com/famedly/conduit/-/issues\n\nHere are some rooms you can join (by typing the command):\n\nConduit room (Ask questions and get notified on updates):\n`/join #conduit:fachschaften.org`\n\nConduit lounge (Off-topic, only Conduit users are allowed to join)\n`/join #conduit-lounge:conduit.rs`".to_owned(),
-                        "<h2>Thank you for trying out Conduit!</h2>\n<p>Conduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.</p>\n<p>Helpful links:</p>\n<blockquote>\n<p>Website: https://conduit.rs<br>Git and Documentation: https://gitlab.com/famedly/conduit<br>Report issues: https://gitlab.com/famedly/conduit/-/issues</p>\n</blockquote>\n<p>Here are some rooms you can join (by typing the command):</p>\n<p>Conduit room (Ask questions and get notified on updates):<br><code>/join #conduit:fachschaften.org</code></p>\n<p>Conduit lounge (Off-topic, only Conduit users are allowed to join)<br><code>/join #conduit-lounge:conduit.rs</code></p>\n".to_owned(),
-                ))
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: None,
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-    }
-
     info!("{} registered on this server", user_id);
+
+    // If this is the first real user, grant them admin privileges
+    // Note: the server user, @conduit:servername, is generated first
+    if db.users.count()? == 2 {
+        make_user_admin(&db, &user_id, displayname).await?;
+
+        warn!("Granting {} admin privileges as the first user", user_id);
+    }
 
     db.flush()?;
 
