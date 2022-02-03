@@ -129,6 +129,7 @@ fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<
                 client_server::send_event_to_device_route,
                 client_server::get_media_config_route,
                 client_server::create_content_route,
+                client_server::get_content_as_filename_route,
                 client_server::get_content_route,
                 client_server::get_content_thumbnail_route,
                 client_server::get_devices_route,

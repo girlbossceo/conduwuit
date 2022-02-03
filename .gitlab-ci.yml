@@ -8,6 +8,10 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   FF_USE_FASTZIP: 1
   CACHE_COMPRESSION_LEVEL: fastest
+  # Docker in Docker
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
 
 # --------------------------------------------------------------------- #
 #  Cargo: Compiling for different architectures                         #
@@ -20,28 +24,45 @@ variables:
     - if: '$CI_COMMIT_BRANCH == "master"'
     - if: '$CI_COMMIT_BRANCH == "next"'
     - if: "$CI_COMMIT_TAG"
+    - if: '($CI_MERGE_REQUEST_APPROVED == "true") || $BUILD_EVERYTHING' # Once MR is approved, test all builds. Or if BUILD_EVERYTHING is set.
   interruptible: true
-  image: "rust:1.56"
+  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
   tags: ["docker"]
+  services: ["docker:dind"]
   variables:
+    SHARED_PATH: $CI_PROJECT_DIR/shared
     CARGO_PROFILE_RELEASE_LTO: "true"
     CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
     CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
   before_script:
     - 'echo "Building for target $TARGET"'
-    - "rustc --version && cargo --version && rustup show" # Print version info for debugging
-    - "rustup target add $TARGET"
-    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
-    - if [ -n "${SCCACHE_BIN_URL}" ]; then curl $SCCACHE_BIN_URL --output /sccache && chmod +x /sccache && export RUSTC_WRAPPER=/sccache; fi
+    - "rustup show && rustc --version && cargo --version" # Print version info for debugging
+    # fix cargo and rustup mounts from this container (https://gitlab.com/gitlab-org/gitlab-foss/-/issues/41227)
+    - "mkdir -p $SHARED_PATH/cargo"
+    - "cp -r $CARGO_HOME/bin $SHARED_PATH/cargo"
+    - "cp -r $RUSTUP_HOME $SHARED_PATH"
+    - "export CARGO_HOME=$SHARED_PATH/cargo RUSTUP_HOME=$SHARED_PATH/rustup"
+    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results.
+    - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/sccache; fi
   script:
-    - time cargo build --target $TARGET --release
-    - 'cp "target/$TARGET/release/conduit" "conduit-$TARGET"'
+    # cross-compile conduit for target
+    - 'time cross build --target="$TARGET" --locked --release'
+    - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
+    # print information about linking for debugging
+    - "file conduit-$TARGET" # print file information
+    - 'readelf --dynamic conduit-$TARGET | sed -e "/NEEDED/q1"' # ensure statically linked
+  cache:
+    # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
+    key: "cargo-cache-$TARGET"
+    paths:
+      - $SHARED_PATH/cargo/registry/index
+      - $SHARED_PATH/cargo/registry/cache
+      - $SHARED_PATH/cargo/git/db
   artifacts:
     expire_in: never
 
 build:release:cargo:x86_64-unknown-linux-musl-with-debug:
   extends: .build-cargo-shared-settings
-  image: messense/rust-musl-cross:x86_64-musl
   variables:
     CARGO_PROFILE_RELEASE_DEBUG: 2 # Enable debug info for flamegraph profiling
     TARGET: "x86_64-unknown-linux-musl"
@@ -55,7 +76,6 @@ build:release:cargo:x86_64-unknown-linux-musl-with-debug:
 
 build:release:cargo:x86_64-unknown-linux-musl:
   extends: .build-cargo-shared-settings
-  image: messense/rust-musl-cross:x86_64-musl
   variables:
     TARGET: "x86_64-unknown-linux-musl"
   artifacts:
@@ -66,7 +86,6 @@ build:release:cargo:x86_64-unknown-linux-musl:
 
 build:release:cargo:arm-unknown-linux-musleabihf:
   extends: .build-cargo-shared-settings
-  image: messense/rust-musl-cross:arm-musleabihf
   variables:
     TARGET: "arm-unknown-linux-musleabihf"
   artifacts:
@@ -77,7 +96,6 @@ build:release:cargo:arm-unknown-linux-musleabihf:
 
 build:release:cargo:armv7-unknown-linux-musleabihf:
   extends: .build-cargo-shared-settings
-  image: messense/rust-musl-cross:armv7-musleabihf
   variables:
     TARGET: "armv7-unknown-linux-musleabihf"
   artifacts:
@@ -88,7 +106,6 @@ build:release:cargo:armv7-unknown-linux-musleabihf:
 
 build:release:cargo:aarch64-unknown-linux-musl:
   extends: .build-cargo-shared-settings
-  image: messense/rust-musl-cross:aarch64-musl
   variables:
     TARGET: "aarch64-unknown-linux-musl"
   artifacts:
@@ -104,14 +121,17 @@ build:release:cargo:aarch64-unknown-linux-musl:
   cache:
     key: "build_cache--$TARGET--$CI_COMMIT_BRANCH--debug"
   script:
-    - "time cargo build --target $TARGET"
+    # cross-compile conduit for target
+    - 'time time cross build --target="$TARGET" --locked'
     - 'mv "target/$TARGET/debug/conduit" "conduit-debug-$TARGET"'
+    # print information about linking for debugging
+    - "file conduit-debug-$TARGET" # print file information
+    - 'readelf --dynamic conduit-debug-$TARGET | sed -e "/NEEDED/q1"' # ensure statically linked
   artifacts:
     expire_in: 4 weeks
 
 build:debug:cargo:x86_64-unknown-linux-musl:
   extends: ".cargo-debug-shared-settings"
-  image: messense/rust-musl-cross:x86_64-musl
   variables:
     TARGET: "x86_64-unknown-linux-musl"
   artifacts:
@@ -136,9 +156,6 @@ build:debug:cargo:x86_64-unknown-linux-musl:
     - "build:release:cargo:armv7-unknown-linux-musleabihf"
     - "build:release:cargo:aarch64-unknown-linux-musl"
   variables:
-    DOCKER_HOST: tcp://docker:2375/
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_DRIVER: overlay2
     PLATFORMS: "linux/arm/v6,linux/arm/v7,linux/arm64,linux/amd64"
     DOCKER_FILE: "docker/ci-binaries-packaging.Dockerfile"
   cache:
@@ -210,24 +227,20 @@ docker:master:dockerhub:
 test:cargo:
   stage: "test"
   needs: []
-  image: "rust:latest"
+  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
   tags: ["docker"]
   variables:
     CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
   interruptible: true
   before_script:
-    #    - mkdir -p $CARGO_HOME
-    - apt-get update -yqq
-    - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config libclang-dev
     - rustup component add clippy rustfmt
-    - curl "https://faulty-storage.de/gitlab-report" --output ./gitlab-report && chmod +x ./gitlab-report
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
-    - if [ -n "${SCCACHE_BIN_URL}" ]; then curl $SCCACHE_BIN_URL --output /sccache && chmod +x /sccache && export RUSTC_WRAPPER=/sccache; fi
+    - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/usr/local/cargo/bin/sccache; fi
   script:
     - rustc --version && cargo --version # Print version info for debugging
     - cargo fmt --all -- --check
-    - "cargo test --color always --workspace --verbose --locked --no-fail-fast -- -Z unstable-options --format json | ./gitlab-report -p test > $CI_PROJECT_DIR/report.xml"
-    - "cargo clippy --color always --verbose --message-format=json | ./gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
+    - "cargo test --color always --workspace --verbose --locked --no-fail-fast -- -Z unstable-options --format json | gitlab-report -p test > $CI_PROJECT_DIR/report.xml"
+    - "cargo clippy --color always --verbose --message-format=json | gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
   artifacts:
     when: always
     reports:

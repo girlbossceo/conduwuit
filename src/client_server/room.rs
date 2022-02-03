@@ -344,10 +344,13 @@ pub async fn create_room_route(
 
     // 6. Events listed in initial_state
     for event in &body.initial_state {
-        let pdu_builder = PduBuilder::from(event.deserialize().map_err(|e| {
+        let mut pdu_builder = event.deserialize_as::<PduBuilder>().map_err(|e| {
             warn!("Invalid initial state event: {:?}", e);
             Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event.")
-        })?);
+        })?;
+
+        // Implicit state key defaults to ""
+        pdu_builder.state_key.get_or_insert_with(|| "".to_owned());
 
         // Silently skip encryption events if they are not allowed
         if pdu_builder.event_type == EventType::RoomEncryption && !db.globals.allow_encryption() {

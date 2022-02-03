@@ -655,7 +655,7 @@ async fn join_room_by_id_helper(
 
         db.rooms.get_or_create_shortroomid(room_id, &db.globals)?;
 
-        let pdu = PduEvent::from_id_val(event_id, join_event.clone())
+        let parsed_pdu = PduEvent::from_id_val(event_id, join_event.clone())
             .map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
 
         let mut state = HashMap::new();
@@ -695,14 +695,15 @@ async fn join_room_by_id_helper(
         }
 
         let incoming_shortstatekey = db.rooms.get_or_create_shortstatekey(
-            &pdu.kind,
-            pdu.state_key
+            &parsed_pdu.kind,
+            parsed_pdu
+                .state_key
                 .as_ref()
                 .expect("Pdu is a membership state event"),
             &db.globals,
         )?;
 
-        state.insert(incoming_shortstatekey, pdu.event_id.clone());
+        state.insert(incoming_shortstatekey, parsed_pdu.event_id.clone());
 
         let create_shortstatekey = db
             .rooms
@@ -738,12 +739,12 @@ async fn join_room_by_id_helper(
 
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.
-        let statehashid = db.rooms.append_to_state(&pdu, &db.globals)?;
+        let statehashid = db.rooms.append_to_state(&parsed_pdu, &db.globals)?;
 
         db.rooms.append_pdu(
-            &pdu,
-            utils::to_canonical_object(&pdu).expect("Pdu is valid canonical object"),
-            iter::once(&*pdu.event_id),
+            &parsed_pdu,
+            join_event,
+            iter::once(&*parsed_pdu.event_id),
             db,
         )?;
 

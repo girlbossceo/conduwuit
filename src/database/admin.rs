@@ -262,7 +262,10 @@ fn process_admin_command(
                 let parsed_config = serde_yaml::from_str::<serde_yaml::Value>(&appservice_config);
                 match parsed_config {
                     Ok(yaml) => match db.appservice.register_appservice(yaml) {
-                        Ok(()) => RoomMessageEventContent::text_plain("Appservice registered."),
+                        Ok(id) => RoomMessageEventContent::text_plain(format!(
+                            "Appservice registered with ID: {}.",
+                            id
+                        )),
                         Err(e) => RoomMessageEventContent::text_plain(format!(
                             "Failed to register appservice: {}",
                             e

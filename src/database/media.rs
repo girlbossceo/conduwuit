@@ -171,7 +171,7 @@ impl Media {
     /// For width,height <= 96 the server uses another thumbnailing algorithm which crops the image afterwards.
     pub async fn get_thumbnail(
         &self,
-        mxc: String,
+        mxc: &str,
         globals: &Globals,
         width: u32,
         height: u32,

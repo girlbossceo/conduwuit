@@ -29,7 +29,11 @@ $ sudo wget -O /usr/local/bin/matrix-conduit <url>
 $ sudo chmod +x /usr/local/bin/matrix-conduit
 ```
 
-Alternatively, you may compile the binary yourself using
+Alternatively, you may compile the binary yourself
+
+```bash
+$ sudo apt install libclang-dev build-essential
+```
 
 ```bash
 $ cargo build --release
@@ -37,7 +41,7 @@ $ cargo build --release
 
 Note that this currently requires Rust 1.50.
 
-If you want to cross compile Conduit to another architecture, read the [Cross-Compile Guide](CROSS_COMPILE.md).
+If you want to cross compile Conduit to another architecture, read the [Cross-Compile Guide](cross/README.md).
 
 ## Adding a Conduit user
 

@@ -1,8 +1,9 @@
 #!/bin/sh
 
-# If the port is not specified as env var, take it from the config file
-if [ -z ${CONDUIT_PORT} ]; then
-  CONDUIT_PORT=$(grep -m1 -o 'port\s=\s[0-9]*' conduit.toml | grep -m1 -o '[0-9]*')
+# If the config file does not contain a default port and the CONDUIT_PORT env is not set, create
+# try to get port from process list
+if [ -z "${CONDUIT_PORT}" ]; then
+  CONDUIT_PORT=$(ss -tlpn | grep conduit | grep -m1 -o ':[0-9]*' | grep -m1 -o '[0-9]*')
 fi
 
 # The actual health check.
