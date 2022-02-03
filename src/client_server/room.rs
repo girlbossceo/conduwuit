@@ -27,7 +27,7 @@ use ruma::{
     RoomAliasId, RoomId, RoomVersionId,
 };
 use serde_json::{json, value::to_raw_value};
-use std::{cmp::max, collections::BTreeMap, convert::TryInto, sync::Arc};
+use std::{cmp::max, collections::BTreeMap, sync::Arc};
 use tracing::{info, warn};
 
 #[cfg(feature = "conduit_bin")]

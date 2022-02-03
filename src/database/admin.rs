@@ -1,4 +1,4 @@
-use std::{convert::TryInto, sync::Arc};
+use std::sync::Arc;
 
 use crate::{pdu::PduBuilder, Database};
 use rocket::futures::{channel::mpsc, stream::StreamExt};

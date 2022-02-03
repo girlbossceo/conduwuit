@@ -4,7 +4,6 @@ use rand::prelude::*;
 use ruma::serde::{try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
 use std::{
     cmp,
-    convert::TryInto,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};

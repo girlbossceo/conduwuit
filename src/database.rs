@@ -28,7 +28,6 @@ use ruma::{DeviceId, EventId, RoomId, ServerName, UserId};
 use serde::{de::IgnoredAny, Deserialize};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    convert::{TryFrom, TryInto},
     fs::{self, remove_dir_all},
     io::Write,
     mem::size_of,

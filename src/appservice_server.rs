@@ -1,12 +1,7 @@
 use crate::{utils, Error, Result};
 use bytes::BytesMut;
 use ruma::api::{IncomingResponse, OutgoingRequest, SendAccessToken};
-use std::{
-    convert::{TryFrom, TryInto},
-    fmt::Debug,
-    mem,
-    time::Duration,
-};
+use std::{fmt::Debug, mem, time::Duration};
 use tracing::warn;
 
 pub(crate) async fn send_request<T: OutgoingRequest>(

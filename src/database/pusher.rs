@@ -19,7 +19,7 @@ use ruma::{
 };
 use tracing::{error, info, warn};
 
-use std::{convert::TryFrom, fmt::Debug, mem, sync::Arc};
+use std::{fmt::Debug, mem, sync::Arc};
 
 use super::abstraction::Tree;
 
