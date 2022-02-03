@@ -13,7 +13,7 @@ use rocket::{
 };
 use ruma::{
     events::{room::message::RoomMessageEventContent, EventType},
-    EventId, RoomId, RoomVersionId, UserId,
+    EventId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{MutexGuard, RwLock, RwLockReadGuard};
@@ -140,10 +140,11 @@ fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEven
     let admin_command = match parse_admin_command(&command_line) {
         Ok(command) => command,
         Err(error) => {
+            let server_name = db.globals.server_name();
             let message = error
                 .to_string()
-                .replace("example.com", db.globals.server_name().as_str());
-            let html_message = usage_to_html(&message);
+                .replace("server.name", server_name.as_str());
+            let html_message = usage_to_html(&message, server_name);
 
             return RoomMessageEventContent::text_html(message, html_message);
         }
@@ -191,7 +192,7 @@ fn parse_admin_command(command_line: &str) -> std::result::Result<AdminCommand, 
 }
 
 #[derive(Parser)]
-#[clap(name = "@conduit:example.com", version = env!("CARGO_PKG_VERSION"))]
+#[clap(name = "@conduit:server.name:", version = env!("CARGO_PKG_VERSION"))]
 enum AdminCommand {
     #[clap(verbatim_doc_comment)]
     /// Register an appservice using its registration YAML
@@ -421,7 +422,13 @@ fn process_admin_command(
 }
 
 // Utility to turn clap's `--help` text to HTML.
-fn usage_to_html(text: &str) -> String {
+fn usage_to_html(text: &str, server_name: &ServerName) -> String {
+    // Replace `@conduit:servername:-subcmdname` with `@conduit:servername: subcmdname`
+    let text = text.replace(
+        &format!("@conduit:{}:-", server_name),
+        &format!("@conduit:{}: ", server_name),
+    );
+
     // For the conduit admin room, subcommands become main commands
     let text = text.replace("SUBCOMMAND", "COMMAND");
     let text = text.replace("subcommand", "command");
