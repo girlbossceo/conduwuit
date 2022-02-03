@@ -1,7 +1,4 @@
-use crate::{
-    database::{admin::AdminCommand, DatabaseGuard},
-    ConduitResult, Error, Ruma,
-};
+use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
 use ruma::{
     api::client::{error::ErrorKind, r0::room::report_content},
     events::room::message,
@@ -50,8 +47,8 @@ pub async fn report_event_route(
         ));
     };
 
-    db.admin.send(AdminCommand::SendMessage(
-        message::RoomMessageEventContent::text_html(
+    db.admin
+        .send_message(message::RoomMessageEventContent::text_html(
             format!(
                 "Report received from: {}\n\n\
                 Event ID: {}\n\
@@ -75,8 +72,7 @@ pub async fn report_event_route(
                 body.score,
                 RawStr::new(&body.reason).html_escape()
             ),
-        ),
-    ));
+        ));
 
     db.flush()?;
 

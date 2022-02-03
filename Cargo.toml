@@ -82,6 +82,8 @@ thread_local = "1.1.3"
 # used for TURN server authentication
 hmac = "0.11.0"
 sha-1 = "0.9.8"
+# used for conduit's CLI and admin room command parsing
+clap = { version = "3.0.10", default-features = false, features = ["std", "derive"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemalloc-ctl = { version = "0.4.2", features = ['use_std'] }
