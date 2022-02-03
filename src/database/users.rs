@@ -11,12 +11,7 @@ use ruma::{
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, RoomAliasId, UInt,
     UserId,
 };
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-    mem,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, mem, sync::Arc};
 use tracing::warn;
 
 use super::abstraction::Tree;

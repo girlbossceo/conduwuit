@@ -9,7 +9,6 @@ use ruma::api::client::{
         get_media_config,
     },
 };
-use std::convert::TryInto;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, post};

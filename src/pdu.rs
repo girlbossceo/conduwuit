@@ -12,7 +12,7 @@ use serde_json::{
     json,
     value::{to_raw_value, RawValue as RawJsonValue},
 };
-use std::{cmp::Ordering, collections::BTreeMap, convert::TryInto, sync::Arc};
+use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
 use tracing::warn;
 
 /// Content hashes of a PDU.

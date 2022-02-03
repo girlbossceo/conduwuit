@@ -8,7 +8,6 @@ use ruma::{
 };
 use std::{
     collections::{BTreeMap, HashSet},
-    convert::TryInto,
     sync::Arc,
 };
 

@@ -11,7 +11,6 @@ use ruma::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    convert::TryInto,
     mem,
     sync::Arc,
 };

@@ -184,9 +184,6 @@ fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<
 
 #[rocket::main]
 async fn main() {
-    // Force log level off, so we can use our own logger
-    std::env::set_var("CONDUIT_LOG_LEVEL", "off");
-
     let raw_config =
         Figment::from(default_config())
             .merge(
@@ -196,8 +193,6 @@ async fn main() {
                 .nested(),
             )
             .merge(Env::prefixed("CONDUIT_").global());
-
-    std::env::set_var("RUST_LOG", "warn");
 
     let config = match raw_config.extract::<Config>() {
         Ok(s) => s,
@@ -244,8 +239,6 @@ async fn main() {
         println!("exporting");
         opentelemetry::global::shutdown_tracer_provider();
     } else {
-        std::env::set_var("RUST_LOG", &config.log);
-
         let registry = tracing_subscriber::Registry::default();
         if config.tracing_flame {
             let (flame_layer, _guard) =
@@ -259,7 +252,7 @@ async fn main() {
             start.await;
         } else {
             let fmt_layer = tracing_subscriber::fmt::Layer::new();
-            let filter_layer = EnvFilter::try_from_default_env()
+            let filter_layer = EnvFilter::try_new(&config.log)
                 .or_else(|_| EnvFilter::try_new("info"))
                 .unwrap();
 

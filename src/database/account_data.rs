@@ -6,7 +6,7 @@ use ruma::{
     RoomId, UserId,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::{collections::HashMap, convert::TryFrom, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use super::abstraction::Tree;
 

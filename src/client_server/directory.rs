@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Result, Ruma};
 use ruma::{
     api::{
