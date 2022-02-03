@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use maplit::hashset;
 use opentelemetry::trace::{FutureExt, Tracer};
 use rocket::{
     catch, catchers,
@@ -292,28 +293,26 @@ fn bad_json_catcher() -> Result<()> {
 }
 
 fn default_config() -> rocket::Config {
-    let mut config = rocket::Config::release_default();
+    use rocket::config::{LogLevel, Shutdown, Sig};
 
-    {
-        let mut shutdown = &mut config.shutdown;
+    rocket::Config {
+        // Disable rocket's logging to get only tracing-subscriber's log output
+        log_level: LogLevel::Off,
+        shutdown: Shutdown {
+            // Once shutdown is triggered, this is the amount of seconds before rocket
+            // will forcefully start shutting down connections, this gives enough time to /sync
+            // requests and the like (which havent gotten the memo, somehow) to still complete gracefully.
+            grace: 35,
 
-        #[cfg(unix)]
-        {
-            use rocket::config::Sig;
+            // After the grace period, rocket starts shutting down connections, and waits at least this
+            // many seconds before forcefully shutting all of them down.
+            mercy: 10,
 
-            shutdown.signals.insert(Sig::Term);
-            shutdown.signals.insert(Sig::Int);
-        }
+            #[cfg(unix)]
+            signals: hashset![Sig::Term, Sig::Int],
 
-        // Once shutdown is triggered, this is the amount of seconds before rocket
-        // will forcefully start shutting down connections, this gives enough time to /sync
-        // requests and the like (which havent gotten the memo, somehow) to still complete gracefully.
-        shutdown.grace = 35;
-
-        // After the grace period, rocket starts shutting down connections, and waits at least this
-        // many seconds before forcefully shutting all of them down.
-        shutdown.mercy = 10;
+            ..Shutdown::default()
+        },
+        ..rocket::Config::release_default()
     }
-
-    config
 }
