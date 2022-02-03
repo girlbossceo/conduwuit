@@ -3,7 +3,7 @@ use ruma::{
     api::client::{error::ErrorKind, r0::context::get_context},
     events::EventType,
 };
-use std::{collections::HashSet, convert::TryFrom};
+use std::collections::HashSet;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::get;

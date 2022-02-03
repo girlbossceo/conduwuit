@@ -60,7 +60,6 @@ use ruma::{
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
     collections::{btree_map, hash_map, BTreeMap, BTreeSet, HashMap, HashSet},
-    convert::{TryFrom, TryInto},
     fmt::Debug,
     future::Future,
     mem,

@@ -9,6 +9,7 @@
 
 use std::ops::Deref;
 
+mod config;
 mod database;
 mod error;
 mod pdu;
@@ -19,7 +20,8 @@ pub mod appservice_server;
 pub mod client_server;
 pub mod server_server;
 
-pub use database::{Config, Database};
+pub use config::Config;
+pub use database::Database;
 pub use error::{Error, Result};
 pub use pdu::PduEvent;
 pub use rocket::Config as RocketConfig;

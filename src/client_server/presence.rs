@@ -1,6 +1,6 @@
 use crate::{database::DatabaseGuard, utils, ConduitResult, Ruma};
 use ruma::api::client::r0::presence::{get_presence, set_presence};
-use std::{convert::TryInto, time::Duration};
+use std::time::Duration;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};

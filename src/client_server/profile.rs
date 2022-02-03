@@ -12,7 +12,7 @@ use ruma::{
     events::{room::member::RoomMemberEventContent, EventType},
 };
 use serde_json::value::to_raw_value;
-use std::{convert::TryInto, sync::Arc};
+use std::sync::Arc;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};

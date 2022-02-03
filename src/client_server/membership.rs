@@ -30,7 +30,6 @@ use ruma::{
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
     collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
-    convert::{TryFrom, TryInto},
     iter,
     sync::{Arc, RwLock},
     time::{Duration, Instant},

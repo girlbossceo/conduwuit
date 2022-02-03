@@ -14,7 +14,6 @@ use ruma::{
 };
 use std::{
     collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
-    convert::TryInto,
     sync::Arc,
     time::Duration,
 };
