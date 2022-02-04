@@ -8,8 +8,8 @@
 
 ```
 # Refer to your Coturn settings. 
-# `server.name` has to match the REALM setting of your Coturn as well as `transport`.
-turn_uris = ["turn:server.name?transport=udp", "turn:server.name?transport=tcp"]
+# `your.turn.url` has to match the REALM setting of your Coturn as well as `transport`.
+turn_uris = ["turn:your.turn.url?transport=udp", "turn:your.turn.url?transport=tcp"]
 
 # static-auth-secret of your turnserver
 turn_secret = "ADD SECRET HERE"
