@@ -35,7 +35,7 @@ or you can skip the build step and pull the image from one of the following regi
 | GitLab Registry | [registry.gitlab.com/famedly/conduit/matrix-conduit:latest][gl] | ![Image Size][shield] |
 
 [dh]: https://hub.docker.com/r/matrixconduit/matrix-conduit
-[gl]: https://gitlab.com/famedly/conduit/container_registry/
+[gl]: https://gitlab.com/famedly/conduit/container_registry/2497937
 [shield]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/latest
 
 The `-d` flag lets the container run in detached mode. You now need to supply a `conduit.toml` config file, an example can be found [here](../conduit-example.toml).
