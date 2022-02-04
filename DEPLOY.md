@@ -1,9 +1,9 @@
 # Deploying Conduit
 
-## Getting help
-
-If you run into any problems while setting up Conduit, write an email to `timo@koesters.xyz`, ask us
-in `#conduit:matrix.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
+> ## Getting help
+>
+> If you run into any problems while setting up Conduit, write an email to `timo@koesters.xyz`, ask us
+> in `#conduit:fachschaften.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
 
 ## Installing Conduit
 
@@ -12,17 +12,21 @@ only offer Linux binaries.
 
 You may simply download the binary that fits your machine. Run `uname -m` to see what you need. Now copy the right url:
 
-| CPU Architecture                            | Download stable version        |
-| ------------------------------------------- | ------------------------------ |
-| x84_64 / amd64 (Most servers and computers) | [Download][x84_64-musl-master] |
-| armv6                                       | [Download][armv6-musl-master]  |
-| armv7 (e.g. Raspberry Pi by default)        | [Download][armv7-musl-master]  |
-| armv8 / aarch64                             | [Download][armv8-musl-master]  |
+| CPU Architecture                            | Download stable version        | Download development version |
+| ------------------------------------------- | ------------------------------ | ---------------------------- |
+| x84_64 / amd64 (Most servers and computers) | [Download][x84_64-musl-master] | [Download][x84_64-musl-next] |
+| armv6                                       | [Download][armv6-musl-master]  | [Download][armv6-musl-next]  |
+| armv7 (e.g. Raspberry Pi by default)        | [Download][armv7-musl-master]  | [Download][armv7-musl-next]  |
+| armv8 / aarch64                             | [Download][armv8-musl-master]  | [Download][armv8-musl-next]  |
 
 [x84_64-musl-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-x86_64-unknown-linux-musl?job=build:release:cargo:x86_64-unknown-linux-musl
 [armv6-musl-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-arm-unknown-linux-musleabihf?job=build:release:cargo:arm-unknown-linux-musleabihf
 [armv7-musl-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-armv7-unknown-linux-musleabihf?job=build:release:cargo:armv7-unknown-linux-musleabihf
 [armv8-musl-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-aarch64-unknown-linux-musl?job=build:release:cargo:aarch64-unknown-linux-musl
+[x84_64-musl-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/conduit-x86_64-unknown-linux-musl?job=build:release:cargo:x86_64-unknown-linux-musl
+[armv6-musl-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/conduit-arm-unknown-linux-musleabihf?job=build:release:cargo:arm-unknown-linux-musleabihf
+[armv7-musl-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/conduit-armv7-unknown-linux-musleabihf?job=build:release:cargo:armv7-unknown-linux-musleabihf
+[armv8-musl-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/conduit-aarch64-unknown-linux-musl?job=build:release:cargo:aarch64-unknown-linux-musl
 
 ```bash
 $ sudo wget -O /usr/local/bin/matrix-conduit <url>
@@ -240,4 +244,5 @@ $ curl https://your.server.name/_matrix/client/versions
 $ curl https://your.server.name:8448/_matrix/client/versions
 ```
 
-If you want to set up an appservice, take a look at the [Appservice Guide](APPSERVICES.md).
+- To check if your server can talk with other homeservers, you can use the [Matrix Federation Tester](https://federationtester.matrix.org/)
+- If you want to set up an appservice, take a look at the [Appservice Guide](APPSERVICES.md).
