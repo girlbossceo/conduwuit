@@ -44,11 +44,12 @@ pub async fn search_events_route(
             ));
         }
 
-        let search = db
+        if let Some(search) = db
             .rooms
-            .search_pdus(&room_id, &search_criteria.search_term)?;
-
-        searches.push(search.0.peekable());
+            .search_pdus(&room_id, &search_criteria.search_term)?
+        {
+            searches.push(search.0.peekable());
+        }
     }
 
     let skip = match body.next_batch.as_ref().map(|s| s.parse()) {
