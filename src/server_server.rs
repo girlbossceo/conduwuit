@@ -236,21 +236,7 @@ where
 
     let url = reqwest_request.url().clone();
 
-    let mut client = globals.reqwest_client()?;
-    if let Some((override_name, port)) = globals
-        .tls_name_override
-        .read()
-        .unwrap()
-        .get(&actual_destination.hostname())
-    {
-        client = client.resolve(
-            &actual_destination.hostname(),
-            SocketAddr::new(override_name[0], *port),
-        );
-        // port will be ignored
-    }
-
-    let response = client.build()?.execute(reqwest_request).await;
+    let response = globals.federation_client().execute(reqwest_request).await;
 
     match response {
         Ok(mut response) => {
@@ -490,10 +476,7 @@ async fn request_well_known(
 ) -> Option<String> {
     let body: serde_json::Value = serde_json::from_str(
         &globals
-            .reqwest_client()
-            .ok()?
-            .build()
-            .ok()?
+            .default_client()
             .get(&format!(
                 "https://{}/.well-known/matrix/server",
                 destination
