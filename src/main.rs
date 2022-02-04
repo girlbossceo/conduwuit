@@ -26,10 +26,10 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 pub use conduit::*; // Re-export everything from the library crate
 pub use rocket::State;
 
-#[cfg(not(target_env = "msvc"))]
+#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
 
-#[cfg(not(target_env = "msvc"))]
+#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
