@@ -2018,7 +2018,7 @@ dependencies = [
 [[package]]
 name = "reqwest"
 version = "0.11.9"
-source = "git+https://github.com/niuhuan/reqwest?branch=dns-resolver-fn#57b7cf4feb921573dfafad7d34b9ac6e44ead0bd"
+source = "git+https://github.com/timokoesters/reqwest?rev=57b7cf4feb921573dfafad7d34b9ac6e44ead0bd#57b7cf4feb921573dfafad7d34b9ac6e44ead0bd"
 dependencies = [
  "base64 0.13.0",
  "bytes",

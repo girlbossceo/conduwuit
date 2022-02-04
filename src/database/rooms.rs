@@ -2771,7 +2771,7 @@ impl Rooms {
         &'a self,
         room_id: &RoomId,
         search_string: &str,
-    ) -> Result<(impl Iterator<Item = Vec<u8>> + 'a, Vec<String>)> {
+    ) -> Result<Option<(impl Iterator<Item = Vec<u8>> + 'a, Vec<String>)>> {
         let prefix = self
             .get_shortroomid(room_id)?
             .expect("room exists")
@@ -2799,19 +2799,20 @@ impl Rooms {
                 .map(|(key, _)| key[key.len() - size_of::<u64>()..].to_vec())
         });
 
-        Ok((
-            utils::common_elements(iterators, |a, b| {
-                // We compare b with a because we reversed the iterator earlier
-                b.cmp(a)
-            })
-            .unwrap()
-            .map(move |id| {
-                let mut pduid = prefix_clone.clone();
-                pduid.extend_from_slice(&id);
-                pduid
-            }),
-            words,
-        ))
+        Ok(utils::common_elements(iterators, |a, b| {
+            // We compare b with a because we reversed the iterator earlier
+            b.cmp(a)
+        })
+        .map(|iter| {
+            (
+                iter.map(move |id| {
+                    let mut pduid = prefix_clone.clone();
+                    pduid.extend_from_slice(&id);
+                    pduid
+                }),
+                words,
+            )
+        }))
     }
 
     #[tracing::instrument(skip(self))]
