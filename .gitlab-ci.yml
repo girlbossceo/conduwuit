@@ -117,7 +117,7 @@ build:release:cargo:aarch64-unknown-linux-musl:
 .cargo-debug-shared-settings:
   extends: ".build-cargo-shared-settings"
   rules:
-    - if: '$CI_COMMIT_BRANCH != "master"'
+    - when: "always"
   cache:
     key: "build_cache--$TARGET--$CI_COMMIT_BRANCH--debug"
   script:
