@@ -3,7 +3,7 @@ use ruma::api::client::{
     error::ErrorKind,
     r0::{
         device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
-        uiaa::{AuthFlow, UiaaInfo},
+        uiaa::{AuthFlow, AuthType, UiaaInfo},
     },
 };
 
@@ -25,11 +25,11 @@ pub async fn get_devices_route(
 ) -> ConduitResult<get_devices::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let devices = db
+    let devices: Vec<device::Device> = db
         .users
         .all_devices_metadata(sender_user)
         .filter_map(|r| r.ok()) // Filter out buggy devices
-        .collect::<Vec<device::Device>>();
+        .collect();
 
     Ok(get_devices::Response { devices }.into())
 }
@@ -50,7 +50,7 @@ pub async fn get_device_route(
 
     let device = db
         .users
-        .get_device_metadata(&sender_user, &body.body.device_id)?
+        .get_device_metadata(sender_user, &body.body.device_id)?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
 
     Ok(get_device::Response { device }.into())
@@ -72,20 +72,20 @@ pub async fn update_device_route(
 
     let mut device = db
         .users
-        .get_device_metadata(&sender_user, &body.device_id)?
+        .get_device_metadata(sender_user, &body.device_id)?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
 
     device.display_name = body.display_name.clone();
 
     db.users
-        .update_device_metadata(&sender_user, &body.device_id, &device)?;
+        .update_device_metadata(sender_user, &body.device_id, &device)?;
 
     db.flush()?;
 
     Ok(update_device::Response {}.into())
 }
 
-/// # `PUT /_matrix/client/r0/devices/{deviceId}`
+/// # `DELETE /_matrix/client/r0/devices/{deviceId}`
 ///
 /// Deletes the given device.
 ///
@@ -109,7 +109,7 @@ pub async fn delete_device_route(
     // UIAA
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -119,8 +119,8 @@ pub async fn delete_device_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &sender_user,
-            &sender_device,
+            sender_user,
+            sender_device,
             auth,
             &uiaainfo,
             &db.users,
@@ -133,13 +133,13 @@ pub async fn delete_device_route(
     } else if let Some(json) = body.json_body {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
         db.uiaa
-            .create(&sender_user, &sender_device, &uiaainfo, &json)?;
+            .create(sender_user, sender_device, &uiaainfo, &json)?;
         return Err(Error::Uiaa(uiaainfo));
     } else {
         return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
     }
 
-    db.users.remove_device(&sender_user, &body.device_id)?;
+    db.users.remove_device(sender_user, &body.device_id)?;
 
     db.flush()?;
 
@@ -172,7 +172,7 @@ pub async fn delete_devices_route(
     // UIAA
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -182,8 +182,8 @@ pub async fn delete_devices_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &sender_user,
-            &sender_device,
+            sender_user,
+            sender_device,
             auth,
             &uiaainfo,
             &db.users,
@@ -196,14 +196,14 @@ pub async fn delete_devices_route(
     } else if let Some(json) = body.json_body {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
         db.uiaa
-            .create(&sender_user, &sender_device, &uiaainfo, &json)?;
+            .create(sender_user, sender_device, &uiaainfo, &json)?;
         return Err(Error::Uiaa(uiaainfo));
     } else {
         return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
     }
 
     for device_id in &body.devices {
-        db.users.remove_device(&sender_user, &device_id)?
+        db.users.remove_device(sender_user, device_id)?
     }
 
     db.flush()?;

@@ -1,13 +1,17 @@
 use crate::{utils, Error, Result};
 use ruma::{
-    api::client::{error::ErrorKind, r0::device::Device},
+    api::client::{
+        error::ErrorKind,
+        r0::{device::Device, filter::IncomingFilterDefinition},
+    },
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::{AnyToDeviceEvent, EventType},
     identifiers::MxcUri,
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, UInt, UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, RoomAliasId, UInt,
+    UserId,
 };
-use std::{collections::BTreeMap, convert::TryFrom, mem, sync::Arc};
+use std::{collections::BTreeMap, mem, sync::Arc};
 use tracing::warn;
 
 use super::abstraction::Tree;
@@ -29,6 +33,8 @@ pub struct Users {
     pub(super) userid_masterkeyid: Arc<dyn Tree>,
     pub(super) userid_selfsigningkeyid: Arc<dyn Tree>,
     pub(super) userid_usersigningkeyid: Arc<dyn Tree>,
+
+    pub(super) userfilterid_filter: Arc<dyn Tree>, // UserFilterId = UserId + FilterId
 
     pub(super) todeviceid_events: Arc<dyn Tree>, // ToDeviceId = UserId + DeviceId + Count
 }
@@ -53,6 +59,21 @@ impl Users {
             .is_empty())
     }
 
+    /// Check if a user is an admin
+    #[tracing::instrument(skip(self, user_id, rooms, globals))]
+    pub fn is_admin(
+        &self,
+        user_id: &UserId,
+        rooms: &super::rooms::Rooms,
+        globals: &super::globals::Globals,
+    ) -> Result<bool> {
+        let admin_room_alias_id = RoomAliasId::parse(format!("#admins:{}", globals.server_name()))
+            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
+        let admin_room_id = rooms.id_from_alias(&admin_room_alias_id)?.unwrap();
+
+        rooms.is_joined(user_id, &admin_room_id)
+    }
+
     /// Create a new user account on this homeserver.
     #[tracing::instrument(skip(self, user_id, password))]
     pub fn create(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
@@ -68,7 +89,7 @@ impl Users {
 
     /// Find out which user an access token belongs to.
     #[tracing::instrument(skip(self, token))]
-    pub fn find_from_token(&self, token: &str) -> Result<Option<(UserId, String)>> {
+    pub fn find_from_token(&self, token: &str) -> Result<Option<(Box<UserId>, String)>> {
         self.token_userdeviceid
             .get(token.as_bytes())?
             .map_or(Ok(None), |bytes| {
@@ -81,13 +102,13 @@ impl Users {
                 })?;
 
                 Ok(Some((
-                    UserId::try_from(utils::string_from_bytes(&user_bytes).map_err(|_| {
+                    UserId::parse(utils::string_from_bytes(user_bytes).map_err(|_| {
                         Error::bad_database("User ID in token_userdeviceid is invalid unicode.")
                     })?)
                     .map_err(|_| {
                         Error::bad_database("User ID in token_userdeviceid is invalid.")
                     })?,
-                    utils::string_from_bytes(&device_bytes).map_err(|_| {
+                    utils::string_from_bytes(device_bytes).map_err(|_| {
                         Error::bad_database("Device ID in token_userdeviceid is invalid.")
                     })?,
                 )))
@@ -96,13 +117,49 @@ impl Users {
 
     /// Returns an iterator over all users on this homeserver.
     #[tracing::instrument(skip(self))]
-    pub fn iter(&self) -> impl Iterator<Item = Result<UserId>> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Result<Box<UserId>>> + '_ {
         self.userid_password.iter().map(|(bytes, _)| {
-            UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+            UserId::parse(utils::string_from_bytes(&bytes).map_err(|_| {
                 Error::bad_database("User ID in userid_password is invalid unicode.")
             })?)
             .map_err(|_| Error::bad_database("User ID in userid_password is invalid."))
         })
+    }
+
+    /// Returns a list of local users as list of usernames.
+    ///
+    /// A user account is considered `local` if the length of it's password is greater then zero.
+    #[tracing::instrument(skip(self))]
+    pub fn list_local_users(&self) -> Result<Vec<String>> {
+        let users: Vec<String> = self
+            .userid_password
+            .iter()
+            .filter_map(|(username, pw)| self.get_username_with_valid_password(&username, &pw))
+            .collect();
+        Ok(users)
+    }
+
+    /// Will only return with Some(username) if the password was not empty and the
+    /// username could be successfully parsed.
+    /// If utils::string_from_bytes(...) returns an error that username will be skipped
+    /// and the error will be logged.
+    #[tracing::instrument(skip(self))]
+    fn get_username_with_valid_password(&self, username: &[u8], password: &[u8]) -> Option<String> {
+        // A valid password is not empty
+        if password.is_empty() {
+            None
+        } else {
+            match utils::string_from_bytes(username) {
+                Ok(u) => Some(u),
+                Err(e) => {
+                    warn!(
+                        "Failed to parse username while calling get_local_users(): {}",
+                        e.to_string()
+                    );
+                    None
+                }
+            }
+        }
     }
 
     /// Returns the password hash for the given user.
@@ -121,7 +178,7 @@ impl Users {
     #[tracing::instrument(skip(self, user_id, password))]
     pub fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
         if let Some(password) = password {
-            if let Ok(hash) = utils::calculate_hash(&password) {
+            if let Ok(hash) = utils::calculate_hash(password) {
                 self.userid_password
                     .insert(user_id.as_bytes(), hash.as_bytes())?;
                 Ok(())
@@ -164,20 +221,21 @@ impl Users {
 
     /// Get the avatar_url of a user.
     #[tracing::instrument(skip(self, user_id))]
-    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<MxcUri>> {
+    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<Box<MxcUri>>> {
         self.userid_avatarurl
             .get(user_id.as_bytes())?
             .map(|bytes| {
                 let s = utils::string_from_bytes(&bytes)
                     .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))?;
-                MxcUri::try_from(s).map_err(|_| Error::bad_database("Avatar URL in db is invalid."))
+                s.try_into()
+                    .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))
             })
             .transpose()
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
     #[tracing::instrument(skip(self, user_id, avatar_url))]
-    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<MxcUri>) -> Result<()> {
+    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<Box<MxcUri>>) -> Result<()> {
         if let Some(avatar_url) = avatar_url {
             self.userid_avatarurl
                 .insert(user_id.as_bytes(), avatar_url.to_string().as_bytes())?;
@@ -245,7 +303,7 @@ impl Users {
             .expect("Device::to_string never fails."),
         )?;
 
-        self.set_token(user_id, &device_id, token)?;
+        self.set_token(user_id, device_id, token)?;
 
         Ok(())
     }
@@ -294,7 +352,7 @@ impl Users {
             .scan_prefix(prefix)
             .map(|(bytes, _)| {
                 Ok(utils::string_from_bytes(
-                    &bytes
+                    bytes
                         .rsplit(|&b| b == 0xff)
                         .next()
                         .ok_or_else(|| Error::bad_database("UserDevice ID in db is invalid."))?,
@@ -342,7 +400,7 @@ impl Users {
         user_id: &UserId,
         device_id: &DeviceId,
         one_time_key_key: &DeviceKeyId,
-        one_time_key_value: &OneTimeKey,
+        one_time_key_value: &Raw<OneTimeKey>,
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let mut key = user_id.as_bytes().to_vec();
@@ -357,7 +415,7 @@ impl Users {
         // TODO: Use DeviceKeyId::to_string when it's available (and update everything,
         // because there are no wrapping quotation marks anymore)
         key.extend_from_slice(
-            &serde_json::to_string(one_time_key_key)
+            serde_json::to_string(one_time_key_key)
                 .expect("DeviceKeyId::to_string always works")
                 .as_bytes(),
         );
@@ -368,7 +426,7 @@ impl Users {
         )?;
 
         self.userid_lastonetimekeyupdate
-            .insert(&user_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
+            .insert(user_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
 
         Ok(())
     }
@@ -376,7 +434,7 @@ impl Users {
     #[tracing::instrument(skip(self, user_id))]
     pub fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
         self.userid_lastonetimekeyupdate
-            .get(&user_id.as_bytes())?
+            .get(user_id.as_bytes())?
             .map(|bytes| {
                 utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Count in roomid_lastroomactiveupdate is invalid.")
@@ -392,7 +450,7 @@ impl Users {
         device_id: &DeviceId,
         key_algorithm: &DeviceKeyAlgorithm,
         globals: &super::globals::Globals,
-    ) -> Result<Option<(DeviceKeyId, OneTimeKey)>> {
+    ) -> Result<Option<(Box<DeviceKeyId>, Raw<OneTimeKey>)>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(device_id.as_bytes());
@@ -402,7 +460,7 @@ impl Users {
         prefix.push(b':');
 
         self.userid_lastonetimekeyupdate
-            .insert(&user_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
+            .insert(user_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
 
         self.onetimekeyid_onetimekeys
             .scan_prefix(prefix)
@@ -442,7 +500,7 @@ impl Users {
                 .scan_prefix(userdeviceid)
                 .map(|(bytes, _)| {
                     Ok::<_, Error>(
-                        serde_json::from_slice::<DeviceKeyId>(
+                        serde_json::from_slice::<Box<DeviceKeyId>>(
                             &*bytes.rsplit(|&b| b == 0xff).next().ok_or_else(|| {
                                 Error::bad_database("OneTimeKey ID in db is invalid.")
                             })?,
@@ -463,7 +521,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-        device_keys: &DeviceKeys,
+        device_keys: &Raw<DeviceKeys>,
         rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -492,9 +550,9 @@ impl Users {
     pub fn add_cross_signing_keys(
         &self,
         user_id: &UserId,
-        master_key: &CrossSigningKey,
-        self_signing_key: &Option<CrossSigningKey>,
-        user_signing_key: &Option<CrossSigningKey>,
+        master_key: &Raw<CrossSigningKey>,
+        self_signing_key: &Option<Raw<CrossSigningKey>>,
+        user_signing_key: &Option<Raw<CrossSigningKey>>,
         rooms: &super::rooms::Rooms,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -504,7 +562,12 @@ impl Users {
         prefix.push(0xff);
 
         // Master key
-        let mut master_key_ids = master_key.keys.values();
+        let mut master_key_ids = master_key
+            .deserialize()
+            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid master key"))?
+            .keys
+            .into_values();
+
         let master_key_id = master_key_ids.next().ok_or(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Master key contained no key.",
@@ -520,17 +583,22 @@ impl Users {
         let mut master_key_key = prefix.clone();
         master_key_key.extend_from_slice(master_key_id.as_bytes());
 
-        self.keyid_key.insert(
-            &master_key_key,
-            &serde_json::to_vec(&master_key).expect("CrossSigningKey::to_vec always works"),
-        )?;
+        self.keyid_key
+            .insert(&master_key_key, master_key.json().get().as_bytes())?;
 
         self.userid_masterkeyid
             .insert(user_id.as_bytes(), &master_key_key)?;
 
         // Self-signing key
         if let Some(self_signing_key) = self_signing_key {
-            let mut self_signing_key_ids = self_signing_key.keys.values();
+            let mut self_signing_key_ids = self_signing_key
+                .deserialize()
+                .map_err(|_| {
+                    Error::BadRequest(ErrorKind::InvalidParam, "Invalid self signing key")
+                })?
+                .keys
+                .into_values();
+
             let self_signing_key_id = self_signing_key_ids.next().ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Self signing key contained no key.",
@@ -548,8 +616,7 @@ impl Users {
 
             self.keyid_key.insert(
                 &self_signing_key_key,
-                &serde_json::to_vec(&self_signing_key)
-                    .expect("CrossSigningKey::to_vec always works"),
+                self_signing_key.json().get().as_bytes(),
             )?;
 
             self.userid_selfsigningkeyid
@@ -558,7 +625,14 @@ impl Users {
 
         // User-signing key
         if let Some(user_signing_key) = user_signing_key {
-            let mut user_signing_key_ids = user_signing_key.keys.values();
+            let mut user_signing_key_ids = user_signing_key
+                .deserialize()
+                .map_err(|_| {
+                    Error::BadRequest(ErrorKind::InvalidParam, "Invalid user signing key")
+                })?
+                .keys
+                .into_values();
+
             let user_signing_key_id = user_signing_key_ids.next().ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "User signing key contained no key.",
@@ -576,8 +650,7 @@ impl Users {
 
             self.keyid_key.insert(
                 &user_signing_key_key,
-                &serde_json::to_vec(&user_signing_key)
-                    .expect("CrossSigningKey::to_vec always works"),
+                user_signing_key.json().get().as_bytes(),
             )?;
 
             self.userid_usersigningkeyid
@@ -603,10 +676,11 @@ impl Users {
         key.push(0xff);
         key.extend_from_slice(key_id.as_bytes());
 
-        let mut cross_signing_key =
-            serde_json::from_slice::<serde_json::Value>(&self.keyid_key.get(&key)?.ok_or(
-                Error::BadRequest(ErrorKind::InvalidParam, "Tried to sign nonexistent key."),
-            )?)
+        let mut cross_signing_key: serde_json::Value =
+            serde_json::from_slice(&self.keyid_key.get(&key)?.ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Tried to sign nonexistent key.",
+            ))?)
             .map_err(|_| Error::bad_database("key in keyid_key is invalid."))?;
 
         let signatures = cross_signing_key
@@ -614,7 +688,7 @@ impl Users {
             .ok_or_else(|| Error::bad_database("key in keyid_key has no signatures field."))?
             .as_object_mut()
             .ok_or_else(|| Error::bad_database("key in keyid_key has invalid signatures field."))?
-            .entry(sender_id.clone())
+            .entry(sender_id.to_owned())
             .or_insert_with(|| serde_json::Map::new().into());
 
         signatures
@@ -639,7 +713,7 @@ impl Users {
         user_or_room_id: &str,
         from: u64,
         to: Option<u64>,
-    ) -> impl Iterator<Item = Result<UserId>> + 'a {
+    ) -> impl Iterator<Item = Result<Box<UserId>>> + 'a {
         let mut prefix = user_or_room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -665,7 +739,7 @@ impl Users {
                     }
             })
             .map(|(_, bytes)| {
-                UserId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                UserId::parse(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("User ID in devicekeychangeid_userid is invalid unicode.")
                 })?)
                 .map_err(|_| Error::bad_database("User ID in devicekeychangeid_userid is invalid."))
@@ -680,7 +754,7 @@ impl Users {
         globals: &super::globals::Globals,
     ) -> Result<()> {
         let count = globals.next_count()?.to_be_bytes();
-        for room_id in rooms.rooms_joined(&user_id).filter_map(|r| r.ok()) {
+        for room_id in rooms.rooms_joined(user_id).filter_map(|r| r.ok()) {
             // Don't send key updates to unencrypted rooms
             if rooms
                 .room_state_get(&room_id, &EventType::RoomEncryption, "")?
@@ -709,7 +783,7 @@ impl Users {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-    ) -> Result<Option<DeviceKeys>> {
+    ) -> Result<Option<Raw<DeviceKeys>>> {
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(device_id.as_bytes());
@@ -726,25 +800,19 @@ impl Users {
         &self,
         user_id: &UserId,
         allowed_signatures: F,
-    ) -> Result<Option<CrossSigningKey>> {
+    ) -> Result<Option<Raw<CrossSigningKey>>> {
         self.userid_masterkeyid
             .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
                 self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
-                    let mut cross_signing_key = serde_json::from_slice::<CrossSigningKey>(&bytes)
-                        .map_err(|_| {
-                        Error::bad_database("CrossSigningKey in db is invalid.")
-                    })?;
+                    let mut cross_signing_key = serde_json::from_slice::<serde_json::Value>(&bytes)
+                        .map_err(|_| Error::bad_database("CrossSigningKey in db is invalid."))?;
+                    clean_signatures(&mut cross_signing_key, user_id, allowed_signatures)?;
 
-                    // A user is not allowed to see signatures from users other than himself and
-                    // the target user
-                    cross_signing_key.signatures = cross_signing_key
-                        .signatures
-                        .into_iter()
-                        .filter(|(user, _)| allowed_signatures(user))
-                        .collect();
-
-                    Ok(Some(cross_signing_key))
+                    Ok(Some(Raw::from_json(
+                        serde_json::value::to_raw_value(&cross_signing_key)
+                            .expect("Value to RawValue serialization"),
+                    )))
                 })
             })
     }
@@ -754,31 +822,25 @@ impl Users {
         &self,
         user_id: &UserId,
         allowed_signatures: F,
-    ) -> Result<Option<CrossSigningKey>> {
+    ) -> Result<Option<Raw<CrossSigningKey>>> {
         self.userid_selfsigningkeyid
             .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
                 self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
-                    let mut cross_signing_key = serde_json::from_slice::<CrossSigningKey>(&bytes)
-                        .map_err(|_| {
-                        Error::bad_database("CrossSigningKey in db is invalid.")
-                    })?;
+                    let mut cross_signing_key = serde_json::from_slice::<serde_json::Value>(&bytes)
+                        .map_err(|_| Error::bad_database("CrossSigningKey in db is invalid."))?;
+                    clean_signatures(&mut cross_signing_key, user_id, allowed_signatures)?;
 
-                    // A user is not allowed to see signatures from users other than himself and
-                    // the target user
-                    cross_signing_key.signatures = cross_signing_key
-                        .signatures
-                        .into_iter()
-                        .filter(|(user, _)| user == user_id || allowed_signatures(user))
-                        .collect();
-
-                    Ok(Some(cross_signing_key))
+                    Ok(Some(Raw::from_json(
+                        serde_json::value::to_raw_value(&cross_signing_key)
+                            .expect("Value to RawValue serialization"),
+                    )))
                 })
             })
     }
 
     #[tracing::instrument(skip(self, user_id))]
-    pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<CrossSigningKey>> {
+    pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<Raw<CrossSigningKey>>> {
         self.userid_usersigningkeyid
             .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
@@ -961,7 +1023,7 @@ impl Users {
     pub fn deactivate_account(&self, user_id: &UserId) -> Result<()> {
         // Remove all associated devices
         for device_id in self.all_device_ids(user_id) {
-            self.remove_device(&user_id, &device_id?)?;
+            self.remove_device(user_id, &device_id?)?;
         }
 
         // Set the password to "" to indicate a deactivated account. Hashes will never result in an
@@ -972,4 +1034,72 @@ impl Users {
         // TODO: Unhook 3PID
         Ok(())
     }
+
+    /// Creates a new sync filter. Returns the filter id.
+    #[tracing::instrument(skip(self))]
+    pub fn create_filter(
+        &self,
+        user_id: &UserId,
+        filter: &IncomingFilterDefinition,
+    ) -> Result<String> {
+        let filter_id = utils::random_string(4);
+
+        let mut key = user_id.as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(filter_id.as_bytes());
+
+        self.userfilterid_filter.insert(
+            &key,
+            &serde_json::to_vec(&filter).expect("filter is valid json"),
+        )?;
+
+        Ok(filter_id)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_filter(
+        &self,
+        user_id: &UserId,
+        filter_id: &str,
+    ) -> Result<Option<IncomingFilterDefinition>> {
+        let mut key = user_id.as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(filter_id.as_bytes());
+
+        let raw = self.userfilterid_filter.get(&key)?;
+
+        if let Some(raw) = raw {
+            serde_json::from_slice(&raw)
+                .map_err(|_| Error::bad_database("Invalid filter event in db."))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// Ensure that a user only sees signatures from themselves and the target user
+fn clean_signatures<F: Fn(&UserId) -> bool>(
+    cross_signing_key: &mut serde_json::Value,
+    user_id: &UserId,
+    allowed_signatures: F,
+) -> Result<(), Error> {
+    if let Some(signatures) = cross_signing_key
+        .get_mut("signatures")
+        .and_then(|v| v.as_object_mut())
+    {
+        // Don't allocate for the full size of the current signatures, but require
+        // at most one resize if nothing is dropped
+        let new_capacity = signatures.len() / 2;
+        for (user, signature) in
+            mem::replace(signatures, serde_json::Map::with_capacity(new_capacity))
+        {
+            let id = <&UserId>::try_from(user.as_str())
+                .map_err(|_| Error::bad_database("Invalid user ID in database."))?;
+            if id == user_id || allowed_signatures(id) {
+                signatures.insert(user, signature);
+            }
+        }
+    }
+
+    Ok(())
 }

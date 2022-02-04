@@ -60,10 +60,10 @@ pub async fn login_route(
     // Validate login method
     // TODO: Other login methods
     let user_id = match &body.login_info {
-        login::IncomingLoginInfo::Password {
+        login::IncomingLoginInfo::Password(login::IncomingPassword {
             identifier,
             password,
-        } => {
+        }) => {
             let username = if let IncomingUserIdentifier::MatrixId(matrix_id) = identifier {
                 matrix_id
             } else {
@@ -97,11 +97,11 @@ pub async fn login_route(
 
             user_id
         }
-        login::IncomingLoginInfo::Token { token } => {
+        login::IncomingLoginInfo::Token(login::IncomingToken { token }) => {
             if let Some(jwt_decoding_key) = db.globals.jwt_decoding_key() {
                 let token = jsonwebtoken::decode::<Claims>(
-                    &token,
-                    &jwt_decoding_key,
+                    token,
+                    jwt_decoding_key,
                     &jsonwebtoken::Validation::default(),
                 )
                 .map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Token is invalid."))?;
@@ -115,6 +115,12 @@ pub async fn login_route(
                     "Token login is not supported (server has no jwt decoding key).",
                 ));
             }
+        }
+        _ => {
+            return Err(Error::BadRequest(
+                ErrorKind::Unknown,
+                "Unsupported login type.",
+            ));
         }
     };
 
@@ -179,7 +185,7 @@ pub async fn logout_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-    db.users.remove_device(&sender_user, sender_device)?;
+    db.users.remove_device(sender_user, sender_device)?;
 
     db.flush()?;
 
@@ -209,7 +215,7 @@ pub async fn logout_all_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     for device_id in db.users.all_device_ids(sender_user).flatten() {
-        db.users.remove_device(&sender_user, &device_id)?;
+        db.users.remove_device(sender_user, &device_id)?;
     }
 
     db.flush()?;

@@ -10,8 +10,8 @@ use ruma::{
     },
     events::{
         room::{
-            canonical_alias::CanonicalAliasEventContent,
-            history_visibility::{HistoryVisibility, HistoryVisibilityEventContent},
+            canonical_alias::RoomCanonicalAliasEventContent,
+            history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
         },
         AnyStateEventContent, EventType,
     },
@@ -44,7 +44,7 @@ pub async fn send_state_event_for_key_route(
         &db,
         sender_user,
         &body.room_id,
-        EventType::from(&body.event_type),
+        EventType::from(&*body.event_type),
         &body.body.body, // Yes, I hate it too
         body.state_key.to_owned(),
     )
@@ -52,6 +52,7 @@ pub async fn send_state_event_for_key_route(
 
     db.flush()?;
 
+    let event_id = (*event_id).to_owned();
     Ok(send_state_event::Response { event_id }.into())
 }
 
@@ -73,11 +74,19 @@ pub async fn send_state_event_for_empty_key_route(
 ) -> ConduitResult<send_state_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    // Forbid m.room.encryption if encryption is disabled
+    if &body.event_type == "m.room.encryption" && !db.globals.allow_encryption() {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Encryption has been disabled",
+        ));
+    }
+
     let event_id = send_state_event_for_key_helper(
         &db,
         sender_user,
         &body.room_id,
-        EventType::from(&body.event_type),
+        EventType::from(&*body.event_type),
         &body.body.body,
         body.state_key.to_owned(),
     )
@@ -85,6 +94,7 @@ pub async fn send_state_event_for_empty_key_route(
 
     db.flush()?;
 
+    let event_id = (*event_id).to_owned();
     Ok(send_state_event::Response { event_id }.into())
 }
 
@@ -112,13 +122,13 @@ pub async fn get_state_events_route(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
                 .map(|event| {
-                    serde_json::from_value::<HistoryVisibilityEventContent>(event.content.clone())
+                    serde_json::from_str(event.content.get())
+                        .map(|e: RoomHistoryVisibilityEventContent| e.history_visibility)
                         .map_err(|_| {
                             Error::bad_database(
                                 "Invalid room history visibility event in database.",
                             )
                         })
-                        .map(|e| e.history_visibility)
                 }),
             Some(Ok(HistoryVisibility::WorldReadable))
         )
@@ -164,13 +174,13 @@ pub async fn get_state_events_for_key_route(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
                 .map(|event| {
-                    serde_json::from_value::<HistoryVisibilityEventContent>(event.content.clone())
+                    serde_json::from_str(event.content.get())
+                        .map(|e: RoomHistoryVisibilityEventContent| e.history_visibility)
                         .map_err(|_| {
                             Error::bad_database(
                                 "Invalid room history visibility event in database.",
                             )
                         })
-                        .map(|e| e.history_visibility)
                 }),
             Some(Ok(HistoryVisibility::WorldReadable))
         )
@@ -190,7 +200,7 @@ pub async fn get_state_events_for_key_route(
         ))?;
 
     Ok(get_state_events_for_key::Response {
-        content: serde_json::from_value(event.content.clone())
+        content: serde_json::from_str(event.content.get())
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
     .into())
@@ -220,13 +230,13 @@ pub async fn get_state_events_for_empty_key_route(
             db.rooms
                 .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
                 .map(|event| {
-                    serde_json::from_value::<HistoryVisibilityEventContent>(event.content.clone())
+                    serde_json::from_str(event.content.get())
+                        .map(|e: RoomHistoryVisibilityEventContent| e.history_visibility)
                         .map_err(|_| {
                             Error::bad_database(
                                 "Invalid room history visibility event in database.",
                             )
                         })
-                        .map(|e| e.history_visibility)
                 }),
             Some(Ok(HistoryVisibility::WorldReadable))
         )
@@ -246,7 +256,7 @@ pub async fn get_state_events_for_empty_key_route(
         ))?;
 
     Ok(get_state_events_for_key::Response {
-        content: serde_json::from_value(event.content.clone())
+        content: serde_json::from_str(event.content.get())
             .map_err(|_| Error::bad_database("Invalid event content in database"))?,
     }
     .into())
@@ -259,13 +269,13 @@ async fn send_state_event_for_key_helper(
     event_type: EventType,
     json: &Raw<AnyStateEventContent>,
     state_key: String,
-) -> Result<EventId> {
+) -> Result<Arc<EventId>> {
     let sender_user = sender;
 
     // TODO: Review this check, error if event is unparsable, use event type, allow alias if it
     // previously existed
     if let Ok(canonical_alias) =
-        serde_json::from_str::<CanonicalAliasEventContent>(json.json().get())
+        serde_json::from_str::<RoomCanonicalAliasEventContent>(json.json().get())
     {
         let mut aliases = canonical_alias.alt_aliases.clone();
 
@@ -295,7 +305,7 @@ async fn send_state_event_for_key_helper(
             .roomid_mutex_state
             .write()
             .unwrap()
-            .entry(room_id.clone())
+            .entry(room_id.to_owned())
             .or_default(),
     );
     let state_lock = mutex_state.lock().await;
@@ -308,9 +318,9 @@ async fn send_state_event_for_key_helper(
             state_key: Some(state_key),
             redacts: None,
         },
-        &sender_user,
-        &room_id,
-        &db,
+        sender_user,
+        room_id,
+        db,
         &state_lock,
     )?;
 

@@ -3,11 +3,12 @@ use std::sync::Arc;
 use crate::{database::DatabaseGuard, pdu::PduBuilder, ConduitResult, Ruma};
 use ruma::{
     api::client::r0::redact::redact_event,
-    events::{room::redaction, EventType},
+    events::{room::redaction::RoomRedactionEventContent, EventType},
 };
 
 #[cfg(feature = "conduit_bin")]
 use rocket::put;
+use serde_json::value::to_raw_value;
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/redact/{eventId}/{txnId}`
 ///
@@ -24,6 +25,7 @@ pub async fn redact_event_route(
     body: Ruma<redact_event::Request<'_>>,
 ) -> ConduitResult<redact_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let body = body.body;
 
     let mutex_state = Arc::clone(
         db.globals
@@ -38,15 +40,15 @@ pub async fn redact_event_route(
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
             event_type: EventType::RoomRedaction,
-            content: serde_json::to_value(redaction::RedactionEventContent {
+            content: to_raw_value(&RoomRedactionEventContent {
                 reason: body.reason.clone(),
             })
             .expect("event is valid, we just created it"),
             unsigned: None,
             state_key: None,
-            redacts: Some(body.event_id.clone()),
+            redacts: Some(body.event_id.into()),
         },
-        &sender_user,
+        sender_user,
         &body.room_id,
         &db,
         &state_lock,
@@ -56,5 +58,6 @@ pub async fn redact_event_route(
 
     db.flush()?;
 
+    let event_id = (*event_id).to_owned();
     Ok(redact_event::Response { event_id }.into())
 }

@@ -1,38 +1,47 @@
 mod edus;
 
 pub use edus::RoomEdus;
-use member::MembershipState;
 
-use crate::{pdu::PduBuilder, server_server, utils, Database, Error, PduEvent, Result};
+use crate::{
+    pdu::{EventHash, PduBuilder},
+    utils, Database, Error, PduEvent, Result,
+};
 use lru_cache::LruCache;
 use regex::Regex;
 use ring::digest;
-use rocket::http::RawStr;
 use ruma::{
     api::{client::error::ErrorKind, federation},
     events::{
-        ignored_user_list, push_rules,
+        direct::DirectEvent,
+        ignored_user_list::IgnoredUserListEvent,
+        push_rules::PushRulesEvent,
         room::{
-            create::CreateEventContent, member, message, power_levels::PowerLevelsEventContent,
+            create::RoomCreateEventContent,
+            member::{MembershipState, RoomMemberEventContent},
+            power_levels::RoomPowerLevelsEventContent,
         },
+        tag::TagEvent,
         AnyStrippedStateEvent, AnySyncStateEvent, EventType,
     },
-    push::{self, Action, Tweak},
+    push::{Action, Ruleset, Tweak},
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
     state_res::{self, RoomVersion, StateMap},
-    uint, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
+    uint, DeviceId, EventId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
+use serde::Deserialize;
+use serde_json::value::to_raw_value;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
-    convert::{TryFrom, TryInto},
+    fmt::Debug,
+    iter,
     mem::size_of,
     sync::{Arc, Mutex, RwLock},
-    time::Instant,
 };
 use tokio::sync::MutexGuard;
 use tracing::{error, warn};
 
-use super::{abstraction::Tree, admin::AdminCommand, pusher};
+use super::{abstraction::Tree, pusher};
 
 /// The unique identifier of each state group.
 ///
@@ -42,7 +51,7 @@ pub type StateHashId = Vec<u8>;
 pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 
 pub struct Rooms {
-    pub edus: edus::RoomEdus,
+    pub edus: RoomEdus,
     pub(super) pduid_pdu: Arc<dyn Tree>, // PduId = ShortRoomId + Count
     pub(super) eventid_pduid: Arc<dyn Tree>,
     pub(super) roomid_pduleaves: Arc<dyn Tree>,
@@ -65,6 +74,8 @@ pub struct Rooms {
     pub(super) roomuserid_invitecount: Arc<dyn Tree>, // InviteCount = Count
     pub(super) userroomid_leftstate: Arc<dyn Tree>,
     pub(super) roomuserid_leftcount: Arc<dyn Tree>,
+
+    pub(super) lazyloadedids: Arc<dyn Tree>, // LazyLoadedIds = UserId + DeviceId + RoomId + LazyLoadedUserId
 
     pub(super) userroomid_notificationcount: Arc<dyn Tree>, // NotifyCount = u64
     pub(super) userroomid_highlightcount: Arc<dyn Tree>,    // HightlightCount = u64
@@ -96,14 +107,16 @@ pub struct Rooms {
     /// RoomId + EventId -> Parent PDU EventId.
     pub(super) referencedevents: Arc<dyn Tree>,
 
-    pub(super) pdu_cache: Mutex<LruCache<EventId, Arc<PduEvent>>>,
+    pub(super) pdu_cache: Mutex<LruCache<Box<EventId>, Arc<PduEvent>>>,
     pub(super) shorteventid_cache: Mutex<LruCache<u64, Arc<EventId>>>,
     pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<HashSet<u64>>>>,
-    pub(super) eventidshort_cache: Mutex<LruCache<EventId, u64>>,
+    pub(super) eventidshort_cache: Mutex<LruCache<Box<EventId>, u64>>,
     pub(super) statekeyshort_cache: Mutex<LruCache<(EventType, String), u64>>,
     pub(super) shortstatekey_cache: Mutex<LruCache<u64, (EventType, String)>>,
-    pub(super) our_real_users_cache: RwLock<HashMap<RoomId, Arc<HashSet<UserId>>>>,
-    pub(super) appservice_in_room_cache: RwLock<HashMap<RoomId, HashMap<String, bool>>>,
+    pub(super) our_real_users_cache: RwLock<HashMap<Box<RoomId>, Arc<HashSet<Box<UserId>>>>>,
+    pub(super) appservice_in_room_cache: RwLock<HashMap<Box<RoomId>, HashMap<String, bool>>>,
+    pub(super) lazy_load_waiting:
+        Mutex<HashMap<(Box<UserId>, Box<DeviceId>, Box<RoomId>, u64), HashSet<Box<UserId>>>>,
     pub(super) stateinfo_cache: Mutex<
         LruCache<
             u64,
@@ -210,16 +223,16 @@ impl Rooms {
         self.eventid_shorteventid
             .get(event_id.as_bytes())?
             .map_or(Ok(None), |shorteventid| {
-                self.shorteventid_shortstatehash.get(&shorteventid)?.map_or(
-                    Ok::<_, Error>(None),
-                    |bytes| {
-                        Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
+                self.shorteventid_shortstatehash
+                    .get(&shorteventid)?
+                    .map(|bytes| {
+                        utils::u64_from_bytes(&bytes).map_err(|_| {
                             Error::bad_database(
                                 "Invalid shortstatehash bytes in shorteventid_shortstatehash",
                             )
-                        })?))
-                    },
-                )
+                        })
+                    })
+                    .transpose()
             })
     }
 
@@ -243,7 +256,7 @@ impl Rooms {
         kind: &EventType,
         sender: &UserId,
         state_key: Option<&str>,
-        content: &serde_json::Value,
+        content: &serde_json::value::RawValue,
     ) -> Result<StateMap<Arc<PduEvent>>> {
         let shortstatehash =
             if let Some(current_shortstatehash) = self.current_shortstatehash(room_id)? {
@@ -252,12 +265,8 @@ impl Rooms {
                 return Ok(HashMap::new());
             };
 
-        let auth_events = state_res::auth_types_for_event(
-            kind,
-            sender,
-            state_key.map(|s| s.to_string()),
-            content.clone(),
-        );
+        let auth_events = state_res::auth_types_for_event(kind, sender, state_key, content)
+            .expect("content is a valid JSON object");
 
         let mut sauthevents = auth_events
             .into_iter()
@@ -344,7 +353,7 @@ impl Rooms {
         new_state_ids_compressed: HashSet<CompressedStateEvent>,
         db: &Database,
     ) -> Result<()> {
-        let previous_shortstatehash = self.current_shortstatehash(&room_id)?;
+        let previous_shortstatehash = self.current_shortstatehash(room_id)?;
 
         let state_hash = self.calculate_hash(
             &new_state_ids_compressed
@@ -365,16 +374,16 @@ impl Rooms {
 
         let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last()
         {
-            let statediffnew = new_state_ids_compressed
+            let statediffnew: HashSet<_> = new_state_ids_compressed
                 .difference(&parent_stateinfo.1)
-                .cloned()
-                .collect::<HashSet<_>>();
+                .copied()
+                .collect();
 
-            let statediffremoved = parent_stateinfo
+            let statediffremoved: HashSet<_> = parent_stateinfo
                 .1
                 .difference(&new_state_ids_compressed)
-                .cloned()
-                .collect::<HashSet<_>>();
+                .copied()
+                .collect();
 
             (statediffnew, statediffremoved)
         } else {
@@ -396,40 +405,46 @@ impl Rooms {
                 .ok()
                 .map(|(_, id)| id)
         }) {
-            if let Some(pdu) = self.get_pdu_json(&event_id)? {
-                if pdu.get("type").and_then(|val| val.as_str()) == Some("m.room.member") {
-                    if let Ok(pdu) = serde_json::from_value::<PduEvent>(
-                        serde_json::to_value(&pdu).expect("CanonicalJsonObj is a valid JsonValue"),
-                    ) {
-                        if let Some(membership) =
-                            pdu.content.get("membership").and_then(|membership| {
-                                serde_json::from_value::<member::MembershipState>(
-                                    membership.clone(),
-                                )
-                                .ok()
-                            })
-                        {
-                            if let Some(state_key) = pdu
-                                .state_key
-                                .and_then(|state_key| UserId::try_from(state_key).ok())
-                            {
-                                self.update_membership(
-                                    room_id,
-                                    &state_key,
-                                    membership,
-                                    &pdu.sender,
-                                    None,
-                                    db,
-                                    false,
-                                )?;
-                            }
-                        }
-                    }
-                }
+            let pdu = match self.get_pdu_json(&event_id)? {
+                Some(pdu) => pdu,
+                None => continue,
+            };
+
+            if pdu.get("type").and_then(|val| val.as_str()) != Some("m.room.member") {
+                continue;
             }
+
+            let pdu: PduEvent = match serde_json::from_str(
+                &serde_json::to_string(&pdu).expect("CanonicalJsonObj can be serialized to JSON"),
+            ) {
+                Ok(pdu) => pdu,
+                Err(_) => continue,
+            };
+
+            #[derive(Deserialize)]
+            struct ExtractMembership {
+                membership: MembershipState,
+            }
+
+            let membership = match serde_json::from_str::<ExtractMembership>(pdu.content.get()) {
+                Ok(e) => e.membership,
+                Err(_) => continue,
+            };
+
+            let state_key = match pdu.state_key {
+                Some(k) => k,
+                None => continue,
+            };
+
+            let user_id = match UserId::parse(state_key) {
+                Ok(id) => id,
+                Err(_) => continue,
+            };
+
+            self.update_membership(room_id, &user_id, membership, &pdu.sender, None, db, false)?;
         }
 
-        self.update_joined_count(room_id, &db)?;
+        self.update_joined_count(room_id, db)?;
 
         self.roomid_shortstatehash
             .insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes())?;
@@ -488,7 +503,7 @@ impl Rooms {
         if parent != 0_u64 {
             let mut response = self.load_shortstatehash_info(parent)?;
             let mut state = response.last().unwrap().1.clone();
-            state.extend(added.iter().cloned());
+            state.extend(added.iter().copied());
             for r in &removed {
                 state.remove(r);
             }
@@ -709,7 +724,7 @@ impl Rooms {
         event_id: &EventId,
         globals: &super::globals::Globals,
     ) -> Result<u64> {
-        if let Some(short) = self.eventidshort_cache.lock().unwrap().get_mut(&event_id) {
+        if let Some(short) = self.eventidshort_cache.lock().unwrap().get_mut(event_id) {
             return Ok(*short);
         }
 
@@ -729,7 +744,7 @@ impl Rooms {
         self.eventidshort_cache
             .lock()
             .unwrap()
-            .insert(event_id.clone(), short);
+            .insert(event_id.to_owned(), short);
 
         Ok(short)
     }
@@ -737,7 +752,7 @@ impl Rooms {
     #[tracing::instrument(skip(self))]
     pub fn get_shortroomid(&self, room_id: &RoomId) -> Result<Option<u64>> {
         self.roomid_shortroomid
-            .get(&room_id.as_bytes())?
+            .get(room_id.as_bytes())?
             .map(|bytes| {
                 utils::u64_from_bytes(&bytes)
                     .map_err(|_| Error::bad_database("Invalid shortroomid in db."))
@@ -762,7 +777,7 @@ impl Rooms {
 
         let mut statekey = event_type.as_ref().as_bytes().to_vec();
         statekey.push(0xff);
-        statekey.extend_from_slice(&state_key.as_bytes());
+        statekey.extend_from_slice(state_key.as_bytes());
 
         let short = self
             .statekey_shortstatekey
@@ -789,13 +804,13 @@ impl Rooms {
         room_id: &RoomId,
         globals: &super::globals::Globals,
     ) -> Result<u64> {
-        Ok(match self.roomid_shortroomid.get(&room_id.as_bytes())? {
+        Ok(match self.roomid_shortroomid.get(room_id.as_bytes())? {
             Some(short) => utils::u64_from_bytes(&short)
                 .map_err(|_| Error::bad_database("Invalid shortroomid in db."))?,
             None => {
                 let short = globals.next_count()?;
                 self.roomid_shortroomid
-                    .insert(&room_id.as_bytes(), &short.to_be_bytes())?;
+                    .insert(room_id.as_bytes(), &short.to_be_bytes())?;
                 short
             }
         })
@@ -819,7 +834,7 @@ impl Rooms {
 
         let mut statekey = event_type.as_ref().as_bytes().to_vec();
         statekey.push(0xff);
-        statekey.extend_from_slice(&state_key.as_bytes());
+        statekey.extend_from_slice(state_key.as_bytes());
 
         let short = match self.statekey_shortstatekey.get(&statekey)? {
             Some(shortstatekey) => utils::u64_from_bytes(&shortstatekey)
@@ -858,12 +873,10 @@ impl Rooms {
             .get(&shorteventid.to_be_bytes())?
             .ok_or_else(|| Error::bad_database("Shorteventid does not exist"))?;
 
-        let event_id = Arc::new(
-            EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                Error::bad_database("EventID in shorteventid_eventid is invalid unicode.")
-            })?)
-            .map_err(|_| Error::bad_database("EventId in shorteventid_eventid is invalid."))?,
-        );
+        let event_id = EventId::parse_arc(utils::string_from_bytes(&bytes).map_err(|_| {
+            Error::bad_database("EventID in shorteventid_eventid is invalid unicode.")
+        })?)
+        .map_err(|_| Error::bad_database("EventId in shorteventid_eventid is invalid."))?;
 
         self.shorteventid_cache
             .lock()
@@ -896,12 +909,12 @@ impl Rooms {
             .ok_or_else(|| Error::bad_database("Invalid statekey in shortstatekey_statekey."))?;
 
         let event_type =
-            EventType::try_from(utils::string_from_bytes(&eventtype_bytes).map_err(|_| {
+            EventType::try_from(utils::string_from_bytes(eventtype_bytes).map_err(|_| {
                 Error::bad_database("Event type in shortstatekey_statekey is invalid unicode.")
             })?)
             .map_err(|_| Error::bad_database("Event type in shortstatekey_statekey is invalid."))?;
 
-        let state_key = utils::string_from_bytes(&statekey_bytes).map_err(|_| {
+        let state_key = utils::string_from_bytes(statekey_bytes).map_err(|_| {
             Error::bad_database("Statekey in shortstatekey_statekey is invalid unicode.")
         })?;
 
@@ -961,10 +974,8 @@ impl Rooms {
     /// Returns the `count` of this pdu's id.
     #[tracing::instrument(skip(self))]
     pub fn pdu_count(&self, pdu_id: &[u8]) -> Result<u64> {
-        Ok(
-            utils::u64_from_bytes(&pdu_id[pdu_id.len() - size_of::<u64>()..])
-                .map_err(|_| Error::bad_database("PDU has invalid count bytes."))?,
-        )
+        utils::u64_from_bytes(&pdu_id[pdu_id.len() - size_of::<u64>()..])
+            .map_err(|_| Error::bad_database("PDU has invalid count bytes."))
     }
 
     /// Returns the `count` of this pdu's id.
@@ -972,7 +983,8 @@ impl Rooms {
     pub fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<u64>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or(Ok(None), |pdu_id| self.pdu_count(&pdu_id).map(Some))
+            .map(|pdu_id| self.pdu_count(&pdu_id))
+            .transpose()
     }
 
     #[tracing::instrument(skip(self))]
@@ -1000,7 +1012,7 @@ impl Rooms {
     pub fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or_else::<Result<_>, _, _>(
+            .map_or_else(
                 || self.eventid_outlierpdu.get(event_id.as_bytes()),
                 |pduid| {
                     Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
@@ -1033,14 +1045,12 @@ impl Rooms {
     ) -> Result<Option<CanonicalJsonObject>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or_else::<Result<_>, _, _>(
-                || Ok(None),
-                |pduid| {
-                    Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
-                        Error::bad_database("Invalid pduid in eventid_pduid.")
-                    })?))
-                },
-            )?
+            .map(|pduid| {
+                self.pduid_pdu
+                    .get(&pduid)?
+                    .ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
+            })
+            .transpose()?
             .map(|pdu| {
                 serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
@@ -1050,9 +1060,7 @@ impl Rooms {
     /// Returns the pdu's id.
     #[tracing::instrument(skip(self))]
     pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>> {
-        self.eventid_pduid
-            .get(event_id.as_bytes())?
-            .map_or(Ok(None), |pdu_id| Ok(Some(pdu_id)))
+        self.eventid_pduid.get(event_id.as_bytes())
     }
 
     /// Returns the pdu.
@@ -1062,14 +1070,12 @@ impl Rooms {
     pub fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or_else::<Result<_>, _, _>(
-                || Ok(None),
-                |pduid| {
-                    Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
-                        Error::bad_database("Invalid pduid in eventid_pduid.")
-                    })?))
-                },
-            )?
+            .map(|pduid| {
+                self.pduid_pdu
+                    .get(&pduid)?
+                    .ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
+            })
+            .transpose()?
             .map(|pdu| {
                 serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
@@ -1081,18 +1087,15 @@ impl Rooms {
     /// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
     #[tracing::instrument(skip(self))]
     pub fn get_pdu(&self, event_id: &EventId) -> Result<Option<Arc<PduEvent>>> {
-        if let Some(p) = self.pdu_cache.lock().unwrap().get_mut(&event_id) {
+        if let Some(p) = self.pdu_cache.lock().unwrap().get_mut(event_id) {
             return Ok(Some(Arc::clone(p)));
         }
 
         if let Some(pdu) = self
             .eventid_pduid
             .get(event_id.as_bytes())?
-            .map_or_else::<Result<_>, _, _>(
-                || {
-                    let r = self.eventid_outlierpdu.get(event_id.as_bytes());
-                    r
-                },
+            .map_or_else(
+                || self.eventid_outlierpdu.get(event_id.as_bytes()),
                 |pduid| {
                     Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
                         Error::bad_database("Invalid pduid in eventid_pduid.")
@@ -1109,7 +1112,7 @@ impl Rooms {
             self.pdu_cache
                 .lock()
                 .unwrap()
-                .insert(event_id.clone(), Arc::clone(&pdu));
+                .insert(event_id.to_owned(), Arc::clone(&pdu));
             Ok(Some(pdu))
         } else {
             Ok(None)
@@ -1143,9 +1146,9 @@ impl Rooms {
     /// Removes a pdu and creates a new one with the same id.
     #[tracing::instrument(skip(self))]
     fn replace_pdu(&self, pdu_id: &[u8], pdu: &PduEvent) -> Result<()> {
-        if self.pduid_pdu.get(&pdu_id)?.is_some() {
+        if self.pduid_pdu.get(pdu_id)?.is_some() {
             self.pduid_pdu.insert(
-                &pdu_id,
+                pdu_id,
                 &serde_json::to_vec(pdu).expect("PduEvent::to_vec always works"),
             )?;
             Ok(())
@@ -1159,14 +1162,14 @@ impl Rooms {
 
     /// Returns the leaf pdus of a room.
     #[tracing::instrument(skip(self))]
-    pub fn get_pdu_leaves(&self, room_id: &RoomId) -> Result<HashSet<EventId>> {
+    pub fn get_pdu_leaves(&self, room_id: &RoomId) -> Result<HashSet<Arc<EventId>>> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.roomid_pduleaves
             .scan_prefix(prefix)
             .map(|(_, bytes)| {
-                EventId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
+                EventId::parse_arc(utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("EventID in roomid_pduleaves is invalid unicode.")
                 })?)
                 .map_err(|_| Error::bad_database("EventId in roomid_pduleaves is invalid."))
@@ -1175,7 +1178,7 @@ impl Rooms {
     }
 
     #[tracing::instrument(skip(self, room_id, event_ids))]
-    pub fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[EventId]) -> Result<()> {
+    pub fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()> {
         for prev in event_ids {
             let mut key = room_id.as_bytes().to_vec();
             key.extend_from_slice(prev.as_bytes());
@@ -1190,7 +1193,11 @@ impl Rooms {
     /// The provided `event_ids` become the new leaves, this allows a room to have multiple
     /// `prev_events`.
     #[tracing::instrument(skip(self))]
-    pub fn replace_pdu_leaves(&self, room_id: &RoomId, event_ids: &[EventId]) -> Result<()> {
+    pub fn replace_pdu_leaves<'a>(
+        &self,
+        room_id: &RoomId,
+        event_ids: impl IntoIterator<Item = &'a EventId> + Debug,
+    ) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -1230,20 +1237,20 @@ impl Rooms {
     #[tracing::instrument(skip(self, pdu))]
     pub fn add_pdu_outlier(&self, event_id: &EventId, pdu: &CanonicalJsonObject) -> Result<()> {
         self.eventid_outlierpdu.insert(
-            &event_id.as_bytes(),
+            event_id.as_bytes(),
             &serde_json::to_vec(&pdu).expect("CanonicalJsonObject is valid"),
         )
     }
 
     #[tracing::instrument(skip(self))]
     pub fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()> {
-        self.softfailedeventids.insert(&event_id.as_bytes(), &[])
+        self.softfailedeventids.insert(event_id.as_bytes(), &[])
     }
 
     #[tracing::instrument(skip(self))]
     pub fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> {
         self.softfailedeventids
-            .get(&event_id.as_bytes())
+            .get(event_id.as_bytes())
             .map(|o| o.is_some())
     }
 
@@ -1254,11 +1261,11 @@ impl Rooms {
     ///
     /// Returns pdu id
     #[tracing::instrument(skip(self, pdu, pdu_json, leaves, db))]
-    pub fn append_pdu(
+    pub fn append_pdu<'a>(
         &self,
         pdu: &PduEvent,
         mut pdu_json: CanonicalJsonObject,
-        leaves: &[EventId],
+        leaves: impl IntoIterator<Item = &'a EventId> + Debug,
         db: &Database,
     ) -> Result<Vec<u8>> {
         let shortroomid = self.get_shortroomid(&pdu.room_id)?.expect("room exists");
@@ -1273,7 +1280,7 @@ impl Rooms {
             {
                 if let Some(shortstatehash) = self.pdu_shortstatehash(&pdu.event_id).unwrap() {
                     if let Some(prev_state) = self
-                        .state_get(shortstatehash, &pdu.kind, &state_key)
+                        .state_get(shortstatehash, &pdu.kind, state_key)
                         .unwrap()
                     {
                         unsigned.insert(
@@ -1332,11 +1339,11 @@ impl Rooms {
         drop(insert_lock);
 
         // See if the event matches any known pushers
-        let power_levels: PowerLevelsEventContent = db
+        let power_levels: RoomPowerLevelsEventContent = db
             .rooms
             .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
             .map(|ev| {
-                serde_json::from_value(ev.content.clone())
+                serde_json::from_str(ev.content.get())
                     .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
             })
             .transpose()?
@@ -1355,15 +1362,15 @@ impl Rooms {
 
             let rules_for_user = db
                 .account_data
-                .get::<push_rules::PushRulesEvent>(None, &user, EventType::PushRules)?
-                .map(|ev| ev.content.global)
-                .unwrap_or_else(|| push::Ruleset::server_default(&user));
+                .get(None, user, EventType::PushRules)?
+                .map(|ev: PushRulesEvent| ev.content.global)
+                .unwrap_or_else(|| Ruleset::server_default(user));
 
             let mut highlight = false;
             let mut notify = false;
 
             for action in pusher::get_actions(
-                &user,
+                user,
                 &rules_for_user,
                 &power_levels,
                 &sync_pdu,
@@ -1393,7 +1400,7 @@ impl Rooms {
                 highlights.push(userroom_id);
             }
 
-            for senderkey in db.pusher.get_pusher_senderkeys(&user) {
+            for senderkey in db.pusher.get_pusher_senderkeys(user) {
                 db.sending.send_push_pdu(&*pdu_id, senderkey)?;
             }
         }
@@ -1406,35 +1413,26 @@ impl Rooms {
         match pdu.kind {
             EventType::RoomRedaction => {
                 if let Some(redact_id) = &pdu.redacts {
-                    self.redact_pdu(&redact_id, &pdu)?;
+                    self.redact_pdu(redact_id, pdu)?;
                 }
             }
             EventType::RoomMember => {
                 if let Some(state_key) = &pdu.state_key {
+                    #[derive(Deserialize)]
+                    struct ExtractMembership {
+                        membership: MembershipState,
+                    }
+
                     // if the state_key fails
-                    let target_user_id = UserId::try_from(state_key.clone())
+                    let target_user_id = UserId::parse(state_key.clone())
                         .expect("This state_key was previously validated");
 
-                    let membership = serde_json::from_value::<member::MembershipState>(
-                        pdu.content
-                            .get("membership")
-                            .ok_or(Error::BadRequest(
-                                ErrorKind::InvalidParam,
-                                "Invalid member event content",
-                            ))?
-                            .clone(),
-                    )
-                    .map_err(|_| {
-                        Error::BadRequest(
-                            ErrorKind::InvalidParam,
-                            "Invalid membership state content.",
-                        )
-                    })?;
+                    let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
+                        .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
-                    let invite_state = match membership {
-                        member::MembershipState::Invite => {
+                    let invite_state = match content.membership {
+                        MembershipState::Invite => {
                             let state = self.calculate_invite_state(pdu)?;
-
                             Some(state)
                         }
                         _ => None,
@@ -1445,7 +1443,7 @@ impl Rooms {
                     self.update_membership(
                         &pdu.room_id,
                         &target_user_id,
-                        membership,
+                        content.membership,
                         &pdu.sender,
                         invite_state,
                         db,
@@ -1454,7 +1452,16 @@ impl Rooms {
                 }
             }
             EventType::RoomMessage => {
-                if let Some(body) = pdu.content.get("body").and_then(|b| b.as_str()) {
+                #[derive(Deserialize)]
+                struct ExtractBody<'a> {
+                    #[serde(borrow)]
+                    body: Option<Cow<'a, str>>,
+                }
+
+                let content = serde_json::from_str::<ExtractBody<'_>>(pdu.content.get())
+                    .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
+
+                if let Some(body) = content.body {
                     let mut batch = body
                         .split_terminator(|c: char| !c.is_alphanumeric())
                         .filter(|s| !s.is_empty())
@@ -1473,214 +1480,15 @@ impl Rooms {
                     if body.starts_with(&format!("@conduit:{}: ", db.globals.server_name()))
                         && self
                             .id_from_alias(
-                                &format!("#admins:{}", db.globals.server_name())
-                                    .try_into()
-                                    .expect("#admins:server_name is a valid room alias"),
+                                <&RoomAliasId>::try_from(
+                                    format!("#admins:{}", db.globals.server_name()).as_str(),
+                                )
+                                .expect("#admins:server_name is a valid room alias"),
                             )?
                             .as_ref()
                             == Some(&pdu.room_id)
                     {
-                        let mut lines = body.lines();
-                        let command_line = lines.next().expect("each string has at least one line");
-                        let body = lines.collect::<Vec<_>>();
-
-                        let mut parts = command_line.split_whitespace().skip(1);
-                        if let Some(command) = parts.next() {
-                            let args = parts.collect::<Vec<_>>();
-
-                            match command {
-                                "register_appservice" => {
-                                    if body.len() > 2
-                                        && body[0].trim() == "```"
-                                        && body.last().unwrap().trim() == "```"
-                                    {
-                                        let appservice_config = body[1..body.len() - 1].join("\n");
-                                        let parsed_config = serde_yaml::from_str::<serde_yaml::Value>(
-                                            &appservice_config,
-                                        );
-                                        match parsed_config {
-                                            Ok(yaml) => {
-                                                db.admin
-                                                    .send(AdminCommand::RegisterAppservice(yaml));
-                                            }
-                                            Err(e) => {
-                                                db.admin.send(AdminCommand::SendMessage(
-                                                    message::MessageEventContent::text_plain(
-                                                        format!(
-                                                            "Could not parse appservice config: {}",
-                                                            e
-                                                        ),
-                                                    ),
-                                                ));
-                                            }
-                                        }
-                                    } else {
-                                        db.admin.send(AdminCommand::SendMessage(
-                                            message::MessageEventContent::text_plain(
-                                                "Expected code block in command body.",
-                                            ),
-                                        ));
-                                    }
-                                }
-                                "list_appservices" => {
-                                    db.admin.send(AdminCommand::ListAppservices);
-                                }
-                                "get_auth_chain" => {
-                                    if args.len() == 1 {
-                                        if let Ok(event_id) = EventId::try_from(args[0]) {
-                                            if let Some(event) = db.rooms.get_pdu_json(&event_id)? {
-                                                let room_id_str = event
-                                                    .get("room_id")
-                                                    .and_then(|val| val.as_str())
-                                                    .ok_or_else(|| {
-                                                        Error::bad_database(
-                                                            "Invalid event in database",
-                                                        )
-                                                    })?;
-
-                                                let room_id = RoomId::try_from(room_id_str)
-                                                .map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
-                                                let start = Instant::now();
-                                                let count = server_server::get_auth_chain(
-                                                    &room_id,
-                                                    vec![Arc::new(event_id)],
-                                                    db,
-                                                )?
-                                                .count();
-                                                let elapsed = start.elapsed();
-                                                db.admin.send(AdminCommand::SendMessage(
-                                                    message::MessageEventContent::text_plain(
-                                                        format!(
-                                                    "Loaded auth chain with length {} in {:?}",
-                                                    count, elapsed
-                                                ),
-                                                    ),
-                                                ));
-                                            }
-                                        }
-                                    }
-                                }
-                                "parse_pdu" => {
-                                    if body.len() > 2
-                                        && body[0].trim() == "```"
-                                        && body.last().unwrap().trim() == "```"
-                                    {
-                                        let string = body[1..body.len() - 1].join("\n");
-                                        match serde_json::from_str(&string) {
-                                            Ok(value) => {
-                                                let event_id = EventId::try_from(&*format!(
-                                                    "${}",
-                                                    // Anything higher than version3 behaves the same
-                                                    ruma::signatures::reference_hash(
-                                                        &value,
-                                                        &RoomVersionId::Version6
-                                                    )
-                                                    .expect("ruma can calculate reference hashes")
-                                                ))
-                                                .expect(
-                                                    "ruma's reference hashes are valid event ids",
-                                                );
-
-                                                match serde_json::from_value::<PduEvent>(
-                                                    serde_json::to_value(value)
-                                                        .expect("value is json"),
-                                                ) {
-                                                    Ok(pdu) => {
-                                                        db.admin.send(AdminCommand::SendMessage(
-                                                            message::MessageEventContent::text_plain(
-                                                                format!("EventId: {:?}\n{:#?}", event_id, pdu),
-                                                            ),
-                                                        ));
-                                                    }
-                                                    Err(e) => {
-                                                        db.admin.send(AdminCommand::SendMessage(
-                                                            message::MessageEventContent::text_plain(
-                                                                format!("EventId: {:?}\nCould not parse event: {}", event_id, e),
-                                                            ),
-                                                        ));
-                                                    }
-                                                }
-                                            }
-                                            Err(e) => {
-                                                db.admin.send(AdminCommand::SendMessage(
-                                                    message::MessageEventContent::text_plain(
-                                                        format!(
-                                                            "Invalid json in command body: {}",
-                                                            e
-                                                        ),
-                                                    ),
-                                                ));
-                                            }
-                                        }
-                                    } else {
-                                        db.admin.send(AdminCommand::SendMessage(
-                                            message::MessageEventContent::text_plain(
-                                                "Expected code block in command body.",
-                                            ),
-                                        ));
-                                    }
-                                }
-                                "get_pdu" => {
-                                    if args.len() == 1 {
-                                        if let Ok(event_id) = EventId::try_from(args[0]) {
-                                            let mut outlier = false;
-                                            let mut pdu_json =
-                                                db.rooms.get_non_outlier_pdu_json(&event_id)?;
-                                            if pdu_json.is_none() {
-                                                outlier = true;
-                                                pdu_json = db.rooms.get_pdu_json(&event_id)?;
-                                            }
-                                            match pdu_json {
-                                                Some(json) => {
-                                                    let json_text =
-                                                        serde_json::to_string_pretty(&json)
-                                                            .expect("canonical json is valid json");
-                                                    db.admin.send(AdminCommand::SendMessage(
-                                                        message::MessageEventContent::text_html(
-                                                            format!("{}\n```json\n{}\n```",
-                                                            if outlier {
-                                                                "PDU is outlier"
-                                                            } else { "PDU was accepted"}, json_text),
-                                                            format!("<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-                                                            if outlier {
-                                                                "PDU is outlier"
-                                                            } else { "PDU was accepted"}, RawStr::new(&json_text).html_escape())
-                                                        ),
-                                                    ));
-                                                }
-                                                None => {
-                                                    db.admin.send(AdminCommand::SendMessage(
-                                                        message::MessageEventContent::text_plain(
-                                                            "PDU not found.",
-                                                        ),
-                                                    ));
-                                                }
-                                            }
-                                        } else {
-                                            db.admin.send(AdminCommand::SendMessage(
-                                                message::MessageEventContent::text_plain(
-                                                    "Event ID could not be parsed.",
-                                                ),
-                                            ));
-                                        }
-                                    } else {
-                                        db.admin.send(AdminCommand::SendMessage(
-                                            message::MessageEventContent::text_plain(
-                                                "Usage: get_pdu <eventid>",
-                                            ),
-                                        ));
-                                    }
-                                }
-                                _ => {
-                                    db.admin.send(AdminCommand::SendMessage(
-                                        message::MessageEventContent::text_plain(format!(
-                                            "Unrecognized command: {}",
-                                            command
-                                        )),
-                                    ));
-                                }
-                            }
-                        }
+                        db.admin.process_message(body.to_string());
                     }
                 }
             }
@@ -1746,9 +1554,9 @@ impl Rooms {
         state_ids_compressed: HashSet<CompressedStateEvent>,
         globals: &super::globals::Globals,
     ) -> Result<()> {
-        let shorteventid = self.get_or_create_shorteventid(&event_id, globals)?;
+        let shorteventid = self.get_or_create_shorteventid(event_id, globals)?;
 
-        let previous_shortstatehash = self.current_shortstatehash(&room_id)?;
+        let previous_shortstatehash = self.current_shortstatehash(room_id)?;
 
         let state_hash = self.calculate_hash(
             &state_ids_compressed
@@ -1766,16 +1574,16 @@ impl Rooms {
 
             let (statediffnew, statediffremoved) =
                 if let Some(parent_stateinfo) = states_parents.last() {
-                    let statediffnew = state_ids_compressed
+                    let statediffnew: HashSet<_> = state_ids_compressed
                         .difference(&parent_stateinfo.1)
-                        .cloned()
-                        .collect::<HashSet<_>>();
+                        .copied()
+                        .collect();
 
-                    let statediffremoved = parent_stateinfo
+                    let statediffremoved: HashSet<_> = parent_stateinfo
                         .1
                         .difference(&state_ids_compressed)
-                        .cloned()
-                        .collect::<HashSet<_>>();
+                        .copied()
+                        .collect();
 
                     (statediffnew, statediffremoved)
                 } else {
@@ -1820,7 +1628,7 @@ impl Rooms {
                 .map_or_else(|| Ok(Vec::new()), |p| self.load_shortstatehash_info(p))?;
 
             let shortstatekey =
-                self.get_or_create_shortstatekey(&new_pdu.kind, &state_key, globals)?;
+                self.get_or_create_shortstatekey(&new_pdu.kind, state_key, globals)?;
 
             let new = self.compress_state_event(shortstatekey, &new_pdu.event_id, globals)?;
 
@@ -1845,7 +1653,7 @@ impl Rooms {
 
             let mut statediffremoved = HashSet::new();
             if let Some(replaces) = replaces {
-                statediffremoved.insert(replaces.clone());
+                statediffremoved.insert(*replaces);
             }
 
             self.save_state_from_diff(
@@ -1948,7 +1756,7 @@ impl Rooms {
         room_id: &RoomId,
         db: &Database,
         _mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room mutex
-    ) -> Result<EventId> {
+    ) -> Result<Arc<EventId>> {
         let PduBuilder {
             event_type,
             content,
@@ -1958,23 +1766,20 @@ impl Rooms {
         } = pdu_builder;
 
         let prev_events = self
-            .get_pdu_leaves(&room_id)?
+            .get_pdu_leaves(room_id)?
             .into_iter()
             .take(20)
             .collect::<Vec<_>>();
 
-        let create_event = self.room_state_get(&room_id, &EventType::RoomCreate, "")?;
+        let create_event = self.room_state_get(room_id, &EventType::RoomCreate, "")?;
 
-        let create_event_content = create_event
+        let create_event_content: Option<RoomCreateEventContent> = create_event
             .as_ref()
             .map(|create_event| {
-                serde_json::from_value::<Raw<CreateEventContent>>(create_event.content.clone())
-                    .expect("Raw::from_value always works.")
-                    .deserialize()
-                    .map_err(|e| {
-                        warn!("Invalid create event: {}", e);
-                        Error::bad_database("Invalid create event in db.")
-                    })
+                serde_json::from_str(create_event.content.get()).map_err(|e| {
+                    warn!("Invalid create event: {}", e);
+                    Error::bad_database("Invalid create event in db.")
+                })
             })
             .transpose()?;
 
@@ -1988,18 +1793,11 @@ impl Rooms {
 
         // If there was no create event yet, assume we are creating a version 6 room right now
         let room_version_id = create_event_content
-            .map_or(RoomVersionId::Version6, |create_event| {
-                create_event.room_version
-            });
+            .map_or(RoomVersionId::V6, |create_event| create_event.room_version);
         let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
 
-        let auth_events = self.get_auth_events(
-            &room_id,
-            &event_type,
-            &sender,
-            state_key.as_deref(),
-            &content,
-        )?;
+        let auth_events =
+            self.get_auth_events(room_id, &event_type, sender, state_key.as_deref(), &content)?;
 
         // Our depth is the maximum depth of prev_events + 1
         let depth = prev_events
@@ -2011,8 +1809,11 @@ impl Rooms {
 
         let mut unsigned = unsigned.unwrap_or_default();
         if let Some(state_key) = &state_key {
-            if let Some(prev_pdu) = self.room_state_get(&room_id, &event_type, &state_key)? {
-                unsigned.insert("prev_content".to_owned(), prev_pdu.content.clone());
+            if let Some(prev_pdu) = self.room_state_get(room_id, &event_type, state_key)? {
+                unsigned.insert(
+                    "prev_content".to_owned(),
+                    serde_json::from_str(prev_pdu.content.get()).expect("string is valid json"),
+                );
                 unsigned.insert(
                     "prev_sender".to_owned(),
                     serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
@@ -2021,9 +1822,9 @@ impl Rooms {
         }
 
         let mut pdu = PduEvent {
-            event_id: ruma::event_id!("$thiswillbefilledinlater"),
-            room_id: room_id.clone(),
-            sender: sender.clone(),
+            event_id: ruma::event_id!("$thiswillbefilledinlater").into(),
+            room_id: room_id.to_owned(),
+            sender: sender.to_owned(),
             origin_server_ts: utils::millis_since_unix_epoch()
                 .try_into()
                 .expect("time is valid"),
@@ -2037,19 +1838,23 @@ impl Rooms {
                 .map(|(_, pdu)| pdu.event_id.clone())
                 .collect(),
             redacts,
-            unsigned,
-            hashes: ruma::events::pdu::EventHash {
+            unsigned: if unsigned.is_empty() {
+                None
+            } else {
+                Some(to_raw_value(&unsigned).expect("to_raw_value always works"))
+            },
+            hashes: EventHash {
                 sha256: "aaa".to_owned(),
             },
-            signatures: BTreeMap::new(),
+            signatures: None,
         };
 
         let auth_check = state_res::auth_check(
             &room_version,
-            &Arc::new(pdu.clone()),
+            &pdu,
             create_prev_event,
-            None, // TODO: third_party_invite
-            |k, s| auth_events.get(&(k.clone(), s.to_owned())).map(Arc::clone),
+            None::<PduEvent>, // TODO: third_party_invite
+            |k, s| auth_events.get(&(k.clone(), s.to_owned())),
         )
         .map_err(|e| {
             error!("{:?}", e);
@@ -2084,7 +1889,7 @@ impl Rooms {
         .expect("event is valid, we just created it");
 
         // Generate event id
-        pdu.event_id = EventId::try_from(&*format!(
+        pdu.event_id = EventId::parse_arc(format!(
             "${}",
             ruma::signatures::reference_hash(&pdu_json, &room_version_id)
                 .expect("ruma can calculate reference hashes")
@@ -2108,21 +1913,20 @@ impl Rooms {
             pdu_json,
             // Since this PDU references all pdu_leaves we can update the leaves
             // of the room
-            &[pdu.event_id.clone()],
+            iter::once(&*pdu.event_id),
             db,
         )?;
 
         // We set the room state after inserting the pdu, so that we never have a moment in time
         // where events in the current room state do not exist
-        self.set_room_state(&room_id, statehashid)?;
+        self.set_room_state(room_id, statehashid)?;
 
-        for server in self
+        let servers = self
             .room_servers(room_id)
             .filter_map(|r| r.ok())
-            .filter(|server| &**server != db.globals.server_name())
-        {
-            db.sending.send_pdu(&server, &pdu_id)?;
-        }
+            .filter(|server| &**server != db.globals.server_name());
+
+        db.sending.send_pdu(servers, &pdu_id)?;
 
         for appservice in db.appservice.all()? {
             if self.appservice_in_room(room_id, &appservice, db)? {
@@ -2159,10 +1963,10 @@ impl Rooms {
                             && pdu
                                 .state_key
                                 .as_ref()
-                                .map_or(false, |state_key| users.is_match(&state_key))
+                                .map_or(false, |state_key| users.is_match(state_key))
                 };
                 let matching_aliases = |aliases: &Regex| {
-                    self.room_aliases(&room_id)
+                    self.room_aliases(room_id)
                         .filter_map(|r| r.ok())
                         .any(|room_alias| aliases.is_match(room_alias.as_str()))
                 };
@@ -2208,7 +2012,7 @@ impl Rooms {
         let mut first_pdu_id = prefix.clone();
         first_pdu_id.extend_from_slice(&(since + 1).to_be_bytes());
 
-        let user_id = user_id.clone();
+        let user_id = user_id.to_owned();
 
         Ok(self
             .pduid_pdu
@@ -2218,7 +2022,7 @@ impl Rooms {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
                 if pdu.sender != user_id {
-                    pdu.unsigned.remove("transaction_id");
+                    pdu.remove_transaction_id()?;
                 }
                 Ok((pdu_id, pdu))
             }))
@@ -2245,7 +2049,7 @@ impl Rooms {
 
         let current: &[u8] = &current;
 
-        let user_id = user_id.clone();
+        let user_id = user_id.to_owned();
 
         Ok(self
             .pduid_pdu
@@ -2255,7 +2059,7 @@ impl Rooms {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
                 if pdu.sender != user_id {
-                    pdu.unsigned.remove("transaction_id");
+                    pdu.remove_transaction_id()?;
                 }
                 Ok((pdu_id, pdu))
             }))
@@ -2282,7 +2086,7 @@ impl Rooms {
 
         let current: &[u8] = &current;
 
-        let user_id = user_id.clone();
+        let user_id = user_id.to_owned();
 
         Ok(self
             .pduid_pdu
@@ -2292,7 +2096,7 @@ impl Rooms {
                 let mut pdu = serde_json::from_slice::<PduEvent>(&v)
                     .map_err(|_| Error::bad_database("PDU in db is invalid."))?;
                 if pdu.sender != user_id {
-                    pdu.unsigned.remove("transaction_id");
+                    pdu.remove_transaction_id()?;
                 }
                 Ok((pdu_id, pdu))
             }))
@@ -2305,7 +2109,7 @@ impl Rooms {
             let mut pdu = self
                 .get_pdu_from_id(&pdu_id)?
                 .ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
-            pdu.redact(&reason)?;
+            pdu.redact(reason)?;
             self.replace_pdu(&pdu_id, &pdu)?;
             Ok(())
         } else {
@@ -2322,7 +2126,7 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         user_id: &UserId,
-        membership: member::MembershipState,
+        membership: MembershipState,
         sender: &UserId,
         last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
         db: &Database,
@@ -2351,32 +2155,25 @@ impl Rooms {
         roomuser_id.extend_from_slice(user_id.as_bytes());
 
         match &membership {
-            member::MembershipState::Join => {
+            MembershipState::Join => {
                 // Check if the user never joined this room
-                if !self.once_joined(&user_id, &room_id)? {
+                if !self.once_joined(user_id, room_id)? {
                     // Add the user ID to the join list then
                     self.roomuseroncejoinedids.insert(&userroom_id, &[])?;
 
                     // Check if the room has a predecessor
                     if let Some(predecessor) = self
-                        .room_state_get(&room_id, &EventType::RoomCreate, "")?
-                        .and_then(|create| {
-                            serde_json::from_value::<
-                                Raw<ruma::events::room::create::CreateEventContent>,
-                            >(create.content.clone())
-                            .expect("Raw::from_value always works")
-                            .deserialize()
-                            .ok()
-                        })
-                        .and_then(|content| content.predecessor)
+                        .room_state_get(room_id, &EventType::RoomCreate, "")?
+                        .and_then(|create| serde_json::from_str(create.content.get()).ok())
+                        .and_then(|content: RoomCreateEventContent| content.predecessor)
                     {
                         // Copy user settings from predecessor to the current room:
                         // - Push rules
                         //
                         // TODO: finish this once push rules are implemented.
                         //
-                        // let mut push_rules_event_content = account_data
-                        //     .get::<ruma::events::push_rules::PushRulesEvent>(
+                        // let mut push_rules_event_content: PushRulesEvent = account_data
+                        //     .get(
                         //         None,
                         //         user_id,
                         //         EventType::PushRules,
@@ -2396,13 +2193,11 @@ impl Rooms {
                         //     .ok();
 
                         // Copy old tags to new room
-                        if let Some(tag_event) =
-                            db.account_data.get::<ruma::events::tag::TagEvent>(
-                                Some(&predecessor.room_id),
-                                user_id,
-                                EventType::Tag,
-                            )?
-                        {
+                        if let Some(tag_event) = db.account_data.get::<TagEvent>(
+                            Some(&predecessor.room_id),
+                            user_id,
+                            EventType::Tag,
+                        )? {
                             db.account_data
                                 .update(
                                     Some(room_id),
@@ -2416,17 +2211,14 @@ impl Rooms {
 
                         // Copy direct chat flag
                         if let Some(mut direct_event) =
-                            db.account_data.get::<ruma::events::direct::DirectEvent>(
-                                None,
-                                user_id,
-                                EventType::Direct,
-                            )?
+                            db.account_data
+                                .get::<DirectEvent>(None, user_id, EventType::Direct)?
                         {
                             let mut room_ids_updated = false;
 
                             for room_ids in direct_event.content.0.values_mut() {
                                 if room_ids.iter().any(|r| r == &predecessor.room_id) {
-                                    room_ids.push(room_id.clone());
+                                    room_ids.push(room_id.to_owned());
                                     room_ids_updated = true;
                                 }
                             }
@@ -2455,17 +2247,21 @@ impl Rooms {
                 self.userroomid_leftstate.remove(&userroom_id)?;
                 self.roomuserid_leftcount.remove(&roomuser_id)?;
             }
-            member::MembershipState::Invite => {
+            MembershipState::Invite => {
                 // We want to know if the sender is ignored by the receiver
                 let is_ignored = db
                     .account_data
-                    .get::<ignored_user_list::IgnoredUserListEvent>(
-                        None,     // Ignored users are in global account data
-                        &user_id, // Receiver
+                    .get::<IgnoredUserListEvent>(
+                        None,    // Ignored users are in global account data
+                        user_id, // Receiver
                         EventType::IgnoredUserList,
                     )?
                     .map_or(false, |ignored| {
-                        ignored.content.ignored_users.contains(&sender)
+                        ignored
+                            .content
+                            .ignored_users
+                            .iter()
+                            .any(|user| user == sender)
                     });
 
                 if is_ignored {
@@ -2488,7 +2284,7 @@ impl Rooms {
                 self.userroomid_leftstate.remove(&userroom_id)?;
                 self.roomuserid_leftcount.remove(&roomuser_id)?;
             }
-            member::MembershipState::Leave | member::MembershipState::Ban => {
+            MembershipState::Leave | MembershipState::Ban => {
                 if update_joined_count
                     && self
                         .room_members(room_id)
@@ -2527,7 +2323,7 @@ impl Rooms {
         let mut joined_servers = HashSet::new();
         let mut real_users = HashSet::new();
 
-        for joined in self.room_members(&room_id).filter_map(|r| r.ok()) {
+        for joined in self.room_members(room_id).filter_map(|r| r.ok()) {
             joined_servers.insert(joined.server_name().to_owned());
             if joined.server_name() == db.globals.server_name()
                 && !db.users.is_deactivated(&joined).unwrap_or(true)
@@ -2537,7 +2333,7 @@ impl Rooms {
             joinedcount += 1;
         }
 
-        for invited in self.room_members_invited(&room_id).filter_map(|r| r.ok()) {
+        for invited in self.room_members_invited(room_id).filter_map(|r| r.ok()) {
             joined_servers.insert(invited.server_name().to_owned());
             invitedcount += 1;
         }
@@ -2551,7 +2347,7 @@ impl Rooms {
         self.our_real_users_cache
             .write()
             .unwrap()
-            .insert(room_id.clone(), Arc::new(real_users));
+            .insert(room_id.to_owned(), Arc::new(real_users));
 
         for old_joined_server in self.room_servers(room_id).filter_map(|r| r.ok()) {
             if !joined_servers.remove(&old_joined_server) {
@@ -2596,7 +2392,7 @@ impl Rooms {
         &self,
         room_id: &RoomId,
         db: &Database,
-    ) -> Result<Arc<HashSet<UserId>>> {
+    ) -> Result<Arc<HashSet<Box<UserId>>>> {
         let maybe = self
             .our_real_users_cache
             .read()
@@ -2606,7 +2402,7 @@ impl Rooms {
         if let Some(users) = maybe {
             Ok(users)
         } else {
-            self.update_joined_count(room_id, &db)?;
+            self.update_joined_count(room_id, db)?;
             Ok(Arc::clone(
                 self.our_real_users_cache
                     .read()
@@ -2655,7 +2451,7 @@ impl Rooms {
 
             let in_room = bridge_user_id
                 .map_or(false, |id| self.is_joined(&id, room_id).unwrap_or(false))
-                || self.room_members(&room_id).any(|userid| {
+                || self.room_members(room_id).any(|userid| {
                     userid.map_or(false, |userid| {
                         users.iter().any(|r| r.is_match(userid.as_str()))
                     })
@@ -2664,7 +2460,7 @@ impl Rooms {
             self.appservice_in_room_cache
                 .write()
                 .unwrap()
-                .entry(room_id.clone())
+                .entry(room_id.to_owned())
                 .or_default()
                 .insert(appservice.0.clone(), in_room);
 
@@ -2708,31 +2504,28 @@ impl Rooms {
                     .roomid_mutex_state
                     .write()
                     .unwrap()
-                    .entry(room_id.clone())
+                    .entry(room_id.to_owned())
                     .or_default(),
             );
             let state_lock = mutex_state.lock().await;
 
-            let mut event = serde_json::from_value::<Raw<member::MemberEventContent>>(
-                self.room_state_get(room_id, &EventType::RoomMember, &user_id.to_string())?
+            let mut event: RoomMemberEventContent = serde_json::from_str(
+                self.room_state_get(room_id, &EventType::RoomMember, user_id.as_str())?
                     .ok_or(Error::BadRequest(
                         ErrorKind::BadState,
                         "Cannot leave a room you are not a member of.",
                     ))?
                     .content
-                    .clone(),
+                    .get(),
             )
-            .expect("from_value::<Raw<..>> can never fail")
-            .deserialize()
             .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
-            event.membership = member::MembershipState::Leave;
+            event.membership = MembershipState::Leave;
 
             self.build_and_append_pdu(
                 PduBuilder {
                     event_type: EventType::RoomMember,
-                    content: serde_json::to_value(event)
-                        .expect("event is valid, we just created it"),
+                    content: to_raw_value(&event).expect("event is valid, we just created it"),
                     unsigned: None,
                     state_key: Some(user_id.to_string()),
                     redacts: None,
@@ -2766,16 +2559,14 @@ impl Rooms {
                 "User is not invited.",
             ))?;
 
-        let servers = invite_state
+        let servers: HashSet<_> = invite_state
             .iter()
-            .filter_map(|event| {
-                serde_json::from_str::<serde_json::Value>(&event.json().to_string()).ok()
-            })
-            .filter_map(|event| event.get("sender").cloned())
+            .filter_map(|event| serde_json::from_str(event.json().get()).ok())
+            .filter_map(|event: serde_json::Value| event.get("sender").cloned())
             .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
-            .filter_map(|sender| UserId::try_from(sender).ok())
+            .filter_map(|sender| UserId::parse(sender).ok())
             .map(|user| user.server_name().to_owned())
-            .collect::<HashSet<_>>();
+            .collect();
 
         for remote_server in servers {
             let make_leave_response = db
@@ -2797,19 +2588,16 @@ impl Rooms {
         let (make_leave_response, remote_server) = make_leave_response_and_server?;
 
         let room_version_id = match make_leave_response.room_version {
-            Some(version)
-                if version == RoomVersionId::Version5 || version == RoomVersionId::Version6 =>
-            {
+            Some(version) if version == RoomVersionId::V5 || version == RoomVersionId::V6 => {
                 version
             }
             _ => return Err(Error::BadServerResponse("Room version is not supported")),
         };
 
         let mut leave_event_stub =
-            serde_json::from_str::<CanonicalJsonObject>(make_leave_response.event.json().get())
-                .map_err(|_| {
-                    Error::BadServerResponse("Invalid make_leave event json received from server.")
-                })?;
+            serde_json::from_str::<CanonicalJsonObject>(make_leave_response.event.get()).map_err(
+                |_| Error::BadServerResponse("Invalid make_leave event json received from server."),
+            )?;
 
         // TODO: Is origin needed?
         leave_event_stub.insert(
@@ -2837,7 +2625,7 @@ impl Rooms {
         .expect("event is valid, we just created it");
 
         // Generate event id
-        let event_id = EventId::try_from(&*format!(
+        let event_id = EventId::parse(format!(
             "${}",
             ruma::signatures::reference_hash(&leave_event_stub, &room_version_id)
                 .expect("ruma can calculate reference hashes")
@@ -2860,7 +2648,7 @@ impl Rooms {
                 federation::membership::create_leave_event::v2::Request {
                     room_id,
                     event_id: &event_id,
-                    pdu: PduEvent::convert_to_outgoing_federation_event(leave_event.clone()),
+                    pdu: &PduEvent::convert_to_outgoing_federation_event(leave_event.clone()),
                 },
             )
             .await?;
@@ -2895,21 +2683,21 @@ impl Rooms {
         if let Some(room_id) = room_id {
             // New alias
             self.alias_roomid
-                .insert(&alias.alias().as_bytes(), room_id.as_bytes())?;
+                .insert(alias.alias().as_bytes(), room_id.as_bytes())?;
             let mut aliasid = room_id.as_bytes().to_vec();
             aliasid.push(0xff);
             aliasid.extend_from_slice(&globals.next_count()?.to_be_bytes());
             self.aliasid_alias.insert(&aliasid, &*alias.as_bytes())?;
         } else {
             // room_id=None means remove alias
-            if let Some(room_id) = self.alias_roomid.get(&alias.alias().as_bytes())? {
+            if let Some(room_id) = self.alias_roomid.get(alias.alias().as_bytes())? {
                 let mut prefix = room_id.to_vec();
                 prefix.push(0xff);
 
                 for (key, _) in self.aliasid_alias.scan_prefix(prefix) {
                     self.aliasid_alias.remove(&key)?;
                 }
-                self.alias_roomid.remove(&alias.alias().as_bytes())?;
+                self.alias_roomid.remove(alias.alias().as_bytes())?;
             } else {
                 return Err(Error::BadRequest(
                     ErrorKind::NotFound,
@@ -2922,24 +2710,23 @@ impl Rooms {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn id_from_alias(&self, alias: &RoomAliasId) -> Result<Option<RoomId>> {
+    pub fn id_from_alias(&self, alias: &RoomAliasId) -> Result<Option<Box<RoomId>>> {
         self.alias_roomid
             .get(alias.alias().as_bytes())?
-            .map_or(Ok(None), |bytes| {
-                Ok(Some(
-                    RoomId::try_from(utils::string_from_bytes(&bytes).map_err(|_| {
-                        Error::bad_database("Room ID in alias_roomid is invalid unicode.")
-                    })?)
-                    .map_err(|_| Error::bad_database("Room ID in alias_roomid is invalid."))?,
-                ))
+            .map(|bytes| {
+                RoomId::parse(utils::string_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("Room ID in alias_roomid is invalid unicode.")
+                })?)
+                .map_err(|_| Error::bad_database("Room ID in alias_roomid is invalid."))
             })
+            .transpose()
     }
 
     #[tracing::instrument(skip(self))]
     pub fn room_aliases<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> impl Iterator<Item = Result<RoomAliasId>> + 'a {
+    ) -> impl Iterator<Item = Result<Box<RoomAliasId>>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -2968,9 +2755,9 @@ impl Rooms {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn public_rooms(&self) -> impl Iterator<Item = Result<RoomId>> + '_ {
+    pub fn public_rooms(&self) -> impl Iterator<Item = Result<Box<RoomId>>> + '_ {
         self.publicroomids.iter().map(|(bytes, _)| {
-            RoomId::try_from(
+            RoomId::parse(
                 utils::string_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Room ID in publicroomids is invalid unicode.")
                 })?,
@@ -2984,7 +2771,7 @@ impl Rooms {
         &'a self,
         room_id: &RoomId,
         search_string: &str,
-    ) -> Result<(impl Iterator<Item = Vec<u8>> + 'a, Vec<String>)> {
+    ) -> Result<Option<(impl Iterator<Item = Vec<u8>> + 'a, Vec<String>)>> {
         let prefix = self
             .get_shortroomid(room_id)?
             .expect("room exists")
@@ -2992,11 +2779,11 @@ impl Rooms {
             .to_vec();
         let prefix_clone = prefix.clone();
 
-        let words = search_string
+        let words: Vec<_> = search_string
             .split_terminator(|c: char| !c.is_alphanumeric())
             .filter(|s| !s.is_empty())
             .map(str::to_lowercase)
-            .collect::<Vec<_>>();
+            .collect();
 
         let iterators = words.clone().into_iter().map(move |word| {
             let mut prefix2 = prefix.clone();
@@ -3009,34 +2796,30 @@ impl Rooms {
             self.tokenids
                 .iter_from(&last_possible_id, true) // Newest pdus first
                 .take_while(move |(k, _)| k.starts_with(&prefix2))
-                .map(|(key, _)| {
-                    let pdu_id = key[key.len() - size_of::<u64>()..].to_vec();
-
-                    Ok::<_, Error>(pdu_id)
-                })
-                .filter_map(|r| r.ok())
+                .map(|(key, _)| key[key.len() - size_of::<u64>()..].to_vec())
         });
 
-        Ok((
-            utils::common_elements(iterators, |a, b| {
-                // We compare b with a because we reversed the iterator earlier
-                b.cmp(a)
-            })
-            .unwrap()
-            .map(move |id| {
-                let mut pduid = prefix_clone.clone();
-                pduid.extend_from_slice(&id);
-                pduid
-            }),
-            words,
-        ))
+        Ok(utils::common_elements(iterators, |a, b| {
+            // We compare b with a because we reversed the iterator earlier
+            b.cmp(a)
+        })
+        .map(|iter| {
+            (
+                iter.map(move |id| {
+                    let mut pduid = prefix_clone.clone();
+                    pduid.extend_from_slice(&id);
+                    pduid
+                }),
+                words,
+            )
+        }))
     }
 
     #[tracing::instrument(skip(self))]
     pub fn get_shared_rooms<'a>(
         &'a self,
-        users: Vec<UserId>,
-    ) -> Result<impl Iterator<Item = Result<RoomId>> + 'a> {
+        users: Vec<Box<UserId>>,
+    ) -> Result<impl Iterator<Item = Result<Box<RoomId>>> + 'a> {
         let iterators = users.into_iter().map(move |user_id| {
             let mut prefix = user_id.as_bytes().to_vec();
             prefix.push(0xff);
@@ -3063,7 +2846,7 @@ impl Rooms {
         Ok(utils::common_elements(iterators, Ord::cmp)
             .expect("users is not empty")
             .map(|bytes| {
-                RoomId::try_from(utils::string_from_bytes(&*bytes).map_err(|_| {
+                RoomId::parse(utils::string_from_bytes(&*bytes).map_err(|_| {
                     Error::bad_database("Invalid RoomId bytes in userroomid_joined")
                 })?)
                 .map_err(|_| Error::bad_database("Invalid RoomId in userroomid_joined."))
@@ -3080,9 +2863,9 @@ impl Rooms {
         prefix.push(0xff);
 
         self.roomserverids.scan_prefix(prefix).map(|(key, _)| {
-            Box::<ServerName>::try_from(
+            ServerName::parse(
                 utils::string_from_bytes(
-                    &key.rsplit(|&b| b == 0xff)
+                    key.rsplit(|&b| b == 0xff)
                         .next()
                         .expect("rsplit always returns an element"),
                 )
@@ -3108,14 +2891,14 @@ impl Rooms {
     pub fn server_rooms<'a>(
         &'a self,
         server: &ServerName,
-    ) -> impl Iterator<Item = Result<RoomId>> + 'a {
+    ) -> impl Iterator<Item = Result<Box<RoomId>>> + 'a {
         let mut prefix = server.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.serverroomids.scan_prefix(prefix).map(|(key, _)| {
-            RoomId::try_from(
+            RoomId::parse(
                 utils::string_from_bytes(
-                    &key.rsplit(|&b| b == 0xff)
+                    key.rsplit(|&b| b == 0xff)
                         .next()
                         .expect("rsplit always returns an element"),
                 )
@@ -3130,14 +2913,14 @@ impl Rooms {
     pub fn room_members<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> impl Iterator<Item = Result<UserId>> + 'a {
+    ) -> impl Iterator<Item = Result<Box<UserId>>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.roomuserid_joined.scan_prefix(prefix).map(|(key, _)| {
-            UserId::try_from(
+            UserId::parse(
                 utils::string_from_bytes(
-                    &key.rsplit(|&b| b == 0xff)
+                    key.rsplit(|&b| b == 0xff)
                         .next()
                         .expect("rsplit always returns an element"),
                 )
@@ -3151,26 +2934,24 @@ impl Rooms {
 
     #[tracing::instrument(skip(self))]
     pub fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
-        Ok(self
-            .roomid_joinedcount
+        self.roomid_joinedcount
             .get(room_id.as_bytes())?
             .map(|b| {
                 utils::u64_from_bytes(&b)
                     .map_err(|_| Error::bad_database("Invalid joinedcount in db."))
             })
-            .transpose()?)
+            .transpose()
     }
 
     #[tracing::instrument(skip(self))]
     pub fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
-        Ok(self
-            .roomid_invitedcount
+        self.roomid_invitedcount
             .get(room_id.as_bytes())?
             .map(|b| {
                 utils::u64_from_bytes(&b)
                     .map_err(|_| Error::bad_database("Invalid joinedcount in db."))
             })
-            .transpose()?)
+            .transpose()
     }
 
     /// Returns an iterator over all User IDs who ever joined a room.
@@ -3178,16 +2959,16 @@ impl Rooms {
     pub fn room_useroncejoined<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> impl Iterator<Item = Result<UserId>> + 'a {
+    ) -> impl Iterator<Item = Result<Box<UserId>>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.roomuseroncejoinedids
             .scan_prefix(prefix)
             .map(|(key, _)| {
-                UserId::try_from(
+                UserId::parse(
                     utils::string_from_bytes(
-                        &key.rsplit(|&b| b == 0xff)
+                        key.rsplit(|&b| b == 0xff)
                             .next()
                             .expect("rsplit always returns an element"),
                     )
@@ -3204,16 +2985,16 @@ impl Rooms {
     pub fn room_members_invited<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> impl Iterator<Item = Result<UserId>> + 'a {
+    ) -> impl Iterator<Item = Result<Box<UserId>>> + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.roomuserid_invitecount
             .scan_prefix(prefix)
             .map(|(key, _)| {
-                UserId::try_from(
+                UserId::parse(
                     utils::string_from_bytes(
-                        &key.rsplit(|&b| b == 0xff)
+                        key.rsplit(|&b| b == 0xff)
                             .next()
                             .expect("rsplit always returns an element"),
                     )
@@ -3248,11 +3029,11 @@ impl Rooms {
 
         self.roomuserid_leftcount
             .get(&key)?
-            .map_or(Ok(None), |bytes| {
-                Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
-                    Error::bad_database("Invalid leftcount in db.")
-                })?))
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes)
+                    .map_err(|_| Error::bad_database("Invalid leftcount in db."))
             })
+            .transpose()
     }
 
     /// Returns an iterator over all rooms this user joined.
@@ -3260,13 +3041,13 @@ impl Rooms {
     pub fn rooms_joined<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> impl Iterator<Item = Result<RoomId>> + 'a {
+    ) -> impl Iterator<Item = Result<Box<RoomId>>> + 'a {
         self.userroomid_joined
             .scan_prefix(user_id.as_bytes().to_vec())
             .map(|(key, _)| {
-                RoomId::try_from(
+                RoomId::parse(
                     utils::string_from_bytes(
-                        &key.rsplit(|&b| b == 0xff)
+                        key.rsplit(|&b| b == 0xff)
                             .next()
                             .expect("rsplit always returns an element"),
                     )
@@ -3283,16 +3064,16 @@ impl Rooms {
     pub fn rooms_invited<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> impl Iterator<Item = Result<(RoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a {
+    ) -> impl Iterator<Item = Result<(Box<RoomId>, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.userroomid_invitestate
             .scan_prefix(prefix)
             .map(|(key, state)| {
-                let room_id = RoomId::try_from(
+                let room_id = RoomId::parse(
                     utils::string_from_bytes(
-                        &key.rsplit(|&b| b == 0xff)
+                        key.rsplit(|&b| b == 0xff)
                             .next()
                             .expect("rsplit always returns an element"),
                     )
@@ -3317,7 +3098,7 @@ impl Rooms {
     ) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(&room_id.as_bytes());
+        key.extend_from_slice(room_id.as_bytes());
 
         self.userroomid_invitestate
             .get(&key)?
@@ -3338,7 +3119,7 @@ impl Rooms {
     ) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(&room_id.as_bytes());
+        key.extend_from_slice(room_id.as_bytes());
 
         self.userroomid_leftstate
             .get(&key)?
@@ -3356,16 +3137,16 @@ impl Rooms {
     pub fn rooms_left<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> impl Iterator<Item = Result<(RoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a {
+    ) -> impl Iterator<Item = Result<(Box<RoomId>, Vec<Raw<AnySyncStateEvent>>)>> + 'a {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 
         self.userroomid_leftstate
             .scan_prefix(prefix)
             .map(|(key, state)| {
-                let room_id = RoomId::try_from(
+                let room_id = RoomId::parse(
                     utils::string_from_bytes(
-                        &key.rsplit(|&b| b == 0xff)
+                        key.rsplit(|&b| b == 0xff)
                             .next()
                             .expect("rsplit always returns an element"),
                     )
@@ -3465,14 +3246,103 @@ impl Rooms {
                 &key[0].to_be_bytes(),
                 &chain
                     .iter()
-                    .map(|s| s.to_be_bytes().to_vec())
-                    .flatten()
+                    .flat_map(|s| s.to_be_bytes().to_vec())
                     .collect::<Vec<u8>>(),
             )?;
         }
 
         // Cache in RAM
         self.auth_chain_cache.lock().unwrap().insert(key, chain);
+
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn lazy_load_was_sent_before(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        room_id: &RoomId,
+        ll_user: &UserId,
+    ) -> Result<bool> {
+        let mut key = user_id.as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(device_id.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(room_id.as_bytes());
+        key.push(0xff);
+        key.extend_from_slice(ll_user.as_bytes());
+        Ok(self.lazyloadedids.get(&key)?.is_some())
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn lazy_load_mark_sent(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        room_id: &RoomId,
+        lazy_load: HashSet<Box<UserId>>,
+        count: u64,
+    ) {
+        self.lazy_load_waiting.lock().unwrap().insert(
+            (
+                user_id.to_owned(),
+                device_id.to_owned(),
+                room_id.to_owned(),
+                count,
+            ),
+            lazy_load,
+        );
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn lazy_load_confirm_delivery(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        room_id: &RoomId,
+        since: u64,
+    ) -> Result<()> {
+        if let Some(user_ids) = self.lazy_load_waiting.lock().unwrap().remove(&(
+            user_id.to_owned(),
+            device_id.to_owned(),
+            room_id.to_owned(),
+            since,
+        )) {
+            let mut prefix = user_id.as_bytes().to_vec();
+            prefix.push(0xff);
+            prefix.extend_from_slice(device_id.as_bytes());
+            prefix.push(0xff);
+            prefix.extend_from_slice(room_id.as_bytes());
+            prefix.push(0xff);
+
+            for ll_id in user_ids {
+                let mut key = prefix.clone();
+                key.extend_from_slice(ll_id.as_bytes());
+                self.lazyloadedids.insert(&key, &[])?;
+            }
+        }
+
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn lazy_load_reset(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        room_id: &RoomId,
+    ) -> Result<()> {
+        let mut prefix = user_id.as_bytes().to_vec();
+        prefix.push(0xff);
+        prefix.extend_from_slice(device_id.as_bytes());
+        prefix.push(0xff);
+        prefix.extend_from_slice(room_id.as_bytes());
+        prefix.push(0xff);
+
+        for (key, _) in self.lazyloadedids.scan_prefix(prefix) {
+            self.lazyloadedids.remove(&key)?;
+        }
 
         Ok(())
     }

@@ -4,7 +4,10 @@ use image::{imageops::FilterType, GenericImageView};
 use super::abstraction::Tree;
 use crate::{utils, Error, Result};
 use std::{mem, sync::Arc};
-use tokio::{fs::File, io::AsyncReadExt, io::AsyncWriteExt};
+use tokio::{
+    fs::File,
+    io::{AsyncReadExt, AsyncWriteExt},
+};
 
 pub struct FileMeta {
     pub content_disposition: Option<String>,
@@ -168,7 +171,7 @@ impl Media {
     /// For width,height <= 96 the server uses another thumbnailing algorithm which crops the image afterwards.
     pub async fn get_thumbnail(
         &self,
-        mxc: String,
+        mxc: &str,
         globals: &Globals,
         width: u32,
         height: u32,

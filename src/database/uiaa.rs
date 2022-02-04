@@ -1,11 +1,14 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::RwLock;
 
 use crate::{client_server::SESSION_ID_LENGTH, utils, Error, Result};
 use ruma::{
     api::client::{
         error::ErrorKind,
         r0::uiaa::{
-            IncomingAuthData, IncomingPassword, IncomingUserIdentifier::MatrixId, UiaaInfo,
+            AuthType, IncomingAuthData, IncomingPassword, IncomingUserIdentifier::MatrixId,
+            UiaaInfo,
         },
     },
     signatures::CanonicalJsonValue,
@@ -17,7 +20,8 @@ use super::abstraction::Tree;
 
 pub struct Uiaa {
     pub(super) userdevicesessionid_uiaainfo: Arc<dyn Tree>, // User-interactive authentication
-    pub(super) userdevicesessionid_uiaarequest: Arc<dyn Tree>, // UiaaRequest = canonical json value
+    pub(super) userdevicesessionid_uiaarequest:
+        RwLock<BTreeMap<(Box<UserId>, Box<DeviceId>, String), CanonicalJsonValue>>,
 }
 
 impl Uiaa {
@@ -54,7 +58,7 @@ impl Uiaa {
     ) -> Result<(bool, UiaaInfo)> {
         let mut uiaainfo = auth
             .session()
-            .map(|session| self.get_uiaa_session(&user_id, &device_id, session))
+            .map(|session| self.get_uiaa_session(user_id, device_id, session))
             .unwrap_or_else(|| Ok(uiaainfo.clone()))?;
 
         if uiaainfo.session.is_none() {
@@ -99,10 +103,10 @@ impl Uiaa {
                 }
 
                 // Password was correct! Let's add it to `completed`
-                uiaainfo.completed.push("m.login.password".to_owned());
+                uiaainfo.completed.push(AuthType::Password);
             }
             IncomingAuthData::Dummy(_) => {
-                uiaainfo.completed.push("m.login.dummy".to_owned());
+                uiaainfo.completed.push(AuthType::Dummy);
             }
             k => error!("type not supported: {:?}", k),
         }
@@ -146,16 +150,13 @@ impl Uiaa {
         session: &str,
         request: &CanonicalJsonValue,
     ) -> Result<()> {
-        let mut userdevicesessionid = user_id.as_bytes().to_vec();
-        userdevicesessionid.push(0xff);
-        userdevicesessionid.extend_from_slice(device_id.as_bytes());
-        userdevicesessionid.push(0xff);
-        userdevicesessionid.extend_from_slice(session.as_bytes());
-
-        self.userdevicesessionid_uiaarequest.insert(
-            &userdevicesessionid,
-            &serde_json::to_vec(request).expect("json value to vec always works"),
-        )?;
+        self.userdevicesessionid_uiaarequest
+            .write()
+            .unwrap()
+            .insert(
+                (user_id.to_owned(), device_id.to_owned(), session.to_owned()),
+                request.to_owned(),
+            );
 
         Ok(())
     }
@@ -165,25 +166,12 @@ impl Uiaa {
         user_id: &UserId,
         device_id: &DeviceId,
         session: &str,
-    ) -> Result<Option<CanonicalJsonValue>> {
-        let mut userdevicesessionid = user_id.as_bytes().to_vec();
-        userdevicesessionid.push(0xff);
-        userdevicesessionid.extend_from_slice(device_id.as_bytes());
-        userdevicesessionid.push(0xff);
-        userdevicesessionid.extend_from_slice(session.as_bytes());
-
+    ) -> Option<CanonicalJsonValue> {
         self.userdevicesessionid_uiaarequest
-            .get(&userdevicesessionid)?
-            .map_or(Ok(None), |bytes| {
-                Ok::<_, Error>(Some(
-                    serde_json::from_str::<CanonicalJsonValue>(
-                        &utils::string_from_bytes(&bytes).map_err(|_| {
-                            Error::bad_database("Invalid uiaa request bytes in db.")
-                        })?,
-                    )
-                    .map_err(|_| Error::bad_database("Invalid uiaa request in db."))?,
-                ))
-            })
+            .read()
+            .unwrap()
+            .get(&(user_id.to_owned(), device_id.to_owned(), session.to_owned()))
+            .map(|j| j.to_owned())
     }
 
     fn update_uiaa_session(
@@ -224,7 +212,7 @@ impl Uiaa {
         userdevicesessionid.push(0xff);
         userdevicesessionid.extend_from_slice(session.as_bytes());
 
-        let uiaainfo = serde_json::from_slice::<UiaaInfo>(
+        serde_json::from_slice(
             &self
                 .userdevicesessionid_uiaainfo
                 .get(&userdevicesessionid)?
@@ -233,8 +221,6 @@ impl Uiaa {
                     "UIAA session does not exist.",
                 ))?,
         )
-        .map_err(|_| Error::bad_database("UiaaInfo in userdeviceid_uiaainfo is invalid."))?;
-
-        Ok(uiaainfo)
+        .map_err(|_| Error::bad_database("UiaaInfo in userdeviceid_uiaainfo is invalid."))
     }
 }

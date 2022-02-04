@@ -8,7 +8,10 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   FF_USE_FASTZIP: 1
   CACHE_COMPRESSION_LEVEL: fastest
-
+  # Docker in Docker
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
 
 # --------------------------------------------------------------------- #
 #  Cargo: Compiling for different architectures                         #
@@ -20,265 +23,202 @@ variables:
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
     - if: '$CI_COMMIT_BRANCH == "next"'
-    - if: '$CI_COMMIT_TAG'
+    - if: "$CI_COMMIT_TAG"
+    - if: '($CI_MERGE_REQUEST_APPROVED == "true") || $BUILD_EVERYTHING' # Once MR is approved, test all builds. Or if BUILD_EVERYTHING is set.
   interruptible: true
-  image: "rust:latest"
+  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
   tags: ["docker"]
-  cache:
-    paths:
-      - cargohome
-      - target/
-    key: "build_cache-$TARGET-release"
+  services: ["docker:dind"]
   variables:
-    CARGO_PROFILE_RELEASE_LTO=true
-    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+    SHARED_PATH: $CI_PROJECT_DIR/shared
+    CARGO_PROFILE_RELEASE_LTO: "true"
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+    CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
   before_script:
     - 'echo "Building for target $TARGET"'
-    - 'mkdir -p cargohome && CARGOHOME="cargohome"'
-    - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
-    - 'apt-get update -yqq'
-    - 'echo "Installing packages: $NEEDED_PACKAGES"'
-    - "apt-get install -yqq --no-install-recommends $NEEDED_PACKAGES"
-    - "rustup target add $TARGET"
+    - "rustup show && rustc --version && cargo --version" # Print version info for debugging
+    # fix cargo and rustup mounts from this container (https://gitlab.com/gitlab-org/gitlab-foss/-/issues/41227)
+    - "mkdir -p $SHARED_PATH/cargo"
+    - "cp -r $CARGO_HOME/bin $SHARED_PATH/cargo"
+    - "cp -r $RUSTUP_HOME $SHARED_PATH"
+    - "export CARGO_HOME=$SHARED_PATH/cargo RUSTUP_HOME=$SHARED_PATH/rustup"
+    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results.
+    - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/sccache; fi
   script:
-    - time cargo build --target $TARGET --release
+    # cross-compile conduit for target
+    - 'time cross build --target="$TARGET" --locked --release'
     - 'mv "target/$TARGET/release/conduit" "conduit-$TARGET"'
+    # print information about linking for debugging
+    - "file conduit-$TARGET" # print file information
+    - 'readelf --dynamic conduit-$TARGET | sed -e "/NEEDED/q1"' # ensure statically linked
+  cache:
+    # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
+    key: "cargo-cache-$TARGET"
+    paths:
+      - $SHARED_PATH/cargo/registry/index
+      - $SHARED_PATH/cargo/registry/cache
+      - $SHARED_PATH/cargo/git/db
   artifacts:
     expire_in: never
 
-
-build:release:cargo:x86_64-unknown-linux-gnu:
+build:release:cargo:x86_64-unknown-linux-musl-with-debug:
   extends: .build-cargo-shared-settings
   variables:
-    TARGET: "x86_64-unknown-linux-gnu"
+    CARGO_PROFILE_RELEASE_DEBUG: 2 # Enable debug info for flamegraph profiling
+    TARGET: "x86_64-unknown-linux-musl"
+  after_script:
+    - "mv ./conduit-x86_64-unknown-linux-musl ./conduit-x86_64-unknown-linux-musl-with-debug"
   artifacts:
-    name: "conduit-x86_64-unknown-linux-gnu"
+    name: "conduit-x86_64-unknown-linux-musl-with-debug"
     paths:
-      - "conduit-x86_64-unknown-linux-gnu"
-    expose_as: "Conduit for x86_64-unknown-linux-gnu"
-
-build:release:cargo:armv7-unknown-linux-gnueabihf:
-  extends: .build-cargo-shared-settings
-  variables:
-    TARGET: "armv7-unknown-linux-gnueabihf"
-    NEEDED_PACKAGES: "build-essential gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross"
-    CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
-    CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc
-    CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++
-  artifacts:
-    name: "conduit-armv7-unknown-linux-gnueabihf"
-    paths:
-      - "conduit-armv7-unknown-linux-gnueabihf"
-    expose_as: "Conduit for armv7-unknown-linux-gnueabihf"
-
-build:release:cargo:aarch64-unknown-linux-gnu:
-  extends: .build-cargo-shared-settings
-  variables:
-    TARGET: "aarch64-unknown-linux-gnu"
-    NEEDED_PACKAGES: "build-essential gcc-8-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross"
-    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-    CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-    CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
-    TARGET_CC: "/usr/bin/aarch64-linux-gnu-gcc-8"
-    TARGET_AR: "/usr/bin/aarch64-linux-gnu-gcc-ar-8"
-  artifacts:
-    name: "conduit-aarch64-unknown-linux-gnu"
-    paths:
-      - "conduit-aarch64-unknown-linux-gnu"
-    expose_as: "Conduit for aarch64-unknown-linux-gnu"
+      - "conduit-x86_64-unknown-linux-musl-with-debug"
+    expose_as: "Conduit for x86_64-unknown-linux-musl-with-debug"
 
 build:release:cargo:x86_64-unknown-linux-musl:
   extends: .build-cargo-shared-settings
-  image: "rust:alpine"
   variables:
     TARGET: "x86_64-unknown-linux-musl"
-  before_script:
-    - 'echo "Building for target $TARGET"'
-    - 'mkdir -p cargohome && CARGOHOME="cargohome"'
-    - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
-    - "rustup target add $TARGET"
-    - "apk add libc-dev"
   artifacts:
     name: "conduit-x86_64-unknown-linux-musl"
     paths:
       - "conduit-x86_64-unknown-linux-musl"
     expose_as: "Conduit for x86_64-unknown-linux-musl"
 
+build:release:cargo:arm-unknown-linux-musleabihf:
+  extends: .build-cargo-shared-settings
+  variables:
+    TARGET: "arm-unknown-linux-musleabihf"
+  artifacts:
+    name: "conduit-arm-unknown-linux-musleabihf"
+    paths:
+      - "conduit-arm-unknown-linux-musleabihf"
+    expose_as: "Conduit for arm-unknown-linux-musleabihf"
 
+build:release:cargo:armv7-unknown-linux-musleabihf:
+  extends: .build-cargo-shared-settings
+  variables:
+    TARGET: "armv7-unknown-linux-musleabihf"
+  artifacts:
+    name: "conduit-armv7-unknown-linux-musleabihf"
+    paths:
+      - "conduit-armv7-unknown-linux-musleabihf"
+    expose_as: "Conduit for armv7-unknown-linux-musleabihf"
+
+build:release:cargo:aarch64-unknown-linux-musl:
+  extends: .build-cargo-shared-settings
+  variables:
+    TARGET: "aarch64-unknown-linux-musl"
+  artifacts:
+    name: "conduit-aarch64-unknown-linux-musl"
+    paths:
+      - "conduit-aarch64-unknown-linux-musl"
+    expose_as: "Conduit for aarch64-unknown-linux-musl"
 
 .cargo-debug-shared-settings:
   extends: ".build-cargo-shared-settings"
   rules:
-    - if: '$CI_COMMIT_BRANCH'
-    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH != "master"'
   cache:
-    key: "build_cache-$TARGET-debug"
+    key: "build_cache--$TARGET--$CI_COMMIT_BRANCH--debug"
   script:
-    - "time cargo build --target $TARGET"
+    # cross-compile conduit for target
+    - 'time time cross build --target="$TARGET" --locked'
     - 'mv "target/$TARGET/debug/conduit" "conduit-debug-$TARGET"'
+    # print information about linking for debugging
+    - "file conduit-debug-$TARGET" # print file information
+    - 'readelf --dynamic conduit-debug-$TARGET | sed -e "/NEEDED/q1"' # ensure statically linked
   artifacts:
     expire_in: 4 weeks
 
-build:debug:cargo:x86_64-unknown-linux-gnu:
-  extends: ".cargo-debug-shared-settings"
-  variables:
-    TARGET: "x86_64-unknown-linux-gnu"
-  artifacts:
-    name: "conduit-debug-x86_64-unknown-linux-gnu"
-    paths:
-      - "conduit-debug-x86_64-unknown-linux-gnu"
-    expose_as: "Conduit DEBUG for x86_64-unknown-linux-gnu"
-
 build:debug:cargo:x86_64-unknown-linux-musl:
   extends: ".cargo-debug-shared-settings"
-  image: "rust:alpine"
   variables:
     TARGET: "x86_64-unknown-linux-musl"
-  before_script:
-    - 'echo "Building for target $TARGET"'
-    - 'mkdir -p cargohome && CARGOHOME="cargohome"'
-    - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
-    - "rustup target add $TARGET"
-    - "apk add libc-dev"
   artifacts:
     name: "conduit-debug-x86_64-unknown-linux-musl"
     paths:
       - "conduit-debug-x86_64-unknown-linux-musl"
     expose_as: "Conduit DEBUG for x86_64-unknown-linux-musl"
 
-
-
-# --------------------------------------------------------------------- #
-#  Cargo: Compiling deb packages for different architectures            #
-# --------------------------------------------------------------------- #
-
-
-.build-cargo-deb-shared-settings:
-  stage: "build"
-  needs: [ ]
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_BRANCH == "next"'
-    - if: '$CI_COMMIT_TAG'
-  interruptible: true
-  image: "rust:latest"
-  tags: ["docker"]
-  cache:
-    paths:
-      - cargohome
-      - target/
-    key: "build_cache-deb-$TARGET"
-  before_script:
-    - 'echo "Building debian package for target $TARGET"'
-    - 'mkdir -p cargohome && CARGOHOME="cargohome"'
-    - "cat /etc/*-release && rustc --version && cargo --version"  # Print version info for debugging
-    - 'apt-get update -yqq'
-    - 'echo "Installing packages: $NEEDED_PACKAGES"'
-    - "apt-get install -yqq --no-install-recommends $NEEDED_PACKAGES"
-    - "rustup target add $TARGET"
-    - "cargo install cargo-deb"
-  script:
-    - time cargo deb --target $TARGET
-    - 'mv target/$TARGET/debian/*.deb "conduit-$TARGET.deb"'
-
-build:cargo-deb:x86_64-unknown-linux-gnu:
-  extends: .build-cargo-deb-shared-settings
-  variables:
-    TARGET: "x86_64-unknown-linux-gnu"
-    NEEDED_PACKAGES: ""
-  artifacts:
-    name: "conduit-x86_64-unknown-linux-gnu.deb"
-    paths:
-      - "conduit-x86_64-unknown-linux-gnu.deb"
-    expose_as: "Debian Package x86_64"
-
-
 # --------------------------------------------------------------------- #
 #  Create and publish docker image                                      #
 # --------------------------------------------------------------------- #
 
-# Build a docker image by packaging up the x86_64-unknown-linux-musl binary into an alpine image
 .docker-shared-settings:
   stage: "build docker image"
-  needs: []
-  interruptible: true
-  image:
-    name: "gcr.io/kaniko-project/executor:debug"
-    entrypoint: [""]
+  image: jdrouet/docker-with-buildx:stable
   tags: ["docker"]
-  variables:
-    # Configure Kaniko Caching: https://cloud.google.com/build/docs/kaniko-cache
-    KANIKO_CACHE_ARGS: "--cache=true --cache-copy-layers=true --cache-ttl=120h --cache-repo $CI_REGISTRY_IMAGE/kaniko-ci-cache"
-  before_script:
-    - "mkdir -p /kaniko/.docker"
-    - 'echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"},\"$DOCKER_HUB\":{\"username\":\"$DOCKER_HUB_USER\",\"password\":\"$DOCKER_HUB_PASSWORD\"}}}" > /kaniko/.docker/config.json'
-
-
-build:docker:next:
-  extends: .docker-shared-settings
+  services:
+    - docker:dind
   needs:
     - "build:release:cargo:x86_64-unknown-linux-musl"
+    - "build:release:cargo:arm-unknown-linux-musleabihf"
+    - "build:release:cargo:armv7-unknown-linux-musleabihf"
+    - "build:release:cargo:aarch64-unknown-linux-musl"
+  variables:
+    PLATFORMS: "linux/arm/v6,linux/arm/v7,linux/arm64,linux/amd64"
+    DOCKER_FILE: "docker/ci-binaries-packaging.Dockerfile"
+  cache:
+    paths:
+      - docker_cache
+    key: "$CI_JOB_NAME"
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    # Only log in to Dockerhub if the credentials are given:
+    - if [ -n "${DOCKER_HUB}" ]; then docker login -u "$DOCKER_HUB_USER" -p "$DOCKER_HUB_PASSWORD" "$DOCKER_HUB"; fi
   script:
+    # Prepare buildx to build multiarch stuff:
+    - docker context create 'ci-context'
+    - docker buildx create --name 'multiarch-builder' --use 'ci-context'
+    # Copy binaries to their docker arch path
+    - mkdir -p linux/ && mv ./conduit-x86_64-unknown-linux-musl linux/amd64
+    - mkdir -p linux/arm/ && mv ./conduit-arm-unknown-linux-musleabihf linux/arm/v6
+    - mkdir -p linux/arm/ && mv ./conduit-armv7-unknown-linux-musleabihf linux/arm/v7
+    - mv ./conduit-aarch64-unknown-linux-musl linux/arm64
+    - 'export CREATED=$(date -u +''%Y-%m-%dT%H:%M:%SZ'') && echo "Docker image creation date: $CREATED"'
+    # Build and push image:
     - >
-      /kaniko/executor
-      $KANIKO_CACHE_ARGS
-      --context $CI_PROJECT_DIR
-      --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      docker buildx build
+      --pull
+      --push
+      --cache-from=type=local,src=$CI_PROJECT_DIR/docker_cache
+      --cache-to=type=local,dest=$CI_PROJECT_DIR/docker_cache
+      --build-arg CREATED=$CREATED
       --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)
       --build-arg "GIT_REF=$CI_COMMIT_SHORT_SHA"
-      --dockerfile "$CI_PROJECT_DIR/docker/ci-binaries-packaging.Dockerfile"
-      --destination "$CI_REGISTRY_IMAGE/conduit:next"
-      --destination "$CI_REGISTRY_IMAGE/conduit:next-alpine"
-      --destination "$CI_REGISTRY_IMAGE/conduit:commit-$CI_COMMIT_SHORT_SHA"
-      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:next"
-      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:next-alpine"
-      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:commit-$CI_COMMIT_SHORT_SHA"
+      --platform "$PLATFORMS"
+      --tag "$TAG"
+      --tag "$TAG-alpine"
+      --tag "$TAG-commit-$CI_COMMIT_SHORT_SHA"
+      --file "$DOCKER_FILE" .
+
+docker:next:gitlab:
+  extends: .docker-shared-settings
   rules:
     - if: '$CI_COMMIT_BRANCH == "next"'
+  variables:
+    TAG: "$CI_REGISTRY_IMAGE/matrix-conduit:next"
 
-
-build:docker:master:
+docker:next:dockerhub:
   extends: .docker-shared-settings
-  needs:
-    - "build:release:cargo:x86_64-unknown-linux-musl"
-  script:
-    - >
-      /kaniko/executor
-      $KANIKO_CACHE_ARGS
-      --context $CI_PROJECT_DIR
-      --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-      --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)
-      --build-arg "GIT_REF=$CI_COMMIT_SHORT_SHA"
-      --dockerfile "$CI_PROJECT_DIR/docker/ci-binaries-packaging.Dockerfile"
-      --destination "$CI_REGISTRY_IMAGE/conduit:latest"
-      --destination "$CI_REGISTRY_IMAGE/conduit:latest-alpine"
-      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:latest"
-      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:latest-alpine"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "next" && $DOCKER_HUB'
+  variables:
+    TAG: "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:next"
+
+docker:master:gitlab:
+  extends: .docker-shared-settings
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
+  variables:
+    TAG: "$CI_REGISTRY_IMAGE/matrix-conduit:latest"
 
-
-build:docker:tags:
+docker:master:dockerhub:
   extends: .docker-shared-settings
-  needs:
-    - "build:release:cargo:x86_64-unknown-linux-musl"
-  script:
-    - >
-      /kaniko/executor
-      $KANIKO_CACHE_ARGS
-      --context $CI_PROJECT_DIR
-      --build-arg CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-      --build-arg VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml)
-      --build-arg "GIT_REF=$CI_COMMIT_SHORT_SHA"
-      --dockerfile "$CI_PROJECT_DIR/docker/ci-binaries-packaging.Dockerfile"
-      --destination "$CI_REGISTRY_IMAGE/conduit:$CI_COMMIT_TAG"
-      --destination "$CI_REGISTRY_IMAGE/conduit:$CI_COMMIT_TAG-alpine"
-      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:$CI_COMMIT_TAG"
-      --destination "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:$CI_COMMIT_TAG-alpine"
   rules:
-    - if: '$CI_COMMIT_TAG'
-
-
+    - if: '$CI_COMMIT_BRANCH == "master" && $DOCKER_HUB'
+  variables:
+    TAG: "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:latest"
 
 # --------------------------------------------------------------------- #
 #  Run tests                                                            #
@@ -286,27 +226,26 @@ build:docker:tags:
 
 test:cargo:
   stage: "test"
-  needs: [ ]
-  image: "rust:latest"
-  tags: [ "docker" ]
+  needs: []
+  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
+  tags: ["docker"]
   variables:
-    CARGO_HOME: "cargohome"
-  cache:
-    paths:
-      - target
-      - cargohome
-    key: test_cache
+    CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
   interruptible: true
   before_script:
-    - mkdir -p $CARGO_HOME && echo "using $CARGO_HOME to cache cargo deps"
-    - apt-get update -yqq
-    - apt-get install -yqq --no-install-recommends build-essential libssl-dev pkg-config
     - rustup component add clippy rustfmt
+    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
+    - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/usr/local/cargo/bin/sccache; fi
   script:
-    - rustc --version && cargo --version  # Print version info for debugging
+    - rustc --version && cargo --version # Print version info for debugging
     - cargo fmt --all -- --check
-    - cargo test --workspace --verbose --locked
-    - cargo clippy
+    - "cargo test --color always --workspace --verbose --locked --no-fail-fast -- -Z unstable-options --format json | gitlab-report -p test > $CI_PROJECT_DIR/report.xml"
+    - "cargo clippy --color always --verbose --message-format=json | gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+      codequality: gl-code-quality-report.json
 
 test:sytest:
   stage: "test"
@@ -315,8 +254,8 @@ test:sytest:
     - "build:debug:cargo:x86_64-unknown-linux-musl"
   image:
     name: "valkum/sytest-conduit:latest"
-    entrypoint: [ "" ]
-  tags: [ "docker" ]
+    entrypoint: [""]
+  tags: ["docker"]
   variables:
     PLUGINS: "https://github.com/valkum/sytest_conduit/archive/master.tar.gz"
   before_script:
@@ -329,7 +268,7 @@ test:sytest:
   script:
     - "SYTEST_EXIT_CODE=0"
     - "/bootstrap.sh conduit || SYTEST_EXIT_CODE=1"
-    - "perl /sytest/tap-to-junit-xml.pl --puretap --input /logs/results.tap --output $CI_PROJECT_DIR/sytest.xml \"Sytest\" && cp /logs/results.tap $CI_PROJECT_DIR/results.tap"
+    - 'perl /sytest/tap-to-junit-xml.pl --puretap --input /logs/results.tap --output $CI_PROJECT_DIR/sytest.xml "Sytest" && cp /logs/results.tap $CI_PROJECT_DIR/results.tap'
     - "exit $SYTEST_EXIT_CODE"
   artifacts:
     when: always
@@ -339,31 +278,6 @@ test:sytest:
     reports:
       junit: "$CI_PROJECT_DIR/sytest.xml"
 
-
-test:register:element-web-stable:
-  stage: "test"
-  needs:
-    - "build:debug:cargo:x86_64-unknown-linux-gnu"
-  image: "buildkite/puppeteer:latest"
-  tags: [ "docker" ]
-  interruptible: true
-  script:
-    - "CONDUIT_CONFIG=tests/test-config.toml ./conduit-debug-x86_64-unknown-linux-gnu > conduit.log &"
-    - "cd tests/client-element-web/"
-    - "npm install puppeteer"
-    - "node test-element-web-registration.js \"https://app.element.io/\" \"http://localhost:6167\""
-    - "killall --regexp \"conduit\""
-    - "cd ../.."
-    - "cat conduit.log"
-  artifacts:
-    paths:
-      - "tests/client-element-web/*.png"
-      - "*.log"
-    expire_in: 1 week
-    when: always
-  retry: 1
-
-
 # --------------------------------------------------------------------- #
 #  Store binaries as package so they have download urls                 #
 # --------------------------------------------------------------------- #
@@ -371,25 +285,31 @@ test:register:element-web-stable:
 publish:package:
   stage: "upload artifacts"
   needs:
-    - "build:release:cargo:x86_64-unknown-linux-gnu"
-    - "build:release:cargo:armv7-unknown-linux-gnueabihf"
-    - "build:release:cargo:aarch64-unknown-linux-gnu"
     - "build:release:cargo:x86_64-unknown-linux-musl"
-    - "build:cargo-deb:x86_64-unknown-linux-gnu"
+    - "build:release:cargo:arm-unknown-linux-musleabihf"
+    - "build:release:cargo:armv7-unknown-linux-musleabihf"
+    - "build:release:cargo:aarch64-unknown-linux-musl"
+  #    - "build:cargo-deb:x86_64-unknown-linux-gnu"
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
     - if: '$CI_COMMIT_BRANCH == "next"'
-    - if: '$CI_COMMIT_TAG'
+    - if: "$CI_COMMIT_TAG"
   image: curlimages/curl:latest
   tags: ["docker"]
   variables:
     GIT_STRATEGY: "none" # Don't need a clean copy of the code, we just operate on artifacts
   script:
     - 'BASE_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/conduit-${CI_COMMIT_REF_SLUG}/build-${CI_PIPELINE_ID}"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu "${BASE_URL}/conduit-x86_64-unknown-linux-gnu"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-armv7-unknown-linux-gnueabihf "${BASE_URL}/conduit-armv7-unknown-linux-gnueabihf"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-aarch64-unknown-linux-gnu "${BASE_URL}/conduit-aarch64-unknown-linux-gnu"'
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-musl "${BASE_URL}/conduit-x86_64-unknown-linux-musl"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-x86_64-unknown-linux-gnu.deb "${BASE_URL}/conduit-x86_64-unknown-linux-gnu.deb"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-arm-unknown-linux-musleabihf "${BASE_URL}/conduit-arm-unknown-linux-musleabihf"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-armv7-unknown-linux-musleabihf "${BASE_URL}/conduit-armv7-unknown-linux-musleabihf"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file conduit-aarch64-unknown-linux-musl "${BASE_URL}/conduit-aarch64-unknown-linux-musl"'
 
-
+# Avoid duplicate pipelines
+# See: https://docs.gitlab.com/ee/ci/yaml/workflow.html#switch-between-branch-pipelines-and-merge-request-pipelines
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: "$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS"
+      when: never
+    - if: "$CI_COMMIT_BRANCH"

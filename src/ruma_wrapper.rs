@@ -20,7 +20,6 @@ use {
     },
     ruma::api::{AuthScheme, IncomingRequest},
     std::collections::BTreeMap,
-    std::convert::TryFrom,
     std::io::Cursor,
     tracing::{debug, warn},
 };
@@ -29,7 +28,7 @@ use {
 /// first.
 pub struct Ruma<T: Outgoing> {
     pub body: T::Incoming,
-    pub sender_user: Option<UserId>,
+    pub sender_user: Option<Box<UserId>>,
     pub sender_device: Option<Box<DeviceId>>,
     pub sender_servername: Option<Box<ServerName>>,
     // This is None when body is not a valid string
@@ -66,7 +65,7 @@ where
         let limit = db.globals.max_request_size();
         let mut handle = data.open(ByteUnit::Byte(limit.into()));
         let mut body = Vec::new();
-        if let Err(_) = handle.read_to_end(&mut body).await {
+        if handle.read_to_end(&mut body).await.is_err() {
             // Client disconnected
             // Missing Token
             return Failure((Status::new(582), ()));
@@ -86,7 +85,7 @@ where
                 registration
                     .get("as_token")
                     .and_then(|as_token| as_token.as_str())
-                    .map_or(false, |as_token| token.as_deref() == Some(as_token))
+                    .map_or(false, |as_token| token == Some(as_token))
             }) {
             match metadata.authentication {
                 AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
@@ -103,8 +102,7 @@ where
                             .unwrap()
                         },
                         |string| {
-                            UserId::try_from(string.expect("parsing to string always works"))
-                                .unwrap()
+                            UserId::parse(string.expect("parsing to string always works")).unwrap()
                         },
                     );
 
@@ -123,7 +121,7 @@ where
             match metadata.authentication {
                 AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
                     if let Some(token) = token {
-                        match db.users.find_from_token(&token).unwrap() {
+                        match db.users.find_from_token(token).unwrap() {
                             // Unknown Token
                             None => return Failure((Status::new(581), ())),
                             Some((user_id, device_id)) => (
@@ -171,7 +169,7 @@ where
                         }
                     };
 
-                    let origin = match Box::<ServerName>::try_from(origin_str) {
+                    let origin = match ServerName::parse(origin_str) {
                         Ok(s) => s,
                         _ => {
                             warn!(
@@ -298,14 +296,11 @@ where
                 .and_then(|auth| auth.get("session"))
                 .and_then(|session| session.as_str())
                 .and_then(|session| {
-                    db.uiaa
-                        .get_uiaa_request(
-                            &user_id,
-                            &sender_device.clone().unwrap_or_else(|| "".into()),
-                            session,
-                        )
-                        .ok()
-                        .flatten()
+                    db.uiaa.get_uiaa_request(
+                        &user_id,
+                        &sender_device.clone().unwrap_or_else(|| "".into()),
+                        session,
+                    )
                 })
             {
                 for (key, value) in initial_request {
@@ -344,7 +339,7 @@ impl<T: Outgoing> Deref for Ruma<T> {
 }
 
 /// This struct converts ruma responses into rocket http responses.
-pub type ConduitResult<T> = std::result::Result<RumaResponse<T>, Error>;
+pub type ConduitResult<T> = Result<RumaResponse<T>, Error>;
 
 pub fn response<T: OutgoingResponse>(response: RumaResponse<T>) -> response::Result<'static> {
     let http_response = response

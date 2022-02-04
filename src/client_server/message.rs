@@ -5,11 +5,9 @@ use ruma::{
         r0::message::{get_message_events, send_message_event},
     },
     events::EventType,
-    EventId,
 };
 use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
+    collections::{BTreeMap, HashSet},
     sync::Arc,
 };
 
@@ -45,6 +43,14 @@ pub async fn send_message_event_route(
     );
     let state_lock = mutex_state.lock().await;
 
+    // Forbid m.room.encrypted if encryption is disabled
+    if &body.event_type == "m.room.encrypted" && !db.globals.allow_encryption() {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Encryption has been disabled",
+        ));
+    }
+
     // Check if this is a new transaction id
     if let Some(response) =
         db.transaction_ids
@@ -59,27 +65,26 @@ pub async fn send_message_event_route(
             ));
         }
 
-        let event_id = EventId::try_from(
-            utils::string_from_bytes(&response)
-                .map_err(|_| Error::bad_database("Invalid txnid bytes in database."))?,
-        )
-        .map_err(|_| Error::bad_database("Invalid event id in txnid data."))?;
+        let event_id = utils::string_from_bytes(&response)
+            .map_err(|_| Error::bad_database("Invalid txnid bytes in database."))?
+            .try_into()
+            .map_err(|_| Error::bad_database("Invalid event id in txnid data."))?;
         return Ok(send_message_event::Response { event_id }.into());
     }
 
     let mut unsigned = BTreeMap::new();
-    unsigned.insert("transaction_id".to_owned(), body.txn_id.clone().into());
+    unsigned.insert("transaction_id".to_owned(), body.txn_id.to_string().into());
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::from(&body.event_type),
+            event_type: EventType::from(&*body.event_type),
             content: serde_json::from_str(body.body.body.json().get())
                 .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?,
             unsigned: Some(unsigned),
             state_key: None,
             redacts: None,
         },
-        &sender_user,
+        sender_user,
         &body.room_id,
         &db,
         &state_lock,
@@ -96,7 +101,7 @@ pub async fn send_message_event_route(
 
     db.flush()?;
 
-    Ok(send_message_event::Response::new(event_id).into())
+    Ok(send_message_event::Response::new((*event_id).to_owned()).into())
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/messages`
@@ -115,6 +120,7 @@ pub async fn get_message_events_route(
     body: Ruma<get_message_events::Request<'_>>,
 ) -> ConduitResult<get_message_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
     if !db.rooms.is_joined(sender_user, &body.room_id)? {
         return Err(Error::BadRequest(
@@ -131,17 +137,23 @@ pub async fn get_message_events_route(
 
     let to = body.to.as_ref().map(|t| t.parse());
 
+    db.rooms
+        .lazy_load_confirm_delivery(sender_user, sender_device, &body.room_id, from)?;
+
     // Use limit or else 10
-    let limit = body
-        .limit
-        .try_into()
-        .map_or(Ok::<_, Error>(10_usize), |l: u32| Ok(l as usize))?;
+    let limit = body.limit.try_into().map_or(10_usize, |l: u32| l as usize);
+
+    let next_token;
+
+    let mut resp = get_message_events::Response::new();
+
+    let mut lazy_loaded = HashSet::new();
 
     match body.dir {
         get_message_events::Direction::Forward => {
-            let events_after = db
+            let events_after: Vec<_> = db
                 .rooms
-                .pdus_after(&sender_user, &body.room_id, from)?
+                .pdus_after(sender_user, &body.room_id, from)?
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
                 .filter_map(|(pdu_id, pdu)| {
@@ -151,27 +163,34 @@ pub async fn get_message_events_route(
                         .ok()
                 })
                 .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
-                .collect::<Vec<_>>();
+                .collect();
 
-            let end_token = events_after.last().map(|(count, _)| count.to_string());
+            for (_, event) in &events_after {
+                if !db.rooms.lazy_load_was_sent_before(
+                    sender_user,
+                    sender_device,
+                    &body.room_id,
+                    &event.sender,
+                )? {
+                    lazy_loaded.insert(event.sender.clone());
+                }
+            }
 
-            let events_after = events_after
+            next_token = events_after.last().map(|(count, _)| count).copied();
+
+            let events_after: Vec<_> = events_after
                 .into_iter()
                 .map(|(_, pdu)| pdu.to_room_event())
-                .collect::<Vec<_>>();
+                .collect();
 
-            let mut resp = get_message_events::Response::new();
-            resp.start = Some(body.from.to_owned());
-            resp.end = end_token;
+            resp.start = body.from.to_owned();
+            resp.end = next_token.map(|count| count.to_string());
             resp.chunk = events_after;
-            resp.state = Vec::new();
-
-            Ok(resp.into())
         }
         get_message_events::Direction::Backward => {
-            let events_before = db
+            let events_before: Vec<_> = db
                 .rooms
-                .pdus_until(&sender_user, &body.room_id, from)?
+                .pdus_until(sender_user, &body.room_id, from)?
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
                 .filter_map(|(pdu_id, pdu)| {
@@ -181,22 +200,51 @@ pub async fn get_message_events_route(
                         .ok()
                 })
                 .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
-                .collect::<Vec<_>>();
+                .collect();
 
-            let start_token = events_before.last().map(|(count, _)| count.to_string());
+            for (_, event) in &events_before {
+                if !db.rooms.lazy_load_was_sent_before(
+                    sender_user,
+                    sender_device,
+                    &body.room_id,
+                    &event.sender,
+                )? {
+                    lazy_loaded.insert(event.sender.clone());
+                }
+            }
 
-            let events_before = events_before
+            next_token = events_before.last().map(|(count, _)| count).copied();
+
+            let events_before: Vec<_> = events_before
                 .into_iter()
                 .map(|(_, pdu)| pdu.to_room_event())
-                .collect::<Vec<_>>();
+                .collect();
 
-            let mut resp = get_message_events::Response::new();
-            resp.start = Some(body.from.to_owned());
-            resp.end = start_token;
+            resp.start = body.from.to_owned();
+            resp.end = next_token.map(|count| count.to_string());
             resp.chunk = events_before;
-            resp.state = Vec::new();
-
-            Ok(resp.into())
         }
     }
+
+    resp.state = Vec::new();
+    for ll_id in &lazy_loaded {
+        if let Some(member_event) =
+            db.rooms
+                .room_state_get(&body.room_id, &EventType::RoomMember, ll_id.as_str())?
+        {
+            resp.state.push(member_event.to_state_event());
+        }
+    }
+
+    if let Some(next_token) = next_token {
+        db.rooms.lazy_load_mark_sent(
+            sender_user,
+            sender_device,
+            &body.room_id,
+            lazy_loaded,
+            next_token,
+        );
+    }
+
+    Ok(resp.into())
 }

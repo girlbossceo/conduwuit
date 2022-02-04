@@ -1,34 +1,30 @@
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
-use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};
+use crate::{
+    database::{admin::make_user_admin, DatabaseGuard},
+    pdu::PduBuilder,
+    utils, ConduitResult, Error, Ruma,
+};
 use ruma::{
     api::client::{
         error::ErrorKind,
         r0::{
             account::{
-                change_password, deactivate, get_username_availability, register, whoami,
-                ThirdPartyIdRemovalStatus,
+                change_password, deactivate, get_3pids, get_username_availability, register,
+                whoami, ThirdPartyIdRemovalStatus,
             },
-            contact::get_contacts,
-            uiaa::{AuthFlow, UiaaInfo},
+            uiaa::{AuthFlow, AuthType, UiaaInfo},
         },
     },
     events::{
-        room::{
-            canonical_alias, guest_access, history_visibility, join_rules, member, message, name,
-            topic,
-        },
+        room::member::{MembershipState, RoomMemberEventContent},
         EventType,
     },
-    identifiers::RoomName,
-    push, RoomAliasId, RoomId, RoomVersionId, UserId,
+    push, UserId,
 };
-use tracing::info;
+use serde_json::value::to_raw_value;
+use tracing::{info, warn};
 
 use register::RegistrationKind;
 #[cfg(feature = "conduit_bin")]
@@ -56,15 +52,16 @@ pub async fn get_register_available_route(
     body: Ruma<get_username_availability::Request<'_>>,
 ) -> ConduitResult<get_username_availability::Response> {
     // Validate user id
-    let user_id = UserId::parse_with_server_name(body.username.clone(), db.globals.server_name())
-        .ok()
-        .filter(|user_id| {
-            !user_id.is_historical() && user_id.server_name() == db.globals.server_name()
-        })
-        .ok_or(Error::BadRequest(
-            ErrorKind::InvalidUsername,
-            "Username is invalid.",
-        ))?;
+    let user_id =
+        UserId::parse_with_server_name(body.username.to_lowercase(), db.globals.server_name())
+            .ok()
+            .filter(|user_id| {
+                !user_id.is_historical() && user_id.server_name() == db.globals.server_name()
+            })
+            .ok_or(Error::BadRequest(
+                ErrorKind::InvalidUsername,
+                "Username is invalid.",
+            ))?;
 
     // Check if username is creative enough
     if db.users.exists(&user_id)? {
@@ -147,7 +144,7 @@ pub async fn register_route(
     // UIAA
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.dummy".to_owned()],
+            stages: vec![AuthType::Dummy],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -248,281 +245,15 @@ pub async fn register_route(
         body.initial_device_display_name.clone(),
     )?;
 
-    // If this is the first user on this server, create the admin room
-    if db.users.count()? == 1 {
-        // Create a user for the server
-        let conduit_user = UserId::parse_with_server_name("conduit", db.globals.server_name())
-            .expect("@conduit:server_name is valid");
-
-        db.users.create(&conduit_user, None)?;
-
-        let room_id = RoomId::new(db.globals.server_name());
-
-        db.rooms.get_or_create_shortroomid(&room_id, &db.globals)?;
-
-        let mutex_state = Arc::clone(
-            db.globals
-                .roomid_mutex_state
-                .write()
-                .unwrap()
-                .entry(room_id.clone())
-                .or_default(),
-        );
-        let state_lock = mutex_state.lock().await;
-
-        let mut content = ruma::events::room::create::CreateEventContent::new(conduit_user.clone());
-        content.federate = true;
-        content.predecessor = None;
-        content.room_version = RoomVersionId::Version6;
-
-        // 1. The room create event
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomCreate,
-                content: serde_json::to_value(content).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 2. Make conduit bot join
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Join,
-                    displayname: None,
-                    avatar_url: None,
-                    is_direct: None,
-                    third_party_invite: None,
-                    blurhash: None,
-                    reason: None,
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(conduit_user.to_string()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 3. Power levels
-        let mut users = BTreeMap::new();
-        users.insert(conduit_user.clone(), 100.into());
-        users.insert(user_id.clone(), 100.into());
-
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomPowerLevels,
-                content: serde_json::to_value(
-                    ruma::events::room::power_levels::PowerLevelsEventContent {
-                        users,
-                        ..Default::default()
-                    },
-                )
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 4.1 Join Rules
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomJoinRules,
-                content: serde_json::to_value(join_rules::JoinRulesEventContent::new(
-                    join_rules::JoinRule::Invite,
-                ))
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 4.2 History Visibility
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomHistoryVisibility,
-                content: serde_json::to_value(
-                    history_visibility::HistoryVisibilityEventContent::new(
-                        history_visibility::HistoryVisibility::Shared,
-                    ),
-                )
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 4.3 Guest Access
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomGuestAccess,
-                content: serde_json::to_value(guest_access::GuestAccessEventContent::new(
-                    guest_access::GuestAccess::Forbidden,
-                ))
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // 6. Events implied by name and topic
-        let room_name =
-            Box::<RoomName>::try_from(format!("{} Admin Room", db.globals.server_name()))
-                .expect("Room name is valid");
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomName,
-                content: serde_json::to_value(name::NameEventContent::new(Some(room_name)))
-                    .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomTopic,
-                content: serde_json::to_value(topic::TopicEventContent {
-                    topic: format!("Manage {}", db.globals.server_name()),
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // Room alias
-        let alias: RoomAliasId = format!("#admins:{}", db.globals.server_name())
-            .try_into()
-            .expect("#admins:server_name is a valid alias name");
-
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomCanonicalAlias,
-                content: serde_json::to_value(canonical_alias::CanonicalAliasEventContent {
-                    alias: Some(alias.clone()),
-                    alt_aliases: Vec::new(),
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some("".to_owned()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        db.rooms.set_alias(&alias, Some(&room_id), &db.globals)?;
-
-        // Invite and join the real user
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Invite,
-                    displayname: None,
-                    avatar_url: None,
-                    is_direct: None,
-                    third_party_invite: None,
-                    blurhash: None,
-                    reason: None,
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(user_id.to_string()),
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: serde_json::to_value(member::MemberEventContent {
-                    membership: member::MembershipState::Join,
-                    displayname: Some(displayname),
-                    avatar_url: None,
-                    is_direct: None,
-                    third_party_invite: None,
-                    blurhash: None,
-                    reason: None,
-                })
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(user_id.to_string()),
-                redacts: None,
-            },
-            &user_id,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-
-        // Send welcome message
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMessage,
-                content: serde_json::to_value(message::MessageEventContent::text_html(
-                        "## Thank you for trying out Conduit!\n\nConduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.\n\nHelpful links:\n> Website: https://conduit.rs\n> Git and Documentation: https://gitlab.com/famedly/conduit\n> Report issues: https://gitlab.com/famedly/conduit/-/issues\n\nHere are some rooms you can join (by typing the command):\n\nConduit room (Ask questions and get notified on updates):\n`/join #conduit:fachschaften.org`\n\nConduit lounge (Off-topic, only Conduit users are allowed to join)\n`/join #conduit-lounge:conduit.rs`".to_owned(),
-                        "<h2>Thank you for trying out Conduit!</h2>\n<p>Conduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.</p>\n<p>Helpful links:</p>\n<blockquote>\n<p>Website: https://conduit.rs<br>Git and Documentation: https://gitlab.com/famedly/conduit<br>Report issues: https://gitlab.com/famedly/conduit/-/issues</p>\n</blockquote>\n<p>Here are some rooms you can join (by typing the command):</p>\n<p>Conduit room (Ask questions and get notified on updates):<br><code>/join #conduit:fachschaften.org</code></p>\n<p>Conduit lounge (Off-topic, only Conduit users are allowed to join)<br><code>/join #conduit-lounge:conduit.rs</code></p>\n".to_owned(),
-                ))
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: None,
-                redacts: None,
-            },
-            &conduit_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-    }
-
     info!("{} registered on this server", user_id);
+
+    // If this is the first real user, grant them admin privileges
+    // Note: the server user, @conduit:servername, is generated first
+    if db.users.count()? == 2 {
+        make_user_admin(&db, &user_id, displayname).await?;
+
+        warn!("Granting {} admin privileges as the first user", user_id);
+    }
 
     db.flush()?;
 
@@ -562,7 +293,7 @@ pub async fn change_password_route(
 
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -572,7 +303,7 @@ pub async fn change_password_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &sender_user,
+            sender_user,
             sender_device,
             auth,
             &uiaainfo,
@@ -586,24 +317,24 @@ pub async fn change_password_route(
     } else if let Some(json) = body.json_body {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
         db.uiaa
-            .create(&sender_user, &sender_device, &uiaainfo, &json)?;
+            .create(sender_user, sender_device, &uiaainfo, &json)?;
         return Err(Error::Uiaa(uiaainfo));
     } else {
         return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
     }
 
     db.users
-        .set_password(&sender_user, Some(&body.new_password))?;
+        .set_password(sender_user, Some(&body.new_password))?;
 
     if body.logout_devices {
         // Logout all devices except the current one
         for id in db
             .users
-            .all_device_ids(&sender_user)
+            .all_device_ids(sender_user)
             .filter_map(|id| id.ok())
             .filter(|id| id != sender_device)
         {
-            db.users.remove_device(&sender_user, &id)?;
+            db.users.remove_device(sender_user, &id)?;
         }
     }
 
@@ -654,7 +385,7 @@ pub async fn deactivate_route(
 
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec!["m.login.password".to_owned()],
+            stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -664,8 +395,8 @@ pub async fn deactivate_route(
 
     if let Some(auth) = &body.auth {
         let (worked, uiaainfo) = db.uiaa.try_auth(
-            &sender_user,
-            &sender_device,
+            sender_user,
+            sender_device,
             auth,
             &uiaainfo,
             &db.users,
@@ -678,7 +409,7 @@ pub async fn deactivate_route(
     } else if let Some(json) = body.json_body {
         uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
         db.uiaa
-            .create(&sender_user, &sender_device, &uiaainfo, &json)?;
+            .create(sender_user, sender_device, &uiaainfo, &json)?;
         return Err(Error::Uiaa(uiaainfo));
     } else {
         return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
@@ -688,24 +419,25 @@ pub async fn deactivate_route(
     // TODO: work over federation invites
     let all_rooms = db
         .rooms
-        .rooms_joined(&sender_user)
+        .rooms_joined(sender_user)
         .chain(
             db.rooms
-                .rooms_invited(&sender_user)
+                .rooms_invited(sender_user)
                 .map(|t| t.map(|(r, _)| r)),
         )
         .collect::<Vec<_>>();
 
     for room_id in all_rooms {
         let room_id = room_id?;
-        let event = member::MemberEventContent {
-            membership: member::MembershipState::Leave,
+        let event = RoomMemberEventContent {
+            membership: MembershipState::Leave,
             displayname: None,
             avatar_url: None,
             is_direct: None,
             third_party_invite: None,
             blurhash: None,
             reason: None,
+            join_authorized_via_users_server: None,
         };
 
         let mutex_state = Arc::clone(
@@ -721,12 +453,12 @@ pub async fn deactivate_route(
         db.rooms.build_and_append_pdu(
             PduBuilder {
                 event_type: EventType::RoomMember,
-                content: serde_json::to_value(event).expect("event is valid, we just created it"),
+                content: to_raw_value(&event).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some(sender_user.to_string()),
                 redacts: None,
             },
-            &sender_user,
+            sender_user,
             &room_id,
             &db,
             &state_lock,
@@ -734,7 +466,7 @@ pub async fn deactivate_route(
     }
 
     // Remove devices and mark account as deactivated
-    db.users.deactivate_account(&sender_user)?;
+    db.users.deactivate_account(sender_user)?;
 
     info!("{} deactivated their account", sender_user);
 
@@ -756,9 +488,9 @@ pub async fn deactivate_route(
     get("/_matrix/client/r0/account/3pid", data = "<body>")
 )]
 pub async fn third_party_route(
-    body: Ruma<get_contacts::Request>,
-) -> ConduitResult<get_contacts::Response> {
+    body: Ruma<get_3pids::Request>,
+) -> ConduitResult<get_3pids::Response> {
     let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(get_contacts::Response::new(Vec::new()).into())
+    Ok(get_3pids::Response::new(Vec::new()).into())
 }

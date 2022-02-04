@@ -1,45 +1,54 @@
 use crate::Error;
 use ruma::{
     events::{
-        pdu::EventHash, room::member::MemberEventContent, AnyEphemeralRoomEvent,
-        AnyInitialStateEvent, AnyRoomEvent, AnyStateEvent, AnyStrippedStateEvent, AnySyncRoomEvent,
-        AnySyncStateEvent, EventType, StateEvent,
+        room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyRoomEvent, AnyStateEvent,
+        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
     },
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
-    state_res, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
-    ServerSigningKeyId, UInt, UserId,
+    state_res, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use std::{cmp::Ordering, collections::BTreeMap, convert::TryFrom};
+use serde_json::{
+    json,
+    value::{to_raw_value, RawValue as RawJsonValue},
+};
+use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
 use tracing::warn;
+
+/// Content hashes of a PDU.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EventHash {
+    /// The SHA-256 hash.
+    pub sha256: String,
+}
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct PduEvent {
-    pub event_id: EventId,
-    pub room_id: RoomId,
-    pub sender: UserId,
+    pub event_id: Arc<EventId>,
+    pub room_id: Box<RoomId>,
+    pub sender: Box<UserId>,
     pub origin_server_ts: UInt,
     #[serde(rename = "type")]
     pub kind: EventType,
-    pub content: serde_json::Value,
+    pub content: Box<RawJsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state_key: Option<String>,
-    pub prev_events: Vec<EventId>,
+    pub prev_events: Vec<Arc<EventId>>,
     pub depth: UInt,
-    pub auth_events: Vec<EventId>,
+    pub auth_events: Vec<Arc<EventId>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub redacts: Option<EventId>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub unsigned: BTreeMap<String, serde_json::Value>,
+    pub redacts: Option<Arc<EventId>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unsigned: Option<Box<RawJsonValue>>,
     pub hashes: EventHash,
-    pub signatures: BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signatures: Option<Box<RawJsonValue>>, // BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId, String>>
 }
 
 impl PduEvent {
     #[tracing::instrument(skip(self))]
     pub fn redact(&mut self, reason: &PduEvent) -> crate::Result<()> {
-        self.unsigned.clear();
+        self.unsigned = None;
 
         let allowed: &[&str] = match self.kind {
             EventType::RoomMember => &["membership"],
@@ -59,10 +68,9 @@ impl PduEvent {
             _ => &[],
         };
 
-        let old_content = self
-            .content
-            .as_object_mut()
-            .ok_or_else(|| Error::bad_database("PDU in db has invalid content."))?;
+        let mut old_content: BTreeMap<String, serde_json::Value> =
+            serde_json::from_str(self.content.get())
+                .map_err(|_| Error::bad_database("PDU in db has invalid content."))?;
 
         let mut new_content = serde_json::Map::new();
 
@@ -72,12 +80,23 @@ impl PduEvent {
             }
         }
 
-        self.unsigned.insert(
-            "redacted_because".to_owned(),
-            serde_json::to_value(reason).expect("to_value(PduEvent) always works"),
-        );
+        self.unsigned = Some(to_raw_value(&json!({
+            "redacted_because": serde_json::to_value(reason).expect("to_value(PduEvent) always works")
+        })).expect("to string always works"));
 
-        self.content = new_content.into();
+        self.content = to_raw_value(&new_content).expect("to string always works");
+
+        Ok(())
+    }
+
+    pub fn remove_transaction_id(&mut self) -> crate::Result<()> {
+        if let Some(unsigned) = &self.unsigned {
+            let mut unsigned: BTreeMap<String, Box<RawJsonValue>> =
+                serde_json::from_str(unsigned.get())
+                    .map_err(|_| Error::bad_database("Invalid unsigned in pdu event"))?;
+            unsigned.remove("transaction_id");
+            self.unsigned = Some(to_raw_value(&unsigned).expect("unsigned is valid"));
+        }
 
         Ok(())
     }
@@ -192,7 +211,7 @@ impl PduEvent {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn to_member_event(&self) -> Raw<StateEvent<MemberEventContent>> {
+    pub fn to_member_event(&self) -> Raw<StateEvent<RoomMemberEventContent>> {
         let json = json!({
             "content": self.content,
             "type": self.kind,
@@ -212,7 +231,7 @@ impl PduEvent {
     #[tracing::instrument]
     pub fn convert_to_outgoing_federation_event(
         mut pdu_json: CanonicalJsonObject,
-    ) -> Raw<ruma::events::pdu::Pdu> {
+    ) -> Box<RawJsonValue> {
         if let Some(unsigned) = pdu_json
             .get_mut("unsigned")
             .and_then(|val| val.as_object_mut())
@@ -229,10 +248,7 @@ impl PduEvent {
         // )
         // .expect("Raw::from_value always works")
 
-        serde_json::from_value::<Raw<_>>(
-            serde_json::to_value(pdu_json).expect("CanonicalJson is valid serde_json::Value"),
-        )
-        .expect("Raw::from_value always works")
+        to_raw_value(&pdu_json).expect("CanonicalJson is valid serde_json::Value")
     }
 
     pub fn from_id_val(
@@ -240,7 +256,7 @@ impl PduEvent {
         mut json: CanonicalJsonObject,
     ) -> Result<Self, serde_json::Error> {
         json.insert(
-            "event_id".to_string(),
+            "event_id".to_owned(),
             CanonicalJsonValue::String(event_id.as_str().to_owned()),
         );
 
@@ -249,7 +265,9 @@ impl PduEvent {
 }
 
 impl state_res::Event for PduEvent {
-    fn event_id(&self) -> &EventId {
+    type Id = Arc<EventId>;
+
+    fn event_id(&self) -> &Self::Id {
         &self.event_id
     }
 
@@ -260,39 +278,33 @@ impl state_res::Event for PduEvent {
     fn sender(&self) -> &UserId {
         &self.sender
     }
-    fn kind(&self) -> EventType {
-        self.kind.clone()
+
+    fn event_type(&self) -> &EventType {
+        &self.kind
     }
 
-    fn content(&self) -> serde_json::Value {
-        self.content.clone()
+    fn content(&self) -> &RawJsonValue {
+        &self.content
     }
+
     fn origin_server_ts(&self) -> MilliSecondsSinceUnixEpoch {
         MilliSecondsSinceUnixEpoch(self.origin_server_ts)
     }
-    fn state_key(&self) -> Option<String> {
-        self.state_key.clone()
+
+    fn state_key(&self) -> Option<&str> {
+        self.state_key.as_deref()
     }
-    fn prev_events(&self) -> Vec<EventId> {
-        self.prev_events.to_vec()
+
+    fn prev_events(&self) -> Box<dyn DoubleEndedIterator<Item = &Self::Id> + '_> {
+        Box::new(self.prev_events.iter())
     }
-    fn depth(&self) -> &UInt {
-        &self.depth
+
+    fn auth_events(&self) -> Box<dyn DoubleEndedIterator<Item = &Self::Id> + '_> {
+        Box::new(self.auth_events.iter())
     }
-    fn auth_events(&self) -> Vec<EventId> {
-        self.auth_events.to_vec()
-    }
-    fn redacts(&self) -> Option<&EventId> {
+
+    fn redacts(&self) -> Option<&Self::Id> {
         self.redacts.as_ref()
-    }
-    fn hashes(&self) -> &EventHash {
-        &self.hashes
-    }
-    fn signatures(&self) -> BTreeMap<Box<ServerName>, BTreeMap<ruma::ServerSigningKeyId, String>> {
-        self.signatures.clone()
-    }
-    fn unsigned(&self) -> &BTreeMap<String, serde_json::Value> {
-        &self.unsigned
     }
 }
 
@@ -319,19 +331,20 @@ impl Ord for PduEvent {
 ///
 /// Returns a tuple of the new `EventId` and the PDU as a `BTreeMap<String, CanonicalJsonValue>`.
 pub(crate) fn gen_event_id_canonical_json(
-    pdu: &Raw<ruma::events::pdu::Pdu>,
-) -> crate::Result<(EventId, CanonicalJsonObject)> {
-    let value = serde_json::from_str(pdu.json().get()).map_err(|e| {
+    pdu: &RawJsonValue,
+) -> crate::Result<(Box<EventId>, CanonicalJsonObject)> {
+    let value = serde_json::from_str(pdu.get()).map_err(|e| {
         warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
 
-    let event_id = EventId::try_from(&*format!(
+    let event_id = format!(
         "${}",
         // Anything higher than version3 behaves the same
-        ruma::signatures::reference_hash(&value, &RoomVersionId::Version6)
+        ruma::signatures::reference_hash(&value, &RoomVersionId::V6)
             .expect("ruma can calculate reference hashes")
-    ))
+    )
+    .try_into()
     .expect("ruma's reference hashes are valid event ids");
 
     Ok((event_id, value))
@@ -342,22 +355,8 @@ pub(crate) fn gen_event_id_canonical_json(
 pub struct PduBuilder {
     #[serde(rename = "type")]
     pub event_type: EventType,
-    pub content: serde_json::Value,
+    pub content: Box<RawJsonValue>,
     pub unsigned: Option<BTreeMap<String, serde_json::Value>>,
     pub state_key: Option<String>,
-    pub redacts: Option<EventId>,
-}
-
-/// Direct conversion prevents loss of the empty `state_key` that ruma requires.
-impl From<AnyInitialStateEvent> for PduBuilder {
-    fn from(event: AnyInitialStateEvent) -> Self {
-        Self {
-            event_type: EventType::from(event.event_type()),
-            content: serde_json::value::to_value(event.content())
-                .expect("AnyStateEventContent came from JSON and can thus turn back into JSON."),
-            unsigned: None,
-            state_key: Some(event.state_key().to_owned()),
-            redacts: None,
-        }
-    }
+    pub redacts: Option<Arc<EventId>>,
 }

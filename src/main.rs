@@ -1,28 +1,16 @@
-#![warn(rust_2018_idioms)]
+#![warn(
+    rust_2018_idioms,
+    unused_qualifications,
+    clippy::cloned_instead_of_copied,
+    clippy::str_to_string
+)]
 #![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
 
-pub mod appservice_server;
-pub mod client_server;
-pub mod server_server;
-
-mod database;
-mod error;
-mod pdu;
-mod ruma_wrapper;
-mod utils;
-
 use std::sync::Arc;
 
-use database::Config;
-pub use database::Database;
-pub use error::{Error, Result};
+use maplit::hashset;
 use opentelemetry::trace::{FutureExt, Tracer};
-pub use pdu::PduEvent;
-pub use rocket::State;
-use ruma::api::client::error::ErrorKind;
-pub use ruma_wrapper::{ConduitResult, Ruma, RumaResponse};
-
 use rocket::{
     catch, catchers,
     figment::{
@@ -31,8 +19,19 @@ use rocket::{
     },
     routes, Request,
 };
+use ruma::api::client::error::ErrorKind;
 use tokio::sync::RwLock;
 use tracing_subscriber::{prelude::*, EnvFilter};
+
+pub use conduit::*; // Re-export everything from the library crate
+pub use rocket::State;
+
+#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
+use tikv_jemallocator::Jemalloc;
+
+#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<rocket::Build> {
     rocket::custom(config)
@@ -96,6 +95,7 @@ fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<
                 client_server::create_typing_event_route,
                 client_server::create_room_route,
                 client_server::redact_event_route,
+                client_server::report_event_route,
                 client_server::create_alias_route,
                 client_server::delete_alias_route,
                 client_server::get_alias_route,
@@ -130,6 +130,7 @@ fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<
                 client_server::send_event_to_device_route,
                 client_server::get_media_config_route,
                 client_server::create_content_route,
+                client_server::get_content_as_filename_route,
                 client_server::get_content_route,
                 client_server::get_content_thumbnail_route,
                 client_server::get_devices_route,
@@ -184,9 +185,6 @@ fn setup_rocket(config: Figment, data: Arc<RwLock<Database>>) -> rocket::Rocket<
 
 #[rocket::main]
 async fn main() {
-    // Force log level off, so we can use our own logger
-    std::env::set_var("CONDUIT_LOG_LEVEL", "off");
-
     let raw_config =
         Figment::from(default_config())
             .merge(
@@ -197,18 +195,27 @@ async fn main() {
             )
             .merge(Env::prefixed("CONDUIT_").global());
 
-    std::env::set_var("RUST_LOG", "warn");
-
-    let config = raw_config
-        .extract::<Config>()
-        .expect("It looks like your config is invalid. Please take a look at the error");
+    let config = match raw_config.extract::<Config>() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("It looks like your config is invalid. The following error occured while parsing it: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     let start = async {
         config.warn_deprecated();
 
-        let db = Database::load_or_create(&config)
-            .await
-            .expect("config is valid");
+        let db = match Database::load_or_create(&config).await {
+            Ok(db) => db,
+            Err(e) => {
+                eprintln!(
+                    "The database couldn't be loaded or created. The following error occured: {}",
+                    e
+                );
+                std::process::exit(1);
+            }
+        };
 
         let rocket = setup_rocket(raw_config, Arc::clone(&db))
             .ignite()
@@ -233,8 +240,6 @@ async fn main() {
         println!("exporting");
         opentelemetry::global::shutdown_tracer_provider();
     } else {
-        std::env::set_var("RUST_LOG", &config.log);
-
         let registry = tracing_subscriber::Registry::default();
         if config.tracing_flame {
             let (flame_layer, _guard) =
@@ -248,7 +253,7 @@ async fn main() {
             start.await;
         } else {
             let fmt_layer = tracing_subscriber::fmt::Layer::new();
-            let filter_layer = EnvFilter::try_from_default_env()
+            let filter_layer = EnvFilter::try_new(&config.log)
                 .or_else(|_| EnvFilter::try_new("info"))
                 .unwrap();
 
@@ -288,28 +293,26 @@ fn bad_json_catcher() -> Result<()> {
 }
 
 fn default_config() -> rocket::Config {
-    let mut config = rocket::Config::release_default();
+    use rocket::config::{LogLevel, Shutdown, Sig};
 
-    {
-        let mut shutdown = &mut config.shutdown;
+    rocket::Config {
+        // Disable rocket's logging to get only tracing-subscriber's log output
+        log_level: LogLevel::Off,
+        shutdown: Shutdown {
+            // Once shutdown is triggered, this is the amount of seconds before rocket
+            // will forcefully start shutting down connections, this gives enough time to /sync
+            // requests and the like (which havent gotten the memo, somehow) to still complete gracefully.
+            grace: 35,
 
-        #[cfg(unix)]
-        {
-            use rocket::config::Sig;
+            // After the grace period, rocket starts shutting down connections, and waits at least this
+            // many seconds before forcefully shutting all of them down.
+            mercy: 10,
 
-            shutdown.signals.insert(Sig::Term);
-            shutdown.signals.insert(Sig::Int);
-        }
+            #[cfg(unix)]
+            signals: hashset![Sig::Term, Sig::Int],
 
-        // Once shutdown is triggered, this is the amount of seconds before rocket
-        // will forcefully start shutting down connections, this gives enough time to /sync
-        // requests and the like (which havent gotten the memo, somehow) to still complete gracefully.
-        shutdown.grace = 35;
-
-        // After the grace period, rocket starts shutting down connections, and waits at least this
-        // many seconds before forcefully shutting all of them down.
-        shutdown.mercy = 10;
+            ..Shutdown::default()
+        },
+        ..rocket::Config::release_default()
     }
-
-    config
 }

@@ -53,7 +53,7 @@ pub async fn send_event_to_device_route(
                     serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(
                         DirectDeviceContent {
                             sender: sender_user.clone(),
-                            ev_type: EventType::from(&body.event_type),
+                            ev_type: EventType::from(&*body.event_type),
                             message_id: body.txn_id.clone(),
                             messages,
                         },
@@ -68,8 +68,8 @@ pub async fn send_event_to_device_route(
             match target_device_id_maybe {
                 DeviceIdOrAllDevices::DeviceId(target_device_id) => db.users.add_to_device_event(
                     sender_user,
-                    &target_user_id,
-                    &target_device_id,
+                    target_user_id,
+                    target_device_id,
                     &body.event_type,
                     event.deserialize_as().map_err(|_| {
                         Error::BadRequest(ErrorKind::InvalidParam, "Event is invalid")
@@ -78,10 +78,10 @@ pub async fn send_event_to_device_route(
                 )?,
 
                 DeviceIdOrAllDevices::AllDevices => {
-                    for target_device_id in db.users.all_device_ids(&target_user_id) {
+                    for target_device_id in db.users.all_device_ids(target_user_id) {
                         db.users.add_to_device_event(
                             sender_user,
-                            &target_user_id,
+                            target_user_id,
                             &target_device_id?,
                             &body.event_type,
                             event.deserialize_as().map_err(|_| {

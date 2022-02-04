@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    convert::{TryFrom, TryInto},
     fmt::Debug,
     sync::Arc,
     time::{Duration, Instant},
@@ -27,7 +26,7 @@ use ruma::{
         OutgoingRequest,
     },
     device_id,
-    events::{push_rules, AnySyncEphemeralRoomEvent, EventType},
+    events::{push_rules::PushRulesEvent, AnySyncEphemeralRoomEvent, EventType},
     push,
     receipt::ReceiptType,
     uint, MilliSecondsSinceUnixEpoch, ServerName, UInt, UserId,
@@ -58,9 +57,9 @@ impl OutgoingKind {
             }
             OutgoingKind::Push(user, pushkey) => {
                 let mut p = b"$".to_vec();
-                p.extend_from_slice(&user);
+                p.extend_from_slice(user);
                 p.push(0xff);
-                p.extend_from_slice(&pushkey);
+                p.extend_from_slice(pushkey);
                 p
             }
             OutgoingKind::Normal(server) => {
@@ -84,7 +83,7 @@ pub enum SendingEventType {
 pub struct Sending {
     /// The state for a given state hash.
     pub(super) servername_educount: Arc<dyn Tree>, // EduCount: Count of last EDU sync
-    pub(super) servernameevent_data: Arc<dyn Tree>, // ServernamEvent = (+ / $)SenderKey / ServerName / UserId + PduId / Id (for edus), Data = EDU content
+    pub(super) servernameevent_data: Arc<dyn Tree>, // ServernameEvent = (+ / $)SenderKey / ServerName / UserId + PduId / Id (for edus), Data = EDU content
     pub(super) servercurrentevent_data: Arc<dyn Tree>, // ServerCurrentEvents = (+ / $)ServerName / UserId + PduId / Id (for edus), Data = EDU content
     pub(super) maximum_requests: Arc<Semaphore>,
     pub sender: mpsc::UnboundedSender<(Vec<u8>, Vec<u8>)>,
@@ -165,13 +164,13 @@ impl Sending {
                                 }
 
                                 // Find events that have been added since starting the last request
-                                let new_events = guard.sending.servernameevent_data
+                                let new_events: Vec<_> = guard.sending.servernameevent_data
                                     .scan_prefix(prefix.clone())
                                     .filter_map(|(k, v)| {
                                         Self::parse_servercurrentevent(&k, v).ok().map(|ev| (ev, k))
                                     })
                                     .take(30)
-                                    .collect::<Vec<_>>();
+                                    .collect::<>();
 
                                 // TODO: find edus
 
@@ -179,8 +178,8 @@ impl Sending {
                                     // Insert pdus we found
                                     for (e, key) in &new_events {
                                         let value = if let SendingEventType::Edu(value) = &e.1 { &**value } else { &[] };
-                                        guard.sending.servercurrentevent_data.insert(&key, value).unwrap();
-                                        guard.sending.servernameevent_data.remove(&key).unwrap();
+                                        guard.sending.servercurrentevent_data.insert(key, value).unwrap();
+                                        guard.sending.servernameevent_data.remove(key).unwrap();
                                     }
 
                                     drop(guard);
@@ -344,8 +343,8 @@ impl Sending {
                     continue;
                 }
 
-                let event =
-                    serde_json::from_str::<AnySyncEphemeralRoomEvent>(&read_receipt.json().get())
+                let event: AnySyncEphemeralRoomEvent =
+                    serde_json::from_str(read_receipt.json().get())
                         .map_err(|_| Error::bad_database("Invalid edu event in read_receipts."))?;
                 let federation_event = match event {
                     AnySyncEphemeralRoomEvent::Receipt(r) => {
@@ -397,8 +396,8 @@ impl Sending {
             // Because synapse resyncs, we can just insert dummy data
             let edu = Edu::DeviceListUpdate(DeviceListUpdateContent {
                 user_id,
-                device_id: device_id!("dummy"),
-                device_display_name: "Dummy".to_owned(),
+                device_id: device_id!("dummy").to_owned(),
+                device_display_name: Some("Dummy".to_owned()),
                 stream_id: uint!(1),
                 prev_id: Vec::new(),
                 deleted: None,
@@ -423,13 +422,23 @@ impl Sending {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, server, pdu_id))]
-    pub fn send_pdu(&self, server: &ServerName, pdu_id: &[u8]) -> Result<()> {
-        let mut key = server.as_bytes().to_vec();
-        key.push(0xff);
-        key.extend_from_slice(pdu_id);
-        self.servernameevent_data.insert(&key, &[])?;
-        self.sender.unbounded_send((key, vec![])).unwrap();
+    #[tracing::instrument(skip(self, servers, pdu_id))]
+    pub fn send_pdu<I: Iterator<Item = Box<ServerName>>>(
+        &self,
+        servers: I,
+        pdu_id: &[u8],
+    ) -> Result<()> {
+        let mut batch = servers.map(|server| {
+            let mut key = server.as_bytes().to_vec();
+            key.push(0xff);
+            key.extend_from_slice(pdu_id);
+
+            self.sender.unbounded_send((key.clone(), vec![])).unwrap();
+
+            (key, Vec::new())
+        });
+
+        self.servernameevent_data.insert_batch(&mut batch)?;
 
         Ok(())
     }
@@ -470,12 +479,32 @@ impl Sending {
         hash.as_ref().to_owned()
     }
 
+    /// Cleanup event data
+    /// Used for instance after we remove an appservice registration
+    ///
+    #[tracing::instrument(skip(self))]
+    pub fn cleanup_events(&self, key_id: &str) -> Result<()> {
+        let mut prefix = b"+".to_vec();
+        prefix.extend_from_slice(key_id.as_bytes());
+        prefix.push(0xff);
+
+        for (key, _) in self.servercurrentevent_data.scan_prefix(prefix.clone()) {
+            self.servercurrentevent_data.remove(&key).unwrap();
+        }
+
+        for (key, _) in self.servernameevent_data.scan_prefix(prefix.clone()) {
+            self.servernameevent_data.remove(&key).unwrap();
+        }
+
+        Ok(())
+    }
+
     #[tracing::instrument(skip(db, events, kind))]
     async fn handle_events(
         kind: OutgoingKind,
         events: Vec<SendingEventType>,
         db: Arc<RwLock<Database>>,
-    ) -> std::result::Result<OutgoingKind, (OutgoingKind, Error)> {
+    ) -> Result<OutgoingKind, (OutgoingKind, Error)> {
         let db = db.read().await;
 
         match &kind {
@@ -486,7 +515,7 @@ impl Sending {
                     match event {
                         SendingEventType::Pdu(pdu_id) => {
                             pdu_jsons.push(db.rooms
-                                .get_pdu_from_id(&pdu_id)
+                                .get_pdu_from_id(pdu_id)
                                 .map_err(|e| (kind.clone(), e))?
                                 .ok_or_else(|| {
                                     (
@@ -510,11 +539,18 @@ impl Sending {
                     &db.globals,
                     db.appservice
                         .get_registration(server.as_str())
-                        .unwrap()
-                        .unwrap(), // TODO: handle error
+                        .map_err(|e| (kind.clone(), e))?
+                        .ok_or_else(|| {
+                            (
+                                kind.clone(),
+                                Error::bad_database(
+                                    "[Appservice] Could not load registration from db.",
+                                ),
+                            )
+                        })?,
                     appservice::event::push_events::v1::Request {
                         events: &pdu_jsons,
-                        txn_id: &base64::encode_config(
+                        txn_id: (&*base64::encode_config(
                             Self::calculate_hash(
                                 &events
                                     .iter()
@@ -524,7 +560,8 @@ impl Sending {
                                     .collect::<Vec<_>>(),
                             ),
                             base64::URL_SAFE_NO_PAD,
-                        ),
+                        ))
+                            .into(),
                     },
                 )
                 .await
@@ -543,7 +580,7 @@ impl Sending {
                         SendingEventType::Pdu(pdu_id) => {
                             pdus.push(
                                 db.rooms
-                                    .get_pdu_from_id(&pdu_id)
+                                    .get_pdu_from_id(pdu_id)
                                     .map_err(|e| (kind.clone(), e))?
                                     .ok_or_else(|| {
                                         (
@@ -563,23 +600,28 @@ impl Sending {
 
                 for pdu in pdus {
                     // Redacted events are not notification targets (we don't send push for them)
-                    if pdu.unsigned.get("redacted_because").is_some() {
-                        continue;
+                    if let Some(unsigned) = &pdu.unsigned {
+                        if let Ok(unsigned) =
+                            serde_json::from_str::<serde_json::Value>(unsigned.get())
+                        {
+                            if unsigned.get("redacted_because").is_some() {
+                                continue;
+                            }
+                        }
                     }
 
-                    let userid =
-                        UserId::try_from(utils::string_from_bytes(user).map_err(|_| {
-                            (
-                                kind.clone(),
-                                Error::bad_database("Invalid push user string in db."),
-                            )
-                        })?)
-                        .map_err(|_| {
-                            (
-                                kind.clone(),
-                                Error::bad_database("Invalid push user id in db."),
-                            )
-                        })?;
+                    let userid = UserId::parse(utils::string_from_bytes(user).map_err(|_| {
+                        (
+                            kind.clone(),
+                            Error::bad_database("Invalid push user string in db."),
+                        )
+                    })?)
+                    .map_err(|_| {
+                        (
+                            kind.clone(),
+                            Error::bad_database("Invalid push user id in db."),
+                        )
+                    })?;
 
                     let mut senderkey = user.clone();
                     senderkey.push(0xff);
@@ -596,9 +638,9 @@ impl Sending {
 
                     let rules_for_user = db
                         .account_data
-                        .get::<push_rules::PushRulesEvent>(None, &userid, EventType::PushRules)
+                        .get(None, &userid, EventType::PushRules)
                         .unwrap_or_default()
-                        .map(|ev| ev.content.global)
+                        .map(|ev: PushRulesEvent| ev.content.global)
                         .unwrap_or_else(|| push::Ruleset::server_default(&userid));
 
                     let unread: UInt = db
@@ -636,7 +678,7 @@ impl Sending {
                             // TODO: check room version and remove event_id if needed
                             let raw = PduEvent::convert_to_outgoing_federation_event(
                                 db.rooms
-                                    .get_pdu_json_from_id(&pdu_id)
+                                    .get_pdu_json_from_id(pdu_id)
                                     .map_err(|e| (OutgoingKind::Normal(server.clone()), e))?
                                     .ok_or_else(|| {
                                         (
@@ -667,7 +709,7 @@ impl Sending {
                         pdus: &pdu_jsons,
                         edus: &edu_jsons,
                         origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
-                        transaction_id: &base64::encode_config(
+                        transaction_id: (&*base64::encode_config(
                             Self::calculate_hash(
                                 &events
                                     .iter()
@@ -677,7 +719,8 @@ impl Sending {
                                     .collect::<Vec<_>>(),
                             ),
                             base64::URL_SAFE_NO_PAD,
-                        ),
+                        ))
+                            .into(),
                     },
                 )
                 .await
@@ -711,12 +754,12 @@ impl Sending {
             let event = parts
                 .next()
                 .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
-            let server = utils::string_from_bytes(&server).map_err(|_| {
+            let server = utils::string_from_bytes(server).map_err(|_| {
                 Error::bad_database("Invalid server bytes in server_currenttransaction")
             })?;
 
             (
-                OutgoingKind::Appservice(Box::<ServerName>::try_from(server).map_err(|_| {
+                OutgoingKind::Appservice(ServerName::parse(server).map_err(|_| {
                     Error::bad_database("Invalid server string in server_currenttransaction")
                 })?),
                 if value.is_empty() {
@@ -750,12 +793,12 @@ impl Sending {
             let event = parts
                 .next()
                 .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
-            let server = utils::string_from_bytes(&server).map_err(|_| {
+            let server = utils::string_from_bytes(server).map_err(|_| {
                 Error::bad_database("Invalid server bytes in server_currenttransaction")
             })?;
 
             (
-                OutgoingKind::Normal(Box::<ServerName>::try_from(server).map_err(|_| {
+                OutgoingKind::Normal(ServerName::parse(server).map_err(|_| {
                     Error::bad_database("Invalid server string in server_currenttransaction")
                 })?),
                 if value.is_empty() {

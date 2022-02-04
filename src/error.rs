@@ -8,6 +8,9 @@ use ruma::{
 use thiserror::Error;
 use tracing::warn;
 
+#[cfg(feature = "persy")]
+use persy::PersyError;
+
 #[cfg(feature = "conduit_bin")]
 use {
     crate::RumaResponse,
@@ -20,7 +23,7 @@ use {
     tracing::error,
 };
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -36,9 +39,18 @@ pub enum Error {
         #[from]
         source: rusqlite::Error,
     },
+    #[cfg(feature = "persy")]
+    #[error("There was a problem with the connection to the persy database.")]
+    PersyError { source: PersyError },
     #[cfg(feature = "heed")]
     #[error("There was a problem with the connection to the heed database: {error}")]
     HeedError { error: String },
+    #[cfg(feature = "rocksdb")]
+    #[error("There was a problem with the connection to the rocksdb database: {source}")]
+    RocksDbError {
+        #[from]
+        source: rocksdb::Error,
+    },
     #[error("Could not generate an image.")]
     ImageError {
         #[from]
@@ -134,5 +146,14 @@ where
 {
     fn respond_to(self, r: &'r Request<'_>) -> response::Result<'o> {
         self.to_response().respond_to(r)
+    }
+}
+
+#[cfg(feature = "persy")]
+impl<T: Into<PersyError>> From<persy::PE<T>> for Error {
+    fn from(err: persy::PE<T>) -> Self {
+        Error::PersyError {
+            source: err.error().into(),
+        }
     }
 }

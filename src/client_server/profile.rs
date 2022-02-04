@@ -9,10 +9,10 @@ use ruma::{
         },
         federation::{self, query::get_profile_information::v1::ProfileField},
     },
-    events::EventType,
-    serde::Raw,
+    events::{room::member::RoomMemberEventContent, EventType},
 };
-use std::{convert::TryInto, sync::Arc};
+use serde_json::value::to_raw_value;
+use std::sync::Arc;
 
 #[cfg(feature = "conduit_bin")]
 use rocket::{get, put};
@@ -34,25 +34,25 @@ pub async fn set_displayname_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
-        .set_displayname(&sender_user, body.displayname.clone())?;
+        .set_displayname(sender_user, body.displayname.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
     let all_rooms_joined: Vec<_> = db
         .rooms
-        .rooms_joined(&sender_user)
+        .rooms_joined(sender_user)
         .filter_map(|r| r.ok())
         .map(|room_id| {
             Ok::<_, Error>((
                 PduBuilder {
                     event_type: EventType::RoomMember,
-                    content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
+                    content: to_raw_value(&RoomMemberEventContent {
                         displayname: body.displayname.clone(),
-                        ..serde_json::from_value::<Raw<_>>(
+                        ..serde_json::from_str(
                             db.rooms
                                 .room_state_get(
                                     &room_id,
                                     &EventType::RoomMember,
-                                    &sender_user.to_string(),
+                                    sender_user.as_str(),
                                 )?
                                 .ok_or_else(|| {
                                     Error::bad_database(
@@ -61,10 +61,8 @@ pub async fn set_displayname_route(
                                     )
                                 })?
                                 .content
-                                .clone(),
+                                .get(),
                         )
-                        .expect("from_value::<Raw<..>> can never fail")
-                        .deserialize()
                         .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
                     })
                     .expect("event is valid, we just created it"),
@@ -89,19 +87,19 @@ pub async fn set_displayname_route(
         );
         let state_lock = mutex_state.lock().await;
 
-        let _ =
-            db.rooms
-                .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db, &state_lock);
+        let _ = db
+            .rooms
+            .build_and_append_pdu(pdu_builder, sender_user, &room_id, &db, &state_lock);
 
         // Presence update
         db.rooms.edus.update_presence(
-            &sender_user,
+            sender_user,
             &room_id,
             ruma::events::presence::PresenceEvent {
                 content: ruma::events::presence::PresenceEventContent {
-                    avatar_url: db.users.avatar_url(&sender_user)?,
+                    avatar_url: db.users.avatar_url(sender_user)?,
                     currently_active: None,
-                    displayname: db.users.displayname(&sender_user)?,
+                    displayname: db.users.displayname(sender_user)?,
                     last_active_ago: Some(
                         utils::millis_since_unix_epoch()
                             .try_into()
@@ -177,27 +175,27 @@ pub async fn set_avatar_url_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
-        .set_avatar_url(&sender_user, body.avatar_url.clone())?;
+        .set_avatar_url(sender_user, body.avatar_url.clone())?;
 
-    db.users.set_blurhash(&sender_user, body.blurhash.clone())?;
+    db.users.set_blurhash(sender_user, body.blurhash.clone())?;
 
     // Send a new membership event and presence update into all joined rooms
     let all_joined_rooms: Vec<_> = db
         .rooms
-        .rooms_joined(&sender_user)
+        .rooms_joined(sender_user)
         .filter_map(|r| r.ok())
         .map(|room_id| {
             Ok::<_, Error>((
                 PduBuilder {
                     event_type: EventType::RoomMember,
-                    content: serde_json::to_value(ruma::events::room::member::MemberEventContent {
+                    content: to_raw_value(&RoomMemberEventContent {
                         avatar_url: body.avatar_url.clone(),
-                        ..serde_json::from_value::<Raw<_>>(
+                        ..serde_json::from_str(
                             db.rooms
                                 .room_state_get(
                                     &room_id,
                                     &EventType::RoomMember,
-                                    &sender_user.to_string(),
+                                    sender_user.as_str(),
                                 )?
                                 .ok_or_else(|| {
                                     Error::bad_database(
@@ -206,10 +204,8 @@ pub async fn set_avatar_url_route(
                                     )
                                 })?
                                 .content
-                                .clone(),
+                                .get(),
                         )
-                        .expect("from_value::<Raw<..>> can never fail")
-                        .deserialize()
                         .map_err(|_| Error::bad_database("Database contains invalid PDU."))?
                     })
                     .expect("event is valid, we just created it"),
@@ -234,19 +230,19 @@ pub async fn set_avatar_url_route(
         );
         let state_lock = mutex_state.lock().await;
 
-        let _ =
-            db.rooms
-                .build_and_append_pdu(pdu_builder, &sender_user, &room_id, &db, &state_lock);
+        let _ = db
+            .rooms
+            .build_and_append_pdu(pdu_builder, sender_user, &room_id, &db, &state_lock);
 
         // Presence update
         db.rooms.edus.update_presence(
-            &sender_user,
+            sender_user,
             &room_id,
             ruma::events::presence::PresenceEvent {
                 content: ruma::events::presence::PresenceEventContent {
-                    avatar_url: db.users.avatar_url(&sender_user)?,
+                    avatar_url: db.users.avatar_url(sender_user)?,
                     currently_active: None,
-                    displayname: db.users.displayname(&sender_user)?,
+                    displayname: db.users.displayname(sender_user)?,
                     last_active_ago: Some(
                         utils::millis_since_unix_epoch()
                             .try_into()

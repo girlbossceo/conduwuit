@@ -27,7 +27,7 @@ pub async fn search_events_route(
 
     let room_ids = filter.rooms.clone().unwrap_or_else(|| {
         db.rooms
-            .rooms_joined(&sender_user)
+            .rooms_joined(sender_user)
             .filter_map(|r| r.ok())
             .collect()
     });
@@ -44,11 +44,12 @@ pub async fn search_events_route(
             ));
         }
 
-        let search = db
+        if let Some(search) = db
             .rooms
-            .search_pdus(&room_id, &search_criteria.search_term)?;
-
-        searches.push(search.0.peekable());
+            .search_pdus(&room_id, &search_criteria.search_term)?
+        {
+            searches.push(search.0.peekable());
+        }
     }
 
     let skip = match body.next_batch.as_ref().map(|s| s.parse()) {
@@ -74,7 +75,7 @@ pub async fn search_events_route(
         }
     }
 
-    let results = results
+    let results: Vec<_> = results
         .iter()
         .map(|result| {
             Ok::<_, Error>(SearchResult {
@@ -88,14 +89,14 @@ pub async fn search_events_route(
                 rank: None,
                 result: db
                     .rooms
-                    .get_pdu_from_id(&result)?
+                    .get_pdu_from_id(result)?
                     .map(|pdu| pdu.to_room_event()),
             })
         })
         .filter_map(|r| r.ok())
         .skip(skip)
         .take(limit)
-        .collect::<Vec<_>>();
+        .collect();
 
     let next_batch = if results.len() < limit as usize {
         None
@@ -114,7 +115,7 @@ pub async fn search_events_route(
                 .search_term
                 .split_terminator(|c: char| !c.is_alphanumeric())
                 .map(str::to_lowercase)
-                .collect::<Vec<_>>(),
+                .collect(),
         },
     })
     .into())

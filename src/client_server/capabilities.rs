@@ -1,5 +1,4 @@
-use crate::ConduitResult;
-use crate::Ruma;
+use crate::{ConduitResult, Ruma};
 use ruma::{
     api::client::r0::capabilities::{
         get_capabilities, Capabilities, RoomVersionStability, RoomVersionsCapability,
@@ -23,12 +22,12 @@ pub async fn get_capabilities_route(
     _body: Ruma<get_capabilities::Request>,
 ) -> ConduitResult<get_capabilities::Response> {
     let mut available = BTreeMap::new();
-    available.insert(RoomVersionId::Version5, RoomVersionStability::Stable);
-    available.insert(RoomVersionId::Version6, RoomVersionStability::Stable);
+    available.insert(RoomVersionId::V5, RoomVersionStability::Stable);
+    available.insert(RoomVersionId::V6, RoomVersionStability::Stable);
 
     let mut capabilities = Capabilities::new();
     capabilities.room_versions = RoomVersionsCapability {
-        default: RoomVersionId::Version6,
+        default: RoomVersionId::V6,
         available,
     };
 

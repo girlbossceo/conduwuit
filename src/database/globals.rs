@@ -10,7 +10,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fs,
     future::Future,
-    net::IpAddr,
+    net::{IpAddr, SocketAddr},
     path::PathBuf,
     sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
@@ -39,14 +39,16 @@ pub struct Globals {
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
+    federation_client: reqwest::Client,
+    default_client: reqwest::Client,
     pub(super) server_signingkeys: Arc<dyn Tree>,
-    pub bad_event_ratelimiter: Arc<RwLock<HashMap<EventId, RateLimitState>>>,
+    pub bad_event_ratelimiter: Arc<RwLock<HashMap<Box<EventId>, RateLimitState>>>,
     pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
     pub servername_ratelimiter: Arc<RwLock<HashMap<Box<ServerName>, Arc<Semaphore>>>>,
-    pub sync_receivers: RwLock<HashMap<(UserId, Box<DeviceId>), SyncHandle>>,
-    pub roomid_mutex_insert: RwLock<HashMap<RoomId, Arc<Mutex<()>>>>,
-    pub roomid_mutex_state: RwLock<HashMap<RoomId, Arc<TokioMutex<()>>>>,
-    pub roomid_mutex_federation: RwLock<HashMap<RoomId, Arc<TokioMutex<()>>>>, // this lock will be held longer
+    pub sync_receivers: RwLock<HashMap<(Box<UserId>, Box<DeviceId>), SyncHandle>>,
+    pub roomid_mutex_insert: RwLock<HashMap<Box<RoomId>, Arc<Mutex<()>>>>,
+    pub roomid_mutex_state: RwLock<HashMap<Box<RoomId>, Arc<TokioMutex<()>>>>,
+    pub roomid_mutex_federation: RwLock<HashMap<Box<RoomId>, Arc<TokioMutex<()>>>>, // this lock will be held longer
     pub rotate: RotationHandler,
 }
 
@@ -57,8 +59,7 @@ pub struct RotationHandler(broadcast::Sender<()>, broadcast::Receiver<()>);
 
 impl RotationHandler {
     pub fn new() -> Self {
-        let (s, r) = broadcast::channel::<()>(1);
-
+        let (s, r) = broadcast::channel(1);
         Self(s, r)
     }
 
@@ -113,7 +114,7 @@ impl Globals {
                 .map(|key| (version, key))
         })
         .and_then(|(version, key)| {
-            ruma::signatures::Ed25519KeyPair::from_der(&key, version)
+            ruma::signatures::Ed25519KeyPair::from_der(key, version)
                 .map_err(|_| Error::bad_database("Private or public keys are invalid."))
         });
 
@@ -133,6 +134,17 @@ impl Globals {
             .as_ref()
             .map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()).into_static());
 
+        let default_client = reqwest_client_builder(&config)?.build()?;
+        let name_override = Arc::clone(&tls_name_override);
+        let federation_client = reqwest_client_builder(&config)?
+            .resolve_fn(move |domain| {
+                let read_guard = name_override.read().unwrap();
+                let (override_name, port) = read_guard.get(&domain)?;
+                let first_name = override_name.get(0)?;
+                Some(SocketAddr::new(*first_name, *port))
+            })
+            .build()?;
+
         let s = Self {
             globals,
             config,
@@ -142,6 +154,8 @@ impl Globals {
             })?,
             actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
             tls_name_override,
+            federation_client,
+            default_client,
             server_signingkeys,
             jwt_decoding_key,
             bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
@@ -164,17 +178,16 @@ impl Globals {
         &self.keypair
     }
 
-    /// Returns a reqwest client which can be used to send requests.
-    pub fn reqwest_client(&self) -> Result<reqwest::ClientBuilder> {
-        let mut reqwest_client_builder = reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(30))
-            .timeout(Duration::from_secs(60 * 3))
-            .pool_max_idle_per_host(1);
-        if let Some(proxy) = self.config.proxy.to_proxy()? {
-            reqwest_client_builder = reqwest_client_builder.proxy(proxy);
-        }
+    /// Returns a reqwest client which can be used to send requests
+    pub fn default_client(&self) -> reqwest::Client {
+        // Client is cheap to clone (Arc wrapper) and avoids lifetime issues
+        self.default_client.clone()
+    }
 
-        Ok(reqwest_client_builder)
+    /// Returns a client used for resolving .well-knowns
+    pub fn federation_client(&self) -> reqwest::Client {
+        // Client is cheap to clone (Arc wrapper) and avoids lifetime issues
+        self.federation_client.clone()
     }
 
     #[tracing::instrument(skip(self))]
@@ -211,6 +224,10 @@ impl Globals {
         self.config.allow_federation
     }
 
+    pub fn allow_room_creation(&self) -> bool {
+        self.config.allow_room_creation
+    }
+
     pub fn trusted_servers(&self) -> &[Box<ServerName>] {
         &self.config.trusted_servers
     }
@@ -223,6 +240,26 @@ impl Globals {
         self.jwt_decoding_key.as_ref()
     }
 
+    pub fn turn_password(&self) -> &String {
+        &self.config.turn_password
+    }
+
+    pub fn turn_ttl(&self) -> u64 {
+        self.config.turn_ttl
+    }
+
+    pub fn turn_uris(&self) -> &[String] {
+        &self.config.turn_uris
+    }
+
+    pub fn turn_username(&self) -> &String {
+        &self.config.turn_username
+    }
+
+    pub fn turn_secret(&self) -> &String {
+        &self.config.turn_secret
+    }
+
     /// TODO: the key valid until timestamp is only honored in room version > 4
     /// Remove the outdated keys and insert the new ones.
     ///
@@ -231,7 +268,7 @@ impl Globals {
         &self,
         origin: &ServerName,
         new_keys: ServerSigningKeys,
-    ) -> Result<BTreeMap<ServerSigningKeyId, VerifyKey>> {
+    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>> {
         // Not atomic, but this is not critical
         let signingkeys = self.server_signingkeys.get(origin.as_bytes())?;
 
@@ -270,12 +307,12 @@ impl Globals {
     pub fn signing_keys_for(
         &self,
         origin: &ServerName,
-    ) -> Result<BTreeMap<ServerSigningKeyId, VerifyKey>> {
+    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>> {
         let signingkeys = self
             .server_signingkeys
             .get(origin.as_bytes())?
-            .and_then(|bytes| serde_json::from_slice::<ServerSigningKeys>(&bytes).ok())
-            .map(|keys| {
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .map(|keys: ServerSigningKeys| {
                 let mut tree = keys.verify_keys;
                 tree.extend(
                     keys.old_verify_keys
@@ -316,4 +353,16 @@ impl Globals {
         r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));
         r
     }
+}
+
+fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
+    let mut reqwest_client_builder = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(60 * 3));
+
+    if let Some(proxy) = config.proxy.to_proxy()? {
+        reqwest_client_builder = reqwest_client_builder.proxy(proxy);
+    }
+
+    Ok(reqwest_client_builder)
 }

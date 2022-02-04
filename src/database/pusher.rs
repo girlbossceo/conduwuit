@@ -9,15 +9,17 @@ use ruma::{
         },
         IncomingResponse, OutgoingRequest, SendAccessToken,
     },
-    events::{room::power_levels::PowerLevelsEventContent, AnySyncRoomEvent, EventType},
-    identifiers::RoomName,
+    events::{
+        room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},
+        AnySyncRoomEvent, EventType,
+    },
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     serde::Raw,
     uint, RoomId, UInt, UserId,
 };
 use tracing::{error, info, warn};
 
-use std::{convert::TryFrom, fmt::Debug, mem, sync::Arc};
+use std::{fmt::Debug, mem, sync::Arc};
 
 use super::abstraction::Tree;
 
@@ -113,11 +115,7 @@ where
     //*reqwest_request.timeout_mut() = Some(Duration::from_secs(5));
 
     let url = reqwest_request.url().clone();
-    let response = globals
-        .reqwest_client()?
-        .build()?
-        .execute(reqwest_request)
-        .await;
+    let response = globals.default_client().execute(reqwest_request).await;
 
     match response {
         Ok(mut response) => {
@@ -177,11 +175,11 @@ pub async fn send_push_notice(
     let mut notify = None;
     let mut tweaks = Vec::new();
 
-    let power_levels: PowerLevelsEventContent = db
+    let power_levels: RoomPowerLevelsEventContent = db
         .rooms
         .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
         .map(|ev| {
-            serde_json::from_value(ev.content.clone())
+            serde_json::from_str(ev.content.get())
                 .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
         })
         .transpose()?
@@ -226,17 +224,17 @@ pub async fn send_push_notice(
 pub fn get_actions<'a>(
     user: &UserId,
     ruleset: &'a Ruleset,
-    power_levels: &PowerLevelsEventContent,
+    power_levels: &RoomPowerLevelsEventContent,
     pdu: &Raw<AnySyncRoomEvent>,
     room_id: &RoomId,
     db: &Database,
 ) -> Result<&'a [Action]> {
     let ctx = PushConditionRoomCtx {
-        room_id: room_id.clone(),
+        room_id: room_id.to_owned(),
         member_count: 10_u32.into(), // TODO: get member count efficiently
         user_display_name: db
             .users
-            .displayname(&user)?
+            .displayname(user)?
             .unwrap_or_else(|| user.localpart().to_owned()),
         users_power_levels: power_levels.users.clone(),
         default_power_level: power_levels.users_default,
@@ -275,7 +273,7 @@ async fn send_notice(
     let mut data_minus_url = pusher.data.clone();
     // The url must be stripped off according to spec
     data_minus_url.url = None;
-    device.data = Some(data_minus_url);
+    device.data = data_minus_url;
 
     // Tweaks are only added if the format is NOT event_id_only
     if !event_id_only {
@@ -302,7 +300,7 @@ async fn send_notice(
     if event_id_only {
         send_request(
             &db.globals,
-            &url,
+            url,
             send_event_notification::v1::Request::new(notifi),
         )
         .await?;
@@ -318,21 +316,23 @@ async fn send_notice(
 
         let user_name = db.users.displayname(&event.sender)?;
         notifi.sender_display_name = user_name.as_deref();
-        let room_name = db
-            .rooms
-            .room_state_get(&event.room_id, &EventType::RoomName, "")?
-            .map(|pdu| match pdu.content.get("name") {
-                Some(serde_json::Value::String(s)) => {
-                    Some(Box::<RoomName>::try_from(&**s).expect("room name is valid"))
-                }
-                _ => None,
-            })
-            .flatten();
+
+        let room_name = if let Some(room_name_pdu) =
+            db.rooms
+                .room_state_get(&event.room_id, &EventType::RoomName, "")?
+        {
+            serde_json::from_str::<RoomNameEventContent>(room_name_pdu.content.get())
+                .map_err(|_| Error::bad_database("Invalid room name event in database."))?
+                .name
+        } else {
+            None
+        };
+
         notifi.room_name = room_name.as_deref();
 
         send_request(
             &db.globals,
-            &url,
+            url,
             send_event_notification::v1::Request::new(notifi),
         )
         .await?;

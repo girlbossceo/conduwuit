@@ -11,7 +11,6 @@ use ruma::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    convert::{TryFrom, TryInto},
     mem,
     sync::Arc,
 };
@@ -60,7 +59,7 @@ impl RoomEdus {
         let mut room_latest_id = prefix;
         room_latest_id.extend_from_slice(&globals.next_count()?.to_be_bytes());
         room_latest_id.push(0xff);
-        room_latest_id.extend_from_slice(&user_id.as_bytes());
+        room_latest_id.extend_from_slice(user_id.as_bytes());
 
         self.readreceiptid_readreceipt.insert(
             &room_latest_id,
@@ -76,8 +75,13 @@ impl RoomEdus {
         &'a self,
         room_id: &RoomId,
         since: u64,
-    ) -> impl Iterator<Item = Result<(UserId, u64, Raw<ruma::events::AnySyncEphemeralRoomEvent>)>> + 'a
-    {
+    ) -> impl Iterator<
+        Item = Result<(
+            Box<UserId>,
+            u64,
+            Raw<ruma::events::AnySyncEphemeralRoomEvent>,
+        )>,
+    > + 'a {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
         let prefix2 = prefix.clone();
@@ -92,7 +96,7 @@ impl RoomEdus {
                 let count =
                     utils::u64_from_bytes(&k[prefix.len()..prefix.len() + mem::size_of::<u64>()])
                         .map_err(|_| Error::bad_database("Invalid readreceiptid count in db."))?;
-                let user_id = UserId::try_from(
+                let user_id = UserId::parse(
                     utils::string_from_bytes(&k[prefix.len() + mem::size_of::<u64>() + 1..])
                         .map_err(|_| {
                             Error::bad_database("Invalid readreceiptid userid bytes in db.")
@@ -126,7 +130,7 @@ impl RoomEdus {
     ) -> Result<()> {
         let mut key = room_id.as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(&user_id.as_bytes());
+        key.extend_from_slice(user_id.as_bytes());
 
         self.roomuserid_privateread
             .insert(&key, &count.to_be_bytes())?;
@@ -142,7 +146,7 @@ impl RoomEdus {
     pub fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
         let mut key = room_id.as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(&user_id.as_bytes());
+        key.extend_from_slice(user_id.as_bytes());
 
         self.roomuserid_privateread
             .get(&key)?
@@ -157,16 +161,17 @@ impl RoomEdus {
     pub fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
         let mut key = room_id.as_bytes().to_vec();
         key.push(0xff);
-        key.extend_from_slice(&user_id.as_bytes());
+        key.extend_from_slice(user_id.as_bytes());
 
         Ok(self
             .roomuserid_lastprivatereadupdate
             .get(&key)?
-            .map_or(Ok::<_, Error>(None), |bytes| {
-                Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Count in roomuserid_lastprivatereadupdate is invalid.")
-                })?))
-            })?
+                })
+            })
+            .transpose()?
             .unwrap_or(0))
     }
 
@@ -193,7 +198,7 @@ impl RoomEdus {
             .insert(&room_typing_id, &*user_id.as_bytes())?;
 
         self.roomid_lasttypingupdate
-            .insert(&room_id.as_bytes(), &count)?;
+            .insert(room_id.as_bytes(), &count)?;
 
         Ok(())
     }
@@ -224,7 +229,7 @@ impl RoomEdus {
 
         if found_outdated {
             self.roomid_lasttypingupdate
-                .insert(&room_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
+                .insert(room_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
         }
 
         Ok(())
@@ -268,7 +273,7 @@ impl RoomEdus {
 
         if found_outdated {
             self.roomid_lasttypingupdate
-                .insert(&room_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
+                .insert(room_id.as_bytes(), &globals.next_count()?.to_be_bytes())?;
         }
 
         Ok(())
@@ -285,12 +290,13 @@ impl RoomEdus {
 
         Ok(self
             .roomid_lasttypingupdate
-            .get(&room_id.as_bytes())?
-            .map_or(Ok::<_, Error>(None), |bytes| {
-                Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
+            .get(room_id.as_bytes())?
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Count in roomid_lastroomactiveupdate is invalid.")
-                })?))
-            })?
+                })
+            })
+            .transpose()?
             .unwrap_or(0))
     }
 
@@ -303,17 +309,13 @@ impl RoomEdus {
 
         let mut user_ids = HashSet::new();
 
-        for user_id in self
-            .typingid_userid
-            .scan_prefix(prefix)
-            .map(|(_, user_id)| {
-                UserId::try_from(utils::string_from_bytes(&user_id).map_err(|_| {
-                    Error::bad_database("User ID in typingid_userid is invalid unicode.")
-                })?)
-                .map_err(|_| Error::bad_database("User ID in typingid_userid is invalid."))
-            })
-        {
-            user_ids.insert(user_id?);
+        for (_, user_id) in self.typingid_userid.scan_prefix(prefix) {
+            let user_id = UserId::parse(utils::string_from_bytes(&user_id).map_err(|_| {
+                Error::bad_database("User ID in typingid_userid is invalid unicode.")
+            })?)
+            .map_err(|_| Error::bad_database("User ID in typingid_userid is invalid."))?;
+
+            user_ids.insert(user_id);
         }
 
         Ok(SyncEphemeralRoomEvent {
@@ -331,7 +333,7 @@ impl RoomEdus {
         &self,
         user_id: &UserId,
         room_id: &RoomId,
-        presence: ruma::events::presence::PresenceEvent,
+        presence: PresenceEvent,
         globals: &super::super::globals::Globals,
     ) -> Result<()> {
         // TODO: Remove old entry? Or maybe just wipe completely from time to time?
@@ -342,7 +344,7 @@ impl RoomEdus {
         presence_id.push(0xff);
         presence_id.extend_from_slice(&count);
         presence_id.push(0xff);
-        presence_id.extend_from_slice(&presence.sender.as_bytes());
+        presence_id.extend_from_slice(presence.sender.as_bytes());
 
         self.presenceid_presence.insert(
             &presence_id,
@@ -361,7 +363,7 @@ impl RoomEdus {
     #[tracing::instrument(skip(self))]
     pub fn ping_presence(&self, user_id: &UserId) -> Result<()> {
         self.userid_lastpresenceupdate.insert(
-            &user_id.as_bytes(),
+            user_id.as_bytes(),
             &utils::millis_since_unix_epoch().to_be_bytes(),
         )?;
 
@@ -371,7 +373,7 @@ impl RoomEdus {
     /// Returns the timestamp of the last presence update of this user in millis since the unix epoch.
     pub fn last_presence_update(&self, user_id: &UserId) -> Result<Option<u64>> {
         self.userid_lastpresenceupdate
-            .get(&user_id.as_bytes())?
+            .get(user_id.as_bytes())?
             .map(|bytes| {
                 utils::u64_from_bytes(&bytes).map_err(|_| {
                     Error::bad_database("Invalid timestamp in userid_lastpresenceupdate.")
@@ -394,12 +396,12 @@ impl RoomEdus {
         presence_id.push(0xff);
         presence_id.extend_from_slice(&last_update.to_be_bytes());
         presence_id.push(0xff);
-        presence_id.extend_from_slice(&user_id.as_bytes());
+        presence_id.extend_from_slice(user_id.as_bytes());
 
         self.presenceid_presence
             .get(&presence_id)?
             .map(|value| {
-                let mut presence = serde_json::from_slice::<PresenceEvent>(&value)
+                let mut presence: PresenceEvent = serde_json::from_slice(&value)
                     .map_err(|_| Error::bad_database("Invalid presence event in db."))?;
                 let current_timestamp: UInt = utils::millis_since_unix_epoch()
                     .try_into()
@@ -447,7 +449,7 @@ impl RoomEdus {
         {
             // Send new presence events to set the user offline
             let count = globals.next_count()?.to_be_bytes();
-            let user_id = utils::string_from_bytes(&user_id_bytes)
+            let user_id: Box<_> = utils::string_from_bytes(&user_id_bytes)
                 .map_err(|_| {
                     Error::bad_database("Invalid UserId bytes in userid_lastpresenceupdate.")
                 })?
@@ -473,14 +475,14 @@ impl RoomEdus {
                             presence: PresenceState::Offline,
                             status_msg: None,
                         },
-                        sender: user_id.clone(),
+                        sender: user_id.to_owned(),
                     })
                     .expect("PresenceEvent can be serialized"),
                 )?;
             }
 
             self.userid_lastpresenceupdate.insert(
-                &user_id.as_bytes(),
+                user_id.as_bytes(),
                 &utils::millis_since_unix_epoch().to_be_bytes(),
             )?;
         }
@@ -496,7 +498,7 @@ impl RoomEdus {
         since: u64,
         _rooms: &super::Rooms,
         _globals: &super::super::globals::Globals,
-    ) -> Result<HashMap<UserId, PresenceEvent>> {
+    ) -> Result<HashMap<Box<UserId>, PresenceEvent>> {
         //self.presence_maintain(rooms, globals)?;
 
         let mut prefix = room_id.as_bytes().to_vec();
@@ -511,7 +513,7 @@ impl RoomEdus {
             .iter_from(&*first_possible_edu, false)
             .take_while(|(key, _)| key.starts_with(&prefix))
         {
-            let user_id = UserId::try_from(
+            let user_id = UserId::parse(
                 utils::string_from_bytes(
                     key.rsplit(|&b| b == 0xff)
                         .next()
@@ -521,7 +523,7 @@ impl RoomEdus {
             )
             .map_err(|_| Error::bad_database("Invalid UserId in presenceid_presence."))?;
 
-            let mut presence = serde_json::from_slice::<PresenceEvent>(&value)
+            let mut presence: PresenceEvent = serde_json::from_slice(&value)
                 .map_err(|_| Error::bad_database("Invalid presence event in db."))?;
 
             let current_timestamp: UInt = utils::millis_since_unix_epoch()
