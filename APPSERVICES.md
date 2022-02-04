@@ -2,7 +2,7 @@
 
 ## Getting help
 
-If you run into any problems while setting up an Appservice, write an email to `timo@koesters.xyz`, ask us in `#conduit:matrix.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
+If you run into any problems while setting up an Appservice, write an email to `timo@koesters.xyz`, ask us in [#conduit:fachschaften.org](https://matrix.to/#/#conduit:fachschaften.org) or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
 
 ## Set up the appservice - general instructions
 
@@ -46,7 +46,7 @@ could help.
 
 To remove an appservice go to your admin room and execute
 
-```@conduit:your.server.name: unregister-appservice <name>```
+`@conduit:your.server.name: unregister-appservice <name>`
 
 where `<name>` one of the output of `list-appservices`.
 
