@@ -1477,17 +1477,18 @@ impl Rooms {
 
                     self.tokenids.insert_batch(&mut batch)?;
 
-                    if body.starts_with(&format!("@conduit:{}: ", db.globals.server_name()))
-                        && self
-                            .id_from_alias(
-                                <&RoomAliasId>::try_from(
-                                    format!("#admins:{}", db.globals.server_name()).as_str(),
-                                )
-                                .expect("#admins:server_name is a valid room alias"),
-                            )?
-                            .as_ref()
-                            == Some(&pdu.room_id)
-                    {
+                    let admin_room = self.id_from_alias(
+                        <&RoomAliasId>::try_from(
+                            format!("#admins:{}", db.globals.server_name()).as_str(),
+                        )
+                        .expect("#admins:server_name is a valid room alias"),
+                    )?;
+                    let server_user = format!("@conduit:{}", db.globals.server_name());
+
+                    let to_conduit = body.starts_with(&format!("{}: ", server_user));
+                    let from_conduit = pdu.sender == server_user;
+
+                    if to_conduit && !from_conduit && admin_room.as_ref() == Some(&pdu.room_id) {
                         db.admin.process_message(body.to_string());
                     }
                 }
