@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    fmt,
     net::{IpAddr, Ipv4Addr},
 };
 
@@ -94,6 +95,97 @@ impl Config {
         if was_deprecated {
             warn!("Read conduit documentation and check your configuration if any new configuration parameters should be adjusted");
         }
+    }
+}
+
+impl fmt::Display for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Prepare a list of config values to show
+        let lines = [
+            ("Server name", self.server_name.host()),
+            ("Database backend", &self.database_backend),
+            ("Database path", &self.database_path),
+            (
+                "Database cache capacity (MB)",
+                &self.db_cache_capacity_mb.to_string(),
+            ),
+            (
+                "Cache capacity modifier",
+                &self.conduit_cache_capacity_modifier.to_string(),
+            ),
+            #[cfg(feature = "rocksdb")]
+            (
+                "Maximum open files for RocksDB",
+                &self.rocksdb_max_open_files.to_string(),
+            ),
+            ("PDU cache capacity", &self.pdu_cache_capacity.to_string()),
+            (
+                "Cleanup interval in seconds",
+                &self.cleanup_second_interval.to_string(),
+            ),
+            ("Maximum request size", &self.max_request_size.to_string()),
+            (
+                "Maximum concurrent requests",
+                &self.max_concurrent_requests.to_string(),
+            ),
+            ("Allow registration", &self.allow_registration.to_string()),
+            ("Allow encryption", &self.allow_encryption.to_string()),
+            ("Allow federation", &self.allow_federation.to_string()),
+            ("Allow room creation", &self.allow_room_creation.to_string()),
+            (
+                "JWT secret",
+                match self.jwt_secret {
+                    Some(_) => "set",
+                    None => "not set",
+                },
+            ),
+            ("Trusted servers", {
+                let mut lst = vec![];
+                for server in &self.trusted_servers {
+                    lst.push(server.host());
+                }
+                &lst.join(", ")
+            }),
+            (
+                "TURN username",
+                if self.turn_username.is_empty() {
+                    "not set"
+                } else {
+                    &self.turn_username
+                },
+            ),
+            ("TURN password", {
+                if self.turn_password.is_empty() {
+                    "not set"
+                } else {
+                    "set"
+                }
+            }),
+            ("TURN secret", {
+                if self.turn_secret.is_empty() {
+                    "not set"
+                } else {
+                    "set"
+                }
+            }),
+            ("Turn TTL", &self.turn_ttl.to_string()),
+            ("Turn URIs", {
+                let mut lst = vec![];
+                for item in self.turn_uris.to_vec().into_iter().enumerate() {
+                    let (_, uri): (usize, String) = item;
+                    lst.push(uri);
+                }
+                &lst.join(", ")
+            }),
+        ];
+
+        let mut msg: String = "Active config values:\n\n".to_string();
+
+        for line in lines.into_iter().enumerate() {
+            msg += &format!("{}: {}\n", line.1 .0, line.1 .1);
+        }
+
+        write!(f, "{}", msg)
     }
 }
 
