@@ -32,7 +32,7 @@ use serde::Deserialize;
 use serde_json::value::to_raw_value;
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{hash_map, BTreeMap, HashMap, HashSet},
     fmt::Debug,
     iter,
     mem::size_of,
@@ -128,6 +128,7 @@ pub struct Rooms {
             )>,
         >,
     >,
+    pub(super) lasttimelinecount_cache: Mutex<HashMap<Box<RoomId>, u64>>,
 }
 
 impl Rooms {
@@ -1331,6 +1332,10 @@ impl Rooms {
             &pdu_id,
             &serde_json::to_vec(&pdu_json).expect("CanonicalJsonObject is always a valid"),
         )?;
+        self.lasttimelinecount_cache
+            .lock()
+            .unwrap()
+            .insert(pdu.room_id.clone(), count2);
 
         self.eventid_pduid
             .insert(pdu.event_id.as_bytes(), &pdu_id)?;
@@ -1496,6 +1501,36 @@ impl Rooms {
         }
 
         Ok(pdu_id)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<u64> {
+        match self
+            .lasttimelinecount_cache
+            .lock()
+            .unwrap()
+            .entry(room_id.to_owned())
+        {
+            hash_map::Entry::Vacant(v) => {
+                if let Some(last_count) = self
+                    .pdus_until(&sender_user, &room_id, u64::MAX)?
+                    .filter_map(|r| {
+                        // Filter out buggy events
+                        if r.is_err() {
+                            error!("Bad pdu in pdus_since: {:?}", r);
+                        }
+                        r.ok()
+                    })
+                    .map(|(pduid, _)| self.pdu_count(&pduid))
+                    .next()
+                {
+                    Ok(*v.insert(last_count?))
+                } else {
+                    Ok(0)
+                }
+            }
+            hash_map::Entry::Occupied(o) => Ok(*o.get()),
+        }
     }
 
     #[tracing::instrument(skip(self))]
