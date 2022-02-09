@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, iter::FromIterator, str};
 use axum::{
     async_trait,
     body::{Full, HttpBody},
-    extract::{FromRequest, RequestParts, TypedHeader},
+    extract::{rejection::TypedHeaderRejectionReason, FromRequest, RequestParts, TypedHeader},
     headers::{
         authorization::{Bearer, Credentials},
         Authorization,
@@ -97,7 +97,10 @@ where
                         );
 
                         if !db.users.exists(&user_id).unwrap() {
-                            return Err(forbidden());
+                            return Err(Error::BadRequest(
+                                ErrorKind::Forbidden,
+                                "User does not exist.",
+                            ));
                         }
 
                         // TODO: Check if appservice is allowed to be that user
@@ -111,11 +114,21 @@ where
                     AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
                         let token = match token {
                             Some(token) => token,
-                            _ => return Err(missing_token()),
+                            _ => {
+                                return Err(Error::BadRequest(
+                                    ErrorKind::MissingToken,
+                                    "Missing access token.",
+                                ))
+                            }
                         };
 
                         match db.users.find_from_token(token).unwrap() {
-                            None => return Err(unknown_token()),
+                            None => {
+                                return Err(Error::BadRequest(
+                                    ErrorKind::UnknownToken { soft_logout: false },
+                                    "Unknown access token.",
+                                ))
+                            }
                             Some((user_id, device_id)) => (
                                 Some(user_id),
                                 Some(Box::<DeviceId>::from(device_id)),
@@ -130,7 +143,17 @@ where
                                 .await
                                 .map_err(|e| {
                                     warn!("Missing or invalid Authorization header: {}", e);
-                                    forbidden()
+
+                                    let msg = match e.reason() {
+                                        TypedHeaderRejectionReason::Missing => {
+                                            "Missing Authorization header."
+                                        }
+                                        TypedHeaderRejectionReason::Error(_) => {
+                                            "Invalid X-Matrix signatures."
+                                        }
+                                    };
+
+                                    Error::BadRequest(ErrorKind::Forbidden, msg)
                                 })?;
 
                         let origin_signatures = BTreeMap::from_iter([(
@@ -183,7 +206,10 @@ where
                             Ok(b) => b,
                             Err(e) => {
                                 warn!("Failed to fetch signing keys: {}", e);
-                                return Err(forbidden());
+                                return Err(Error::BadRequest(
+                                    ErrorKind::Forbidden,
+                                    "Failed to fetch signing keys.",
+                                ));
                             }
                         };
 
@@ -206,7 +232,10 @@ where
                                     );
                                 }
 
-                                return Err(forbidden());
+                                return Err(Error::BadRequest(
+                                    ErrorKind::Forbidden,
+                                    "Failed to verify X-Matrix signatures.",
+                                ));
                             }
                         }
                     }
@@ -255,7 +284,7 @@ where
         let body =
             <T::Incoming as IncomingRequest>::try_from_http_request(http_request).map_err(|e| {
                 warn!("{:?}", e);
-                bad_json()
+                Error::BadRequest(ErrorKind::BadJson, "Failed to deserialize request.")
             })?;
 
         Ok(Ruma {
@@ -267,25 +296,6 @@ where
             json_body,
         })
     }
-}
-
-fn forbidden() -> Error {
-    Error::BadRequest(ErrorKind::Forbidden, "Forbidden.")
-}
-
-fn unknown_token() -> Error {
-    Error::BadRequest(
-        ErrorKind::UnknownToken { soft_logout: false },
-        "Unknown token.",
-    )
-}
-
-fn missing_token() -> Error {
-    Error::BadRequest(ErrorKind::MissingToken, "Missing token.")
-}
-
-fn bad_json() -> Error {
-    Error::BadRequest(ErrorKind::BadJson, "Bad json.")
 }
 
 struct XMatrix {
