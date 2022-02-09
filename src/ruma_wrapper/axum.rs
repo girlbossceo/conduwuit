@@ -315,6 +315,13 @@ impl Credentials for XMatrix {
         for entry in parameters.split_terminator(',') {
             let (name, value) = entry.split_once('=')?;
 
+            // It's not at all clear why some fields are quoted and others not in the spec,
+            // let's simply accept either form for every field.
+            let value = value
+                .strip_prefix('"')
+                .and_then(|rest| rest.strip_suffix('"'))
+                .unwrap_or(value);
+
             // FIXME: Catch multiple fields of the same name
             match name {
                 "origin" => origin = Some(value.try_into().ok()?),
