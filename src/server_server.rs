@@ -46,7 +46,7 @@ use ruma::{
             member::{MembershipState, RoomMemberEventContent},
             server_acl::RoomServerAclEventContent,
         },
-        AnyEphemeralRoomEvent, EventType,
+        EventType,
     },
     int,
     receipt::ReceiptType,
@@ -795,10 +795,10 @@ pub async fn send_transaction_message_route(
                             let mut receipt_content = BTreeMap::new();
                             receipt_content.insert(event_id.to_owned(), receipts);
 
-                            let event = AnyEphemeralRoomEvent::Receipt(ReceiptEvent {
+                            let event = ReceiptEvent {
                                 content: ReceiptEventContent(receipt_content),
                                 room_id: room_id.clone(),
-                            });
+                            };
                             db.rooms.edus.readreceipt_update(
                                 &user_id,
                                 &room_id,
