@@ -17,7 +17,7 @@ pub async fn search_events_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let search_criteria = body.search_categories.room_events.as_ref().unwrap();
-    let filter = search_criteria.filter.clone().unwrap_or_default();
+    let filter = &search_criteria.filter;
 
     let room_ids = filter.rooms.clone().unwrap_or_else(|| {
         db.rooms

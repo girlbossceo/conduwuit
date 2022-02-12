@@ -77,6 +77,9 @@ pub enum Error {
     #[cfg(feature = "conduit_bin")]
     #[error("{0}")]
     ExtensionError(#[from] axum::extract::rejection::ExtensionRejection),
+    #[cfg(feature = "conduit_bin")]
+    #[error("{0}")]
+    PathError(#[from] axum::extract::rejection::PathRejection),
 }
 
 impl Error {

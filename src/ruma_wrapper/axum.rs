@@ -3,7 +3,9 @@ use std::{collections::BTreeMap, iter::FromIterator, str};
 use axum::{
     async_trait,
     body::{Full, HttpBody},
-    extract::{rejection::TypedHeaderRejectionReason, FromRequest, RequestParts, TypedHeader},
+    extract::{
+        rejection::TypedHeaderRejectionReason, FromRequest, Path, RequestParts, TypedHeader,
+    },
     headers::{
         authorization::{Bearer, Credentials},
         Authorization,
@@ -45,6 +47,7 @@ where
         let metadata = T::Incoming::METADATA;
         let db = DatabaseGuard::from_request(req).await?;
         let auth_header = Option::<TypedHeader<Authorization<Bearer>>>::from_request(req).await?;
+        let path_params = Path::<Vec<String>>::from_request(req).await?;
 
         let query = req.uri().query().unwrap_or_default();
         let query_params: QueryParams = match ruma::serde::urlencoded::from_str(query) {
@@ -281,11 +284,10 @@ where
 
         debug!("{:?}", http_request);
 
-        let body =
-            <T::Incoming as IncomingRequest>::try_from_http_request(http_request).map_err(|e| {
-                warn!("{:?}", e);
-                Error::BadRequest(ErrorKind::BadJson, "Failed to deserialize request.")
-            })?;
+        let body = T::Incoming::try_from_http_request(http_request, &path_params).map_err(|e| {
+            warn!("{:?}", e);
+            Error::BadRequest(ErrorKind::BadJson, "Failed to deserialize request.")
+        })?;
 
         Ok(Ruma {
             body,

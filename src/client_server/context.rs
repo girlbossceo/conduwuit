@@ -23,13 +23,10 @@ pub async fn get_context_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-    // Load filter
-    let filter = body.filter.clone().unwrap_or_default();
-
-    let (lazy_load_enabled, lazy_load_send_redundant) = match filter.lazy_load_options {
+    let (lazy_load_enabled, lazy_load_send_redundant) = match &body.filter.lazy_load_options {
         LazyLoadOptions::Enabled {
-            include_redundant_members: redundant,
-        } => (true, redundant),
+            include_redundant_members,
+        } => (true, *include_redundant_members),
         _ => (false, false),
     };
 
