@@ -112,4 +112,4 @@ So...step by step:
      ```
 
 6. Run `docker-compose up -d`
-7. Connect to your homeserver with your preferred client and create a user. You should do this immediatly after starting Conduit, because the first created user is the admin.
+7. Connect to your homeserver with your preferred client and create a user. You should do this immediately after starting Conduit, because the first created user is the admin.
