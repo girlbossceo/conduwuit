@@ -257,6 +257,7 @@ impl Database {
                 stateinfo_cache: Mutex::new(LruCache::new(
                     (100.0 * config.conduit_cache_capacity_modifier) as usize,
                 )),
+                lasttimelinecount_cache: Mutex::new(HashMap::new()),
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
