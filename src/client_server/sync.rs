@@ -7,7 +7,7 @@ use ruma::{
     },
     events::{
         room::member::{MembershipState, RoomMemberEventContent},
-        AnySyncEphemeralRoomEvent, EventType,
+        EventType,
     },
     serde::Raw,
     DeviceId, RoomId, UserId,
@@ -656,10 +656,8 @@ async fn sync_helper(
         if db.rooms.edus.last_typing_update(&room_id, &db.globals)? > since {
             edus.push(
                 serde_json::from_str(
-                    &serde_json::to_string(&AnySyncEphemeralRoomEvent::Typing(
-                        db.rooms.edus.typings_all(&room_id)?,
-                    ))
-                    .expect("event is valid, we just created it"),
+                    &serde_json::to_string(&db.rooms.edus.typings_all(&room_id)?)
+                        .expect("event is valid, we just created it"),
                 )
                 .expect("event is valid, we just created it"),
             );
