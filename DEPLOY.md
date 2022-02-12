@@ -245,4 +245,13 @@ $ curl https://your.server.name:8448/_matrix/client/versions
 ```
 
 - To check if your server can talk with other homeservers, you can use the [Matrix Federation Tester](https://federationtester.matrix.org/)
-- If you want to set up an appservice, take a look at the [Appservice Guide](APPSERVICES.md).
+
+# What's next?
+
+## Audio/Video calls
+
+For Audio/Video call functionality see the [TURN Guide](TURN.md).
+
+## Appservices
+
+If you want to set up an appservice, take a look at the [Appservice Guide](APPSERVICES.md).
