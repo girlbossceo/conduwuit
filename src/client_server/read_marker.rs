@@ -4,7 +4,7 @@ use ruma::{
         error::ErrorKind,
         r0::{read_marker::set_read_marker, receipt::create_receipt},
     },
-    events::{AnyEphemeralRoomEvent, EventType},
+    events::EventType,
     receipt::ReceiptType,
     MilliSecondsSinceUnixEpoch,
 };
@@ -73,10 +73,10 @@ pub async fn set_read_marker_route(
         db.rooms.edus.readreceipt_update(
             sender_user,
             &body.room_id,
-            AnyEphemeralRoomEvent::Receipt(ruma::events::receipt::ReceiptEvent {
+            ruma::events::receipt::ReceiptEvent {
                 content: ruma::events::receipt::ReceiptEventContent(receipt_content),
                 room_id: body.room_id.clone(),
-            }),
+            },
             &db.globals,
         )?;
     }
@@ -130,10 +130,10 @@ pub async fn create_receipt_route(
     db.rooms.edus.readreceipt_update(
         sender_user,
         &body.room_id,
-        AnyEphemeralRoomEvent::Receipt(ruma::events::receipt::ReceiptEvent {
+        ruma::events::receipt::ReceiptEvent {
             content: ruma::events::receipt::ReceiptEventContent(receipt_content),
             room_id: body.room_id.clone(),
-        }),
+        },
         &db.globals,
     )?;
 
