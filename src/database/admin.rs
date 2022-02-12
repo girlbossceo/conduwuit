@@ -1,34 +1,41 @@
-use std::{collections::BTreeMap, convert::TryFrom, convert::TryInto, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+    time::Instant,
+};
 
 use crate::{
     error::{Error, Result},
     pdu::PduBuilder,
-    server_server, Database, PduEvent,
+    server_server,
+    utils::HtmlEscape,
+    Database, PduEvent,
 };
 use clap::Parser;
 use regex::Regex;
-use rocket::{
-    futures::{channel::mpsc, stream::StreamExt},
-    http::RawStr,
-};
 use ruma::{
-    events::room::{
-        canonical_alias::RoomCanonicalAliasEventContent,
-        create::RoomCreateEventContent,
-        guest_access::{GuestAccess, RoomGuestAccessEventContent},
-        history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
-        join_rules::{JoinRule, RoomJoinRulesEventContent},
-        member::{MembershipState, RoomMemberEventContent},
-        name::RoomNameEventContent,
-        power_levels::RoomPowerLevelsEventContent,
-        topic::RoomTopicEventContent,
+    events::{
+        room::{
+            canonical_alias::RoomCanonicalAliasEventContent,
+            create::RoomCreateEventContent,
+            guest_access::{GuestAccess, RoomGuestAccessEventContent},
+            history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+            join_rules::{JoinRule, RoomJoinRulesEventContent},
+            member::{MembershipState, RoomMemberEventContent},
+            message::RoomMessageEventContent,
+            name::RoomNameEventContent,
+            power_levels::RoomPowerLevelsEventContent,
+            topic::RoomTopicEventContent,
+        },
+        EventType,
     },
-    events::{room::message::RoomMessageEventContent, EventType},
     identifiers::{EventId, RoomAliasId, RoomId, RoomName, RoomVersionId, ServerName, UserId},
 };
 use serde_json::value::to_raw_value;
-use tokio::sync::{MutexGuard, RwLock, RwLockReadGuard};
+use tokio::sync::{mpsc, MutexGuard, RwLock, RwLockReadGuard};
 
+#[derive(Debug)]
 pub enum AdminRoomEvent {
     ProcessMessage(String),
     SendMessage(RoomMessageEventContent),
@@ -91,7 +98,7 @@ impl Admin {
 
             loop {
                 tokio::select! {
-                    Some(event) = receiver.next() => {
+                    Some(event) = receiver.recv() => {
                         let guard = db.read().await;
                         let mutex_state = Arc::clone(
                             guard.globals
@@ -123,13 +130,13 @@ impl Admin {
 
     pub fn process_message(&self, room_message: String) {
         self.sender
-            .unbounded_send(AdminRoomEvent::ProcessMessage(room_message))
+            .send(AdminRoomEvent::ProcessMessage(room_message))
             .unwrap();
     }
 
     pub fn send_message(&self, message_content: RoomMessageEventContent) {
         self.sender
-            .unbounded_send(AdminRoomEvent::SendMessage(message_content))
+            .send(AdminRoomEvent::SendMessage(message_content))
             .unwrap();
     }
 }
@@ -405,7 +412,7 @@ fn process_admin_command(
                             } else {
                                 "PDU was accepted"
                             },
-                            RawStr::new(&json_text).html_escape()
+                            HtmlEscape(&json_text)
                         ),
                     )
                 }

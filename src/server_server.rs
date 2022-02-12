@@ -2,15 +2,13 @@ use crate::{
     client_server::{self, claim_keys_helper, get_keys_helper},
     database::{rooms::CompressedStateEvent, DatabaseGuard},
     pdu::EventHash,
-    utils, ConduitResult, Database, Error, PduEvent, Result, Ruma,
+    utils, Database, Error, PduEvent, Result, Ruma,
 };
+use axum::{response::IntoResponse, Json};
+use futures_util::{stream::FuturesUnordered, StreamExt};
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION};
 use regex::Regex;
-use rocket::{
-    futures::{prelude::*, stream::FuturesUnordered},
-    response::content::Json,
-};
 use ruma::{
     api::{
         client::error::{Error as RumaError, ErrorKind},
@@ -71,9 +69,6 @@ use std::{
 };
 use tokio::sync::{MutexGuard, Semaphore};
 use tracing::{debug, error, info, trace, warn};
-
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post, put};
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -495,11 +490,11 @@ async fn request_well_known(
 /// # `GET /_matrix/federation/v1/version`
 ///
 /// Get version information on this server.
-#[cfg_attr(feature = "conduit_bin", get("/_matrix/federation/v1/version"))]
-#[tracing::instrument(skip(db))]
-pub fn get_server_version_route(
+#[tracing::instrument(skip(db, _body))]
+pub async fn get_server_version_route(
     db: DatabaseGuard,
-) -> ConduitResult<get_server_version::v1::Response> {
+    _body: Ruma<get_server_version::v1::Request>,
+) -> Result<get_server_version::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -509,8 +504,7 @@ pub fn get_server_version_route(
             name: Some("Conduit".to_owned()),
             version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         }),
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/key/v2/server`
@@ -520,12 +514,10 @@ pub fn get_server_version_route(
 /// - Matrix does not support invalidating public keys, so the key returned by this will be valid
 /// forever.
 // Response type for this endpoint is Json because we need to calculate a signature for the response
-#[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server"))]
 #[tracing::instrument(skip(db))]
-pub fn get_server_keys_route(db: DatabaseGuard) -> Json<String> {
+pub async fn get_server_keys_route(db: DatabaseGuard) -> Result<impl IntoResponse> {
     if !db.globals.allow_federation() {
-        // TODO: Use proper types
-        return Json("Federation is disabled.".to_owned());
+        return Err(Error::bad_config("Federation is disabled."));
     }
 
     let mut verify_keys: BTreeMap<Box<ServerSigningKeyId>, VerifyKey> = BTreeMap::new();
@@ -563,7 +555,7 @@ pub fn get_server_keys_route(db: DatabaseGuard) -> Json<String> {
     )
     .unwrap();
 
-    Json(serde_json::to_string(&response).expect("JSON is canonical"))
+    Ok(Json(response))
 }
 
 /// # `GET /_matrix/key/v2/server/{keyId}`
@@ -572,24 +564,19 @@ pub fn get_server_keys_route(db: DatabaseGuard) -> Json<String> {
 ///
 /// - Matrix does not support invalidating public keys, so the key returned by this will be valid
 /// forever.
-#[cfg_attr(feature = "conduit_bin", get("/_matrix/key/v2/server/<_>"))]
 #[tracing::instrument(skip(db))]
-pub fn get_server_keys_deprecated_route(db: DatabaseGuard) -> Json<String> {
-    get_server_keys_route(db)
+pub async fn get_server_keys_deprecated_route(db: DatabaseGuard) -> impl IntoResponse {
+    get_server_keys_route(db).await
 }
 
 /// # `POST /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/federation/v1/publicRooms", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_filtered_route(
     db: DatabaseGuard,
     body: Ruma<get_public_rooms_filtered::v1::Request<'_>>,
-) -> ConduitResult<get_public_rooms_filtered::v1::Response> {
+) -> Result<get_public_rooms_filtered::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -602,8 +589,7 @@ pub async fn get_public_rooms_filtered_route(
         &body.filter,
         &body.room_network,
     )
-    .await?
-    .0;
+    .await?;
 
     Ok(get_public_rooms_filtered::v1::Response {
         chunk: response
@@ -621,22 +607,17 @@ pub async fn get_public_rooms_filtered_route(
         prev_batch: response.prev_batch,
         next_batch: response.next_batch,
         total_room_count_estimate: response.total_room_count_estimate,
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v1/publicRooms", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_route(
     db: DatabaseGuard,
     body: Ruma<get_public_rooms::v1::Request<'_>>,
-) -> ConduitResult<get_public_rooms::v1::Response> {
+) -> Result<get_public_rooms::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -649,8 +630,7 @@ pub async fn get_public_rooms_route(
         &IncomingFilter::default(),
         &IncomingRoomNetwork::Matrix,
     )
-    .await?
-    .0;
+    .await?;
 
     Ok(get_public_rooms::v1::Response {
         chunk: response
@@ -668,22 +648,17 @@ pub async fn get_public_rooms_route(
         prev_batch: response.prev_batch,
         next_batch: response.next_batch,
         total_room_count_estimate: response.total_room_count_estimate,
-    }
-    .into())
+    })
 }
 
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
 ///
 /// Push EDUs and PDUs to this server.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/federation/v1/send/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn send_transaction_message_route(
     db: DatabaseGuard,
     body: Ruma<send_transaction_message::v1::Request<'_>>,
-) -> ConduitResult<send_transaction_message::v1::Response> {
+) -> Result<send_transaction_message::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -895,7 +870,7 @@ pub async fn send_transaction_message_route(
 
     db.flush()?;
 
-    Ok(send_transaction_message::v1::Response { pdus: resolved_map }.into())
+    Ok(send_transaction_message::v1::Response { pdus: resolved_map })
 }
 
 /// An async function that can recursively call itself.
@@ -2309,15 +2284,11 @@ fn get_auth_chain_inner(
 /// Retrieves a single event from the server.
 ///
 /// - Only works if a user of this server is currently invited or joined the room
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v1/event/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn get_event_route(
+pub async fn get_event_route(
     db: DatabaseGuard,
     body: Ruma<get_event::v1::Request<'_>>,
-) -> ConduitResult<get_event::v1::Response> {
+) -> Result<get_event::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -2351,22 +2322,17 @@ pub fn get_event_route(
         origin: db.globals.server_name().to_owned(),
         origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
         pdu: PduEvent::convert_to_outgoing_federation_event(event),
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/federation/v1/get_missing_events/{roomId}`
 ///
 /// Retrieves events that the sender is missing.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/federation/v1/get_missing_events/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn get_missing_events_route(
+pub async fn get_missing_events_route(
     db: DatabaseGuard,
     body: Ruma<get_missing_events::v1::Request<'_>>,
-) -> ConduitResult<get_missing_events::v1::Response> {
+) -> Result<get_missing_events::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -2428,7 +2394,7 @@ pub fn get_missing_events_route(
         i += 1;
     }
 
-    Ok(get_missing_events::v1::Response { events }.into())
+    Ok(get_missing_events::v1::Response { events })
 }
 
 /// # `GET /_matrix/federation/v1/event_auth/{roomId}/{eventId}`
@@ -2436,15 +2402,11 @@ pub fn get_missing_events_route(
 /// Retrieves the auth chain for a given event.
 ///
 /// - This does not include the event itself
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v1/event_auth/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn get_event_authorization_route(
+pub async fn get_event_authorization_route(
     db: DatabaseGuard,
     body: Ruma<get_event_authorization::v1::Request<'_>>,
-) -> ConduitResult<get_event_authorization::v1::Response> {
+) -> Result<get_event_authorization::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -2483,22 +2445,17 @@ pub fn get_event_authorization_route(
             .filter_map(|id| db.rooms.get_pdu_json(&id).ok()?)
             .map(PduEvent::convert_to_outgoing_federation_event)
             .collect(),
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/federation/v1/state/{roomId}`
 ///
 /// Retrieves the current state of the room.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v1/state/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn get_room_state_route(
+pub async fn get_room_state_route(
     db: DatabaseGuard,
     body: Ruma<get_room_state::v1::Request<'_>>,
-) -> ConduitResult<get_room_state::v1::Response> {
+) -> Result<get_room_state::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -2548,22 +2505,17 @@ pub fn get_room_state_route(
             .filter_map(|r| r.ok())
             .collect(),
         pdus,
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/federation/v1/state_ids/{roomId}`
 ///
 /// Retrieves the current state of the room.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v1/state_ids/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn get_room_state_ids_route(
+pub async fn get_room_state_ids_route(
     db: DatabaseGuard,
     body: Ruma<get_room_state_ids::v1::Request<'_>>,
-) -> ConduitResult<get_room_state_ids::v1::Response> {
+) -> Result<get_room_state_ids::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -2602,22 +2554,17 @@ pub fn get_room_state_ids_route(
     Ok(get_room_state_ids::v1::Response {
         auth_chain_ids: auth_chain_ids.map(|id| (*id).to_owned()).collect(),
         pdu_ids,
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/federation/v1/make_join/{roomId}/{userId}`
 ///
 /// Creates a join template.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v1/make_join/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn create_join_event_template_route(
+pub async fn create_join_event_template_route(
     db: DatabaseGuard,
     body: Ruma<create_join_event_template::v1::Request<'_>>,
-) -> ConduitResult<create_join_event_template::v1::Response> {
+) -> Result<create_join_event_template::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -2782,8 +2729,7 @@ pub fn create_join_event_template_route(
     Ok(create_join_event_template::v1::Response {
         room_version: Some(room_version_id),
         event: to_raw_value(&pdu_json).expect("CanonicalJson can be serialized to JSON"),
-    }
-    .into())
+    })
 }
 
 async fn create_join_event(
@@ -2895,15 +2841,11 @@ async fn create_join_event(
 /// # `PUT /_matrix/federation/v1/send_join/{roomId}/{eventId}`
 ///
 /// Submits a signed join event.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/federation/v1/send_join/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_join_event_v1_route(
     db: DatabaseGuard,
     body: Ruma<create_join_event::v1::Request<'_>>,
-) -> ConduitResult<create_join_event::v1::Response> {
+) -> Result<create_join_event::v1::Response> {
     let sender_servername = body
         .sender_servername
         .as_ref()
@@ -2911,21 +2853,17 @@ pub async fn create_join_event_v1_route(
 
     let room_state = create_join_event(&db, sender_servername, &body.room_id, &body.pdu).await?;
 
-    Ok(create_join_event::v1::Response { room_state }.into())
+    Ok(create_join_event::v1::Response { room_state })
 }
 
 /// # `PUT /_matrix/federation/v2/send_join/{roomId}/{eventId}`
 ///
 /// Submits a signed join event.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/federation/v2/send_join/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_join_event_v2_route(
     db: DatabaseGuard,
     body: Ruma<create_join_event::v2::Request<'_>>,
-) -> ConduitResult<create_join_event::v2::Response> {
+) -> Result<create_join_event::v2::Response> {
     let sender_servername = body
         .sender_servername
         .as_ref()
@@ -2933,21 +2871,17 @@ pub async fn create_join_event_v2_route(
 
     let room_state = create_join_event(&db, sender_servername, &body.room_id, &body.pdu).await?;
 
-    Ok(create_join_event::v2::Response { room_state }.into())
+    Ok(create_join_event::v2::Response { room_state })
 }
 
 /// # `PUT /_matrix/federation/v2/invite/{roomId}/{eventId}`
 ///
 /// Invites a remote user to a room.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/federation/v2/invite/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_invite_route(
     db: DatabaseGuard,
     body: Ruma<create_invite::v2::Request<'_>>,
-) -> ConduitResult<create_invite::v2::Response> {
+) -> Result<create_invite::v2::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -3048,22 +2982,17 @@ pub async fn create_invite_route(
 
     Ok(create_invite::v2::Response {
         event: PduEvent::convert_to_outgoing_federation_event(signed_event),
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/federation/v1/user/devices/{userId}`
 ///
 /// Gets information on all devices of the user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v1/user/devices/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn get_devices_route(
+pub async fn get_devices_route(
     db: DatabaseGuard,
     body: Ruma<get_devices::v1::Request<'_>>,
-) -> ConduitResult<get_devices::v1::Response> {
+) -> Result<get_devices::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -3091,22 +3020,17 @@ pub fn get_devices_route(
                 })
             })
             .collect(),
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/federation/v1/query/directory`
 ///
 /// Resolve a room alias to a room id.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v1/query/directory", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn get_room_information_route(
+pub async fn get_room_information_route(
     db: DatabaseGuard,
     body: Ruma<get_room_information::v1::Request<'_>>,
-) -> ConduitResult<get_room_information::v1::Response> {
+) -> Result<get_room_information::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -3122,22 +3046,17 @@ pub fn get_room_information_route(
     Ok(get_room_information::v1::Response {
         room_id,
         servers: vec![db.globals.server_name().to_owned()],
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/federation/v1/query/profile`
 ///
 /// Gets information on a profile.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/federation/v1/query/profile", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn get_profile_information_route(
+pub async fn get_profile_information_route(
     db: DatabaseGuard,
     body: Ruma<get_profile_information::v1::Request<'_>>,
-) -> ConduitResult<get_profile_information::v1::Response> {
+) -> Result<get_profile_information::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -3165,22 +3084,17 @@ pub fn get_profile_information_route(
         blurhash,
         displayname,
         avatar_url,
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/federation/v1/user/keys/query`
 ///
 /// Gets devices and identity keys for the given users.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/federation/v1/user/keys/query", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_keys_route(
     db: DatabaseGuard,
     body: Ruma<get_keys::v1::Request>,
-) -> ConduitResult<get_keys::v1::Response> {
+) -> Result<get_keys::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -3199,22 +3113,17 @@ pub async fn get_keys_route(
         device_keys: result.device_keys,
         master_keys: result.master_keys,
         self_signing_keys: result.self_signing_keys,
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/federation/v1/user/keys/claim`
 ///
 /// Claims one-time keys.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/federation/v1/user/keys/claim", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn claim_keys_route(
     db: DatabaseGuard,
     body: Ruma<claim_keys::v1::Request>,
-) -> ConduitResult<claim_keys::v1::Response> {
+) -> Result<claim_keys::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -3225,8 +3134,7 @@ pub async fn claim_keys_route(
 
     Ok(claim_keys::v1::Response {
         one_time_keys: result.one_time_keys,
-    }
-    .into())
+    })
 }
 
 #[tracing::instrument(skip(event, pub_key_map, db))]

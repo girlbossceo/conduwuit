@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -9,34 +9,24 @@ use ruma::{
 use std::{collections::HashSet, convert::TryFrom};
 use tracing::error;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::get;
-
 /// # `GET /_matrix/client/r0/rooms/{roomId}/context`
 ///
 /// Allows loading room history around an event.
 ///
 /// - Only works if the user is joined (TODO: always allow, but only show events if the user was
 /// joined, depending on history_visibility)
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/context/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_context_route(
     db: DatabaseGuard,
     body: Ruma<get_context::Request<'_>>,
-) -> ConduitResult<get_context::Response> {
+) -> Result<get_context::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-    // Load filter
-    let filter = body.filter.clone().unwrap_or_default();
-
-    let (lazy_load_enabled, lazy_load_send_redundant) = match filter.lazy_load_options {
+    let (lazy_load_enabled, lazy_load_send_redundant) = match &body.filter.lazy_load_options {
         LazyLoadOptions::Enabled {
-            include_redundant_members: redundant,
-        } => (true, redundant),
+            include_redundant_members,
+        } => (true, *include_redundant_members),
         _ => (false, false),
     };
 
@@ -198,5 +188,5 @@ pub async fn get_context_route(
         state,
     };
 
-    Ok(resp.into())
+    Ok(resp)
 }

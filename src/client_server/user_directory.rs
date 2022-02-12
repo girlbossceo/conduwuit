@@ -1,23 +1,16 @@
-use crate::{database::DatabaseGuard, ConduitResult, Ruma};
+use crate::{database::DatabaseGuard, Result, Ruma};
 use ruma::api::client::r0::user_directory::search_users;
-
-#[cfg(feature = "conduit_bin")]
-use rocket::post;
 
 /// # `POST /_matrix/client/r0/user_directory/search`
 ///
 /// Searches all known users for a match.
 ///
 /// - TODO: Hide users that are not in any public rooms?
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/user_directory/search", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn search_users_route(
     db: DatabaseGuard,
     body: Ruma<search_users::Request<'_>>,
-) -> ConduitResult<search_users::Response> {
+) -> Result<search_users::Response> {
     let limit = u64::from(body.limit) as usize;
 
     let mut users = db.users.iter().filter_map(|user_id| {
@@ -55,5 +48,5 @@ pub async fn search_users_route(
     let results = users.by_ref().take(limit).collect();
     let limited = users.next().is_some();
 
-    Ok(search_users::Response { results, limited }.into())
+    Ok(search_users::Response { results, limited })
 }

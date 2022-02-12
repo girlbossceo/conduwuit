@@ -1,26 +1,19 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, utils::HtmlEscape, Error, Result, Ruma};
 use ruma::{
     api::client::{error::ErrorKind, r0::room::report_content},
     events::room::message,
     int,
 };
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{http::RawStr, post};
-
 /// # `POST /_matrix/client/r0/rooms/{roomId}/report/{eventId}`
 ///
 /// Reports an inappropriate event to homeserver admins
 ///
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/report/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn report_event_route(
     db: DatabaseGuard,
     body: Ruma<report_content::Request<'_>>,
-) -> ConduitResult<report_content::Response> {
+) -> Result<report_content::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let pdu = match db.rooms.get_pdu(&body.event_id)? {
@@ -70,11 +63,11 @@ pub async fn report_event_route(
                 pdu.room_id,
                 pdu.sender,
                 body.score,
-                RawStr::new(&body.reason).html_escape()
+                HtmlEscape(&body.reason)
             ),
         ));
 
     db.flush()?;
 
-    Ok(report_content::Response {}.into())
+    Ok(report_content::Response {})
 }

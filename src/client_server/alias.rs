@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, ConduitResult, Database, Error, Ruma};
+use crate::{database::DatabaseGuard, Database, Error, Result, Ruma};
 use regex::Regex;
 use ruma::{
     api::{
@@ -12,21 +12,14 @@ use ruma::{
     RoomAliasId,
 };
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{delete, get, put};
-
 /// # `PUT /_matrix/client/r0/directory/room/{roomAlias}`
 ///
 /// Creates a new room alias on this server.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/directory/room/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_alias_route(
     db: DatabaseGuard,
     body: Ruma<create_alias::Request<'_>>,
-) -> ConduitResult<create_alias::Response> {
+) -> Result<create_alias::Response> {
     if body.room_alias.server_name() != db.globals.server_name() {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
@@ -43,7 +36,7 @@ pub async fn create_alias_route(
 
     db.flush()?;
 
-    Ok(create_alias::Response::new().into())
+    Ok(create_alias::Response::new())
 }
 
 /// # `DELETE /_matrix/client/r0/directory/room/{roomAlias}`
@@ -52,15 +45,11 @@ pub async fn create_alias_route(
 ///
 /// - TODO: additional access control checks
 /// - TODO: Update canonical alias event
-#[cfg_attr(
-    feature = "conduit_bin",
-    delete("/_matrix/client/r0/directory/room/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn delete_alias_route(
     db: DatabaseGuard,
     body: Ruma<delete_alias::Request<'_>>,
-) -> ConduitResult<delete_alias::Response> {
+) -> Result<delete_alias::Response> {
     if body.room_alias.server_name() != db.globals.server_name() {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
@@ -74,7 +63,7 @@ pub async fn delete_alias_route(
 
     db.flush()?;
 
-    Ok(delete_alias::Response::new().into())
+    Ok(delete_alias::Response::new())
 }
 
 /// # `GET /_matrix/client/r0/directory/room/{roomAlias}`
@@ -82,22 +71,18 @@ pub async fn delete_alias_route(
 /// Resolve an alias locally or over federation.
 ///
 /// - TODO: Suggest more servers to join via
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/directory/room/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_alias_route(
     db: DatabaseGuard,
     body: Ruma<get_alias::Request<'_>>,
-) -> ConduitResult<get_alias::Response> {
+) -> Result<get_alias::Response> {
     get_alias_helper(&db, &body.room_alias).await
 }
 
 pub(crate) async fn get_alias_helper(
     db: &Database,
     room_alias: &RoomAliasId,
-) -> ConduitResult<get_alias::Response> {
+) -> Result<get_alias::Response> {
     if room_alias.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -108,7 +93,7 @@ pub(crate) async fn get_alias_helper(
             )
             .await?;
 
-        return Ok(get_alias::Response::new(response.room_id, response.servers).into());
+        return Ok(get_alias::Response::new(response.room_id, response.servers));
     }
 
     let mut room_id = None;
@@ -159,5 +144,8 @@ pub(crate) async fn get_alias_helper(
         }
     };
 
-    Ok(get_alias::Response::new(room_id, vec![db.globals.server_name().to_owned()]).into())
+    Ok(get_alias::Response::new(
+        room_id,
+        vec![db.globals.server_name().to_owned()],
+    ))
 }

@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -10,24 +10,17 @@ use ruma::{
 };
 use std::collections::BTreeMap;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::post;
-
 /// # `POST /_matrix/client/r0/rooms/{roomId}/read_markers`
 ///
 /// Sets different types of read markers.
 ///
 /// - Updates fully-read account data event to `fully_read`
 /// - If `read_receipt` is set: Update private marker and public read receipt EDU
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/read_markers", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_read_marker_route(
     db: DatabaseGuard,
     body: Ruma<set_read_marker::Request<'_>>,
-) -> ConduitResult<set_read_marker::Response> {
+) -> Result<set_read_marker::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let fully_read_event = ruma::events::fully_read::FullyReadEvent {
@@ -83,21 +76,17 @@ pub async fn set_read_marker_route(
 
     db.flush()?;
 
-    Ok(set_read_marker::Response {}.into())
+    Ok(set_read_marker::Response {})
 }
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/receipt/{receiptType}/{eventId}`
 ///
 /// Sets private read marker and public read receipt EDU.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/rooms/<_>/receipt/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn create_receipt_route(
     db: DatabaseGuard,
     body: Ruma<create_receipt::Request<'_>>,
-) -> ConduitResult<create_receipt::Response> {
+) -> Result<create_receipt::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.rooms.edus.private_read_set(
@@ -139,5 +128,5 @@ pub async fn create_receipt_route(
 
     db.flush()?;
 
-    Ok(create_receipt::Response {}.into())
+    Ok(create_receipt::Response {})
 }

@@ -1,22 +1,15 @@
-use crate::{database::DatabaseGuard, utils, ConduitResult, Ruma};
+use crate::{database::DatabaseGuard, utils, Result, Ruma};
 use create_typing_event::Typing;
 use ruma::api::client::r0::typing::create_typing_event;
-
-#[cfg(feature = "conduit_bin")]
-use rocket::put;
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/typing/{userId}`
 ///
 /// Sets the typing state of the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/rooms/<_>/typing/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
-pub fn create_typing_event_route(
+pub async fn create_typing_event_route(
     db: DatabaseGuard,
     body: Ruma<create_typing_event::Request<'_>>,
-) -> ConduitResult<create_typing_event::Response> {
+) -> Result<create_typing_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if let Typing::Yes(duration) = body.state {
@@ -32,5 +25,5 @@ pub fn create_typing_event_route(
             .typing_remove(sender_user, &body.room_id, &db.globals)?;
     }
 
-    Ok(create_typing_event::Response {}.into())
+    Ok(create_typing_event::Response {})
 }

@@ -1,22 +1,15 @@
-use crate::{database::DatabaseGuard, utils, ConduitResult, Ruma};
+use crate::{database::DatabaseGuard, utils, Result, Ruma};
 use ruma::api::client::r0::presence::{get_presence, set_presence};
 use std::time::Duration;
-
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, put};
 
 /// # `PUT /_matrix/client/r0/presence/{userId}/status`
 ///
 /// Sets the presence state of the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/presence/<_>/status", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn set_presence_route(
     db: DatabaseGuard,
     body: Ruma<set_presence::Request<'_>>,
-) -> ConduitResult<set_presence::Response> {
+) -> Result<set_presence::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     for room_id in db.rooms.rooms_joined(sender_user) {
@@ -46,7 +39,7 @@ pub async fn set_presence_route(
 
     db.flush()?;
 
-    Ok(set_presence::Response {}.into())
+    Ok(set_presence::Response {})
 }
 
 /// # `GET /_matrix/client/r0/presence/{userId}/status`
@@ -54,15 +47,11 @@ pub async fn set_presence_route(
 /// Gets the presence state of the given user.
 ///
 /// - Only works if you share a room with the user
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/presence/<_>/status", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_presence_route(
     db: DatabaseGuard,
     body: Ruma<get_presence::Request<'_>>,
-) -> ConduitResult<get_presence::Response> {
+) -> Result<get_presence::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut presence_event = None;
@@ -93,8 +82,7 @@ pub async fn get_presence_route(
                 .last_active_ago
                 .map(|millis| Duration::from_millis(millis.into())),
             presence: presence.content.presence,
-        }
-        .into())
+        })
     } else {
         todo!();
     }

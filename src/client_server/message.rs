@@ -1,4 +1,4 @@
-use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -11,9 +11,6 @@ use std::{
     sync::Arc,
 };
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, put};
-
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/send/{eventType}/{txnId}`
 ///
 /// Send a message event into the room.
@@ -21,15 +18,11 @@ use rocket::{get, put};
 /// - Is a NOOP if the txn id was already used before and returns the same event id again
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/rooms/<_>/send/<_>/<_>", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn send_message_event_route(
     db: DatabaseGuard,
     body: Ruma<send_message_event::Request<'_>>,
-) -> ConduitResult<send_message_event::Response> {
+) -> Result<send_message_event::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_deref();
 
@@ -69,7 +62,7 @@ pub async fn send_message_event_route(
             .map_err(|_| Error::bad_database("Invalid txnid bytes in database."))?
             .try_into()
             .map_err(|_| Error::bad_database("Invalid event id in txnid data."))?;
-        return Ok(send_message_event::Response { event_id }.into());
+        return Ok(send_message_event::Response { event_id });
     }
 
     let mut unsigned = BTreeMap::new();
@@ -101,7 +94,7 @@ pub async fn send_message_event_route(
 
     db.flush()?;
 
-    Ok(send_message_event::Response::new((*event_id).to_owned()).into())
+    Ok(send_message_event::Response::new((*event_id).to_owned()))
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/messages`
@@ -110,15 +103,11 @@ pub async fn send_message_event_route(
 ///
 /// - Only works if the user is joined (TODO: always allow, but only show events where the user was
 /// joined, depending on history_visibility)
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/messages", data = "<body>")
-)]
 #[tracing::instrument(skip(db, body))]
 pub async fn get_message_events_route(
     db: DatabaseGuard,
     body: Ruma<get_message_events::Request<'_>>,
-) -> ConduitResult<get_message_events::Response> {
+) -> Result<get_message_events::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -246,5 +235,5 @@ pub async fn get_message_events_route(
         );
     }
 
-    Ok(resp.into())
+    Ok(resp)
 }

@@ -1,6 +1,10 @@
 use super::{super::Config, watchers::Watchers, DatabaseEngine, Tree};
 use crate::{utils, Result};
-use std::{future::Future, pin::Pin, sync::Arc, sync::RwLock};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{Arc, RwLock},
+};
 
 pub struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,

@@ -9,11 +9,8 @@ use crate::{
     appservice_server, database::pusher, server_server, utils, Database, Error, PduEvent, Result,
 };
 use federation::transactions::send_transaction_message;
+use futures_util::{stream::FuturesUnordered, StreamExt};
 use ring::digest;
-use rocket::futures::{
-    channel::mpsc,
-    stream::{FuturesUnordered, StreamExt},
-};
 use ruma::{
     api::{
         appservice,
@@ -33,7 +30,7 @@ use ruma::{
 };
 use tokio::{
     select,
-    sync::{RwLock, Semaphore},
+    sync::{mpsc, RwLock, Semaphore},
 };
 use tracing::{error, warn};
 
@@ -170,7 +167,7 @@ impl Sending {
                                         Self::parse_servercurrentevent(&k, v).ok().map(|ev| (ev, k))
                                     })
                                     .take(30)
-                                    .collect::<>();
+                                    .collect();
 
                                 // TODO: find edus
 
@@ -207,7 +204,7 @@ impl Sending {
                             }
                         };
                     },
-                    Some((key, value)) = receiver.next() => {
+                    Some((key, value)) = receiver.recv() => {
                         if let Ok((outgoing_kind, event)) = Self::parse_servercurrentevent(&key, value) {
                             let guard = db.read().await;
 
@@ -417,7 +414,7 @@ impl Sending {
         key.push(0xff);
         key.extend_from_slice(pdu_id);
         self.servernameevent_data.insert(&key, &[])?;
-        self.sender.unbounded_send((key, vec![])).unwrap();
+        self.sender.send((key, vec![])).unwrap();
 
         Ok(())
     }
@@ -433,7 +430,7 @@ impl Sending {
             key.push(0xff);
             key.extend_from_slice(pdu_id);
 
-            self.sender.unbounded_send((key.clone(), vec![])).unwrap();
+            self.sender.send((key.clone(), vec![])).unwrap();
 
             (key, Vec::new())
         });
@@ -454,7 +451,7 @@ impl Sending {
         key.push(0xff);
         key.extend_from_slice(&id.to_be_bytes());
         self.servernameevent_data.insert(&key, &serialized)?;
-        self.sender.unbounded_send((key, serialized)).unwrap();
+        self.sender.send((key, serialized)).unwrap();
 
         Ok(())
     }
@@ -466,7 +463,7 @@ impl Sending {
         key.push(0xff);
         key.extend_from_slice(pdu_id);
         self.servernameevent_data.insert(&key, &[])?;
-        self.sender.unbounded_send((key, vec![])).unwrap();
+        self.sender.send((key, vec![])).unwrap();
 
         Ok(())
     }
