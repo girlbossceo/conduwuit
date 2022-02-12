@@ -354,24 +354,26 @@ fn process_admin_command(
                 let string = body[1..body.len() - 1].join("\n");
                 match serde_json::from_str(&string) {
                     Ok(value) => {
-                        let event_id = EventId::parse(format!(
-                            "${}",
-                            // Anything higher than version3 behaves the same
-                            ruma::signatures::reference_hash(&value, &RoomVersionId::V6)
-                                .expect("ruma can calculate reference hashes")
-                        ))
-                        .expect("ruma's reference hashes are valid event ids");
+                        match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
+                            Ok(hash) => {
+                                let event_id = EventId::parse(format!("${}", hash));
 
-                        match serde_json::from_value::<PduEvent>(
-                            serde_json::to_value(value).expect("value is json"),
-                        ) {
-                            Ok(pdu) => RoomMessageEventContent::text_plain(format!(
-                                "EventId: {:?}\n{:#?}",
-                                event_id, pdu
-                            )),
+                                match serde_json::from_value::<PduEvent>(
+                                    serde_json::to_value(value).expect("value is json"),
+                                ) {
+                                    Ok(pdu) => RoomMessageEventContent::text_plain(format!(
+                                        "EventId: {:?}\n{:#?}",
+                                        event_id, pdu
+                                    )),
+                                    Err(e) => RoomMessageEventContent::text_plain(format!(
+                                        "EventId: {:?}\nCould not parse event: {}",
+                                        event_id, e
+                                    )),
+                                }
+                            }
                             Err(e) => RoomMessageEventContent::text_plain(format!(
-                                "EventId: {:?}\nCould not parse event: {}",
-                                event_id, e
+                                "Could not parse PDU JSON: {:?}",
+                                e
                             )),
                         }
                     }
