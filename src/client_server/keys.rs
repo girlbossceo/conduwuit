@@ -27,7 +27,6 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 ///
 /// - Adds one time keys
 /// - If there are no device keys yet: Adds device keys (TODO: merge with existing keys?)
-#[tracing::instrument(skip(db, body))]
 pub async fn upload_keys_route(
     db: DatabaseGuard,
     body: Ruma<upload_keys::Request>,
@@ -72,7 +71,6 @@ pub async fn upload_keys_route(
 /// - Always fetches users from other servers over federation
 /// - Gets master keys, self-signing keys, user signing keys and device keys.
 /// - The master and self-signing keys contain signatures that the user is allowed to see
-#[tracing::instrument(skip(db, body))]
 pub async fn get_keys_route(
     db: DatabaseGuard,
     body: Ruma<get_keys::Request<'_>>,
@@ -93,7 +91,6 @@ pub async fn get_keys_route(
 /// # `POST /_matrix/client/r0/keys/claim`
 ///
 /// Claims one-time keys
-#[tracing::instrument(skip(db, body))]
 pub async fn claim_keys_route(
     db: DatabaseGuard,
     body: Ruma<claim_keys::Request>,
@@ -110,7 +107,6 @@ pub async fn claim_keys_route(
 /// Uploads end-to-end key information for the sender user.
 ///
 /// - Requires UIAA to verify password
-#[tracing::instrument(skip(db, body))]
 pub async fn upload_signing_keys_route(
     db: DatabaseGuard,
     body: Ruma<upload_signing_keys::Request<'_>>,
@@ -170,7 +166,6 @@ pub async fn upload_signing_keys_route(
 /// # `POST /_matrix/client/r0/keys/signatures/upload`
 ///
 /// Uploads end-to-end key signatures from the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn upload_signatures_route(
     db: DatabaseGuard,
     body: Ruma<upload_signatures::Request>,
@@ -232,7 +227,6 @@ pub async fn upload_signatures_route(
 /// Gets a list of users who have updated their device identity keys since the previous sync token.
 ///
 /// - TODO: left users
-#[tracing::instrument(skip(db, body))]
 pub async fn get_key_changes_route(
     db: DatabaseGuard,
     body: Ruma<get_key_changes::Request<'_>>,

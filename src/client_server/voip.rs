@@ -9,7 +9,6 @@ type HmacSha1 = Hmac<Sha1>;
 /// # `GET /_matrix/client/r0/voip/turnServer`
 ///
 /// TODO: Returns information about the recommended turn server.
-#[tracing::instrument(skip(body, db))]
 pub async fn turn_server_route(
     db: DatabaseGuard,
     body: Ruma<get_turn_server_info::Request>,

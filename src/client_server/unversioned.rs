@@ -13,7 +13,6 @@ use ruma::api::client::unversioned::get_supported_versions;
 ///
 /// Note: Unstable features are used while developing new features. Clients should avoid using
 /// unstable features in their stable releases
-#[tracing::instrument(skip(_body))]
 pub async fn get_supported_versions_route(
     _body: Ruma<get_supported_versions::Request>,
 ) -> Result<get_supported_versions::Response> {

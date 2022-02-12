@@ -134,7 +134,6 @@ pub struct SqliteTable {
 type TupleOfBytes = (Vec<u8>, Vec<u8>);
 
 impl SqliteTable {
-    #[tracing::instrument(skip(self, guard, key))]
     fn get_with_guard(&self, guard: &Connection, key: &[u8]) -> Result<Option<Vec<u8>>> {
         //dbg!(&self.name);
         Ok(guard
@@ -143,7 +142,6 @@ impl SqliteTable {
             .optional()?)
     }
 
-    #[tracing::instrument(skip(self, guard, key, value))]
     fn insert_with_guard(&self, guard: &Connection, key: &[u8], value: &[u8]) -> Result<()> {
         //dbg!(&self.name);
         guard.execute(
@@ -192,12 +190,10 @@ impl SqliteTable {
 }
 
 impl Tree for SqliteTable {
-    #[tracing::instrument(skip(self, key))]
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         self.get_with_guard(self.engine.read_lock(), key)
     }
 
-    #[tracing::instrument(skip(self, key, value))]
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
         let guard = self.engine.write_lock();
         self.insert_with_guard(&guard, key, value)?;
@@ -206,7 +202,6 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, iter))]
     fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
         let guard = self.engine.write_lock();
 
@@ -221,7 +216,6 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, iter))]
     fn increment_batch<'a>(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
         let guard = self.engine.write_lock();
 
@@ -239,7 +233,6 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn remove(&self, key: &[u8]) -> Result<()> {
         let guard = self.engine.write_lock();
 
@@ -251,14 +244,12 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
         let guard = self.engine.read_lock_iterator();
 
         self.iter_with_guard(guard)
     }
 
-    #[tracing::instrument(skip(self, from, backwards))]
     fn iter_from<'a>(
         &'a self,
         from: &[u8],
@@ -323,7 +314,6 @@ impl Tree for SqliteTable {
         }
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
         let guard = self.engine.write_lock();
 
@@ -337,7 +327,6 @@ impl Tree for SqliteTable {
         Ok(new)
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
         Box::new(
             self.iter_from(&prefix, false)
@@ -345,12 +334,10 @@ impl Tree for SqliteTable {
         )
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         self.watchers.watch(prefix)
     }
 
-    #[tracing::instrument(skip(self))]
     fn clear(&self) -> Result<()> {
         debug!("clear: running");
         self.engine

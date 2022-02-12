@@ -9,7 +9,6 @@ use std::collections::BTreeMap;
 /// Searches rooms for messages.
 ///
 /// - Only works if the user is currently joined to the room (TODO: Respect history visibility)
-#[tracing::instrument(skip(db, body))]
 pub async fn search_events_route(
     db: DatabaseGuard,
     body: Ruma<search_events::Request<'_>>,

@@ -45,7 +45,6 @@ use tracing::{info, warn};
 /// - Send events listed in initial state
 /// - Send events implied by `name` and `topic`
 /// - Send invite events
-#[tracing::instrument(skip(db, body))]
 pub async fn create_room_route(
     db: DatabaseGuard,
     body: Ruma<create_room::Request<'_>>,
@@ -417,7 +416,6 @@ pub async fn create_room_route(
 /// Gets a single event.
 ///
 /// - You have to currently be joined to the room (TODO: Respect history visibility)
-#[tracing::instrument(skip(db, body))]
 pub async fn get_room_event_route(
     db: DatabaseGuard,
     body: Ruma<get_room_event::Request<'_>>,
@@ -445,7 +443,6 @@ pub async fn get_room_event_route(
 /// Lists all aliases of the room.
 ///
 /// - Only users joined to the room are allowed to call this TODO: Allow any user to call it if history_visibility is world readable
-#[tracing::instrument(skip(db, body))]
 pub async fn get_room_aliases_route(
     db: DatabaseGuard,
     body: Ruma<aliases::Request<'_>>,
@@ -478,7 +475,6 @@ pub async fn get_room_aliases_route(
 /// - Transfers some state events
 /// - Moves local aliases
 /// - Modifies old room power levels to prevent users from speaking
-#[tracing::instrument(skip(db, body))]
 pub async fn upgrade_room_route(
     db: DatabaseGuard,
     body: Ruma<upgrade_room::Request<'_>>,

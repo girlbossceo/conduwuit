@@ -19,7 +19,6 @@ use std::sync::Arc;
 /// Updates the displayname.
 ///
 /// - Also makes sure other users receive the update using presence EDUs
-#[tracing::instrument(skip(db, body))]
 pub async fn set_displayname_route(
     db: DatabaseGuard,
     body: Ruma<set_display_name::Request<'_>>,
@@ -117,7 +116,6 @@ pub async fn set_displayname_route(
 /// Returns the displayname of the user.
 ///
 /// - If user is on another server: Fetches displayname over federation
-#[tracing::instrument(skip(db, body))]
 pub async fn get_displayname_route(
     db: DatabaseGuard,
     body: Ruma<get_display_name::Request<'_>>,
@@ -150,7 +148,6 @@ pub async fn get_displayname_route(
 /// Updates the avatar_url and blurhash.
 ///
 /// - Also makes sure other users receive the update using presence EDUs
-#[tracing::instrument(skip(db, body))]
 pub async fn set_avatar_url_route(
     db: DatabaseGuard,
     body: Ruma<set_avatar_url::Request<'_>>,
@@ -250,7 +247,6 @@ pub async fn set_avatar_url_route(
 /// Returns the avatar_url and blurhash of the user.
 ///
 /// - If user is on another server: Fetches avatar_url and blurhash over federation
-#[tracing::instrument(skip(db, body))]
 pub async fn get_avatar_url_route(
     db: DatabaseGuard,
     body: Ruma<get_avatar_url::Request<'_>>,
@@ -285,7 +281,6 @@ pub async fn get_avatar_url_route(
 /// Returns the displayname, avatar_url and blurhash of the user.
 ///
 /// - If user is on another server: Fetches profile over federation
-#[tracing::instrument(skip(db, body))]
 pub async fn get_profile_route(
     db: DatabaseGuard,
     body: Ruma<get_profile::Request<'_>>,

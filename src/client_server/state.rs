@@ -26,7 +26,6 @@ use ruma::{
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
 /// - If event is new canonical_alias: Rejects if alias is incorrect
-#[tracing::instrument(skip(db, body))]
 pub async fn send_state_event_for_key_route(
     db: DatabaseGuard,
     body: Ruma<send_state_event::Request<'_>>,
@@ -56,7 +55,6 @@ pub async fn send_state_event_for_key_route(
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
 /// - If event is new canonical_alias: Rejects if alias is incorrect
-#[tracing::instrument(skip(db, body))]
 pub async fn send_state_event_for_empty_key_route(
     db: DatabaseGuard,
     body: Ruma<send_state_event::Request<'_>>,
@@ -92,7 +90,6 @@ pub async fn send_state_event_for_empty_key_route(
 /// Get all state events for a room.
 ///
 /// - If not joined: Only works if current room history visibility is world readable
-#[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_route(
     db: DatabaseGuard,
     body: Ruma<get_state_events::Request<'_>>,
@@ -139,7 +136,6 @@ pub async fn get_state_events_route(
 /// Get single state event of a room.
 ///
 /// - If not joined: Only works if current room history visibility is world readable
-#[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_for_key_route(
     db: DatabaseGuard,
     body: Ruma<get_state_events_for_key::Request<'_>>,
@@ -190,7 +186,6 @@ pub async fn get_state_events_for_key_route(
 /// Get single state event of a room.
 ///
 /// - If not joined: Only works if current room history visibility is world readable
-#[tracing::instrument(skip(db, body))]
 pub async fn get_state_events_for_empty_key_route(
     db: DatabaseGuard,
     body: Ruma<get_state_events_for_key::Request<'_>>,

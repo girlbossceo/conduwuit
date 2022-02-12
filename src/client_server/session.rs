@@ -23,7 +23,6 @@ struct Claims {
 ///
 /// Get the supported login types of this server. One of these should be used as the `type` field
 /// when logging in.
-#[tracing::instrument(skip(_body))]
 pub async fn get_login_types_route(
     _body: Ruma<get_login_types::Request>,
 ) -> Result<get_login_types::Response> {
@@ -43,7 +42,6 @@ pub async fn get_login_types_route(
 ///
 /// Note: You can use [`GET /_matrix/client/r0/login`](fn.get_supported_versions_route.html) to see
 /// supported login types.
-#[tracing::instrument(skip(db, body))]
 pub async fn login_route(
     db: DatabaseGuard,
     body: Ruma<login::Request<'_>>,
@@ -163,7 +161,6 @@ pub async fn login_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[tracing::instrument(skip(db, body))]
 pub async fn logout_route(
     db: DatabaseGuard,
     body: Ruma<logout::Request>,
@@ -189,7 +186,6 @@ pub async fn logout_route(
 ///
 /// Note: This is equivalent to calling [`GET /_matrix/client/r0/logout`](fn.logout_route.html)
 /// from each device of this user.
-#[tracing::instrument(skip(db, body))]
 pub async fn logout_all_route(
     db: DatabaseGuard,
     body: Ruma<logout_all::Request>,

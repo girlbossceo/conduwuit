@@ -62,7 +62,6 @@ impl PersyTree {
 }
 
 impl Tree for PersyTree {
-    #[tracing::instrument(skip(self, key))]
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let result = self
             .persy
@@ -72,14 +71,12 @@ impl Tree for PersyTree {
         Ok(result)
     }
 
-    #[tracing::instrument(skip(self, key, value))]
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
         self.insert_batch(&mut Some((key.to_owned(), value.to_owned())).into_iter())?;
         self.watchers.wake(key);
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, iter))]
     fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
         let mut tx = self.begin()?;
         for (key, value) in iter {
@@ -93,7 +90,6 @@ impl Tree for PersyTree {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, iter))]
     fn increment_batch<'a>(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
         let mut tx = self.begin()?;
         for key in iter {
@@ -108,7 +104,6 @@ impl Tree for PersyTree {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn remove(&self, key: &[u8]) -> Result<()> {
         let mut tx = self.begin()?;
         tx.remove::<ByteVec, ByteVec>(&self.name, ByteVec::from(key), None)?;
@@ -116,7 +111,6 @@ impl Tree for PersyTree {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
         let iter = self.persy.range::<ByteVec, ByteVec, _>(&self.name, ..);
         match iter {
@@ -132,7 +126,6 @@ impl Tree for PersyTree {
         }
     }
 
-    #[tracing::instrument(skip(self, from, backwards))]
     fn iter_from<'a>(
         &'a self,
         from: &[u8],
@@ -165,13 +158,11 @@ impl Tree for PersyTree {
         }
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
         self.increment_batch(&mut Some(key.to_owned()).into_iter())?;
         Ok(self.get(key)?.unwrap())
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn scan_prefix<'a>(
         &'a self,
         prefix: Vec<u8>,
@@ -200,7 +191,6 @@ impl Tree for PersyTree {
         }
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         self.watchers.watch(prefix)
     }

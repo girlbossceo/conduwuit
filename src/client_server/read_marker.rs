@@ -16,7 +16,6 @@ use std::collections::BTreeMap;
 ///
 /// - Updates fully-read account data event to `fully_read`
 /// - If `read_receipt` is set: Update private marker and public read receipt EDU
-#[tracing::instrument(skip(db, body))]
 pub async fn set_read_marker_route(
     db: DatabaseGuard,
     body: Ruma<set_read_marker::Request<'_>>,
@@ -82,7 +81,6 @@ pub async fn set_read_marker_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/receipt/{receiptType}/{eventId}`
 ///
 /// Sets private read marker and public read receipt EDU.
-#[tracing::instrument(skip(db, body))]
 pub async fn create_receipt_route(
     db: DatabaseGuard,
     body: Ruma<create_receipt::Request<'_>>,

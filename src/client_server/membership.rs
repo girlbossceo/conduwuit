@@ -42,7 +42,6 @@ use tracing::{debug, error, warn};
 ///
 /// - If the server knowns about this room: creates the join event and does auth rules locally
 /// - If the server does not know about the room: asks other servers over federation
-#[tracing::instrument(skip(db, body))]
 pub async fn join_room_by_id_route(
     db: DatabaseGuard,
     body: Ruma<join_room_by_id::Request<'_>>,
@@ -83,7 +82,6 @@ pub async fn join_room_by_id_route(
 ///
 /// - If the server knowns about this room: creates the join event and does auth rules locally
 /// - If the server does not know about the room: asks other servers over federation
-#[tracing::instrument(skip(db, body))]
 pub async fn join_room_by_id_or_alias_route(
     db: DatabaseGuard,
     body: Ruma<join_room_by_id_or_alias::Request<'_>>,
@@ -136,7 +134,6 @@ pub async fn join_room_by_id_or_alias_route(
 /// Tries to leave the sender user from a room.
 ///
 /// - This should always work if the user is currently joined.
-#[tracing::instrument(skip(db, body))]
 pub async fn leave_room_route(
     db: DatabaseGuard,
     body: Ruma<leave_room::Request<'_>>,
@@ -153,7 +150,6 @@ pub async fn leave_room_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/invite`
 ///
 /// Tries to send an invite event into the room.
-#[tracing::instrument(skip(db, body))]
 pub async fn invite_user_route(
     db: DatabaseGuard,
     body: Ruma<invite_user::Request<'_>>,
@@ -172,7 +168,6 @@ pub async fn invite_user_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/kick`
 ///
 /// Tries to send a kick event into the room.
-#[tracing::instrument(skip(db, body))]
 pub async fn kick_user_route(
     db: DatabaseGuard,
     body: Ruma<kick_user::Request<'_>>,
@@ -232,7 +227,6 @@ pub async fn kick_user_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/ban`
 ///
 /// Tries to send a ban event into the room.
-#[tracing::instrument(skip(db, body))]
 pub async fn ban_user_route(
     db: DatabaseGuard,
     body: Ruma<ban_user::Request<'_>>,
@@ -303,7 +297,6 @@ pub async fn ban_user_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/unban`
 ///
 /// Tries to send an unban event into the room.
-#[tracing::instrument(skip(db, body))]
 pub async fn unban_user_route(
     db: DatabaseGuard,
     body: Ruma<unban_user::Request<'_>>,
@@ -367,7 +360,6 @@ pub async fn unban_user_route(
 ///
 /// Note: Other devices of the user have no way of knowing the room was forgotten, so this has to
 /// be called from every device
-#[tracing::instrument(skip(db, body))]
 pub async fn forget_room_route(
     db: DatabaseGuard,
     body: Ruma<forget_room::Request<'_>>,
@@ -384,7 +376,6 @@ pub async fn forget_room_route(
 /// # `POST /_matrix/client/r0/joined_rooms`
 ///
 /// Lists all rooms the user has joined.
-#[tracing::instrument(skip(db, body))]
 pub async fn joined_rooms_route(
     db: DatabaseGuard,
     body: Ruma<joined_rooms::Request>,
@@ -405,7 +396,6 @@ pub async fn joined_rooms_route(
 /// Lists all joined users in a room (TODO: at a specific point in time, with a specific membership).
 ///
 /// - Only works if the user is currently joined
-#[tracing::instrument(skip(db, body))]
 pub async fn get_member_events_route(
     db: DatabaseGuard,
     body: Ruma<get_member_events::Request<'_>>,
@@ -437,7 +427,6 @@ pub async fn get_member_events_route(
 ///
 /// - The sender user must be in the room
 /// - TODO: An appservice just needs a puppet joined
-#[tracing::instrument(skip(db, body))]
 pub async fn joined_members_route(
     db: DatabaseGuard,
     body: Ruma<joined_members::Request<'_>>,

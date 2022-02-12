@@ -6,7 +6,6 @@ use ruma::api::client::r0::user_directory::search_users;
 /// Searches all known users for a match.
 ///
 /// - TODO: Hide users that are not in any public rooms?
-#[tracing::instrument(skip(db, body))]
 pub async fn search_users_route(
     db: DatabaseGuard,
     body: Ruma<search_users::Request<'_>>,

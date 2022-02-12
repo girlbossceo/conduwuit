@@ -5,7 +5,6 @@ use std::time::Duration;
 /// # `PUT /_matrix/client/r0/presence/{userId}/status`
 ///
 /// Sets the presence state of the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn set_presence_route(
     db: DatabaseGuard,
     body: Ruma<set_presence::Request<'_>>,
@@ -47,7 +46,6 @@ pub async fn set_presence_route(
 /// Gets the presence state of the given user.
 ///
 /// - Only works if you share a room with the user
-#[tracing::instrument(skip(db, body))]
 pub async fn get_presence_route(
     db: DatabaseGuard,
     body: Ruma<get_presence::Request<'_>>,
