@@ -814,7 +814,7 @@ pub async fn send_transaction_message_route(
                 // Check if this is a new transaction id
                 if db
                     .transaction_ids
-                    .existing_txnid(&sender, None, (&*message_id).into())?
+                    .existing_txnid(&sender, None, &message_id)?
                     .is_some()
                 {
                     continue;
@@ -862,7 +862,7 @@ pub async fn send_transaction_message_route(
 
                 // Save transaction id with empty data
                 db.transaction_ids
-                    .add_txnid(&sender, None, (&*message_id).into(), &[])?;
+                    .add_txnid(&sender, None, &message_id, &[])?;
             }
             Edu::_Custom(_) => {}
         }
