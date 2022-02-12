@@ -149,7 +149,11 @@ impl Globals {
             globals,
             config,
             keypair: Arc::new(keypair),
-            dns_resolver: TokioAsyncResolver::tokio_from_system_conf().map_err(|_| {
+            dns_resolver: TokioAsyncResolver::tokio_from_system_conf().map_err(|e| {
+                error!(
+                    "Failed to set up trust dns resolver with system config: {}",
+                    e
+                );
                 Error::bad_config("Failed to set up trust dns resolver with system config.")
             })?,
             actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
