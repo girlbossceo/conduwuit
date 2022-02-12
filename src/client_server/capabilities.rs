@@ -10,7 +10,6 @@ use std::collections::BTreeMap;
 /// # `GET /_matrix/client/r0/capabilities`
 ///
 /// Get information on the supported feature set and other relevent capabilities of this server.
-#[tracing::instrument(skip(_body))]
 pub async fn get_capabilities_route(
     _body: Ruma<get_capabilities::Request>,
 ) -> Result<get_capabilities::Response> {

@@ -15,7 +15,6 @@ use tracing::error;
 ///
 /// - Only works if the user is joined (TODO: always allow, but only show events if the user was
 /// joined, depending on history_visibility)
-#[tracing::instrument(skip(db, body))]
 pub async fn get_context_route(
     db: DatabaseGuard,
     body: Ruma<get_context::Request<'_>>,

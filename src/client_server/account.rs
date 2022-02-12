@@ -40,7 +40,6 @@ const GUEST_NAME_LENGTH: usize = 10;
 /// - No user or appservice on this server already claimed this username
 ///
 /// Note: This will not reserve the username, so the username might become invalid when trying to register
-#[tracing::instrument(skip(db, body))]
 pub async fn get_register_available_route(
     db: DatabaseGuard,
     body: Ruma<get_username_availability::Request<'_>>,
@@ -84,7 +83,6 @@ pub async fn get_register_available_route(
 /// - If type is not guest and no username is given: Always fails after UIAA check
 /// - Creates a new account and populates it with default account data
 /// - If `inhibit_login` is false: Creates a device and returns device id and access_token
-#[tracing::instrument(skip(db, body))]
 pub async fn register_route(
     db: DatabaseGuard,
     body: Ruma<register::Request<'_>>,
@@ -267,7 +265,6 @@ pub async fn register_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[tracing::instrument(skip(db, body))]
 pub async fn change_password_route(
     db: DatabaseGuard,
     body: Ruma<change_password::Request<'_>>,
@@ -332,7 +329,6 @@ pub async fn change_password_route(
 /// Get user_id of the sender user.
 ///
 /// Note: Also works for Application Services
-#[tracing::instrument(skip(body))]
 pub async fn whoami_route(body: Ruma<whoami::Request>) -> Result<whoami::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     Ok(whoami::Response {
@@ -350,7 +346,6 @@ pub async fn whoami_route(body: Ruma<whoami::Request>) -> Result<whoami::Respons
 /// - Forgets all to-device events
 /// - Triggers device list updates
 /// - Removes ability to log in again
-#[tracing::instrument(skip(db, body))]
 pub async fn deactivate_route(
     db: DatabaseGuard,
     body: Ruma<deactivate::Request<'_>>,

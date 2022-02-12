@@ -34,7 +34,6 @@ use tracing::{info, warn};
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
-#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_filtered_route(
     db: DatabaseGuard,
     body: Ruma<get_public_rooms_filtered::Request<'_>>,
@@ -55,7 +54,6 @@ pub async fn get_public_rooms_filtered_route(
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
-#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_route(
     db: DatabaseGuard,
     body: Ruma<get_public_rooms::Request<'_>>,
@@ -83,7 +81,6 @@ pub async fn get_public_rooms_route(
 /// Sets the visibility of a given room in the room directory.
 ///
 /// - TODO: Access control checks
-#[tracing::instrument(skip(db, body))]
 pub async fn set_room_visibility_route(
     db: DatabaseGuard,
     body: Ruma<set_room_visibility::Request<'_>>,
@@ -112,7 +109,6 @@ pub async fn set_room_visibility_route(
 /// # `GET /_matrix/client/r0/directory/list/room/{roomId}`
 ///
 /// Gets the visibility of a given room in the room directory.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_room_visibility_route(
     db: DatabaseGuard,
     body: Ruma<get_room_visibility::Request<'_>>,

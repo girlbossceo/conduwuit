@@ -54,7 +54,6 @@ use tracing::error;
 ///
 /// - Sync is handled in an async task, multiple requests from the same device with the same
 /// `since` will be cached
-#[tracing::instrument(skip(db, body))]
 pub async fn sync_events_route(
     db: DatabaseGuard,
     body: Ruma<sync_events::Request<'_>>,

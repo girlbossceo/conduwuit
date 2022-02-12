@@ -13,7 +13,6 @@ use serde_json::value::to_raw_value;
 /// Tries to send a redaction event into the room.
 ///
 /// - TODO: Handle txn id
-#[tracing::instrument(skip(db, body))]
 pub async fn redact_event_route(
     db: DatabaseGuard,
     body: Ruma<redact_event::Request<'_>>,

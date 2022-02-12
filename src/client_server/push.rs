@@ -15,7 +15,6 @@ use ruma::{
 /// # `GET /_matrix/client/r0/pushrules`
 ///
 /// Retrieves the push rules event for this user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushrules_all_route(
     db: DatabaseGuard,
     body: Ruma<get_pushrules_all::Request>,
@@ -38,7 +37,6 @@ pub async fn get_pushrules_all_route(
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
 ///
 /// Retrieves a single specified push rule for this user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_route(
     db: DatabaseGuard,
     body: Ruma<get_pushrule::Request<'_>>,
@@ -91,7 +89,6 @@ pub async fn get_pushrule_route(
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
 ///
 /// Creates a single specified push rule for this user.
-#[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_route(
     db: DatabaseGuard,
     body: Ruma<set_pushrule::Request<'_>>,
@@ -188,7 +185,6 @@ pub async fn set_pushrule_route(
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
 ///
 /// Gets the actions of a single specified push rule for this user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_actions_route(
     db: DatabaseGuard,
     body: Ruma<get_pushrule_actions::Request<'_>>,
@@ -245,7 +241,6 @@ pub async fn get_pushrule_actions_route(
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
 ///
 /// Sets the actions of a single specified push rule for this user.
-#[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_actions_route(
     db: DatabaseGuard,
     body: Ruma<set_pushrule_actions::Request<'_>>,
@@ -313,7 +308,6 @@ pub async fn set_pushrule_actions_route(
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
 ///
 /// Gets the enabled status of a single specified push rule for this user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_enabled_route(
     db: DatabaseGuard,
     body: Ruma<get_pushrule_enabled::Request<'_>>,
@@ -373,7 +367,6 @@ pub async fn get_pushrule_enabled_route(
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
 ///
 /// Sets the enabled status of a single specified push rule for this user.
-#[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_enabled_route(
     db: DatabaseGuard,
     body: Ruma<set_pushrule_enabled::Request<'_>>,
@@ -446,7 +439,6 @@ pub async fn set_pushrule_enabled_route(
 /// # `DELETE /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
 ///
 /// Deletes a single specified push rule for this user.
-#[tracing::instrument(skip(db, body))]
 pub async fn delete_pushrule_route(
     db: DatabaseGuard,
     body: Ruma<delete_pushrule::Request<'_>>,
@@ -509,7 +501,6 @@ pub async fn delete_pushrule_route(
 /// # `GET /_matrix/client/r0/pushers`
 ///
 /// Gets all currently active pushers for the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushers_route(
     db: DatabaseGuard,
     body: Ruma<get_pushers::Request>,
@@ -526,7 +517,6 @@ pub async fn get_pushers_route(
 /// Adds a pusher for the sender user.
 ///
 /// - TODO: Handle `append`
-#[tracing::instrument(skip(db, body))]
 pub async fn set_pushers_route(
     db: DatabaseGuard,
     body: Ruma<set_pusher::Request>,

@@ -301,7 +301,6 @@ where
     }
 }
 
-#[tracing::instrument]
 fn get_ip_with_port(destination_str: &str) -> Option<FedDest> {
     if let Ok(destination) = destination_str.parse::<SocketAddr>() {
         Some(FedDest::Literal(destination))
@@ -312,7 +311,6 @@ fn get_ip_with_port(destination_str: &str) -> Option<FedDest> {
     }
 }
 
-#[tracing::instrument]
 fn add_port_to_hostname(destination_str: &str) -> FedDest {
     let (host, port) = match destination_str.find(':') {
         None => (destination_str, ":8448"),
@@ -490,7 +488,6 @@ async fn request_well_known(
 /// # `GET /_matrix/federation/v1/version`
 ///
 /// Get version information on this server.
-#[tracing::instrument(skip(db, _body))]
 pub async fn get_server_version_route(
     db: DatabaseGuard,
     _body: Ruma<get_server_version::v1::Request>,
@@ -514,7 +511,6 @@ pub async fn get_server_version_route(
 /// - Matrix does not support invalidating public keys, so the key returned by this will be valid
 /// forever.
 // Response type for this endpoint is Json because we need to calculate a signature for the response
-#[tracing::instrument(skip(db))]
 pub async fn get_server_keys_route(db: DatabaseGuard) -> Result<impl IntoResponse> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -564,7 +560,6 @@ pub async fn get_server_keys_route(db: DatabaseGuard) -> Result<impl IntoRespons
 ///
 /// - Matrix does not support invalidating public keys, so the key returned by this will be valid
 /// forever.
-#[tracing::instrument(skip(db))]
 pub async fn get_server_keys_deprecated_route(db: DatabaseGuard) -> impl IntoResponse {
     get_server_keys_route(db).await
 }
@@ -572,7 +567,6 @@ pub async fn get_server_keys_deprecated_route(db: DatabaseGuard) -> impl IntoRes
 /// # `POST /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_filtered_route(
     db: DatabaseGuard,
     body: Ruma<get_public_rooms_filtered::v1::Request<'_>>,
@@ -613,7 +607,6 @@ pub async fn get_public_rooms_filtered_route(
 /// # `GET /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_public_rooms_route(
     db: DatabaseGuard,
     body: Ruma<get_public_rooms::v1::Request<'_>>,
@@ -654,7 +647,6 @@ pub async fn get_public_rooms_route(
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
 ///
 /// Push EDUs and PDUs to this server.
-#[tracing::instrument(skip(db, body))]
 pub async fn send_transaction_message_route(
     db: DatabaseGuard,
     body: Ruma<send_transaction_message::v1::Request<'_>>,
@@ -1075,7 +1067,7 @@ pub(crate) async fn handle_incoming_pdu<'a>(
     .await
 }
 
-#[tracing::instrument(skip(origin, create_event, event_id, room_id, value, db, pub_key_map))]
+#[tracing::instrument(skip_all)]
 fn handle_outlier_pdu<'a>(
     origin: &'a ServerName,
     create_event: &'a PduEvent,
@@ -1237,7 +1229,7 @@ fn handle_outlier_pdu<'a>(
     })
 }
 
-#[tracing::instrument(skip(incoming_pdu, val, create_event, origin, db, room_id, pub_key_map))]
+#[tracing::instrument(skip_all)]
 async fn upgrade_outlier_to_timeline_pdu(
     incoming_pdu: Arc<PduEvent>,
     val: BTreeMap<String, CanonicalJsonValue>,
@@ -1780,7 +1772,7 @@ async fn upgrade_outlier_to_timeline_pdu(
 /// b. Look at outlier pdu tree
 /// c. Ask origin server over federation
 /// d. TODO: Ask other servers over federation?
-#[tracing::instrument(skip(db, origin, events, create_event, room_id, pub_key_map))]
+#[tracing::instrument(skip_all)]
 pub(crate) fn fetch_and_handle_outliers<'a>(
     db: &'a Database,
     origin: &'a ServerName,
@@ -1921,7 +1913,7 @@ pub(crate) fn fetch_and_handle_outliers<'a>(
 
 /// Search the DB for the signing keys of the given server, if we don't have them
 /// fetch them from the server and save to our DB.
-#[tracing::instrument(skip(db, origin, signature_ids))]
+#[tracing::instrument(skip_all)]
 pub(crate) async fn fetch_signing_keys(
     db: &Database,
     origin: &ServerName,
@@ -2080,7 +2072,7 @@ pub(crate) async fn fetch_signing_keys(
 
 /// Append the incoming event setting the state snapshot to the state from the
 /// server that sent the event.
-#[tracing::instrument(skip(db, pdu, pdu_json, new_room_leaves, state_ids_compressed, _mutex_lock))]
+#[tracing::instrument(skip_all)]
 fn append_incoming_pdu<'a>(
     db: &Database,
     pdu: &PduEvent,
@@ -2284,7 +2276,6 @@ fn get_auth_chain_inner(
 /// Retrieves a single event from the server.
 ///
 /// - Only works if a user of this server is currently invited or joined the room
-#[tracing::instrument(skip(db, body))]
 pub async fn get_event_route(
     db: DatabaseGuard,
     body: Ruma<get_event::v1::Request<'_>>,
@@ -2328,7 +2319,6 @@ pub async fn get_event_route(
 /// # `POST /_matrix/federation/v1/get_missing_events/{roomId}`
 ///
 /// Retrieves events that the sender is missing.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_missing_events_route(
     db: DatabaseGuard,
     body: Ruma<get_missing_events::v1::Request<'_>>,
@@ -2402,7 +2392,6 @@ pub async fn get_missing_events_route(
 /// Retrieves the auth chain for a given event.
 ///
 /// - This does not include the event itself
-#[tracing::instrument(skip(db, body))]
 pub async fn get_event_authorization_route(
     db: DatabaseGuard,
     body: Ruma<get_event_authorization::v1::Request<'_>>,
@@ -2451,7 +2440,6 @@ pub async fn get_event_authorization_route(
 /// # `GET /_matrix/federation/v1/state/{roomId}`
 ///
 /// Retrieves the current state of the room.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_room_state_route(
     db: DatabaseGuard,
     body: Ruma<get_room_state::v1::Request<'_>>,
@@ -2511,7 +2499,6 @@ pub async fn get_room_state_route(
 /// # `GET /_matrix/federation/v1/state_ids/{roomId}`
 ///
 /// Retrieves the current state of the room.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_room_state_ids_route(
     db: DatabaseGuard,
     body: Ruma<get_room_state_ids::v1::Request<'_>>,
@@ -2560,7 +2547,6 @@ pub async fn get_room_state_ids_route(
 /// # `GET /_matrix/federation/v1/make_join/{roomId}/{userId}`
 ///
 /// Creates a join template.
-#[tracing::instrument(skip(db, body))]
 pub async fn create_join_event_template_route(
     db: DatabaseGuard,
     body: Ruma<create_join_event_template::v1::Request<'_>>,
@@ -2841,7 +2827,6 @@ async fn create_join_event(
 /// # `PUT /_matrix/federation/v1/send_join/{roomId}/{eventId}`
 ///
 /// Submits a signed join event.
-#[tracing::instrument(skip(db, body))]
 pub async fn create_join_event_v1_route(
     db: DatabaseGuard,
     body: Ruma<create_join_event::v1::Request<'_>>,
@@ -2859,7 +2844,6 @@ pub async fn create_join_event_v1_route(
 /// # `PUT /_matrix/federation/v2/send_join/{roomId}/{eventId}`
 ///
 /// Submits a signed join event.
-#[tracing::instrument(skip(db, body))]
 pub async fn create_join_event_v2_route(
     db: DatabaseGuard,
     body: Ruma<create_join_event::v2::Request<'_>>,
@@ -2877,7 +2861,6 @@ pub async fn create_join_event_v2_route(
 /// # `PUT /_matrix/federation/v2/invite/{roomId}/{eventId}`
 ///
 /// Invites a remote user to a room.
-#[tracing::instrument(skip(db, body))]
 pub async fn create_invite_route(
     db: DatabaseGuard,
     body: Ruma<create_invite::v2::Request<'_>>,
@@ -2988,7 +2971,6 @@ pub async fn create_invite_route(
 /// # `GET /_matrix/federation/v1/user/devices/{userId}`
 ///
 /// Gets information on all devices of the user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_devices_route(
     db: DatabaseGuard,
     body: Ruma<get_devices::v1::Request<'_>>,
@@ -3026,7 +3008,6 @@ pub async fn get_devices_route(
 /// # `GET /_matrix/federation/v1/query/directory`
 ///
 /// Resolve a room alias to a room id.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_room_information_route(
     db: DatabaseGuard,
     body: Ruma<get_room_information::v1::Request<'_>>,
@@ -3052,7 +3033,6 @@ pub async fn get_room_information_route(
 /// # `GET /_matrix/federation/v1/query/profile`
 ///
 /// Gets information on a profile.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_profile_information_route(
     db: DatabaseGuard,
     body: Ruma<get_profile_information::v1::Request<'_>>,
@@ -3090,7 +3070,6 @@ pub async fn get_profile_information_route(
 /// # `POST /_matrix/federation/v1/user/keys/query`
 ///
 /// Gets devices and identity keys for the given users.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_keys_route(
     db: DatabaseGuard,
     body: Ruma<get_keys::v1::Request>,
@@ -3119,7 +3098,6 @@ pub async fn get_keys_route(
 /// # `POST /_matrix/federation/v1/user/keys/claim`
 ///
 /// Claims one-time keys.
-#[tracing::instrument(skip(db, body))]
 pub async fn claim_keys_route(
     db: DatabaseGuard,
     body: Ruma<claim_keys::v1::Request>,
@@ -3137,7 +3115,7 @@ pub async fn claim_keys_route(
     })
 }
 
-#[tracing::instrument(skip(event, pub_key_map, db))]
+#[tracing::instrument(skip_all)]
 pub(crate) async fn fetch_required_signing_keys(
     event: &BTreeMap<String, CanonicalJsonValue>,
     pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,

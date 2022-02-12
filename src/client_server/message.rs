@@ -18,7 +18,6 @@ use std::{
 /// - Is a NOOP if the txn id was already used before and returns the same event id again
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
-#[tracing::instrument(skip(db, body))]
 pub async fn send_message_event_route(
     db: DatabaseGuard,
     body: Ruma<send_message_event::Request<'_>>,
@@ -103,7 +102,6 @@ pub async fn send_message_event_route(
 ///
 /// - Only works if the user is joined (TODO: always allow, but only show events where the user was
 /// joined, depending on history_visibility)
-#[tracing::instrument(skip(db, body))]
 pub async fn get_message_events_route(
     db: DatabaseGuard,
     body: Ruma<get_message_events::Request<'_>>,

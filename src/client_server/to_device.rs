@@ -13,7 +13,6 @@ use ruma::{
 /// # `PUT /_matrix/client/r0/sendToDevice/{eventType}/{txnId}`
 ///
 /// Send a to-device event to a set of client devices.
-#[tracing::instrument(skip(db, body))]
 pub async fn send_event_to_device_route(
     db: DatabaseGuard,
     body: Ruma<send_event_to_device::Request<'_>>,

@@ -15,7 +15,6 @@ const MXC_LENGTH: usize = 32;
 /// # `GET /_matrix/media/r0/config`
 ///
 /// Returns max upload size.
-#[tracing::instrument(skip(db, _body))]
 pub async fn get_media_config_route(
     db: DatabaseGuard,
     _body: Ruma<get_media_config::Request>,
@@ -31,7 +30,6 @@ pub async fn get_media_config_route(
 ///
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
-#[tracing::instrument(skip(db, body))]
 pub async fn create_content_route(
     db: DatabaseGuard,
     body: Ruma<create_content::Request<'_>>,
@@ -101,7 +99,6 @@ pub async fn get_remote_content(
 /// Load media from our server or over federation.
 ///
 /// - Only allows federation if `allow_remote` is true
-#[tracing::instrument(skip(db, body))]
 pub async fn get_content_route(
     db: DatabaseGuard,
     body: Ruma<get_content::Request<'_>>,
@@ -133,7 +130,6 @@ pub async fn get_content_route(
 /// Load media from our server or over federation, permitting desired filename.
 ///
 /// - Only allows federation if `allow_remote` is true
-#[tracing::instrument(skip(db, body))]
 pub async fn get_content_as_filename_route(
     db: DatabaseGuard,
     body: Ruma<get_content_as_filename::Request<'_>>,
@@ -170,7 +166,6 @@ pub async fn get_content_as_filename_route(
 /// Load media thumbnail from our server or over federation.
 ///
 /// - Only allows federation if `allow_remote` is true
-#[tracing::instrument(skip(db, body))]
 pub async fn get_content_thumbnail_route(
     db: DatabaseGuard,
     body: Ruma<get_content_thumbnail::Request<'_>>,

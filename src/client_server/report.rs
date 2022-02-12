@@ -9,7 +9,6 @@ use ruma::{
 ///
 /// Reports an inappropriate event to homeserver admins
 ///
-#[tracing::instrument(skip(db, body))]
 pub async fn report_event_route(
     db: DatabaseGuard,
     body: Ruma<report_content::Request<'_>>,

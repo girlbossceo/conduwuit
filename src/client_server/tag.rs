@@ -13,7 +13,6 @@ use std::collections::BTreeMap;
 /// Adds a tag to the room.
 ///
 /// - Inserts the tag into the tag event of the room account data.
-#[tracing::instrument(skip(db, body))]
 pub async fn update_tag_route(
     db: DatabaseGuard,
     body: Ruma<create_tag::Request<'_>>,
@@ -51,7 +50,6 @@ pub async fn update_tag_route(
 /// Deletes a tag from the room.
 ///
 /// - Removes the tag from the tag event of the room account data.
-#[tracing::instrument(skip(db, body))]
 pub async fn delete_tag_route(
     db: DatabaseGuard,
     body: Ruma<delete_tag::Request<'_>>,
@@ -86,7 +84,6 @@ pub async fn delete_tag_route(
 /// Returns tags on the room.
 ///
 /// - Gets the tag event of the room account data.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_tags_route(
     db: DatabaseGuard,
     body: Ruma<get_tags::Request<'_>>,

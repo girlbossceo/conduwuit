@@ -5,7 +5,6 @@ use ruma::api::client::r0::typing::create_typing_event;
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/typing/{userId}`
 ///
 /// Sets the typing state of the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn create_typing_event_route(
     db: DatabaseGuard,
     body: Ruma<create_typing_event::Request<'_>>,

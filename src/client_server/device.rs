@@ -12,7 +12,6 @@ use super::SESSION_ID_LENGTH;
 /// # `GET /_matrix/client/r0/devices`
 ///
 /// Get metadata on all devices of the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_devices_route(
     db: DatabaseGuard,
     body: Ruma<get_devices::Request>,
@@ -31,7 +30,6 @@ pub async fn get_devices_route(
 /// # `GET /_matrix/client/r0/devices/{deviceId}`
 ///
 /// Get metadata on a single device of the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_device_route(
     db: DatabaseGuard,
     body: Ruma<get_device::Request<'_>>,
@@ -49,7 +47,6 @@ pub async fn get_device_route(
 /// # `PUT /_matrix/client/r0/devices/{deviceId}`
 ///
 /// Updates the metadata on a given device of the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn update_device_route(
     db: DatabaseGuard,
     body: Ruma<update_device::Request<'_>>,
@@ -80,7 +77,6 @@ pub async fn update_device_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[tracing::instrument(skip(db, body))]
 pub async fn delete_device_route(
     db: DatabaseGuard,
     body: Ruma<delete_device::Request<'_>>,
@@ -139,7 +135,6 @@ pub async fn delete_device_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[tracing::instrument(skip(db, body))]
 pub async fn delete_devices_route(
     db: DatabaseGuard,
     body: Ruma<delete_devices::Request<'_>>,

@@ -9,7 +9,6 @@ use ruma::api::client::{
 /// Loads a filter that was previously created.
 ///
 /// - A user can only access their own filters
-#[tracing::instrument(skip(db, body))]
 pub async fn get_filter_route(
     db: DatabaseGuard,
     body: Ruma<get_filter::Request<'_>>,
@@ -26,7 +25,6 @@ pub async fn get_filter_route(
 /// # `PUT /_matrix/client/r0/user/{userId}/filter`
 ///
 /// Creates a new filter to be used by other endpoints.
-#[tracing::instrument(skip(db, body))]
 pub async fn create_filter_route(
     db: DatabaseGuard,
     body: Ruma<create_filter::Request<'_>>,

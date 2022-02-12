@@ -16,7 +16,6 @@ use serde_json::{json, value::RawValue as RawJsonValue};
 /// # `PUT /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///
 /// Sets some account data for the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn set_global_account_data_route(
     db: DatabaseGuard,
     body: Ruma<set_global_account_data::Request<'_>>,
@@ -47,7 +46,6 @@ pub async fn set_global_account_data_route(
 /// # `PUT /_matrix/client/r0/user/{userId}/rooms/{roomId}/account_data/{type}`
 ///
 /// Sets some room account data for the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn set_room_account_data_route(
     db: DatabaseGuard,
     body: Ruma<set_room_account_data::Request<'_>>,
@@ -78,7 +76,6 @@ pub async fn set_room_account_data_route(
 /// # `GET /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///
 /// Gets some account data for the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_global_account_data_route(
     db: DatabaseGuard,
     body: Ruma<get_global_account_data::Request<'_>>,
@@ -100,7 +97,6 @@ pub async fn get_global_account_data_route(
 /// # `GET /_matrix/client/r0/user/{userId}/rooms/{roomId}/account_data/{type}`
 ///
 /// Gets some room account data for the sender user.
-#[tracing::instrument(skip(db, body))]
 pub async fn get_room_account_data_route(
     db: DatabaseGuard,
     body: Ruma<get_room_account_data::Request<'_>>,

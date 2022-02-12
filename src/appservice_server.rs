@@ -4,6 +4,7 @@ use ruma::api::{IncomingResponse, OutgoingRequest, SendAccessToken};
 use std::{fmt::Debug, mem, time::Duration};
 use tracing::warn;
 
+#[tracing::instrument(skip(globals, request))]
 pub(crate) async fn send_request<T: OutgoingRequest>(
     globals: &crate::database::globals::Globals,
     registration: serde_yaml::Value,

@@ -15,7 +15,6 @@ use ruma::{
 /// # `PUT /_matrix/client/r0/directory/room/{roomAlias}`
 ///
 /// Creates a new room alias on this server.
-#[tracing::instrument(skip(db, body))]
 pub async fn create_alias_route(
     db: DatabaseGuard,
     body: Ruma<create_alias::Request<'_>>,
@@ -45,7 +44,6 @@ pub async fn create_alias_route(
 ///
 /// - TODO: additional access control checks
 /// - TODO: Update canonical alias event
-#[tracing::instrument(skip(db, body))]
 pub async fn delete_alias_route(
     db: DatabaseGuard,
     body: Ruma<delete_alias::Request<'_>>,
@@ -71,7 +69,6 @@ pub async fn delete_alias_route(
 /// Resolve an alias locally or over federation.
 ///
 /// - TODO: Suggest more servers to join via
-#[tracing::instrument(skip(db, body))]
 pub async fn get_alias_route(
     db: DatabaseGuard,
     body: Ruma<get_alias::Request<'_>>,
