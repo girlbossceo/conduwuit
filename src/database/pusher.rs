@@ -7,7 +7,7 @@ use ruma::{
             self,
             v1::{Device, Notification, NotificationCounts, NotificationPriority},
         },
-        IncomingResponse, OutgoingRequest, SendAccessToken,
+        IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
     },
     events::{
         room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},
@@ -101,7 +101,11 @@ where
     let destination = destination.replace("/_matrix/push/v1/notify", "");
 
     let http_request = request
-        .try_into_http_request::<BytesMut>(&destination, SendAccessToken::IfRequired(""))
+        .try_into_http_request::<BytesMut>(
+            &destination,
+            SendAccessToken::IfRequired(""),
+            &[MatrixVersion::V1_0],
+        )
         .map_err(|e| {
             warn!("Failed to find destination {}: {}", destination, e);
             Error::BadServerResponse("Invalid destination")

@@ -34,7 +34,8 @@ use ruma::{
                 send_transaction_message,
             },
         },
-        EndpointError, IncomingResponse, OutgoingRequest, OutgoingResponse, SendAccessToken,
+        EndpointError, IncomingResponse, MatrixVersion, OutgoingRequest, OutgoingResponse,
+        SendAccessToken,
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::{
@@ -155,7 +156,11 @@ where
     let actual_destination_str = actual_destination.clone().into_https_string();
 
     let mut http_request = request
-        .try_into_http_request::<Vec<u8>>(&actual_destination_str, SendAccessToken::IfRequired(""))
+        .try_into_http_request::<Vec<u8>>(
+            &actual_destination_str,
+            SendAccessToken::IfRequired(""),
+            &[MatrixVersion::V1_0],
+        )
         .map_err(|e| {
             warn!(
                 "Failed to find destination {}: {}",
