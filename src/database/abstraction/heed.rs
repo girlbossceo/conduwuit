@@ -69,7 +69,6 @@ impl DatabaseEngine for Engine {
 }
 
 impl EngineTree {
-    #[tracing::instrument(skip(self, tree, from, backwards))]
     fn iter_from_thread(
         &self,
         tree: Arc<heed::UntypedDatabase>,
@@ -94,7 +93,6 @@ impl EngineTree {
     }
 }
 
-#[tracing::instrument(skip(tree, txn, from, backwards))]
 fn iter_from_thread_work(
     tree: Arc<heed::UntypedDatabase>,
     txn: &heed::RoTxn<'_>,
@@ -126,7 +124,6 @@ fn iter_from_thread_work(
 }
 
 impl Tree for EngineTree {
-    #[tracing::instrument(skip(self, key))]
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let txn = self.engine.env.read_txn().map_err(convert_error)?;
         Ok(self
@@ -136,7 +133,6 @@ impl Tree for EngineTree {
             .map(|s| s.to_vec()))
     }
 
-    #[tracing::instrument(skip(self, key, value))]
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
         let mut txn = self.engine.env.write_txn().map_err(convert_error)?;
         self.tree
@@ -147,7 +143,6 @@ impl Tree for EngineTree {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn remove(&self, key: &[u8]) -> Result<()> {
         let mut txn = self.engine.env.write_txn().map_err(convert_error)?;
         self.tree.delete(&mut txn, &key).map_err(convert_error)?;
@@ -155,12 +150,10 @@ impl Tree for EngineTree {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + Send + 'a> {
         self.iter_from(&[], false)
     }
 
-    #[tracing::instrument(skip(self, from, backwards))]
     fn iter_from(
         &self,
         from: &[u8],
@@ -169,7 +162,6 @@ impl Tree for EngineTree {
         self.iter_from_thread(Arc::clone(&self.tree), from.to_vec(), backwards)
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
         let mut txn = self.engine.env.write_txn().map_err(convert_error)?;
 
@@ -186,7 +178,6 @@ impl Tree for EngineTree {
         Ok(new)
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn scan_prefix<'a>(
         &'a self,
         prefix: Vec<u8>,
@@ -197,7 +188,6 @@ impl Tree for EngineTree {
         )
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         self.watchers.watch(prefix)
     }
