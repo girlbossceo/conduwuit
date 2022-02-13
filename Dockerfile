@@ -35,18 +35,9 @@ FROM docker.io/debian:bullseye-slim AS runner
 # You still need to map the port when using the docker command or docker-compose.
 EXPOSE 6167
 
-ENV CONDUIT_SERVER_NAME=your.server.name # EDIT THIS
-ENV CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit
-ENV CONDUIT_DATABASE_BACKEND=rocksdb
-ENV CONDUIT_PORT=6167
-ENV CONDUIT_MAX_REQUEST_SIZE=20_000_000  # in bytes, ~20 MB
-ENV CONDUIT_ALLOW_REGISTRATION=true
-ENV CONDUIT_ALLOW_FEDERATION=true
-ENV CONDUIT_TRUSTED_SERVERS=["matrix.org"]
-#ENV CONDUIT_MAX_CONCURRENT_REQUESTS=100
-#ENV CONDUIT_LOG=info,rocket=off,_=off,sled=off
-ENV CONDUIT_ADDRESS=0.0.0.0
-ENV CONDUIT_CONFIG=''  # Ignore this
+ENV CONDUIT_PORT=6167 \
+    CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit \
+    CONDUIT_CONFIG=''  # Set no config file to do all configuration with env vars
 
 # Conduit needs:
 #   ca-certificates: for https
