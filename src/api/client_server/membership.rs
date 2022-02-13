@@ -474,8 +474,12 @@ async fn join_room_by_id_helper(
     );
     let state_lock = mutex_state.lock().await;
 
-    // Ask a remote server if we don't have this room
-    if !services().rooms.metadata.exists(room_id)? {
+    // Ask a remote server if we are not participating in this room
+    if !services()
+        .rooms
+        .state_cache
+        .server_in_room(services().globals.server_name(), room_id)?
+    {
         let mut make_join_response_and_server = Err(Error::BadServerResponse(
             "No server available to assist in joining.",
         ));

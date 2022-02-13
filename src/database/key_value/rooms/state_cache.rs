@@ -108,8 +108,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
             joinedcount += 1;
         }
 
-        for invited in self.room_members_invited(room_id).filter_map(|r| r.ok()) {
-            joined_servers.insert(invited.server_name().to_owned());
+        for _invited in self.room_members_invited(room_id).filter_map(|r| r.ok()) {
             invitedcount += 1;
         }
 
