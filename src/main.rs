@@ -392,10 +392,10 @@ macro_rules! impl_ruma_handler {
                 let method_filter = method_to_filter(meta.method);
 
                 for path in IntoIterator::into_iter([meta.unstable_path, meta.r0_path, meta.stable_path]).flatten() {
-                    let this = self.clone();
+                    let handler = self.clone();
 
                     router = router.route(path, on(method_filter, |$( $ty: $ty, )* req| async move {
-                        this($($ty,)* req).await.map(RumaResponse)
+                        handler($($ty,)* req).await.map(RumaResponse)
                     }))
                 }
 
