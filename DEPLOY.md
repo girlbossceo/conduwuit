@@ -148,8 +148,8 @@ sudo chown -R conduit:nogroup /etc/matrix-conduit
 If you use the default database path you also need to run this:
 
 ```bash
-sudo mkdir -p /var/lib/matrix-conduit/conduit_db
-sudo chown -R conduit:nogroup /var/lib/matrix-conduit/conduit_db
+sudo mkdir -p /var/lib/matrix-conduit/
+sudo chown -R conduit:nogroup /var/lib/matrix-conduit/
 ```
 
 ## Setting up the Reverse Proxy

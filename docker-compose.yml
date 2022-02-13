@@ -21,9 +21,6 @@ services:
             - 8448:6167
         volumes:
             - db:/var/lib/matrix-conduit/
-            ### Uncomment if you want to use conduit.toml to configure Conduit
-            ### Note: Set env vars will override conduit.toml values
-            # - ./conduit.toml:/srv/conduit/conduit.toml
         environment:
             CONDUIT_SERVER_NAME: your.server.name # EDIT THIS
             CONDUIT_DATABASE_PATH: /var/lib/matrix-conduit/

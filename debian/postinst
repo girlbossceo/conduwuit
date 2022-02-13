@@ -5,7 +5,7 @@ set -e
 
 CONDUIT_CONFIG_PATH=/etc/matrix-conduit
 CONDUIT_CONFIG_FILE="${CONDUIT_CONFIG_PATH}/conduit.toml"
-CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit/conduit_db
+CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit/
 
 case "$1" in
   configure)

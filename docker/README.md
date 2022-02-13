@@ -24,7 +24,7 @@ which also will tag the resulting image as `matrixconduit/matrix-conduit:latest`
 After building the image you can simply run it with
 
 ```bash
-docker run -d -p 8448:6167 -v ~/conduit.toml:/srv/conduit/conduit.toml -v db:/srv/conduit/.local/share/conduit matrixconduit/matrix-conduit:latest
+docker run -d -p 8448:6167 -v ~/conduit.toml:/srv/conduit/conduit.toml -v db:/var/lib/matrix-conduit/ matrixconduit/matrix-conduit:latest
 ```
 
 or you can skip the build step and pull the image from one of the following registries:
