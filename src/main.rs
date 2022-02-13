@@ -11,6 +11,7 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{
     extract::{FromRequest, MatchedPath},
+    handler::Handler,
     response::IntoResponse,
     routing::{get, on, MethodFilter},
     Router,
@@ -22,10 +23,13 @@ use figment::{
 };
 use http::{
     header::{self, HeaderName},
-    Method,
+    Method, Uri,
 };
 use opentelemetry::trace::{FutureExt, Tracer};
-use ruma::{api::IncomingRequest, Outgoing};
+use ruma::{
+    api::{client::error::ErrorKind, IncomingRequest},
+    Outgoing,
+};
 use tokio::{signal, sync::RwLock};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -321,6 +325,7 @@ fn routes() -> Router {
         .ruma_route(server_server::get_profile_information_route)
         .ruma_route(server_server::get_keys_route)
         .ruma_route(server_server::claim_keys_route)
+        .fallback(not_found.into_service())
 }
 
 async fn shutdown_signal(handle: ServerHandle) {
@@ -347,6 +352,10 @@ async fn shutdown_signal(handle: ServerHandle) {
     }
 
     handle.graceful_shutdown(Some(Duration::from_secs(30)));
+}
+
+async fn not_found(_uri: Uri) -> impl IntoResponse {
+    Error::BadRequest(ErrorKind::NotFound, "Unknown or unimplemented route")
 }
 
 trait RouterExt {
