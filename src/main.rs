@@ -387,13 +387,19 @@ macro_rules! impl_ruma_handler {
             E: IntoResponse,
             $( $ty: FromRequest<axum::body::Body> + Send + 'static, )*
         {
-            fn add_to_router(self, router: Router) -> Router {
+            fn add_to_router(self, mut router: Router) -> Router {
                 let meta = Req::Incoming::METADATA;
                 let method_filter = method_to_filter(meta.method);
 
-                router.route(meta.path, on(method_filter, |$( $ty: $ty, )* req| async move {
-                    self($($ty,)* req).await.map(RumaResponse)
-                }))
+                for path in IntoIterator::into_iter([meta.unstable_path, meta.r0_path, meta.stable_path]).flatten() {
+                    let this = self.clone();
+
+                    router = router.route(path, on(method_filter, |$( $ty: $ty, )* req| async move {
+                        this($($ty,)* req).await.map(RumaResponse)
+                    }))
+                }
+
+                router
             }
         }
     };
