@@ -272,6 +272,7 @@ test:sytest:
   tags: ["docker"]
   variables:
     PLUGINS: "https://github.com/valkum/sytest_conduit/archive/master.tar.gz"
+  interruptible: true
   before_script:
     - "mkdir -p /app"
     - "cp ./conduit-debug-x86_64-unknown-linux-musl /app/conduit"
@@ -291,6 +292,40 @@ test:sytest:
       - "$CI_PROJECT_DIR/results.tap"
     reports:
       junit: "$CI_PROJECT_DIR/sytest.xml"
+
+test:dockerlint:
+  stage: "test"
+  needs: []
+  image: "ghcr.io/hadolint/hadolint:latest-alpine"
+  interruptible: true
+  script:
+    # First pass: Print for CI log:
+    - >
+      hadolint
+      --no-fail --verbose
+      ./Dockerfile
+      ./docker/ci-binaries-packaging.Dockerfile
+    # Then output the results into a json for GitLab to pretty-print this in the MR:
+    - >
+      hadolint
+      --format gitlab_codeclimate
+      --failure-threshold error
+      ./Dockerfile
+      ./docker/ci-binaries-packaging.Dockerfile > dockerlint.json
+  artifacts:
+    when: always
+    reports:
+      codequality: dockerlint.json
+    paths:
+      - dockerlint.json
+  rules:
+    - if: '$CI_COMMIT_REF_NAME != "master"'
+      changes:
+        - docker/*Dockerfile
+        - Dockerfile
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_REF_NAME == "master"'
+    - if: '$CI_COMMIT_REF_NAME == "next"'
 
 # --------------------------------------------------------------------- #
 #  Store binaries as package so they have download urls                 #
