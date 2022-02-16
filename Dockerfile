@@ -38,7 +38,8 @@ EXPOSE 6167
 ENV CONDUIT_PORT=6167 \
     CONDUIT_ADDRESS="0.0.0.0" \
     CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit \
-    CONDUIT_CONFIG=''  # Set no config file to do all configuration with env vars
+    CONDUIT_CONFIG=''
+#    └─> Set no config file to do all configuration with env vars
 
 # Conduit needs:
 #   ca-certificates: for https
