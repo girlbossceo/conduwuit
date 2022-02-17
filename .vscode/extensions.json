@@ -1,0 +1,11 @@
+{
+    "recommendations": [
+        "matklad.rust-analyzer",
+        "bungcip.better-toml",
+        "ms-azuretools.vscode-docker",
+        "eamodio.gitlens",
+        "serayuzgur.crates",
+        "vadimcn.vscode-lldb",
+        "timonwong.shellcheck"
+    ]
+}
