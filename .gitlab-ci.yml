@@ -270,6 +270,17 @@ test:format:
   script:
     - cargo fmt --all -- --check
 
+test:audit:
+  extends: .test-shared-settings
+  allow_failure: true
+  script:
+    - cargo audit --color always || true
+    - cargo audit --stale --json | gitlab-report -p audit > gl-sast-report.json
+  artifacts:
+    when: always
+    reports:
+      sast: gl-sast-report.json
+
 test:sytest:
   stage: "test"
   allow_failure: true
