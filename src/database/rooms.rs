@@ -2147,13 +2147,9 @@ impl Rooms {
                 .ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
             pdu.redact(reason)?;
             self.replace_pdu(&pdu_id, &pdu)?;
-            Ok(())
-        } else {
-            Err(Error::BadRequest(
-                ErrorKind::NotFound,
-                "Event ID does not exist.",
-            ))
         }
+        // If event does not exist, just noop
+        Ok(())
     }
 
     /// Update current membership data.

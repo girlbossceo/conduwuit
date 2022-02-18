@@ -1571,7 +1571,10 @@ async fn upgrade_outlier_to_timeline_pdu(
             soft_fail,
             &state_lock,
         )
-        .map_err(|_| "Failed to add pdu to db.".to_owned())?;
+        .map_err(|e| {
+            warn!("Failed to add pdu to db: {}", e);
+            "Failed to add pdu to db.".to_owned()
+        })?;
 
         // Soft fail, we keep the event as an outlier but don't add it to the timeline
         warn!("Event was soft failed: {:?}", incoming_pdu);
@@ -1737,7 +1740,10 @@ async fn upgrade_outlier_to_timeline_pdu(
         soft_fail,
         &state_lock,
     )
-    .map_err(|_| "Failed to add pdu to db.".to_owned())?;
+    .map_err(|e| {
+        warn!("Failed to add pdu to db: {}", e);
+        "Failed to add pdu to db.".to_owned()
+    })?;
 
     debug!("Appended incoming pdu.");
 
