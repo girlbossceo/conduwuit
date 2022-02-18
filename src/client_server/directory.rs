@@ -149,19 +149,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
             .await?;
 
         return Ok(get_public_rooms_filtered::Response {
-            chunk: response
-                .chunk
-                .into_iter()
-                .map(|c| {
-                    // Convert ruma::api::federation::directory::get_public_rooms::v1::PublicRoomsChunk
-                    // to ruma::api::client::r0::directory::PublicRoomsChunk
-                    serde_json::from_str(
-                        &serde_json::to_string(&c)
-                            .expect("PublicRoomsChunk::to_string always works"),
-                    )
-                    .expect("federation and client-server PublicRoomsChunk are the same type")
-                })
-                .collect(),
+            chunk: response.chunk,
             prev_batch: response.prev_batch,
             next_batch: response.next_batch,
             total_room_count_estimate: response.total_room_count_estimate,
