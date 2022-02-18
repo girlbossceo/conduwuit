@@ -1,9 +1,9 @@
 use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::api::client::{
     error::ErrorKind,
-    search::search_events::v3::{
-        self as search_events_v3, EventContextResult, ResultCategories, ResultRoomEvents,
-        SearchResult,
+    search::search_events::{
+        self,
+        v3::{EventContextResult, ResultCategories, ResultRoomEvents, SearchResult},
     },
 };
 
@@ -16,8 +16,8 @@ use std::collections::BTreeMap;
 /// - Only works if the user is currently joined to the room (TODO: Respect history visibility)
 pub async fn search_events_route(
     db: DatabaseGuard,
-    body: Ruma<search_events_v3::Request<'_>>,
-) -> Result<search_events_v3::Response> {
+    body: Ruma<search_events::v3::Request<'_>>,
+) -> Result<search_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let search_criteria = body.search_categories.room_events.as_ref().unwrap();
@@ -102,7 +102,7 @@ pub async fn search_events_route(
         Some((skip + limit).to_string())
     };
 
-    Ok(search_events_v3::Response::new(ResultCategories {
+    Ok(search_events::v3::Response::new(ResultCategories {
         room_events: ResultRoomEvents {
             count: Some((results.len() as u32).into()), // TODO: set this to none. Element shouldn't depend on it
             groups: BTreeMap::new(),                    // TODO
