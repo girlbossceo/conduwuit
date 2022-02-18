@@ -5,13 +5,11 @@ use ruma::{
     api::{
         client::{
             error::ErrorKind,
-            r0::{
-                keys::{
-                    claim_keys, get_key_changes, get_keys, upload_keys, upload_signatures,
-                    upload_signing_keys,
-                },
-                uiaa::{AuthFlow, AuthType, UiaaInfo},
+            keys::{
+                claim_keys, get_key_changes, get_keys, upload_keys, upload_signatures,
+                upload_signing_keys,
             },
+            uiaa::{AuthFlow, AuthType, UiaaInfo},
         },
         federation,
     },
@@ -29,8 +27,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// - If there are no device keys yet: Adds device keys (TODO: merge with existing keys?)
 pub async fn upload_keys_route(
     db: DatabaseGuard,
-    body: Ruma<upload_keys::Request>,
-) -> Result<upload_keys::Response> {
+    body: Ruma<upload_keys::v3::Request>,
+) -> Result<upload_keys::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -59,7 +57,7 @@ pub async fn upload_keys_route(
 
     db.flush()?;
 
-    Ok(upload_keys::Response {
+    Ok(upload_keys::v3::Response {
         one_time_key_counts: db.users.count_one_time_keys(sender_user, sender_device)?,
     })
 }
@@ -73,8 +71,8 @@ pub async fn upload_keys_route(
 /// - The master and self-signing keys contain signatures that the user is allowed to see
 pub async fn get_keys_route(
     db: DatabaseGuard,
-    body: Ruma<get_keys::Request<'_>>,
-) -> Result<get_keys::Response> {
+    body: Ruma<get_keys::v3::Request<'_>>,
+) -> Result<get_keys::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let response = get_keys_helper(
@@ -93,8 +91,8 @@ pub async fn get_keys_route(
 /// Claims one-time keys
 pub async fn claim_keys_route(
     db: DatabaseGuard,
-    body: Ruma<claim_keys::Request>,
-) -> Result<claim_keys::Response> {
+    body: Ruma<claim_keys::v3::Request>,
+) -> Result<claim_keys::v3::Response> {
     let response = claim_keys_helper(&body.one_time_keys, &db).await?;
 
     db.flush()?;
@@ -109,8 +107,8 @@ pub async fn claim_keys_route(
 /// - Requires UIAA to verify password
 pub async fn upload_signing_keys_route(
     db: DatabaseGuard,
-    body: Ruma<upload_signing_keys::Request<'_>>,
-) -> Result<upload_signing_keys::Response> {
+    body: Ruma<upload_signing_keys::v3::Request<'_>>,
+) -> Result<upload_signing_keys::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -160,7 +158,7 @@ pub async fn upload_signing_keys_route(
 
     db.flush()?;
 
-    Ok(upload_signing_keys::Response {})
+    Ok(upload_signing_keys::v3::Response {})
 }
 
 /// # `POST /_matrix/client/r0/keys/signatures/upload`
@@ -168,12 +166,14 @@ pub async fn upload_signing_keys_route(
 /// Uploads end-to-end key signatures from the sender user.
 pub async fn upload_signatures_route(
     db: DatabaseGuard,
-    body: Ruma<upload_signatures::Request>,
-) -> Result<upload_signatures::Response> {
+    body: Ruma<upload_signatures::v3::Request>,
+) -> Result<upload_signatures::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     for (user_id, signed_keys) in &body.signed_keys {
         for (key_id, signed_key) in signed_keys {
+            let signed_key = serde_json::to_value(signed_key).unwrap();
+
             for signature in signed_key
                 .get("signatures")
                 .ok_or(Error::BadRequest(
@@ -219,7 +219,9 @@ pub async fn upload_signatures_route(
 
     db.flush()?;
 
-    Ok(upload_signatures::Response {})
+    Ok(upload_signatures::v3::Response {
+        failures: BTreeMap::new(), // TODO: integrate
+    })
 }
 
 /// # `POST /_matrix/client/r0/keys/changes`
@@ -229,8 +231,8 @@ pub async fn upload_signatures_route(
 /// - TODO: left users
 pub async fn get_key_changes_route(
     db: DatabaseGuard,
-    body: Ruma<get_key_changes::Request<'_>>,
-) -> Result<get_key_changes::Response> {
+    body: Ruma<get_key_changes::v3::Request<'_>>,
+) -> Result<get_key_changes::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut device_list_updates = HashSet::new();
@@ -266,7 +268,7 @@ pub async fn get_key_changes_route(
                 .filter_map(|r| r.ok()),
         );
     }
-    Ok(get_key_changes::Response {
+    Ok(get_key_changes::v3::Response {
         changed: device_list_updates.into_iter().collect(),
         left: Vec::new(), // TODO
     })
@@ -277,7 +279,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
     device_keys_input: &BTreeMap<Box<UserId>, Vec<Box<DeviceId>>>,
     allowed_signatures: F,
     db: &Database,
-) -> Result<get_keys::Response> {
+) -> Result<get_keys::v3::Response> {
     let mut master_keys = BTreeMap::new();
     let mut self_signing_keys = BTreeMap::new();
     let mut user_signing_keys = BTreeMap::new();
@@ -386,7 +388,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
         }
     }
 
-    Ok(get_keys::Response {
+    Ok(get_keys::v3::Response {
         master_keys,
         self_signing_keys,
         user_signing_keys,
@@ -397,7 +399,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 
 fn add_unsigned_device_display_name(
     keys: &mut Raw<ruma::encryption::DeviceKeys>,
-    metadata: ruma::api::client::r0::device::Device,
+    metadata: ruma::api::client::device::Device,
 ) -> serde_json::Result<()> {
     if let Some(display_name) = metadata.display_name {
         let mut object = keys.deserialize_as::<serde_json::Map<String, serde_json::Value>>()?;
@@ -416,7 +418,7 @@ fn add_unsigned_device_display_name(
 pub(crate) async fn claim_keys_helper(
     one_time_keys_input: &BTreeMap<Box<UserId>, BTreeMap<Box<DeviceId>, DeviceKeyAlgorithm>>,
     db: &Database,
-) -> Result<claim_keys::Response> {
+) -> Result<claim_keys::v3::Response> {
     let mut one_time_keys = BTreeMap::new();
 
     let mut get_over_federation = BTreeMap::new();
@@ -468,7 +470,7 @@ pub(crate) async fn claim_keys_helper(
         }
     }
 
-    Ok(claim_keys::Response {
+    Ok(claim_keys::v3::Response {
         failures,
         one_time_keys,
     })

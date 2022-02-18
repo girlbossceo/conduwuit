@@ -4,7 +4,7 @@ use http::StatusCode;
 use ruma::{
     api::client::{
         error::{Error as RumaError, ErrorKind},
-        r0::uiaa::{UiaaInfo, UiaaResponse},
+        uiaa::{UiaaInfo, UiaaResponse},
     },
     ServerName,
 };

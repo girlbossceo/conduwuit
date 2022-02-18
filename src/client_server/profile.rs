@@ -3,7 +3,7 @@ use ruma::{
     api::{
         client::{
             error::ErrorKind,
-            r0::profile::{
+            profile::{
                 get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
             },
         },
@@ -21,8 +21,8 @@ use std::sync::Arc;
 /// - Also makes sure other users receive the update using presence EDUs
 pub async fn set_displayname_route(
     db: DatabaseGuard,
-    body: Ruma<set_display_name::Request<'_>>,
-) -> Result<set_display_name::Response> {
+    body: Ruma<set_display_name::v3::Request<'_>>,
+) -> Result<set_display_name::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
@@ -108,7 +108,7 @@ pub async fn set_displayname_route(
 
     db.flush()?;
 
-    Ok(set_display_name::Response {})
+    Ok(set_display_name::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/profile/{userId}/displayname`
@@ -118,8 +118,8 @@ pub async fn set_displayname_route(
 /// - If user is on another server: Fetches displayname over federation
 pub async fn get_displayname_route(
     db: DatabaseGuard,
-    body: Ruma<get_display_name::Request<'_>>,
-) -> Result<get_display_name::Response> {
+    body: Ruma<get_display_name::v3::Request<'_>>,
+) -> Result<get_display_name::v3::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -133,12 +133,12 @@ pub async fn get_displayname_route(
             )
             .await?;
 
-        return Ok(get_display_name::Response {
+        return Ok(get_display_name::v3::Response {
             displayname: response.displayname,
         });
     }
 
-    Ok(get_display_name::Response {
+    Ok(get_display_name::v3::Response {
         displayname: db.users.displayname(&body.user_id)?,
     })
 }
@@ -150,8 +150,8 @@ pub async fn get_displayname_route(
 /// - Also makes sure other users receive the update using presence EDUs
 pub async fn set_avatar_url_route(
     db: DatabaseGuard,
-    body: Ruma<set_avatar_url::Request<'_>>,
-) -> Result<set_avatar_url::Response> {
+    body: Ruma<set_avatar_url::v3::Request<'_>>,
+) -> Result<set_avatar_url::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
@@ -239,7 +239,7 @@ pub async fn set_avatar_url_route(
 
     db.flush()?;
 
-    Ok(set_avatar_url::Response {})
+    Ok(set_avatar_url::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/profile/{userId}/avatar_url`
@@ -249,8 +249,8 @@ pub async fn set_avatar_url_route(
 /// - If user is on another server: Fetches avatar_url and blurhash over federation
 pub async fn get_avatar_url_route(
     db: DatabaseGuard,
-    body: Ruma<get_avatar_url::Request<'_>>,
-) -> Result<get_avatar_url::Response> {
+    body: Ruma<get_avatar_url::v3::Request<'_>>,
+) -> Result<get_avatar_url::v3::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -264,13 +264,13 @@ pub async fn get_avatar_url_route(
             )
             .await?;
 
-        return Ok(get_avatar_url::Response {
+        return Ok(get_avatar_url::v3::Response {
             avatar_url: response.avatar_url,
             blurhash: response.blurhash,
         });
     }
 
-    Ok(get_avatar_url::Response {
+    Ok(get_avatar_url::v3::Response {
         avatar_url: db.users.avatar_url(&body.user_id)?,
         blurhash: db.users.blurhash(&body.user_id)?,
     })
@@ -283,8 +283,8 @@ pub async fn get_avatar_url_route(
 /// - If user is on another server: Fetches profile over federation
 pub async fn get_profile_route(
     db: DatabaseGuard,
-    body: Ruma<get_profile::Request<'_>>,
-) -> Result<get_profile::Response> {
+    body: Ruma<get_profile::v3::Request<'_>>,
+) -> Result<get_profile::v3::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -298,7 +298,7 @@ pub async fn get_profile_route(
             )
             .await?;
 
-        return Ok(get_profile::Response {
+        return Ok(get_profile::v3::Response {
             displayname: response.displayname,
             avatar_url: response.avatar_url,
             blurhash: response.blurhash,
@@ -313,7 +313,7 @@ pub async fn get_profile_route(
         ));
     }
 
-    Ok(get_profile::Response {
+    Ok(get_profile::v3::Response {
         avatar_url: db.users.avatar_url(&body.user_id)?,
         blurhash: db.users.blurhash(&body.user_id)?,
         displayname: db.users.displayname(&body.user_id)?,

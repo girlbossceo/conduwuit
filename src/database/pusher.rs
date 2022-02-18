@@ -2,7 +2,7 @@ use crate::{Database, Error, PduEvent, Result};
 use bytes::BytesMut;
 use ruma::{
     api::{
-        client::r0::push::{get_pushers, set_pusher, PusherKind},
+        client::push::{get_pushers, set_pusher, PusherKind},
         push_gateway::send_event_notification::{
             self,
             v1::{Device, Notification, NotificationCounts, NotificationPriority},
@@ -30,7 +30,7 @@ pub struct PushData {
 
 impl PushData {
     #[tracing::instrument(skip(self, sender, pusher))]
-    pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::Pusher) -> Result<()> {
+    pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::Pusher) -> Result<()> {
         let mut key = sender.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pusher.pushkey.as_bytes());
@@ -53,7 +53,7 @@ impl PushData {
     }
 
     #[tracing::instrument(skip(self, senderkey))]
-    pub fn get_pusher(&self, senderkey: &[u8]) -> Result<Option<get_pushers::Pusher>> {
+    pub fn get_pusher(&self, senderkey: &[u8]) -> Result<Option<get_pushers::v3::Pusher>> {
         self.senderkey_pusher
             .get(senderkey)?
             .map(|push| {
@@ -64,7 +64,7 @@ impl PushData {
     }
 
     #[tracing::instrument(skip(self, sender))]
-    pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<get_pushers::Pusher>> {
+    pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<get_pushers::v3::Pusher>> {
         let mut prefix = sender.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -171,7 +171,7 @@ where
 pub async fn send_push_notice(
     user: &UserId,
     unread: UInt,
-    pusher: &get_pushers::Pusher,
+    pusher: &get_pushers::v3::Pusher,
     ruleset: Ruleset,
     pdu: &PduEvent,
     db: &Database,
@@ -251,7 +251,7 @@ pub fn get_actions<'a>(
 #[tracing::instrument(skip(unread, pusher, tweaks, event, db))]
 async fn send_notice(
     unread: UInt,
-    pusher: &get_pushers::Pusher,
+    pusher: &get_pushers::v3::Pusher,
     tweaks: Vec<Tweak>,
     event: &PduEvent,
     db: &Database,

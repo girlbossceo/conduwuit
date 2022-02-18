@@ -4,8 +4,8 @@ use ruma::{
     api::{
         appservice,
         client::{
+            alias::{create_alias, delete_alias, get_alias},
             error::ErrorKind,
-            r0::alias::{create_alias, delete_alias, get_alias},
         },
         federation,
     },
@@ -17,8 +17,8 @@ use ruma::{
 /// Creates a new room alias on this server.
 pub async fn create_alias_route(
     db: DatabaseGuard,
-    body: Ruma<create_alias::Request<'_>>,
-) -> Result<create_alias::Response> {
+    body: Ruma<create_alias::v3::Request<'_>>,
+) -> Result<create_alias::v3::Response> {
     if body.room_alias.server_name() != db.globals.server_name() {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
@@ -35,7 +35,7 @@ pub async fn create_alias_route(
 
     db.flush()?;
 
-    Ok(create_alias::Response::new())
+    Ok(create_alias::v3::Response::new())
 }
 
 /// # `DELETE /_matrix/client/r0/directory/room/{roomAlias}`
@@ -46,8 +46,8 @@ pub async fn create_alias_route(
 /// - TODO: Update canonical alias event
 pub async fn delete_alias_route(
     db: DatabaseGuard,
-    body: Ruma<delete_alias::Request<'_>>,
-) -> Result<delete_alias::Response> {
+    body: Ruma<delete_alias::v3::Request<'_>>,
+) -> Result<delete_alias::v3::Response> {
     if body.room_alias.server_name() != db.globals.server_name() {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
@@ -61,7 +61,7 @@ pub async fn delete_alias_route(
 
     db.flush()?;
 
-    Ok(delete_alias::Response::new())
+    Ok(delete_alias::v3::Response::new())
 }
 
 /// # `GET /_matrix/client/r0/directory/room/{roomAlias}`
@@ -71,15 +71,15 @@ pub async fn delete_alias_route(
 /// - TODO: Suggest more servers to join via
 pub async fn get_alias_route(
     db: DatabaseGuard,
-    body: Ruma<get_alias::Request<'_>>,
-) -> Result<get_alias::Response> {
+    body: Ruma<get_alias::v3::Request<'_>>,
+) -> Result<get_alias::v3::Response> {
     get_alias_helper(&db, &body.room_alias).await
 }
 
 pub(crate) async fn get_alias_helper(
     db: &Database,
     room_alias: &RoomAliasId,
-) -> Result<get_alias::Response> {
+) -> Result<get_alias::v3::Response> {
     if room_alias.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -90,7 +90,10 @@ pub(crate) async fn get_alias_helper(
             )
             .await?;
 
-        return Ok(get_alias::Response::new(response.room_id, response.servers));
+        return Ok(get_alias::v3::Response::new(
+            response.room_id,
+            response.servers,
+        ));
     }
 
     let mut room_id = None;
@@ -141,7 +144,7 @@ pub(crate) async fn get_alias_helper(
         }
     };
 
-    Ok(get_alias::Response::new(
+    Ok(get_alias::v3::Response::new(
         room_id,
         vec![db.globals.server_name().to_owned()],
     ))

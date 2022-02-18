@@ -1,10 +1,8 @@
 use crate::{database::DatabaseGuard, utils, Error, Result, Ruma};
 use ruma::api::client::{
+    device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
     error::ErrorKind,
-    r0::{
-        device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
-        uiaa::{AuthFlow, AuthType, UiaaInfo},
-    },
+    uiaa::{AuthFlow, AuthType, UiaaInfo},
 };
 
 use super::SESSION_ID_LENGTH;
@@ -14,8 +12,8 @@ use super::SESSION_ID_LENGTH;
 /// Get metadata on all devices of the sender user.
 pub async fn get_devices_route(
     db: DatabaseGuard,
-    body: Ruma<get_devices::Request>,
-) -> Result<get_devices::Response> {
+    body: Ruma<get_devices::v3::Request>,
+) -> Result<get_devices::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let devices: Vec<device::Device> = db
@@ -24,7 +22,7 @@ pub async fn get_devices_route(
         .filter_map(|r| r.ok()) // Filter out buggy devices
         .collect();
 
-    Ok(get_devices::Response { devices })
+    Ok(get_devices::v3::Response { devices })
 }
 
 /// # `GET /_matrix/client/r0/devices/{deviceId}`
@@ -32,8 +30,8 @@ pub async fn get_devices_route(
 /// Get metadata on a single device of the sender user.
 pub async fn get_device_route(
     db: DatabaseGuard,
-    body: Ruma<get_device::Request<'_>>,
-) -> Result<get_device::Response> {
+    body: Ruma<get_device::v3::Request<'_>>,
+) -> Result<get_device::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let device = db
@@ -41,7 +39,7 @@ pub async fn get_device_route(
         .get_device_metadata(sender_user, &body.body.device_id)?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
 
-    Ok(get_device::Response { device })
+    Ok(get_device::v3::Response { device })
 }
 
 /// # `PUT /_matrix/client/r0/devices/{deviceId}`
@@ -49,8 +47,8 @@ pub async fn get_device_route(
 /// Updates the metadata on a given device of the sender user.
 pub async fn update_device_route(
     db: DatabaseGuard,
-    body: Ruma<update_device::Request<'_>>,
-) -> Result<update_device::Response> {
+    body: Ruma<update_device::v3::Request<'_>>,
+) -> Result<update_device::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut device = db
@@ -65,7 +63,7 @@ pub async fn update_device_route(
 
     db.flush()?;
 
-    Ok(update_device::Response {})
+    Ok(update_device::v3::Response {})
 }
 
 /// # `DELETE /_matrix/client/r0/devices/{deviceId}`
@@ -79,8 +77,8 @@ pub async fn update_device_route(
 /// - Triggers device list updates
 pub async fn delete_device_route(
     db: DatabaseGuard,
-    body: Ruma<delete_device::Request<'_>>,
-) -> Result<delete_device::Response> {
+    body: Ruma<delete_device::v3::Request<'_>>,
+) -> Result<delete_device::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -121,7 +119,7 @@ pub async fn delete_device_route(
 
     db.flush()?;
 
-    Ok(delete_device::Response {})
+    Ok(delete_device::v3::Response {})
 }
 
 /// # `PUT /_matrix/client/r0/devices/{deviceId}`
@@ -137,8 +135,8 @@ pub async fn delete_device_route(
 /// - Triggers device list updates
 pub async fn delete_devices_route(
     db: DatabaseGuard,
-    body: Ruma<delete_devices::Request<'_>>,
-) -> Result<delete_devices::Response> {
+    body: Ruma<delete_devices::v3::Request<'_>>,
+) -> Result<delete_devices::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -181,5 +179,5 @@ pub async fn delete_devices_route(
 
     db.flush()?;
 
-    Ok(delete_devices::Response {})
+    Ok(delete_devices::v3::Response {})
 }

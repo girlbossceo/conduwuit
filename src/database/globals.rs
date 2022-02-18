@@ -1,7 +1,7 @@
 use crate::{database::Config, server_server::FedDest, utils, Error, Result};
 use ruma::{
     api::{
-        client::r0::sync::sync_events,
+        client::sync::sync_events,
         federation::discovery::{ServerSigningKeys, VerifyKey},
     },
     DeviceId, EventId, MilliSecondsSinceUnixEpoch, RoomId, ServerName, ServerSigningKeyId, UserId,
@@ -27,8 +27,8 @@ type WellKnownMap = HashMap<Box<ServerName>, (FedDest, String)>;
 type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 type SyncHandle = (
-    Option<String>,                                  // since
-    Receiver<Option<Result<sync_events::Response>>>, // rx
+    Option<String>,                                      // since
+    Receiver<Option<Result<sync_events::v3::Response>>>, // rx
 );
 
 pub struct Globals {

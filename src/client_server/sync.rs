@@ -1,6 +1,6 @@
 use crate::{database::DatabaseGuard, Database, Error, Result, Ruma, RumaResponse};
 use ruma::{
-    api::client::r0::{
+    api::client::{
         filter::{IncomingFilterDefinition, LazyLoadOptions},
         sync::sync_events,
         uiaa::UiaaResponse,
@@ -56,8 +56,8 @@ use tracing::error;
 /// `since` will be cached
 pub async fn sync_events_route(
     db: DatabaseGuard,
-    body: Ruma<sync_events::Request<'_>>,
-) -> Result<sync_events::Response, RumaResponse<UiaaResponse>> {
+    body: Ruma<sync_events::v3::Request<'_>>,
+) -> Result<sync_events::v3::Response, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.expect("user is authenticated");
     let sender_device = body.sender_device.expect("user is authenticated");
     let body = body.body;
@@ -130,8 +130,8 @@ async fn sync_helper_wrapper(
     db: Arc<DatabaseGuard>,
     sender_user: Box<UserId>,
     sender_device: Box<DeviceId>,
-    body: sync_events::IncomingRequest,
-    tx: Sender<Option<Result<sync_events::Response>>>,
+    body: sync_events::v3::IncomingRequest,
+    tx: Sender<Option<Result<sync_events::v3::Response>>>,
 ) {
     let since = body.since.clone();
 
@@ -172,9 +172,15 @@ async fn sync_helper(
     db: Arc<DatabaseGuard>,
     sender_user: Box<UserId>,
     sender_device: Box<DeviceId>,
-    body: sync_events::IncomingRequest,
+    body: sync_events::v3::IncomingRequest,
     // bool = caching allowed
-) -> Result<(sync_events::Response, bool), Error> {
+) -> Result<(sync_events::v3::Response, bool), Error> {
+    use sync_events::v3::{
+        DeviceLists, Ephemeral, GlobalAccountData, IncomingFilter, InviteState, InvitedRoom,
+        JoinedRoom, LeftRoom, Presence, RoomAccountData, RoomSummary, Rooms, State, Timeline,
+        ToDevice, UnreadNotificationsCount,
+    };
+
     // TODO: match body.set_presence {
     db.rooms.edus.ping_presence(&sender_user)?;
 
@@ -187,8 +193,8 @@ async fn sync_helper(
     // Load filter
     let filter = match body.filter {
         None => IncomingFilterDefinition::default(),
-        Some(sync_events::IncomingFilter::FilterDefinition(filter)) => filter,
-        Some(sync_events::IncomingFilter::FilterId(filter_id)) => db
+        Some(IncomingFilter::FilterDefinition(filter)) => filter,
+        Some(IncomingFilter::FilterId(filter_id)) => db
             .users
             .get_filter(&sender_user, &filter_id)?
             .unwrap_or_default(),
@@ -666,8 +672,8 @@ async fn sync_helper(
         db.rooms
             .associate_token_shortstatehash(&room_id, next_batch, current_shortstatehash)?;
 
-        let joined_room = sync_events::JoinedRoom {
-            account_data: sync_events::RoomAccountData {
+        let joined_room = JoinedRoom {
+            account_data: RoomAccountData {
                 events: db
                     .account_data
                     .changes_since(Some(&room_id), &sender_user, since)?
@@ -679,27 +685,27 @@ async fn sync_helper(
                     })
                     .collect(),
             },
-            summary: sync_events::RoomSummary {
+            summary: RoomSummary {
                 heroes,
                 joined_member_count: joined_member_count.map(|n| (n as u32).into()),
                 invited_member_count: invited_member_count.map(|n| (n as u32).into()),
             },
-            unread_notifications: sync_events::UnreadNotificationsCount {
+            unread_notifications: UnreadNotificationsCount {
                 highlight_count,
                 notification_count,
             },
-            timeline: sync_events::Timeline {
+            timeline: Timeline {
                 limited: limited || joined_since_last_sync,
                 prev_batch,
                 events: room_events,
             },
-            state: sync_events::State {
+            state: State {
                 events: state_events
                     .iter()
                     .map(|pdu| pdu.to_sync_state_event())
                     .collect(),
             },
-            ephemeral: sync_events::Ephemeral { events: edus },
+            ephemeral: Ephemeral { events: edus },
         };
 
         if !joined_room.is_empty() {
@@ -767,14 +773,14 @@ async fn sync_helper(
 
         left_rooms.insert(
             room_id.clone(),
-            sync_events::LeftRoom {
-                account_data: sync_events::RoomAccountData { events: Vec::new() },
-                timeline: sync_events::Timeline {
+            LeftRoom {
+                account_data: RoomAccountData { events: Vec::new() },
+                timeline: Timeline {
                     limited: false,
                     prev_batch: Some(next_batch_string.clone()),
                     events: Vec::new(),
                 },
-                state: sync_events::State {
+                state: State {
                     events: left_state_events,
                 },
             },
@@ -807,8 +813,8 @@ async fn sync_helper(
 
         invited_rooms.insert(
             room_id.clone(),
-            sync_events::InvitedRoom {
-                invite_state: sync_events::InviteState {
+            InvitedRoom {
+                invite_state: InviteState {
                     events: invite_state_events,
                 },
             },
@@ -840,21 +846,21 @@ async fn sync_helper(
     db.users
         .remove_to_device_events(&sender_user, &sender_device, since)?;
 
-    let response = sync_events::Response {
+    let response = sync_events::v3::Response {
         next_batch: next_batch_string,
-        rooms: sync_events::Rooms {
+        rooms: Rooms {
             leave: left_rooms,
             join: joined_rooms,
             invite: invited_rooms,
             knock: BTreeMap::new(), // TODO
         },
-        presence: sync_events::Presence {
+        presence: Presence {
             events: presence_updates
                 .into_iter()
                 .map(|(_, v)| Raw::new(&v).expect("PresenceEvent always serializes successfully"))
                 .collect(),
         },
-        account_data: sync_events::GlobalAccountData {
+        account_data: GlobalAccountData {
             events: db
                 .account_data
                 .changes_since(None, &sender_user, since)?
@@ -866,12 +872,12 @@ async fn sync_helper(
                 })
                 .collect(),
         },
-        device_lists: sync_events::DeviceLists {
+        device_lists: DeviceLists {
             changed: device_list_updates.into_iter().collect(),
             left: device_list_left.into_iter().collect(),
         },
         device_one_time_keys_count: db.users.count_one_time_keys(&sender_user, &sender_device)?,
-        to_device: sync_events::ToDevice {
+        to_device: ToDevice {
             events: db
                 .users
                 .get_to_device_events(&sender_user, &sender_device)?,

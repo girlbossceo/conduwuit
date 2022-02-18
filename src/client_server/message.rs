@@ -2,7 +2,7 @@ use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, Error, Result, Ruma
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::message::{get_message_events, send_message_event},
+        message::{get_message_events, send_message_event},
     },
     events::EventType,
 };
@@ -20,8 +20,8 @@ use std::{
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
 pub async fn send_message_event_route(
     db: DatabaseGuard,
-    body: Ruma<send_message_event::Request<'_>>,
-) -> Result<send_message_event::Response> {
+    body: Ruma<send_message_event::v3::Request<'_>>,
+) -> Result<send_message_event::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_deref();
 
@@ -61,7 +61,7 @@ pub async fn send_message_event_route(
             .map_err(|_| Error::bad_database("Invalid txnid bytes in database."))?
             .try_into()
             .map_err(|_| Error::bad_database("Invalid event id in txnid data."))?;
-        return Ok(send_message_event::Response { event_id });
+        return Ok(send_message_event::v3::Response { event_id });
     }
 
     let mut unsigned = BTreeMap::new();
@@ -93,7 +93,9 @@ pub async fn send_message_event_route(
 
     db.flush()?;
 
-    Ok(send_message_event::Response::new((*event_id).to_owned()))
+    Ok(send_message_event::v3::Response::new(
+        (*event_id).to_owned(),
+    ))
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/messages`
@@ -104,8 +106,8 @@ pub async fn send_message_event_route(
 /// joined, depending on history_visibility)
 pub async fn get_message_events_route(
     db: DatabaseGuard,
-    body: Ruma<get_message_events::Request<'_>>,
-) -> Result<get_message_events::Response> {
+    body: Ruma<get_message_events::v3::Request<'_>>,
+) -> Result<get_message_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -132,12 +134,12 @@ pub async fn get_message_events_route(
 
     let next_token;
 
-    let mut resp = get_message_events::Response::new();
+    let mut resp = get_message_events::v3::Response::new();
 
     let mut lazy_loaded = HashSet::new();
 
     match body.dir {
-        get_message_events::Direction::Forward => {
+        get_message_events::v3::Direction::Forward => {
             let events_after: Vec<_> = db
                 .rooms
                 .pdus_after(sender_user, &body.room_id, from)?
@@ -174,7 +176,7 @@ pub async fn get_message_events_route(
             resp.end = next_token.map(|count| count.to_string());
             resp.chunk = events_after;
         }
-        get_message_events::Direction::Backward => {
+        get_message_events::v3::Direction::Backward => {
             let events_before: Vec<_> = db
                 .rooms
                 .pdus_until(sender_user, &body.room_id, from)?

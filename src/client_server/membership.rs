@@ -8,7 +8,7 @@ use ruma::{
     api::{
         client::{
             error::ErrorKind,
-            r0::membership::{
+            membership::{
                 ban_user, forget_room, get_member_events, invite_user, join_room_by_id,
                 join_room_by_id_or_alias, joined_members, joined_rooms, kick_user, leave_room,
                 unban_user, IncomingThirdPartySigned,
@@ -44,8 +44,8 @@ use tracing::{debug, error, warn};
 /// - If the server does not know about the room: asks other servers over federation
 pub async fn join_room_by_id_route(
     db: DatabaseGuard,
-    body: Ruma<join_room_by_id::Request<'_>>,
-) -> Result<join_room_by_id::Response> {
+    body: Ruma<join_room_by_id::v3::Request<'_>>,
+) -> Result<join_room_by_id::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut servers: HashSet<_> = db
@@ -84,8 +84,8 @@ pub async fn join_room_by_id_route(
 /// - If the server does not know about the room: asks other servers over federation
 pub async fn join_room_by_id_or_alias_route(
     db: DatabaseGuard,
-    body: Ruma<join_room_by_id_or_alias::Request<'_>>,
-) -> Result<join_room_by_id_or_alias::Response> {
+    body: Ruma<join_room_by_id_or_alias::v3::Request<'_>>,
+) -> Result<join_room_by_id_or_alias::v3::Response> {
     let sender_user = body.sender_user.as_deref().expect("user is authenticated");
     let body = body.body;
 
@@ -124,7 +124,7 @@ pub async fn join_room_by_id_or_alias_route(
 
     db.flush()?;
 
-    Ok(join_room_by_id_or_alias::Response {
+    Ok(join_room_by_id_or_alias::v3::Response {
         room_id: join_room_response.room_id,
     })
 }
@@ -136,15 +136,15 @@ pub async fn join_room_by_id_or_alias_route(
 /// - This should always work if the user is currently joined.
 pub async fn leave_room_route(
     db: DatabaseGuard,
-    body: Ruma<leave_room::Request<'_>>,
-) -> Result<leave_room::Response> {
+    body: Ruma<leave_room::v3::Request<'_>>,
+) -> Result<leave_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.rooms.leave_room(sender_user, &body.room_id, &db).await?;
 
     db.flush()?;
 
-    Ok(leave_room::Response::new())
+    Ok(leave_room::v3::Response::new())
 }
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/invite`
@@ -152,14 +152,14 @@ pub async fn leave_room_route(
 /// Tries to send an invite event into the room.
 pub async fn invite_user_route(
     db: DatabaseGuard,
-    body: Ruma<invite_user::Request<'_>>,
-) -> Result<invite_user::Response> {
+    body: Ruma<invite_user::v3::Request<'_>>,
+) -> Result<invite_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if let invite_user::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
+    if let invite_user::v3::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
         invite_helper(sender_user, user_id, &body.room_id, &db, false).await?;
         db.flush()?;
-        Ok(invite_user::Response {})
+        Ok(invite_user::v3::Response {})
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "User not found."))
     }
@@ -170,8 +170,8 @@ pub async fn invite_user_route(
 /// Tries to send a kick event into the room.
 pub async fn kick_user_route(
     db: DatabaseGuard,
-    body: Ruma<kick_user::Request<'_>>,
-) -> Result<kick_user::Response> {
+    body: Ruma<kick_user::v3::Request<'_>>,
+) -> Result<kick_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut event: RoomMemberEventContent = serde_json::from_str(
@@ -221,7 +221,7 @@ pub async fn kick_user_route(
 
     db.flush()?;
 
-    Ok(kick_user::Response::new())
+    Ok(kick_user::v3::Response::new())
 }
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/ban`
@@ -229,8 +229,8 @@ pub async fn kick_user_route(
 /// Tries to send a ban event into the room.
 pub async fn ban_user_route(
     db: DatabaseGuard,
-    body: Ruma<ban_user::Request<'_>>,
-) -> Result<ban_user::Response> {
+    body: Ruma<ban_user::v3::Request<'_>>,
+) -> Result<ban_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     // TODO: reason
@@ -291,7 +291,7 @@ pub async fn ban_user_route(
 
     db.flush()?;
 
-    Ok(ban_user::Response::new())
+    Ok(ban_user::v3::Response::new())
 }
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/unban`
@@ -299,8 +299,8 @@ pub async fn ban_user_route(
 /// Tries to send an unban event into the room.
 pub async fn unban_user_route(
     db: DatabaseGuard,
-    body: Ruma<unban_user::Request<'_>>,
-) -> Result<unban_user::Response> {
+    body: Ruma<unban_user::v3::Request<'_>>,
+) -> Result<unban_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut event: RoomMemberEventContent = serde_json::from_str(
@@ -349,7 +349,7 @@ pub async fn unban_user_route(
 
     db.flush()?;
 
-    Ok(unban_user::Response::new())
+    Ok(unban_user::v3::Response::new())
 }
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/forget`
@@ -362,15 +362,15 @@ pub async fn unban_user_route(
 /// be called from every device
 pub async fn forget_room_route(
     db: DatabaseGuard,
-    body: Ruma<forget_room::Request<'_>>,
-) -> Result<forget_room::Response> {
+    body: Ruma<forget_room::v3::Request<'_>>,
+) -> Result<forget_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.rooms.forget(&body.room_id, sender_user)?;
 
     db.flush()?;
 
-    Ok(forget_room::Response::new())
+    Ok(forget_room::v3::Response::new())
 }
 
 /// # `POST /_matrix/client/r0/joined_rooms`
@@ -378,11 +378,11 @@ pub async fn forget_room_route(
 /// Lists all rooms the user has joined.
 pub async fn joined_rooms_route(
     db: DatabaseGuard,
-    body: Ruma<joined_rooms::Request>,
-) -> Result<joined_rooms::Response> {
+    body: Ruma<joined_rooms::v3::Request>,
+) -> Result<joined_rooms::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(joined_rooms::Response {
+    Ok(joined_rooms::v3::Response {
         joined_rooms: db
             .rooms
             .rooms_joined(sender_user)
@@ -398,8 +398,8 @@ pub async fn joined_rooms_route(
 /// - Only works if the user is currently joined
 pub async fn get_member_events_route(
     db: DatabaseGuard,
-    body: Ruma<get_member_events::Request<'_>>,
-) -> Result<get_member_events::Response> {
+    body: Ruma<get_member_events::v3::Request<'_>>,
+) -> Result<get_member_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     // TODO: check history visibility?
@@ -410,7 +410,7 @@ pub async fn get_member_events_route(
         ));
     }
 
-    Ok(get_member_events::Response {
+    Ok(get_member_events::v3::Response {
         chunk: db
             .rooms
             .room_state_full(&body.room_id)?
@@ -429,8 +429,8 @@ pub async fn get_member_events_route(
 /// - TODO: An appservice just needs a puppet joined
 pub async fn joined_members_route(
     db: DatabaseGuard,
-    body: Ruma<joined_members::Request<'_>>,
-) -> Result<joined_members::Response> {
+    body: Ruma<joined_members::v3::Request<'_>>,
+) -> Result<joined_members::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !db.rooms.is_joined(sender_user, &body.room_id)? {
@@ -447,14 +447,14 @@ pub async fn joined_members_route(
 
         joined.insert(
             user_id,
-            joined_members::RoomMember {
+            joined_members::v3::RoomMember {
                 display_name,
                 avatar_url,
             },
         );
     }
 
-    Ok(joined_members::Response { joined })
+    Ok(joined_members::v3::Response { joined })
 }
 
 #[tracing::instrument(skip(db))]
@@ -464,7 +464,7 @@ async fn join_room_by_id_helper(
     room_id: &RoomId,
     servers: &HashSet<Box<ServerName>>,
     _third_party_signed: Option<&IncomingThirdPartySigned>,
-) -> Result<join_room_by_id::Response> {
+) -> Result<join_room_by_id::v3::Response> {
     let sender_user = sender_user.expect("user is authenticated");
 
     let mutex_state = Arc::clone(
@@ -489,7 +489,7 @@ async fn join_room_by_id_helper(
                 .send_federation_request(
                     &db.globals,
                     remote_server,
-                    federation::membership::create_join_event_template::v1::Request {
+                    federation::membership::prepare_join_event::v1::Request {
                         room_id,
                         user_id: sender_user,
                         ver: &[RoomVersionId::V5, RoomVersionId::V6],
@@ -720,7 +720,7 @@ async fn join_room_by_id_helper(
 
     db.flush()?;
 
-    Ok(join_room_by_id::Response::new(room_id.to_owned()))
+    Ok(join_room_by_id::v3::Response::new(room_id.to_owned()))
 }
 
 fn validate_and_add_event_id(

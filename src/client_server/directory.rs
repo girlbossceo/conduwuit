@@ -2,14 +2,12 @@ use crate::{database::DatabaseGuard, Database, Error, Result, Ruma};
 use ruma::{
     api::{
         client::{
-            error::ErrorKind,
-            r0::{
-                directory::{
-                    get_public_rooms, get_public_rooms_filtered, get_room_visibility,
-                    set_room_visibility,
-                },
-                room,
+            directory::{
+                get_public_rooms, get_public_rooms_filtered, get_room_visibility,
+                set_room_visibility,
             },
+            error::ErrorKind,
+            room,
         },
         federation,
     },
@@ -36,8 +34,8 @@ use tracing::{info, warn};
 /// - Rooms are ordered by the number of joined members
 pub async fn get_public_rooms_filtered_route(
     db: DatabaseGuard,
-    body: Ruma<get_public_rooms_filtered::Request<'_>>,
-) -> Result<get_public_rooms_filtered::Response> {
+    body: Ruma<get_public_rooms_filtered::v3::Request<'_>>,
+) -> Result<get_public_rooms_filtered::v3::Response> {
     get_public_rooms_filtered_helper(
         &db,
         body.server.as_deref(),
@@ -56,8 +54,8 @@ pub async fn get_public_rooms_filtered_route(
 /// - Rooms are ordered by the number of joined members
 pub async fn get_public_rooms_route(
     db: DatabaseGuard,
-    body: Ruma<get_public_rooms::Request<'_>>,
-) -> Result<get_public_rooms::Response> {
+    body: Ruma<get_public_rooms::v3::Request<'_>>,
+) -> Result<get_public_rooms::v3::Response> {
     let response = get_public_rooms_filtered_helper(
         &db,
         body.server.as_deref(),
@@ -68,7 +66,7 @@ pub async fn get_public_rooms_route(
     )
     .await?;
 
-    Ok(get_public_rooms::Response {
+    Ok(get_public_rooms::v3::Response {
         chunk: response.chunk,
         prev_batch: response.prev_batch,
         next_batch: response.next_batch,
@@ -83,8 +81,8 @@ pub async fn get_public_rooms_route(
 /// - TODO: Access control checks
 pub async fn set_room_visibility_route(
     db: DatabaseGuard,
-    body: Ruma<set_room_visibility::Request<'_>>,
-) -> Result<set_room_visibility::Response> {
+    body: Ruma<set_room_visibility::v3::Request<'_>>,
+) -> Result<set_room_visibility::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     match &body.visibility {
@@ -103,7 +101,7 @@ pub async fn set_room_visibility_route(
 
     db.flush()?;
 
-    Ok(set_room_visibility::Response {})
+    Ok(set_room_visibility::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/directory/list/room/{roomId}`
@@ -111,9 +109,9 @@ pub async fn set_room_visibility_route(
 /// Gets the visibility of a given room in the room directory.
 pub async fn get_room_visibility_route(
     db: DatabaseGuard,
-    body: Ruma<get_room_visibility::Request<'_>>,
-) -> Result<get_room_visibility::Response> {
-    Ok(get_room_visibility::Response {
+    body: Ruma<get_room_visibility::v3::Request<'_>>,
+) -> Result<get_room_visibility::v3::Response> {
+    Ok(get_room_visibility::v3::Response {
         visibility: if db.rooms.is_public_room(&body.room_id)? {
             room::Visibility::Public
         } else {
@@ -129,7 +127,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
     since: Option<&str>,
     filter: &IncomingFilter,
     _network: &IncomingRoomNetwork,
-) -> Result<get_public_rooms_filtered::Response> {
+) -> Result<get_public_rooms_filtered::v3::Response> {
     if let Some(other_server) = server.filter(|server| *server != db.globals.server_name().as_str())
     {
         let response = db
@@ -148,7 +146,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
             )
             .await?;
 
-        return Ok(get_public_rooms_filtered::Response {
+        return Ok(get_public_rooms_filtered::v3::Response {
             chunk: response.chunk,
             prev_batch: response.prev_batch,
             next_batch: response.next_batch,
@@ -189,7 +187,6 @@ pub(crate) async fn get_public_rooms_filtered_helper(
             let room_id = room_id?;
 
             let chunk = PublicRoomsChunk {
-                aliases: Vec::new(),
                 canonical_alias: db
                     .rooms
                     .room_state_get(&room_id, &EventType::RoomCanonicalAlias, "")?
@@ -328,7 +325,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
         Some(format!("n{}", num_since + limit))
     };
 
-    Ok(get_public_rooms_filtered::Response {
+    Ok(get_public_rooms_filtered::v3::Response {
         chunk,
         prev_batch,
         next_batch,

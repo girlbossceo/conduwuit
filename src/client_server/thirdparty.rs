@@ -1,5 +1,5 @@
 use crate::{Result, Ruma};
-use ruma::api::client::r0::thirdparty::get_protocols;
+use ruma::api::client::thirdparty::get_protocols;
 
 use std::collections::BTreeMap;
 
@@ -7,10 +7,10 @@ use std::collections::BTreeMap;
 ///
 /// TODO: Fetches all metadata about protocols supported by the homeserver.
 pub async fn get_protocols_route(
-    _body: Ruma<get_protocols::Request>,
-) -> Result<get_protocols::Response> {
+    _body: Ruma<get_protocols::v3::Request>,
+) -> Result<get_protocols::v3::Response> {
     // TODO
-    Ok(get_protocols::Response {
+    Ok(get_protocols::v3::Response {
         protocols: BTreeMap::new(),
     })
 }

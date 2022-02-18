@@ -1,6 +1,6 @@
 use crate::Error;
 use ruma::{
-    api::client::r0::uiaa::UiaaResponse,
+    api::client::uiaa::UiaaResponse,
     identifiers::{DeviceId, UserId},
     signatures::CanonicalJsonValue,
     Outgoing, ServerName,
