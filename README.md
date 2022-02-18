@@ -19,7 +19,7 @@ HQ.
 
 #### What is the current status?
 
-As of 2021-09-01, Conduit is Beta, meaning you can join and participate in most
+Conduit is Beta, meaning you can join and participate in most
 Matrix rooms, but not all features are supported and you might run into bugs
 from time to time.
 
