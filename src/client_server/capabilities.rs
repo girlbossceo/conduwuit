@@ -1,6 +1,6 @@
 use crate::{Result, Ruma};
 use ruma::{
-    api::client::r0::capabilities::{
+    api::client::capabilities::{
         get_capabilities, Capabilities, RoomVersionStability, RoomVersionsCapability,
     },
     RoomVersionId,
@@ -11,8 +11,8 @@ use std::collections::BTreeMap;
 ///
 /// Get information on the supported feature set and other relevent capabilities of this server.
 pub async fn get_capabilities_route(
-    _body: Ruma<get_capabilities::Request>,
-) -> Result<get_capabilities::Response> {
+    _body: Ruma<get_capabilities::v3::Request>,
+) -> Result<get_capabilities::v3::Response> {
     let mut available = BTreeMap::new();
     available.insert(RoomVersionId::V5, RoomVersionStability::Stable);
     available.insert(RoomVersionId::V6, RoomVersionStability::Stable);
@@ -23,5 +23,5 @@ pub async fn get_capabilities_route(
         available,
     };
 
-    Ok(get_capabilities::Response { capabilities })
+    Ok(get_capabilities::v3::Response { capabilities })
 }

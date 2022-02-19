@@ -1,9 +1,6 @@
 use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
-    api::client::{
-        error::ErrorKind,
-        r0::{context::get_context, filter::LazyLoadOptions},
-    },
+    api::client::{context::get_context, error::ErrorKind, filter::LazyLoadOptions},
     events::EventType,
 };
 use std::{collections::HashSet, convert::TryFrom};
@@ -17,8 +14,8 @@ use tracing::error;
 /// joined, depending on history_visibility)
 pub async fn get_context_route(
     db: DatabaseGuard,
-    body: Ruma<get_context::Request<'_>>,
-) -> Result<get_context::Response> {
+    body: Ruma<get_context::v3::Request<'_>>,
+) -> Result<get_context::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -178,7 +175,7 @@ pub async fn get_context_route(
         }
     }
 
-    let resp = get_context::Response {
+    let resp = get_context::v3::Response {
         start: start_token,
         end: end_token,
         events_before,

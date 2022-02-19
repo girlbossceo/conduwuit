@@ -2,7 +2,7 @@ use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::push::{
+        push::{
             delete_pushrule, get_pushers, get_pushrule, get_pushrule_actions, get_pushrule_enabled,
             get_pushrules_all, set_pusher, set_pushrule, set_pushrule_actions,
             set_pushrule_enabled, RuleKind,
@@ -17,8 +17,8 @@ use ruma::{
 /// Retrieves the push rules event for this user.
 pub async fn get_pushrules_all_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrules_all::Request>,
-) -> Result<get_pushrules_all::Response> {
+    body: Ruma<get_pushrules_all::v3::Request>,
+) -> Result<get_pushrules_all::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event: PushRulesEvent = db
@@ -29,7 +29,7 @@ pub async fn get_pushrules_all_route(
             "PushRules event not found.",
         ))?;
 
-    Ok(get_pushrules_all::Response {
+    Ok(get_pushrules_all::v3::Response {
         global: event.content.global,
     })
 }
@@ -39,8 +39,8 @@ pub async fn get_pushrules_all_route(
 /// Retrieves a single specified push rule for this user.
 pub async fn get_pushrule_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrule::Request<'_>>,
-) -> Result<get_pushrule::Response> {
+    body: Ruma<get_pushrule::v3::Request<'_>>,
+) -> Result<get_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event: PushRulesEvent = db
@@ -77,7 +77,7 @@ pub async fn get_pushrule_route(
     };
 
     if let Some(rule) = rule {
-        Ok(get_pushrule::Response { rule })
+        Ok(get_pushrule::v3::Response { rule })
     } else {
         Err(Error::BadRequest(
             ErrorKind::NotFound,
@@ -91,8 +91,8 @@ pub async fn get_pushrule_route(
 /// Creates a single specified push rule for this user.
 pub async fn set_pushrule_route(
     db: DatabaseGuard,
-    body: Ruma<set_pushrule::Request<'_>>,
-) -> Result<set_pushrule::Response> {
+    body: Ruma<set_pushrule::v3::Request<'_>>,
+) -> Result<set_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let body = body.body;
 
@@ -179,7 +179,7 @@ pub async fn set_pushrule_route(
 
     db.flush()?;
 
-    Ok(set_pushrule::Response {})
+    Ok(set_pushrule::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
@@ -187,8 +187,8 @@ pub async fn set_pushrule_route(
 /// Gets the actions of a single specified push rule for this user.
 pub async fn get_pushrule_actions_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrule_actions::Request<'_>>,
-) -> Result<get_pushrule_actions::Response> {
+    body: Ruma<get_pushrule_actions::v3::Request<'_>>,
+) -> Result<get_pushrule_actions::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -233,7 +233,7 @@ pub async fn get_pushrule_actions_route(
 
     db.flush()?;
 
-    Ok(get_pushrule_actions::Response {
+    Ok(get_pushrule_actions::v3::Response {
         actions: actions.unwrap_or_default(),
     })
 }
@@ -243,8 +243,8 @@ pub async fn get_pushrule_actions_route(
 /// Sets the actions of a single specified push rule for this user.
 pub async fn set_pushrule_actions_route(
     db: DatabaseGuard,
-    body: Ruma<set_pushrule_actions::Request<'_>>,
-) -> Result<set_pushrule_actions::Response> {
+    body: Ruma<set_pushrule_actions::v3::Request<'_>>,
+) -> Result<set_pushrule_actions::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -302,7 +302,7 @@ pub async fn set_pushrule_actions_route(
 
     db.flush()?;
 
-    Ok(set_pushrule_actions::Response {})
+    Ok(set_pushrule_actions::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
@@ -310,8 +310,8 @@ pub async fn set_pushrule_actions_route(
 /// Gets the enabled status of a single specified push rule for this user.
 pub async fn get_pushrule_enabled_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrule_enabled::Request<'_>>,
-) -> Result<get_pushrule_enabled::Response> {
+    body: Ruma<get_pushrule_enabled::v3::Request<'_>>,
+) -> Result<get_pushrule_enabled::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -361,7 +361,7 @@ pub async fn get_pushrule_enabled_route(
 
     db.flush()?;
 
-    Ok(get_pushrule_enabled::Response { enabled })
+    Ok(get_pushrule_enabled::v3::Response { enabled })
 }
 
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
@@ -369,8 +369,8 @@ pub async fn get_pushrule_enabled_route(
 /// Sets the enabled status of a single specified push rule for this user.
 pub async fn set_pushrule_enabled_route(
     db: DatabaseGuard,
-    body: Ruma<set_pushrule_enabled::Request<'_>>,
-) -> Result<set_pushrule_enabled::Response> {
+    body: Ruma<set_pushrule_enabled::v3::Request<'_>>,
+) -> Result<set_pushrule_enabled::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -433,7 +433,7 @@ pub async fn set_pushrule_enabled_route(
 
     db.flush()?;
 
-    Ok(set_pushrule_enabled::Response {})
+    Ok(set_pushrule_enabled::v3::Response {})
 }
 
 /// # `DELETE /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
@@ -441,8 +441,8 @@ pub async fn set_pushrule_enabled_route(
 /// Deletes a single specified push rule for this user.
 pub async fn delete_pushrule_route(
     db: DatabaseGuard,
-    body: Ruma<delete_pushrule::Request<'_>>,
-) -> Result<delete_pushrule::Response> {
+    body: Ruma<delete_pushrule::v3::Request<'_>>,
+) -> Result<delete_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -495,7 +495,7 @@ pub async fn delete_pushrule_route(
 
     db.flush()?;
 
-    Ok(delete_pushrule::Response {})
+    Ok(delete_pushrule::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/pushers`
@@ -503,11 +503,11 @@ pub async fn delete_pushrule_route(
 /// Gets all currently active pushers for the sender user.
 pub async fn get_pushers_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushers::Request>,
-) -> Result<get_pushers::Response> {
+    body: Ruma<get_pushers::v3::Request>,
+) -> Result<get_pushers::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(get_pushers::Response {
+    Ok(get_pushers::v3::Response {
         pushers: db.pusher.get_pushers(sender_user)?,
     })
 }
@@ -519,8 +519,8 @@ pub async fn get_pushers_route(
 /// - TODO: Handle `append`
 pub async fn set_pushers_route(
     db: DatabaseGuard,
-    body: Ruma<set_pusher::Request>,
-) -> Result<set_pusher::Response> {
+    body: Ruma<set_pusher::v3::Request>,
+) -> Result<set_pusher::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let pusher = body.pusher.clone();
 
@@ -528,5 +528,5 @@ pub async fn set_pushers_route(
 
     db.flush()?;
 
-    Ok(set_pusher::Response::default())
+    Ok(set_pusher::v3::Response::default())
 }

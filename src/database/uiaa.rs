@@ -7,7 +7,7 @@ use crate::{client_server::SESSION_ID_LENGTH, utils, Error, Result};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::uiaa::{
+        uiaa::{
             AuthType, IncomingAuthData, IncomingPassword, IncomingUserIdentifier::MatrixId,
             UiaaInfo,
         },

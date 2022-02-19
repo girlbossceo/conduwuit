@@ -1,6 +1,6 @@
 use crate::{database::DatabaseGuard, utils::HtmlEscape, Error, Result, Ruma};
 use ruma::{
-    api::client::{error::ErrorKind, r0::room::report_content},
+    api::client::{error::ErrorKind, room::report_content},
     events::room::message,
     int,
 };
@@ -11,8 +11,8 @@ use ruma::{
 ///
 pub async fn report_event_route(
     db: DatabaseGuard,
-    body: Ruma<report_content::Request<'_>>,
-) -> Result<report_content::Response> {
+    body: Ruma<report_content::v3::Request<'_>>,
+) -> Result<report_content::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let pdu = match db.rooms.get_pdu(&body.event_id)? {
@@ -68,5 +68,5 @@ pub async fn report_event_route(
 
     db.flush()?;
 
-    Ok(report_content::Response {})
+    Ok(report_content::v3::Response {})
 }

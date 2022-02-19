@@ -1,8 +1,8 @@
 use crate::{utils, Error, Result};
 use ruma::{
     api::client::{
+        backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
         error::ErrorKind,
-        r0::backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
     },
     serde::Raw,
     RoomId, UserId,

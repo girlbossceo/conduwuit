@@ -2606,7 +2606,7 @@ impl Rooms {
                 .send_federation_request(
                     &db.globals,
                     &remote_server,
-                    federation::membership::get_leave_event::v1::Request { room_id, user_id },
+                    federation::membership::prepare_leave_event::v1::Request { room_id, user_id },
                 )
                 .await;
 

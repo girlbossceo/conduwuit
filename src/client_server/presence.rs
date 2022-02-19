@@ -1,5 +1,5 @@
 use crate::{database::DatabaseGuard, utils, Result, Ruma};
-use ruma::api::client::r0::presence::{get_presence, set_presence};
+use ruma::api::client::presence::{get_presence, set_presence};
 use std::time::Duration;
 
 /// # `PUT /_matrix/client/r0/presence/{userId}/status`
@@ -7,8 +7,8 @@ use std::time::Duration;
 /// Sets the presence state of the sender user.
 pub async fn set_presence_route(
     db: DatabaseGuard,
-    body: Ruma<set_presence::Request<'_>>,
-) -> Result<set_presence::Response> {
+    body: Ruma<set_presence::v3::Request<'_>>,
+) -> Result<set_presence::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     for room_id in db.rooms.rooms_joined(sender_user) {
@@ -38,7 +38,7 @@ pub async fn set_presence_route(
 
     db.flush()?;
 
-    Ok(set_presence::Response {})
+    Ok(set_presence::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/presence/{userId}/status`
@@ -48,8 +48,8 @@ pub async fn set_presence_route(
 /// - Only works if you share a room with the user
 pub async fn get_presence_route(
     db: DatabaseGuard,
-    body: Ruma<get_presence::Request<'_>>,
-) -> Result<get_presence::Response> {
+    body: Ruma<get_presence::v3::Request<'_>>,
+) -> Result<get_presence::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut presence_event = None;
@@ -71,7 +71,7 @@ pub async fn get_presence_route(
     }
 
     if let Some(presence) = presence_event {
-        Ok(get_presence::Response {
+        Ok(get_presence::v3::Response {
             // TODO: Should ruma just use the presenceeventcontent type here?
             status_msg: presence.content.status_msg,
             currently_active: presence.content.currently_active,

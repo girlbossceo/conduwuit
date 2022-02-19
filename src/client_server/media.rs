@@ -4,7 +4,7 @@ use crate::{
 };
 use ruma::api::client::{
     error::ErrorKind,
-    r0::media::{
+    media::{
         create_content, get_content, get_content_as_filename, get_content_thumbnail,
         get_media_config,
     },
@@ -17,9 +17,9 @@ const MXC_LENGTH: usize = 32;
 /// Returns max upload size.
 pub async fn get_media_config_route(
     db: DatabaseGuard,
-    _body: Ruma<get_media_config::Request>,
-) -> Result<get_media_config::Response> {
-    Ok(get_media_config::Response {
+    _body: Ruma<get_media_config::v3::Request>,
+) -> Result<get_media_config::v3::Response> {
+    Ok(get_media_config::v3::Response {
         upload_size: db.globals.max_request_size().into(),
     })
 }
@@ -32,8 +32,8 @@ pub async fn get_media_config_route(
 /// - Media will be saved in the media/ directory
 pub async fn create_content_route(
     db: DatabaseGuard,
-    body: Ruma<create_content::Request<'_>>,
-) -> Result<create_content::Response> {
+    body: Ruma<create_content::v3::Request<'_>>,
+) -> Result<create_content::v3::Response> {
     let mxc = format!(
         "mxc://{}/{}",
         db.globals.server_name(),
@@ -56,7 +56,7 @@ pub async fn create_content_route(
 
     db.flush()?;
 
-    Ok(create_content::Response {
+    Ok(create_content::v3::Response {
         content_uri: mxc.try_into().expect("Invalid mxc:// URI"),
         blurhash: None,
     })
@@ -67,13 +67,13 @@ pub async fn get_remote_content(
     mxc: &str,
     server_name: &ruma::ServerName,
     media_id: &str,
-) -> Result<get_content::Response, Error> {
+) -> Result<get_content::v3::Response, Error> {
     let content_response = db
         .sending
         .send_federation_request(
             &db.globals,
             server_name,
-            get_content::Request {
+            get_content::v3::Request {
                 allow_remote: false,
                 server_name,
                 media_id,
@@ -101,8 +101,8 @@ pub async fn get_remote_content(
 /// - Only allows federation if `allow_remote` is true
 pub async fn get_content_route(
     db: DatabaseGuard,
-    body: Ruma<get_content::Request<'_>>,
-) -> Result<get_content::Response> {
+    body: Ruma<get_content::v3::Request<'_>>,
+) -> Result<get_content::v3::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
     if let Some(FileMeta {
@@ -111,7 +111,7 @@ pub async fn get_content_route(
         file,
     }) = db.media.get(&db.globals, &mxc).await?
     {
-        Ok(get_content::Response {
+        Ok(get_content::v3::Response {
             file,
             content_type,
             content_disposition,
@@ -132,8 +132,8 @@ pub async fn get_content_route(
 /// - Only allows federation if `allow_remote` is true
 pub async fn get_content_as_filename_route(
     db: DatabaseGuard,
-    body: Ruma<get_content_as_filename::Request<'_>>,
-) -> Result<get_content_as_filename::Response> {
+    body: Ruma<get_content_as_filename::v3::Request<'_>>,
+) -> Result<get_content_as_filename::v3::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
     if let Some(FileMeta {
@@ -142,7 +142,7 @@ pub async fn get_content_as_filename_route(
         file,
     }) = db.media.get(&db.globals, &mxc).await?
     {
-        Ok(get_content_as_filename::Response {
+        Ok(get_content_as_filename::v3::Response {
             file,
             content_type,
             content_disposition: Some(format!("inline; filename={}", body.filename)),
@@ -151,7 +151,7 @@ pub async fn get_content_as_filename_route(
         let remote_content_response =
             get_remote_content(&db, &mxc, &body.server_name, &body.media_id).await?;
 
-        Ok(get_content_as_filename::Response {
+        Ok(get_content_as_filename::v3::Response {
             content_disposition: Some(format!("inline: filename={}", body.filename)),
             content_type: remote_content_response.content_type,
             file: remote_content_response.file,
@@ -168,8 +168,8 @@ pub async fn get_content_as_filename_route(
 /// - Only allows federation if `allow_remote` is true
 pub async fn get_content_thumbnail_route(
     db: DatabaseGuard,
-    body: Ruma<get_content_thumbnail::Request<'_>>,
-) -> Result<get_content_thumbnail::Response> {
+    body: Ruma<get_content_thumbnail::v3::Request<'_>>,
+) -> Result<get_content_thumbnail::v3::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
     if let Some(FileMeta {
@@ -188,14 +188,14 @@ pub async fn get_content_thumbnail_route(
         )
         .await?
     {
-        Ok(get_content_thumbnail::Response { file, content_type })
+        Ok(get_content_thumbnail::v3::Response { file, content_type })
     } else if &*body.server_name != db.globals.server_name() && body.allow_remote {
         let get_thumbnail_response = db
             .sending
             .send_federation_request(
                 &db.globals,
                 &body.server_name,
-                get_content_thumbnail::Request {
+                get_content_thumbnail::v3::Request {
                     allow_remote: false,
                     height: body.height,
                     width: body.width,

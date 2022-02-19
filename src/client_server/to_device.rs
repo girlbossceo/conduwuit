@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::{
-        client::{error::ErrorKind, r0::to_device::send_event_to_device},
+        client::{error::ErrorKind, to_device::send_event_to_device},
         federation::{self, transactions::edu::DirectDeviceContent},
     },
     events::EventType,
@@ -15,8 +15,8 @@ use ruma::{
 /// Send a to-device event to a set of client devices.
 pub async fn send_event_to_device_route(
     db: DatabaseGuard,
-    body: Ruma<send_event_to_device::Request<'_>>,
-) -> Result<send_event_to_device::Response> {
+    body: Ruma<send_event_to_device::v3::Request<'_>>,
+) -> Result<send_event_to_device::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_deref();
 
@@ -28,7 +28,7 @@ pub async fn send_event_to_device_route(
         .existing_txnid(sender_user, sender_device, &body.txn_id)?
         .is_some()
     {
-        return Ok(send_event_to_device::Response.into());
+        return Ok(send_event_to_device::v3::Response.into());
     }
     */
 
@@ -93,5 +93,5 @@ pub async fn send_event_to_device_route(
 
     db.flush()?;
 
-    Ok(send_event_to_device::Response {})
+    Ok(send_event_to_device::v3::Response {})
 }
