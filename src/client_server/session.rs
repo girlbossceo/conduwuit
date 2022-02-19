@@ -14,7 +14,7 @@ use tracing::info;
 #[derive(Debug, Deserialize)]
 struct Claims {
     sub: String,
-    exp: usize,
+    //exp: usize,
 }
 
 /// # `GET /_matrix/client/r0/login`
