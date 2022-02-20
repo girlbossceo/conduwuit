@@ -38,11 +38,9 @@ or you can skip the build step and pull the image from one of the following regi
 [gl]: https://gitlab.com/famedly/conduit/container_registry/2497937
 [shield]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/latest
 
-The `-d` flag lets the container run in detached mode. You now need to supply a `conduit.toml`
-config file, an example can be found [here](../conduit-example.toml). You can pass in different env
-vars to change config values on the fly. You can even configure Conduit completely by using env
-vars, but for that you need to pass `-e CONDUIT_CONFIG=""` into your container. For an overview of
-possible values, please take a look at the `docker-compose.yml` file.
+The `-d` flag lets the container run in detached mode. You now need to supply a `conduit.toml` config file, an example can be found [here](../conduit-example.toml).
+You can pass in different env vars to change config values on the fly. You can even configure Conduit completely by using env vars, but for that you need
+to pass `-e CONDUIT_CONFIG=""` into your container. For an overview of possible values, please take a look at the `docker-compose.yml` file.
 
 If you just want to test Conduit for a short time, you can use the `--rm` flag, which will clean up everything related to your container after you stop it.
 
