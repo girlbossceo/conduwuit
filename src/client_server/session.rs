@@ -3,10 +3,8 @@ use crate::{database::DatabaseGuard, utils, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::{
-            session::{get_login_types, login, logout, logout_all},
-            uiaa::IncomingUserIdentifier,
-        },
+        session::{get_login_types, login, logout, logout_all},
+        uiaa::IncomingUserIdentifier,
     },
     UserId,
 };
@@ -24,10 +22,10 @@ struct Claims {
 /// Get the supported login types of this server. One of these should be used as the `type` field
 /// when logging in.
 pub async fn get_login_types_route(
-    _body: Ruma<get_login_types::Request>,
-) -> Result<get_login_types::Response> {
-    Ok(get_login_types::Response::new(vec![
-        get_login_types::LoginType::Password(Default::default()),
+    _body: Ruma<get_login_types::v3::Request>,
+) -> Result<get_login_types::v3::Response> {
+    Ok(get_login_types::v3::Response::new(vec![
+        get_login_types::v3::LoginType::Password(Default::default()),
     ]))
 }
 
@@ -44,12 +42,12 @@ pub async fn get_login_types_route(
 /// supported login types.
 pub async fn login_route(
     db: DatabaseGuard,
-    body: Ruma<login::Request<'_>>,
-) -> Result<login::Response> {
+    body: Ruma<login::v3::Request<'_>>,
+) -> Result<login::v3::Response> {
     // Validate login method
     // TODO: Other login methods
     let user_id = match &body.login_info {
-        login::IncomingLoginInfo::Password(login::IncomingPassword {
+        login::v3::IncomingLoginInfo::Password(login::v3::IncomingPassword {
             identifier,
             password,
         }) => {
@@ -86,7 +84,7 @@ pub async fn login_route(
 
             user_id
         }
-        login::IncomingLoginInfo::Token(login::IncomingToken { token }) => {
+        login::v3::IncomingLoginInfo::Token(login::v3::IncomingToken { token }) => {
             if let Some(jwt_decoding_key) = db.globals.jwt_decoding_key() {
                 let token = jsonwebtoken::decode::<Claims>(
                     token,
@@ -144,7 +142,7 @@ pub async fn login_route(
 
     db.flush()?;
 
-    Ok(login::Response {
+    Ok(login::v3::Response {
         user_id,
         access_token: token,
         home_server: Some(db.globals.server_name().to_owned()),
@@ -163,8 +161,8 @@ pub async fn login_route(
 /// - Triggers device list updates
 pub async fn logout_route(
     db: DatabaseGuard,
-    body: Ruma<logout::Request>,
-) -> Result<logout::Response> {
+    body: Ruma<logout::v3::Request>,
+) -> Result<logout::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -172,7 +170,7 @@ pub async fn logout_route(
 
     db.flush()?;
 
-    Ok(logout::Response::new())
+    Ok(logout::v3::Response::new())
 }
 
 /// # `POST /_matrix/client/r0/logout/all`
@@ -188,8 +186,8 @@ pub async fn logout_route(
 /// from each device of this user.
 pub async fn logout_all_route(
     db: DatabaseGuard,
-    body: Ruma<logout_all::Request>,
-) -> Result<logout_all::Response> {
+    body: Ruma<logout_all::v3::Request>,
+) -> Result<logout_all::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     for device_id in db.users.all_device_ids(sender_user).flatten() {
@@ -198,5 +196,5 @@ pub async fn logout_all_route(
 
     db.flush()?;
 
-    Ok(logout_all::Response::new())
+    Ok(logout_all::v3::Response::new())
 }

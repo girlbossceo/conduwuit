@@ -1,5 +1,5 @@
 use crate::{database::DatabaseGuard, Result, Ruma};
-use ruma::api::client::r0::user_directory::search_users;
+use ruma::api::client::user_directory::search_users;
 
 /// # `POST /_matrix/client/r0/user_directory/search`
 ///
@@ -8,15 +8,15 @@ use ruma::api::client::r0::user_directory::search_users;
 /// - TODO: Hide users that are not in any public rooms?
 pub async fn search_users_route(
     db: DatabaseGuard,
-    body: Ruma<search_users::Request<'_>>,
-) -> Result<search_users::Response> {
+    body: Ruma<search_users::v3::Request<'_>>,
+) -> Result<search_users::v3::Response> {
     let limit = u64::from(body.limit) as usize;
 
     let mut users = db.users.iter().filter_map(|user_id| {
         // Filter out buggy users (they should not exist, but you never know...)
         let user_id = user_id.ok()?;
 
-        let user = search_users::User {
+        let user = search_users::v3::User {
             user_id: user_id.clone(),
             display_name: db.users.displayname(&user_id).ok()?,
             avatar_url: db.users.avatar_url(&user_id).ok()?,
@@ -47,5 +47,5 @@ pub async fn search_users_route(
     let results = users.by_ref().take(limit).collect();
     let limited = users.next().is_some();
 
-    Ok(search_users::Response { results, limited })
+    Ok(search_users::v3::Response { results, limited })
 }

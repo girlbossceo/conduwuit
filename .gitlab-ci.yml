@@ -238,7 +238,7 @@ docker:tags:dockerhub:
 #  Run tests                                                            #
 # --------------------------------------------------------------------- #
 
-test:cargo:
+.test-shared-settings:
   stage: "test"
   needs: []
   image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
@@ -246,13 +246,15 @@ test:cargo:
   variables:
     CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
   interruptible: true
+
+test:cargo:
+  extends: .test-shared-settings
   before_script:
-    - rustup component add clippy rustfmt
+    - rustup component add clippy
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
     - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/usr/local/cargo/bin/sccache; fi
   script:
     - rustc --version && cargo --version # Print version info for debugging
-    - cargo fmt --all -- --check
     - "cargo test --color always --workspace --verbose --locked --no-fail-fast -- -Z unstable-options --format json | gitlab-report -p test > $CI_PROJECT_DIR/report.xml"
     - "cargo clippy --color always --verbose --message-format=json | gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
   artifacts:
@@ -260,6 +262,24 @@ test:cargo:
     reports:
       junit: report.xml
       codequality: gl-code-quality-report.json
+
+test:format:
+  extends: .test-shared-settings
+  before_script:
+    - rustup component add rustfmt
+  script:
+    - cargo fmt --all -- --check
+
+test:audit:
+  extends: .test-shared-settings
+  allow_failure: true
+  script:
+    - cargo audit --color always || true
+    - cargo audit --stale --json | gitlab-report -p audit > gl-sast-report.json
+  artifacts:
+    when: always
+    reports:
+      sast: gl-sast-report.json
 
 test:sytest:
   stage: "test"

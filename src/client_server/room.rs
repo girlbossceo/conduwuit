@@ -4,7 +4,7 @@ use crate::{
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::room::{self, aliases, create_room, get_room_event, upgrade_room},
+        room::{self, aliases, create_room, get_room_event, upgrade_room},
     },
     events::{
         room::{
@@ -47,8 +47,10 @@ use tracing::{info, warn};
 /// - Send invite events
 pub async fn create_room_route(
     db: DatabaseGuard,
-    body: Ruma<create_room::Request<'_>>,
-) -> Result<create_room::Response> {
+    body: Ruma<create_room::v3::Request<'_>>,
+) -> Result<create_room::v3::Response> {
+    use create_room::v3::RoomPreset;
+
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let room_id = RoomId::new(db.globals.server_name());
@@ -207,15 +209,15 @@ pub async fn create_room_route(
         .preset
         .clone()
         .unwrap_or_else(|| match &body.visibility {
-            room::Visibility::Private => create_room::RoomPreset::PrivateChat,
-            room::Visibility::Public => create_room::RoomPreset::PublicChat,
-            _ => create_room::RoomPreset::PrivateChat, // Room visibility should not be custom
+            room::Visibility::Private => RoomPreset::PrivateChat,
+            room::Visibility::Public => RoomPreset::PublicChat,
+            _ => RoomPreset::PrivateChat, // Room visibility should not be custom
         });
 
     let mut users = BTreeMap::new();
     users.insert(sender_user.clone(), int!(100));
 
-    if preset == create_room::RoomPreset::TrustedPrivateChat {
+    if preset == RoomPreset::TrustedPrivateChat {
         for invite_ in &body.invite {
             users.insert(invite_.clone(), int!(100));
         }
@@ -281,7 +283,7 @@ pub async fn create_room_route(
         PduBuilder {
             event_type: EventType::RoomJoinRules,
             content: to_raw_value(&RoomJoinRulesEventContent::new(match preset {
-                create_room::RoomPreset::PublicChat => JoinRule::Public,
+                RoomPreset::PublicChat => JoinRule::Public,
                 // according to spec "invite" is the default
                 _ => JoinRule::Invite,
             }))
@@ -319,7 +321,7 @@ pub async fn create_room_route(
         PduBuilder {
             event_type: EventType::RoomGuestAccess,
             content: to_raw_value(&RoomGuestAccessEventContent::new(match preset {
-                create_room::RoomPreset::PublicChat => GuestAccess::Forbidden,
+                RoomPreset::PublicChat => GuestAccess::Forbidden,
                 _ => GuestAccess::CanJoin,
             }))
             .expect("event is valid, we just created it"),
@@ -408,7 +410,7 @@ pub async fn create_room_route(
 
     db.flush()?;
 
-    Ok(create_room::Response::new(room_id))
+    Ok(create_room::v3::Response::new(room_id))
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/event/{eventId}`
@@ -418,8 +420,8 @@ pub async fn create_room_route(
 /// - You have to currently be joined to the room (TODO: Respect history visibility)
 pub async fn get_room_event_route(
     db: DatabaseGuard,
-    body: Ruma<get_room_event::Request<'_>>,
-) -> Result<get_room_event::Response> {
+    body: Ruma<get_room_event::v3::Request<'_>>,
+) -> Result<get_room_event::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !db.rooms.is_joined(sender_user, &body.room_id)? {
@@ -429,7 +431,7 @@ pub async fn get_room_event_route(
         ));
     }
 
-    Ok(get_room_event::Response {
+    Ok(get_room_event::v3::Response {
         event: db
             .rooms
             .get_pdu(&body.event_id)?
@@ -445,8 +447,8 @@ pub async fn get_room_event_route(
 /// - Only users joined to the room are allowed to call this TODO: Allow any user to call it if history_visibility is world readable
 pub async fn get_room_aliases_route(
     db: DatabaseGuard,
-    body: Ruma<aliases::Request<'_>>,
-) -> Result<aliases::Response> {
+    body: Ruma<aliases::v3::Request<'_>>,
+) -> Result<aliases::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !db.rooms.is_joined(sender_user, &body.room_id)? {
@@ -456,7 +458,7 @@ pub async fn get_room_aliases_route(
         ));
     }
 
-    Ok(aliases::Response {
+    Ok(aliases::v3::Response {
         aliases: db
             .rooms
             .room_aliases(&body.room_id)
@@ -477,8 +479,8 @@ pub async fn get_room_aliases_route(
 /// - Modifies old room power levels to prevent users from speaking
 pub async fn upgrade_room_route(
     db: DatabaseGuard,
-    body: Ruma<upgrade_room::Request<'_>>,
-) -> Result<upgrade_room::Response> {
+    body: Ruma<upgrade_room::v3::Request<'_>>,
+) -> Result<upgrade_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !matches!(body.new_version, RoomVersionId::V5 | RoomVersionId::V6) {
@@ -702,5 +704,5 @@ pub async fn upgrade_room_route(
     db.flush()?;
 
     // Return the replacement room id
-    Ok(upgrade_room::Response { replacement_room })
+    Ok(upgrade_room::v3::Response { replacement_room })
 }

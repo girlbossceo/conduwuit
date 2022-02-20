@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, iter::FromIterator};
 
 use crate::{Result, Ruma};
-use ruma::api::client::unversioned::get_supported_versions;
+use ruma::api::client::discover::get_supported_versions;
 
 /// # `GET /_matrix/client/versions`
 ///

@@ -8,14 +8,12 @@ use crate::{
 };
 use ruma::{
     api::client::{
-        error::ErrorKind,
-        r0::{
-            account::{
-                change_password, deactivate, get_3pids, get_username_availability, register,
-                whoami, ThirdPartyIdRemovalStatus,
-            },
-            uiaa::{AuthFlow, AuthType, UiaaInfo},
+        account::{
+            change_password, deactivate, get_3pids, get_username_availability, register, whoami,
+            ThirdPartyIdRemovalStatus,
         },
+        error::ErrorKind,
+        uiaa::{AuthFlow, AuthType, UiaaInfo},
     },
     events::{
         room::member::{MembershipState, RoomMemberEventContent},
@@ -42,8 +40,8 @@ const GUEST_NAME_LENGTH: usize = 10;
 /// Note: This will not reserve the username, so the username might become invalid when trying to register
 pub async fn get_register_available_route(
     db: DatabaseGuard,
-    body: Ruma<get_username_availability::Request<'_>>,
-) -> Result<get_username_availability::Response> {
+    body: Ruma<get_username_availability::v3::Request<'_>>,
+) -> Result<get_username_availability::v3::Response> {
     // Validate user id
     let user_id =
         UserId::parse_with_server_name(body.username.to_lowercase(), db.globals.server_name())
@@ -67,7 +65,7 @@ pub async fn get_register_available_route(
     // TODO add check for appservice namespaces
 
     // If no if check is true we have an username that's available to be used.
-    Ok(get_username_availability::Response { available: true })
+    Ok(get_username_availability::v3::Response { available: true })
 }
 
 /// # `POST /_matrix/client/r0/register`
@@ -85,8 +83,8 @@ pub async fn get_register_available_route(
 /// - If `inhibit_login` is false: Creates a device and returns device id and access_token
 pub async fn register_route(
     db: DatabaseGuard,
-    body: Ruma<register::Request<'_>>,
-) -> Result<register::Response> {
+    body: Ruma<register::v3::Request<'_>>,
+) -> Result<register::v3::Response> {
     if !db.globals.allow_registration() && !body.from_appservice {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
@@ -206,7 +204,7 @@ pub async fn register_route(
 
     // Inhibit login does not work for guests
     if !is_guest && body.inhibit_login {
-        return Ok(register::Response {
+        return Ok(register::v3::Response {
             access_token: None,
             user_id,
             device_id: None,
@@ -244,7 +242,7 @@ pub async fn register_route(
 
     db.flush()?;
 
-    Ok(register::Response {
+    Ok(register::v3::Response {
         access_token: Some(token),
         user_id,
         device_id: Some(device_id),
@@ -267,8 +265,8 @@ pub async fn register_route(
 /// - Triggers device list updates
 pub async fn change_password_route(
     db: DatabaseGuard,
-    body: Ruma<change_password::Request<'_>>,
-) -> Result<change_password::Response> {
+    body: Ruma<change_password::v3::Request<'_>>,
+) -> Result<change_password::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -321,7 +319,7 @@ pub async fn change_password_route(
 
     db.flush()?;
 
-    Ok(change_password::Response {})
+    Ok(change_password::v3::Response {})
 }
 
 /// # `GET _matrix/client/r0/account/whoami`
@@ -329,9 +327,9 @@ pub async fn change_password_route(
 /// Get user_id of the sender user.
 ///
 /// Note: Also works for Application Services
-pub async fn whoami_route(body: Ruma<whoami::Request>) -> Result<whoami::Response> {
+pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-    Ok(whoami::Response {
+    Ok(whoami::v3::Response {
         user_id: sender_user.clone(),
     })
 }
@@ -348,8 +346,8 @@ pub async fn whoami_route(body: Ruma<whoami::Request>) -> Result<whoami::Respons
 /// - Removes ability to log in again
 pub async fn deactivate_route(
     db: DatabaseGuard,
-    body: Ruma<deactivate::Request<'_>>,
-) -> Result<deactivate::Response> {
+    body: Ruma<deactivate::v3::Request<'_>>,
+) -> Result<deactivate::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -442,7 +440,7 @@ pub async fn deactivate_route(
 
     db.flush()?;
 
-    Ok(deactivate::Response {
+    Ok(deactivate::v3::Response {
         id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,
     })
 }
@@ -452,8 +450,10 @@ pub async fn deactivate_route(
 /// Get a list of third party identifiers associated with this account.
 ///
 /// - Currently always returns empty list
-pub async fn third_party_route(body: Ruma<get_3pids::Request>) -> Result<get_3pids::Response> {
+pub async fn third_party_route(
+    body: Ruma<get_3pids::v3::Request>,
+) -> Result<get_3pids::v3::Response> {
     let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(get_3pids::Response::new(Vec::new()))
+    Ok(get_3pids::v3::Response::new(Vec::new()))
 }

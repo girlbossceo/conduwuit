@@ -1,9 +1,6 @@
 use crate::{utils, Error, Result};
 use ruma::{
-    api::client::{
-        error::ErrorKind,
-        r0::{device::Device, filter::IncomingFilterDefinition},
-    },
+    api::client::{device::Device, error::ErrorKind, filter::IncomingFilterDefinition},
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::{AnyToDeviceEvent, EventType},
     identifiers::MxcUri,

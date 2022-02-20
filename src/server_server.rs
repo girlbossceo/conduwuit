@@ -26,7 +26,7 @@ use ruma::{
             membership::{
                 create_invite,
                 create_join_event::{self, RoomState},
-                create_join_event_template,
+                prepare_join_event,
             },
             query::{get_profile_information, get_room_information},
             transactions::{
@@ -49,7 +49,7 @@ use ruma::{
     },
     int,
     receipt::ReceiptType,
-    serde::{Base64, JsonObject},
+    serde::{Base64, JsonObject, Raw},
     signatures::{CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, RoomVersion, StateMap},
     to_device::DeviceIdOrAllDevices,
@@ -532,7 +532,7 @@ pub async fn get_server_keys_route(db: DatabaseGuard) -> Result<impl IntoRespons
     );
     let mut response = serde_json::from_slice(
         get_server_keys::v2::Response {
-            server_key: ServerSigningKeys {
+            server_key: Raw::new(&ServerSigningKeys {
                 server_name: db.globals.server_name().to_owned(),
                 verify_keys,
                 old_verify_keys: BTreeMap::new(),
@@ -541,7 +541,8 @@ pub async fn get_server_keys_route(db: DatabaseGuard) -> Result<impl IntoRespons
                     SystemTime::now() + Duration::from_secs(86400 * 7),
                 )
                 .expect("time is valid"),
-            },
+            })
+            .expect("static conversion, no errors"),
         }
         .try_into_http_response::<Vec<u8>>()
         .unwrap()
@@ -591,18 +592,7 @@ pub async fn get_public_rooms_filtered_route(
     .await?;
 
     Ok(get_public_rooms_filtered::v1::Response {
-        chunk: response
-            .chunk
-            .into_iter()
-            .map(|c| {
-                // Convert ruma::api::federation::directory::get_public_rooms::v1::PublicRoomsChunk
-                // to ruma::api::client::r0::directory::PublicRoomsChunk
-                serde_json::from_str(
-                    &serde_json::to_string(&c).expect("PublicRoomsChunk::to_string always works"),
-                )
-                .expect("federation and client-server PublicRoomsChunk are the same type")
-            })
-            .collect(),
+        chunk: response.chunk,
         prev_batch: response.prev_batch,
         next_batch: response.next_batch,
         total_room_count_estimate: response.total_room_count_estimate,
@@ -631,18 +621,7 @@ pub async fn get_public_rooms_route(
     .await?;
 
     Ok(get_public_rooms::v1::Response {
-        chunk: response
-            .chunk
-            .into_iter()
-            .map(|c| {
-                // Convert ruma::api::federation::directory::get_public_rooms::v1::PublicRoomsChunk
-                // to ruma::api::client::r0::directory::PublicRoomsChunk
-                serde_json::from_str(
-                    &serde_json::to_string(&c).expect("PublicRoomsChunk::to_string always works"),
-                )
-                .expect("federation and client-server PublicRoomsChunk are the same type")
-            })
-            .collect(),
+        chunk: response.chunk,
         prev_batch: response.prev_batch,
         next_batch: response.next_batch,
         total_room_count_estimate: response.total_room_count_estimate,
@@ -1593,7 +1572,10 @@ async fn upgrade_outlier_to_timeline_pdu(
             soft_fail,
             &state_lock,
         )
-        .map_err(|_| "Failed to add pdu to db.".to_owned())?;
+        .map_err(|e| {
+            warn!("Failed to add pdu to db: {}", e);
+            "Failed to add pdu to db.".to_owned()
+        })?;
 
         // Soft fail, we keep the event as an outlier but don't add it to the timeline
         warn!("Event was soft failed: {:?}", incoming_pdu);
@@ -1759,7 +1741,10 @@ async fn upgrade_outlier_to_timeline_pdu(
         soft_fail,
         &state_lock,
     )
-    .map_err(|_| "Failed to add pdu to db.".to_owned())?;
+    .map_err(|e| {
+        warn!("Failed to add pdu to db: {}", e);
+        "Failed to add pdu to db.".to_owned()
+    })?;
 
     debug!("Appended incoming pdu.");
 
@@ -1997,24 +1982,23 @@ pub(crate) async fn fetch_signing_keys(
 
     debug!("Fetching signing keys for {} over federation", origin);
 
-    if let Ok(get_keys_response) = db
+    if let Some(server_key) = db
         .sending
         .send_federation_request(&db.globals, origin, get_server_keys::v2::Request::new())
         .await
+        .ok()
+        .and_then(|resp| resp.server_key.deserialize().ok())
     {
-        db.globals
-            .add_signing_key(origin, get_keys_response.server_key.clone())?;
+        db.globals.add_signing_key(origin, server_key.clone())?;
 
         result.extend(
-            get_keys_response
-                .server_key
+            server_key
                 .verify_keys
                 .into_iter()
                 .map(|(k, v)| (k.to_string(), v.key)),
         );
         result.extend(
-            get_keys_response
-                .server_key
+            server_key
                 .old_verify_keys
                 .into_iter()
                 .map(|(k, v)| (k.to_string(), v.key)),
@@ -2027,7 +2011,7 @@ pub(crate) async fn fetch_signing_keys(
 
     for server in db.globals.trusted_servers() {
         debug!("Asking {} for {}'s signing key", server, origin);
-        if let Ok(keys) = db
+        if let Some(server_keys) = db
             .sending
             .send_federation_request(
                 &db.globals,
@@ -2043,9 +2027,16 @@ pub(crate) async fn fetch_signing_keys(
                 ),
             )
             .await
+            .ok()
+            .map(|resp| {
+                resp.server_keys
+                    .into_iter()
+                    .filter_map(|e| e.deserialize().ok())
+                    .collect::<Vec<_>>()
+            })
         {
-            trace!("Got signing keys: {:?}", keys);
-            for k in keys.server_keys {
+            trace!("Got signing keys: {:?}", server_keys);
+            for k in server_keys {
                 db.globals.add_signing_key(origin, k.clone())?;
                 result.extend(
                     k.verify_keys
@@ -2554,8 +2545,8 @@ pub async fn get_room_state_ids_route(
 /// Creates a join template.
 pub async fn create_join_event_template_route(
     db: DatabaseGuard,
-    body: Ruma<create_join_event_template::v1::Request<'_>>,
-) -> Result<create_join_event_template::v1::Response> {
+    body: Ruma<prepare_join_event::v1::Request<'_>>,
+) -> Result<prepare_join_event::v1::Response> {
     if !db.globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -2717,7 +2708,7 @@ pub async fn create_join_event_template_route(
         CanonicalJsonValue::String(db.globals.server_name().as_str().to_owned()),
     );
 
-    Ok(create_join_event_template::v1::Response {
+    Ok(prepare_join_event::v1::Response {
         room_version: Some(room_version_id),
         event: to_raw_value(&pdu_json).expect("CanonicalJson can be serialized to JSON"),
     })
@@ -3309,6 +3300,8 @@ pub(crate) async fn fetch_join_signing_keys(
                 .write()
                 .map_err(|_| Error::bad_database("RwLock is poisoned."))?;
             for k in keys.server_keys {
+                let k = k.deserialize().unwrap();
+
                 // TODO: Check signature from trusted server?
                 servers.remove(&k.server_name);
 
@@ -3348,7 +3341,7 @@ pub(crate) async fn fetch_join_signing_keys(
         if let (Ok(get_keys_response), origin) = result {
             let result: BTreeMap<_, _> = db
                 .globals
-                .add_signing_key(&origin, get_keys_response.server_key.clone())?
+                .add_signing_key(&origin, get_keys_response.server_key.deserialize().unwrap())?
                 .into_iter()
                 .map(|(k, v)| (k.to_string(), v.key))
                 .collect();
