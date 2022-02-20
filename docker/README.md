@@ -24,7 +24,17 @@ which also will tag the resulting image as `matrixconduit/matrix-conduit:latest`
 After building the image you can simply run it with
 
 ```bash
-docker run -d -p 8448:6167 -v ~/conduit.toml:/srv/conduit/conduit.toml -v db:/srv/conduit/.local/share/conduit matrixconduit/matrix-conduit:latest
+docker run -d -p 8448:6167 \
+  -v db:/var/lib/matrix-conduit/ \
+  -e CONDUIT_SERVER_NAME="your.server.name" \
+  -e CONDUIT_DATABASE_BACKEND="rocksdb" \
+  -e CONDUIT_ALLOW_REGISTRATION=true \
+  -e CONDUIT_ALLOW_FEDERATION=true \
+  -e CONDUIT_MAX_REQUEST_SIZE="20_000_000" \
+  -e CONDUIT_TRUSTED_SERVERS="[\"matrix.org\"]" \
+  -e CONDUIT_MAX_CONCURRENT_REQUESTS="100" \
+  -e CONDUIT_LOG="info,rocket=off,_=off,sled=off" \
+  --name conduit matrixconduit/matrix-conduit:latest
 ```
 
 or you can skip the build step and pull the image from one of the following registries:
@@ -127,4 +137,4 @@ So...step by step:
      ```
 
 6. Run `docker-compose up -d`
-7. Connect to your homeserver with your preferred client and create a user. You should do this immediatly after starting Conduit, because the first created user is the admin.
+7. Connect to your homeserver with your preferred client and create a user. You should do this immediately after starting Conduit, because the first created user is the admin.

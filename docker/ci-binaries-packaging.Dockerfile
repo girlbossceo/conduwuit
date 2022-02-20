@@ -14,9 +14,14 @@ FROM docker.io/alpine:3.15.0 AS runner
 # You still need to map the port when using the docker command or docker-compose.
 EXPOSE 6167
 
-# Note from @jfowl: I would like to remove the config file in the future and just have the Docker version be configured with envs. 
-ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml" \
-    CONDUIT_PORT=6167
+# Users are expected to mount a volume to this directory:
+ARG DEFAULT_DB_PATH=/var/lib/matrix-conduit
+
+ENV CONDUIT_PORT=6167 \
+    CONDUIT_ADDRESS="0.0.0.0" \
+    CONDUIT_DATABASE_PATH=${DEFAULT_DB_PATH} \
+    CONDUIT_CONFIG=''
+#    └─> Set no config file to do all configuration with env vars
 
 # Conduit needs:
 #   ca-certificates: for https
@@ -24,7 +29,6 @@ ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml" \
 RUN apk add --no-cache \
     ca-certificates \
     iproute2
-
 
 ARG CREATED
 ARG VERSION
@@ -45,36 +49,36 @@ LABEL org.opencontainers.image.created=${CREATED} \
     org.opencontainers.image.ref.name=""
 
 # Created directory for the database and media files
-RUN mkdir -p /srv/conduit/.local/share/conduit
+RUN mkdir -p ${DEFAULT_DB_PATH}
 
 # Test if Conduit is still alive, uses the same endpoint as Element
 COPY ./docker/healthcheck.sh /srv/conduit/healthcheck.sh
 HEALTHCHECK --start-period=5s --interval=5s CMD ./healthcheck.sh
 
-
-# Depending on the target platform (e.g. "linux/arm/v7", "linux/arm64/v8", or "linux/amd64")
-# copy the matching binary into this docker image
-ARG TARGETPLATFORM
-COPY ./$TARGETPLATFORM /srv/conduit/conduit
-
-
 # Improve security: Don't run stuff as root, that does not need to run as root:
-# Add www-data user and group with UID 82, as used by alpine
-# https://git.alpinelinux.org/aports/tree/main/nginx/nginx.pre-install
+# Most distros also use 1000:1000 for the first real user, so this should resolve volume mounting problems.
+ARG USER_ID=1000
+ARG GROUP_ID=1000
 RUN set -x ; \
-    addgroup -Sg 82 www-data 2>/dev/null ; \
-    adduser -S -D -H -h /srv/conduit -G www-data -g www-data www-data 2>/dev/null ; \
-    addgroup www-data www-data 2>/dev/null && exit 0 ; exit 1
+    deluser --remove-home www-data ; \
+    addgroup -S -g ${GROUP_ID} conduit 2>/dev/null ; \
+    adduser -S -u ${USER_ID} -D -H -h /srv/conduit -G conduit -g conduit conduit 2>/dev/null ; \
+    addgroup conduit conduit 2>/dev/null && exit 0 ; exit 1
 
-# Change ownership of Conduit files to www-data user and group
-RUN chown -cR www-data:www-data /srv/conduit
-RUN chmod +x /srv/conduit/healthcheck.sh
+# Change ownership of Conduit files to conduit user and group
+RUN chown -cR conduit:conduit /srv/conduit && \
+    chmod +x /srv/conduit/healthcheck.sh
 
-# Change user to www-data
-USER www-data
+# Change user to conduit
+USER conduit
 # Set container home directory
 WORKDIR /srv/conduit
 
 # Run Conduit and print backtraces on panics
 ENV RUST_BACKTRACE=1
 ENTRYPOINT [ "/srv/conduit/conduit" ]
+
+# Depending on the target platform (e.g. "linux/arm/v7", "linux/arm64/v8", or "linux/amd64")
+# copy the matching binary into this docker image
+ARG TARGETPLATFORM
+COPY --chown=conduit:conduit ./$TARGETPLATFORM /srv/conduit/conduit
