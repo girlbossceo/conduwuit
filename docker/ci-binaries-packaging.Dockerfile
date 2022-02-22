@@ -48,8 +48,6 @@ LABEL org.opencontainers.image.created=${CREATED} \
     org.opencontainers.image.documentation="https://gitlab.com/famedly/conduit" \
     org.opencontainers.image.ref.name=""
 
-# Created directory for the database and media files
-RUN mkdir -p ${DEFAULT_DB_PATH}
 
 # Test if Conduit is still alive, uses the same endpoint as Element
 COPY ./docker/healthcheck.sh /srv/conduit/healthcheck.sh
@@ -67,7 +65,9 @@ RUN set -x ; \
 
 # Change ownership of Conduit files to conduit user and group
 RUN chown -cR conduit:conduit /srv/conduit && \
-    chmod +x /srv/conduit/healthcheck.sh
+    chmod +x /srv/conduit/healthcheck.sh && \
+    mkdir -p ${DEFAULT_DB_PATH} && \
+    chown -cR conduit:conduit ${DEFAULT_DB_PATH}
 
 # Change user to conduit
 USER conduit
