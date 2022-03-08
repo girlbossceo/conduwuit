@@ -20,4 +20,4 @@ image = "registry.gitlab.com/jfowl/conduit-containers/rust-cross-arm-unknown-lin
 image = "registry.gitlab.com/jfowl/conduit-containers/rust-cross-armv7-unknown-linux-musleabihf:latest"
 
 [target.x86_64-unknown-linux-musl]
-image = "registry.gitlab.com/jfowl/conduit-containers/rust-cross-x86_64-unknown-linux-musl:latest"
+image = "registry.gitlab.com/jfowl/conduit-containers/rust-cross-x86_64-unknown-linux-musl@sha256:b6d689e42f0236c8a38b961bca2a12086018b85ed20e0826310421daf182e2bb"
