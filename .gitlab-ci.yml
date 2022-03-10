@@ -26,7 +26,7 @@ variables:
     - if: "$CI_COMMIT_TAG"
     - if: '($CI_MERGE_REQUEST_APPROVED == "true") || $BUILD_EVERYTHING' # Once MR is approved, test all builds. Or if BUILD_EVERYTHING is set.
   interruptible: true
-  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
+  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools@sha256:69ab327974aef4cc0daf4273579253bf7ae5e379a6c52729b83137e4caa9d093"
   tags: ["docker"]
   services: ["docker:dind"]
   variables:
