@@ -316,9 +316,10 @@ test:sytest:
 test:dockerlint:
   stage: "test"
   needs: []
-  image: "ghcr.io/hadolint/hadolint:latest-alpine"
+  image: "ghcr.io/hadolint/hadolint@sha256:6c4b7c23f96339489dd35f21a711996d7ce63047467a9a562287748a03ad5242" # 2.8.0-alpine
   interruptible: true
   script:
+    - hadolint --version
     # First pass: Print for CI log:
     - >
       hadolint
