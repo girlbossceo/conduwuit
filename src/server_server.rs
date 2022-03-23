@@ -770,17 +770,21 @@ pub async fn send_transaction_message_route(
                 }
             }
             Edu::Typing(typing) => {
-                if typing.typing {
-                    db.rooms.edus.typing_add(
-                        &typing.user_id,
-                        &typing.room_id,
-                        3000 + utils::millis_since_unix_epoch(),
-                        &db.globals,
-                    )?;
-                } else {
-                    db.rooms
-                        .edus
-                        .typing_remove(&typing.user_id, &typing.room_id, &db.globals)?;
+                if db.rooms.is_joined(&typing.user_id, &typing.room_id)? {
+                    if typing.typing {
+                        db.rooms.edus.typing_add(
+                            &typing.user_id,
+                            &typing.room_id,
+                            3000 + utils::millis_since_unix_epoch(),
+                            &db.globals,
+                        )?;
+                    } else {
+                        db.rooms.edus.typing_remove(
+                            &typing.user_id,
+                            &typing.room_id,
+                            &db.globals,
+                        )?;
+                    }
                 }
             }
             Edu::DeviceListUpdate(DeviceListUpdateContent { user_id, .. }) => {

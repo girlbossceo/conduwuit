@@ -1,5 +1,5 @@
-use crate::{database::DatabaseGuard, utils, Result, Ruma};
-use ruma::api::client::typing::create_typing_event;
+use crate::{database::DatabaseGuard, Error, utils, Result, Ruma};
+use ruma::api::client::{typing::create_typing_event, error::ErrorKind};
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/typing/{userId}`
 ///
@@ -11,6 +11,13 @@ pub async fn create_typing_event_route(
     use create_typing_event::v3::Typing;
 
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+    if !db.rooms.is_joined(sender_user, &body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "You are not in this room.",
+        ));
+    }
 
     if let Typing::Yes(duration) = body.state {
         db.rooms.edus.typing_add(
