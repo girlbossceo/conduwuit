@@ -405,10 +405,11 @@ async fn sync_helper(
                             continue;
                         }
                     };
-                    lazy_loaded.insert(
-                        UserId::parse(state_key.as_ref())
-                            .expect("they are in timeline_users, so they should be correct"),
-                    );
+
+                    // This check is in case a bad user ID made it into the database
+                    if let Ok(uid) = UserId::parse(state_key.as_ref()) {
+                        lazy_loaded.insert(uid);
+                    }
                     state_events.push(pdu);
                 }
             }
