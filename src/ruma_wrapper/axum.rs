@@ -154,6 +154,7 @@ where
                                         TypedHeaderRejectionReason::Error(_) => {
                                             "Invalid X-Matrix signatures."
                                         }
+                                        _ => "Unknown header-related error",
                                     };
 
                                     Error::BadRequest(ErrorKind::Forbidden, msg)
@@ -247,8 +248,7 @@ where
             };
 
         let mut http_request = http::Request::builder().uri(req.uri()).method(req.method());
-        *http_request.headers_mut().unwrap() =
-            req.headers().expect("Headers already extracted").clone();
+        *http_request.headers_mut().unwrap() = req.headers().clone();
 
         if let Some(CanonicalJsonValue::Object(json_body)) = &mut json_body {
             let user_id = sender_user.clone().unwrap_or_else(|| {
