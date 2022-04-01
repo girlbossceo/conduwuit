@@ -142,7 +142,8 @@ As we are using a Conduit specific user we need to allow it to read the config. 
 Debian:
 
 ```bash
-sudo chown -R conduit:nogroup /etc/matrix-conduit
+sudo chown -R root:root /etc/matrix-conduit
+sudo chmod 755 /etc/matrix-conduit
 ```
 
 If you use the default database path you also need to run this:
