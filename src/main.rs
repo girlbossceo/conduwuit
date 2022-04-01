@@ -274,6 +274,22 @@ fn routes() -> Router {
             get(client_server::get_state_events_for_empty_key_route)
                 .put(client_server::send_state_event_for_empty_key_route),
         )
+        .route(
+            "/_matrix/client/v3/rooms/:room_id/state/:event_type",
+            get(client_server::get_state_events_for_empty_key_route)
+                .put(client_server::send_state_event_for_empty_key_route),
+        )
+        // These two endpoints allow trailing slashes
+        .route(
+            "/_matrix/client/r0/rooms/:room_id/state/:event_type/",
+            get(client_server::get_state_events_for_empty_key_route)
+                .put(client_server::send_state_event_for_empty_key_route),
+        )
+        .route(
+            "/_matrix/client/v3/rooms/:room_id/state/:event_type/",
+            get(client_server::get_state_events_for_empty_key_route)
+                .put(client_server::send_state_event_for_empty_key_route),
+        )
         .ruma_route(client_server::sync_events_route)
         .ruma_route(client_server::get_context_route)
         .ruma_route(client_server::get_message_events_route)
