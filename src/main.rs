@@ -37,6 +37,7 @@ use tower_http::{
     trace::TraceLayer,
     ServiceBuilderExt as _,
 };
+use tracing::warn;
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 pub use conduit::*; // Re-export everything from the library crate
@@ -346,11 +347,14 @@ async fn shutdown_signal(handle: ServerHandle) {
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
 
+    let sig: &str;
+
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        _ = ctrl_c => { sig = "Ctrl+C"; },
+        _ = terminate => { sig = "SIGTERM"; },
     }
 
+    warn!("Received {}, shutting down...", sig);
     handle.graceful_shutdown(Some(Duration::from_secs(30)));
 }
 
