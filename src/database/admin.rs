@@ -259,6 +259,9 @@ enum AdminCommand {
 
     /// Print database memory usage statistics
     DatabaseMemoryUsage,
+
+    /// Show configuration values
+    ShowConfig,
 }
 
 fn process_admin_command(
@@ -428,6 +431,10 @@ fn process_admin_command(
                 e
             )),
         },
+        AdminCommand::ShowConfig => {
+            // Construct and send the response
+            RoomMessageEventContent::text_plain(format!("{}", db.globals.config))
+        }
     };
 
     Ok(reply_message_content)
