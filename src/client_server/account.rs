@@ -17,6 +17,7 @@ use ruma::{
     },
     events::{
         room::member::{MembershipState, RoomMemberEventContent},
+        room::message::RoomMessageEventContent,
         EventType,
     },
     push, UserId,
@@ -230,7 +231,12 @@ pub async fn register_route(
         body.initial_device_display_name.clone(),
     )?;
 
-    info!("{} registered on this server", user_id);
+    info!("New user {} registered on this server.", user_id);
+    db.admin
+        .send_message(RoomMessageEventContent::notice_plain(format!(
+            "New user {} registered on this server.",
+            user_id
+        )));
 
     // If this is the first real user, grant them admin privileges
     // Note: the server user, @conduit:servername, is generated first
@@ -318,6 +324,13 @@ pub async fn change_password_route(
     }
 
     db.flush()?;
+
+    info!("User {} changed their password.", sender_user);
+    db.admin
+        .send_message(RoomMessageEventContent::notice_plain(format!(
+            "User {} changed their password.",
+            sender_user
+        )));
 
     Ok(change_password::v3::Response {})
 }
@@ -436,7 +449,12 @@ pub async fn deactivate_route(
     // Remove devices and mark account as deactivated
     db.users.deactivate_account(sender_user)?;
 
-    info!("{} deactivated their account", sender_user);
+    info!("User {} deactivated their account.", sender_user);
+    db.admin
+        .send_message(RoomMessageEventContent::notice_plain(format!(
+            "User {} deactivated their account.",
+            sender_user
+        )));
 
     db.flush()?;
 
