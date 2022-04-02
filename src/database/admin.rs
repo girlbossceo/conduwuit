@@ -101,6 +101,12 @@ impl Admin {
                 tokio::select! {
                     Some(event) = receiver.recv() => {
                         let guard = db.read().await;
+
+                        let message_content = match event {
+                            AdminRoomEvent::SendMessage(content) => content,
+                            AdminRoomEvent::ProcessMessage(room_message) => process_admin_message(&*guard, room_message).await
+                        };
+
                         let mutex_state = Arc::clone(
                             guard.globals
                                 .roomid_mutex_state
@@ -109,18 +115,10 @@ impl Admin {
                                 .entry(conduit_room.clone())
                                 .or_default(),
                         );
+
                         let state_lock = mutex_state.lock().await;
 
-                        match event {
-                            AdminRoomEvent::SendMessage(content) => {
-                                send_message(content, guard, &state_lock);
-                            }
-                            AdminRoomEvent::ProcessMessage(room_message) => {
-                                let reply_message = process_admin_message(&*guard, room_message).await;
-
-                                send_message(reply_message, guard, &state_lock);
-                            }
-                        }
+                        send_message(message_content, guard, &state_lock);
 
                         drop(state_lock);
                     }
@@ -239,6 +237,39 @@ enum AdminCommand {
 
     /// List all rooms we are currently handling an incoming pdu from
     IncomingFederation,
+
+    /// Deactivate a user
+    ///
+    /// User will be removed from all rooms by default.
+    /// This behaviour can be overridden with the --no-leave-rooms flag.
+    DeactivateUser {
+        #[clap(short, long)]
+        leave_rooms: bool,
+        user_id: Box<UserId>,
+    },
+
+    #[clap(verbatim_doc_comment)]
+    /// Deactivate a list of users
+    ///
+    /// Recommended to use in conjunction with list-local-users.
+    ///
+    /// Users will not be removed from joined rooms by default.
+    /// Can be overridden with --leave-rooms flag.
+    /// Removing a mass amount of users from a room may cause a significant amount of leave events.
+    /// The time to leave rooms may depend significantly on joined rooms and servers.
+    ///
+    /// [commandbody]
+    /// # ```
+    /// # User list here
+    /// # ```
+    DeactivateAll {
+        #[clap(short, long)]
+        /// Remove users from their joined rooms
+        leave_rooms: bool,
+        #[clap(short, long)]
+        /// Also deactivate admin accounts
+        force: bool,
+    },
 
     /// Get the auth_chain of a PDU
     GetAuthChain {
@@ -602,6 +633,97 @@ async fn process_admin_command(
         AdminCommand::EnableRoom { room_id } => {
             db.rooms.disabledroomids.remove(room_id.as_bytes())?;
             RoomMessageEventContent::text_plain("Room enabled.")
+        }
+        AdminCommand::DeactivateUser {
+            leave_rooms,
+            user_id,
+        } => {
+            let user_id = Arc::<UserId>::from(user_id);
+            if db.users.exists(&user_id)? {
+                RoomMessageEventContent::text_plain(format!(
+                    "Making {} leave all rooms before deactivation...",
+                    user_id
+                ));
+
+                db.users.deactivate_account(&user_id)?;
+
+                if leave_rooms {
+                    db.rooms.leave_all_rooms(&user_id, &db).await?;
+                }
+
+                RoomMessageEventContent::text_plain(format!(
+                    "User {} has been deactivated",
+                    user_id
+                ))
+            } else {
+                RoomMessageEventContent::text_plain(format!(
+                    "User {} doesn't exist on this server",
+                    user_id
+                ))
+            }
+        }
+        AdminCommand::DeactivateAll { leave_rooms, force } => {
+            if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```" {
+                let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+
+                let mut user_ids: Vec<&UserId> = Vec::new();
+
+                for &username in &usernames {
+                    match <&UserId>::try_from(username) {
+                        Ok(user_id) => user_ids.push(user_id),
+                        Err(_) => {
+                            return Ok(RoomMessageEventContent::text_plain(format!(
+                                "{} is not a valid username",
+                                username
+                            )))
+                        }
+                    }
+                }
+
+                let mut deactivation_count = 0;
+                let mut admins = Vec::new();
+
+                if !force {
+                    user_ids.retain(|&user_id| {
+                        match db.users.is_admin(user_id, &db.rooms, &db.globals) {
+                            Ok(is_admin) => match is_admin {
+                                true => {
+                                    admins.push(user_id.localpart());
+                                    false
+                                }
+                                false => true,
+                            },
+                            Err(_) => false,
+                        }
+                    })
+                }
+
+                for &user_id in &user_ids {
+                    match db.users.deactivate_account(user_id) {
+                        Ok(_) => deactivation_count += 1,
+                        Err(_) => {}
+                    }
+                }
+
+                if leave_rooms {
+                    for &user_id in &user_ids {
+                        let _ = db.rooms.leave_all_rooms(user_id, &db).await;
+                    }
+                }
+
+                if admins.is_empty() {
+                    RoomMessageEventContent::text_plain(format!(
+                        "Deactivated {} accounts.",
+                        deactivation_count
+                    ))
+                } else {
+                    RoomMessageEventContent::text_plain(format!("Deactivated {} accounts.\nSkipped admin accounts: {:?}. Use --force to deactivate admin accounts", deactivation_count, admins.join(", ")))
+                }
+            } else {
+                RoomMessageEventContent::text_plain(
+                    "Expected code block in command body. Add --help for details.",
+                )
+            }
         }
     };
 
