@@ -1957,12 +1957,24 @@ impl Rooms {
         // where events in the current room state do not exist
         self.set_room_state(room_id, statehashid)?;
 
-        let servers = self
-            .room_servers(room_id)
-            .filter_map(|r| r.ok())
-            .filter(|server| &**server != db.globals.server_name());
+        let mut servers: HashSet<Box<ServerName>> =
+            self.room_servers(room_id).filter_map(|r| r.ok()).collect();
 
-        db.sending.send_pdu(servers, &pdu_id)?;
+        // In case we are kicking or banning a user, we need to inform their server of the change
+        if pdu.kind == EventType::RoomMember {
+            if let Some(state_key_uid) = &pdu
+                .state_key
+                .as_ref()
+                .and_then(|state_key| UserId::parse(state_key.as_str()).ok())
+            {
+                servers.insert(Box::from(state_key_uid.server_name()));
+            }
+        }
+
+        // Remove our server from the server list since it will be added to it by room_servers() and/or the if statement above
+        servers.remove(db.globals.server_name());
+
+        db.sending.send_pdu(servers.into_iter(), &pdu_id)?;
 
         for appservice in db.appservice.all()? {
             if self.appservice_in_room(room_id, &appservice, db)? {
