@@ -1957,11 +1957,8 @@ impl Rooms {
         // where events in the current room state do not exist
         self.set_room_state(room_id, statehashid)?;
 
-        let mut servers: HashSet<Box<ServerName>> = self
-            .room_servers(room_id)
-            .filter_map(|r| r.ok())
-            .filter(|server| &**server != db.globals.server_name())
-            .collect();
+        let mut servers: HashSet<Box<ServerName>> =
+            self.room_servers(room_id).filter_map(|r| r.ok()).collect();
 
         // In case we are kicking or banning a user, we need to inform their server of the change
         if pdu.kind == EventType::RoomMember {
@@ -1973,6 +1970,8 @@ impl Rooms {
                 servers.insert(Box::from(state_key_uid.server_name()));
             }
         }
+
+        servers.remove(db.globals.server_name());
 
         db.sending.send_pdu(servers.into_iter(), &pdu_id)?;
 
