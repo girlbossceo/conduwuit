@@ -1971,6 +1971,7 @@ impl Rooms {
             }
         }
 
+        // Remove our server from the server list since it will be added to it by room_servers() and/or the if statement above
         servers.remove(db.globals.server_name());
 
         db.sending.send_pdu(servers.into_iter(), &pdu_id)?;
