@@ -38,7 +38,7 @@ use super::abstraction::Tree;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum OutgoingKind {
-    Appservice(Box<ServerName>),
+    Appservice(String),
     Push(Vec<u8>, Vec<u8>), // user and pushkey
     Normal(Box<ServerName>),
 }
@@ -505,7 +505,7 @@ impl Sending {
         let db = db.read().await;
 
         match &kind {
-            OutgoingKind::Appservice(server) => {
+            OutgoingKind::Appservice(id) => {
                 let mut pdu_jsons = Vec::new();
 
                 for event in &events {
@@ -535,7 +535,7 @@ impl Sending {
                 let response = appservice_server::send_request(
                     &db.globals,
                     db.appservice
-                        .get_registration(server.as_str())
+                        .get_registration(&id)
                         .map_err(|e| (kind.clone(), e))?
                         .ok_or_else(|| {
                             (
@@ -756,9 +756,7 @@ impl Sending {
             })?;
 
             (
-                OutgoingKind::Appservice(ServerName::parse(server).map_err(|_| {
-                    Error::bad_database("Invalid server string in server_currenttransaction")
-                })?),
+                OutgoingKind::Appservice(server),
                 if value.is_empty() {
                     SendingEventType::Pdu(event.to_vec())
                 } else {
