@@ -1970,6 +1970,30 @@ impl Rooms {
                 continue;
             }
 
+            // If the RoomMember event has a non-empty state_key, it is targeted at someone.
+            // If it is our appservice user, we send this PDU to it.
+            if pdu.kind == EventType::RoomMember {
+                if let Some(state_key_uid) = &pdu
+                    .state_key
+                    .as_ref()
+                    .and_then(|state_key| UserId::parse(state_key.as_str()).ok())
+                {
+                    if let Some(appservice_uid) = appservice
+                        .1
+                        .get("sender_localpart")
+                        .and_then(|string| string.as_str())
+                        .and_then(|string| {
+                            UserId::parse_with_server_name(string, db.globals.server_name()).ok()
+                        })
+                    {
+                        if state_key_uid == &appservice_uid {
+                            db.sending.send_pdu_appservice(&appservice.0, &pdu_id)?;
+                            continue;
+                        }
+                    }
+                }
+            }
+
             if let Some(namespaces) = appservice.1.get("namespaces") {
                 let users = namespaces
                     .get("users")
