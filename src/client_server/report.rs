@@ -11,7 +11,7 @@ use ruma::{
 ///
 pub async fn report_event_route(
     db: DatabaseGuard,
-    body: Ruma<report_content::v3::Request<'_>>,
+    body: Ruma<report_content::v3::IncomingRequest>,
 ) -> Result<report_content::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

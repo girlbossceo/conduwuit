@@ -22,7 +22,7 @@ struct Claims {
 /// Get the supported login types of this server. One of these should be used as the `type` field
 /// when logging in.
 pub async fn get_login_types_route(
-    _body: Ruma<get_login_types::v3::Request>,
+    _body: Ruma<get_login_types::v3::IncomingRequest>,
 ) -> Result<get_login_types::v3::Response> {
     Ok(get_login_types::v3::Response::new(vec![
         get_login_types::v3::LoginType::Password(Default::default()),
@@ -42,7 +42,7 @@ pub async fn get_login_types_route(
 /// supported login types.
 pub async fn login_route(
     db: DatabaseGuard,
-    body: Ruma<login::v3::Request<'_>>,
+    body: Ruma<login::v3::IncomingRequest>,
 ) -> Result<login::v3::Response> {
     // Validate login method
     // TODO: Other login methods

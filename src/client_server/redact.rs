@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{database::DatabaseGuard, pdu::PduBuilder, Result, Ruma};
 use ruma::{
     api::client::redact::redact_event,
-    events::{room::redaction::RoomRedactionEventContent, EventType},
+    events::{room::redaction::RoomRedactionEventContent, RoomEventType},
 };
 
 use serde_json::value::to_raw_value;
@@ -15,7 +15,7 @@ use serde_json::value::to_raw_value;
 /// - TODO: Handle txn id
 pub async fn redact_event_route(
     db: DatabaseGuard,
-    body: Ruma<redact_event::v3::Request<'_>>,
+    body: Ruma<redact_event::v3::IncomingRequest>,
 ) -> Result<redact_event::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let body = body.body;
@@ -32,7 +32,7 @@ pub async fn redact_event_route(
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomRedaction,
+            event_type: RoomEventType::RoomRedaction,
             content: to_raw_value(&RoomRedactionEventContent {
                 reason: body.reason.clone(),
             })

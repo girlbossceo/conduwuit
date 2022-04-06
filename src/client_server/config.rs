@@ -18,7 +18,7 @@ use serde_json::{json, value::RawValue as RawJsonValue};
 /// Sets some account data for the sender user.
 pub async fn set_global_account_data_route(
     db: DatabaseGuard,
-    body: Ruma<set_global_account_data::v3::Request<'_>>,
+    body: Ruma<set_global_account_data::v3::IncomingRequest>,
 ) -> Result<set_global_account_data::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -48,7 +48,7 @@ pub async fn set_global_account_data_route(
 /// Sets some room account data for the sender user.
 pub async fn set_room_account_data_route(
     db: DatabaseGuard,
-    body: Ruma<set_room_account_data::v3::Request<'_>>,
+    body: Ruma<set_room_account_data::v3::IncomingRequest>,
 ) -> Result<set_room_account_data::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -78,7 +78,7 @@ pub async fn set_room_account_data_route(
 /// Gets some account data for the sender user.
 pub async fn get_global_account_data_route(
     db: DatabaseGuard,
-    body: Ruma<get_global_account_data::v3::Request<'_>>,
+    body: Ruma<get_global_account_data::v3::IncomingRequest>,
 ) -> Result<get_global_account_data::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -99,7 +99,7 @@ pub async fn get_global_account_data_route(
 /// Gets some room account data for the sender user.
 pub async fn get_room_account_data_route(
     db: DatabaseGuard,
-    body: Ruma<get_room_account_data::v3::Request<'_>>,
+    body: Ruma<get_room_account_data::v3::IncomingRequest>,
 ) -> Result<get_room_account_data::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

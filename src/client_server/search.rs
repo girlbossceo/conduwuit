@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 /// - Only works if the user is currently joined to the room (TODO: Respect history visibility)
 pub async fn search_events_route(
     db: DatabaseGuard,
-    body: Ruma<search_events::v3::Request<'_>>,
+    body: Ruma<search_events::v3::IncomingRequest>,
 ) -> Result<search_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

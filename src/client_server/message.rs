@@ -4,7 +4,7 @@ use ruma::{
         error::ErrorKind,
         message::{get_message_events, send_message_event},
     },
-    events::EventType,
+    events::{RoomEventType, StateEventType},
 };
 use std::{
     collections::{BTreeMap, HashSet},
@@ -20,7 +20,7 @@ use std::{
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
 pub async fn send_message_event_route(
     db: DatabaseGuard,
-    body: Ruma<send_message_event::v3::Request<'_>>,
+    body: Ruma<send_message_event::v3::IncomingRequest>,
 ) -> Result<send_message_event::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_deref();
@@ -36,7 +36,9 @@ pub async fn send_message_event_route(
     let state_lock = mutex_state.lock().await;
 
     // Forbid m.room.encrypted if encryption is disabled
-    if &body.event_type == "m.room.encrypted" && !db.globals.allow_encryption() {
+    if RoomEventType::RoomEncrypted == body.event_type.to_string().into()
+        && !db.globals.allow_encryption()
+    {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "Encryption has been disabled",
@@ -69,7 +71,7 @@ pub async fn send_message_event_route(
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::from(&*body.event_type),
+            event_type: body.event_type.to_string().into(),
             content: serde_json::from_str(body.body.body.json().get())
                 .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?,
             unsigned: Some(unsigned),
@@ -106,7 +108,7 @@ pub async fn send_message_event_route(
 /// joined, depending on history_visibility)
 pub async fn get_message_events_route(
     db: DatabaseGuard,
-    body: Ruma<get_message_events::v3::Request<'_>>,
+    body: Ruma<get_message_events::v3::IncomingRequest>,
 ) -> Result<get_message_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -118,11 +120,16 @@ pub async fn get_message_events_route(
         ));
     }
 
-    let from = body
-        .from
-        .clone()
-        .parse()
-        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from` value."))?;
+    let from = match body.from.clone() {
+        Some(from) => from
+            .parse()
+            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from` value."))?,
+
+        None => match body.dir {
+            get_message_events::v3::Direction::Forward => 0,
+            get_message_events::v3::Direction::Backward => u64::MAX,
+        },
+    };
 
     let to = body.to.as_ref().map(|t| t.parse());
 
@@ -172,7 +179,7 @@ pub async fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect();
 
-            resp.start = body.from.to_owned();
+            resp.start = from.to_string();
             resp.end = next_token.map(|count| count.to_string());
             resp.chunk = events_after;
         }
@@ -209,7 +216,7 @@ pub async fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect();
 
-            resp.start = body.from.to_owned();
+            resp.start = from.to_string();
             resp.end = next_token.map(|count| count.to_string());
             resp.chunk = events_before;
         }
@@ -219,7 +226,7 @@ pub async fn get_message_events_route(
     for ll_id in &lazy_loaded {
         if let Some(member_event) =
             db.rooms
-                .room_state_get(&body.room_id, &EventType::RoomMember, ll_id.as_str())?
+                .room_state_get(&body.room_id, &StateEventType::RoomMember, ll_id.as_str())?
         {
             resp.state.push(member_event.to_state_event());
         }

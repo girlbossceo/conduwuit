@@ -71,7 +71,7 @@ pub async fn upload_keys_route(
 /// - The master and self-signing keys contain signatures that the user is allowed to see
 pub async fn get_keys_route(
     db: DatabaseGuard,
-    body: Ruma<get_keys::v3::Request<'_>>,
+    body: Ruma<get_keys::v3::IncomingRequest>,
 ) -> Result<get_keys::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -107,7 +107,7 @@ pub async fn claim_keys_route(
 /// - Requires UIAA to verify password
 pub async fn upload_signing_keys_route(
     db: DatabaseGuard,
-    body: Ruma<upload_signing_keys::v3::Request<'_>>,
+    body: Ruma<upload_signing_keys::v3::IncomingRequest>,
 ) -> Result<upload_signing_keys::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -231,7 +231,7 @@ pub async fn upload_signatures_route(
 /// - TODO: left users
 pub async fn get_key_changes_route(
     db: DatabaseGuard,
-    body: Ruma<get_key_changes::v3::Request<'_>>,
+    body: Ruma<get_key_changes::v3::IncomingRequest>,
 ) -> Result<get_key_changes::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

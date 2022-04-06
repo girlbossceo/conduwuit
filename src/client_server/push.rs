@@ -8,7 +8,9 @@ use ruma::{
             set_pushrule_enabled, RuleKind,
         },
     },
-    events::{push_rules::PushRulesEvent, EventType},
+    events::{
+        push_rules::PushRulesEvent, EventType, GlobalAccountDataEventType, RoomAccountDataEventType,
+    },
     push::{ConditionalPushRuleInit, PatternedPushRuleInit, SimplePushRuleInit},
 };
 
@@ -23,7 +25,11 @@ pub async fn get_pushrules_all_route(
 
     let event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -39,13 +45,17 @@ pub async fn get_pushrules_all_route(
 /// Retrieves a single specified push rule for this user.
 pub async fn get_pushrule_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrule::v3::Request<'_>>,
+    body: Ruma<get_pushrule::v3::IncomingRequest>,
 ) -> Result<get_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -91,7 +101,7 @@ pub async fn get_pushrule_route(
 /// Creates a single specified push rule for this user.
 pub async fn set_pushrule_route(
     db: DatabaseGuard,
-    body: Ruma<set_pushrule::v3::Request<'_>>,
+    body: Ruma<set_pushrule::v3::IncomingRequest>,
 ) -> Result<set_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let body = body.body;
@@ -105,7 +115,11 @@ pub async fn set_pushrule_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -174,8 +188,13 @@ pub async fn set_pushrule_route(
         _ => {}
     }
 
-    db.account_data
-        .update(None, sender_user, EventType::PushRules, &event, &db.globals)?;
+    db.account_data.update(
+        None,
+        sender_user,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
+        &event,
+        &db.globals,
+    )?;
 
     db.flush()?;
 
@@ -187,7 +206,7 @@ pub async fn set_pushrule_route(
 /// Gets the actions of a single specified push rule for this user.
 pub async fn get_pushrule_actions_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrule_actions::v3::Request<'_>>,
+    body: Ruma<get_pushrule_actions::v3::IncomingRequest>,
 ) -> Result<get_pushrule_actions::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -200,7 +219,11 @@ pub async fn get_pushrule_actions_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -243,7 +266,7 @@ pub async fn get_pushrule_actions_route(
 /// Sets the actions of a single specified push rule for this user.
 pub async fn set_pushrule_actions_route(
     db: DatabaseGuard,
-    body: Ruma<set_pushrule_actions::v3::Request<'_>>,
+    body: Ruma<set_pushrule_actions::v3::IncomingRequest>,
 ) -> Result<set_pushrule_actions::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -256,7 +279,11 @@ pub async fn set_pushrule_actions_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -297,8 +324,13 @@ pub async fn set_pushrule_actions_route(
         _ => {}
     };
 
-    db.account_data
-        .update(None, sender_user, EventType::PushRules, &event, &db.globals)?;
+    db.account_data.update(
+        None,
+        sender_user,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
+        &event,
+        &db.globals,
+    )?;
 
     db.flush()?;
 
@@ -310,7 +342,7 @@ pub async fn set_pushrule_actions_route(
 /// Gets the enabled status of a single specified push rule for this user.
 pub async fn get_pushrule_enabled_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrule_enabled::v3::Request<'_>>,
+    body: Ruma<get_pushrule_enabled::v3::IncomingRequest>,
 ) -> Result<get_pushrule_enabled::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -323,7 +355,11 @@ pub async fn get_pushrule_enabled_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -369,7 +405,7 @@ pub async fn get_pushrule_enabled_route(
 /// Sets the enabled status of a single specified push rule for this user.
 pub async fn set_pushrule_enabled_route(
     db: DatabaseGuard,
-    body: Ruma<set_pushrule_enabled::v3::Request<'_>>,
+    body: Ruma<set_pushrule_enabled::v3::IncomingRequest>,
 ) -> Result<set_pushrule_enabled::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -382,7 +418,11 @@ pub async fn set_pushrule_enabled_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -428,8 +468,13 @@ pub async fn set_pushrule_enabled_route(
         _ => {}
     }
 
-    db.account_data
-        .update(None, sender_user, EventType::PushRules, &event, &db.globals)?;
+    db.account_data.update(
+        None,
+        sender_user,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
+        &event,
+        &db.globals,
+    )?;
 
     db.flush()?;
 
@@ -441,7 +486,7 @@ pub async fn set_pushrule_enabled_route(
 /// Deletes a single specified push rule for this user.
 pub async fn delete_pushrule_route(
     db: DatabaseGuard,
-    body: Ruma<delete_pushrule::v3::Request<'_>>,
+    body: Ruma<delete_pushrule::v3::IncomingRequest>,
 ) -> Result<delete_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -454,7 +499,11 @@ pub async fn delete_pushrule_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -490,8 +539,13 @@ pub async fn delete_pushrule_route(
         _ => {}
     }
 
-    db.account_data
-        .update(None, sender_user, EventType::PushRules, &event, &db.globals)?;
+    db.account_data.update(
+        None,
+        sender_user,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
+        &event,
+        &db.globals,
+    )?;
 
     db.flush()?;
 

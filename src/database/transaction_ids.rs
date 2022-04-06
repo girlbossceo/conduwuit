@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::Result;
-use ruma::{identifiers::TransactionId, DeviceId, UserId};
+use ruma::{DeviceId, TransactionId, UserId};
 
 use super::abstraction::Tree;
 

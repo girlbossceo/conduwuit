@@ -6,7 +6,7 @@ use ruma::api::client::typing::create_typing_event;
 /// Sets the typing state of the sender user.
 pub async fn create_typing_event_route(
     db: DatabaseGuard,
-    body: Ruma<create_typing_event::v3::Request<'_>>,
+    body: Ruma<create_typing_event::v3::IncomingRequest>,
 ) -> Result<create_typing_event::v3::Response> {
     use create_typing_event::v3::Typing;
 

@@ -7,7 +7,7 @@ use ruma::{
     },
     events::{
         room::member::{MembershipState, RoomMemberEventContent},
-        EventType,
+        EventType, RoomEventType, StateEventType,
     },
     serde::Raw,
     DeviceId, RoomId, UserId,
@@ -56,7 +56,7 @@ use tracing::error;
 /// `since` will be cached
 pub async fn sync_events_route(
     db: DatabaseGuard,
-    body: Ruma<sync_events::v3::Request<'_>>,
+    body: Ruma<sync_events::v3::IncomingRequest>,
 ) -> Result<sync_events::v3::Response, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.expect("user is authenticated");
     let sender_device = body.sender_device.expect("user is authenticated");
@@ -74,7 +74,7 @@ pub async fn sync_events_route(
         Entry::Vacant(v) => {
             let (tx, rx) = tokio::sync::watch::channel(None);
 
-            v.insert((body.since.clone(), rx.clone()));
+            v.insert((body.since.to_owned(), rx.clone()));
 
             tokio::spawn(sync_helper_wrapper(
                 Arc::clone(&arc_db),
@@ -319,7 +319,7 @@ async fn sync_helper(
                     .rooms
                     .all_pdus(&sender_user, &room_id)?
                     .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
-                    .filter(|(_, pdu)| pdu.kind == EventType::RoomMember)
+                    .filter(|(_, pdu)| pdu.kind == RoomEventType::RoomMember)
                     .map(|(_, pdu)| {
                         let content: RoomMemberEventContent =
                             serde_json::from_str(pdu.content.get()).map_err(|_| {
@@ -385,7 +385,7 @@ async fn sync_helper(
             for (shortstatekey, id) in current_state_ids {
                 let (event_type, state_key) = db.rooms.get_statekey_from_short(shortstatekey)?;
 
-                if event_type != EventType::RoomMember {
+                if event_type != StateEventType::RoomMember {
                     let pdu = match db.rooms.get_pdu(&id)? {
                         Some(pdu) => pdu,
                         None => {
@@ -446,7 +446,7 @@ async fn sync_helper(
                 .rooms
                 .state_get(
                     since_shortstatehash,
-                    &EventType::RoomMember,
+                    &StateEventType::RoomMember,
                     sender_user.as_str(),
                 )?
                 .and_then(|pdu| {
@@ -475,7 +475,7 @@ async fn sync_helper(
                             }
                         };
 
-                        if pdu.kind == EventType::RoomMember {
+                        if pdu.kind == RoomEventType::RoomMember {
                             match UserId::parse(
                                 pdu.state_key
                                     .as_ref()
@@ -508,7 +508,7 @@ async fn sync_helper(
                 {
                     if let Some(member_event) = db.rooms.room_state_get(
                         &room_id,
-                        &EventType::RoomMember,
+                        &StateEventType::RoomMember,
                         event.sender.as_str(),
                     )? {
                         lazy_loaded.insert(event.sender.clone());
@@ -527,23 +527,23 @@ async fn sync_helper(
 
             let encrypted_room = db
                 .rooms
-                .state_get(current_shortstatehash, &EventType::RoomEncryption, "")?
+                .state_get(current_shortstatehash, &StateEventType::RoomEncryption, "")?
                 .is_some();
 
             let since_encryption =
                 db.rooms
-                    .state_get(since_shortstatehash, &EventType::RoomEncryption, "")?;
+                    .state_get(since_shortstatehash, &StateEventType::RoomEncryption, "")?;
 
             // Calculations:
             let new_encrypted_room = encrypted_room && since_encryption.is_none();
 
             let send_member_count = state_events
                 .iter()
-                .any(|event| event.kind == EventType::RoomMember);
+                .any(|event| event.kind == RoomEventType::RoomMember);
 
             if encrypted_room {
                 for state_event in &state_events {
-                    if state_event.kind != EventType::RoomMember {
+                    if state_event.kind != RoomEventType::RoomMember {
                         continue;
                     }
 
@@ -830,7 +830,7 @@ async fn sync_helper(
             .filter_map(|other_room_id| {
                 Some(
                     db.rooms
-                        .room_state_get(&other_room_id, &EventType::RoomEncryption, "")
+                        .room_state_get(&other_room_id, &StateEventType::RoomEncryption, "")
                         .ok()?
                         .is_some(),
                 )
@@ -923,7 +923,7 @@ fn share_encrypted_room(
         .filter_map(|other_room_id| {
             Some(
                 db.rooms
-                    .room_state_get(&other_room_id, &EventType::RoomEncryption, "")
+                    .room_state_get(&other_room_id, &StateEventType::RoomEncryption, "")
                     .ok()?
                     .is_some(),
             )

@@ -8,7 +8,7 @@ use ruma::api::client::user_directory::search_users;
 /// - TODO: Hide users that are not in any public rooms?
 pub async fn search_users_route(
     db: DatabaseGuard,
-    body: Ruma<search_users::v3::Request<'_>>,
+    body: Ruma<search_users::v3::IncomingRequest>,
 ) -> Result<search_users::v3::Response> {
     let limit = u64::from(body.limit) as usize;
 

@@ -18,7 +18,7 @@ use http::StatusCode;
 use ruma::{
     api::{client::error::ErrorKind, AuthScheme, IncomingRequest, OutgoingResponse},
     signatures::CanonicalJsonValue,
-    DeviceId, Outgoing, ServerName, UserId,
+    DeviceId, ServerName, UserId,
 };
 use serde::Deserialize;
 use tracing::{debug, error, warn};
@@ -29,8 +29,7 @@ use crate::{database::DatabaseGuard, server_server, Error, Result};
 #[async_trait]
 impl<T, B> FromRequest<B> for Ruma<T>
 where
-    T: Outgoing,
-    T::Incoming: IncomingRequest,
+    T: IncomingRequest,
     B: HttpBody + Send,
     B::Data: Send,
     B::Error: Into<BoxError>,
@@ -44,7 +43,7 @@ where
             user_id: Option<String>,
         }
 
-        let metadata = T::Incoming::METADATA;
+        let metadata = T::METADATA;
         let db = DatabaseGuard::from_request(req).await?;
         let auth_header = Option::<TypedHeader<Authorization<Bearer>>>::from_request(req).await?;
         let path_params = Path::<Vec<String>>::from_request(req).await?;
@@ -284,7 +283,7 @@ where
 
         debug!("{:?}", http_request);
 
-        let body = T::Incoming::try_from_http_request(http_request, &path_params).map_err(|e| {
+        let body = T::try_from_http_request(http_request, &path_params).map_err(|e| {
             warn!("{:?}", e);
             Error::BadRequest(ErrorKind::BadJson, "Failed to deserialize request.")
         })?;
@@ -358,10 +357,7 @@ impl Credentials for XMatrix {
     }
 }
 
-impl<T> IntoResponse for RumaResponse<T>
-where
-    T: OutgoingResponse,
-{
+impl<T: OutgoingResponse> IntoResponse for RumaResponse<T> {
     fn into_response(self) -> Response {
         match self.0.try_into_http_response::<BytesMut>() {
             Ok(res) => res.map(BytesMut::freeze).map(Full::new).into_response(),

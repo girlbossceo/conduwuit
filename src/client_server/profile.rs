@@ -9,7 +9,7 @@ use ruma::{
         },
         federation::{self, query::get_profile_information::v1::ProfileField},
     },
-    events::{room::member::RoomMemberEventContent, EventType},
+    events::{room::member::RoomMemberEventContent, RoomEventType, StateEventType},
 };
 use serde_json::value::to_raw_value;
 use std::sync::Arc;
@@ -21,7 +21,7 @@ use std::sync::Arc;
 /// - Also makes sure other users receive the update using presence EDUs
 pub async fn set_displayname_route(
     db: DatabaseGuard,
-    body: Ruma<set_display_name::v3::Request<'_>>,
+    body: Ruma<set_display_name::v3::IncomingRequest>,
 ) -> Result<set_display_name::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -36,14 +36,14 @@ pub async fn set_displayname_route(
         .map(|room_id| {
             Ok::<_, Error>((
                 PduBuilder {
-                    event_type: EventType::RoomMember,
+                    event_type: RoomEventType::RoomMember,
                     content: to_raw_value(&RoomMemberEventContent {
                         displayname: body.displayname.clone(),
                         ..serde_json::from_str(
                             db.rooms
                                 .room_state_get(
                                     &room_id,
-                                    &EventType::RoomMember,
+                                    &StateEventType::RoomMember,
                                     sender_user.as_str(),
                                 )?
                                 .ok_or_else(|| {
@@ -118,7 +118,7 @@ pub async fn set_displayname_route(
 /// - If user is on another server: Fetches displayname over federation
 pub async fn get_displayname_route(
     db: DatabaseGuard,
-    body: Ruma<get_display_name::v3::Request<'_>>,
+    body: Ruma<get_display_name::v3::IncomingRequest>,
 ) -> Result<get_display_name::v3::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
@@ -150,7 +150,7 @@ pub async fn get_displayname_route(
 /// - Also makes sure other users receive the update using presence EDUs
 pub async fn set_avatar_url_route(
     db: DatabaseGuard,
-    body: Ruma<set_avatar_url::v3::Request<'_>>,
+    body: Ruma<set_avatar_url::v3::IncomingRequest>,
 ) -> Result<set_avatar_url::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -167,14 +167,14 @@ pub async fn set_avatar_url_route(
         .map(|room_id| {
             Ok::<_, Error>((
                 PduBuilder {
-                    event_type: EventType::RoomMember,
+                    event_type: RoomEventType::RoomMember,
                     content: to_raw_value(&RoomMemberEventContent {
                         avatar_url: body.avatar_url.clone(),
                         ..serde_json::from_str(
                             db.rooms
                                 .room_state_get(
                                     &room_id,
-                                    &EventType::RoomMember,
+                                    &StateEventType::RoomMember,
                                     sender_user.as_str(),
                                 )?
                                 .ok_or_else(|| {
@@ -249,7 +249,7 @@ pub async fn set_avatar_url_route(
 /// - If user is on another server: Fetches avatar_url and blurhash over federation
 pub async fn get_avatar_url_route(
     db: DatabaseGuard,
-    body: Ruma<get_avatar_url::v3::Request<'_>>,
+    body: Ruma<get_avatar_url::v3::IncomingRequest>,
 ) -> Result<get_avatar_url::v3::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
@@ -283,7 +283,7 @@ pub async fn get_avatar_url_route(
 /// - If user is on another server: Fetches profile over federation
 pub async fn get_profile_route(
     db: DatabaseGuard,
-    body: Ruma<get_profile::v3::Request<'_>>,
+    body: Ruma<get_profile::v3::IncomingRequest>,
 ) -> Result<get_profile::v3::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db

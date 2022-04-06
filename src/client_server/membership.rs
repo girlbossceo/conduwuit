@@ -21,7 +21,7 @@ use ruma::{
             create::RoomCreateEventContent,
             member::{MembershipState, RoomMemberEventContent},
         },
-        EventType,
+        RoomEventType, StateEventType,
     },
     serde::{to_canonical_value, Base64, CanonicalJsonObject, CanonicalJsonValue},
     state_res::{self, RoomVersion},
@@ -44,7 +44,7 @@ use tracing::{debug, error, warn};
 /// - If the server does not know about the room: asks other servers over federation
 pub async fn join_room_by_id_route(
     db: DatabaseGuard,
-    body: Ruma<join_room_by_id::v3::Request<'_>>,
+    body: Ruma<join_room_by_id::v3::IncomingRequest>,
 ) -> Result<join_room_by_id::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -84,7 +84,7 @@ pub async fn join_room_by_id_route(
 /// - If the server does not know about the room: asks other servers over federation
 pub async fn join_room_by_id_or_alias_route(
     db: DatabaseGuard,
-    body: Ruma<join_room_by_id_or_alias::v3::Request<'_>>,
+    body: Ruma<join_room_by_id_or_alias::v3::IncomingRequest>,
 ) -> Result<join_room_by_id_or_alias::v3::Response> {
     let sender_user = body.sender_user.as_deref().expect("user is authenticated");
     let body = body.body;
@@ -136,7 +136,7 @@ pub async fn join_room_by_id_or_alias_route(
 /// - This should always work if the user is currently joined.
 pub async fn leave_room_route(
     db: DatabaseGuard,
-    body: Ruma<leave_room::v3::Request<'_>>,
+    body: Ruma<leave_room::v3::IncomingRequest>,
 ) -> Result<leave_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -152,7 +152,7 @@ pub async fn leave_room_route(
 /// Tries to send an invite event into the room.
 pub async fn invite_user_route(
     db: DatabaseGuard,
-    body: Ruma<invite_user::v3::Request<'_>>,
+    body: Ruma<invite_user::v3::IncomingRequest>,
 ) -> Result<invite_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -170,7 +170,7 @@ pub async fn invite_user_route(
 /// Tries to send a kick event into the room.
 pub async fn kick_user_route(
     db: DatabaseGuard,
-    body: Ruma<kick_user::v3::Request<'_>>,
+    body: Ruma<kick_user::v3::IncomingRequest>,
 ) -> Result<kick_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -178,7 +178,7 @@ pub async fn kick_user_route(
         db.rooms
             .room_state_get(
                 &body.room_id,
-                &EventType::RoomMember,
+                &StateEventType::RoomMember,
                 &body.user_id.to_string(),
             )?
             .ok_or(Error::BadRequest(
@@ -205,7 +205,7 @@ pub async fn kick_user_route(
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomMember,
+            event_type: RoomEventType::RoomMember,
             content: to_raw_value(&event).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
@@ -229,7 +229,7 @@ pub async fn kick_user_route(
 /// Tries to send a ban event into the room.
 pub async fn ban_user_route(
     db: DatabaseGuard,
-    body: Ruma<ban_user::v3::Request<'_>>,
+    body: Ruma<ban_user::v3::IncomingRequest>,
 ) -> Result<ban_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -239,7 +239,7 @@ pub async fn ban_user_route(
         .rooms
         .room_state_get(
             &body.room_id,
-            &EventType::RoomMember,
+            &StateEventType::RoomMember,
             &body.user_id.to_string(),
         )?
         .map_or(
@@ -275,7 +275,7 @@ pub async fn ban_user_route(
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomMember,
+            event_type: RoomEventType::RoomMember,
             content: to_raw_value(&event).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
@@ -299,7 +299,7 @@ pub async fn ban_user_route(
 /// Tries to send an unban event into the room.
 pub async fn unban_user_route(
     db: DatabaseGuard,
-    body: Ruma<unban_user::v3::Request<'_>>,
+    body: Ruma<unban_user::v3::IncomingRequest>,
 ) -> Result<unban_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -307,7 +307,7 @@ pub async fn unban_user_route(
         db.rooms
             .room_state_get(
                 &body.room_id,
-                &EventType::RoomMember,
+                &StateEventType::RoomMember,
                 &body.user_id.to_string(),
             )?
             .ok_or(Error::BadRequest(
@@ -333,7 +333,7 @@ pub async fn unban_user_route(
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomMember,
+            event_type: RoomEventType::RoomMember,
             content: to_raw_value(&event).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
@@ -362,7 +362,7 @@ pub async fn unban_user_route(
 /// be called from every device
 pub async fn forget_room_route(
     db: DatabaseGuard,
-    body: Ruma<forget_room::v3::Request<'_>>,
+    body: Ruma<forget_room::v3::IncomingRequest>,
 ) -> Result<forget_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -398,7 +398,7 @@ pub async fn joined_rooms_route(
 /// - Only works if the user is currently joined
 pub async fn get_member_events_route(
     db: DatabaseGuard,
-    body: Ruma<get_member_events::v3::Request<'_>>,
+    body: Ruma<get_member_events::v3::IncomingRequest>,
 ) -> Result<get_member_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -415,8 +415,8 @@ pub async fn get_member_events_route(
             .rooms
             .room_state_full(&body.room_id)?
             .iter()
-            .filter(|(key, _)| key.0 == EventType::RoomMember)
-            .map(|(_, pdu)| pdu.to_member_event())
+            .filter(|(key, _)| key.0 == StateEventType::RoomMember)
+            .map(|(_, pdu)| pdu.to_member_event().into())
             .collect(),
     })
 }
@@ -429,7 +429,7 @@ pub async fn get_member_events_route(
 /// - TODO: An appservice just needs a puppet joined
 pub async fn joined_members_route(
     db: DatabaseGuard,
-    body: Ruma<joined_members::v3::Request<'_>>,
+    body: Ruma<joined_members::v3::IncomingRequest>,
 ) -> Result<joined_members::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -625,15 +625,17 @@ async fn join_room_by_id_helper(
 
             db.rooms.add_pdu_outlier(&event_id, &value)?;
             if let Some(state_key) = &pdu.state_key {
-                let shortstatekey =
-                    db.rooms
-                        .get_or_create_shortstatekey(&pdu.kind, state_key, &db.globals)?;
+                let shortstatekey = db.rooms.get_or_create_shortstatekey(
+                    &pdu.kind.to_string().into(),
+                    state_key,
+                    &db.globals,
+                )?;
                 state.insert(shortstatekey, pdu.event_id.clone());
             }
         }
 
         let incoming_shortstatekey = db.rooms.get_or_create_shortstatekey(
-            &parsed_pdu.kind,
+            &parsed_pdu.kind.to_string().into(),
             parsed_pdu
                 .state_key
                 .as_ref()
@@ -645,7 +647,7 @@ async fn join_room_by_id_helper(
 
         let create_shortstatekey = db
             .rooms
-            .get_shortstatekey(&EventType::RoomCreate, "")?
+            .get_shortstatekey(&StateEventType::RoomCreate, "")?
             .expect("Room exists");
 
         if state.get(&create_shortstatekey).is_none() {
@@ -703,7 +705,7 @@ async fn join_room_by_id_helper(
 
         db.rooms.build_and_append_pdu(
             PduBuilder {
-                event_type: EventType::RoomMember,
+                event_type: RoomEventType::RoomMember,
                 content: to_raw_value(&event).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some(sender_user.to_string()),
@@ -814,7 +816,7 @@ pub(crate) async fn invite_helper<'a>(
 
             let create_event = db
                 .rooms
-                .room_state_get(room_id, &EventType::RoomCreate, "")?;
+                .room_state_get(room_id, &StateEventType::RoomCreate, "")?;
 
             let create_event_content: Option<RoomCreateEventContent> = create_event
                 .as_ref()
@@ -853,11 +855,11 @@ pub(crate) async fn invite_helper<'a>(
             .expect("member event is valid value");
 
             let state_key = user_id.to_string();
-            let kind = EventType::RoomMember;
+            let kind = StateEventType::RoomMember;
 
             let auth_events = db.rooms.get_auth_events(
                 room_id,
-                &kind,
+                &kind.to_string().into(),
                 sender_user,
                 Some(&state_key),
                 &content,
@@ -888,7 +890,7 @@ pub(crate) async fn invite_helper<'a>(
                 origin_server_ts: utils::millis_since_unix_epoch()
                     .try_into()
                     .expect("time is valid"),
-                kind,
+                kind: kind.to_string().into(),
                 content,
                 state_key: Some(state_key),
                 prev_events,
@@ -912,7 +914,6 @@ pub(crate) async fn invite_helper<'a>(
             let auth_check = state_res::auth_check(
                 &room_version,
                 &pdu,
-                create_prev_event,
                 None::<PduEvent>, // TODO: third_party_invite
                 |k, s| auth_events.get(&(k.clone(), s.to_owned())),
             )
@@ -1051,7 +1052,7 @@ pub(crate) async fn invite_helper<'a>(
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomMember,
+            event_type: RoomEventType::RoomMember,
             content: to_raw_value(&RoomMemberEventContent {
                 membership: MembershipState::Invite,
                 displayname: db.users.displayname(user_id)?,
