@@ -1835,14 +1835,6 @@ impl Rooms {
             })
             .transpose()?;
 
-        let create_prev_event = if prev_events.len() == 1
-            && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
-        {
-            create_event
-        } else {
-            None
-        };
-
         // If there was no create event yet, assume we are creating a version 6 room right now
         let room_version_id = create_event_content
             .map_or(RoomVersionId::V6, |create_event| create_event.room_version);
@@ -1978,7 +1970,7 @@ impl Rooms {
             self.room_servers(room_id).filter_map(|r| r.ok()).collect();
 
         // In case we are kicking or banning a user, we need to inform their server of the change
-        if pdu.kind == EventType::RoomMember {
+        if pdu.kind == RoomEventType::RoomMember {
             if let Some(state_key_uid) = &pdu
                 .state_key
                 .as_ref()
@@ -2001,7 +1993,7 @@ impl Rooms {
 
             // If the RoomMember event has a non-empty state_key, it is targeted at someone.
             // If it is our appservice user, we send this PDU to it.
-            if pdu.kind == EventType::RoomMember {
+            if pdu.kind == RoomEventType::RoomMember {
                 if let Some(state_key_uid) = &pdu
                     .state_key
                     .as_ref()

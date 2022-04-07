@@ -8,9 +8,7 @@ use ruma::{
             set_pushrule_enabled, RuleKind,
         },
     },
-    events::{
-        push_rules::PushRulesEvent, EventType, GlobalAccountDataEventType, RoomAccountDataEventType,
-    },
+    events::{push_rules::PushRulesEvent, GlobalAccountDataEventType},
     push::{ConditionalPushRuleInit, PatternedPushRuleInit, SimplePushRuleInit},
 };
 

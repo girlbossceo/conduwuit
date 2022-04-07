@@ -828,14 +828,6 @@ pub(crate) async fn invite_helper<'a>(
                 })
                 .transpose()?;
 
-            let create_prev_event = if prev_events.len() == 1
-                && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
-            {
-                create_event
-            } else {
-                None
-            };
-
             // If there was no create event yet, assume we are creating a version 6 room right now
             let room_version_id = create_event_content
                 .map_or(RoomVersionId::V6, |create_event| create_event.room_version);

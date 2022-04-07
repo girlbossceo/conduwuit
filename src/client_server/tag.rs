@@ -3,7 +3,7 @@ use ruma::{
     api::client::tag::{create_tag, delete_tag, get_tags},
     events::{
         tag::{TagEvent, TagEventContent},
-        EventType, RoomAccountDataEventType,
+        RoomAccountDataEventType,
     },
 };
 use std::collections::BTreeMap;

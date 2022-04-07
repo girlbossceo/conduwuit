@@ -23,10 +23,7 @@ use ruma::{
         OutgoingRequest,
     },
     device_id,
-    events::{
-        push_rules::PushRulesEvent, AnySyncEphemeralRoomEvent, EventType,
-        GlobalAccountDataEventType,
-    },
+    events::{push_rules::PushRulesEvent, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType},
     push,
     receipt::ReceiptType,
     uint, MilliSecondsSinceUnixEpoch, ServerName, UInt, UserId,

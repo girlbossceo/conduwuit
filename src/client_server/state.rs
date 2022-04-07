@@ -13,7 +13,7 @@ use ruma::{
             canonical_alias::RoomCanonicalAliasEventContent,
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
         },
-        AnyStateEventContent, EventType, RoomEventType, StateEventType,
+        AnyStateEventContent, StateEventType,
     },
     serde::Raw,
     EventId, RoomId, UserId,

@@ -1,7 +1,7 @@
 use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{context::get_context, error::ErrorKind, filter::LazyLoadOptions},
-    events::{EventType, StateEventType},
+    events::StateEventType,
 };
 use std::{collections::HashSet, convert::TryFrom};
 use tracing::error;

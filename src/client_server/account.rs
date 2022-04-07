@@ -18,7 +18,7 @@ use ruma::{
     events::{
         room::member::{MembershipState, RoomMemberEventContent},
         room::message::RoomMessageEventContent,
-        GlobalAccountDataEventType, RoomAccountDataEventType, RoomEventType,
+        GlobalAccountDataEventType, RoomEventType,
     },
     push, UserId,
 };

@@ -7,7 +7,7 @@ use ruma::{
     },
     events::{
         room::member::{MembershipState, RoomMemberEventContent},
-        EventType, RoomEventType, StateEventType,
+        RoomEventType, StateEventType,
     },
     serde::Raw,
     DeviceId, RoomId, UserId,

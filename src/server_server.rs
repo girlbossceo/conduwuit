@@ -1201,18 +1201,6 @@ fn handle_outlier_pdu<'a>(
             return Err("Incoming event refers to wrong create event.".to_owned());
         }
 
-        // If the previous event was the create event special rules apply
-        let previous_create = if incoming_pdu.auth_events.len() == 1
-            && incoming_pdu.prev_events == incoming_pdu.auth_events
-        {
-            db.rooms
-                .get_pdu(&incoming_pdu.auth_events[0])
-                .map_err(|e| e.to_string())?
-                .filter(|maybe_create| **maybe_create == *create_event)
-        } else {
-            None
-        };
-
         if !state_res::event_auth::auth_check(
             &room_version,
             &incoming_pdu,
@@ -1498,18 +1486,6 @@ async fn upgrade_outlier_to_timeline_pdu(
         state_at_incoming_event.expect("we always set this to some above");
 
     // 11. Check the auth of the event passes based on the state of the event
-    // If the previous event was the create event special rules apply
-    let previous_create = if incoming_pdu.auth_events.len() == 1
-        && incoming_pdu.prev_events == incoming_pdu.auth_events
-    {
-        db.rooms
-            .get_pdu(&incoming_pdu.auth_events[0])
-            .map_err(|e| e.to_string())?
-            .filter(|maybe_create| **maybe_create == *create_event)
-    } else {
-        None
-    };
-
     let check_result = state_res::event_auth::auth_check(
         &room_version,
         &incoming_pdu,
@@ -2634,14 +2610,6 @@ pub async fn create_join_event_template_route(
             })
         })
         .transpose()?;
-
-    let create_prev_event = if prev_events.len() == 1
-        && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
-    {
-        create_event
-    } else {
-        None
-    };
 
     // If there was no create event yet, assume we are creating a version 6 room right now
     let room_version_id =

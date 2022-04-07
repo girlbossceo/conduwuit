@@ -11,7 +11,7 @@ use ruma::{
     },
     events::{
         room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},
-        AnySyncRoomEvent, EventType, RoomEventType, StateEventType,
+        AnySyncRoomEvent, RoomEventType, StateEventType,
     },
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     serde::Raw,

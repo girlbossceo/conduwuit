@@ -7,7 +7,6 @@ use ruma::{
         client::{error::ErrorKind, to_device::send_event_to_device},
         federation::{self, transactions::edu::DirectDeviceContent},
     },
-    events::EventType,
     to_device::DeviceIdOrAllDevices,
 };
 
