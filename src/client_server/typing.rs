@@ -1,5 +1,5 @@
-use crate::{database::DatabaseGuard, Error, utils, Result, Ruma};
-use ruma::api::client::{typing::create_typing_event, error::ErrorKind};
+use crate::{database::DatabaseGuard, utils, Error, Result, Ruma};
+use ruma::api::client::{error::ErrorKind, typing::create_typing_event};
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/typing/{userId}`
 ///

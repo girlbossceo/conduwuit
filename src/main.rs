@@ -141,7 +141,7 @@ async fn run_server(config: &Config, db: Arc<RwLock<Database>>) -> io::Result<()
         .compression()
         .layer(
             CorsLayer::new()
-                .allow_origin(cors::any())
+                .allow_origin(cors::Any)
                 .allow_methods([
                     Method::GET,
                     Method::POST,
