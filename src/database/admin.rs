@@ -8,7 +8,7 @@ use std::{
 use crate::{
     error::{Error, Result},
     pdu::PduBuilder,
-    server_server,
+    server_server, utils,
     utils::HtmlEscape,
     Database, PduEvent,
 };
@@ -262,6 +262,12 @@ enum AdminCommand {
 
     /// Show configuration values
     ShowConfig,
+
+    /// Reset user password
+    ResetPassword {
+        /// Username of the user for whom the password should be reset
+        username: String,
+    },
 }
 
 fn process_admin_command(
@@ -434,6 +440,45 @@ fn process_admin_command(
         AdminCommand::ShowConfig => {
             // Construct and send the response
             RoomMessageEventContent::text_plain(format!("{}", db.globals.config))
+        }
+        AdminCommand::ResetPassword { username } => {
+            let user_id = match UserId::parse_with_server_name(
+                username.as_str().to_lowercase(),
+                db.globals.server_name(),
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    return Ok(RoomMessageEventContent::text_plain(format!(
+                        "The supplied username is not a valid username: {}",
+                        e
+                    )))
+                }
+            };
+
+            // Check if the specified user is valid
+            if !db.users.exists(&user_id)?
+                || db.users.is_deactivated(&user_id)?
+                || user_id
+                    == UserId::parse_with_server_name("conduit", db.globals.server_name())
+                        .expect("conduit user exists")
+            {
+                return Ok(RoomMessageEventContent::text_plain(
+                    "The specified user does not exist or is deactivated!",
+                ));
+            }
+
+            let new_password = utils::random_string(20);
+
+            match db.users.set_password(&user_id, Some(new_password.as_str())) {
+                Ok(()) => RoomMessageEventContent::text_plain(format!(
+                    "Successfully reset the password for user {}: {}",
+                    user_id, new_password
+                )),
+                Err(e) => RoomMessageEventContent::text_plain(format!(
+                    "Couldn't reset the password for user {}: {}",
+                    user_id, e
+                )),
+            }
         }
     };
 

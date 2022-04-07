@@ -1491,7 +1491,11 @@ impl Rooms {
                     let server_user = format!("@conduit:{}", db.globals.server_name());
 
                     let to_conduit = body.starts_with(&format!("{}: ", server_user));
-                    let from_conduit = pdu.sender == server_user;
+
+                    // This will evaluate to false if the emergency password is set up so that
+                    // the administrator can execute commands as conduit
+                    let from_conduit =
+                        pdu.sender == server_user && db.globals.emergency_password().is_none();
 
                     if to_conduit && !from_conduit && admin_room.as_ref() == Some(&pdu.room_id) {
                         db.admin.process_message(body.to_string());
