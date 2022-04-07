@@ -4,7 +4,8 @@ use ruma::{
         client::sync::sync_events,
         federation::discovery::{ServerSigningKeys, VerifyKey},
     },
-    DeviceId, EventId, MilliSecondsSinceUnixEpoch, RoomId, ServerName, ServerSigningKeyId, UserId,
+    DeviceId, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
+    ServerSigningKeyId, UserId,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -41,6 +42,8 @@ pub struct Globals {
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
     federation_client: reqwest::Client,
     default_client: reqwest::Client,
+    pub stable_room_versions: Vec<RoomVersionId>,
+    pub unstable_room_versions: Vec<RoomVersionId>,
     pub(super) server_signingkeys: Arc<dyn Tree>,
     pub bad_event_ratelimiter: Arc<RwLock<HashMap<Box<EventId>, RateLimitState>>>,
     pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
@@ -145,7 +148,17 @@ impl Globals {
             })
             .build()?;
 
-        let s = Self {
+        // Supported and stable room versions
+        let stable_room_versions = vec![
+            RoomVersionId::V6,
+            RoomVersionId::V7,
+            RoomVersionId::V8,
+            RoomVersionId::V9,
+        ];
+        // Experimental, partially supported room versions
+        let unstable_room_versions = vec![RoomVersionId::V3, RoomVersionId::V4, RoomVersionId::V5];
+
+        let mut s = Self {
             globals,
             config,
             keypair: Arc::new(keypair),
@@ -162,6 +175,8 @@ impl Globals {
             default_client,
             server_signingkeys,
             jwt_decoding_key,
+            stable_room_versions,
+            unstable_room_versions,
             bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
             bad_signature_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
             servername_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
@@ -173,6 +188,14 @@ impl Globals {
         };
 
         fs::create_dir_all(s.get_media_folder())?;
+
+        if !s
+            .supported_room_versions()
+            .contains(&s.config.default_room_version)
+        {
+            error!("Room version in config isn't supported, falling back to Version 6");
+            s.config.default_room_version = RoomVersionId::V6;
+        };
 
         Ok(s)
     }
@@ -232,6 +255,14 @@ impl Globals {
         self.config.allow_room_creation
     }
 
+    pub fn allow_unstable_room_versions(&self) -> bool {
+        self.config.allow_unstable_room_versions
+    }
+
+    pub fn default_room_version(&self) -> RoomVersionId {
+        self.config.default_room_version.clone()
+    }
+
     pub fn trusted_servers(&self) -> &[Box<ServerName>] {
         &self.config.trusted_servers
     }
@@ -266,6 +297,15 @@ impl Globals {
 
     pub fn emergency_password(&self) -> &Option<String> {
         &self.config.emergency_password
+    }
+
+    pub fn supported_room_versions(&self) -> Vec<RoomVersionId> {
+        let mut room_versions: Vec<RoomVersionId> = vec![];
+        room_versions.extend(self.stable_room_versions.clone());
+        if self.allow_unstable_room_versions() {
+            room_versions.extend(self.unstable_room_versions.clone());
+        };
+        room_versions
     }
 
     /// TODO: the key valid until timestamp is only honored in room version > 4

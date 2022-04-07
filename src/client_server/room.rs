@@ -23,7 +23,7 @@ use ruma::{
     },
     int,
     serde::{CanonicalJsonObject, JsonObject},
-    RoomAliasId, RoomId, RoomVersionId,
+    RoomAliasId, RoomId,
 };
 use serde_json::{json, value::to_raw_value};
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
@@ -100,7 +100,7 @@ pub async fn create_room_route(
 
     let room_version = match body.room_version.clone() {
         Some(room_version) => {
-            if room_version == RoomVersionId::V5 || room_version == RoomVersionId::V6 {
+            if db.rooms.is_supported_version(&db, &room_version) {
                 room_version
             } else {
                 return Err(Error::BadRequest(
@@ -109,7 +109,7 @@ pub async fn create_room_route(
                 ));
             }
         }
-        None => RoomVersionId::V6,
+        None => db.globals.default_room_version(),
     };
 
     let content = match &body.creation_content {
@@ -484,7 +484,7 @@ pub async fn upgrade_room_route(
 ) -> Result<upgrade_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if !matches!(body.new_version, RoomVersionId::V5 | RoomVersionId::V6) {
+    if !db.rooms.is_supported_version(&db, &body.new_version) {
         return Err(Error::BadRequest(
             ErrorKind::UnsupportedRoomVersion,
             "This server does not support that room version.",

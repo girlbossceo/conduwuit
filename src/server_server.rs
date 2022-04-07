@@ -42,6 +42,7 @@ use ruma::{
         receipt::{ReceiptEvent, ReceiptEventContent},
         room::{
             create::RoomCreateEventContent,
+            join_rules::{JoinRule, RoomJoinRulesEventContent},
             member::{MembershipState, RoomMemberEventContent},
             server_acl::RoomServerAclEventContent,
         },
@@ -658,7 +659,7 @@ pub async fn send_transaction_message_route(
 
     for pdu in &body.pdus {
         // We do not add the event_id field to the pdu here because of signature and hashes checks
-        let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu) {
+        let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu, &db) {
             Ok(t) => t,
             Err(_) => {
                 // Event could not be converted to canonical json
@@ -769,17 +770,21 @@ pub async fn send_transaction_message_route(
                 }
             }
             Edu::Typing(typing) => {
-                if typing.typing {
-                    db.rooms.edus.typing_add(
-                        &typing.user_id,
-                        &typing.room_id,
-                        3000 + utils::millis_since_unix_epoch(),
-                        &db.globals,
-                    )?;
-                } else {
-                    db.rooms
-                        .edus
-                        .typing_remove(&typing.user_id, &typing.room_id, &db.globals)?;
+                if db.rooms.is_joined(&typing.user_id, &typing.room_id)? {
+                    if typing.typing {
+                        db.rooms.edus.typing_add(
+                            &typing.user_id,
+                            &typing.room_id,
+                            3000 + utils::millis_since_unix_epoch(),
+                            &db.globals,
+                        )?;
+                    } else {
+                        db.rooms.edus.typing_remove(
+                            &typing.user_id,
+                            &typing.room_id,
+                            &db.globals,
+                        )?;
+                    }
                 }
             }
             Edu::DeviceListUpdate(DeviceListUpdateContent { user_id, .. }) => {
@@ -1858,7 +1863,7 @@ pub(crate) fn fetch_and_handle_outliers<'a>(
                     Ok(res) => {
                         warn!("Got {} over federation", next_id);
                         let (calculated_event_id, value) =
-                            match crate::pdu::gen_event_id_canonical_json(&res.pdu) {
+                            match crate::pdu::gen_event_id_canonical_json(&res.pdu, &db) {
                                 Ok(t) => t,
                                 Err(_) => {
                                     back_off((*next_id).to_owned());
@@ -2590,6 +2595,33 @@ pub async fn create_join_event_template_route(
 
     acl_check(sender_servername, &body.room_id, &db)?;
 
+    // TODO: Conduit does not implement restricted join rules yet, we always reject
+    let join_rules_event =
+        db.rooms
+            .room_state_get(&body.room_id, &StateEventType::RoomJoinRules, "")?;
+
+    let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
+        .as_ref()
+        .map(|join_rules_event| {
+            serde_json::from_str(join_rules_event.content.get()).map_err(|e| {
+                warn!("Invalid join rules event: {}", e);
+                Error::bad_database("Invalid join rules event in db.")
+            })
+        })
+        .transpose()?;
+
+    if let Some(join_rules_event_content) = join_rules_event_content {
+        if matches!(
+            join_rules_event_content.join_rule,
+            JoinRule::Restricted { .. }
+        ) {
+            return Err(Error::BadRequest(
+                ErrorKind::Unknown,
+                "Conduit does not support restricted rooms yet.",
+            ));
+        }
+    }
+
     let prev_events: Vec<_> = db
         .rooms
         .get_pdu_leaves(&body.room_id)?
@@ -2611,9 +2643,12 @@ pub async fn create_join_event_template_route(
         })
         .transpose()?;
 
-    // If there was no create event yet, assume we are creating a version 6 room right now
-    let room_version_id =
-        create_event_content.map_or(RoomVersionId::V6, |create_event| create_event.room_version);
+    // If there was no create event yet, assume we are creating a room with the default version
+    // right now
+    let room_version_id = create_event_content
+        .map_or(db.globals.default_room_version(), |create_event| {
+            create_event.room_version
+        });
     let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
 
     if !body.ver.contains(&room_version_id) {
@@ -2749,6 +2784,33 @@ async fn create_join_event(
 
     acl_check(sender_servername, room_id, db)?;
 
+    // TODO: Conduit does not implement restricted join rules yet, we always reject
+    let join_rules_event = db
+        .rooms
+        .room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
+
+    let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
+        .as_ref()
+        .map(|join_rules_event| {
+            serde_json::from_str(join_rules_event.content.get()).map_err(|e| {
+                warn!("Invalid join rules event: {}", e);
+                Error::bad_database("Invalid join rules event in db.")
+            })
+        })
+        .transpose()?;
+
+    if let Some(join_rules_event_content) = join_rules_event_content {
+        if matches!(
+            join_rules_event_content.join_rule,
+            JoinRule::Restricted { .. }
+        ) {
+            return Err(Error::BadRequest(
+                ErrorKind::Unknown,
+                "Conduit does not support restricted rooms yet.",
+            ));
+        }
+    }
+
     // We need to return the state prior to joining, let's keep a reference to that here
     let shortstatehash = db
         .rooms
@@ -2762,7 +2824,7 @@ async fn create_join_event(
     // let mut auth_cache = EventMap::new();
 
     // We do not add the event_id field to the pdu here because of signature and hashes checks
-    let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu) {
+    let (event_id, value) = match crate::pdu::gen_event_id_canonical_json(pdu, &db) {
         Ok(t) => t,
         Err(_) => {
             // Event could not be converted to canonical json
@@ -2888,7 +2950,7 @@ pub async fn create_invite_route(
 
     acl_check(sender_servername, &body.room_id, &db)?;
 
-    if body.room_version != RoomVersionId::V5 && body.room_version != RoomVersionId::V6 {
+    if !db.rooms.is_supported_version(&db, &body.room_version) {
         return Err(Error::BadRequest(
             ErrorKind::IncompatibleRoomVersion {
                 room_version: body.room_version.clone(),

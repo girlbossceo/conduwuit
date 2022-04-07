@@ -4,7 +4,7 @@ use std::{
     net::{IpAddr, Ipv4Addr},
 };
 
-use ruma::ServerName;
+use ruma::{RoomVersionId, ServerName};
 use serde::{de::IgnoredAny, Deserialize};
 use tracing::warn;
 
@@ -46,6 +46,10 @@ pub struct Config {
     pub allow_federation: bool,
     #[serde(default = "true_fn")]
     pub allow_room_creation: bool,
+    #[serde(default = "true_fn")]
+    pub allow_unstable_room_versions: bool,
+    #[serde(default = "default_default_room_version")]
+    pub default_room_version: RoomVersionId,
     #[serde(default = "false_fn")]
     pub allow_jaeger: bool,
     #[serde(default = "false_fn")]
@@ -245,4 +249,9 @@ fn default_log() -> String {
 
 fn default_turn_ttl() -> u64 {
     60 * 60 * 24
+}
+
+// I know, it's a great name
+fn default_default_room_version() -> RoomVersionId {
+    RoomVersionId::V6
 }
