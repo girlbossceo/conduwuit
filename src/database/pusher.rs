@@ -11,7 +11,7 @@ use ruma::{
     },
     events::{
         room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},
-        AnySyncRoomEvent, EventType,
+        AnySyncRoomEvent, RoomEventType, StateEventType,
     },
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     serde::Raw,
@@ -181,7 +181,7 @@ pub async fn send_push_notice(
 
     let power_levels: RoomPowerLevelsEventContent = db
         .rooms
-        .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
+        .room_state_get(&pdu.room_id, &StateEventType::RoomPowerLevels, "")?
         .map(|ev| {
             serde_json::from_str(ev.content.get())
                 .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
@@ -293,7 +293,7 @@ async fn send_notice(
     // TODO: missed calls
     notifi.counts = NotificationCounts::new(unread, uint!(0));
 
-    if event.kind == EventType::RoomEncrypted
+    if event.kind == RoomEventType::RoomEncrypted
         || tweaks
             .iter()
             .any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
@@ -314,7 +314,7 @@ async fn send_notice(
         let content = serde_json::value::to_raw_value(&event.content).ok();
         notifi.content = content.as_deref();
 
-        if event.kind == EventType::RoomMember {
+        if event.kind == RoomEventType::RoomMember {
             notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
         }
 
@@ -323,7 +323,7 @@ async fn send_notice(
 
         let room_name = if let Some(room_name_pdu) =
             db.rooms
-                .room_state_get(&event.room_id, &EventType::RoomName, "")?
+                .room_state_get(&event.room_id, &StateEventType::RoomName, "")?
         {
             serde_json::from_str::<RoomNameEventContent>(room_name_pdu.content.get())
                 .map_err(|_| Error::bad_database("Invalid room name event in database."))?

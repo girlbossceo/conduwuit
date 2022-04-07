@@ -17,7 +17,7 @@ use ruma::{
 /// Creates a new room alias on this server.
 pub async fn create_alias_route(
     db: DatabaseGuard,
-    body: Ruma<create_alias::v3::Request<'_>>,
+    body: Ruma<create_alias::v3::IncomingRequest>,
 ) -> Result<create_alias::v3::Response> {
     if body.room_alias.server_name() != db.globals.server_name() {
         return Err(Error::BadRequest(
@@ -46,7 +46,7 @@ pub async fn create_alias_route(
 /// - TODO: Update canonical alias event
 pub async fn delete_alias_route(
     db: DatabaseGuard,
-    body: Ruma<delete_alias::v3::Request<'_>>,
+    body: Ruma<delete_alias::v3::IncomingRequest>,
 ) -> Result<delete_alias::v3::Response> {
     if body.room_alias.server_name() != db.globals.server_name() {
         return Err(Error::BadRequest(
@@ -71,7 +71,7 @@ pub async fn delete_alias_route(
 /// - TODO: Suggest more servers to join via
 pub async fn get_alias_route(
     db: DatabaseGuard,
-    body: Ruma<get_alias::v3::Request<'_>>,
+    body: Ruma<get_alias::v3::IncomingRequest>,
 ) -> Result<get_alias::v3::Response> {
     get_alias_helper(&db, &body.room_alias).await
 }

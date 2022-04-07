@@ -21,7 +21,8 @@ use ruma::{
             power_levels::RoomPowerLevelsEventContent,
         },
         tag::TagEvent,
-        AnyStrippedStateEvent, AnySyncStateEvent, EventType,
+        AnyStrippedStateEvent, AnySyncStateEvent, GlobalAccountDataEventType,
+        RoomAccountDataEventType, RoomEventType, StateEventType,
     },
     push::{Action, Ruleset, Tweak},
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
@@ -111,8 +112,8 @@ pub struct Rooms {
     pub(super) shorteventid_cache: Mutex<LruCache<u64, Arc<EventId>>>,
     pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<HashSet<u64>>>>,
     pub(super) eventidshort_cache: Mutex<LruCache<Box<EventId>, u64>>,
-    pub(super) statekeyshort_cache: Mutex<LruCache<(EventType, String), u64>>,
-    pub(super) shortstatekey_cache: Mutex<LruCache<u64, (EventType, String)>>,
+    pub(super) statekeyshort_cache: Mutex<LruCache<(StateEventType, String), u64>>,
+    pub(super) shortstatekey_cache: Mutex<LruCache<u64, (StateEventType, String)>>,
     pub(super) our_real_users_cache: RwLock<HashMap<Box<RoomId>, Arc<HashSet<Box<UserId>>>>>,
     pub(super) appservice_in_room_cache: RwLock<HashMap<Box<RoomId>, HashMap<String, bool>>>,
     pub(super) lazy_load_waiting:
@@ -151,7 +152,7 @@ impl Rooms {
     pub fn state_full(
         &self,
         shortstatehash: u64,
-    ) -> Result<HashMap<(EventType, String), Arc<PduEvent>>> {
+    ) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
         let full_state = self
             .load_shortstatehash_info(shortstatehash)?
             .pop()
@@ -166,7 +167,7 @@ impl Rooms {
             .map(|pdu| {
                 Ok::<_, Error>((
                     (
-                        pdu.kind.clone(),
+                        pdu.kind.to_string().into(),
                         pdu.state_key
                             .as_ref()
                             .ok_or_else(|| Error::bad_database("State event has no state key."))?
@@ -184,7 +185,7 @@ impl Rooms {
     pub fn state_get_id(
         &self,
         shortstatehash: u64,
-        event_type: &EventType,
+        event_type: &StateEventType,
         state_key: &str,
     ) -> Result<Option<Arc<EventId>>> {
         let shortstatekey = match self.get_shortstatekey(event_type, state_key)? {
@@ -211,7 +212,7 @@ impl Rooms {
     pub fn state_get(
         &self,
         shortstatehash: u64,
-        event_type: &EventType,
+        event_type: &StateEventType,
         state_key: &str,
     ) -> Result<Option<Arc<PduEvent>>> {
         self.state_get_id(shortstatehash, event_type, state_key)?
@@ -254,7 +255,7 @@ impl Rooms {
     pub fn get_auth_events(
         &self,
         room_id: &RoomId,
-        kind: &EventType,
+        kind: &RoomEventType,
         sender: &UserId,
         state_key: Option<&str>,
         content: &serde_json::value::RawValue,
@@ -272,7 +273,7 @@ impl Rooms {
         let mut sauthevents = auth_events
             .into_iter()
             .filter_map(|(event_type, state_key)| {
-                self.get_shortstatekey(&event_type, &state_key)
+                self.get_shortstatekey(&event_type.to_string().into(), &state_key)
                     .ok()
                     .flatten()
                     .map(|s| (s, (event_type, state_key)))
@@ -764,7 +765,7 @@ impl Rooms {
     #[tracing::instrument(skip(self))]
     pub fn get_shortstatekey(
         &self,
-        event_type: &EventType,
+        event_type: &StateEventType,
         state_key: &str,
     ) -> Result<Option<u64>> {
         if let Some(short) = self
@@ -776,7 +777,7 @@ impl Rooms {
             return Ok(Some(*short));
         }
 
-        let mut statekey = event_type.as_ref().as_bytes().to_vec();
+        let mut statekey = event_type.to_string().as_bytes().to_vec();
         statekey.push(0xff);
         statekey.extend_from_slice(state_key.as_bytes());
 
@@ -820,7 +821,7 @@ impl Rooms {
     #[tracing::instrument(skip(self, globals))]
     pub fn get_or_create_shortstatekey(
         &self,
-        event_type: &EventType,
+        event_type: &StateEventType,
         state_key: &str,
         globals: &super::globals::Globals,
     ) -> Result<u64> {
@@ -833,7 +834,7 @@ impl Rooms {
             return Ok(*short);
         }
 
-        let mut statekey = event_type.as_ref().as_bytes().to_vec();
+        let mut statekey = event_type.to_string().as_bytes().to_vec();
         statekey.push(0xff);
         statekey.extend_from_slice(state_key.as_bytes());
 
@@ -888,7 +889,7 @@ impl Rooms {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(EventType, String)> {
+    pub fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
         if let Some(id) = self
             .shortstatekey_cache
             .lock()
@@ -910,7 +911,7 @@ impl Rooms {
             .ok_or_else(|| Error::bad_database("Invalid statekey in shortstatekey_statekey."))?;
 
         let event_type =
-            EventType::try_from(utils::string_from_bytes(eventtype_bytes).map_err(|_| {
+            StateEventType::try_from(utils::string_from_bytes(eventtype_bytes).map_err(|_| {
                 Error::bad_database("Event type in shortstatekey_statekey is invalid unicode.")
             })?)
             .map_err(|_| Error::bad_database("Event type in shortstatekey_statekey is invalid."))?;
@@ -934,7 +935,7 @@ impl Rooms {
     pub fn room_state_full(
         &self,
         room_id: &RoomId,
-    ) -> Result<HashMap<(EventType, String), Arc<PduEvent>>> {
+    ) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
         if let Some(current_shortstatehash) = self.current_shortstatehash(room_id)? {
             self.state_full(current_shortstatehash)
         } else {
@@ -947,7 +948,7 @@ impl Rooms {
     pub fn room_state_get_id(
         &self,
         room_id: &RoomId,
-        event_type: &EventType,
+        event_type: &StateEventType,
         state_key: &str,
     ) -> Result<Option<Arc<EventId>>> {
         if let Some(current_shortstatehash) = self.current_shortstatehash(room_id)? {
@@ -962,7 +963,7 @@ impl Rooms {
     pub fn room_state_get(
         &self,
         room_id: &RoomId,
-        event_type: &EventType,
+        event_type: &StateEventType,
         state_key: &str,
     ) -> Result<Option<Arc<PduEvent>>> {
         if let Some(current_shortstatehash) = self.current_shortstatehash(room_id)? {
@@ -1281,7 +1282,7 @@ impl Rooms {
             {
                 if let Some(shortstatehash) = self.pdu_shortstatehash(&pdu.event_id).unwrap() {
                     if let Some(prev_state) = self
-                        .state_get(shortstatehash, &pdu.kind, state_key)
+                        .state_get(shortstatehash, &pdu.kind.to_string().into(), state_key)
                         .unwrap()
                     {
                         unsigned.insert(
@@ -1346,7 +1347,7 @@ impl Rooms {
         // See if the event matches any known pushers
         let power_levels: RoomPowerLevelsEventContent = db
             .rooms
-            .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
+            .room_state_get(&pdu.room_id, &StateEventType::RoomPowerLevels, "")?
             .map(|ev| {
                 serde_json::from_str(ev.content.get())
                     .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
@@ -1367,7 +1368,11 @@ impl Rooms {
 
             let rules_for_user = db
                 .account_data
-                .get(None, user, EventType::PushRules)?
+                .get(
+                    None,
+                    user,
+                    GlobalAccountDataEventType::PushRules.to_string().into(),
+                )?
                 .map(|ev: PushRulesEvent| ev.content.global)
                 .unwrap_or_else(|| Ruleset::server_default(user));
 
@@ -1416,12 +1421,12 @@ impl Rooms {
             .increment_batch(&mut highlights.into_iter())?;
 
         match pdu.kind {
-            EventType::RoomRedaction => {
+            RoomEventType::RoomRedaction => {
                 if let Some(redact_id) = &pdu.redacts {
                     self.redact_pdu(redact_id, pdu)?;
                 }
             }
-            EventType::RoomMember => {
+            RoomEventType::RoomMember => {
                 if let Some(state_key) = &pdu.state_key {
                     #[derive(Deserialize)]
                     struct ExtractMembership {
@@ -1456,7 +1461,7 @@ impl Rooms {
                     )?;
                 }
             }
-            EventType::RoomMessage => {
+            RoomEventType::RoomMessage => {
                 #[derive(Deserialize)]
                 struct ExtractBody<'a> {
                     #[serde(borrow)]
@@ -1663,8 +1668,11 @@ impl Rooms {
             let states_parents = previous_shortstatehash
                 .map_or_else(|| Ok(Vec::new()), |p| self.load_shortstatehash_info(p))?;
 
-            let shortstatekey =
-                self.get_or_create_shortstatekey(&new_pdu.kind, state_key, globals)?;
+            let shortstatekey = self.get_or_create_shortstatekey(
+                &new_pdu.kind.to_string().into(),
+                state_key,
+                globals,
+            )?;
 
             let new = self.compress_state_event(shortstatekey, &new_pdu.event_id, globals)?;
 
@@ -1713,28 +1721,36 @@ impl Rooms {
     ) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
         let mut state = Vec::new();
         // Add recommended events
-        if let Some(e) = self.room_state_get(&invite_event.room_id, &EventType::RoomCreate, "")? {
-            state.push(e.to_stripped_state_event());
-        }
         if let Some(e) =
-            self.room_state_get(&invite_event.room_id, &EventType::RoomJoinRules, "")?
+            self.room_state_get(&invite_event.room_id, &StateEventType::RoomCreate, "")?
         {
             state.push(e.to_stripped_state_event());
         }
         if let Some(e) =
-            self.room_state_get(&invite_event.room_id, &EventType::RoomCanonicalAlias, "")?
+            self.room_state_get(&invite_event.room_id, &StateEventType::RoomJoinRules, "")?
         {
-            state.push(e.to_stripped_state_event());
-        }
-        if let Some(e) = self.room_state_get(&invite_event.room_id, &EventType::RoomAvatar, "")? {
-            state.push(e.to_stripped_state_event());
-        }
-        if let Some(e) = self.room_state_get(&invite_event.room_id, &EventType::RoomName, "")? {
             state.push(e.to_stripped_state_event());
         }
         if let Some(e) = self.room_state_get(
             &invite_event.room_id,
-            &EventType::RoomMember,
+            &StateEventType::RoomCanonicalAlias,
+            "",
+        )? {
+            state.push(e.to_stripped_state_event());
+        }
+        if let Some(e) =
+            self.room_state_get(&invite_event.room_id, &StateEventType::RoomAvatar, "")?
+        {
+            state.push(e.to_stripped_state_event());
+        }
+        if let Some(e) =
+            self.room_state_get(&invite_event.room_id, &StateEventType::RoomName, "")?
+        {
+            state.push(e.to_stripped_state_event());
+        }
+        if let Some(e) = self.room_state_get(
+            &invite_event.room_id,
+            &StateEventType::RoomMember,
             invite_event.sender.as_str(),
         )? {
             state.push(e.to_stripped_state_event());
@@ -1807,7 +1823,7 @@ impl Rooms {
             .take(20)
             .collect::<Vec<_>>();
 
-        let create_event = self.room_state_get(room_id, &EventType::RoomCreate, "")?;
+        let create_event = self.room_state_get(room_id, &StateEventType::RoomCreate, "")?;
 
         let create_event_content: Option<RoomCreateEventContent> = create_event
             .as_ref()
@@ -1818,14 +1834,6 @@ impl Rooms {
                 })
             })
             .transpose()?;
-
-        let create_prev_event = if prev_events.len() == 1
-            && Some(&prev_events[0]) == create_event.as_ref().map(|c| &c.event_id)
-        {
-            create_event
-        } else {
-            None
-        };
 
         // If there was no create event yet, assume we are creating a version 6 room right now
         let room_version_id = create_event_content
@@ -1845,7 +1853,9 @@ impl Rooms {
 
         let mut unsigned = unsigned.unwrap_or_default();
         if let Some(state_key) = &state_key {
-            if let Some(prev_pdu) = self.room_state_get(room_id, &event_type, state_key)? {
+            if let Some(prev_pdu) =
+                self.room_state_get(room_id, &event_type.to_string().into(), state_key)?
+            {
                 unsigned.insert(
                     "prev_content".to_owned(),
                     serde_json::from_str(prev_pdu.content.get()).expect("string is valid json"),
@@ -1888,7 +1898,6 @@ impl Rooms {
         let auth_check = state_res::auth_check(
             &room_version,
             &pdu,
-            create_prev_event,
             None::<PduEvent>, // TODO: third_party_invite
             |k, s| auth_events.get(&(k.clone(), s.to_owned())),
         )
@@ -1961,7 +1970,7 @@ impl Rooms {
             self.room_servers(room_id).filter_map(|r| r.ok()).collect();
 
         // In case we are kicking or banning a user, we need to inform their server of the change
-        if pdu.kind == EventType::RoomMember {
+        if pdu.kind == RoomEventType::RoomMember {
             if let Some(state_key_uid) = &pdu
                 .state_key
                 .as_ref()
@@ -1984,7 +1993,7 @@ impl Rooms {
 
             // If the RoomMember event has a non-empty state_key, it is targeted at someone.
             // If it is our appservice user, we send this PDU to it.
-            if pdu.kind == EventType::RoomMember {
+            if pdu.kind == RoomEventType::RoomMember {
                 if let Some(state_key_uid) = &pdu
                     .state_key
                     .as_ref()
@@ -2031,7 +2040,7 @@ impl Rooms {
 
                 let matching_users = |users: &Regex| {
                     users.is_match(pdu.sender.as_str())
-                        || pdu.kind == EventType::RoomMember
+                        || pdu.kind == RoomEventType::RoomMember
                             && pdu
                                 .state_key
                                 .as_ref()
@@ -2231,7 +2240,7 @@ impl Rooms {
 
                     // Check if the room has a predecessor
                     if let Some(predecessor) = self
-                        .room_state_get(room_id, &EventType::RoomCreate, "")?
+                        .room_state_get(room_id, &StateEventType::RoomCreate, "")?
                         .and_then(|create| serde_json::from_str(create.content.get()).ok())
                         .and_then(|content: RoomCreateEventContent| content.predecessor)
                     {
@@ -2264,13 +2273,13 @@ impl Rooms {
                         if let Some(tag_event) = db.account_data.get::<TagEvent>(
                             Some(&predecessor.room_id),
                             user_id,
-                            EventType::Tag,
+                            RoomAccountDataEventType::Tag,
                         )? {
                             db.account_data
                                 .update(
                                     Some(room_id),
                                     user_id,
-                                    EventType::Tag,
+                                    RoomAccountDataEventType::Tag,
                                     &tag_event,
                                     &db.globals,
                                 )
@@ -2278,10 +2287,11 @@ impl Rooms {
                         };
 
                         // Copy direct chat flag
-                        if let Some(mut direct_event) =
-                            db.account_data
-                                .get::<DirectEvent>(None, user_id, EventType::Direct)?
-                        {
+                        if let Some(mut direct_event) = db.account_data.get::<DirectEvent>(
+                            None,
+                            user_id,
+                            GlobalAccountDataEventType::Direct.to_string().into(),
+                        )? {
                             let mut room_ids_updated = false;
 
                             for room_ids in direct_event.content.0.values_mut() {
@@ -2295,7 +2305,7 @@ impl Rooms {
                                 db.account_data.update(
                                     None,
                                     user_id,
-                                    EventType::Direct,
+                                    GlobalAccountDataEventType::Direct.to_string().into(),
                                     &direct_event,
                                     &db.globals,
                                 )?;
@@ -2322,7 +2332,9 @@ impl Rooms {
                     .get::<IgnoredUserListEvent>(
                         None,    // Ignored users are in global account data
                         user_id, // Receiver
-                        EventType::IgnoredUserList,
+                        GlobalAccountDataEventType::IgnoredUserList
+                            .to_string()
+                            .into(),
                     )?
                     .map_or(false, |ignored| {
                         ignored
@@ -2578,7 +2590,7 @@ impl Rooms {
             let state_lock = mutex_state.lock().await;
 
             let mut event: RoomMemberEventContent = serde_json::from_str(
-                self.room_state_get(room_id, &EventType::RoomMember, user_id.as_str())?
+                self.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
                     .ok_or(Error::BadRequest(
                         ErrorKind::BadState,
                         "Cannot leave a room you are not a member of.",
@@ -2592,7 +2604,7 @@ impl Rooms {
 
             self.build_and_append_pdu(
                 PduBuilder {
-                    event_type: EventType::RoomMember,
+                    event_type: RoomEventType::RoomMember,
                     content: to_raw_value(&event).expect("event is valid, we just created it"),
                     unsigned: None,
                     state_key: Some(user_id.to_string()),

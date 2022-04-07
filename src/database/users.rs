@@ -2,11 +2,10 @@ use crate::{utils, Error, Result};
 use ruma::{
     api::client::{device::Device, error::ErrorKind, filter::IncomingFilterDefinition},
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
-    events::{AnyToDeviceEvent, EventType},
-    identifiers::MxcUri,
+    events::{AnyToDeviceEvent, StateEventType},
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, RoomAliasId, UInt,
-    UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, MxcUri, RoomAliasId,
+    UInt, UserId,
 };
 use std::{collections::BTreeMap, mem, sync::Arc};
 use tracing::warn;
@@ -754,7 +753,7 @@ impl Users {
         for room_id in rooms.rooms_joined(user_id).filter_map(|r| r.ok()) {
             // Don't send key updates to unencrypted rooms
             if rooms
-                .room_state_get(&room_id, &EventType::RoomEncryption, "")?
+                .room_state_get(&room_id, &StateEventType::RoomEncryption, "")?
                 .is_none()
             {
                 continue;

@@ -23,7 +23,7 @@ use ruma::{
         OutgoingRequest,
     },
     device_id,
-    events::{push_rules::PushRulesEvent, AnySyncEphemeralRoomEvent, EventType},
+    events::{push_rules::PushRulesEvent, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType},
     push,
     receipt::ReceiptType,
     uint, MilliSecondsSinceUnixEpoch, ServerName, UInt, UserId,
@@ -635,7 +635,11 @@ impl Sending {
 
                     let rules_for_user = db
                         .account_data
-                        .get(None, &userid, EventType::PushRules)
+                        .get(
+                            None,
+                            &userid,
+                            GlobalAccountDataEventType::PushRules.to_string().into(),
+                        )
                         .unwrap_or_default()
                         .map(|ev: PushRulesEvent| ev.content.global)
                         .unwrap_or_else(|| push::Ruleset::server_default(&userid));

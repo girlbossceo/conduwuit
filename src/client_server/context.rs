@@ -1,7 +1,7 @@
 use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{context::get_context, error::ErrorKind, filter::LazyLoadOptions},
-    events::EventType,
+    events::StateEventType,
 };
 use std::{collections::HashSet, convert::TryFrom};
 use tracing::error;
@@ -14,7 +14,7 @@ use tracing::error;
 /// joined, depending on history_visibility)
 pub async fn get_context_route(
     db: DatabaseGuard,
-    body: Ruma<get_context::v3::Request<'_>>,
+    body: Ruma<get_context::v3::IncomingRequest>,
 ) -> Result<get_context::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -154,7 +154,7 @@ pub async fn get_context_route(
     for (shortstatekey, id) in state_ids {
         let (event_type, state_key) = db.rooms.get_statekey_from_short(shortstatekey)?;
 
-        if event_type != EventType::RoomMember {
+        if event_type != StateEventType::RoomMember {
             let pdu = match db.rooms.get_pdu(&id)? {
                 Some(pdu) => pdu,
                 None => {

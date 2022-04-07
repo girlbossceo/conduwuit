@@ -1,7 +1,7 @@
 use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{error::ErrorKind, read_marker::set_read_marker, receipt::create_receipt},
-    events::EventType,
+    events::RoomAccountDataEventType,
     receipt::ReceiptType,
     MilliSecondsSinceUnixEpoch,
 };
@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 /// - If `read_receipt` is set: Update private marker and public read receipt EDU
 pub async fn set_read_marker_route(
     db: DatabaseGuard,
-    body: Ruma<set_read_marker::v3::Request<'_>>,
+    body: Ruma<set_read_marker::v3::IncomingRequest>,
 ) -> Result<set_read_marker::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -27,7 +27,7 @@ pub async fn set_read_marker_route(
     db.account_data.update(
         Some(&body.room_id),
         sender_user,
-        EventType::FullyRead,
+        RoomAccountDataEventType::FullyRead,
         &fully_read_event,
         &db.globals,
     )?;
@@ -80,7 +80,7 @@ pub async fn set_read_marker_route(
 /// Sets private read marker and public read receipt EDU.
 pub async fn create_receipt_route(
     db: DatabaseGuard,
-    body: Ruma<create_receipt::v3::Request<'_>>,
+    body: Ruma<create_receipt::v3::IncomingRequest>,
 ) -> Result<create_receipt::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

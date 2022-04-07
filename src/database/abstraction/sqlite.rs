@@ -19,7 +19,7 @@ thread_local! {
 
 struct PreparedStatementIterator<'a> {
     pub iterator: Box<dyn Iterator<Item = TupleOfBytes> + 'a>,
-    pub statement_ref: NonAliasingBox<rusqlite::Statement<'a>>,
+    pub _statement_ref: NonAliasingBox<rusqlite::Statement<'a>>,
 }
 
 impl Iterator for PreparedStatementIterator<'_> {
@@ -184,7 +184,7 @@ impl SqliteTable {
 
         Box::new(PreparedStatementIterator {
             iterator,
-            statement_ref,
+            _statement_ref: statement_ref,
         })
     }
 }
@@ -283,7 +283,7 @@ impl Tree for SqliteTable {
             );
             Box::new(PreparedStatementIterator {
                 iterator,
-                statement_ref,
+                _statement_ref: statement_ref,
             })
         } else {
             let statement = Box::leak(Box::new(
@@ -309,7 +309,7 @@ impl Tree for SqliteTable {
 
             Box::new(PreparedStatementIterator {
                 iterator,
-                statement_ref,
+                _statement_ref: statement_ref,
             })
         }
     }

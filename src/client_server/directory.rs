@@ -11,17 +11,21 @@ use ruma::{
         },
         federation,
     },
-    directory::{Filter, IncomingFilter, IncomingRoomNetwork, PublicRoomsChunk, RoomNetwork},
+    directory::{
+        Filter, IncomingFilter, IncomingRoomNetwork, PublicRoomJoinRule, PublicRoomsChunk,
+        RoomNetwork,
+    },
     events::{
         room::{
             avatar::RoomAvatarEventContent,
             canonical_alias::RoomCanonicalAliasEventContent,
             guest_access::{GuestAccess, RoomGuestAccessEventContent},
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+            join_rules::{JoinRule, RoomJoinRulesEventContent},
             name::RoomNameEventContent,
             topic::RoomTopicEventContent,
         },
-        EventType,
+        StateEventType,
     },
     ServerName, UInt,
 };
@@ -34,7 +38,7 @@ use tracing::{info, warn};
 /// - Rooms are ordered by the number of joined members
 pub async fn get_public_rooms_filtered_route(
     db: DatabaseGuard,
-    body: Ruma<get_public_rooms_filtered::v3::Request<'_>>,
+    body: Ruma<get_public_rooms_filtered::v3::IncomingRequest>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
     get_public_rooms_filtered_helper(
         &db,
@@ -54,7 +58,7 @@ pub async fn get_public_rooms_filtered_route(
 /// - Rooms are ordered by the number of joined members
 pub async fn get_public_rooms_route(
     db: DatabaseGuard,
-    body: Ruma<get_public_rooms::v3::Request<'_>>,
+    body: Ruma<get_public_rooms::v3::IncomingRequest>,
 ) -> Result<get_public_rooms::v3::Response> {
     let response = get_public_rooms_filtered_helper(
         &db,
@@ -81,7 +85,7 @@ pub async fn get_public_rooms_route(
 /// - TODO: Access control checks
 pub async fn set_room_visibility_route(
     db: DatabaseGuard,
-    body: Ruma<set_room_visibility::v3::Request<'_>>,
+    body: Ruma<set_room_visibility::v3::IncomingRequest>,
 ) -> Result<set_room_visibility::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -109,7 +113,7 @@ pub async fn set_room_visibility_route(
 /// Gets the visibility of a given room in the room directory.
 pub async fn get_room_visibility_route(
     db: DatabaseGuard,
-    body: Ruma<get_room_visibility::v3::Request<'_>>,
+    body: Ruma<get_room_visibility::v3::IncomingRequest>,
 ) -> Result<get_room_visibility::v3::Response> {
     Ok(get_room_visibility::v3::Response {
         visibility: if db.rooms.is_public_room(&body.room_id)? {
@@ -189,7 +193,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
             let chunk = PublicRoomsChunk {
                 canonical_alias: db
                     .rooms
-                    .room_state_get(&room_id, &EventType::RoomCanonicalAlias, "")?
+                    .room_state_get(&room_id, &StateEventType::RoomCanonicalAlias, "")?
                     .map_or(Ok(None), |s| {
                         serde_json::from_str(s.content.get())
                             .map(|c: RoomCanonicalAliasEventContent| c.alias)
@@ -199,7 +203,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                     })?,
                 name: db
                     .rooms
-                    .room_state_get(&room_id, &EventType::RoomName, "")?
+                    .room_state_get(&room_id, &StateEventType::RoomName, "")?
                     .map_or(Ok(None), |s| {
                         serde_json::from_str(s.content.get())
                             .map(|c: RoomNameEventContent| c.name)
@@ -218,7 +222,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                     .expect("user count should not be that big"),
                 topic: db
                     .rooms
-                    .room_state_get(&room_id, &EventType::RoomTopic, "")?
+                    .room_state_get(&room_id, &StateEventType::RoomTopic, "")?
                     .map_or(Ok(None), |s| {
                         serde_json::from_str(s.content.get())
                             .map(|c: RoomTopicEventContent| Some(c.topic))
@@ -228,7 +232,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                     })?,
                 world_readable: db
                     .rooms
-                    .room_state_get(&room_id, &EventType::RoomHistoryVisibility, "")?
+                    .room_state_get(&room_id, &StateEventType::RoomHistoryVisibility, "")?
                     .map_or(Ok(false), |s| {
                         serde_json::from_str(s.content.get())
                             .map(|c: RoomHistoryVisibilityEventContent| {
@@ -242,7 +246,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                     })?,
                 guest_can_join: db
                     .rooms
-                    .room_state_get(&room_id, &EventType::RoomGuestAccess, "")?
+                    .room_state_get(&room_id, &StateEventType::RoomGuestAccess, "")?
                     .map_or(Ok(false), |s| {
                         serde_json::from_str(s.content.get())
                             .map(|c: RoomGuestAccessEventContent| {
@@ -254,7 +258,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                     })?,
                 avatar_url: db
                     .rooms
-                    .room_state_get(&room_id, &EventType::RoomAvatar, "")?
+                    .room_state_get(&room_id, &StateEventType::RoomAvatar, "")?
                     .map(|s| {
                         serde_json::from_str(s.content.get())
                             .map(|c: RoomAvatarEventContent| c.url)
@@ -265,6 +269,25 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                     .transpose()?
                     // url is now an Option<String> so we must flatten
                     .flatten(),
+                join_rule: db
+                    .rooms
+                    .room_state_get(&room_id, &StateEventType::RoomJoinRules, "")?
+                    .map(|s| {
+                        serde_json::from_str(s.content.get())
+                            .map(|c: RoomJoinRulesEventContent| match c.join_rule {
+                                JoinRule::Public => Some(PublicRoomJoinRule::Public),
+                                JoinRule::Knock => Some(PublicRoomJoinRule::Knock),
+                                _ => None,
+                            })
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room join rule event in database.")
+                            })
+                    })
+                    .transpose()?
+                    .flatten()
+                    .ok_or(Error::bad_database(
+                        "Invalid room join rule event in database.",
+                    ))?,
                 room_id,
             };
             Ok(chunk)

@@ -3,7 +3,7 @@ use ruma::{
     api::client::tag::{create_tag, delete_tag, get_tags},
     events::{
         tag::{TagEvent, TagEventContent},
-        EventType,
+        RoomAccountDataEventType,
     },
 };
 use std::collections::BTreeMap;
@@ -15,13 +15,17 @@ use std::collections::BTreeMap;
 /// - Inserts the tag into the tag event of the room account data.
 pub async fn update_tag_route(
     db: DatabaseGuard,
-    body: Ruma<create_tag::v3::Request<'_>>,
+    body: Ruma<create_tag::v3::IncomingRequest>,
 ) -> Result<create_tag::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
         .account_data
-        .get(Some(&body.room_id), sender_user, EventType::Tag)?
+        .get(
+            Some(&body.room_id),
+            sender_user,
+            RoomAccountDataEventType::Tag,
+        )?
         .unwrap_or_else(|| TagEvent {
             content: TagEventContent {
                 tags: BTreeMap::new(),
@@ -35,7 +39,7 @@ pub async fn update_tag_route(
     db.account_data.update(
         Some(&body.room_id),
         sender_user,
-        EventType::Tag,
+        RoomAccountDataEventType::Tag,
         &tags_event,
         &db.globals,
     )?;
@@ -52,13 +56,17 @@ pub async fn update_tag_route(
 /// - Removes the tag from the tag event of the room account data.
 pub async fn delete_tag_route(
     db: DatabaseGuard,
-    body: Ruma<delete_tag::v3::Request<'_>>,
+    body: Ruma<delete_tag::v3::IncomingRequest>,
 ) -> Result<delete_tag::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
         .account_data
-        .get(Some(&body.room_id), sender_user, EventType::Tag)?
+        .get(
+            Some(&body.room_id),
+            sender_user,
+            RoomAccountDataEventType::Tag,
+        )?
         .unwrap_or_else(|| TagEvent {
             content: TagEventContent {
                 tags: BTreeMap::new(),
@@ -69,7 +77,7 @@ pub async fn delete_tag_route(
     db.account_data.update(
         Some(&body.room_id),
         sender_user,
-        EventType::Tag,
+        RoomAccountDataEventType::Tag,
         &tags_event,
         &db.globals,
     )?;
@@ -86,14 +94,18 @@ pub async fn delete_tag_route(
 /// - Gets the tag event of the room account data.
 pub async fn get_tags_route(
     db: DatabaseGuard,
-    body: Ruma<get_tags::v3::Request<'_>>,
+    body: Ruma<get_tags::v3::IncomingRequest>,
 ) -> Result<get_tags::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     Ok(get_tags::v3::Response {
         tags: db
             .account_data
-            .get(Some(&body.room_id), sender_user, EventType::Tag)?
+            .get(
+                Some(&body.room_id),
+                sender_user,
+                RoomAccountDataEventType::Tag,
+            )?
             .unwrap_or_else(|| TagEvent {
                 content: TagEventContent {
                     tags: BTreeMap::new(),

@@ -11,7 +11,7 @@ type HmacSha1 = Hmac<Sha1>;
 /// TODO: Returns information about the recommended turn server.
 pub async fn turn_server_route(
     db: DatabaseGuard,
-    body: Ruma<get_turn_server_info::v3::Request>,
+    body: Ruma<get_turn_server_info::v3::IncomingRequest>,
 ) -> Result<get_turn_server_info::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

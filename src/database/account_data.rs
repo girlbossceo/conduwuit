@@ -1,7 +1,7 @@
 use crate::{utils, Error, Result};
 use ruma::{
     api::client::error::ErrorKind,
-    events::{AnyEphemeralRoomEvent, EventType},
+    events::{AnyEphemeralRoomEvent, RoomAccountDataEventType},
     serde::Raw,
     RoomId, UserId,
 };
@@ -22,7 +22,7 @@ impl AccountData {
         &self,
         room_id: Option<&RoomId>,
         user_id: &UserId,
-        event_type: EventType,
+        event_type: RoomAccountDataEventType,
         data: &T,
         globals: &super::globals::Globals,
     ) -> Result<()> {
@@ -38,10 +38,10 @@ impl AccountData {
         let mut roomuserdataid = prefix.clone();
         roomuserdataid.extend_from_slice(&globals.next_count()?.to_be_bytes());
         roomuserdataid.push(0xff);
-        roomuserdataid.extend_from_slice(event_type.as_bytes());
+        roomuserdataid.extend_from_slice(event_type.to_string().as_bytes());
 
         let mut key = prefix;
-        key.extend_from_slice(event_type.as_bytes());
+        key.extend_from_slice(event_type.to_string().as_bytes());
 
         let json = serde_json::to_value(data).expect("all types here can be serialized"); // TODO: maybe add error handling
         if json.get("type").is_none() || json.get("content").is_none() {
@@ -75,7 +75,7 @@ impl AccountData {
         &self,
         room_id: Option<&RoomId>,
         user_id: &UserId,
-        kind: EventType,
+        kind: RoomAccountDataEventType,
     ) -> Result<Option<T>> {
         let mut key = room_id
             .map(|r| r.to_string())
@@ -85,7 +85,7 @@ impl AccountData {
         key.push(0xff);
         key.extend_from_slice(user_id.as_bytes());
         key.push(0xff);
-        key.extend_from_slice(kind.as_ref().as_bytes());
+        key.extend_from_slice(kind.to_string().as_bytes());
 
         self.roomusertype_roomuserdataid
             .get(&key)?
@@ -109,7 +109,7 @@ impl AccountData {
         room_id: Option<&RoomId>,
         user_id: &UserId,
         since: u64,
-    ) -> Result<HashMap<EventType, Raw<AnyEphemeralRoomEvent>>> {
+    ) -> Result<HashMap<RoomAccountDataEventType, Raw<AnyEphemeralRoomEvent>>> {
         let mut userdata = HashMap::new();
 
         let mut prefix = room_id
@@ -131,7 +131,7 @@ impl AccountData {
             .take_while(move |(k, _)| k.starts_with(&prefix))
             .map(|(k, v)| {
                 Ok::<_, Error>((
-                    EventType::try_from(
+                    RoomAccountDataEventType::try_from(
                         utils::string_from_bytes(k.rsplit(|&b| b == 0xff).next().ok_or_else(
                             || Error::bad_database("RoomUserData ID in db is invalid."),
                         )?)

@@ -18,7 +18,7 @@ use ruma::{
     events::{
         room::member::{MembershipState, RoomMemberEventContent},
         room::message::RoomMessageEventContent,
-        EventType,
+        GlobalAccountDataEventType, RoomEventType,
     },
     push, UserId,
 };
@@ -41,7 +41,7 @@ const GUEST_NAME_LENGTH: usize = 10;
 /// Note: This will not reserve the username, so the username might become invalid when trying to register
 pub async fn get_register_available_route(
     db: DatabaseGuard,
-    body: Ruma<get_username_availability::v3::Request<'_>>,
+    body: Ruma<get_username_availability::v3::IncomingRequest>,
 ) -> Result<get_username_availability::v3::Response> {
     // Validate user id
     let user_id =
@@ -84,7 +84,7 @@ pub async fn get_register_available_route(
 /// - If `inhibit_login` is false: Creates a device and returns device id and access_token
 pub async fn register_route(
     db: DatabaseGuard,
-    body: Ruma<register::v3::Request<'_>>,
+    body: Ruma<register::v3::IncomingRequest>,
 ) -> Result<register::v3::Response> {
     if !db.globals.allow_registration() && !body.from_appservice {
         return Err(Error::BadRequest(
@@ -194,7 +194,7 @@ pub async fn register_route(
     db.account_data.update(
         None,
         &user_id,
-        EventType::PushRules,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
         &ruma::events::push_rules::PushRulesEvent {
             content: ruma::events::push_rules::PushRulesEventContent {
                 global: push::Ruleset::server_default(&user_id),
@@ -271,7 +271,7 @@ pub async fn register_route(
 /// - Triggers device list updates
 pub async fn change_password_route(
     db: DatabaseGuard,
-    body: Ruma<change_password::v3::Request<'_>>,
+    body: Ruma<change_password::v3::IncomingRequest>,
 ) -> Result<change_password::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -340,10 +340,17 @@ pub async fn change_password_route(
 /// Get user_id of the sender user.
 ///
 /// Note: Also works for Application Services
-pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3::Response> {
+pub async fn whoami_route(
+    db: DatabaseGuard,
+    body: Ruma<whoami::v3::Request>,
+) -> Result<whoami::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+    let device_id = body.sender_device.as_ref().cloned();
+
     Ok(whoami::v3::Response {
         user_id: sender_user.clone(),
+        device_id,
+        is_guest: db.users.is_deactivated(&sender_user)?,
     })
 }
 
@@ -359,7 +366,7 @@ pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3:
 /// - Removes ability to log in again
 pub async fn deactivate_route(
     db: DatabaseGuard,
-    body: Ruma<deactivate::v3::Request<'_>>,
+    body: Ruma<deactivate::v3::IncomingRequest>,
 ) -> Result<deactivate::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -433,7 +440,7 @@ pub async fn deactivate_route(
 
         db.rooms.build_and_append_pdu(
             PduBuilder {
-                event_type: EventType::RoomMember,
+                event_type: RoomEventType::RoomMember,
                 content: to_raw_value(&event).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some(sender_user.to_string()),

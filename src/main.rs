@@ -26,10 +26,7 @@ use http::{
     Method, Uri,
 };
 use opentelemetry::trace::{FutureExt, Tracer};
-use ruma::{
-    api::{client::error::ErrorKind, IncomingRequest},
-    Outgoing,
-};
+use ruma::api::{client::error::ErrorKind, IncomingRequest};
 use tokio::{signal, sync::RwLock};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -224,18 +221,18 @@ fn routes() -> Router {
         .ruma_route(client_server::upload_keys_route)
         .ruma_route(client_server::get_keys_route)
         .ruma_route(client_server::claim_keys_route)
-        .ruma_route(client_server::create_backup_route)
-        .ruma_route(client_server::update_backup_route)
-        .ruma_route(client_server::delete_backup_route)
-        .ruma_route(client_server::get_latest_backup_route)
-        .ruma_route(client_server::get_backup_route)
-        .ruma_route(client_server::add_backup_key_sessions_route)
-        .ruma_route(client_server::add_backup_keys_route)
-        .ruma_route(client_server::delete_backup_key_session_route)
-        .ruma_route(client_server::delete_backup_key_sessions_route)
+        .ruma_route(client_server::create_backup_version_route)
+        .ruma_route(client_server::update_backup_version_route)
+        .ruma_route(client_server::delete_backup_version_route)
+        .ruma_route(client_server::get_latest_backup_info_route)
+        .ruma_route(client_server::get_backup_info_route)
+        .ruma_route(client_server::add_backup_keys_for_room_route)
+        .ruma_route(client_server::add_backup_keys_for_session_route)
+        .ruma_route(client_server::delete_backup_keys_for_room_route)
+        .ruma_route(client_server::delete_backup_keys_for_session_route)
         .ruma_route(client_server::delete_backup_keys_route)
-        .ruma_route(client_server::get_backup_key_session_route)
-        .ruma_route(client_server::get_backup_key_sessions_route)
+        .ruma_route(client_server::get_backup_keys_for_room_route)
+        .ruma_route(client_server::get_backup_keys_for_session_route)
         .ruma_route(client_server::get_backup_keys_route)
         .ruma_route(client_server::set_read_marker_route)
         .ruma_route(client_server::create_receipt_route)
@@ -408,16 +405,15 @@ macro_rules! impl_ruma_handler {
         #[allow(non_snake_case)]
         impl<Req, E, F, Fut, $($ty,)*> RumaHandler<($($ty,)* Ruma<Req>,)> for F
         where
-            Req: Outgoing + 'static,
-            Req::Incoming: IncomingRequest + Send,
+            Req: IncomingRequest + Send + 'static,
             F: FnOnce($($ty,)* Ruma<Req>) -> Fut + Clone + Send + 'static,
-            Fut: Future<Output = Result<<Req::Incoming as IncomingRequest>::OutgoingResponse, E>>
+            Fut: Future<Output = Result<Req::OutgoingResponse, E>>
                 + Send,
             E: IntoResponse,
             $( $ty: FromRequest<axum::body::Body> + Send + 'static, )*
         {
             fn add_to_router(self, mut router: Router) -> Router {
-                let meta = Req::Incoming::METADATA;
+                let meta = Req::METADATA;
                 let method_filter = method_to_filter(meta.method);
 
                 for path in IntoIterator::into_iter([meta.unstable_path, meta.r0_path, meta.stable_path]).flatten() {

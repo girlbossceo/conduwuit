@@ -1,9 +1,6 @@
 use crate::Error;
 use ruma::{
-    api::client::uiaa::UiaaResponse,
-    identifiers::{DeviceId, UserId},
-    signatures::CanonicalJsonValue,
-    Outgoing, ServerName,
+    api::client::uiaa::UiaaResponse, signatures::CanonicalJsonValue, DeviceId, ServerName, UserId,
 };
 use std::ops::Deref;
 
@@ -11,8 +8,8 @@ use std::ops::Deref;
 mod axum;
 
 /// Extractor for Ruma request structs
-pub struct Ruma<T: Outgoing> {
-    pub body: T::Incoming,
+pub struct Ruma<T> {
+    pub body: T,
     pub sender_user: Option<Box<UserId>>,
     pub sender_device: Option<Box<DeviceId>>,
     pub sender_servername: Option<Box<ServerName>>,
@@ -21,8 +18,8 @@ pub struct Ruma<T: Outgoing> {
     pub from_appservice: bool,
 }
 
-impl<T: Outgoing> Deref for Ruma<T> {
-    type Target = T::Incoming;
+impl<T> Deref for Ruma<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         &self.body

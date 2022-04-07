@@ -13,7 +13,7 @@ use ruma::{
             canonical_alias::RoomCanonicalAliasEventContent,
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
         },
-        AnyStateEventContent, EventType,
+        AnyStateEventContent, StateEventType,
     },
     serde::Raw,
     EventId, RoomId, UserId,
@@ -28,7 +28,7 @@ use ruma::{
 /// - If event is new canonical_alias: Rejects if alias is incorrect
 pub async fn send_state_event_for_key_route(
     db: DatabaseGuard,
-    body: Ruma<send_state_event::v3::Request<'_>>,
+    body: Ruma<send_state_event::v3::IncomingRequest>,
 ) -> Result<send_state_event::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -36,7 +36,7 @@ pub async fn send_state_event_for_key_route(
         &db,
         sender_user,
         &body.room_id,
-        EventType::from(&*body.event_type),
+        &body.event_type,
         &body.body.body, // Yes, I hate it too
         body.state_key.to_owned(),
     )
@@ -57,12 +57,12 @@ pub async fn send_state_event_for_key_route(
 /// - If event is new canonical_alias: Rejects if alias is incorrect
 pub async fn send_state_event_for_empty_key_route(
     db: DatabaseGuard,
-    body: Ruma<send_state_event::v3::Request<'_>>,
+    body: Ruma<send_state_event::v3::IncomingRequest>,
 ) -> Result<RumaResponse<send_state_event::v3::Response>> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     // Forbid m.room.encryption if encryption is disabled
-    if &body.event_type == "m.room.encryption" && !db.globals.allow_encryption() {
+    if body.event_type == StateEventType::RoomEncryption && !db.globals.allow_encryption() {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "Encryption has been disabled",
@@ -73,7 +73,7 @@ pub async fn send_state_event_for_empty_key_route(
         &db,
         sender_user,
         &body.room_id,
-        EventType::from(&*body.event_type),
+        &body.event_type.to_string().into(),
         &body.body.body,
         body.state_key.to_owned(),
     )
@@ -92,7 +92,7 @@ pub async fn send_state_event_for_empty_key_route(
 /// - If not joined: Only works if current room history visibility is world readable
 pub async fn get_state_events_route(
     db: DatabaseGuard,
-    body: Ruma<get_state_events::v3::Request<'_>>,
+    body: Ruma<get_state_events::v3::IncomingRequest>,
 ) -> Result<get_state_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -102,7 +102,7 @@ pub async fn get_state_events_route(
     if !db.rooms.is_joined(sender_user, &body.room_id)?
         && !matches!(
             db.rooms
-                .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
+                .room_state_get(&body.room_id, &StateEventType::RoomHistoryVisibility, "")?
                 .map(|event| {
                     serde_json::from_str(event.content.get())
                         .map(|e: RoomHistoryVisibilityEventContent| e.history_visibility)
@@ -138,7 +138,7 @@ pub async fn get_state_events_route(
 /// - If not joined: Only works if current room history visibility is world readable
 pub async fn get_state_events_for_key_route(
     db: DatabaseGuard,
-    body: Ruma<get_state_events_for_key::v3::Request<'_>>,
+    body: Ruma<get_state_events_for_key::v3::IncomingRequest>,
 ) -> Result<get_state_events_for_key::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -148,7 +148,7 @@ pub async fn get_state_events_for_key_route(
     if !db.rooms.is_joined(sender_user, &body.room_id)?
         && !matches!(
             db.rooms
-                .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
+                .room_state_get(&body.room_id, &StateEventType::RoomHistoryVisibility, "")?
                 .map(|event| {
                     serde_json::from_str(event.content.get())
                         .map(|e: RoomHistoryVisibilityEventContent| e.history_visibility)
@@ -188,7 +188,7 @@ pub async fn get_state_events_for_key_route(
 /// - If not joined: Only works if current room history visibility is world readable
 pub async fn get_state_events_for_empty_key_route(
     db: DatabaseGuard,
-    body: Ruma<get_state_events_for_key::v3::Request<'_>>,
+    body: Ruma<get_state_events_for_key::v3::IncomingRequest>,
 ) -> Result<RumaResponse<get_state_events_for_key::v3::Response>> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -198,7 +198,7 @@ pub async fn get_state_events_for_empty_key_route(
     if !db.rooms.is_joined(sender_user, &body.room_id)?
         && !matches!(
             db.rooms
-                .room_state_get(&body.room_id, &EventType::RoomHistoryVisibility, "")?
+                .room_state_get(&body.room_id, &StateEventType::RoomHistoryVisibility, "")?
                 .map(|event| {
                     serde_json::from_str(event.content.get())
                         .map(|e: RoomHistoryVisibilityEventContent| e.history_visibility)
@@ -236,7 +236,7 @@ async fn send_state_event_for_key_helper(
     db: &Database,
     sender: &UserId,
     room_id: &RoomId,
-    event_type: EventType,
+    event_type: &StateEventType,
     json: &Raw<AnyStateEventContent>,
     state_key: String,
 ) -> Result<Arc<EventId>> {
@@ -282,7 +282,7 @@ async fn send_state_event_for_key_helper(
 
     let event_id = db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type,
+            event_type: event_type.to_string().into(),
             content: serde_json::from_str(json.json().get()).expect("content is valid json"),
             unsigned: None,
             state_key: Some(state_key),

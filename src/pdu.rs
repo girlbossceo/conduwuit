@@ -2,7 +2,7 @@ use crate::Error;
 use ruma::{
     events::{
         room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyRoomEvent, AnyStateEvent,
-        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
+        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, RoomEventType, StateEvent,
     },
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
     state_res, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, UInt, UserId,
@@ -29,7 +29,7 @@ pub struct PduEvent {
     pub sender: Box<UserId>,
     pub origin_server_ts: UInt,
     #[serde(rename = "type")]
-    pub kind: EventType,
+    pub kind: RoomEventType,
     pub content: Box<RawJsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state_key: Option<String>,
@@ -51,10 +51,10 @@ impl PduEvent {
         self.unsigned = None;
 
         let allowed: &[&str] = match self.kind {
-            EventType::RoomMember => &["membership"],
-            EventType::RoomCreate => &["creator"],
-            EventType::RoomJoinRules => &["join_rule"],
-            EventType::RoomPowerLevels => &[
+            RoomEventType::RoomMember => &["membership"],
+            RoomEventType::RoomCreate => &["creator"],
+            RoomEventType::RoomJoinRules => &["join_rule"],
+            RoomEventType::RoomPowerLevels => &[
                 "ban",
                 "events",
                 "events_default",
@@ -64,7 +64,7 @@ impl PduEvent {
                 "users",
                 "users_default",
             ],
-            EventType::RoomHistoryVisibility => &["history_visibility"],
+            RoomEventType::RoomHistoryVisibility => &["history_visibility"],
             _ => &[],
         };
 
@@ -279,7 +279,7 @@ impl state_res::Event for PduEvent {
         &self.sender
     }
 
-    fn event_type(&self) -> &EventType {
+    fn event_type(&self) -> &RoomEventType {
         &self.kind
     }
 
@@ -354,7 +354,7 @@ pub(crate) fn gen_event_id_canonical_json(
 #[derive(Debug, Deserialize)]
 pub struct PduBuilder {
     #[serde(rename = "type")]
-    pub event_type: EventType,
+    pub event_type: RoomEventType,
     pub content: Box<RawJsonValue>,
     pub unsigned: Option<BTreeMap<String, serde_json::Value>>,
     pub state_key: Option<String>,

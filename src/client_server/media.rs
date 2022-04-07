@@ -32,7 +32,7 @@ pub async fn get_media_config_route(
 /// - Media will be saved in the media/ directory
 pub async fn create_content_route(
     db: DatabaseGuard,
-    body: Ruma<create_content::v3::Request<'_>>,
+    body: Ruma<create_content::v3::IncomingRequest>,
 ) -> Result<create_content::v3::Response> {
     let mxc = format!(
         "mxc://{}/{}",
@@ -101,7 +101,7 @@ pub async fn get_remote_content(
 /// - Only allows federation if `allow_remote` is true
 pub async fn get_content_route(
     db: DatabaseGuard,
-    body: Ruma<get_content::v3::Request<'_>>,
+    body: Ruma<get_content::v3::IncomingRequest>,
 ) -> Result<get_content::v3::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
@@ -132,7 +132,7 @@ pub async fn get_content_route(
 /// - Only allows federation if `allow_remote` is true
 pub async fn get_content_as_filename_route(
     db: DatabaseGuard,
-    body: Ruma<get_content_as_filename::v3::Request<'_>>,
+    body: Ruma<get_content_as_filename::v3::IncomingRequest>,
 ) -> Result<get_content_as_filename::v3::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
@@ -168,7 +168,7 @@ pub async fn get_content_as_filename_route(
 /// - Only allows federation if `allow_remote` is true
 pub async fn get_content_thumbnail_route(
     db: DatabaseGuard,
-    body: Ruma<get_content_thumbnail::v3::Request<'_>>,
+    body: Ruma<get_content_thumbnail::v3::IncomingRequest>,
 ) -> Result<get_content_thumbnail::v3::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
