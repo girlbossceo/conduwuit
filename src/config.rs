@@ -68,6 +68,8 @@ pub struct Config {
     #[serde(default = "default_turn_ttl")]
     pub turn_ttl: u64,
 
+    pub emergency_password: Option<String>,
+
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
 }

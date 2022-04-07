@@ -19,7 +19,14 @@ use abstraction::DatabaseEngine;
 use directories::ProjectDirs;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use lru_cache::LruCache;
-use ruma::{DeviceId, EventId, RoomId, UserId};
+use ruma::{
+    events::{
+        push_rules::PushRulesEventContent, room::message::RoomMessageEventContent, EventType,
+        GlobalAccountDataEvent,
+    },
+    push::Ruleset,
+    DeviceId, EventId, RoomId, UserId,
+};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs::{self, remove_dir_all},
@@ -747,6 +754,23 @@ impl Database {
         guard.rooms.edus.presenceid_presence.clear()?;
 
         guard.admin.start_handler(Arc::clone(&db), admin_receiver);
+
+        // Set emergency access for the conduit user
+        match set_emergency_access(&guard) {
+            Ok(pwd_set) => {
+                if pwd_set {
+                    warn!("The Conduit account emergency password is set! Please unset it as soon as you finish admin account recovery!");
+                    guard.admin.send_message(RoomMessageEventContent::text_plain("The Conduit account emergency password is set! Please unset it as soon as you finish admin account recovery!"));
+                }
+            }
+            Err(e) => {
+                error!(
+                    "Could not set the configured emergency password for the conduit user: {}",
+                    e
+                )
+            }
+        };
+
         guard
             .sending
             .start_handler(Arc::clone(&db), sending_receiver);
@@ -926,6 +950,32 @@ impl Database {
             }
         });
     }
+}
+
+/// Sets the emergency password and push rules for the @conduit account in case emergency password is set
+fn set_emergency_access(db: &Database) -> Result<bool> {
+    let conduit_user = UserId::parse_with_server_name("conduit", db.globals.server_name())
+        .expect("@conduit:server_name is a valid UserId");
+
+    db.users
+        .set_password(&conduit_user, db.globals.emergency_password().as_deref())?;
+
+    let (ruleset, res) = match db.globals.emergency_password() {
+        Some(_) => (Ruleset::server_default(&conduit_user), Ok(true)),
+        None => (Ruleset::new(), Ok(false)),
+    };
+
+    db.account_data.update(
+        None,
+        &conduit_user,
+        EventType::PushRules,
+        &GlobalAccountDataEvent {
+            content: PushRulesEventContent { global: ruleset },
+        },
+        &db.globals,
+    )?;
+
+    res
 }
 
 pub struct DatabaseGuard(OwnedRwLockReadGuard<Database>);

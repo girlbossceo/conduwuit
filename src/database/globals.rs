@@ -264,6 +264,10 @@ impl Globals {
         &self.config.turn_secret
     }
 
+    pub fn emergency_password(&self) -> &Option<String> {
+        &self.config.emergency_password
+    }
+
     /// TODO: the key valid until timestamp is only honored in room version > 4
     /// Remove the outdated keys and insert the new ones.
     ///
