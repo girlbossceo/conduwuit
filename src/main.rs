@@ -226,6 +226,7 @@ fn routes() -> Router {
         .ruma_route(client_server::delete_backup_version_route)
         .ruma_route(client_server::get_latest_backup_info_route)
         .ruma_route(client_server::get_backup_info_route)
+        .ruma_route(client_server::add_backup_keys_route)
         .ruma_route(client_server::add_backup_keys_for_room_route)
         .ruma_route(client_server::add_backup_keys_for_session_route)
         .ruma_route(client_server::delete_backup_keys_for_room_route)
