@@ -1947,9 +1947,10 @@ impl Rooms {
             Ok(_) => {}
             Err(e) => {
                 return match e {
-                    ruma::signatures::Error::PduSize => {
-                        Err(Error::BadRequest(ErrorKind::TooLarge, "Message is to long"))
-                    }
+                    ruma::signatures::Error::PduSize => Err(Error::BadRequest(
+                        ErrorKind::TooLarge,
+                        "Message is too long",
+                    )),
                     _ => Err(Error::BadRequest(
                         ErrorKind::Unknown,
                         "Signing event failed",
