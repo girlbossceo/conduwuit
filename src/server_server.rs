@@ -79,12 +79,16 @@ use tracing::{debug, error, info, trace, warn};
 /// was no port specified to construct a SocketAddr with.
 ///
 /// # Examples:
-/// ```rust,ignore
+/// ```rust
+/// # use conduit::server_server::FedDest;
+/// # fn main() -> Result<(), std::net::AddrParseError> {
 /// FedDest::Literal("198.51.100.3:8448".parse()?);
 /// FedDest::Literal("[2001:db8::4:5]:443".parse()?);
 /// FedDest::Named("matrix.example.org".to_owned(), "".to_owned());
 /// FedDest::Named("matrix.example.org".to_owned(), ":8448".to_owned());
 /// FedDest::Named("198.51.100.5".to_owned(), "".to_owned());
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum FedDest {
