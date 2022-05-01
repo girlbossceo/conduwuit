@@ -6,6 +6,7 @@ use std::{
 };
 
 use crate::{
+    client_server::AUTO_GEN_PASSWORD_LENGTH,
     error::{Error, Result},
     pdu::PduBuilder,
     server_server, utils,
@@ -268,6 +269,13 @@ enum AdminCommand {
         /// Username of the user for whom the password should be reset
         username: String,
     },
+    /// Create a new user
+    CreateUser {
+        /// Username of the new user
+        username: String,
+        /// Password of the new user, if unspecified one is generated
+        password: Option<String>,
+    },
 }
 
 fn process_admin_command(
@@ -479,6 +487,63 @@ fn process_admin_command(
                     user_id, e
                 )),
             }
+        }
+        AdminCommand::CreateUser { username, password } => {
+            let password = password.unwrap_or(utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
+            // Validate user id
+            let user_id = match UserId::parse_with_server_name(
+                username.as_str().to_lowercase(),
+                db.globals.server_name(),
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    return Ok(RoomMessageEventContent::text_plain(format!(
+                        "The supplied username is not a valid username: {}",
+                        e
+                    )))
+                }
+            };
+            if user_id.is_historical() {
+                return Ok(RoomMessageEventContent::text_plain(format!(
+                    "userid {user_id} is not allowed due to historical"
+                )));
+            }
+            if db.users.exists(&user_id)? {
+                return Ok(RoomMessageEventContent::text_plain(format!(
+                    "userid {user_id} already exists"
+                )));
+            }
+            // Create user
+            db.users.create(&user_id, Some(password.as_str()))?;
+
+            // Default to pretty displayname
+            let displayname = format!("{} ⚡️", user_id.localpart());
+            db.users
+                .set_displayname(&user_id, Some(displayname.clone()))?;
+
+            // Initial account data
+            db.account_data.update(
+                None,
+                &user_id,
+                ruma::events::GlobalAccountDataEventType::PushRules
+                    .to_string()
+                    .into(),
+                &ruma::events::push_rules::PushRulesEvent {
+                    content: ruma::events::push_rules::PushRulesEventContent {
+                        global: ruma::push::Ruleset::server_default(&user_id),
+                    },
+                },
+                &db.globals,
+            )?;
+
+            // we dont add a device since we're not the user, just the creator
+
+            db.flush()?;
+
+            // Inhibit login does not work for guests
+            RoomMessageEventContent::text_plain(format!(
+                "Created user with user_id: {user_id} and password: {password}"
+            ))
         }
     };
 
