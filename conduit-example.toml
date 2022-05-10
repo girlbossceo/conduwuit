@@ -1,3 +1,10 @@
+# =============================================================================
+#  This is the official example config for Conduit.
+#  If you use it for your server, you will need to adjust it to your own needs.
+#  At the very least, change the server_name field!
+# =============================================================================
+
+
 [global]
 # The server_name is the pretty name of this server. It is used as a suffix for user
 # and room ids. Examples: matrix.org, conduit.rs
