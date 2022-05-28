@@ -1938,13 +1938,26 @@ impl Rooms {
             CanonicalJsonValue::String(db.globals.server_name().as_ref().to_owned()),
         );
 
-        ruma::signatures::hash_and_sign_event(
+        match ruma::signatures::hash_and_sign_event(
             db.globals.server_name().as_str(),
             db.globals.keypair(),
             &mut pdu_json,
             &room_version_id,
-        )
-        .expect("event is valid, we just created it");
+        ) {
+            Ok(_) => {}
+            Err(e) => {
+                return match e {
+                    ruma::signatures::Error::PduSize => Err(Error::BadRequest(
+                        ErrorKind::TooLarge,
+                        "Message is too long",
+                    )),
+                    _ => Err(Error::BadRequest(
+                        ErrorKind::Unknown,
+                        "Signing event failed",
+                    )),
+                }
+            }
+        }
 
         // Generate event id
         pdu.event_id = EventId::parse_arc(format!(
