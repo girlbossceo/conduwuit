@@ -18,7 +18,12 @@ pub async fn get_supported_versions_route(
     _body: Ruma<get_supported_versions::IncomingRequest>,
 ) -> Result<get_supported_versions::Response> {
     let resp = get_supported_versions::Response {
-        versions: vec!["r0.5.0".to_owned(), "r0.6.0".to_owned(), "v1.1".to_owned(), "v1.2".to_owned()],
+        versions: vec![
+            "r0.5.0".to_owned(),
+            "r0.6.0".to_owned(),
+            "v1.1".to_owned(),
+            "v1.2".to_owned(),
+        ],
         unstable_features: BTreeMap::from_iter([("org.matrix.e2e_cross_signing".to_owned(), true)]),
     };
 
