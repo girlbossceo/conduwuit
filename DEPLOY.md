@@ -58,6 +58,12 @@ In Debian you can use this command to create a Conduit user:
 sudo adduser --system conduit --no-create-home
 ```
 
+## Forwarding Ports in the firewall or the router
+
+Conduit uses the ports 443 and 8448 both of which need to be open in the firewall.
+
+If conduit runs behind a router or in a container and has a different public IP address than the host system these public Ports need to be forwarded directly or indirectly to the port mentioned in the config.
+
 ## Setting up a systemd service
 
 Now we'll set up a systemd service for Conduit, so it's easy to start/stop Conduit and set it to autostart when your
