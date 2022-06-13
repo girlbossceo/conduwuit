@@ -254,6 +254,7 @@ $ curl https://your.server.name:8448/_matrix/client/versions
 ```
 
 - To check if your server can talk with other homeservers, you can use the [Matrix Federation Tester](https://federationtester.matrix.org/)
+  If you can register but cannot join federated rooms check your config again and also check if the port 8448 is open and forwarded correctly.
 
 # What's next?
 
