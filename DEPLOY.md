@@ -58,11 +58,11 @@ In Debian you can use this command to create a Conduit user:
 sudo adduser --system conduit --no-create-home
 ```
 
-## Forwarding Ports in the firewall or the router
+## Forwarding ports in the firewall or the router
 
 Conduit uses the ports 443 and 8448 both of which need to be open in the firewall.
 
-If conduit runs behind a router or in a container and has a different public IP address than the host system these public Ports need to be forwarded directly or indirectly to the port mentioned in the config.
+If Conduit runs behind a router or in a container and has a different public IP address than the host system these public ports need to be forwarded directly or indirectly to the port mentioned in the config.
 
 ## Setting up a systemd service
 
@@ -253,7 +253,7 @@ $ curl https://your.server.name/_matrix/client/versions
 $ curl https://your.server.name:8448/_matrix/client/versions
 ```
 
-- To check if your server can talk with other homeservers, you can use the [Matrix Federation Tester](https://federationtester.matrix.org/)
+- To check if your server can talk with other homeservers, you can use the [Matrix Federation Tester](https://federationtester.matrix.org/).
   If you can register but cannot join federated rooms check your config again and also check if the port 8448 is open and forwarded correctly.
 
 # What's next?
