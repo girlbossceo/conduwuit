@@ -95,7 +95,8 @@ $ sudo systemctl daemon-reload
 ## Creating the Conduit configuration file
 
 Now we need to create the Conduit's config file in `/etc/matrix-conduit/conduit.toml`. Paste this in **and take a moment
-to read it. You need to change at least the server name.**
+to read it. You need to change at least the server name.**  
+You can also choose to use a different database backend, but right now only `rocksdb` and `sqlite` are recommended.
 
 ```toml
 [global]
