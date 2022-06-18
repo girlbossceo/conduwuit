@@ -116,7 +116,7 @@ impl Admin {
                                 send_message(content, guard, &state_lock);
                             }
                             AdminRoomEvent::ProcessMessage(room_message) => {
-                                let reply_message = process_admin_message(&*guard, room_message);
+                                let reply_message = process_admin_message(&*guard, room_message).await;
 
                                 send_message(reply_message, guard, &state_lock);
                             }
@@ -143,7 +143,7 @@ impl Admin {
 }
 
 // Parse and process a message from the admin room
-fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEventContent {
+async fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEventContent {
     let mut lines = room_message.lines();
     let command_line = lines.next().expect("each string has at least one line");
     let body: Vec<_> = lines.collect();
@@ -161,7 +161,7 @@ fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEven
         }
     };
 
-    match process_admin_command(db, admin_command, body) {
+    match process_admin_command(db, admin_command, body).await {
         Ok(reply_message) => reply_message,
         Err(error) => {
             let markdown_message = format!(
@@ -231,8 +231,14 @@ enum AdminCommand {
     /// List all the currently registered appservices
     ListAppservices,
 
+    /// List all rooms the server knows about
+    ListRooms,
+
     /// List users in the database
     ListLocalUsers,
+
+    /// List all rooms we are currently handling an incoming pdu from
+    IncomingFederation,
 
     /// Get the auth_chain of a PDU
     GetAuthChain {
@@ -269,6 +275,7 @@ enum AdminCommand {
         /// Username of the user for whom the password should be reset
         username: String,
     },
+
     /// Create a new user
     CreateUser {
         /// Username of the new user
@@ -276,9 +283,14 @@ enum AdminCommand {
         /// Password of the new user, if unspecified one is generated
         password: Option<String>,
     },
+
+    /// Disables incoming federation handling for a room.
+    DisableRoom { room_id: Box<RoomId> },
+    /// Enables incoming federation handling for a room again.
+    EnableRoom { room_id: Box<RoomId> },
 }
 
-fn process_admin_command(
+async fn process_admin_command(
     db: &Database,
     command: AdminCommand,
     body: Vec<&str>,
@@ -336,6 +348,26 @@ fn process_admin_command(
                 RoomMessageEventContent::text_plain("Failed to get appservices.")
             }
         }
+        AdminCommand::ListRooms => {
+            let room_ids = db.rooms.iter_ids();
+            let output = format!(
+                "Rooms:\n{}",
+                room_ids
+                    .filter_map(|r| r.ok())
+                    .map(|id| id.to_string()
+                        + "\tMembers: "
+                        + &db
+                            .rooms
+                            .room_joined_count(&id)
+                            .ok()
+                            .flatten()
+                            .unwrap_or(0)
+                            .to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+            RoomMessageEventContent::text_plain(output)
+        }
         AdminCommand::ListLocalUsers => match db.users.list_local_users() {
             Ok(users) => {
                 let mut msg: String = format!("Found {} local user account(s):\n", users.len());
@@ -344,6 +376,22 @@ fn process_admin_command(
             }
             Err(e) => RoomMessageEventContent::text_plain(e.to_string()),
         },
+        AdminCommand::IncomingFederation => {
+            let map = db.globals.roomid_federationhandletime.read().unwrap();
+            let mut msg: String = format!("Handling {} incoming pdus:\n", map.len());
+
+            for (r, (e, i)) in map.iter() {
+                let elapsed = i.elapsed();
+                msg += &format!(
+                    "{} {}: {}m{}s\n",
+                    r,
+                    e,
+                    elapsed.as_secs() / 60,
+                    elapsed.as_secs() % 60
+                );
+            }
+            RoomMessageEventContent::text_plain(&msg)
+        }
         AdminCommand::GetAuthChain { event_id } => {
             let event_id = Arc::<EventId>::from(event_id);
             if let Some(event) = db.rooms.get_pdu_json(&event_id)? {
@@ -356,7 +404,9 @@ fn process_admin_command(
                     Error::bad_database("Invalid room id field in event in database")
                 })?;
                 let start = Instant::now();
-                let count = server_server::get_auth_chain(room_id, vec![event_id], db)?.count();
+                let count = server_server::get_auth_chain(room_id, vec![event_id], db)
+                    .await?
+                    .count();
                 let elapsed = start.elapsed();
                 RoomMessageEventContent::text_plain(format!(
                     "Loaded auth chain with length {} in {:?}",
@@ -544,6 +594,14 @@ fn process_admin_command(
             RoomMessageEventContent::text_plain(format!(
                 "Created user with user_id: {user_id} and password: {password}"
             ))
+        }
+        AdminCommand::DisableRoom { room_id } => {
+            db.rooms.disabledroomids.insert(room_id.as_bytes(), &[])?;
+            RoomMessageEventContent::text_plain("Room disabled.")
+        }
+        AdminCommand::EnableRoom { room_id } => {
+            db.rooms.disabledroomids.remove(room_id.as_bytes())?;
+            RoomMessageEventContent::text_plain("Room enabled.")
         }
     };
 
