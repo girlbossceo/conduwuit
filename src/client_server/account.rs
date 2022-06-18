@@ -16,8 +16,10 @@ use ruma::{
         uiaa::{AuthFlow, AuthType, UiaaInfo},
     },
     events::{
-        room::member::{MembershipState, RoomMemberEventContent},
-        room::message::RoomMessageEventContent,
+        room::{
+            member::{MembershipState, RoomMemberEventContent},
+            message::RoomMessageEventContent,
+        },
         GlobalAccountDataEventType, RoomEventType,
     },
     push, UserId,
@@ -27,7 +29,7 @@ use tracing::{info, warn};
 
 use register::RegistrationKind;
 
-const GUEST_NAME_LENGTH: usize = 10;
+const RANDOM_USER_ID_LENGTH: usize = 10;
 
 /// # `GET /_matrix/client/r0/register/available`
 ///
@@ -95,38 +97,38 @@ pub async fn register_route(
 
     let is_guest = body.kind == RegistrationKind::Guest;
 
-    let mut missing_username = false;
-
-    // Validate user id
-    let user_id = UserId::parse_with_server_name(
-        if is_guest {
-            utils::random_string(GUEST_NAME_LENGTH)
-        } else {
-            body.username.clone().unwrap_or_else(|| {
-                // If the user didn't send a username field, that means the client is just trying
-                // the get an UIAA error to see available flows
-                missing_username = true;
-                // Just give the user a random name. He won't be able to register with it anyway.
-                utils::random_string(GUEST_NAME_LENGTH)
-            })
+    let user_id = match (&body.username, is_guest) {
+        (Some(username), false) => {
+            let proposed_user_id =
+                UserId::parse_with_server_name(username.to_lowercase(), db.globals.server_name())
+                    .ok()
+                    .filter(|user_id| {
+                        !user_id.is_historical()
+                            && user_id.server_name() == db.globals.server_name()
+                    })
+                    .ok_or(Error::BadRequest(
+                        ErrorKind::InvalidUsername,
+                        "Username is invalid.",
+                    ))?;
+            if db.users.exists(&proposed_user_id)? {
+                return Err(Error::BadRequest(
+                    ErrorKind::UserInUse,
+                    "Desired user ID is already taken.",
+                ));
+            }
+            proposed_user_id
         }
-        .to_lowercase(),
-        db.globals.server_name(),
-    )
-    .ok()
-    .filter(|user_id| !user_id.is_historical() && user_id.server_name() == db.globals.server_name())
-    .ok_or(Error::BadRequest(
-        ErrorKind::InvalidUsername,
-        "Username is invalid.",
-    ))?;
-
-    // Check if username is creative enough
-    if db.users.exists(&user_id)? {
-        return Err(Error::BadRequest(
-            ErrorKind::UserInUse,
-            "Desired user ID is already taken.",
-        ));
-    }
+        _ => loop {
+            let proposed_user_id = UserId::parse_with_server_name(
+                utils::random_string(RANDOM_USER_ID_LENGTH).to_lowercase(),
+                db.globals.server_name(),
+            )
+            .unwrap();
+            if !db.users.exists(&proposed_user_id)? {
+                break proposed_user_id;
+            }
+        },
+    };
 
     // UIAA
     let mut uiaainfo = UiaaInfo {
@@ -167,13 +169,6 @@ pub async fn register_route(
         } else {
             return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
         }
-    }
-
-    if missing_username {
-        return Err(Error::BadRequest(
-            ErrorKind::MissingParam,
-            "Missing username field.",
-        ));
     }
 
     let password = if is_guest {
