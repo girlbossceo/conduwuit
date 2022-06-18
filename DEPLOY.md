@@ -163,7 +163,7 @@ sudo chmod 700 /var/lib/matrix-conduit/
 
 ## Setting up the Reverse Proxy
 
-This depends on whether you use Apache, Nginx or another web server.
+This depends on whether you use Apache, Caddy, Nginx or another web server.
 
 ### Apache
 
@@ -188,6 +188,19 @@ ProxyPassReverse /_matrix/ http://127.0.0.1:6167/_matrix/
 ```bash
 $ sudo systemctl reload apache2
 ```
+
+### Caddy
+Create `/etc/caddy/conf.d/conduit_caddyfile` and enter this (substitute for your server name).
+```caddy
+your.server.name, your.server.name:8448 {
+        reverse_proxy /_matrix/* 127.0.0.1:6167
+}
+```
+That's it! Just start or enable the service and you're set.
+```bash
+$ sudo systemctl enable caddy
+```
+
 
 ### Nginx
 
@@ -222,6 +235,8 @@ $ sudo systemctl reload nginx
 ```
 
 ## SSL Certificate
+
+If you chose Caddy as your web proxy SSL certificates are handled automatically and you can skip this step.
 
 The easiest way to get an SSL certificate, if you don't have one already, is to install `certbot` and run this:
 
