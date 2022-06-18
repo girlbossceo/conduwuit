@@ -7,8 +7,7 @@
 # Credit's for the original Dockerfile: Weasy666.
 # ---------------------------------------------------------------------------------------------------------
 
-FROM docker.io/alpine@sha256:b66bccf2e0cca8e5fb79f7d3c573dd76c4787d1d883f5afe6c9d136a260bba07 AS runner
-# = alpine:3.15.3
+FROM docker.io/alpine:3.16.0@sha256:4ff3ca91275773af45cb4b0834e12b7eb47d1c18f770a0b151381cd227f4c253 AS runner
 
 
 # Standard port on which Conduit launches.
