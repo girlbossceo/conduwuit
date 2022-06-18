@@ -43,7 +43,6 @@ $ sudo apt install libclang-dev build-essential
 $ cargo build --release
 ```
 
-Note that this currently requires Rust 1.50.
 
 If you want to cross compile Conduit to another architecture, read the [Cross-Compile Guide](cross/README.md).
 
