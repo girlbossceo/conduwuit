@@ -2569,6 +2569,27 @@ impl Rooms {
         }
     }
 
+    // Make a user leave all their joined rooms
+    #[tracing::instrument(skip(self, db))]
+    pub async fn leave_all_rooms(&self, user_id: &UserId, db: &Database) -> Result<()> {
+        let all_rooms = db
+            .rooms
+            .rooms_joined(user_id)
+            .chain(db.rooms.rooms_invited(user_id).map(|t| t.map(|(r, _)| r)))
+            .collect::<Vec<_>>();
+
+        for room_id in all_rooms {
+            let room_id = match room_id {
+                Ok(room_id) => room_id,
+                Err(_) => continue,
+            };
+
+            let _ = self.leave_room(user_id, &room_id, db).await;
+        }
+
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self, db))]
     pub async fn leave_room(
         &self,
