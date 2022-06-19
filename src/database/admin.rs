@@ -525,7 +525,7 @@ async fn process_admin_command(
                 ));
             }
 
-            let new_password = utils::random_string(20);
+            let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
 
             match db.users.set_password(&user_id, Some(new_password.as_str())) {
                 Ok(()) => RoomMessageEventContent::text_plain(format!(
