@@ -240,8 +240,8 @@ enum AdminCommand {
 
     /// Deactivate a user
     ///
-    /// User will be removed from all rooms by default.
-    /// This behaviour can be overridden with the --no-leave-rooms flag.
+    /// User will not be removed from all rooms by default.
+    /// Use --leave-rooms to force the user to leave all rooms
     DeactivateUser {
         #[clap(short, long)]
         leave_rooms: bool,
