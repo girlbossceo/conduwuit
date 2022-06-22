@@ -250,17 +250,30 @@ docker:tags:dockerhub:
 test:cargo:
   extends: .test-shared-settings
   before_script:
-    - rustup component add clippy
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
     - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/usr/local/cargo/bin/sccache; fi
   script:
     - rustc --version && cargo --version # Print version info for debugging
     - "cargo test --color always --workspace --verbose --locked --no-fail-fast -- -Z unstable-options --format json | gitlab-report -p test > $CI_PROJECT_DIR/report.xml"
-    - "cargo clippy --color always --verbose --message-format=json | gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
   artifacts:
     when: always
     reports:
       junit: report.xml
+
+
+test:clippy:
+  extends: .test-shared-settings
+  allow_failure: true
+  before_script:
+    - rustup component add clippy
+    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
+    - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/usr/local/cargo/bin/sccache; fi
+  script:
+    - rustc --version && cargo --version # Print version info for debugging
+    - "cargo clippy --color always --verbose --message-format=json | gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
+  artifacts:
+    when: always
+    reports:
       codequality: gl-code-quality-report.json
 
 test:format:
