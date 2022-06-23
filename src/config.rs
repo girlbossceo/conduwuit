@@ -26,6 +26,8 @@ pub struct Config {
     pub database_path: String,
     #[serde(default = "default_db_cache_capacity_mb")]
     pub db_cache_capacity_mb: f64,
+    #[serde(default = "true_fn")]
+    pub enable_lightning_bolt: bool,
     #[serde(default = "default_conduit_cache_capacity_modifier")]
     pub conduit_cache_capacity_modifier: f64,
     #[serde(default = "default_rocksdb_max_open_files")]
@@ -135,6 +137,10 @@ impl fmt::Display for Config {
                 &self.max_concurrent_requests.to_string(),
             ),
             ("Allow registration", &self.allow_registration.to_string()),
+            (
+                "Enabled lightning bolt",
+                &self.enable_lightning_bolt.to_string(),
+            ),
             ("Allow encryption", &self.allow_encryption.to_string()),
             ("Allow federation", &self.allow_federation.to_string()),
             ("Allow room creation", &self.allow_room_creation.to_string()),

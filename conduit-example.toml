@@ -40,6 +40,9 @@ allow_registration = true
 
 allow_federation = true
 
+# Enable the display name lightning bolt on registration.
+enable_lightning_bolt = true
+
 trusted_servers = ["matrix.org"]
 
 #max_concurrent_requests = 100 # How many requests Conduit sends to other servers at the same time
