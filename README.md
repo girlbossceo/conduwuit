@@ -19,7 +19,7 @@ HQ.
 
 #### What is the current status?
 
-As of 2021-09-01, Conduit is Beta, meaning you can join and participate in most
+Conduit is Beta, meaning you can join and participate in most
 Matrix rooms, but not all features are supported and you might run into bugs
 from time to time.
 
@@ -54,7 +54,7 @@ Thanks to Famedly, Prototype Fund (DLR and German BMBF) and all other individual
 Thanks to the contributors to Conduit and all libraries we use, for example:
 
 - Ruma: A clean library for the Matrix Spec in Rust
-- Rocket: A flexible web framework
+- axum: A modular web framework
 
 #### Donate
 

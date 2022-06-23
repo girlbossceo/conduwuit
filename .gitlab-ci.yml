@@ -26,7 +26,7 @@ variables:
     - if: "$CI_COMMIT_TAG"
     - if: '($CI_MERGE_REQUEST_APPROVED == "true") || $BUILD_EVERYTHING' # Once MR is approved, test all builds. Or if BUILD_EVERYTHING is set.
   interruptible: true
-  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
+  image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools@sha256:69ab327974aef4cc0daf4273579253bf7ae5e379a6c52729b83137e4caa9d093"
   tags: ["docker"]
   services: ["docker:dind"]
   variables:
@@ -220,11 +220,25 @@ docker:master:dockerhub:
   variables:
     TAG: "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:latest"
 
+docker:tags:gitlab:
+  extends: .docker-shared-settings
+  rules:
+    - if: "$CI_COMMIT_TAG"
+  variables:
+    TAG: "$CI_REGISTRY_IMAGE/matrix-conduit:$CI_COMMIT_TAG"
+
+docker:tags:dockerhub:
+  extends: .docker-shared-settings
+  rules:
+    - if: "$CI_COMMIT_TAG && $DOCKER_HUB"
+  variables:
+    TAG: "$DOCKER_HUB_IMAGE/matrixconduit/matrix-conduit:$CI_COMMIT_TAG"
+
 # --------------------------------------------------------------------- #
 #  Run tests                                                            #
 # --------------------------------------------------------------------- #
 
-test:cargo:
+.test-shared-settings:
   stage: "test"
   needs: []
   image: "registry.gitlab.com/jfowl/conduit-containers/rust-with-tools:latest"
@@ -232,20 +246,53 @@ test:cargo:
   variables:
     CARGO_INCREMENTAL: "false" # https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
   interruptible: true
+
+test:cargo:
+  extends: .test-shared-settings
   before_script:
-    - rustup component add clippy rustfmt
     # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
     - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/usr/local/cargo/bin/sccache; fi
   script:
     - rustc --version && cargo --version # Print version info for debugging
-    - cargo fmt --all -- --check
     - "cargo test --color always --workspace --verbose --locked --no-fail-fast -- -Z unstable-options --format json | gitlab-report -p test > $CI_PROJECT_DIR/report.xml"
-    - "cargo clippy --color always --verbose --message-format=json | gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
   artifacts:
     when: always
     reports:
       junit: report.xml
+
+
+test:clippy:
+  extends: .test-shared-settings
+  allow_failure: true
+  before_script:
+    - rustup component add clippy
+    # If provided, bring in caching through sccache, which uses an external S3 endpoint to store compilation results:
+    - if [ -n "${SCCACHE_ENDPOINT}" ]; then export RUSTC_WRAPPER=/usr/local/cargo/bin/sccache; fi
+  script:
+    - rustc --version && cargo --version # Print version info for debugging
+    - "cargo clippy --color always --verbose --message-format=json | gitlab-report -p clippy > $CI_PROJECT_DIR/gl-code-quality-report.json"
+  artifacts:
+    when: always
+    reports:
       codequality: gl-code-quality-report.json
+
+test:format:
+  extends: .test-shared-settings
+  before_script:
+    - rustup component add rustfmt
+  script:
+    - cargo fmt --all -- --check
+
+test:audit:
+  extends: .test-shared-settings
+  allow_failure: true
+  script:
+    - cargo audit --color always || true
+    - cargo audit --stale --json | gitlab-report -p audit > gl-sast-report.json
+  artifacts:
+    when: always
+    reports:
+      sast: gl-sast-report.json
 
 test:sytest:
   stage: "test"
@@ -258,6 +305,7 @@ test:sytest:
   tags: ["docker"]
   variables:
     PLUGINS: "https://github.com/valkum/sytest_conduit/archive/master.tar.gz"
+  interruptible: true
   before_script:
     - "mkdir -p /app"
     - "cp ./conduit-debug-x86_64-unknown-linux-musl /app/conduit"
@@ -277,6 +325,41 @@ test:sytest:
       - "$CI_PROJECT_DIR/results.tap"
     reports:
       junit: "$CI_PROJECT_DIR/sytest.xml"
+
+test:dockerlint:
+  stage: "test"
+  needs: []
+  image: "ghcr.io/hadolint/hadolint@sha256:6c4b7c23f96339489dd35f21a711996d7ce63047467a9a562287748a03ad5242" # 2.8.0-alpine
+  interruptible: true
+  script:
+    - hadolint --version
+    # First pass: Print for CI log:
+    - >
+      hadolint
+      --no-fail --verbose
+      ./Dockerfile
+      ./docker/ci-binaries-packaging.Dockerfile
+    # Then output the results into a json for GitLab to pretty-print this in the MR:
+    - >
+      hadolint
+      --format gitlab_codeclimate
+      --failure-threshold error
+      ./Dockerfile
+      ./docker/ci-binaries-packaging.Dockerfile > dockerlint.json
+  artifacts:
+    when: always
+    reports:
+      codequality: dockerlint.json
+    paths:
+      - dockerlint.json
+  rules:
+    - if: '$CI_COMMIT_REF_NAME != "master"'
+      changes:
+        - docker/*Dockerfile
+        - Dockerfile
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_REF_NAME == "master"'
+    - if: '$CI_COMMIT_REF_NAME == "next"'
 
 # --------------------------------------------------------------------- #
 #  Store binaries as package so they have download urls                 #
@@ -313,3 +396,4 @@ workflow:
     - if: "$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS"
       when: never
     - if: "$CI_COMMIT_BRANCH"
+    - if: "$CI_COMMIT_TAG"

@@ -1,35 +1,31 @@
-use crate::{database::DatabaseGuard, ConduitResult, Ruma};
+use crate::{database::DatabaseGuard, Result, Ruma};
 use ruma::{
-    api::client::r0::tag::{create_tag, delete_tag, get_tags},
+    api::client::tag::{create_tag, delete_tag, get_tags},
     events::{
         tag::{TagEvent, TagEventContent},
-        EventType,
+        RoomAccountDataEventType,
     },
 };
 use std::collections::BTreeMap;
-
-#[cfg(feature = "conduit_bin")]
-use rocket::{delete, get, put};
 
 /// # `PUT /_matrix/client/r0/user/{userId}/rooms/{roomId}/tags/{tag}`
 ///
 /// Adds a tag to the room.
 ///
 /// - Inserts the tag into the tag event of the room account data.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/user/<_>/rooms/<_>/tags/<_>", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn update_tag_route(
     db: DatabaseGuard,
-    body: Ruma<create_tag::Request<'_>>,
-) -> ConduitResult<create_tag::Response> {
+    body: Ruma<create_tag::v3::IncomingRequest>,
+) -> Result<create_tag::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
         .account_data
-        .get(Some(&body.room_id), sender_user, EventType::Tag)?
+        .get(
+            Some(&body.room_id),
+            sender_user,
+            RoomAccountDataEventType::Tag,
+        )?
         .unwrap_or_else(|| TagEvent {
             content: TagEventContent {
                 tags: BTreeMap::new(),
@@ -43,14 +39,14 @@ pub async fn update_tag_route(
     db.account_data.update(
         Some(&body.room_id),
         sender_user,
-        EventType::Tag,
+        RoomAccountDataEventType::Tag,
         &tags_event,
         &db.globals,
     )?;
 
     db.flush()?;
 
-    Ok(create_tag::Response {}.into())
+    Ok(create_tag::v3::Response {})
 }
 
 /// # `DELETE /_matrix/client/r0/user/{userId}/rooms/{roomId}/tags/{tag}`
@@ -58,20 +54,19 @@ pub async fn update_tag_route(
 /// Deletes a tag from the room.
 ///
 /// - Removes the tag from the tag event of the room account data.
-#[cfg_attr(
-    feature = "conduit_bin",
-    delete("/_matrix/client/r0/user/<_>/rooms/<_>/tags/<_>", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn delete_tag_route(
     db: DatabaseGuard,
-    body: Ruma<delete_tag::Request<'_>>,
-) -> ConduitResult<delete_tag::Response> {
+    body: Ruma<delete_tag::v3::IncomingRequest>,
+) -> Result<delete_tag::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let mut tags_event = db
         .account_data
-        .get(Some(&body.room_id), sender_user, EventType::Tag)?
+        .get(
+            Some(&body.room_id),
+            sender_user,
+            RoomAccountDataEventType::Tag,
+        )?
         .unwrap_or_else(|| TagEvent {
             content: TagEventContent {
                 tags: BTreeMap::new(),
@@ -82,14 +77,14 @@ pub async fn delete_tag_route(
     db.account_data.update(
         Some(&body.room_id),
         sender_user,
-        EventType::Tag,
+        RoomAccountDataEventType::Tag,
         &tags_event,
         &db.globals,
     )?;
 
     db.flush()?;
 
-    Ok(delete_tag::Response {}.into())
+    Ok(delete_tag::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/user/{userId}/rooms/{roomId}/tags`
@@ -97,21 +92,20 @@ pub async fn delete_tag_route(
 /// Returns tags on the room.
 ///
 /// - Gets the tag event of the room account data.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/user/<_>/rooms/<_>/tags", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_tags_route(
     db: DatabaseGuard,
-    body: Ruma<get_tags::Request<'_>>,
-) -> ConduitResult<get_tags::Response> {
+    body: Ruma<get_tags::v3::IncomingRequest>,
+) -> Result<get_tags::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(get_tags::Response {
+    Ok(get_tags::v3::Response {
         tags: db
             .account_data
-            .get(Some(&body.room_id), sender_user, EventType::Tag)?
+            .get(
+                Some(&body.room_id),
+                sender_user,
+                RoomAccountDataEventType::Tag,
+            )?
             .unwrap_or_else(|| TagEvent {
                 content: TagEventContent {
                     tags: BTreeMap::new(),
@@ -119,6 +113,5 @@ pub async fn get_tags_route(
             })
             .content
             .tags,
-    }
-    .into())
+    })
 }

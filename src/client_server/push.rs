@@ -1,65 +1,59 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::push::{
+        push::{
             delete_pushrule, get_pushers, get_pushrule, get_pushrule_actions, get_pushrule_enabled,
             get_pushrules_all, set_pusher, set_pushrule, set_pushrule_actions,
             set_pushrule_enabled, RuleKind,
         },
     },
-    events::{push_rules::PushRulesEvent, EventType},
+    events::{push_rules::PushRulesEvent, GlobalAccountDataEventType},
     push::{ConditionalPushRuleInit, PatternedPushRuleInit, SimplePushRuleInit},
 };
-
-#[cfg(feature = "conduit_bin")]
-use rocket::{delete, get, post, put};
 
 /// # `GET /_matrix/client/r0/pushrules`
 ///
 /// Retrieves the push rules event for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushrules", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushrules_all_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrules_all::Request>,
-) -> ConduitResult<get_pushrules_all::Response> {
+    body: Ruma<get_pushrules_all::v3::Request>,
+) -> Result<get_pushrules_all::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
         ))?;
 
-    Ok(get_pushrules_all::Response {
+    Ok(get_pushrules_all::v3::Response {
         global: event.content.global,
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
 ///
 /// Retrieves a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrule::Request<'_>>,
-) -> ConduitResult<get_pushrule::Response> {
+    body: Ruma<get_pushrule::v3::IncomingRequest>,
+) -> Result<get_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -91,7 +85,7 @@ pub async fn get_pushrule_route(
     };
 
     if let Some(rule) = rule {
-        Ok(get_pushrule::Response { rule }.into())
+        Ok(get_pushrule::v3::Response { rule })
     } else {
         Err(Error::BadRequest(
             ErrorKind::NotFound,
@@ -103,15 +97,10 @@ pub async fn get_pushrule_route(
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
 ///
 /// Creates a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_route(
     db: DatabaseGuard,
-    body: Ruma<set_pushrule::Request<'_>>,
-) -> ConduitResult<set_pushrule::Response> {
+    body: Ruma<set_pushrule::v3::IncomingRequest>,
+) -> Result<set_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let body = body.body;
 
@@ -124,7 +113,11 @@ pub async fn set_pushrule_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -193,26 +186,26 @@ pub async fn set_pushrule_route(
         _ => {}
     }
 
-    db.account_data
-        .update(None, sender_user, EventType::PushRules, &event, &db.globals)?;
+    db.account_data.update(
+        None,
+        sender_user,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
+        &event,
+        &db.globals,
+    )?;
 
     db.flush()?;
 
-    Ok(set_pushrule::Response {}.into())
+    Ok(set_pushrule::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
 ///
 /// Gets the actions of a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushrules/<_>/<_>/<_>/actions", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_actions_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrule_actions::Request<'_>>,
-) -> ConduitResult<get_pushrule_actions::Response> {
+    body: Ruma<get_pushrule_actions::v3::IncomingRequest>,
+) -> Result<get_pushrule_actions::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -224,7 +217,11 @@ pub async fn get_pushrule_actions_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -257,24 +254,18 @@ pub async fn get_pushrule_actions_route(
 
     db.flush()?;
 
-    Ok(get_pushrule_actions::Response {
+    Ok(get_pushrule_actions::v3::Response {
         actions: actions.unwrap_or_default(),
-    }
-    .into())
+    })
 }
 
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
 ///
 /// Sets the actions of a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>/actions", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_actions_route(
     db: DatabaseGuard,
-    body: Ruma<set_pushrule_actions::Request<'_>>,
-) -> ConduitResult<set_pushrule_actions::Response> {
+    body: Ruma<set_pushrule_actions::v3::IncomingRequest>,
+) -> Result<set_pushrule_actions::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -286,7 +277,11 @@ pub async fn set_pushrule_actions_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -327,26 +322,26 @@ pub async fn set_pushrule_actions_route(
         _ => {}
     };
 
-    db.account_data
-        .update(None, sender_user, EventType::PushRules, &event, &db.globals)?;
+    db.account_data.update(
+        None,
+        sender_user,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
+        &event,
+        &db.globals,
+    )?;
 
     db.flush()?;
 
-    Ok(set_pushrule_actions::Response {}.into())
+    Ok(set_pushrule_actions::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
 ///
 /// Gets the enabled status of a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushrules/<_>/<_>/<_>/enabled", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushrule_enabled_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushrule_enabled::Request<'_>>,
-) -> ConduitResult<get_pushrule_enabled::Response> {
+    body: Ruma<get_pushrule_enabled::v3::IncomingRequest>,
+) -> Result<get_pushrule_enabled::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -358,7 +353,11 @@ pub async fn get_pushrule_enabled_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -396,21 +395,16 @@ pub async fn get_pushrule_enabled_route(
 
     db.flush()?;
 
-    Ok(get_pushrule_enabled::Response { enabled }.into())
+    Ok(get_pushrule_enabled::v3::Response { enabled })
 }
 
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
 ///
 /// Sets the enabled status of a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/pushrules/<_>/<_>/<_>/enabled", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn set_pushrule_enabled_route(
     db: DatabaseGuard,
-    body: Ruma<set_pushrule_enabled::Request<'_>>,
-) -> ConduitResult<set_pushrule_enabled::Response> {
+    body: Ruma<set_pushrule_enabled::v3::IncomingRequest>,
+) -> Result<set_pushrule_enabled::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -422,7 +416,11 @@ pub async fn set_pushrule_enabled_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -468,26 +466,26 @@ pub async fn set_pushrule_enabled_route(
         _ => {}
     }
 
-    db.account_data
-        .update(None, sender_user, EventType::PushRules, &event, &db.globals)?;
+    db.account_data.update(
+        None,
+        sender_user,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
+        &event,
+        &db.globals,
+    )?;
 
     db.flush()?;
 
-    Ok(set_pushrule_enabled::Response {}.into())
+    Ok(set_pushrule_enabled::v3::Response {})
 }
 
 /// # `DELETE /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
 ///
 /// Deletes a single specified push rule for this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    delete("/_matrix/client/r0/pushrules/<_>/<_>/<_>", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn delete_pushrule_route(
     db: DatabaseGuard,
-    body: Ruma<delete_pushrule::Request<'_>>,
-) -> ConduitResult<delete_pushrule::Response> {
+    body: Ruma<delete_pushrule::v3::IncomingRequest>,
+) -> Result<delete_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if body.scope != "global" {
@@ -499,7 +497,11 @@ pub async fn delete_pushrule_route(
 
     let mut event: PushRulesEvent = db
         .account_data
-        .get(None, sender_user, EventType::PushRules)?
+        .get(
+            None,
+            sender_user,
+            GlobalAccountDataEventType::PushRules.to_string().into(),
+        )?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "PushRules event not found.",
@@ -535,32 +537,31 @@ pub async fn delete_pushrule_route(
         _ => {}
     }
 
-    db.account_data
-        .update(None, sender_user, EventType::PushRules, &event, &db.globals)?;
+    db.account_data.update(
+        None,
+        sender_user,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
+        &event,
+        &db.globals,
+    )?;
 
     db.flush()?;
 
-    Ok(delete_pushrule::Response {}.into())
+    Ok(delete_pushrule::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/pushers`
 ///
 /// Gets all currently active pushers for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/pushers", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_pushers_route(
     db: DatabaseGuard,
-    body: Ruma<get_pushers::Request>,
-) -> ConduitResult<get_pushers::Response> {
+    body: Ruma<get_pushers::v3::Request>,
+) -> Result<get_pushers::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(get_pushers::Response {
+    Ok(get_pushers::v3::Response {
         pushers: db.pusher.get_pushers(sender_user)?,
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/client/r0/pushers/set`
@@ -568,15 +569,10 @@ pub async fn get_pushers_route(
 /// Adds a pusher for the sender user.
 ///
 /// - TODO: Handle `append`
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/pushers/set", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn set_pushers_route(
     db: DatabaseGuard,
-    body: Ruma<set_pusher::Request>,
-) -> ConduitResult<set_pusher::Response> {
+    body: Ruma<set_pusher::v3::Request>,
+) -> Result<set_pusher::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let pusher = body.pusher.clone();
 
@@ -584,5 +580,5 @@ pub async fn set_pushers_route(
 
     db.flush()?;
 
-    Ok(set_pusher::Response::default().into())
+    Ok(set_pusher::v3::Response::default())
 }

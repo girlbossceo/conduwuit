@@ -1,34 +1,42 @@
-use std::{collections::BTreeMap, convert::TryFrom, convert::TryInto, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+    time::Instant,
+};
 
 use crate::{
+    client_server::AUTO_GEN_PASSWORD_LENGTH,
     error::{Error, Result},
     pdu::PduBuilder,
-    server_server, Database, PduEvent,
+    server_server, utils,
+    utils::HtmlEscape,
+    Database, PduEvent,
 };
 use clap::Parser;
 use regex::Regex;
-use rocket::{
-    futures::{channel::mpsc, stream::StreamExt},
-    http::RawStr,
-};
 use ruma::{
-    events::room::{
-        canonical_alias::RoomCanonicalAliasEventContent,
-        create::RoomCreateEventContent,
-        guest_access::{GuestAccess, RoomGuestAccessEventContent},
-        history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
-        join_rules::{JoinRule, RoomJoinRulesEventContent},
-        member::{MembershipState, RoomMemberEventContent},
-        name::RoomNameEventContent,
-        power_levels::RoomPowerLevelsEventContent,
-        topic::RoomTopicEventContent,
+    events::{
+        room::{
+            canonical_alias::RoomCanonicalAliasEventContent,
+            create::RoomCreateEventContent,
+            guest_access::{GuestAccess, RoomGuestAccessEventContent},
+            history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+            join_rules::{JoinRule, RoomJoinRulesEventContent},
+            member::{MembershipState, RoomMemberEventContent},
+            message::RoomMessageEventContent,
+            name::RoomNameEventContent,
+            power_levels::RoomPowerLevelsEventContent,
+            topic::RoomTopicEventContent,
+        },
+        RoomEventType,
     },
-    events::{room::message::RoomMessageEventContent, EventType},
-    identifiers::{EventId, RoomAliasId, RoomId, RoomName, RoomVersionId, ServerName, UserId},
+    EventId, RoomAliasId, RoomId, RoomName, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::sync::{MutexGuard, RwLock, RwLockReadGuard};
+use tokio::sync::{mpsc, MutexGuard, RwLock, RwLockReadGuard};
 
+#[derive(Debug)]
 pub enum AdminRoomEvent {
     ProcessMessage(String),
     SendMessage(RoomMessageEventContent),
@@ -74,7 +82,7 @@ impl Admin {
                     .rooms
                     .build_and_append_pdu(
                         PduBuilder {
-                            event_type: EventType::RoomMessage,
+                            event_type: RoomEventType::RoomMessage,
                             content: to_raw_value(&message)
                                 .expect("event is valid, we just created it"),
                             unsigned: None,
@@ -91,8 +99,14 @@ impl Admin {
 
             loop {
                 tokio::select! {
-                    Some(event) = receiver.next() => {
+                    Some(event) = receiver.recv() => {
                         let guard = db.read().await;
+
+                        let message_content = match event {
+                            AdminRoomEvent::SendMessage(content) => content,
+                            AdminRoomEvent::ProcessMessage(room_message) => process_admin_message(&*guard, room_message).await
+                        };
+
                         let mutex_state = Arc::clone(
                             guard.globals
                                 .roomid_mutex_state
@@ -101,18 +115,10 @@ impl Admin {
                                 .entry(conduit_room.clone())
                                 .or_default(),
                         );
+
                         let state_lock = mutex_state.lock().await;
 
-                        match event {
-                            AdminRoomEvent::SendMessage(content) => {
-                                send_message(content, guard, &state_lock);
-                            }
-                            AdminRoomEvent::ProcessMessage(room_message) => {
-                                let reply_message = process_admin_message(&*guard, room_message);
-
-                                send_message(reply_message, guard, &state_lock);
-                            }
-                        }
+                        send_message(message_content, guard, &state_lock);
 
                         drop(state_lock);
                     }
@@ -123,19 +129,19 @@ impl Admin {
 
     pub fn process_message(&self, room_message: String) {
         self.sender
-            .unbounded_send(AdminRoomEvent::ProcessMessage(room_message))
+            .send(AdminRoomEvent::ProcessMessage(room_message))
             .unwrap();
     }
 
     pub fn send_message(&self, message_content: RoomMessageEventContent) {
         self.sender
-            .unbounded_send(AdminRoomEvent::SendMessage(message_content))
+            .send(AdminRoomEvent::SendMessage(message_content))
             .unwrap();
     }
 }
 
 // Parse and process a message from the admin room
-fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEventContent {
+async fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEventContent {
     let mut lines = room_message.lines();
     let command_line = lines.next().expect("each string has at least one line");
     let body: Vec<_> = lines.collect();
@@ -153,7 +159,7 @@ fn process_admin_message(db: &Database, room_message: String) -> RoomMessageEven
         }
     };
 
-    match process_admin_command(db, admin_command, body) {
+    match process_admin_command(db, admin_command, body).await {
         Ok(reply_message) => reply_message,
         Err(error) => {
             let markdown_message = format!(
@@ -223,8 +229,47 @@ enum AdminCommand {
     /// List all the currently registered appservices
     ListAppservices,
 
+    /// List all rooms the server knows about
+    ListRooms,
+
     /// List users in the database
     ListLocalUsers,
+
+    /// List all rooms we are currently handling an incoming pdu from
+    IncomingFederation,
+
+    /// Deactivate a user
+    ///
+    /// User will not be removed from all rooms by default.
+    /// Use --leave-rooms to force the user to leave all rooms
+    DeactivateUser {
+        #[clap(short, long)]
+        leave_rooms: bool,
+        user_id: Box<UserId>,
+    },
+
+    #[clap(verbatim_doc_comment)]
+    /// Deactivate a list of users
+    ///
+    /// Recommended to use in conjunction with list-local-users.
+    ///
+    /// Users will not be removed from joined rooms by default.
+    /// Can be overridden with --leave-rooms flag.
+    /// Removing a mass amount of users from a room may cause a significant amount of leave events.
+    /// The time to leave rooms may depend significantly on joined rooms and servers.
+    ///
+    /// [commandbody]
+    /// # ```
+    /// # User list here
+    /// # ```
+    DeactivateAll {
+        #[clap(short, long)]
+        /// Remove users from their joined rooms
+        leave_rooms: bool,
+        #[clap(short, long)]
+        /// Also deactivate admin accounts
+        force: bool,
+    },
 
     /// Get the auth_chain of a PDU
     GetAuthChain {
@@ -252,9 +297,31 @@ enum AdminCommand {
 
     /// Print database memory usage statistics
     DatabaseMemoryUsage,
+
+    /// Show configuration values
+    ShowConfig,
+
+    /// Reset user password
+    ResetPassword {
+        /// Username of the user for whom the password should be reset
+        username: String,
+    },
+
+    /// Create a new user
+    CreateUser {
+        /// Username of the new user
+        username: String,
+        /// Password of the new user, if unspecified one is generated
+        password: Option<String>,
+    },
+
+    /// Disables incoming federation handling for a room.
+    DisableRoom { room_id: Box<RoomId> },
+    /// Enables incoming federation handling for a room again.
+    EnableRoom { room_id: Box<RoomId> },
 }
 
-fn process_admin_command(
+async fn process_admin_command(
     db: &Database,
     command: AdminCommand,
     body: Vec<&str>,
@@ -312,6 +379,26 @@ fn process_admin_command(
                 RoomMessageEventContent::text_plain("Failed to get appservices.")
             }
         }
+        AdminCommand::ListRooms => {
+            let room_ids = db.rooms.iter_ids();
+            let output = format!(
+                "Rooms:\n{}",
+                room_ids
+                    .filter_map(|r| r.ok())
+                    .map(|id| id.to_string()
+                        + "\tMembers: "
+                        + &db
+                            .rooms
+                            .room_joined_count(&id)
+                            .ok()
+                            .flatten()
+                            .unwrap_or(0)
+                            .to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+            RoomMessageEventContent::text_plain(output)
+        }
         AdminCommand::ListLocalUsers => match db.users.list_local_users() {
             Ok(users) => {
                 let mut msg: String = format!("Found {} local user account(s):\n", users.len());
@@ -320,6 +407,22 @@ fn process_admin_command(
             }
             Err(e) => RoomMessageEventContent::text_plain(e.to_string()),
         },
+        AdminCommand::IncomingFederation => {
+            let map = db.globals.roomid_federationhandletime.read().unwrap();
+            let mut msg: String = format!("Handling {} incoming pdus:\n", map.len());
+
+            for (r, (e, i)) in map.iter() {
+                let elapsed = i.elapsed();
+                msg += &format!(
+                    "{} {}: {}m{}s\n",
+                    r,
+                    e,
+                    elapsed.as_secs() / 60,
+                    elapsed.as_secs() % 60
+                );
+            }
+            RoomMessageEventContent::text_plain(&msg)
+        }
         AdminCommand::GetAuthChain { event_id } => {
             let event_id = Arc::<EventId>::from(event_id);
             if let Some(event) = db.rooms.get_pdu_json(&event_id)? {
@@ -332,7 +435,9 @@ fn process_admin_command(
                     Error::bad_database("Invalid room id field in event in database")
                 })?;
                 let start = Instant::now();
-                let count = server_server::get_auth_chain(room_id, vec![event_id], db)?.count();
+                let count = server_server::get_auth_chain(room_id, vec![event_id], db)
+                    .await?
+                    .count();
                 let elapsed = start.elapsed();
                 RoomMessageEventContent::text_plain(format!(
                     "Loaded auth chain with length {} in {:?}",
@@ -347,24 +452,26 @@ fn process_admin_command(
                 let string = body[1..body.len() - 1].join("\n");
                 match serde_json::from_str(&string) {
                     Ok(value) => {
-                        let event_id = EventId::parse(format!(
-                            "${}",
-                            // Anything higher than version3 behaves the same
-                            ruma::signatures::reference_hash(&value, &RoomVersionId::V6)
-                                .expect("ruma can calculate reference hashes")
-                        ))
-                        .expect("ruma's reference hashes are valid event ids");
+                        match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
+                            Ok(hash) => {
+                                let event_id = EventId::parse(format!("${}", hash));
 
-                        match serde_json::from_value::<PduEvent>(
-                            serde_json::to_value(value).expect("value is json"),
-                        ) {
-                            Ok(pdu) => RoomMessageEventContent::text_plain(format!(
-                                "EventId: {:?}\n{:#?}",
-                                event_id, pdu
-                            )),
+                                match serde_json::from_value::<PduEvent>(
+                                    serde_json::to_value(value).expect("value is json"),
+                                ) {
+                                    Ok(pdu) => RoomMessageEventContent::text_plain(format!(
+                                        "EventId: {:?}\n{:#?}",
+                                        event_id, pdu
+                                    )),
+                                    Err(e) => RoomMessageEventContent::text_plain(format!(
+                                        "EventId: {:?}\nCould not parse event: {}",
+                                        event_id, e
+                                    )),
+                                }
+                            }
                             Err(e) => RoomMessageEventContent::text_plain(format!(
-                                "EventId: {:?}\nCould not parse event: {}",
-                                event_id, e
+                                "Could not parse PDU JSON: {:?}",
+                                e
                             )),
                         }
                     }
@@ -405,7 +512,7 @@ fn process_admin_command(
                             } else {
                                 "PDU was accepted"
                             },
-                            RawStr::new(&json_text).html_escape()
+                            HtmlEscape(&json_text)
                         ),
                     )
                 }
@@ -419,6 +526,211 @@ fn process_admin_command(
                 e
             )),
         },
+        AdminCommand::ShowConfig => {
+            // Construct and send the response
+            RoomMessageEventContent::text_plain(format!("{}", db.globals.config))
+        }
+        AdminCommand::ResetPassword { username } => {
+            let user_id = match UserId::parse_with_server_name(
+                username.as_str().to_lowercase(),
+                db.globals.server_name(),
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    return Ok(RoomMessageEventContent::text_plain(format!(
+                        "The supplied username is not a valid username: {}",
+                        e
+                    )))
+                }
+            };
+
+            // Check if the specified user is valid
+            if !db.users.exists(&user_id)?
+                || db.users.is_deactivated(&user_id)?
+                || user_id
+                    == UserId::parse_with_server_name("conduit", db.globals.server_name())
+                        .expect("conduit user exists")
+            {
+                return Ok(RoomMessageEventContent::text_plain(
+                    "The specified user does not exist or is deactivated!",
+                ));
+            }
+
+            let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
+
+            match db.users.set_password(&user_id, Some(new_password.as_str())) {
+                Ok(()) => RoomMessageEventContent::text_plain(format!(
+                    "Successfully reset the password for user {}: {}",
+                    user_id, new_password
+                )),
+                Err(e) => RoomMessageEventContent::text_plain(format!(
+                    "Couldn't reset the password for user {}: {}",
+                    user_id, e
+                )),
+            }
+        }
+        AdminCommand::CreateUser { username, password } => {
+            let password = password.unwrap_or(utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
+            // Validate user id
+            let user_id = match UserId::parse_with_server_name(
+                username.as_str().to_lowercase(),
+                db.globals.server_name(),
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    return Ok(RoomMessageEventContent::text_plain(format!(
+                        "The supplied username is not a valid username: {}",
+                        e
+                    )))
+                }
+            };
+            if user_id.is_historical() {
+                return Ok(RoomMessageEventContent::text_plain(format!(
+                    "userid {user_id} is not allowed due to historical"
+                )));
+            }
+            if db.users.exists(&user_id)? {
+                return Ok(RoomMessageEventContent::text_plain(format!(
+                    "userid {user_id} already exists"
+                )));
+            }
+            // Create user
+            db.users.create(&user_id, Some(password.as_str()))?;
+
+            // Default to pretty displayname
+            let mut displayname = user_id.localpart().to_owned();
+
+            // If enabled append lightning bolt to display name (default true)
+            if db.globals.enable_lightning_bolt() {
+                displayname.push_str(" ⚡️");
+            }
+
+            db.users
+                .set_displayname(&user_id, Some(displayname.clone()))?;
+
+            // Initial account data
+            db.account_data.update(
+                None,
+                &user_id,
+                ruma::events::GlobalAccountDataEventType::PushRules
+                    .to_string()
+                    .into(),
+                &ruma::events::push_rules::PushRulesEvent {
+                    content: ruma::events::push_rules::PushRulesEventContent {
+                        global: ruma::push::Ruleset::server_default(&user_id),
+                    },
+                },
+                &db.globals,
+            )?;
+
+            // we dont add a device since we're not the user, just the creator
+
+            db.flush()?;
+
+            // Inhibit login does not work for guests
+            RoomMessageEventContent::text_plain(format!(
+                "Created user with user_id: {user_id} and password: {password}"
+            ))
+        }
+        AdminCommand::DisableRoom { room_id } => {
+            db.rooms.disabledroomids.insert(room_id.as_bytes(), &[])?;
+            RoomMessageEventContent::text_plain("Room disabled.")
+        }
+        AdminCommand::EnableRoom { room_id } => {
+            db.rooms.disabledroomids.remove(room_id.as_bytes())?;
+            RoomMessageEventContent::text_plain("Room enabled.")
+        }
+        AdminCommand::DeactivateUser {
+            leave_rooms,
+            user_id,
+        } => {
+            let user_id = Arc::<UserId>::from(user_id);
+            if db.users.exists(&user_id)? {
+                RoomMessageEventContent::text_plain(format!(
+                    "Making {} leave all rooms before deactivation...",
+                    user_id
+                ));
+
+                db.users.deactivate_account(&user_id)?;
+
+                if leave_rooms {
+                    db.rooms.leave_all_rooms(&user_id, &db).await?;
+                }
+
+                RoomMessageEventContent::text_plain(format!(
+                    "User {} has been deactivated",
+                    user_id
+                ))
+            } else {
+                RoomMessageEventContent::text_plain(format!(
+                    "User {} doesn't exist on this server",
+                    user_id
+                ))
+            }
+        }
+        AdminCommand::DeactivateAll { leave_rooms, force } => {
+            if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```" {
+                let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+
+                let mut user_ids: Vec<&UserId> = Vec::new();
+
+                for &username in &usernames {
+                    match <&UserId>::try_from(username) {
+                        Ok(user_id) => user_ids.push(user_id),
+                        Err(_) => {
+                            return Ok(RoomMessageEventContent::text_plain(format!(
+                                "{} is not a valid username",
+                                username
+                            )))
+                        }
+                    }
+                }
+
+                let mut deactivation_count = 0;
+                let mut admins = Vec::new();
+
+                if !force {
+                    user_ids.retain(|&user_id| {
+                        match db.users.is_admin(user_id, &db.rooms, &db.globals) {
+                            Ok(is_admin) => match is_admin {
+                                true => {
+                                    admins.push(user_id.localpart());
+                                    false
+                                }
+                                false => true,
+                            },
+                            Err(_) => false,
+                        }
+                    })
+                }
+
+                for &user_id in &user_ids {
+                    match db.users.deactivate_account(user_id) {
+                        Ok(_) => deactivation_count += 1,
+                        Err(_) => {}
+                    }
+                }
+
+                if leave_rooms {
+                    for &user_id in &user_ids {
+                        let _ = db.rooms.leave_all_rooms(user_id, &db).await;
+                    }
+                }
+
+                if admins.is_empty() {
+                    RoomMessageEventContent::text_plain(format!(
+                        "Deactivated {} accounts.",
+                        deactivation_count
+                    ))
+                } else {
+                    RoomMessageEventContent::text_plain(format!("Deactivated {} accounts.\nSkipped admin accounts: {:?}. Use --force to deactivate admin accounts", deactivation_count, admins.join(", ")))
+                }
+            } else {
+                RoomMessageEventContent::text_plain(
+                    "Expected code block in command body. Add --help for details.",
+                )
+            }
+        }
     };
 
     Ok(reply_message_content)
@@ -537,7 +849,7 @@ pub(crate) async fn create_admin_room(db: &Database) -> Result<()> {
     // 1. The room create event
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomCreate,
+            event_type: RoomEventType::RoomCreate,
             content: to_raw_value(&content).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some("".to_owned()),
@@ -552,7 +864,7 @@ pub(crate) async fn create_admin_room(db: &Database) -> Result<()> {
     // 2. Make conduit bot join
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomMember,
+            event_type: RoomEventType::RoomMember,
             content: to_raw_value(&RoomMemberEventContent {
                 membership: MembershipState::Join,
                 displayname: None,
@@ -580,7 +892,7 @@ pub(crate) async fn create_admin_room(db: &Database) -> Result<()> {
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomPowerLevels,
+            event_type: RoomEventType::RoomPowerLevels,
             content: to_raw_value(&RoomPowerLevelsEventContent {
                 users,
                 ..Default::default()
@@ -599,7 +911,7 @@ pub(crate) async fn create_admin_room(db: &Database) -> Result<()> {
     // 4.1 Join Rules
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomJoinRules,
+            event_type: RoomEventType::RoomJoinRules,
             content: to_raw_value(&RoomJoinRulesEventContent::new(JoinRule::Invite))
                 .expect("event is valid, we just created it"),
             unsigned: None,
@@ -615,7 +927,7 @@ pub(crate) async fn create_admin_room(db: &Database) -> Result<()> {
     // 4.2 History Visibility
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomHistoryVisibility,
+            event_type: RoomEventType::RoomHistoryVisibility,
             content: to_raw_value(&RoomHistoryVisibilityEventContent::new(
                 HistoryVisibility::Shared,
             ))
@@ -633,7 +945,7 @@ pub(crate) async fn create_admin_room(db: &Database) -> Result<()> {
     // 4.3 Guest Access
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomGuestAccess,
+            event_type: RoomEventType::RoomGuestAccess,
             content: to_raw_value(&RoomGuestAccessEventContent::new(GuestAccess::Forbidden))
                 .expect("event is valid, we just created it"),
             unsigned: None,
@@ -651,7 +963,7 @@ pub(crate) async fn create_admin_room(db: &Database) -> Result<()> {
         .expect("Room name is valid");
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomName,
+            event_type: RoomEventType::RoomName,
             content: to_raw_value(&RoomNameEventContent::new(Some(room_name)))
                 .expect("event is valid, we just created it"),
             unsigned: None,
@@ -666,7 +978,7 @@ pub(crate) async fn create_admin_room(db: &Database) -> Result<()> {
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomTopic,
+            event_type: RoomEventType::RoomTopic,
             content: to_raw_value(&RoomTopicEventContent {
                 topic: format!("Manage {}", db.globals.server_name()),
             })
@@ -688,7 +1000,7 @@ pub(crate) async fn create_admin_room(db: &Database) -> Result<()> {
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomCanonicalAlias,
+            event_type: RoomEventType::RoomCanonicalAlias,
             content: to_raw_value(&RoomCanonicalAliasEventContent {
                 alias: Some(alias.clone()),
                 alt_aliases: Vec::new(),
@@ -742,7 +1054,7 @@ pub(crate) async fn make_user_admin(
     // Invite and join the real user
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomMember,
+            event_type: RoomEventType::RoomMember,
             content: to_raw_value(&RoomMemberEventContent {
                 membership: MembershipState::Invite,
                 displayname: None,
@@ -765,7 +1077,7 @@ pub(crate) async fn make_user_admin(
     )?;
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomMember,
+            event_type: RoomEventType::RoomMember,
             content: to_raw_value(&RoomMemberEventContent {
                 membership: MembershipState::Join,
                 displayname: Some(displayname),
@@ -794,7 +1106,7 @@ pub(crate) async fn make_user_admin(
 
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomPowerLevels,
+            event_type: RoomEventType::RoomPowerLevels,
             content: to_raw_value(&RoomPowerLevelsEventContent {
                 users,
                 ..Default::default()
@@ -813,10 +1125,10 @@ pub(crate) async fn make_user_admin(
     // Send welcome message
     db.rooms.build_and_append_pdu(
         PduBuilder {
-            event_type: EventType::RoomMessage,
+            event_type: RoomEventType::RoomMessage,
             content: to_raw_value(&RoomMessageEventContent::text_html(
-                    "## Thank you for trying out Conduit!\n\nConduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.\n\nHelpful links:\n> Website: https://conduit.rs\n> Git and Documentation: https://gitlab.com/famedly/conduit\n> Report issues: https://gitlab.com/famedly/conduit/-/issues\n\nHere are some rooms you can join (by typing the command):\n\nConduit room (Ask questions and get notified on updates):\n`/join #conduit:fachschaften.org`\n\nConduit lounge (Off-topic, only Conduit users are allowed to join)\n`/join #conduit-lounge:conduit.rs`".to_owned(),
-                    "<h2>Thank you for trying out Conduit!</h2>\n<p>Conduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.</p>\n<p>Helpful links:</p>\n<blockquote>\n<p>Website: https://conduit.rs<br>Git and Documentation: https://gitlab.com/famedly/conduit<br>Report issues: https://gitlab.com/famedly/conduit/-/issues</p>\n</blockquote>\n<p>Here are some rooms you can join (by typing the command):</p>\n<p>Conduit room (Ask questions and get notified on updates):<br><code>/join #conduit:fachschaften.org</code></p>\n<p>Conduit lounge (Off-topic, only Conduit users are allowed to join)<br><code>/join #conduit-lounge:conduit.rs</code></p>\n".to_owned(),
+                    format!("## Thank you for trying out Conduit!\n\nConduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.\n\nHelpful links:\n> Website: https://conduit.rs\n> Git and Documentation: https://gitlab.com/famedly/conduit\n> Report issues: https://gitlab.com/famedly/conduit/-/issues\n\nFor a list of available commands, send the following message in this room: `@conduit:{}: --help`\n\nHere are some rooms you can join (by typing the command):\n\nConduit room (Ask questions and get notified on updates):\n`/join #conduit:fachschaften.org`\n\nConduit lounge (Off-topic, only Conduit users are allowed to join)\n`/join #conduit-lounge:conduit.rs`", db.globals.server_name()).to_owned(),
+                    format!("<h2>Thank you for trying out Conduit!</h2>\n<p>Conduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.</p>\n<p>Helpful links:</p>\n<blockquote>\n<p>Website: https://conduit.rs<br>Git and Documentation: https://gitlab.com/famedly/conduit<br>Report issues: https://gitlab.com/famedly/conduit/-/issues</p>\n</blockquote>\n<p>For a list of available commands, send the following message in this room: <code>@conduit:{}: --help</code></p>\n<p>Here are some rooms you can join (by typing the command):</p>\n<p>Conduit room (Ask questions and get notified on updates):<br><code>/join #conduit:fachschaften.org</code></p>\n<p>Conduit lounge (Off-topic, only Conduit users are allowed to join)<br><code>/join #conduit-lounge:conduit.rs</code></p>\n", db.globals.server_name()).to_owned(),
             ))
             .expect("event is valid, we just created it"),
             unsigned: None,

@@ -1,10 +1,8 @@
 use std::{collections::BTreeMap, iter::FromIterator};
 
-use crate::ConduitResult;
-use ruma::api::client::unversioned::get_supported_versions;
+use ruma::api::client::discovery::get_supported_versions;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::get;
+use crate::{Result, Ruma};
 
 /// # `GET /_matrix/client/versions`
 ///
@@ -16,13 +14,18 @@ use rocket::get;
 ///
 /// Note: Unstable features are used while developing new features. Clients should avoid using
 /// unstable features in their stable releases
-#[cfg_attr(feature = "conduit_bin", get("/_matrix/client/versions"))]
-#[tracing::instrument]
-pub async fn get_supported_versions_route() -> ConduitResult<get_supported_versions::Response> {
+pub async fn get_supported_versions_route(
+    _body: Ruma<get_supported_versions::IncomingRequest>,
+) -> Result<get_supported_versions::Response> {
     let resp = get_supported_versions::Response {
-        versions: vec!["r0.5.0".to_owned(), "r0.6.0".to_owned()],
+        versions: vec![
+            "r0.5.0".to_owned(),
+            "r0.6.0".to_owned(),
+            "v1.1".to_owned(),
+            "v1.2".to_owned(),
+        ],
         unstable_features: BTreeMap::from_iter([("org.matrix.e2e_cross_signing".to_owned(), true)]),
     };
 
-    Ok(resp.into())
+    Ok(resp)
 }

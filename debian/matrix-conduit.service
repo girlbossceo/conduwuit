@@ -3,6 +3,7 @@ Description=Conduit Matrix homeserver
 After=network.target
 
 [Service]
+DynamicUser=yes
 User=_matrix-conduit
 Group=_matrix-conduit
 Type=simple

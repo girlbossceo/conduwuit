@@ -27,19 +27,18 @@ RUN chmod +x /workdir/caddy
 COPY conduit-example.toml conduit.toml
 
 ENV SERVER_NAME=localhost
-ENV ROCKET_LOG=normal
 ENV CONDUIT_CONFIG=/workdir/conduit.toml
 
 RUN sed -i "s/port = 6167/port = 8008/g" conduit.toml
 RUN echo "allow_federation = true" >> conduit.toml
 RUN echo "allow_encryption = true" >> conduit.toml
 RUN echo "allow_registration = true" >> conduit.toml
-RUN echo "log = \"info,rocket=info,_=off,sled=off\"" >> conduit.toml
+RUN echo "log = \"info,_=off,sled=off\"" >> conduit.toml
 RUN sed -i "s/address = \"127.0.0.1\"/address = \"0.0.0.0\"/g" conduit.toml
 
 # Enabled Caddy auto cert generation for complement provided CA.
-RUN echo '{"logging":{"logs":{"default":{"level":"WARN"}}}, "apps":{"http":{"https_port":8448,"servers":{"srv0":{"listen":[":8448"],"routes":[{"match":[{"host":["your.server.name"]}],"handle":[{"handler":"subroute","routes":[{"handle":[{"handler":"reverse_proxy","upstreams":[{"dial":"127.0.0.1:8008"}]}]}]}],"terminal":true}],"tls_connection_policies": [{"match": {"sni": ["your.server.name"]}}]}}},"pki": {"certificate_authorities": {"local": {"name": "Complement CA","root": {"certificate": "/ca/ca.crt","private_key": "/ca/ca.key"},"intermediate": {"certificate": "/ca/ca.crt","private_key": "/ca/ca.key"}}}},"tls":{"automation":{"policies":[{"subjects":["your.server.name"],"issuer":{"module":"internal"},"on_demand":true},{"issuer":{"module":"internal", "ca": "local"}}]}}}}' > caddy.json 
- 
+RUN echo '{"logging":{"logs":{"default":{"level":"WARN"}}}, "apps":{"http":{"https_port":8448,"servers":{"srv0":{"listen":[":8448"],"routes":[{"match":[{"host":["your.server.name"]}],"handle":[{"handler":"subroute","routes":[{"handle":[{"handler":"reverse_proxy","upstreams":[{"dial":"127.0.0.1:8008"}]}]}]}],"terminal":true}],"tls_connection_policies": [{"match": {"sni": ["your.server.name"]}}]}}},"pki": {"certificate_authorities": {"local": {"name": "Complement CA","root": {"certificate": "/ca/ca.crt","private_key": "/ca/ca.key"},"intermediate": {"certificate": "/ca/ca.crt","private_key": "/ca/ca.key"}}}},"tls":{"automation":{"policies":[{"subjects":["your.server.name"],"issuer":{"module":"internal"},"on_demand":true},{"issuer":{"module":"internal", "ca": "local"}}]}}}}' > caddy.json
+
 EXPOSE 8008 8448
 
 CMD ([ -z "${COMPLEMENT_CA}" ] && echo "Error: Need Complement PKI support" && true) || \

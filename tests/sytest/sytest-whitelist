@@ -445,6 +445,9 @@ Typing notifications don't leak
 Uninvited users cannot join the room
 Unprivileged users can set m.room.topic if it only needs level 0
 User appears in user directory
+User in private room doesn't appear in user directory
+User joining then leaving public room appears and dissappears from directory 
+User in shared private room does appear in user directory until leave 
 User can create and send/receive messages in a room with version 1
 User can create and send/receive messages in a room with version 2
 User can create and send/receive messages in a room with version 3

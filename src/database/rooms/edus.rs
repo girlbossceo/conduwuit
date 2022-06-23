@@ -2,7 +2,8 @@ use crate::{database::abstraction::Tree, utils, Error, Result};
 use ruma::{
     events::{
         presence::{PresenceEvent, PresenceEventContent},
-        AnyEphemeralRoomEvent, SyncEphemeralRoomEvent,
+        receipt::ReceiptEvent,
+        SyncEphemeralRoomEvent,
     },
     presence::PresenceState,
     serde::Raw,
@@ -31,7 +32,7 @@ impl RoomEdus {
         &self,
         user_id: &UserId,
         room_id: &RoomId,
-        event: AnyEphemeralRoomEvent,
+        event: ReceiptEvent,
         globals: &super::super::globals::Globals,
     ) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();

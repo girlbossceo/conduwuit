@@ -13,17 +13,20 @@ pub mod transaction_ids;
 pub mod uiaa;
 pub mod users;
 
+use self::admin::create_admin_room;
 use crate::{utils, Config, Error, Result};
 use abstraction::DatabaseEngine;
 use directories::ProjectDirs;
+use futures_util::{stream::FuturesUnordered, StreamExt};
 use lru_cache::LruCache;
-use rocket::{
-    futures::{channel::mpsc, stream::FuturesUnordered, StreamExt},
-    outcome::{try_outcome, IntoOutcome},
-    request::{FromRequest, Request},
-    Shutdown, State,
+use ruma::{
+    events::{
+        push_rules::PushRulesEventContent, room::message::RoomMessageEventContent,
+        GlobalAccountDataEvent, GlobalAccountDataEventType,
+    },
+    push::Ruleset,
+    DeviceId, EventId, RoomId, UserId,
 };
-use ruma::{DeviceId, EventId, RoomId, UserId};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs::{self, remove_dir_all},
@@ -33,10 +36,8 @@ use std::{
     path::Path,
     sync::{Arc, Mutex, RwLock},
 };
-use tokio::sync::{OwnedRwLockReadGuard, RwLock as TokioRwLock, Semaphore};
+use tokio::sync::{mpsc, OwnedRwLockReadGuard, RwLock as TokioRwLock, Semaphore};
 use tracing::{debug, error, info, warn};
-
-use self::admin::create_admin_room;
 
 pub struct Database {
     _db: Arc<dyn DatabaseEngine>,
@@ -151,8 +152,8 @@ impl Database {
             eprintln!("ERROR: Max request size is less than 1KB. Please increase it.");
         }
 
-        let (admin_sender, admin_receiver) = mpsc::unbounded();
-        let (sending_sender, sending_receiver) = mpsc::unbounded();
+        let (admin_sender, admin_receiver) = mpsc::unbounded_channel();
+        let (sending_sender, sending_receiver) = mpsc::unbounded_channel();
 
         let db = Arc::new(TokioRwLock::from(Self {
             _db: builder.clone(),
@@ -212,6 +213,8 @@ impl Database {
                 userroomid_leftstate: builder.open_tree("userroomid_leftstate")?,
                 roomuserid_leftcount: builder.open_tree("roomuserid_leftcount")?,
 
+                disabledroomids: builder.open_tree("disabledroomids")?,
+
                 lazyloadedids: builder.open_tree("lazyloadedids")?,
 
                 userroomid_notificationcount: builder.open_tree("userroomid_notificationcount")?,
@@ -263,6 +266,7 @@ impl Database {
                 stateinfo_cache: Mutex::new(LruCache::new(
                     (100.0 * config.conduit_cache_capacity_modifier) as usize,
                 )),
+                lasttimelinecount_cache: Mutex::new(HashMap::new()),
             },
             account_data: account_data::AccountData {
                 roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
@@ -752,6 +756,23 @@ impl Database {
         guard.rooms.edus.presenceid_presence.clear()?;
 
         guard.admin.start_handler(Arc::clone(&db), admin_receiver);
+
+        // Set emergency access for the conduit user
+        match set_emergency_access(&guard) {
+            Ok(pwd_set) => {
+                if pwd_set {
+                    warn!("The Conduit account emergency password is set! Please unset it as soon as you finish admin account recovery!");
+                    guard.admin.send_message(RoomMessageEventContent::text_plain("The Conduit account emergency password is set! Please unset it as soon as you finish admin account recovery!"));
+                }
+            }
+            Err(e) => {
+                error!(
+                    "Could not set the configured emergency password for the conduit user: {}",
+                    e
+                )
+            }
+        };
+
         guard
             .sending
             .start_handler(Arc::clone(&db), sending_receiver);
@@ -764,14 +785,9 @@ impl Database {
     }
 
     #[cfg(feature = "conduit_bin")]
-    pub async fn start_on_shutdown_tasks(db: Arc<TokioRwLock<Self>>, shutdown: Shutdown) {
-        tokio::spawn(async move {
-            shutdown.await;
-
-            info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
-
-            db.read().await.globals.rotate.fire();
-        });
+    pub async fn on_shutdown(db: Arc<TokioRwLock<Self>>) {
+        info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
+        db.read().await.globals.rotate.fire();
     }
 
     pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) {
@@ -938,6 +954,32 @@ impl Database {
     }
 }
 
+/// Sets the emergency password and push rules for the @conduit account in case emergency password is set
+fn set_emergency_access(db: &Database) -> Result<bool> {
+    let conduit_user = UserId::parse_with_server_name("conduit", db.globals.server_name())
+        .expect("@conduit:server_name is a valid UserId");
+
+    db.users
+        .set_password(&conduit_user, db.globals.emergency_password().as_deref())?;
+
+    let (ruleset, res) = match db.globals.emergency_password() {
+        Some(_) => (Ruleset::server_default(&conduit_user), Ok(true)),
+        None => (Ruleset::new(), Ok(false)),
+    };
+
+    db.account_data.update(
+        None,
+        &conduit_user,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
+        &GlobalAccountDataEvent {
+            content: PushRulesEventContent { global: ruleset },
+        },
+        &db.globals,
+    )?;
+
+    res
+}
+
 pub struct DatabaseGuard(OwnedRwLockReadGuard<Database>);
 
 impl Deref for DatabaseGuard {
@@ -948,14 +990,23 @@ impl Deref for DatabaseGuard {
     }
 }
 
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for DatabaseGuard {
-    type Error = ();
+#[cfg(feature = "conduit_bin")]
+#[axum::async_trait]
+impl<B> axum::extract::FromRequest<B> for DatabaseGuard
+where
+    B: Send,
+{
+    type Rejection = axum::extract::rejection::ExtensionRejection;
 
-    async fn from_request(req: &'r Request<'_>) -> rocket::request::Outcome<Self, ()> {
-        let db = try_outcome!(req.guard::<&State<Arc<TokioRwLock<Database>>>>().await);
+    async fn from_request(
+        req: &mut axum::extract::RequestParts<B>,
+    ) -> Result<Self, Self::Rejection> {
+        use axum::extract::Extension;
 
-        Ok(DatabaseGuard(Arc::clone(db).read_owned().await)).or_forward(())
+        let Extension(db): Extension<Arc<TokioRwLock<Database>>> =
+            Extension::from_request(req).await?;
+
+        Ok(DatabaseGuard(db.read_owned().await))
     }
 }
 

@@ -33,7 +33,7 @@ services:
             # CONDUIT_PORT: 6167
             # CONDUIT_CONFIG: '/srv/conduit/conduit.toml'  # if you want to configure purely by env vars, set this to an empty string ''
             # Available levels are: error, warn, info, debug, trace - more info at: https://docs.rs/env_logger/*/env_logger/#enabling-logging
-            # CONDUIT_LOG: info  # default is: "info,rocket=off,_=off,sled=off"
+            # CONDUIT_LOG: info  # default is: "info,_=off,sled=off"
             # CONDUIT_ALLOW_JAEGER: 'false'
             # CONDUIT_ALLOW_ENCRYPTION: 'false'
             # CONDUIT_ALLOW_FEDERATION: 'false'
@@ -65,11 +65,33 @@ services:
     #     depends_on:
     #         - homeserver
 
+    traefik:
+        image: "traefik:latest"
+        container_name: "traefik"
+        restart: "unless-stopped"
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - "/var/run/docker.sock:/var/run/docker.sock"
+            # - "./traefik_config:/etc/traefik"
+            - "acme:/etc/traefik/acme"
+        labels:
+            - "traefik.enable=true"
+
+            # middleware redirect
+            - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+            # global redirect to https
+            - "traefik.http.routers.redirs.rule=hostregexp(`{host:.+}`)"
+            - "traefik.http.routers.redirs.entrypoints=http"
+            - "traefik.http.routers.redirs.middlewares=redirect-to-https"
+
+        networks:
+            - proxy
+
 volumes:
     db:
+    acme:
 
 networks:
-    # This is the network Traefik listens to, if your network has a different
-    # name, don't forget to change it here and in the docker-compose.override.yml
     proxy:
-        external: true

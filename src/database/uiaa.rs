@@ -1,14 +1,15 @@
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::sync::RwLock;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
+};
 
 use crate::{client_server::SESSION_ID_LENGTH, utils, Error, Result};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::uiaa::{
-            AuthType, IncomingAuthData, IncomingPassword, IncomingUserIdentifier::MatrixId,
-            UiaaInfo,
+        uiaa::{
+            AuthType, IncomingAuthData, IncomingPassword,
+            IncomingUserIdentifier::UserIdOrLocalpart, UiaaInfo,
         },
     },
     signatures::CanonicalJsonValue,
@@ -73,7 +74,7 @@ impl Uiaa {
                 ..
             }) => {
                 let username = match identifier {
-                    MatrixId(username) => username,
+                    UserIdOrLocalpart(username) => username,
                     _ => {
                         return Err(Error::BadRequest(
                             ErrorKind::Unrecognized,

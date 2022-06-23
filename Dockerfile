@@ -3,7 +3,8 @@ FROM docker.io/rust:1.58-bullseye AS builder
 WORKDIR /usr/src/conduit
 
 # Install required packages to build Conduit and it's dependencies
-RUN apt update && apt -y install libclang-dev
+RUN apt-get update && \
+    apt-get -y --no-install-recommends install libclang-dev=1:11.0-51+nmu5
 
 # == Build dependencies without our own code separately for caching ==
 #
@@ -35,14 +36,16 @@ FROM docker.io/debian:bullseye-slim AS runner
 # You still need to map the port when using the docker command or docker-compose.
 EXPOSE 6167
 
-# Note from @jfowl: I would like to remove the config file in the future and just have the Docker version be configured with envs.
-ENV CONDUIT_CONFIG="/srv/conduit/conduit.toml" \
-    CONDUIT_PORT=6167
+ENV CONDUIT_PORT=6167 \
+    CONDUIT_ADDRESS="0.0.0.0" \
+    CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit \
+    CONDUIT_CONFIG=''
+#    └─> Set no config file to do all configuration with env vars
 
 # Conduit needs:
 #   ca-certificates: for https
 #   iproute2 & wget: for the healthcheck script
-RUN apt update && apt -y install \
+RUN apt-get update && apt-get -y --no-install-recommends install \
     ca-certificates \
     iproute2 \
     wget \
@@ -59,12 +62,12 @@ HEALTHCHECK --start-period=5s --interval=5s CMD ./healthcheck.sh
 COPY --from=builder /usr/src/conduit/target/release/conduit /srv/conduit/conduit
 
 # Improve security: Don't run stuff as root, that does not need to run as root
-# Add 'conduit' user and group (100:82). The UID:GID choice is to be compatible
-# with previous, Alpine-based containers, where the user and group were both
-# named 'www-data'.
+# Most distros also use 1000:1000 for the first real user, so this should resolve volume mounting problems.
+ARG USER_ID=1000
+ARG GROUP_ID=1000
 RUN set -x ; \
-    groupadd -r -g 82 conduit ; \
-    useradd -r -M -d /srv/conduit -o -u 100 -g conduit conduit && exit 0 ; exit 1
+    groupadd -r -g ${GROUP_ID} conduit ; \
+    useradd -l -r -M -d /srv/conduit -o -u ${USER_ID} -g conduit conduit && exit 0 ; exit 1
 
 # Change ownership of Conduit files to conduit user and group and make the healthcheck executable:
 RUN chown -cR conduit:conduit /srv/conduit && \

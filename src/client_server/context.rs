@@ -1,16 +1,10 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
-    api::client::{
-        error::ErrorKind,
-        r0::{context::get_context, filter::LazyLoadOptions},
-    },
-    events::EventType,
+    api::client::{context::get_context, error::ErrorKind, filter::LazyLoadOptions},
+    events::StateEventType,
 };
 use std::{collections::HashSet, convert::TryFrom};
 use tracing::error;
-
-#[cfg(feature = "conduit_bin")]
-use rocket::get;
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/context`
 ///
@@ -18,25 +12,17 @@ use rocket::get;
 ///
 /// - Only works if the user is joined (TODO: always allow, but only show events if the user was
 /// joined, depending on history_visibility)
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/rooms/<_>/context/<_>", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_context_route(
     db: DatabaseGuard,
-    body: Ruma<get_context::Request<'_>>,
-) -> ConduitResult<get_context::Response> {
+    body: Ruma<get_context::v3::IncomingRequest>,
+) -> Result<get_context::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-    // Load filter
-    let filter = body.filter.clone().unwrap_or_default();
-
-    let (lazy_load_enabled, lazy_load_send_redundant) = match filter.lazy_load_options {
+    let (lazy_load_enabled, lazy_load_send_redundant) = match &body.filter.lazy_load_options {
         LazyLoadOptions::Enabled {
-            include_redundant_members: redundant,
-        } => (true, redundant),
+            include_redundant_members,
+        } => (true, *include_redundant_members),
         _ => (false, false),
     };
 
@@ -151,7 +137,7 @@ pub async fn get_context_route(
             .expect("All rooms have state"),
     };
 
-    let state_ids = db.rooms.state_full_ids(shortstatehash)?;
+    let state_ids = db.rooms.state_full_ids(shortstatehash).await?;
 
     let end_token = events_after
         .last()
@@ -168,7 +154,7 @@ pub async fn get_context_route(
     for (shortstatekey, id) in state_ids {
         let (event_type, state_key) = db.rooms.get_statekey_from_short(shortstatekey)?;
 
-        if event_type != EventType::RoomMember {
+        if event_type != StateEventType::RoomMember {
             let pdu = match db.rooms.get_pdu(&id)? {
                 Some(pdu) => pdu,
                 None => {
@@ -189,7 +175,7 @@ pub async fn get_context_route(
         }
     }
 
-    let resp = get_context::Response {
+    let resp = get_context::v3::Response {
         start: start_token,
         end: end_token,
         events_before,
@@ -198,5 +184,5 @@ pub async fn get_context_route(
         state,
     };
 
-    Ok(resp.into())
+    Ok(resp)
 }

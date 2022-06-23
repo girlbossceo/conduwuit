@@ -39,7 +39,6 @@ impl Tree for SledEngineTree {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, iter))]
     fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
         for (key, value) in iter {
             self.0.insert(key, value)?;

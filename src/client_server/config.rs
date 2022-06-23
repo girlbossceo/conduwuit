@@ -1,11 +1,11 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, Error, Result, Ruma};
 use ruma::{
     api::client::{
-        error::ErrorKind,
-        r0::config::{
+        config::{
             get_global_account_data, get_room_account_data, set_global_account_data,
             set_room_account_data,
         },
+        error::ErrorKind,
     },
     events::{AnyGlobalAccountDataEventContent, AnyRoomAccountDataEventContent},
     serde::Raw,
@@ -13,24 +13,16 @@ use ruma::{
 use serde::Deserialize;
 use serde_json::{json, value::RawValue as RawJsonValue};
 
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, put};
-
 /// # `PUT /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///
 /// Sets some account data for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/user/<_>/account_data/<_>", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn set_global_account_data_route(
     db: DatabaseGuard,
-    body: Ruma<set_global_account_data::Request<'_>>,
-) -> ConduitResult<set_global_account_data::Response> {
+    body: Ruma<set_global_account_data::v3::IncomingRequest>,
+) -> Result<set_global_account_data::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let data: serde_json::Value = serde_json::from_str(body.data.get())
+    let data: serde_json::Value = serde_json::from_str(body.data.json().get())
         .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Data is invalid."))?;
 
     let event_type = body.event_type.to_string();
@@ -48,27 +40,19 @@ pub async fn set_global_account_data_route(
 
     db.flush()?;
 
-    Ok(set_global_account_data::Response {}.into())
+    Ok(set_global_account_data::v3::Response {})
 }
 
 /// # `PUT /_matrix/client/r0/user/{userId}/rooms/{roomId}/account_data/{type}`
 ///
 /// Sets some room account data for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    put(
-        "/_matrix/client/r0/user/<_>/rooms/<_>/account_data/<_>",
-        data = "<body>"
-    )
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn set_room_account_data_route(
     db: DatabaseGuard,
-    body: Ruma<set_room_account_data::Request<'_>>,
-) -> ConduitResult<set_room_account_data::Response> {
+    body: Ruma<set_room_account_data::v3::IncomingRequest>,
+) -> Result<set_room_account_data::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let data: serde_json::Value = serde_json::from_str(body.data.get())
+    let data: serde_json::Value = serde_json::from_str(body.data.json().get())
         .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Data is invalid."))?;
 
     let event_type = body.event_type.to_string();
@@ -86,21 +70,16 @@ pub async fn set_room_account_data_route(
 
     db.flush()?;
 
-    Ok(set_room_account_data::Response {}.into())
+    Ok(set_room_account_data::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///
 /// Gets some account data for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/user/<_>/account_data/<_>", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_global_account_data_route(
     db: DatabaseGuard,
-    body: Ruma<get_global_account_data::Request<'_>>,
-) -> ConduitResult<get_global_account_data::Response> {
+    body: Ruma<get_global_account_data::v3::IncomingRequest>,
+) -> Result<get_global_account_data::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event: Box<RawJsonValue> = db
@@ -112,24 +91,16 @@ pub async fn get_global_account_data_route(
         .map_err(|_| Error::bad_database("Invalid account data event in db."))?
         .content;
 
-    Ok(get_global_account_data::Response { account_data }.into())
+    Ok(get_global_account_data::v3::Response { account_data })
 }
 
 /// # `GET /_matrix/client/r0/user/{userId}/rooms/{roomId}/account_data/{type}`
 ///
 /// Gets some room account data for the sender user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get(
-        "/_matrix/client/r0/user/<_>/rooms/<_>/account_data/<_>",
-        data = "<body>"
-    )
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_room_account_data_route(
     db: DatabaseGuard,
-    body: Ruma<get_room_account_data::Request<'_>>,
-) -> ConduitResult<get_room_account_data::Response> {
+    body: Ruma<get_room_account_data::v3::IncomingRequest>,
+) -> Result<get_room_account_data::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event: Box<RawJsonValue> = db
@@ -145,7 +116,7 @@ pub async fn get_room_account_data_route(
         .map_err(|_| Error::bad_database("Invalid account data event in db."))?
         .content;
 
-    Ok(get_room_account_data::Response { account_data }.into())
+    Ok(get_room_account_data::v3::Response { account_data })
 }
 
 #[derive(Deserialize)]

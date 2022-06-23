@@ -1,27 +1,18 @@
-use crate::{database::DatabaseGuard, ConduitResult, Ruma};
+use crate::{database::DatabaseGuard, Result, Ruma};
 use hmac::{Hmac, Mac, NewMac};
-use ruma::api::client::r0::voip::get_turn_server_info;
-use ruma::SecondsSinceUnixEpoch;
+use ruma::{api::client::voip::get_turn_server_info, SecondsSinceUnixEpoch};
 use sha1::Sha1;
 use std::time::{Duration, SystemTime};
 
 type HmacSha1 = Hmac<Sha1>;
 
-#[cfg(feature = "conduit_bin")]
-use rocket::get;
-
 /// # `GET /_matrix/client/r0/voip/turnServer`
 ///
 /// TODO: Returns information about the recommended turn server.
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/voip/turnServer", data = "<body>")
-)]
-#[tracing::instrument(skip(body, db))]
 pub async fn turn_server_route(
-    body: Ruma<get_turn_server_info::Request>,
     db: DatabaseGuard,
-) -> ConduitResult<get_turn_server_info::Response> {
+    body: Ruma<get_turn_server_info::v3::IncomingRequest>,
+) -> Result<get_turn_server_info::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let turn_secret = db.globals.turn_secret();
@@ -48,11 +39,10 @@ pub async fn turn_server_route(
         )
     };
 
-    Ok(get_turn_server_info::Response {
+    Ok(get_turn_server_info::v3::Response {
         username,
         password,
         uris: db.globals.turn_uris().to_vec(),
         ttl: Duration::from_secs(db.globals.turn_ttl()),
-    }
-    .into())
+    })
 }

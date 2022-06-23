@@ -24,7 +24,17 @@ which also will tag the resulting image as `matrixconduit/matrix-conduit:latest`
 After building the image you can simply run it with
 
 ```bash
-docker run -d -p 8448:6167 -v ~/conduit.toml:/srv/conduit/conduit.toml -v db:/srv/conduit/.local/share/conduit matrixconduit/matrix-conduit:latest
+docker run -d -p 8448:6167 \
+  -v db:/var/lib/matrix-conduit/ \
+  -e CONDUIT_SERVER_NAME="your.server.name" \
+  -e CONDUIT_DATABASE_BACKEND="rocksdb" \
+  -e CONDUIT_ALLOW_REGISTRATION=true \
+  -e CONDUIT_ALLOW_FEDERATION=true \
+  -e CONDUIT_MAX_REQUEST_SIZE="20_000_000" \
+  -e CONDUIT_TRUSTED_SERVERS="[\"matrix.org\"]" \
+  -e CONDUIT_MAX_CONCURRENT_REQUESTS="100" \
+  -e CONDUIT_LOG="info,rocket=off,_=off,sled=off" \
+  --name conduit matrixconduit/matrix-conduit:latest
 ```
 
 or you can skip the build step and pull the image from one of the following registries:
@@ -46,8 +56,18 @@ If you just want to test Conduit for a short time, you can use the `--rm` flag, 
 
 ## Docker-compose
 
-If the docker command is not for you or your setup, you can also use one of the provided `docker-compose` files. Depending on your proxy setup, use the [`docker-compose.traefik.yml`](docker-compose.traefik.yml) and [`docker-compose.override.traefik.yml`](docker-compose.override.traefik.yml) for Traefik (don't forget to remove `.traefik` from the filenames) or the normal [`docker-compose.yml`](../docker-compose.yml) for every other reverse proxy. Additional info about deploying
-Conduit can be found [here](../DEPLOY.md).
+If the `docker run` command is not for you or your setup, you can also use one of the provided `docker-compose` files.
+
+Depending on your proxy setup, you can use one of the following files;
+- If you already have a `traefik` instance set up, use [`docker-compose.for-traefik.yml`](docker-compose.for-traefik.yml)
+- If you don't have a `traefik` instance set up (or any other reverse proxy), use [`docker-compose.with-traefik.yml`](docker-compose.with-traefik.yml)
+- For any other reverse proxy, use [`docker-compose.yml`](docker-compose.yml)
+
+When picking the traefik-related compose file, rename it so it matches `docker-compose.yml`, and
+rename the override file to `docker-compose.override.yml`. Edit the latter with the values you want
+for your server.
+
+Additional info about deploying Conduit can be found [here](../DEPLOY.md).
 
 ### Build
 
@@ -71,11 +91,16 @@ docker-compose up -d
 
 ### Use Traefik as Proxy
 
-As a container user, you probably know about Traefik. It is a easy to use reverse proxy for making containerized app and services available through the web. With the
-two provided files, [`docker-compose.traefik.yml`](docker-compose.traefik.yml) and [`docker-compose.override.traefik.yml`](docker-compose.override.traefik.yml), it is
-equally easy to deploy and use Conduit, with a little caveat. If you already took a look at the files, then you should have seen the `well-known` service, and that is
-the little caveat. Traefik is simply a proxy and loadbalancer and is not able to serve any kind of content, but for Conduit to federate, we need to either expose ports
-`443` and `8448` or serve two endpoints `.well-known/matrix/client` and `.well-known/matrix/server`.
+As a container user, you probably know about Traefik. It is a easy to use reverse proxy for making
+containerized app and services available through the web. With the two provided files,
+[`docker-compose.for-traefik.yml`](docker-compose.for-traefik.yml) (or
+[`docker-compose.with-traefik.yml`](docker-compose.with-traefik.yml)) and
+[`docker-compose.override.yml`](docker-compose.override.traefik.yml), it is equally easy to deploy
+and use Conduit, with a little caveat. If you already took a look at the files, then you should have
+seen the `well-known` service, and that is the little caveat. Traefik is simply a proxy and
+loadbalancer and is not able to serve any kind of content, but for Conduit to federate, we need to
+either expose ports `443` and `8448` or serve two endpoints `.well-known/matrix/client` and
+`.well-known/matrix/server`.
 
 With the service `well-known` we use a single `nginx` container that will serve those two files.
 
@@ -112,4 +137,4 @@ So...step by step:
      ```
 
 6. Run `docker-compose up -d`
-7. Connect to your homeserver with your preferred client and create a user. You should do this immediatly after starting Conduit, because the first created user is the admin.
+7. Connect to your homeserver with your preferred client and create a user. You should do this immediately after starting Conduit, because the first created user is the admin.

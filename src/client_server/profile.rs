@@ -1,36 +1,28 @@
-use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, pdu::PduBuilder, utils, Error, Result, Ruma};
 use ruma::{
     api::{
         client::{
             error::ErrorKind,
-            r0::profile::{
+            profile::{
                 get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
             },
         },
         federation::{self, query::get_profile_information::v1::ProfileField},
     },
-    events::{room::member::RoomMemberEventContent, EventType},
+    events::{room::member::RoomMemberEventContent, RoomEventType, StateEventType},
 };
 use serde_json::value::to_raw_value;
 use std::sync::Arc;
-
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, put};
 
 /// # `PUT /_matrix/client/r0/profile/{userId}/displayname`
 ///
 /// Updates the displayname.
 ///
 /// - Also makes sure other users receive the update using presence EDUs
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn set_displayname_route(
     db: DatabaseGuard,
-    body: Ruma<set_display_name::Request<'_>>,
-) -> ConduitResult<set_display_name::Response> {
+    body: Ruma<set_display_name::v3::IncomingRequest>,
+) -> Result<set_display_name::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
@@ -44,14 +36,14 @@ pub async fn set_displayname_route(
         .map(|room_id| {
             Ok::<_, Error>((
                 PduBuilder {
-                    event_type: EventType::RoomMember,
+                    event_type: RoomEventType::RoomMember,
                     content: to_raw_value(&RoomMemberEventContent {
                         displayname: body.displayname.clone(),
                         ..serde_json::from_str(
                             db.rooms
                                 .room_state_get(
                                     &room_id,
-                                    &EventType::RoomMember,
+                                    &StateEventType::RoomMember,
                                     sender_user.as_str(),
                                 )?
                                 .ok_or_else(|| {
@@ -116,7 +108,7 @@ pub async fn set_displayname_route(
 
     db.flush()?;
 
-    Ok(set_display_name::Response {}.into())
+    Ok(set_display_name::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/profile/{userId}/displayname`
@@ -124,15 +116,10 @@ pub async fn set_displayname_route(
 /// Returns the displayname of the user.
 ///
 /// - If user is on another server: Fetches displayname over federation
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/profile/<_>/displayname", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_displayname_route(
     db: DatabaseGuard,
-    body: Ruma<get_display_name::Request<'_>>,
-) -> ConduitResult<get_display_name::Response> {
+    body: Ruma<get_display_name::v3::IncomingRequest>,
+) -> Result<get_display_name::v3::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -146,16 +133,14 @@ pub async fn get_displayname_route(
             )
             .await?;
 
-        return Ok(get_display_name::Response {
+        return Ok(get_display_name::v3::Response {
             displayname: response.displayname,
-        }
-        .into());
+        });
     }
 
-    Ok(get_display_name::Response {
+    Ok(get_display_name::v3::Response {
         displayname: db.users.displayname(&body.user_id)?,
-    }
-    .into())
+    })
 }
 
 /// # `PUT /_matrix/client/r0/profile/{userId}/avatar_url`
@@ -163,15 +148,10 @@ pub async fn get_displayname_route(
 /// Updates the avatar_url and blurhash.
 ///
 /// - Also makes sure other users receive the update using presence EDUs
-#[cfg_attr(
-    feature = "conduit_bin",
-    put("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn set_avatar_url_route(
     db: DatabaseGuard,
-    body: Ruma<set_avatar_url::Request<'_>>,
-) -> ConduitResult<set_avatar_url::Response> {
+    body: Ruma<set_avatar_url::v3::IncomingRequest>,
+) -> Result<set_avatar_url::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     db.users
@@ -187,14 +167,14 @@ pub async fn set_avatar_url_route(
         .map(|room_id| {
             Ok::<_, Error>((
                 PduBuilder {
-                    event_type: EventType::RoomMember,
+                    event_type: RoomEventType::RoomMember,
                     content: to_raw_value(&RoomMemberEventContent {
                         avatar_url: body.avatar_url.clone(),
                         ..serde_json::from_str(
                             db.rooms
                                 .room_state_get(
                                     &room_id,
-                                    &EventType::RoomMember,
+                                    &StateEventType::RoomMember,
                                     sender_user.as_str(),
                                 )?
                                 .ok_or_else(|| {
@@ -259,7 +239,7 @@ pub async fn set_avatar_url_route(
 
     db.flush()?;
 
-    Ok(set_avatar_url::Response {}.into())
+    Ok(set_avatar_url::v3::Response {})
 }
 
 /// # `GET /_matrix/client/r0/profile/{userId}/avatar_url`
@@ -267,15 +247,10 @@ pub async fn set_avatar_url_route(
 /// Returns the avatar_url and blurhash of the user.
 ///
 /// - If user is on another server: Fetches avatar_url and blurhash over federation
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/profile/<_>/avatar_url", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_avatar_url_route(
     db: DatabaseGuard,
-    body: Ruma<get_avatar_url::Request<'_>>,
-) -> ConduitResult<get_avatar_url::Response> {
+    body: Ruma<get_avatar_url::v3::IncomingRequest>,
+) -> Result<get_avatar_url::v3::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -289,18 +264,16 @@ pub async fn get_avatar_url_route(
             )
             .await?;
 
-        return Ok(get_avatar_url::Response {
+        return Ok(get_avatar_url::v3::Response {
             avatar_url: response.avatar_url,
             blurhash: response.blurhash,
-        }
-        .into());
+        });
     }
 
-    Ok(get_avatar_url::Response {
+    Ok(get_avatar_url::v3::Response {
         avatar_url: db.users.avatar_url(&body.user_id)?,
         blurhash: db.users.blurhash(&body.user_id)?,
-    }
-    .into())
+    })
 }
 
 /// # `GET /_matrix/client/r0/profile/{userId}`
@@ -308,15 +281,10 @@ pub async fn get_avatar_url_route(
 /// Returns the displayname, avatar_url and blurhash of the user.
 ///
 /// - If user is on another server: Fetches profile over federation
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/profile/<_>", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_profile_route(
     db: DatabaseGuard,
-    body: Ruma<get_profile::Request<'_>>,
-) -> ConduitResult<get_profile::Response> {
+    body: Ruma<get_profile::v3::IncomingRequest>,
+) -> Result<get_profile::v3::Response> {
     if body.user_id.server_name() != db.globals.server_name() {
         let response = db
             .sending
@@ -330,12 +298,11 @@ pub async fn get_profile_route(
             )
             .await?;
 
-        return Ok(get_profile::Response {
+        return Ok(get_profile::v3::Response {
             displayname: response.displayname,
             avatar_url: response.avatar_url,
             blurhash: response.blurhash,
-        }
-        .into());
+        });
     }
 
     if !db.users.exists(&body.user_id)? {
@@ -346,10 +313,9 @@ pub async fn get_profile_route(
         ));
     }
 
-    Ok(get_profile::Response {
+    Ok(get_profile::v3::Response {
         avatar_url: db.users.avatar_url(&body.user_id)?,
         blurhash: db.users.blurhash(&body.user_id)?,
         displayname: db.users.displayname(&body.user_id)?,
-    }
-    .into())
+    })
 }

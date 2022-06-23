@@ -3,12 +3,11 @@ use cmp::Ordering;
 use rand::prelude::*;
 use ruma::serde::{try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
 use std::{
-    cmp,
+    cmp, fmt,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-#[tracing::instrument]
 pub fn millis_since_unix_epoch() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -39,19 +38,16 @@ pub fn generate_keypair() -> Vec<u8> {
 }
 
 /// Parses the bytes into an u64.
-#[tracing::instrument(skip(bytes))]
 pub fn u64_from_bytes(bytes: &[u8]) -> Result<u64, std::array::TryFromSliceError> {
     let array: [u8; 8] = bytes.try_into()?;
     Ok(u64::from_be_bytes(array))
 }
 
 /// Parses the bytes into a string.
-#[tracing::instrument(skip(bytes))]
 pub fn string_from_bytes(bytes: &[u8]) -> Result<String, std::string::FromUtf8Error> {
     String::from_utf8(bytes.to_vec())
 }
 
-#[tracing::instrument(skip(length))]
 pub fn random_string(length: usize) -> String {
     thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
@@ -61,7 +57,6 @@ pub fn random_string(length: usize) -> String {
 }
 
 /// Calculate a new hash for the given password
-#[tracing::instrument(skip(password))]
 pub fn calculate_hash(password: &str) -> Result<String, argon2::Error> {
     let hashing_config = Config {
         variant: Variant::Argon2id,
@@ -72,7 +67,6 @@ pub fn calculate_hash(password: &str) -> Result<String, argon2::Error> {
     argon2::hash_encoded(password.as_bytes(), salt.as_bytes(), &hashing_config)
 }
 
-#[tracing::instrument(skip(iterators, check_order))]
 pub fn common_elements(
     mut iterators: impl Iterator<Item = impl Iterator<Item = Vec<u8>>>,
     check_order: impl Fn(&[u8], &[u8]) -> Ordering,
@@ -100,7 +94,6 @@ pub fn common_elements(
 /// Fallible conversion from any value that implements `Serialize` to a `CanonicalJsonObject`.
 ///
 /// `value` must serialize to an `serde_json::Value::Object`.
-#[tracing::instrument(skip(value))]
 pub fn to_canonical_object<T: serde::Serialize>(
     value: T,
 ) -> Result<CanonicalJsonObject, CanonicalJsonError> {
@@ -114,7 +107,6 @@ pub fn to_canonical_object<T: serde::Serialize>(
     }
 }
 
-#[tracing::instrument(skip(deserializer))]
 pub fn deserialize_from_str<
     'de,
     D: serde::de::Deserializer<'de>,
@@ -139,4 +131,41 @@ pub fn deserialize_from_str<
         }
     }
     deserializer.deserialize_str(Visitor(std::marker::PhantomData))
+}
+
+// Copied from librustdoc:
+// https://github.com/rust-lang/rust/blob/cbaeec14f90b59a91a6b0f17fc046c66fa811892/src/librustdoc/html/escape.rs
+
+/// Wrapper struct which will emit the HTML-escaped version of the contained
+/// string when passed to a format string.
+pub struct HtmlEscape<'a>(pub &'a str);
+
+impl<'a> fmt::Display for HtmlEscape<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Because the internet is always right, turns out there's not that many
+        // characters to escape: http://stackoverflow.com/questions/7381974
+        let HtmlEscape(s) = *self;
+        let pile_o_bits = s;
+        let mut last = 0;
+        for (i, ch) in s.char_indices() {
+            let s = match ch {
+                '>' => "&gt;",
+                '<' => "&lt;",
+                '&' => "&amp;",
+                '\'' => "&#39;",
+                '"' => "&quot;",
+                _ => continue,
+            };
+            fmt.write_str(&pile_o_bits[last..i])?;
+            fmt.write_str(s)?;
+            // NOTE: we only expect single byte characters here - which is fine as long as we
+            // only match single byte characters
+            last = i + 1;
+        }
+
+        if last < s.len() {
+            fmt.write_str(&pile_o_bits[last..])?;
+        }
+        Ok(())
+    }
 }

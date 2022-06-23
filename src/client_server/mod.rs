@@ -62,23 +62,7 @@ pub use unversioned::*;
 pub use user_directory::*;
 pub use voip::*;
 
-#[cfg(not(feature = "conduit_bin"))]
-use super::State;
-#[cfg(feature = "conduit_bin")]
-use {
-    crate::ConduitResult, rocket::options, ruma::api::client::r0::to_device::send_event_to_device,
-};
-
 pub const DEVICE_ID_LENGTH: usize = 10;
 pub const TOKEN_LENGTH: usize = 256;
 pub const SESSION_ID_LENGTH: usize = 256;
-
-/// # `OPTIONS`
-///
-/// Web clients use this to get CORS headers.
-#[cfg(feature = "conduit_bin")]
-#[options("/<_..>")]
-#[tracing::instrument]
-pub async fn options_route() -> ConduitResult<send_event_to_device::Response> {
-    Ok(send_event_to_device::Response {}.into())
-}
+pub const AUTO_GEN_PASSWORD_LENGTH: usize = 15;

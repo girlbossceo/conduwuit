@@ -1,11 +1,11 @@
-use crate::Error;
+use crate::{Database, Error};
 use ruma::{
     events::{
         room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyRoomEvent, AnyStateEvent,
-        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, EventType, StateEvent,
+        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, RoomEventType, StateEvent,
     },
     serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
-    state_res, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, UInt, UserId,
+    state_res, EventId, MilliSecondsSinceUnixEpoch, RoomId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{
@@ -29,7 +29,7 @@ pub struct PduEvent {
     pub sender: Box<UserId>,
     pub origin_server_ts: UInt,
     #[serde(rename = "type")]
-    pub kind: EventType,
+    pub kind: RoomEventType,
     pub content: Box<RawJsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state_key: Option<String>,
@@ -51,10 +51,10 @@ impl PduEvent {
         self.unsigned = None;
 
         let allowed: &[&str] = match self.kind {
-            EventType::RoomMember => &["membership"],
-            EventType::RoomCreate => &["creator"],
-            EventType::RoomJoinRules => &["join_rule"],
-            EventType::RoomPowerLevels => &[
+            RoomEventType::RoomMember => &["join_authorised_via_users_server", "membership"],
+            RoomEventType::RoomCreate => &["creator"],
+            RoomEventType::RoomJoinRules => &["join_rule"],
+            RoomEventType::RoomPowerLevels => &[
                 "ban",
                 "events",
                 "events_default",
@@ -64,7 +64,7 @@ impl PduEvent {
                 "users",
                 "users_default",
             ],
-            EventType::RoomHistoryVisibility => &["history_visibility"],
+            RoomEventType::RoomHistoryVisibility => &["history_visibility"],
             _ => &[],
         };
 
@@ -279,7 +279,7 @@ impl state_res::Event for PduEvent {
         &self.sender
     }
 
-    fn event_type(&self) -> &EventType {
+    fn event_type(&self) -> &RoomEventType {
         &self.kind
     }
 
@@ -332,16 +332,24 @@ impl Ord for PduEvent {
 /// Returns a tuple of the new `EventId` and the PDU as a `BTreeMap<String, CanonicalJsonValue>`.
 pub(crate) fn gen_event_id_canonical_json(
     pdu: &RawJsonValue,
+    db: &Database,
 ) -> crate::Result<(Box<EventId>, CanonicalJsonObject)> {
-    let value = serde_json::from_str(pdu.get()).map_err(|e| {
+    let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
         warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
 
+    let room_id = value
+        .get("room_id")
+        .and_then(|id| RoomId::parse(id.as_str()?).ok())
+        .ok_or_else(|| Error::bad_database("PDU in db has invalid room_id."))?;
+
+    let room_version_id = db.rooms.get_room_version(&room_id);
+
     let event_id = format!(
         "${}",
         // Anything higher than version3 behaves the same
-        ruma::signatures::reference_hash(&value, &RoomVersionId::V6)
+        ruma::signatures::reference_hash(&value, &room_version_id?)
             .expect("ruma can calculate reference hashes")
     )
     .try_into()
@@ -354,7 +362,7 @@ pub(crate) fn gen_event_id_canonical_json(
 #[derive(Debug, Deserialize)]
 pub struct PduBuilder {
     #[serde(rename = "type")]
-    pub event_type: EventType,
+    pub event_type: RoomEventType,
     pub content: Box<RawJsonValue>,
     pub unsigned: Option<BTreeMap<String, serde_json::Value>>,
     pub state_key: Option<String>,

@@ -2,16 +2,16 @@ use crate::{Database, Error, PduEvent, Result};
 use bytes::BytesMut;
 use ruma::{
     api::{
-        client::r0::push::{get_pushers, set_pusher, PusherKind},
+        client::push::{get_pushers, set_pusher, PusherKind},
         push_gateway::send_event_notification::{
             self,
             v1::{Device, Notification, NotificationCounts, NotificationPriority},
         },
-        IncomingResponse, OutgoingRequest, SendAccessToken,
+        IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
     },
     events::{
         room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},
-        AnySyncRoomEvent, EventType,
+        AnySyncRoomEvent, RoomEventType, StateEventType,
     },
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     serde::Raw,
@@ -30,7 +30,7 @@ pub struct PushData {
 
 impl PushData {
     #[tracing::instrument(skip(self, sender, pusher))]
-    pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::Pusher) -> Result<()> {
+    pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::Pusher) -> Result<()> {
         let mut key = sender.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(pusher.pushkey.as_bytes());
@@ -53,7 +53,7 @@ impl PushData {
     }
 
     #[tracing::instrument(skip(self, senderkey))]
-    pub fn get_pusher(&self, senderkey: &[u8]) -> Result<Option<get_pushers::Pusher>> {
+    pub fn get_pusher(&self, senderkey: &[u8]) -> Result<Option<get_pushers::v3::Pusher>> {
         self.senderkey_pusher
             .get(senderkey)?
             .map(|push| {
@@ -64,7 +64,7 @@ impl PushData {
     }
 
     #[tracing::instrument(skip(self, sender))]
-    pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<get_pushers::Pusher>> {
+    pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<get_pushers::v3::Pusher>> {
         let mut prefix = sender.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -101,7 +101,11 @@ where
     let destination = destination.replace("/_matrix/push/v1/notify", "");
 
     let http_request = request
-        .try_into_http_request::<BytesMut>(&destination, SendAccessToken::IfRequired(""))
+        .try_into_http_request::<BytesMut>(
+            &destination,
+            SendAccessToken::IfRequired(""),
+            &[MatrixVersion::V1_0],
+        )
         .map_err(|e| {
             warn!("Failed to find destination {}: {}", destination, e);
             Error::BadServerResponse("Invalid destination")
@@ -167,7 +171,7 @@ where
 pub async fn send_push_notice(
     user: &UserId,
     unread: UInt,
-    pusher: &get_pushers::Pusher,
+    pusher: &get_pushers::v3::Pusher,
     ruleset: Ruleset,
     pdu: &PduEvent,
     db: &Database,
@@ -177,7 +181,7 @@ pub async fn send_push_notice(
 
     let power_levels: RoomPowerLevelsEventContent = db
         .rooms
-        .room_state_get(&pdu.room_id, &EventType::RoomPowerLevels, "")?
+        .room_state_get(&pdu.room_id, &StateEventType::RoomPowerLevels, "")?
         .map(|ev| {
             serde_json::from_str(ev.content.get())
                 .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
@@ -247,7 +251,7 @@ pub fn get_actions<'a>(
 #[tracing::instrument(skip(unread, pusher, tweaks, event, db))]
 async fn send_notice(
     unread: UInt,
-    pusher: &get_pushers::Pusher,
+    pusher: &get_pushers::v3::Pusher,
     tweaks: Vec<Tweak>,
     event: &PduEvent,
     db: &Database,
@@ -289,7 +293,7 @@ async fn send_notice(
     // TODO: missed calls
     notifi.counts = NotificationCounts::new(unread, uint!(0));
 
-    if event.kind == EventType::RoomEncrypted
+    if event.kind == RoomEventType::RoomEncrypted
         || tweaks
             .iter()
             .any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
@@ -310,7 +314,7 @@ async fn send_notice(
         let content = serde_json::value::to_raw_value(&event.content).ok();
         notifi.content = content.as_deref();
 
-        if event.kind == EventType::RoomMember {
+        if event.kind == RoomEventType::RoomMember {
             notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
         }
 
@@ -319,7 +323,7 @@ async fn send_notice(
 
         let room_name = if let Some(room_name_pdu) =
             db.rooms
-                .room_state_get(&event.room_id, &EventType::RoomName, "")?
+                .room_state_get(&event.room_id, &StateEventType::RoomName, "")?
         {
             serde_json::from_str::<RoomNameEventContent>(room_name_pdu.content.get())
                 .map_err(|_| Error::bad_database("Invalid room name event in database."))?

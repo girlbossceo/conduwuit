@@ -43,7 +43,6 @@ $ sudo apt install libclang-dev build-essential
 $ cargo build --release
 ```
 
-Note that this currently requires Rust 1.50.
 
 If you want to cross compile Conduit to another architecture, read the [Cross-Compile Guide](cross/README.md).
 
@@ -57,6 +56,12 @@ In Debian you can use this command to create a Conduit user:
 ```bash
 sudo adduser --system conduit --no-create-home
 ```
+
+## Forwarding ports in the firewall or the router
+
+Conduit uses the ports 443 and 8448 both of which need to be open in the firewall.
+
+If Conduit runs behind a router or in a container and has a different public IP address than the host system these public ports need to be forwarded directly or indirectly to the port mentioned in the config.
 
 ## Setting up a systemd service
 
@@ -89,28 +94,35 @@ $ sudo systemctl daemon-reload
 ## Creating the Conduit configuration file
 
 Now we need to create the Conduit's config file in `/etc/matrix-conduit/conduit.toml`. Paste this in **and take a moment
-to read it. You need to change at least the server name.**
+to read it. You need to change at least the server name.**  
+You can also choose to use a different database backend, but right now only `rocksdb` and `sqlite` are recommended.
 
 ```toml
 [global]
-# The server_name is the name of this server. It is used as a suffix for user
+# The server_name is the pretty name of this server. It is used as a suffix for user
 # and room ids. Examples: matrix.org, conduit.rs
-# The Conduit server needs to be reachable at https://your.server.name/ on port
-# 443 (client-server) and 8448 (federation) OR you can create /.well-known
-# files to redirect requests. See
+
+# The Conduit server needs all /_matrix/ requests to be reachable at
+# https://your.server.name/ on port 443 (client-server) and 8448 (federation).
+
+# If that's not possible for you, you can create /.well-known files to redirect
+# requests. See
 # https://matrix.org/docs/spec/client_server/latest#get-well-known-matrix-client
-# and https://matrix.org/docs/spec/server_server/r0.1.4#get-well-known-matrix-server
+# and
+# https://matrix.org/docs/spec/server_server/r0.1.4#get-well-known-matrix-server
 # for more information
 
 # YOU NEED TO EDIT THIS
 #server_name = "your.server.name"
 
 # This is the only directory where Conduit will save its data
-database_path = "/var/lib/matrix-conduit/conduit_db"
+database_path = "/var/lib/matrix-conduit/"
+database_backend = "rocksdb"
 
 # The port Conduit will be running on. You need to set up a reverse proxy in
 # your web server (e.g. apache or nginx), so all requests to /_matrix on port
 # 443 and 8448 will be forwarded to the Conduit instance running on this port
+# Docker users: Don't change this, you'll need to map an external port to this.
 port = 6167
 
 # Max size for uploads
@@ -119,20 +131,15 @@ max_request_size = 20_000_000 # in bytes
 # Enables registration. If set to false, no users can register on this server.
 allow_registration = true
 
-# Disable encryption, so no new encrypted rooms can be created
-# Note: existing rooms will continue to work
-allow_encryption = true
 allow_federation = true
 
 trusted_servers = ["matrix.org"]
 
 #max_concurrent_requests = 100 # How many requests Conduit sends to other servers at the same time
-#workers = 4 # default: cpu core count * 2
+#log = "info,state_res=warn,rocket=off,_=off,sled=off"
 
 address = "127.0.0.1" # This makes sure Conduit can only be reached using the reverse proxy
-
-# The total amount of memory that the database will use.
-#db_cache_capacity_mb = 200
+#address = "0.0.0.0" # If Conduit is running in a container, make sure the reverse proxy (ie. Traefik) can reach it.
 ```
 
 ## Setting the correct file permissions
@@ -141,19 +148,21 @@ As we are using a Conduit specific user we need to allow it to read the config. 
 Debian:
 
 ```bash
-sudo chown -R conduit:nogroup /etc/matrix-conduit
+sudo chown -R root:root /etc/matrix-conduit
+sudo chmod 755 /etc/matrix-conduit
 ```
 
 If you use the default database path you also need to run this:
 
 ```bash
-sudo mkdir -p /var/lib/matrix-conduit/conduit_db
-sudo chown -R conduit:nogroup /var/lib/matrix-conduit/conduit_db
+sudo mkdir -p /var/lib/matrix-conduit/
+sudo chown -R conduit:nogroup /var/lib/matrix-conduit/
+sudo chmod 700 /var/lib/matrix-conduit/
 ```
 
 ## Setting up the Reverse Proxy
 
-This depends on whether you use Apache, Nginx or another web server.
+This depends on whether you use Apache, Caddy, Nginx or another web server.
 
 ### Apache
 
@@ -178,6 +187,19 @@ ProxyPassReverse /_matrix/ http://127.0.0.1:6167/_matrix/
 ```bash
 $ sudo systemctl reload apache2
 ```
+
+### Caddy
+Create `/etc/caddy/conf.d/conduit_caddyfile` and enter this (substitute for your server name).
+```caddy
+your.server.name, your.server.name:8448 {
+        reverse_proxy /_matrix/* 127.0.0.1:6167
+}
+```
+That's it! Just start or enable the service and you're set.
+```bash
+$ sudo systemctl enable caddy
+```
+
 
 ### Nginx
 
@@ -213,6 +235,8 @@ $ sudo systemctl reload nginx
 
 ## SSL Certificate
 
+If you chose Caddy as your web proxy SSL certificates are handled automatically and you can skip this step.
+
 The easiest way to get an SSL certificate, if you don't have one already, is to install `certbot` and run this:
 
 ```bash
@@ -244,5 +268,15 @@ $ curl https://your.server.name/_matrix/client/versions
 $ curl https://your.server.name:8448/_matrix/client/versions
 ```
 
-- To check if your server can talk with other homeservers, you can use the [Matrix Federation Tester](https://federationtester.matrix.org/)
-- If you want to set up an appservice, take a look at the [Appservice Guide](APPSERVICES.md).
+- To check if your server can talk with other homeservers, you can use the [Matrix Federation Tester](https://federationtester.matrix.org/).
+  If you can register but cannot join federated rooms check your config again and also check if the port 8448 is open and forwarded correctly.
+
+# What's next?
+
+## Audio/Video calls
+
+For Audio/Video call functionality see the [TURN Guide](TURN.md).
+
+## Appservices
+
+If you want to set up an appservice, take a look at the [Appservice Guide](APPSERVICES.md).

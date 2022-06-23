@@ -1,9 +1,12 @@
-use crate::{database::DatabaseGuard, ConduitResult, Error, Ruma};
-use ruma::api::client::{error::ErrorKind, r0::search::search_events};
+use crate::{database::DatabaseGuard, Error, Result, Ruma};
+use ruma::api::client::{
+    error::ErrorKind,
+    search::search_events::{
+        self,
+        v3::{EventContextResult, ResultCategories, ResultRoomEvents, SearchResult},
+    },
+};
 
-#[cfg(feature = "conduit_bin")]
-use rocket::post;
-use search_events::{EventContextResult, ResultCategories, ResultRoomEvents, SearchResult};
 use std::collections::BTreeMap;
 
 /// # `POST /_matrix/client/r0/search`
@@ -11,19 +14,14 @@ use std::collections::BTreeMap;
 /// Searches rooms for messages.
 ///
 /// - Only works if the user is currently joined to the room (TODO: Respect history visibility)
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/search", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn search_events_route(
     db: DatabaseGuard,
-    body: Ruma<search_events::Request<'_>>,
-) -> ConduitResult<search_events::Response> {
+    body: Ruma<search_events::v3::IncomingRequest>,
+) -> Result<search_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let search_criteria = body.search_categories.room_events.as_ref().unwrap();
-    let filter = search_criteria.filter.clone().unwrap_or_default();
+    let filter = &search_criteria.filter;
 
     let room_ids = filter.rooms.clone().unwrap_or_else(|| {
         db.rooms
@@ -104,7 +102,7 @@ pub async fn search_events_route(
         Some((skip + limit).to_string())
     };
 
-    Ok(search_events::Response::new(ResultCategories {
+    Ok(search_events::v3::Response::new(ResultCategories {
         room_events: ResultRoomEvents {
             count: Some((results.len() as u32).into()), // TODO: set this to none. Element shouldn't depend on it
             groups: BTreeMap::new(),                    // TODO
@@ -117,6 +115,5 @@ pub async fn search_events_route(
                 .map(str::to_lowercase)
                 .collect(),
         },
-    })
-    .into())
+    }))
 }

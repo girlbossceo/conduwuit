@@ -1,12 +1,10 @@
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
-use crate::{database::DatabaseGuard, utils, ConduitResult, Error, Ruma};
+use crate::{database::DatabaseGuard, utils, Error, Result, Ruma};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        r0::{
-            session::{get_login_types, login, logout, logout_all},
-            uiaa::IncomingUserIdentifier,
-        },
+        session::{get_login_types, login, logout, logout_all},
+        uiaa::IncomingUserIdentifier,
     },
     UserId,
 };
@@ -16,25 +14,19 @@ use tracing::info;
 #[derive(Debug, Deserialize)]
 struct Claims {
     sub: String,
-    exp: usize,
+    //exp: usize,
 }
-
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post};
 
 /// # `GET /_matrix/client/r0/login`
 ///
 /// Get the supported login types of this server. One of these should be used as the `type` field
 /// when logging in.
-#[cfg_attr(feature = "conduit_bin", get("/_matrix/client/r0/login"))]
-#[tracing::instrument]
-pub async fn get_login_types_route() -> ConduitResult<get_login_types::Response> {
-    Ok(
-        get_login_types::Response::new(vec![get_login_types::LoginType::Password(
-            Default::default(),
-        )])
-        .into(),
-    )
+pub async fn get_login_types_route(
+    _body: Ruma<get_login_types::v3::IncomingRequest>,
+) -> Result<get_login_types::v3::Response> {
+    Ok(get_login_types::v3::Response::new(vec![
+        get_login_types::v3::LoginType::Password(Default::default()),
+    ]))
 }
 
 /// # `POST /_matrix/client/r0/login`
@@ -48,24 +40,19 @@ pub async fn get_login_types_route() -> ConduitResult<get_login_types::Response>
 ///
 /// Note: You can use [`GET /_matrix/client/r0/login`](fn.get_supported_versions_route.html) to see
 /// supported login types.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/login", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn login_route(
     db: DatabaseGuard,
-    body: Ruma<login::Request<'_>>,
-) -> ConduitResult<login::Response> {
+    body: Ruma<login::v3::IncomingRequest>,
+) -> Result<login::v3::Response> {
     // Validate login method
     // TODO: Other login methods
     let user_id = match &body.login_info {
-        login::IncomingLoginInfo::Password(login::IncomingPassword {
+        login::v3::IncomingLoginInfo::Password(login::v3::IncomingPassword {
             identifier,
             password,
         }) => {
-            let username = if let IncomingUserIdentifier::MatrixId(matrix_id) = identifier {
-                matrix_id
+            let username = if let IncomingUserIdentifier::UserIdOrLocalpart(user_id) = identifier {
+                user_id.to_lowercase()
             } else {
                 return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
             };
@@ -97,7 +84,7 @@ pub async fn login_route(
 
             user_id
         }
-        login::IncomingLoginInfo::Token(login::IncomingToken { token }) => {
+        login::v3::IncomingLoginInfo::Token(login::v3::IncomingToken { token }) => {
             if let Some(jwt_decoding_key) = db.globals.jwt_decoding_key() {
                 let token = jsonwebtoken::decode::<Claims>(
                     token,
@@ -155,14 +142,13 @@ pub async fn login_route(
 
     db.flush()?;
 
-    Ok(login::Response {
+    Ok(login::v3::Response {
         user_id,
         access_token: token,
         home_server: Some(db.globals.server_name().to_owned()),
         device_id,
         well_known: None,
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/client/r0/logout`
@@ -173,15 +159,10 @@ pub async fn login_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/logout", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn logout_route(
     db: DatabaseGuard,
-    body: Ruma<logout::Request>,
-) -> ConduitResult<logout::Response> {
+    body: Ruma<logout::v3::Request>,
+) -> Result<logout::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -189,7 +170,7 @@ pub async fn logout_route(
 
     db.flush()?;
 
-    Ok(logout::Response::new().into())
+    Ok(logout::v3::Response::new())
 }
 
 /// # `POST /_matrix/client/r0/logout/all`
@@ -203,15 +184,10 @@ pub async fn logout_route(
 ///
 /// Note: This is equivalent to calling [`GET /_matrix/client/r0/logout`](fn.logout_route.html)
 /// from each device of this user.
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/logout/all", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn logout_all_route(
     db: DatabaseGuard,
-    body: Ruma<logout_all::Request>,
-) -> ConduitResult<logout_all::Response> {
+    body: Ruma<logout_all::v3::Request>,
+) -> Result<logout_all::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     for device_id in db.users.all_device_ids(sender_user).flatten() {
@@ -220,5 +196,5 @@ pub async fn logout_all_route(
 
     db.flush()?;
 
-    Ok(logout_all::Response::new().into())
+    Ok(logout_all::v3::Response::new())
 }

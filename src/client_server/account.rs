@@ -1,36 +1,25 @@
-use std::sync::Arc;
-
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{
     database::{admin::make_user_admin, DatabaseGuard},
-    pdu::PduBuilder,
-    utils, ConduitResult, Error, Ruma,
+    utils, Error, Result, Ruma,
 };
 use ruma::{
     api::client::{
-        error::ErrorKind,
-        r0::{
-            account::{
-                change_password, deactivate, get_3pids, get_username_availability, register,
-                whoami, ThirdPartyIdRemovalStatus,
-            },
-            uiaa::{AuthFlow, AuthType, UiaaInfo},
+        account::{
+            change_password, deactivate, get_3pids, get_username_availability, register, whoami,
+            ThirdPartyIdRemovalStatus,
         },
+        error::ErrorKind,
+        uiaa::{AuthFlow, AuthType, UiaaInfo},
     },
-    events::{
-        room::member::{MembershipState, RoomMemberEventContent},
-        EventType,
-    },
+    events::{room::message::RoomMessageEventContent, GlobalAccountDataEventType},
     push, UserId,
 };
-use serde_json::value::to_raw_value;
 use tracing::{info, warn};
 
 use register::RegistrationKind;
-#[cfg(feature = "conduit_bin")]
-use rocket::{get, post};
 
-const GUEST_NAME_LENGTH: usize = 10;
+const RANDOM_USER_ID_LENGTH: usize = 10;
 
 /// # `GET /_matrix/client/r0/register/available`
 ///
@@ -42,15 +31,10 @@ const GUEST_NAME_LENGTH: usize = 10;
 /// - No user or appservice on this server already claimed this username
 ///
 /// Note: This will not reserve the username, so the username might become invalid when trying to register
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/register/available", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn get_register_available_route(
     db: DatabaseGuard,
-    body: Ruma<get_username_availability::Request<'_>>,
-) -> ConduitResult<get_username_availability::Response> {
+    body: Ruma<get_username_availability::v3::IncomingRequest>,
+) -> Result<get_username_availability::v3::Response> {
     // Validate user id
     let user_id =
         UserId::parse_with_server_name(body.username.to_lowercase(), db.globals.server_name())
@@ -74,7 +58,7 @@ pub async fn get_register_available_route(
     // TODO add check for appservice namespaces
 
     // If no if check is true we have an username that's available to be used.
-    Ok(get_username_availability::Response { available: true }.into())
+    Ok(get_username_availability::v3::Response { available: true })
 }
 
 /// # `POST /_matrix/client/r0/register`
@@ -90,15 +74,10 @@ pub async fn get_register_available_route(
 /// - If type is not guest and no username is given: Always fails after UIAA check
 /// - Creates a new account and populates it with default account data
 /// - If `inhibit_login` is false: Creates a device and returns device id and access_token
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/register", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn register_route(
     db: DatabaseGuard,
-    body: Ruma<register::Request<'_>>,
-) -> ConduitResult<register::Response> {
+    body: Ruma<register::v3::IncomingRequest>,
+) -> Result<register::v3::Response> {
     if !db.globals.allow_registration() && !body.from_appservice {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
@@ -108,38 +87,38 @@ pub async fn register_route(
 
     let is_guest = body.kind == RegistrationKind::Guest;
 
-    let mut missing_username = false;
-
-    // Validate user id
-    let user_id = UserId::parse_with_server_name(
-        if is_guest {
-            utils::random_string(GUEST_NAME_LENGTH)
-        } else {
-            body.username.clone().unwrap_or_else(|| {
-                // If the user didn't send a username field, that means the client is just trying
-                // the get an UIAA error to see available flows
-                missing_username = true;
-                // Just give the user a random name. He won't be able to register with it anyway.
-                utils::random_string(GUEST_NAME_LENGTH)
-            })
+    let user_id = match (&body.username, is_guest) {
+        (Some(username), false) => {
+            let proposed_user_id =
+                UserId::parse_with_server_name(username.to_lowercase(), db.globals.server_name())
+                    .ok()
+                    .filter(|user_id| {
+                        !user_id.is_historical()
+                            && user_id.server_name() == db.globals.server_name()
+                    })
+                    .ok_or(Error::BadRequest(
+                        ErrorKind::InvalidUsername,
+                        "Username is invalid.",
+                    ))?;
+            if db.users.exists(&proposed_user_id)? {
+                return Err(Error::BadRequest(
+                    ErrorKind::UserInUse,
+                    "Desired user ID is already taken.",
+                ));
+            }
+            proposed_user_id
         }
-        .to_lowercase(),
-        db.globals.server_name(),
-    )
-    .ok()
-    .filter(|user_id| !user_id.is_historical() && user_id.server_name() == db.globals.server_name())
-    .ok_or(Error::BadRequest(
-        ErrorKind::InvalidUsername,
-        "Username is invalid.",
-    ))?;
-
-    // Check if username is creative enough
-    if db.users.exists(&user_id)? {
-        return Err(Error::BadRequest(
-            ErrorKind::UserInUse,
-            "Desired user ID is already taken.",
-        ));
-    }
+        _ => loop {
+            let proposed_user_id = UserId::parse_with_server_name(
+                utils::random_string(RANDOM_USER_ID_LENGTH).to_lowercase(),
+                db.globals.server_name(),
+            )
+            .unwrap();
+            if !db.users.exists(&proposed_user_id)? {
+                break proposed_user_id;
+            }
+        },
+    };
 
     // UIAA
     let mut uiaainfo = UiaaInfo {
@@ -182,13 +161,6 @@ pub async fn register_route(
         }
     }
 
-    if missing_username {
-        return Err(Error::BadRequest(
-            ErrorKind::MissingParam,
-            "Missing username field.",
-        ));
-    }
-
     let password = if is_guest {
         None
     } else {
@@ -199,7 +171,13 @@ pub async fn register_route(
     db.users.create(&user_id, password)?;
 
     // Default to pretty displayname
-    let displayname = format!("{} ⚡️", user_id.localpart());
+    let mut displayname = user_id.localpart().to_owned();
+
+    // If enabled append lightning bolt to display name (default true)
+    if db.globals.enable_lightning_bolt() {
+        displayname.push_str(" ⚡️");
+    }
+
     db.users
         .set_displayname(&user_id, Some(displayname.clone()))?;
 
@@ -207,7 +185,7 @@ pub async fn register_route(
     db.account_data.update(
         None,
         &user_id,
-        EventType::PushRules,
+        GlobalAccountDataEventType::PushRules.to_string().into(),
         &ruma::events::push_rules::PushRulesEvent {
             content: ruma::events::push_rules::PushRulesEventContent {
                 global: push::Ruleset::server_default(&user_id),
@@ -218,12 +196,11 @@ pub async fn register_route(
 
     // Inhibit login does not work for guests
     if !is_guest && body.inhibit_login {
-        return Ok(register::Response {
+        return Ok(register::v3::Response {
             access_token: None,
             user_id,
             device_id: None,
-        }
-        .into());
+        });
     }
 
     // Generate new device id if the user didn't specify one
@@ -245,7 +222,12 @@ pub async fn register_route(
         body.initial_device_display_name.clone(),
     )?;
 
-    info!("{} registered on this server", user_id);
+    info!("New user {} registered on this server.", user_id);
+    db.admin
+        .send_message(RoomMessageEventContent::notice_plain(format!(
+            "New user {} registered on this server.",
+            user_id
+        )));
 
     // If this is the first real user, grant them admin privileges
     // Note: the server user, @conduit:servername, is generated first
@@ -257,12 +239,11 @@ pub async fn register_route(
 
     db.flush()?;
 
-    Ok(register::Response {
+    Ok(register::v3::Response {
         access_token: Some(token),
         user_id,
         device_id: Some(device_id),
-    }
-    .into())
+    })
 }
 
 /// # `POST /_matrix/client/r0/account/password`
@@ -279,15 +260,10 @@ pub async fn register_route(
 /// - Deletes device metadata (device id, device display name, last seen ip, last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/account/password", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn change_password_route(
     db: DatabaseGuard,
-    body: Ruma<change_password::Request<'_>>,
-) -> ConduitResult<change_password::Response> {
+    body: Ruma<change_password::v3::IncomingRequest>,
+) -> Result<change_password::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -340,7 +316,14 @@ pub async fn change_password_route(
 
     db.flush()?;
 
-    Ok(change_password::Response {}.into())
+    info!("User {} changed their password.", sender_user);
+    db.admin
+        .send_message(RoomMessageEventContent::notice_plain(format!(
+            "User {} changed their password.",
+            sender_user
+        )));
+
+    Ok(change_password::v3::Response {})
 }
 
 /// # `GET _matrix/client/r0/account/whoami`
@@ -348,17 +331,18 @@ pub async fn change_password_route(
 /// Get user_id of the sender user.
 ///
 /// Note: Also works for Application Services
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/account/whoami", data = "<body>")
-)]
-#[tracing::instrument(skip(body))]
-pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::Response> {
+pub async fn whoami_route(
+    db: DatabaseGuard,
+    body: Ruma<whoami::v3::Request>,
+) -> Result<whoami::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-    Ok(whoami::Response {
+    let device_id = body.sender_device.as_ref().cloned();
+
+    Ok(whoami::v3::Response {
         user_id: sender_user.clone(),
-    }
-    .into())
+        device_id,
+        is_guest: db.users.is_deactivated(&sender_user)?,
+    })
 }
 
 /// # `POST /_matrix/client/r0/account/deactivate`
@@ -371,15 +355,10 @@ pub async fn whoami_route(body: Ruma<whoami::Request>) -> ConduitResult<whoami::
 /// - Forgets all to-device events
 /// - Triggers device list updates
 /// - Removes ability to log in again
-#[cfg_attr(
-    feature = "conduit_bin",
-    post("/_matrix/client/r0/account/deactivate", data = "<body>")
-)]
-#[tracing::instrument(skip(db, body))]
 pub async fn deactivate_route(
     db: DatabaseGuard,
-    body: Ruma<deactivate::Request<'_>>,
-) -> ConduitResult<deactivate::Response> {
+    body: Ruma<deactivate::v3::IncomingRequest>,
+) -> Result<deactivate::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -415,67 +394,24 @@ pub async fn deactivate_route(
         return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
     }
 
-    // Leave all joined rooms and reject all invitations
-    // TODO: work over federation invites
-    let all_rooms = db
-        .rooms
-        .rooms_joined(sender_user)
-        .chain(
-            db.rooms
-                .rooms_invited(sender_user)
-                .map(|t| t.map(|(r, _)| r)),
-        )
-        .collect::<Vec<_>>();
-
-    for room_id in all_rooms {
-        let room_id = room_id?;
-        let event = RoomMemberEventContent {
-            membership: MembershipState::Leave,
-            displayname: None,
-            avatar_url: None,
-            is_direct: None,
-            third_party_invite: None,
-            blurhash: None,
-            reason: None,
-            join_authorized_via_users_server: None,
-        };
-
-        let mutex_state = Arc::clone(
-            db.globals
-                .roomid_mutex_state
-                .write()
-                .unwrap()
-                .entry(room_id.clone())
-                .or_default(),
-        );
-        let state_lock = mutex_state.lock().await;
-
-        db.rooms.build_and_append_pdu(
-            PduBuilder {
-                event_type: EventType::RoomMember,
-                content: to_raw_value(&event).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(sender_user.to_string()),
-                redacts: None,
-            },
-            sender_user,
-            &room_id,
-            &db,
-            &state_lock,
-        )?;
-    }
+    // Make the user leave all rooms before deactivation
+    db.rooms.leave_all_rooms(&sender_user, &db).await?;
 
     // Remove devices and mark account as deactivated
     db.users.deactivate_account(sender_user)?;
 
-    info!("{} deactivated their account", sender_user);
+    info!("User {} deactivated their account.", sender_user);
+    db.admin
+        .send_message(RoomMessageEventContent::notice_plain(format!(
+            "User {} deactivated their account.",
+            sender_user
+        )));
 
     db.flush()?;
 
-    Ok(deactivate::Response {
+    Ok(deactivate::v3::Response {
         id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,
-    }
-    .into())
+    })
 }
 
 /// # `GET _matrix/client/r0/account/3pid`
@@ -483,14 +419,10 @@ pub async fn deactivate_route(
 /// Get a list of third party identifiers associated with this account.
 ///
 /// - Currently always returns empty list
-#[cfg_attr(
-    feature = "conduit_bin",
-    get("/_matrix/client/r0/account/3pid", data = "<body>")
-)]
 pub async fn third_party_route(
-    body: Ruma<get_3pids::Request>,
-) -> ConduitResult<get_3pids::Response> {
+    body: Ruma<get_3pids::v3::Request>,
+) -> Result<get_3pids::v3::Response> {
     let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    Ok(get_3pids::Response::new(Vec::new()).into())
+    Ok(get_3pids::v3::Response::new(Vec::new()))
 }

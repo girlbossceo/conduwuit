@@ -1,9 +1,10 @@
 use crate::{utils, Error, Result};
 use bytes::BytesMut;
-use ruma::api::{IncomingResponse, OutgoingRequest, SendAccessToken};
+use ruma::api::{IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken};
 use std::{fmt::Debug, mem, time::Duration};
 use tracing::warn;
 
+#[tracing::instrument(skip(globals, request))]
 pub(crate) async fn send_request<T: OutgoingRequest>(
     globals: &crate::database::globals::Globals,
     registration: serde_yaml::Value,
@@ -16,7 +17,11 @@ where
     let hs_token = registration.get("hs_token").unwrap().as_str().unwrap();
 
     let mut http_request = request
-        .try_into_http_request::<BytesMut>(destination, SendAccessToken::IfRequired(""))
+        .try_into_http_request::<BytesMut>(
+            destination,
+            SendAccessToken::IfRequired(""),
+            &[MatrixVersion::V1_0],
+        )
         .unwrap()
         .map(|body| body.freeze());
 
