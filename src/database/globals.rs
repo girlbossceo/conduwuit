@@ -267,6 +267,10 @@ impl Globals {
         self.config.default_room_version.clone()
     }
 
+    pub fn enable_lightning_bolt(&self) -> bool {
+        self.config.enable_lightning_bolt
+    }
+
     pub fn trusted_servers(&self) -> &[Box<ServerName>] {
         &self.config.trusted_servers
     }

@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{
     database::{admin::make_user_admin, DatabaseGuard},
-    pdu::PduBuilder,
-    utils, Database, Error, Result, Ruma,
+    utils, Error, Result, Ruma,
 };
 use ruma::{
     api::client::{
@@ -15,16 +12,9 @@ use ruma::{
         error::ErrorKind,
         uiaa::{AuthFlow, AuthType, UiaaInfo},
     },
-    events::{
-        room::{
-            member::{MembershipState, RoomMemberEventContent},
-            message::RoomMessageEventContent,
-        },
-        GlobalAccountDataEventType, RoomEventType,
-    },
+    events::{room::message::RoomMessageEventContent, GlobalAccountDataEventType},
     push, UserId,
 };
-use serde_json::value::to_raw_value;
 use tracing::{info, warn};
 
 use register::RegistrationKind;
@@ -181,7 +171,13 @@ pub async fn register_route(
     db.users.create(&user_id, password)?;
 
     // Default to pretty displayname
-    let displayname = format!("{} ⚡️", user_id.localpart());
+    let mut displayname = user_id.localpart().to_owned();
+
+    // If enabled append lightning bolt to display name (default true)
+    if db.globals.enable_lightning_bolt() {
+        displayname.push_str(" ⚡️");
+    }
+
     db.users
         .set_displayname(&user_id, Some(displayname.clone()))?;
 
