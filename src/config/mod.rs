@@ -250,7 +250,7 @@ fn default_max_concurrent_requests() -> u16 {
 }
 
 fn default_log() -> String {
-    "info,state_res=warn,_=off,sled=off".to_owned()
+    "warn,state_res=warn,_=off,sled=off".to_owned()
 }
 
 fn default_turn_ttl() -> u64 {
