@@ -110,9 +110,13 @@ async fn main() {
             start.await;
         } else {
             let fmt_layer = tracing_subscriber::fmt::Layer::new();
-            let filter_layer = EnvFilter::try_new(&config.log)
-                .or_else(|_| EnvFilter::try_new("info"))
-                .unwrap();
+            let filter_layer = match EnvFilter::try_new(&config.log) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("It looks like your log config is invalid. The following error occurred: {}", e);
+                    EnvFilter::try_new("warn").unwrap()
+                },
+            };
 
             let subscriber = registry.with(filter_layer).with(fmt_layer);
             tracing::subscriber::set_global_default(subscriber).unwrap();
