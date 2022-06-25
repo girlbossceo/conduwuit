@@ -115,7 +115,7 @@ async fn main() {
                 Err(e) => {
                     eprintln!("It looks like your log config is invalid. The following error occurred: {}", e);
                     EnvFilter::try_new("warn").unwrap()
-                },
+                }
             };
 
             let subscriber = registry.with(filter_layer).with(fmt_layer);
