@@ -33,7 +33,7 @@ RUN sed -i "s/port = 6167/port = 8008/g" conduit.toml
 RUN echo "allow_federation = true" >> conduit.toml
 RUN echo "allow_encryption = true" >> conduit.toml
 RUN echo "allow_registration = true" >> conduit.toml
-RUN echo "log = \"info,_=off,sled=off\"" >> conduit.toml
+RUN echo "log = \"warn,_=off,sled=off\"" >> conduit.toml
 RUN sed -i "s/address = \"127.0.0.1\"/address = \"0.0.0.0\"/g" conduit.toml
 
 # Enabled Caddy auto cert generation for complement provided CA.

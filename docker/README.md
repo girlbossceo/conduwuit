@@ -33,7 +33,7 @@ docker run -d -p 8448:6167 \
   -e CONDUIT_MAX_REQUEST_SIZE="20_000_000" \
   -e CONDUIT_TRUSTED_SERVERS="[\"matrix.org\"]" \
   -e CONDUIT_MAX_CONCURRENT_REQUESTS="100" \
-  -e CONDUIT_LOG="info,rocket=off,_=off,sled=off" \
+  -e CONDUIT_LOG="warn,rocket=off,_=off,sled=off" \
   --name conduit matrixconduit/matrix-conduit:latest
 ```
 
