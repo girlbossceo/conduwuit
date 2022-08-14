@@ -1,6 +1,5 @@
-
-    #[tracing::instrument(skip(self))]
-    pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
+impl service::room::user::Data for KeyValueDatabase {
+    fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
@@ -13,8 +12,7 @@
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
-    pub fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
+    fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
@@ -28,8 +26,7 @@
             .unwrap_or(Ok(0))
     }
 
-    #[tracing::instrument(skip(self))]
-    pub fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
+    fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
@@ -43,7 +40,7 @@
             .unwrap_or(Ok(0))
     }
 
-    pub fn associate_token_shortstatehash(
+    fn associate_token_shortstatehash(
         &self,
         room_id: &RoomId,
         token: u64,
@@ -58,7 +55,7 @@
             .insert(&key, &shortstatehash.to_be_bytes())
     }
 
-    pub fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>> {
+    fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>> {
         let shortroomid = self.get_shortroomid(room_id)?.expect("room exists");
 
         let mut key = shortroomid.to_be_bytes().to_vec();
@@ -74,8 +71,7 @@
             .transpose()
     }
 
-    #[tracing::instrument(skip(self))]
-    pub fn get_shared_rooms<'a>(
+    fn get_shared_rooms<'a>(
         &'a self,
         users: Vec<Box<UserId>>,
     ) -> Result<impl Iterator<Item = Result<Box<RoomId>>> + 'a> {
@@ -111,4 +107,4 @@
                 .map_err(|_| Error::bad_database("Invalid RoomId in userroomid_joined."))
             }))
     }
-
+}
