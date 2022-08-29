@@ -92,7 +92,7 @@ pub async fn login_route(body: Ruma<login::v3::IncomingRequest>) -> Result<login
                     &jsonwebtoken::Validation::default(),
                 )
                 .map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Token is invalid."))?;
-                let username = token.claims.sub;
+                let username = token.claims.sub.to_lowercase();
                 UserId::parse_with_server_name(username, services().globals.server_name()).map_err(
                     |_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."),
                 )?
