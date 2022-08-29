@@ -22,6 +22,7 @@ use ruma::{
     },
     push::{Action, Ruleset, Tweak},
     state_res,
+    state_res::Event,
     state_res::RoomVersion,
     uint, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
     OwnedServerName, RoomAliasId, RoomId, UserId,
@@ -682,6 +683,22 @@ impl Service {
     ) -> Result<Arc<EventId>> {
         let (pdu, pdu_json) =
             self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
+
+        let admin_room = services().rooms.alias.resolve_local_alias(
+            <&RoomAliasId>::try_from(
+                format!("#admins:{}", services().globals.server_name()).as_str(),
+            )
+            .expect("#admins:server_name is a valid room alias"),
+        )?;
+        if admin_room.filter(|v| v == room_id).is_some() {
+            if pdu.event_type() == &RoomEventType::RoomEncryption {
+                warn!("Encryption is not allowed in the admins room");
+                return Err(Error::BadRequest(
+                    ErrorKind::Forbidden,
+                    "Encryption is not allowed in the admins room.",
+                ));
+            }
+        }
 
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.
