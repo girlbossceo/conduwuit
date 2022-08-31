@@ -716,6 +716,21 @@ impl Service {
                             "Conduit user cannot leave from admins room.",
                         ));
                     }
+
+                    let count = services()
+                        .rooms
+                        .state_cache
+                        .room_members(room_id)
+                        .filter_map(|m| m.ok())
+                        .filter(|m| m.server_name() == services().globals.server_name())
+                        .count();
+                    if count < 3 {
+                        warn!("Last admin cannot leave from admins room");
+                        return Err(Error::BadRequest(
+                            ErrorKind::Forbidden,
+                            "Last admin cannot leave from admins room.",
+                        ));
+                    }
                 }
             }
         }
