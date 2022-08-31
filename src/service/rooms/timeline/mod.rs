@@ -698,6 +698,26 @@ impl Service {
                     "Encryption is not allowed in the admins room.",
                 ));
             }
+            if pdu.event_type() == &RoomEventType::RoomMember {
+                #[derive(Deserialize)]
+                struct ExtractMembership {
+                    membership: MembershipState,
+                }
+
+                let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
+                    .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
+
+                if content.membership == MembershipState::Leave {
+                    let server_user = format!("@conduit:{}", services().globals.server_name());
+                    if sender == &server_user {
+                        warn!("Conduit user cannot leave from admins room");
+                        return Err(Error::BadRequest(
+                            ErrorKind::Forbidden,
+                            "Conduit user cannot leave from admins room.",
+                        ));
+                    }
+                }
+            }
         }
 
         // We append to state before appending the pdu, so we don't have a moment in time with the
