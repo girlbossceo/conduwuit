@@ -691,47 +691,50 @@ impl Service {
             .expect("#admins:server_name is a valid room alias"),
         )?;
         if admin_room.filter(|v| v == room_id).is_some() {
-            if pdu.event_type() == &RoomEventType::RoomEncryption {
-                warn!("Encryption is not allowed in the admins room");
-                return Err(Error::BadRequest(
-                    ErrorKind::Forbidden,
-                    "Encryption is not allowed in the admins room.",
-                ));
-            }
-            if pdu.event_type() == &RoomEventType::RoomMember {
-                #[derive(Deserialize)]
-                struct ExtractMembership {
-                    membership: MembershipState,
+            match pdu.event_type() {
+                RoomEventType::RoomEncryption => {
+                    warn!("Encryption is not allowed in the admins room");
+                    return Err(Error::BadRequest(
+                        ErrorKind::Forbidden,
+                        "Encryption is not allowed in the admins room.",
+                    ));
                 }
-
-                let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
-                    .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
-
-                if content.membership == MembershipState::Leave {
-                    let server_user = format!("@conduit:{}", services().globals.server_name());
-                    if sender == &server_user {
-                        warn!("Conduit user cannot leave from admins room");
-                        return Err(Error::BadRequest(
-                            ErrorKind::Forbidden,
-                            "Conduit user cannot leave from admins room.",
-                        ));
+                RoomEventType::RoomMember => {
+                    #[derive(Deserialize)]
+                    struct ExtractMembership {
+                        membership: MembershipState,
                     }
 
-                    let count = services()
-                        .rooms
-                        .state_cache
-                        .room_members(room_id)
-                        .filter_map(|m| m.ok())
-                        .filter(|m| m.server_name() == services().globals.server_name())
-                        .count();
-                    if count < 3 {
-                        warn!("Last admin cannot leave from admins room");
-                        return Err(Error::BadRequest(
-                            ErrorKind::Forbidden,
-                            "Last admin cannot leave from admins room.",
-                        ));
+                    let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
+                        .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
+
+                    if content.membership == MembershipState::Leave {
+                        let server_user = format!("@conduit:{}", services().globals.server_name());
+                        if sender == &server_user {
+                            warn!("Conduit user cannot leave from admins room");
+                            return Err(Error::BadRequest(
+                                ErrorKind::Forbidden,
+                                "Conduit user cannot leave from admins room.",
+                            ));
+                        }
+
+                        let count = services()
+                            .rooms
+                            .state_cache
+                            .room_members(room_id)
+                            .filter_map(|m| m.ok())
+                            .filter(|m| m.server_name() == services().globals.server_name())
+                            .count();
+                        if count < 3 {
+                            warn!("Last admin cannot leave from admins room");
+                            return Err(Error::BadRequest(
+                                ErrorKind::Forbidden,
+                                "Last admin cannot leave from admins room.",
+                            ));
+                        }
                     }
                 }
+                _ => {}
             }
         }
 
