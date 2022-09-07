@@ -1,3 +1,6 @@
+mod data;
+pub use data::Data;
+
 use crate::{utils, Error, Result, services};
 use ruma::{
     api::client::{
@@ -9,7 +12,11 @@ use ruma::{
 };
 use std::{collections::BTreeMap, sync::Arc};
 
-impl KeyBackups {
+pub struct Service<D: Data> {
+    db: D,
+}
+
+impl<D: Data> Service<D> {
     pub fn create_backup(
         &self,
         user_id: &UserId,

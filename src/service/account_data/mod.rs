@@ -1,14 +1,27 @@
-use crate::{utils, Error, Result};
+mod data;
+
+pub use data::Data;
+
 use ruma::{
-    api::client::error::ErrorKind,
+    api::client::{
+        error::ErrorKind,
+    },
     events::{AnyEphemeralRoomEvent, RoomAccountDataEventType},
     serde::Raw,
-    RoomId, UserId,
+    signatures::CanonicalJsonValue,
+    DeviceId, RoomId, UserId,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::{collections::HashMap, sync::Arc};
+use tracing::error;
 
-impl AccountData {
+use crate::{service::*, services, utils, Error, Result};
+
+pub struct Service<D: Data> {
+    db: D,
+}
+
+impl<D: Data> Service<D> {
     /// Places one event in the account data of the user and removes the previous entry.
     #[tracing::instrument(skip(self, room_id, user_id, event_type, data))]
     pub fn update<T: Serialize>(
