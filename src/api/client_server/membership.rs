@@ -17,7 +17,7 @@ use ruma::{
     },
     serde::Base64,
     CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
-    RoomId, RoomVersionId, UserId,
+    OwnedUserId, RoomId, RoomVersionId, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
@@ -519,6 +519,15 @@ async fn join_room_by_id_helper(
                 Error::BadServerResponse("Invalid make_join event json received from server.")
             })?;
 
+        let join_authorized_via_users_server = join_event_stub
+            .get("content")
+            .map(|s| {
+                s.as_object()?
+                    .get("join_authorised_via_users_server")?
+                    .as_str()
+            })
+            .and_then(|s| OwnedUserId::try_from(s.unwrap_or_default()).ok());
+
         // TODO: Is origin needed?
         join_event_stub.insert(
             "origin".to_owned(),
@@ -542,7 +551,7 @@ async fn join_room_by_id_helper(
                 third_party_invite: None,
                 blurhash: services().users.blurhash(sender_user)?,
                 reason: None,
-                join_authorized_via_users_server: None,
+                join_authorized_via_users_server,
             })
             .expect("event is valid, we just created it"),
         );
