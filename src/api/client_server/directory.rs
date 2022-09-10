@@ -85,6 +85,14 @@ pub async fn set_room_visibility_route(
 ) -> Result<set_room_visibility::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    if !db.rooms.exists(&body.room_id)? {
+        // Return 404 if the room doesn't exist
+        return Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Room not found",
+        ));
+    }
+
     match &body.visibility {
         room::Visibility::Public => {
             services().rooms.directory.set_public(&body.room_id)?;
@@ -108,6 +116,15 @@ pub async fn set_room_visibility_route(
 pub async fn get_room_visibility_route(
     body: Ruma<get_room_visibility::v3::IncomingRequest>,
 ) -> Result<get_room_visibility::v3::Response> {
+
+    if !db.rooms.exists(&body.room_id)? {
+        // Return 404 if the room doesn't exist
+        return Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Room not found",
+        ));
+    }
+
     Ok(get_room_visibility::v3::Response {
         visibility: if services().rooms.directory.is_public_room(&body.room_id)? {
             room::Visibility::Public
