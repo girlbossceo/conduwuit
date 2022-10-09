@@ -587,7 +587,7 @@ impl Service {
                         .notification_count(&userid, &pdu.room_id)
                         .map_err(|e| (kind.clone(), e))?
                         .try_into()
-                        .expect("notifiation count can't go that high");
+                        .expect("notification count can't go that high");
 
                     let permit = services().sending.maximum_requests.acquire().await;
 
@@ -616,6 +616,7 @@ impl Service {
                                     .get_pdu_json_from_id(pdu_id)
                                     .map_err(|e| (OutgoingKind::Normal(server.clone()), e))?
                                     .ok_or_else(|| {
+                                        error!("event not found: {server} {pdu_id:?}");
                                         (
                                             OutgoingKind::Normal(server.clone()),
                                             Error::bad_database(

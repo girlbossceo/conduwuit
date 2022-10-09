@@ -556,7 +556,7 @@ impl KeyValueDatabase {
                                 services()
                                     .rooms
                                     .state_compressor
-                                    .load_shortstatehash_info(dbg!(last_roomsstatehash))
+                                    .load_shortstatehash_info(last_roomsstatehash)
                             },
                         )?;
 
@@ -579,7 +579,7 @@ impl KeyValueDatabase {
                             };
 
                         services().rooms.state_compressor.save_state_from_diff(
-                            dbg!(current_sstatehash),
+                            current_sstatehash,
                             statediffnew,
                             statediffremoved,
                             2, // every state change is 2 event changes on average

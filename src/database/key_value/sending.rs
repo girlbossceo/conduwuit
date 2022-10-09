@@ -66,7 +66,6 @@ impl service::sending::Data for KeyValueDatabase {
         let mut keys = Vec::new();
         for (outgoing_kind, event) in requests {
             let mut key = outgoing_kind.get_prefix();
-            key.push(0xff);
             key.extend_from_slice(if let SendingEventType::Pdu(value) = &event {
                 &**value
             } else {
@@ -139,6 +138,7 @@ fn parse_servercurrentevent(
         let event = parts
             .next()
             .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+
         let server = utils::string_from_bytes(server).map_err(|_| {
             Error::bad_database("Invalid server bytes in server_currenttransaction")
         })?;
@@ -169,6 +169,7 @@ fn parse_servercurrentevent(
         let event = parts
             .next()
             .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+
         (
             OutgoingKind::Push(user_id, pushkey_string),
             if value.is_empty() {
@@ -185,6 +186,7 @@ fn parse_servercurrentevent(
         let event = parts
             .next()
             .ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+
         let server = utils::string_from_bytes(server).map_err(|_| {
             Error::bad_database("Invalid server bytes in server_currenttransaction")
         })?;

@@ -161,6 +161,7 @@ impl KvTree for RocksDbEngineTree<'_> {
             self.db
                 .rocks
                 .iterator_cf(&self.cf(), rocksdb::IteratorMode::Start)
+                //.map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v))),
         )
     }
@@ -184,6 +185,7 @@ impl KvTree for RocksDbEngineTree<'_> {
                         },
                     ),
                 )
+                //.map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v))),
         )
     }
@@ -224,6 +226,7 @@ impl KvTree for RocksDbEngineTree<'_> {
                     &self.cf(),
                     rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward),
                 )
+                //.map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v)))
                 .take_while(move |(k, _)| k.starts_with(&prefix)),
         )
