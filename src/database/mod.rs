@@ -17,7 +17,7 @@ use ruma::{
         GlobalAccountDataEvent, GlobalAccountDataEventType, StateEventType,
     },
     push::Ruleset,
-    DeviceId, EventId, RoomId, UserId,
+    EventId, RoomId, UserId,
 };
 use std::{
     collections::{BTreeMap, HashMap, HashSet},

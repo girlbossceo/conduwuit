@@ -10,7 +10,7 @@ use ruma::{
         RoomEventType, StateEventType,
     },
     serde::Raw,
-    DeviceId, OwnedDeviceId, OwnedUserId, RoomId, UserId,
+    OwnedDeviceId, OwnedUserId, RoomId, UserId,
 };
 use std::{
     collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},

@@ -14,7 +14,7 @@ use ruma::{
         federation,
     },
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
+    DeviceKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap, HashSet};

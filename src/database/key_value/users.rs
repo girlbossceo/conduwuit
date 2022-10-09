@@ -5,8 +5,8 @@ use ruma::{
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::{AnyToDeviceEvent, StateEventType},
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, MxcUri, OwnedUserId,
-    UInt, UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedUserId, UInt,
+    UserId,
 };
 use ruma::{OwnedDeviceId, OwnedDeviceKeyId, OwnedMxcUri};
 use tracing::warn;

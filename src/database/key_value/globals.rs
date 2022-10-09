@@ -5,8 +5,7 @@ use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
     api::federation::discovery::{ServerSigningKeys, VerifyKey},
     signatures::Ed25519KeyPair,
-    DeviceId, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, ServerName, ServerSigningKeyId,
-    UserId,
+    DeviceId, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, ServerName, UserId,
 };
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};

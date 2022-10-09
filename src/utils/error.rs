@@ -6,7 +6,7 @@ use ruma::{
         error::{Error as RumaError, ErrorKind},
         uiaa::{UiaaInfo, UiaaResponse},
     },
-    OwnedServerName, ServerName,
+    OwnedServerName,
 };
 use thiserror::Error;
 use tracing::{error, warn};

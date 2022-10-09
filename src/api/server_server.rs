@@ -43,7 +43,7 @@ use ruma::{
     serde::{Base64, JsonObject, Raw},
     to_device::DeviceIdOrAllDevices,
     CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId,
-    OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName, ServerSigningKeyId,
+    OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{

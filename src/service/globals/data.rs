@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use ruma::{
     api::federation::discovery::{ServerSigningKeys, VerifyKey},
     signatures::Ed25519KeyPair,
-    DeviceId, OwnedServerSigningKeyId, ServerName, ServerSigningKeyId, UserId,
+    DeviceId, OwnedServerSigningKeyId, ServerName, UserId,
 };
 
 use crate::Result;

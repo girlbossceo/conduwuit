@@ -17,7 +17,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use http::StatusCode;
 use ruma::{
     api::{client::error::ErrorKind, AuthScheme, IncomingRequest, OutgoingResponse},
-    CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedServerName, ServerName, UserId,
+    CanonicalJsonValue, OwnedDeviceId, OwnedServerName, UserId,
 };
 use serde::Deserialize;
 use tracing::{debug, error, warn};

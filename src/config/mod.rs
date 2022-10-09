@@ -4,7 +4,7 @@ use std::{
     net::{IpAddr, Ipv4Addr},
 };
 
-use ruma::{OwnedServerName, RoomVersionId, ServerName};
+use ruma::{OwnedServerName, RoomVersionId};
 use serde::{de::IgnoredAny, Deserialize};
 use tracing::warn;
 

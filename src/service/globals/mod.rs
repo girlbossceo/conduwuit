@@ -12,7 +12,7 @@ use ruma::{
         client::sync::sync_events,
         federation::discovery::{ServerSigningKeys, VerifyKey},
     },
-    DeviceId, EventId, RoomId, RoomVersionId, ServerName, ServerSigningKeyId, UserId,
+    DeviceId, RoomVersionId, ServerName, UserId,
 };
 use std::{
     collections::{BTreeMap, HashMap},

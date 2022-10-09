@@ -31,7 +31,7 @@ use ruma::{
     int,
     serde::Base64,
     state_res::{self, RoomVersion, StateMap},
-    uint, EventId, MilliSecondsSinceUnixEpoch, RoomId, ServerName, ServerSigningKeyId,
+    uint, EventId, MilliSecondsSinceUnixEpoch, RoomId, ServerName,
 };
 use serde_json::value::RawValue as RawJsonValue;
 use tracing::{debug, error, info, trace, warn};

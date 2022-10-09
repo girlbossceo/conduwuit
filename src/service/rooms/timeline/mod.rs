@@ -24,7 +24,7 @@ use ruma::{
         GlobalAccountDataEventType, RoomEventType, StateEventType,
     },
     push::{Action, Tweak},
-    state_res, uint, EventId, RoomAliasId, RoomId, ServerName, UserId,
+    state_res, uint, EventId, RoomAliasId, RoomId, UserId,
 };
 use serde::Deserialize;
 use serde_json::value::to_raw_value;

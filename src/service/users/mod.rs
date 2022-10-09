@@ -7,8 +7,8 @@ use ruma::{
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::AnyToDeviceEvent,
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MxcUri, OwnedDeviceId, OwnedDeviceKeyId,
-    OwnedMxcUri, OwnedUserId, RoomAliasId, UInt, UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, OwnedDeviceId, OwnedDeviceKeyId, OwnedMxcUri,
+    OwnedUserId, RoomAliasId, UInt, UserId,
 };
 
 use crate::{services, Error, Result};
