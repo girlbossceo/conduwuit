@@ -1,7 +1,7 @@
 use std::mem;
 
 use ruma::{
-    events::receipt::ReceiptEvent, serde::Raw, signatures::CanonicalJsonObject, RoomId, UserId,
+    events::receipt::ReceiptEvent, serde::Raw, CanonicalJsonObject, OwnedUserId, RoomId, UserId,
 };
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
@@ -55,7 +55,7 @@ impl service::rooms::edus::read_receipt::Data for KeyValueDatabase {
     ) -> Box<
         dyn Iterator<
                 Item = Result<(
-                    Box<UserId>,
+                    OwnedUserId,
                     u64,
                     Raw<ruma::events::AnySyncEphemeralRoomEvent>,
                 )>,

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use ruma::{
     api::federation::discovery::{ServerSigningKeys, VerifyKey},
     signatures::Ed25519KeyPair,
-    DeviceId, ServerName, ServerSigningKeyId, UserId,
+    DeviceId, OwnedServerSigningKeyId, ServerName, ServerSigningKeyId, UserId,
 };
 
 use crate::Result;
@@ -22,13 +22,13 @@ pub trait Data: Send + Sync {
         &self,
         origin: &ServerName,
         new_keys: ServerSigningKeys,
-    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>>;
+    ) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>>;
 
     /// This returns an empty `Ok(BTreeMap<..>)` when there are no keys found for the server.
     fn signing_keys_for(
         &self,
         origin: &ServerName,
-    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>>;
+    ) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>>;
     fn database_version(&self) -> Result<u64>;
     fn bump_database_version(&self, new_version: u64) -> Result<()>;
 }

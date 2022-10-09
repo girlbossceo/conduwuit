@@ -1,5 +1,8 @@
 mod data;
 pub use data::Data;
+use ruma::{
+    OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
+};
 
 use crate::api::server_server::FedDest;
 
@@ -24,7 +27,7 @@ use tokio::sync::{broadcast, watch::Receiver, Mutex as TokioMutex, Semaphore};
 use tracing::error;
 use trust_dns_resolver::TokioAsyncResolver;
 
-type WellKnownMap = HashMap<Box<ServerName>, (FedDest, String)>;
+type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
 type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 type SyncHandle = (
@@ -45,14 +48,14 @@ pub struct Service {
     default_client: reqwest::Client,
     pub stable_room_versions: Vec<RoomVersionId>,
     pub unstable_room_versions: Vec<RoomVersionId>,
-    pub bad_event_ratelimiter: Arc<RwLock<HashMap<Box<EventId>, RateLimitState>>>,
+    pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
     pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
-    pub servername_ratelimiter: Arc<RwLock<HashMap<Box<ServerName>, Arc<Semaphore>>>>,
-    pub sync_receivers: RwLock<HashMap<(Box<UserId>, Box<DeviceId>), SyncHandle>>,
-    pub roomid_mutex_insert: RwLock<HashMap<Box<RoomId>, Arc<Mutex<()>>>>,
-    pub roomid_mutex_state: RwLock<HashMap<Box<RoomId>, Arc<TokioMutex<()>>>>,
-    pub roomid_mutex_federation: RwLock<HashMap<Box<RoomId>, Arc<TokioMutex<()>>>>, // this lock will be held longer
-    pub roomid_federationhandletime: RwLock<HashMap<Box<RoomId>, (Box<EventId>, Instant)>>,
+    pub servername_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, Arc<Semaphore>>>>,
+    pub sync_receivers: RwLock<HashMap<(OwnedUserId, OwnedDeviceId), SyncHandle>>,
+    pub roomid_mutex_insert: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>,
+    pub roomid_mutex_state: RwLock<HashMap<OwnedRoomId, Arc<TokioMutex<()>>>>,
+    pub roomid_mutex_federation: RwLock<HashMap<OwnedRoomId, Arc<TokioMutex<()>>>>, // this lock will be held longer
+    pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
     pub stateres_mutex: Arc<Mutex<()>>,
     pub rotate: RotationHandler,
 }
@@ -242,7 +245,7 @@ impl Service {
         self.config.default_room_version.clone()
     }
 
-    pub fn trusted_servers(&self) -> &[Box<ServerName>] {
+    pub fn trusted_servers(&self) -> &[OwnedServerName] {
         &self.config.trusted_servers
     }
 
@@ -295,7 +298,7 @@ impl Service {
         &self,
         origin: &ServerName,
         new_keys: ServerSigningKeys,
-    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>> {
+    ) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
         self.db.add_signing_key(origin, new_keys)
     }
 
@@ -303,7 +306,7 @@ impl Service {
     pub fn signing_keys_for(
         &self,
         origin: &ServerName,
-    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>> {
+    ) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
         self.db.signing_keys_for(origin)
     }
 

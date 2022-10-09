@@ -1,7 +1,7 @@
 mod data;
 
 pub use data::Data;
-use ruma::RoomId;
+use ruma::{OwnedRoomId, RoomId};
 
 use crate::Result;
 
@@ -16,7 +16,7 @@ impl Service {
         self.db.exists(room_id)
     }
 
-    pub fn iter_ids<'a>(&'a self) -> Box<dyn Iterator<Item = Result<Box<RoomId>>> + 'a> {
+    pub fn iter_ids<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
         self.db.iter_ids()
     }
 

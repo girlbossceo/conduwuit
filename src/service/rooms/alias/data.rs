@@ -1,5 +1,5 @@
 use crate::Result;
-use ruma::{RoomAliasId, RoomId};
+use ruma::{OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId};
 
 pub trait Data: Send + Sync {
     /// Creates or updates the alias to the given room id.
@@ -9,11 +9,11 @@ pub trait Data: Send + Sync {
     fn remove_alias(&self, alias: &RoomAliasId) -> Result<()>;
 
     /// Looks up the roomid for the given alias.
-    fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<Box<RoomId>>>;
+    fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>>;
 
     /// Returns all local aliases that point to the given room
     fn local_aliases_for_room<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<RoomAliasId>>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a>;
 }

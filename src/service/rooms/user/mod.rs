@@ -1,7 +1,7 @@
 mod data;
 
 pub use data::Data;
-use ruma::{RoomId, UserId};
+use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 
 use crate::Result;
 
@@ -38,8 +38,8 @@ impl Service {
 
     pub fn get_shared_rooms<'a>(
         &'a self,
-        users: Vec<Box<UserId>>,
-    ) -> Result<impl Iterator<Item = Result<Box<RoomId>>> + 'a> {
+        users: Vec<OwnedUserId>,
+    ) -> Result<impl Iterator<Item = Result<OwnedRoomId>> + 'a> {
         self.db.get_shared_rooms(users)
     }
 }

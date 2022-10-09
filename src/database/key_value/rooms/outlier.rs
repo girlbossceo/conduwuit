@@ -1,4 +1,4 @@
-use ruma::{signatures::CanonicalJsonObject, EventId};
+use ruma::{CanonicalJsonObject, EventId};
 
 use crate::{database::KeyValueDatabase, service, Error, PduEvent, Result};
 

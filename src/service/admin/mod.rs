@@ -23,7 +23,7 @@ use ruma::{
         },
         RoomEventType,
     },
-    EventId, RoomAliasId, RoomId, RoomName, RoomVersionId, ServerName, UserId,
+    EventId, OwnedRoomAliasId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex, MutexGuard};
@@ -977,8 +977,7 @@ impl Service {
         )?;
 
         // 5. Events implied by name and topic
-        let room_name = RoomName::parse(format!("{} Admin Room", services().globals.server_name()))
-            .expect("Room name is valid");
+        let room_name = format!("{} Admin Room", services().globals.server_name());
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
                 event_type: RoomEventType::RoomName,
@@ -1010,7 +1009,7 @@ impl Service {
         )?;
 
         // 6. Room alias
-        let alias: Box<RoomAliasId> = format!("#admins:{}", services().globals.server_name())
+        let alias: OwnedRoomAliasId = format!("#admins:{}", services().globals.server_name())
             .try_into()
             .expect("#admins:server_name is a valid alias name");
 

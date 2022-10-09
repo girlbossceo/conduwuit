@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::Result;
-use ruma::{events::presence::PresenceEvent, RoomId, UserId};
+use ruma::{events::presence::PresenceEvent, OwnedUserId, RoomId, UserId};
 
 pub trait Data: Send + Sync {
     /// Adds a presence event which will be saved until a new event replaces it.
@@ -34,5 +34,5 @@ pub trait Data: Send + Sync {
         &self,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<HashMap<Box<UserId>, PresenceEvent>>;
+    ) -> Result<HashMap<OwnedUserId, PresenceEvent>>;
 }

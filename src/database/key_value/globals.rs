@@ -5,7 +5,8 @@ use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
     api::federation::discovery::{ServerSigningKeys, VerifyKey},
     signatures::Ed25519KeyPair,
-    DeviceId, MilliSecondsSinceUnixEpoch, ServerName, ServerSigningKeyId, UserId,
+    DeviceId, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, ServerName, ServerSigningKeyId,
+    UserId,
 };
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
@@ -163,7 +164,7 @@ impl service::globals::Data for KeyValueDatabase {
         &self,
         origin: &ServerName,
         new_keys: ServerSigningKeys,
-    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>> {
+    ) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
         // Not atomic, but this is not critical
         let signingkeys = self.server_signingkeys.get(origin.as_bytes())?;
 
@@ -202,7 +203,7 @@ impl service::globals::Data for KeyValueDatabase {
     fn signing_keys_for(
         &self,
         origin: &ServerName,
-    ) -> Result<BTreeMap<Box<ServerSigningKeyId>, VerifyKey>> {
+    ) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
         let signingkeys = self
             .server_signingkeys
             .get(origin.as_bytes())?

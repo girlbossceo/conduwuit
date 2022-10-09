@@ -1,4 +1,4 @@
-use ruma::{EventId, RoomId};
+use ruma::{EventId, OwnedEventId, RoomId};
 use std::collections::HashSet;
 
 use std::sync::Arc;
@@ -52,7 +52,7 @@ impl service::rooms::state::Data for KeyValueDatabase {
     fn set_forward_extremities<'a>(
         &self,
         room_id: &RoomId,
-        event_ids: Vec<Box<EventId>>,
+        event_ids: Vec<OwnedEventId>,
         _mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();

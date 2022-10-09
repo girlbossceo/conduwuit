@@ -2,7 +2,7 @@ use crate::{services, Error, Result, Ruma, RumaResponse};
 use ruma::{
     api::client::{
         filter::{IncomingFilterDefinition, LazyLoadOptions},
-        sync::sync_events,
+        sync::sync_events::{self, DeviceLists, UnreadNotificationsCount},
         uiaa::UiaaResponse,
     },
     events::{
@@ -10,7 +10,7 @@ use ruma::{
         RoomEventType, StateEventType,
     },
     serde::Raw,
-    DeviceId, RoomId, UserId,
+    DeviceId, OwnedDeviceId, OwnedUserId, RoomId, UserId,
 };
 use std::{
     collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
@@ -122,8 +122,8 @@ pub async fn sync_events_route(
 }
 
 async fn sync_helper_wrapper(
-    sender_user: Box<UserId>,
-    sender_device: Box<DeviceId>,
+    sender_user: OwnedUserId,
+    sender_device: OwnedDeviceId,
     body: sync_events::v3::IncomingRequest,
     tx: Sender<Option<Result<sync_events::v3::Response>>>,
 ) {
@@ -155,15 +155,14 @@ async fn sync_helper_wrapper(
 }
 
 async fn sync_helper(
-    sender_user: Box<UserId>,
-    sender_device: Box<DeviceId>,
+    sender_user: OwnedUserId,
+    sender_device: OwnedDeviceId,
     body: sync_events::v3::IncomingRequest,
     // bool = caching allowed
 ) -> Result<(sync_events::v3::Response, bool), Error> {
     use sync_events::v3::{
-        DeviceLists, Ephemeral, GlobalAccountData, IncomingFilter, InviteState, InvitedRoom,
-        JoinedRoom, LeftRoom, Presence, RoomAccountData, RoomSummary, Rooms, State, Timeline,
-        ToDevice, UnreadNotificationsCount,
+        Ephemeral, GlobalAccountData, IncomingFilter, InviteState, InvitedRoom, JoinedRoom,
+        LeftRoom, Presence, RoomAccountData, RoomSummary, Rooms, State, Timeline, ToDevice,
     };
 
     // TODO: match body.set_presence {
@@ -444,7 +443,7 @@ async fn sync_helper(
                     };
 
                     // This check is in case a bad user ID made it into the database
-                    if let Ok(uid) = UserId::parse(state_key.as_ref()) {
+                    if let Ok(uid) = UserId::parse(&state_key) {
                         lazy_loaded.insert(uid);
                     }
                     state_events.push(pdu);

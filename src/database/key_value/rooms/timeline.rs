@@ -1,7 +1,7 @@
 use std::{collections::hash_map, mem::size_of, sync::Arc};
 
 use ruma::{
-    api::client::error::ErrorKind, signatures::CanonicalJsonObject, EventId, RoomId, UserId,
+    api::client::error::ErrorKind, CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId,
 };
 use tracing::error;
 
@@ -344,8 +344,8 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
     fn increment_notification_counts(
         &self,
         room_id: &RoomId,
-        notifies: Vec<Box<UserId>>,
-        highlights: Vec<Box<UserId>>,
+        notifies: Vec<OwnedUserId>,
+        highlights: Vec<OwnedUserId>,
     ) -> Result<()> {
         let mut notifies_batch = Vec::new();
         let mut highlights_batch = Vec::new();

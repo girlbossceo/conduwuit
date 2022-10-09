@@ -1,8 +1,7 @@
 use crate::{services, Error, Result, Ruma};
 use ruma::{
     api::client::{error::ErrorKind, read_marker::set_read_marker, receipt::create_receipt},
-    events::RoomAccountDataEventType,
-    receipt::ReceiptType,
+    events::{receipt::ReceiptType, RoomAccountDataEventType},
     MilliSecondsSinceUnixEpoch,
 };
 use std::collections::BTreeMap;
@@ -18,19 +17,28 @@ pub async fn set_read_marker_route(
 ) -> Result<set_read_marker::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let fully_read_event = ruma::events::fully_read::FullyReadEvent {
-        content: ruma::events::fully_read::FullyReadEventContent {
-            event_id: body.fully_read.clone(),
-        },
-    };
-    services().account_data.update(
-        Some(&body.room_id),
-        sender_user,
-        RoomAccountDataEventType::FullyRead,
-        &serde_json::to_value(fully_read_event).expect("to json value always works"),
-    )?;
+    if let Some(fully_read) = &body.fully_read {
+        let fully_read_event = ruma::events::fully_read::FullyReadEvent {
+            content: ruma::events::fully_read::FullyReadEventContent {
+                event_id: fully_read.clone(),
+            },
+        };
+        services().account_data.update(
+            Some(&body.room_id),
+            sender_user,
+            RoomAccountDataEventType::FullyRead,
+            &serde_json::to_value(fully_read_event).expect("to json value always works"),
+        )?;
+    }
 
-    if let Some(event) = &body.read_receipt {
+    if body.private_read_receipt.is_some() || body.read_receipt.is_some() {
+        services()
+            .rooms
+            .user
+            .reset_notification_counts(sender_user, &body.room_id)?;
+    }
+
+    if let Some(event) = &body.private_read_receipt {
         services().rooms.edus.read_receipt.private_read_set(
             &body.room_id,
             sender_user,
@@ -43,11 +51,9 @@ pub async fn set_read_marker_route(
                     "Event does not exist.",
                 ))?,
         )?;
-        services()
-            .rooms
-            .user
-            .reset_notification_counts(sender_user, &body.room_id)?;
+    }
 
+    if let Some(event) = &body.read_receipt {
         let mut user_receipts = BTreeMap::new();
         user_receipts.insert(
             sender_user.clone(),
@@ -83,44 +89,69 @@ pub async fn create_receipt_route(
 ) -> Result<create_receipt::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    services().rooms.edus.read_receipt.private_read_set(
-        &body.room_id,
-        sender_user,
+    if matches!(
+        &body.receipt_type,
+        create_receipt::v3::ReceiptType::Read | create_receipt::v3::ReceiptType::ReadPrivate
+    ) {
         services()
             .rooms
-            .timeline
-            .get_pdu_count(&body.event_id)?
-            .ok_or(Error::BadRequest(
-                ErrorKind::InvalidParam,
-                "Event does not exist.",
-            ))?,
-    )?;
-    services()
-        .rooms
-        .user
-        .reset_notification_counts(sender_user, &body.room_id)?;
+            .user
+            .reset_notification_counts(sender_user, &body.room_id)?;
+    }
 
-    let mut user_receipts = BTreeMap::new();
-    user_receipts.insert(
-        sender_user.clone(),
-        ruma::events::receipt::Receipt {
-            ts: Some(MilliSecondsSinceUnixEpoch::now()),
-        },
-    );
-    let mut receipts = BTreeMap::new();
-    receipts.insert(ReceiptType::Read, user_receipts);
+    match body.receipt_type {
+        create_receipt::v3::ReceiptType::FullyRead => {
+            let fully_read_event = ruma::events::fully_read::FullyReadEvent {
+                content: ruma::events::fully_read::FullyReadEventContent {
+                    event_id: body.event_id.clone(),
+                },
+            };
+            services().account_data.update(
+                Some(&body.room_id),
+                sender_user,
+                RoomAccountDataEventType::FullyRead,
+                &serde_json::to_value(fully_read_event).expect("to json value always works"),
+            )?;
+        }
+        create_receipt::v3::ReceiptType::Read => {
+            let mut user_receipts = BTreeMap::new();
+            user_receipts.insert(
+                sender_user.clone(),
+                ruma::events::receipt::Receipt {
+                    ts: Some(MilliSecondsSinceUnixEpoch::now()),
+                },
+            );
+            let mut receipts = BTreeMap::new();
+            receipts.insert(ReceiptType::Read, user_receipts);
 
-    let mut receipt_content = BTreeMap::new();
-    receipt_content.insert(body.event_id.to_owned(), receipts);
+            let mut receipt_content = BTreeMap::new();
+            receipt_content.insert(body.event_id.to_owned(), receipts);
 
-    services().rooms.edus.read_receipt.readreceipt_update(
-        sender_user,
-        &body.room_id,
-        ruma::events::receipt::ReceiptEvent {
-            content: ruma::events::receipt::ReceiptEventContent(receipt_content),
-            room_id: body.room_id.clone(),
-        },
-    )?;
+            services().rooms.edus.read_receipt.readreceipt_update(
+                sender_user,
+                &body.room_id,
+                ruma::events::receipt::ReceiptEvent {
+                    content: ruma::events::receipt::ReceiptEventContent(receipt_content),
+                    room_id: body.room_id.clone(),
+                },
+            )?;
+        }
+        create_receipt::v3::ReceiptType::ReadPrivate => {
+            services().rooms.edus.read_receipt.private_read_set(
+                &body.room_id,
+                sender_user,
+                services()
+                    .rooms
+                    .timeline
+                    .get_pdu_count(&body.event_id)?
+                    .ok_or(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Event does not exist.",
+                    ))?,
+            )?;
+        }
+        _ => return Err(Error::bad_database("Unsupported receipt type")),
+    }
 
     Ok(create_receipt::v3::Response {})
 }

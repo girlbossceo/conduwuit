@@ -7,8 +7,7 @@ use ruma::{
         error::ErrorKind,
         uiaa::{AuthType, IncomingAuthData, IncomingPassword, IncomingUserIdentifier, UiaaInfo},
     },
-    signatures::CanonicalJsonValue,
-    DeviceId, UserId,
+    CanonicalJsonValue, DeviceId, UserId,
 };
 use tracing::error;
 

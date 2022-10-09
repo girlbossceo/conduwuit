@@ -1,5 +1,5 @@
 use crate::Result;
-use ruma::RoomId;
+use ruma::{OwnedRoomId, RoomId};
 
 pub trait Data: Send + Sync {
     /// Adds the room to the public room directory
@@ -12,5 +12,5 @@ pub trait Data: Send + Sync {
     fn is_public_room(&self, room_id: &RoomId) -> Result<bool>;
 
     /// Returns the unsorted public room directory
-    fn public_rooms<'a>(&'a self) -> Box<dyn Iterator<Item = Result<Box<RoomId>>> + 'a>;
+    fn public_rooms<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>;
 }

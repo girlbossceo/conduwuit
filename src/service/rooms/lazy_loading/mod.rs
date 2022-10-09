@@ -5,7 +5,7 @@ use std::{
 };
 
 pub use data::Data;
-use ruma::{DeviceId, RoomId, UserId};
+use ruma::{DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 
 use crate::Result;
 
@@ -13,7 +13,7 @@ pub struct Service {
     pub db: &'static dyn Data,
 
     pub lazy_load_waiting:
-        Mutex<HashMap<(Box<UserId>, Box<DeviceId>, Box<RoomId>, u64), HashSet<Box<UserId>>>>,
+        Mutex<HashMap<(OwnedUserId, OwnedDeviceId, OwnedRoomId, u64), HashSet<OwnedUserId>>>,
 }
 
 impl Service {
@@ -35,7 +35,7 @@ impl Service {
         user_id: &UserId,
         device_id: &DeviceId,
         room_id: &RoomId,
-        lazy_load: HashSet<Box<UserId>>,
+        lazy_load: HashSet<OwnedUserId>,
         count: u64,
     ) {
         self.lazy_load_waiting.lock().unwrap().insert(

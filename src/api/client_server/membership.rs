@@ -10,12 +10,14 @@ use ruma::{
         },
         federation::{self, membership::create_invite},
     },
+    canonical_json::to_canonical_value,
     events::{
         room::member::{MembershipState, RoomMemberEventContent},
         RoomEventType, StateEventType,
     },
-    serde::{to_canonical_value, Base64, CanonicalJsonObject, CanonicalJsonValue},
-    EventId, RoomId, RoomVersionId, ServerName, UserId,
+    serde::Base64,
+    CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
+    RoomId, RoomVersionId, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
@@ -83,7 +85,7 @@ pub async fn join_room_by_id_or_alias_route(
     let sender_user = body.sender_user.as_deref().expect("user is authenticated");
     let body = body.body;
 
-    let (servers, room_id) = match Box::<RoomId>::try_from(body.room_id_or_alias) {
+    let (servers, room_id) = match OwnedRoomId::try_from(body.room_id_or_alias) {
         Ok(room_id) => {
             let mut servers = body.server_name.clone();
             servers.extend(
@@ -458,7 +460,7 @@ pub async fn joined_members_route(
 async fn join_room_by_id_helper(
     sender_user: Option<&UserId>,
     room_id: &RoomId,
-    servers: &[Box<ServerName>],
+    servers: &[OwnedServerName],
     _third_party_signed: Option<&IncomingThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
     let sender_user = sender_user.expect("user is authenticated");
@@ -673,7 +675,12 @@ async fn join_room_by_id_helper(
             room_id,
             state
                 .into_iter()
-                .map(|(k, id)| services().rooms.state_compressor.compress_state_event(k, &id))
+                .map(|(k, id)| {
+                    services()
+                        .rooms
+                        .state_compressor
+                        .compress_state_event(k, &id)
+                })
                 .collect::<Result<_>>()?,
         )?;
 
@@ -737,7 +744,7 @@ fn validate_and_add_event_id(
     pdu: &RawJsonValue,
     room_version: &RoomVersionId,
     pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
-) -> Result<(Box<EventId>, CanonicalJsonObject)> {
+) -> Result<(OwnedEventId, CanonicalJsonObject)> {
     let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
         error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
@@ -896,7 +903,7 @@ pub(crate) async fn invite_helper<'a>(
             warn!("Server {} changed invite event, that's not allowed in the spec: ours: {:?}, theirs: {:?}", user_id.server_name(), pdu_json, value);
         }
 
-        let origin: Box<ServerName> = serde_json::from_value(
+        let origin: OwnedServerName = serde_json::from_value(
             serde_json::to_value(value.get("origin").ok_or(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Event needs an origin field.",

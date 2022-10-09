@@ -3,7 +3,7 @@ type AsyncRecursiveType<'a, T> = Pin<Box<dyn Future<Output = T> + 'a + Send>>;
 
 use ruma::{
     api::federation::discovery::{get_remote_server_keys, get_server_keys},
-    signatures::CanonicalJsonObject,
+    CanonicalJsonObject, CanonicalJsonValue, OwnedServerName, OwnedServerSigningKeyId,
     RoomVersionId,
 };
 use std::{
@@ -30,7 +30,6 @@ use ruma::{
     },
     int,
     serde::Base64,
-    signatures::CanonicalJsonValue,
     state_res::{self, RoomVersion, StateMap},
     uint, EventId, MilliSecondsSinceUnixEpoch, RoomId, ServerName, ServerSigningKeyId,
 };
@@ -300,7 +299,7 @@ impl Service {
                 Ok(ruma::signatures::Verified::Signatures) => {
                     // Redact
                     warn!("Calculated hash does not match: {}", event_id);
-                    match ruma::signatures::redact(&value, room_version_id) {
+                    match ruma::canonical_json::redact(&value, room_version_id) {
                         Ok(obj) => obj,
                         Err(_) => {
                             return Err(Error::BadRequest(
@@ -974,7 +973,11 @@ impl Service {
                     .rooms
                     .state_compressor
                     .save_state(room_id, new_room_state)?;
-                services().rooms.state.force_state(room_id, sstatehash, new, removed, &state_lock).await?;
+                services()
+                    .rooms
+                    .state
+                    .force_state(room_id, sstatehash, new, removed, &state_lock)
+                    .await?;
             }
         }
 
@@ -1322,7 +1325,7 @@ impl Service {
     fn get_server_keys_from_cache(
         &self,
         pdu: &RawJsonValue,
-        servers: &mut BTreeMap<Box<ServerName>, BTreeMap<Box<ServerSigningKeyId>, QueryCriteria>>,
+        servers: &mut BTreeMap<OwnedServerName, BTreeMap<OwnedServerSigningKeyId, QueryCriteria>>,
         room_version: &RoomVersionId,
         pub_key_map: &mut RwLockWriteGuard<'_, BTreeMap<String, BTreeMap<String, Base64>>>,
     ) -> Result<()> {
@@ -1414,8 +1417,8 @@ impl Service {
         pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     ) -> Result<()> {
         let mut servers: BTreeMap<
-            Box<ServerName>,
-            BTreeMap<Box<ServerSigningKeyId>, QueryCriteria>,
+            OwnedServerName,
+            BTreeMap<OwnedServerSigningKeyId, QueryCriteria>,
         > = BTreeMap::new();
 
         {

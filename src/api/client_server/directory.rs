@@ -19,6 +19,7 @@ use ruma::{
         room::{
             avatar::RoomAvatarEventContent,
             canonical_alias::RoomCanonicalAliasEventContent,
+            create::RoomCreateEventContent,
             guest_access::{GuestAccess, RoomGuestAccessEventContent},
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
             join_rules::{JoinRule, RoomJoinRulesEventContent},
@@ -135,6 +136,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                     since,
                     filter: Filter {
                         generic_search_term: filter.generic_search_term.as_deref(),
+                        room_types: filter.room_types.clone(),
                     },
                     room_network: RoomNetwork::Matrix,
                 },
@@ -287,6 +289,20 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                     .transpose()?
                     .flatten()
                     .ok_or_else(|| Error::bad_database("Missing room join rule event for room."))?,
+                room_type: services()
+                    .rooms
+                    .state_accessor
+                    .room_state_get(&room_id, &StateEventType::RoomCreate, "")?
+                    .map(|s| {
+                        serde_json::from_str::<RoomCreateEventContent>(s.content.get()).map_err(
+                            |e| {
+                                error!("Invalid room create event in database: {}", e);
+                                Error::BadDatabase("Invalid room create event in database.")
+                            },
+                        )
+                    })
+                    .transpose()?
+                    .and_then(|e| e.room_type),
                 room_id,
             };
             Ok(chunk)

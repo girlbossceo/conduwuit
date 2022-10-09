@@ -6,13 +6,17 @@ use abstraction::KeyValueDatabaseEngine;
 use abstraction::KvTree;
 use directories::ProjectDirs;
 use lru_cache::LruCache;
+use ruma::CanonicalJsonValue;
+use ruma::OwnedDeviceId;
+use ruma::OwnedEventId;
+use ruma::OwnedRoomId;
+use ruma::OwnedUserId;
 use ruma::{
     events::{
         push_rules::PushRulesEventContent, room::message::RoomMessageEventContent,
         GlobalAccountDataEvent, GlobalAccountDataEventType, StateEventType,
     },
     push::Ruleset,
-    signatures::CanonicalJsonValue,
     DeviceId, EventId, RoomId, UserId,
 };
 use std::{
@@ -58,7 +62,7 @@ pub struct KeyValueDatabase {
     //pub uiaa: uiaa::Uiaa,
     pub(super) userdevicesessionid_uiaainfo: Arc<dyn KvTree>, // User-interactive authentication
     pub(super) userdevicesessionid_uiaarequest:
-        RwLock<BTreeMap<(Box<UserId>, Box<DeviceId>, String), CanonicalJsonValue>>,
+        RwLock<BTreeMap<(OwnedUserId, OwnedDeviceId, String), CanonicalJsonValue>>,
 
     //pub edus: RoomEdus,
     pub(super) readreceiptid_readreceipt: Arc<dyn KvTree>, // ReadReceiptId = RoomId + Count + UserId
@@ -152,15 +156,15 @@ pub struct KeyValueDatabase {
     pub(super) senderkey_pusher: Arc<dyn KvTree>,
 
     pub(super) cached_registrations: Arc<RwLock<HashMap<String, serde_yaml::Value>>>,
-    pub(super) pdu_cache: Mutex<LruCache<Box<EventId>, Arc<PduEvent>>>,
+    pub(super) pdu_cache: Mutex<LruCache<OwnedEventId, Arc<PduEvent>>>,
     pub(super) shorteventid_cache: Mutex<LruCache<u64, Arc<EventId>>>,
     pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<HashSet<u64>>>>,
-    pub(super) eventidshort_cache: Mutex<LruCache<Box<EventId>, u64>>,
+    pub(super) eventidshort_cache: Mutex<LruCache<OwnedEventId, u64>>,
     pub(super) statekeyshort_cache: Mutex<LruCache<(StateEventType, String), u64>>,
     pub(super) shortstatekey_cache: Mutex<LruCache<u64, (StateEventType, String)>>,
-    pub(super) our_real_users_cache: RwLock<HashMap<Box<RoomId>, Arc<HashSet<Box<UserId>>>>>,
-    pub(super) appservice_in_room_cache: RwLock<HashMap<Box<RoomId>, HashMap<String, bool>>>,
-    pub(super) lasttimelinecount_cache: Mutex<HashMap<Box<RoomId>, u64>>,
+    pub(super) our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
+    pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
+    pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, u64>>,
 }
 
 impl KeyValueDatabase {
@@ -531,7 +535,7 @@ impl KeyValueDatabase {
 
             if services().globals.database_version()? < 7 {
                 // Upgrade state store
-                let mut last_roomstates: HashMap<Box<RoomId>, u64> = HashMap::new();
+                let mut last_roomstates: HashMap<OwnedRoomId, u64> = HashMap::new();
                 let mut current_sstatehash: Option<u64> = None;
                 let mut current_room = None;
                 let mut current_state = HashSet::new();

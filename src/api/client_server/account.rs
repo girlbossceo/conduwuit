@@ -193,6 +193,8 @@ pub async fn register_route(
             access_token: None,
             user_id,
             device_id: None,
+            refresh_token: None,
+            expires_in: None,
         });
     }
 
@@ -238,6 +240,8 @@ pub async fn register_route(
         access_token: Some(token),
         user_id,
         device_id: Some(device_id),
+        refresh_token: None,
+        expires_in: None,
     })
 }
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use ruma::{signatures::CanonicalJsonObject, EventId, RoomId, UserId};
+use ruma::{CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId};
 
 use crate::{PduEvent, Result};
 
@@ -81,7 +81,7 @@ pub trait Data: Send + Sync {
     fn increment_notification_counts(
         &self,
         room_id: &RoomId,
-        notifies: Vec<Box<UserId>>,
-        highlights: Vec<Box<UserId>>,
+        notifies: Vec<OwnedUserId>,
+        highlights: Vec<OwnedUserId>,
     ) -> Result<()>;
 }

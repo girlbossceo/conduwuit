@@ -7,10 +7,15 @@ use std::sync::{Arc, Mutex};
 
 pub use data::Data;
 use regex::Regex;
+use ruma::canonical_json::to_canonical_value;
 use ruma::events::room::power_levels::RoomPowerLevelsEventContent;
 use ruma::push::Ruleset;
-use ruma::signatures::CanonicalJsonValue;
 use ruma::state_res::RoomVersion;
+use ruma::CanonicalJsonObject;
+use ruma::CanonicalJsonValue;
+use ruma::OwnedEventId;
+use ruma::OwnedRoomId;
+use ruma::OwnedServerName;
 use ruma::{
     api::client::error::ErrorKind,
     events::{
@@ -19,8 +24,6 @@ use ruma::{
         GlobalAccountDataEventType, RoomEventType, StateEventType,
     },
     push::{Action, Tweak},
-    serde::to_canonical_value,
-    signatures::CanonicalJsonObject,
     state_res, uint, EventId, RoomAliasId, RoomId, ServerName, UserId,
 };
 use serde::Deserialize;
@@ -38,7 +41,7 @@ use super::state_compressor::CompressedStateEvent;
 pub struct Service {
     pub db: &'static dyn Data,
 
-    pub lasttimelinecount_cache: Mutex<HashMap<Box<RoomId>, u64>>,
+    pub lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, u64>>,
 }
 
 impl Service {
@@ -146,7 +149,7 @@ impl Service {
         &self,
         pdu: &PduEvent,
         mut pdu_json: CanonicalJsonObject,
-        leaves: Vec<Box<EventId>>,
+        leaves: Vec<OwnedEventId>,
         state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<Vec<u8>> {
         let shortroomid = services()
@@ -702,7 +705,7 @@ impl Service {
             .state
             .set_room_state(room_id, statehashid, state_lock)?;
 
-        let mut servers: HashSet<Box<ServerName>> = services()
+        let mut servers: HashSet<OwnedServerName> = services()
             .rooms
             .state_cache
             .room_servers(room_id)
@@ -716,7 +719,7 @@ impl Service {
                 .as_ref()
                 .and_then(|state_key| UserId::parse(state_key.as_str()).ok())
             {
-                servers.insert(Box::from(state_key_uid.server_name()));
+                servers.insert(state_key_uid.server_name().to_owned());
             }
         }
 
@@ -735,7 +738,7 @@ impl Service {
         &self,
         pdu: &PduEvent,
         pdu_json: CanonicalJsonObject,
-        new_room_leaves: Vec<Box<EventId>>,
+        new_room_leaves: Vec<OwnedEventId>,
         state_ids_compressed: HashSet<CompressedStateEvent>,
         soft_fail: bool,
         state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex

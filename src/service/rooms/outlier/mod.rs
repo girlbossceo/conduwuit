@@ -1,7 +1,7 @@
 mod data;
 
 pub use data::Data;
-use ruma::{signatures::CanonicalJsonObject, EventId};
+use ruma::{CanonicalJsonObject, EventId};
 
 use crate::{PduEvent, Result};
 

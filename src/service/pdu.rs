@@ -1,11 +1,13 @@
 use crate::{services, Error};
 use ruma::{
     events::{
-        room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyRoomEvent, AnyStateEvent,
-        AnyStrippedStateEvent, AnySyncRoomEvent, AnySyncStateEvent, RoomEventType, StateEvent,
+        room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyStateEvent,
+        AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent, AnyTimelineEvent,
+        RoomEventType, StateEvent,
     },
-    serde::{CanonicalJsonObject, CanonicalJsonValue, Raw},
-    state_res, EventId, MilliSecondsSinceUnixEpoch, RoomId, UInt, UserId,
+    serde::Raw,
+    state_res, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch,
+    OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{
@@ -25,8 +27,8 @@ pub struct EventHash {
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct PduEvent {
     pub event_id: Arc<EventId>,
-    pub room_id: Box<RoomId>,
-    pub sender: Box<UserId>,
+    pub room_id: OwnedRoomId,
+    pub sender: OwnedUserId,
     pub origin_server_ts: UInt,
     #[serde(rename = "type")]
     pub kind: RoomEventType,
@@ -102,7 +104,7 @@ impl PduEvent {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn to_sync_room_event(&self) -> Raw<AnySyncRoomEvent> {
+    pub fn to_sync_room_event(&self) -> Raw<AnySyncTimelineEvent> {
         let mut json = json!({
             "content": self.content,
             "type": self.kind,
@@ -146,7 +148,7 @@ impl PduEvent {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn to_room_event(&self) -> Raw<AnyRoomEvent> {
+    pub fn to_room_event(&self) -> Raw<AnyTimelineEvent> {
         let mut json = json!({
             "content": self.content,
             "type": self.kind,
@@ -332,7 +334,7 @@ impl Ord for PduEvent {
 /// Returns a tuple of the new `EventId` and the PDU as a `BTreeMap<String, CanonicalJsonValue>`.
 pub(crate) fn gen_event_id_canonical_json(
     pdu: &RawJsonValue,
-) -> crate::Result<(Box<EventId>, CanonicalJsonObject)> {
+) -> crate::Result<(OwnedEventId, CanonicalJsonObject)> {
     let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
         warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")

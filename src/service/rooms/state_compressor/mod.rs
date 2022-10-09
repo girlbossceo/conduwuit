@@ -251,7 +251,11 @@ impl Service {
         &self,
         room_id: &RoomId,
         new_state_ids_compressed: HashSet<CompressedStateEvent>,
-    ) -> Result<(u64, HashSet<CompressedStateEvent>, HashSet<CompressedStateEvent>)> {
+    ) -> Result<(
+        u64,
+        HashSet<CompressedStateEvent>,
+        HashSet<CompressedStateEvent>,
+    )> {
         let previous_shortstatehash = services().rooms.state.get_room_shortstatehash(room_id)?;
 
         let state_hash = utils::calculate_hash(

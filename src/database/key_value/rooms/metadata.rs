@@ -1,4 +1,4 @@
-use ruma::RoomId;
+use ruma::{OwnedRoomId, RoomId};
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -18,7 +18,7 @@ impl service::rooms::metadata::Data for KeyValueDatabase {
             .is_some())
     }
 
-    fn iter_ids<'a>(&'a self) -> Box<dyn Iterator<Item = Result<Box<RoomId>>> + 'a> {
+    fn iter_ids<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
         Box::new(self.roomid_shortroomid.iter().map(|(bytes, _)| {
             RoomId::parse(
                 utils::string_from_bytes(&bytes).map_err(|_| {

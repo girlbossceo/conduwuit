@@ -4,7 +4,8 @@ use ruma::{
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::AnyToDeviceEvent,
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MxcUri, UInt, UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, OwnedDeviceId, OwnedDeviceKeyId, OwnedMxcUri,
+    OwnedUserId, UInt, UserId,
 };
 use std::collections::BTreeMap;
 
@@ -19,10 +20,10 @@ pub trait Data: Send + Sync {
     fn count(&self) -> Result<usize>;
 
     /// Find out which user an access token belongs to.
-    fn find_from_token(&self, token: &str) -> Result<Option<(Box<UserId>, String)>>;
+    fn find_from_token(&self, token: &str) -> Result<Option<(OwnedUserId, String)>>;
 
     /// Returns an iterator over all users on this homeserver.
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a>;
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
 
     /// Returns a list of local users as list of usernames.
     ///
@@ -42,10 +43,10 @@ pub trait Data: Send + Sync {
     fn set_displayname(&self, user_id: &UserId, displayname: Option<String>) -> Result<()>;
 
     /// Get the avatar_url of a user.
-    fn avatar_url(&self, user_id: &UserId) -> Result<Option<Box<MxcUri>>>;
+    fn avatar_url(&self, user_id: &UserId) -> Result<Option<OwnedMxcUri>>;
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
-    fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<Box<MxcUri>>) -> Result<()>;
+    fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<OwnedMxcUri>) -> Result<()>;
 
     /// Get the blurhash of a user.
     fn blurhash(&self, user_id: &UserId) -> Result<Option<String>>;
@@ -69,7 +70,7 @@ pub trait Data: Send + Sync {
     fn all_device_ids<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<Box<DeviceId>>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<OwnedDeviceId>> + 'a>;
 
     /// Replaces the access token of one device.
     fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()>;
@@ -89,7 +90,7 @@ pub trait Data: Send + Sync {
         user_id: &UserId,
         device_id: &DeviceId,
         key_algorithm: &DeviceKeyAlgorithm,
-    ) -> Result<Option<(Box<DeviceKeyId>, Raw<OneTimeKey>)>>;
+    ) -> Result<Option<(OwnedDeviceKeyId, Raw<OneTimeKey>)>>;
 
     fn count_one_time_keys(
         &self,
@@ -125,7 +126,7 @@ pub trait Data: Send + Sync {
         user_or_room_id: &str,
         from: u64,
         to: Option<u64>,
-    ) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
 
     fn mark_device_key_update(&self, user_id: &UserId) -> Result<()>;
 

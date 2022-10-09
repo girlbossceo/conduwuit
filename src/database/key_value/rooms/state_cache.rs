@@ -4,7 +4,7 @@ use regex::Regex;
 use ruma::{
     events::{AnyStrippedStateEvent, AnySyncStateEvent},
     serde::Raw,
-    RoomId, ServerName, UserId,
+    OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
@@ -163,7 +163,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     }
 
     #[tracing::instrument(skip(self, room_id))]
-    fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<Box<UserId>>>> {
+    fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<OwnedUserId>>> {
         let maybe = self
             .our_real_users_cache
             .read()
@@ -262,7 +262,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn room_servers<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<ServerName>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -295,7 +295,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn server_rooms<'a>(
         &'a self,
         server: &ServerName,
-    ) -> Box<dyn Iterator<Item = Result<Box<RoomId>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
         let mut prefix = server.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -317,7 +317,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn room_members<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -363,7 +363,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn room_useroncejoined<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -393,7 +393,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn room_members_invited<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -451,7 +451,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn rooms_joined<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<Box<RoomId>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
         Box::new(
             self.userroomid_joined
                 .scan_prefix(user_id.as_bytes().to_vec())
@@ -476,7 +476,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn rooms_invited<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<(Box<RoomId>, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -554,7 +554,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn rooms_left<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<(Box<RoomId>, Vec<Raw<AnySyncStateEvent>>)>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 

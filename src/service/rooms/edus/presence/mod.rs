@@ -2,7 +2,7 @@ mod data;
 use std::collections::HashMap;
 
 pub use data::Data;
-use ruma::{events::presence::PresenceEvent, RoomId, UserId};
+use ruma::{events::presence::PresenceEvent, OwnedUserId, RoomId, UserId};
 
 use crate::Result;
 
@@ -116,7 +116,7 @@ impl Service {
         &self,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<HashMap<Box<UserId>, PresenceEvent>> {
+    ) -> Result<HashMap<OwnedUserId, PresenceEvent>> {
         self.db.presence_since(room_id, since)
     }
 }

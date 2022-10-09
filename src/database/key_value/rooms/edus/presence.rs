@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use ruma::{events::presence::PresenceEvent, presence::PresenceState, RoomId, UInt, UserId};
+use ruma::{
+    events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, RoomId, UInt, UserId,
+};
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -76,7 +78,7 @@ impl service::rooms::edus::presence::Data for KeyValueDatabase {
         &self,
         room_id: &RoomId,
         since: u64,
-    ) -> Result<HashMap<Box<UserId>, PresenceEvent>> {
+    ) -> Result<HashMap<OwnedUserId, PresenceEvent>> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 

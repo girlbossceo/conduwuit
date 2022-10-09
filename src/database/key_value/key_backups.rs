@@ -6,7 +6,7 @@ use ruma::{
         error::ErrorKind,
     },
     serde::Raw,
-    RoomId, UserId,
+    OwnedRoomId, RoomId, UserId,
 };
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
@@ -198,13 +198,13 @@ impl service::key_backups::Data for KeyValueDatabase {
         &self,
         user_id: &UserId,
         version: &str,
-    ) -> Result<BTreeMap<Box<RoomId>, RoomKeyBackup>> {
+    ) -> Result<BTreeMap<OwnedRoomId, RoomKeyBackup>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(version.as_bytes());
         prefix.push(0xff);
 
-        let mut rooms = BTreeMap::<Box<RoomId>, RoomKeyBackup>::new();
+        let mut rooms = BTreeMap::<OwnedRoomId, RoomKeyBackup>::new();
 
         for result in self
             .backupkeyid_backup

@@ -5,7 +5,7 @@ use crate::Result;
 use ruma::{
     api::client::backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
     serde::Raw,
-    RoomId, UserId,
+    OwnedRoomId, RoomId, UserId,
 };
 use std::collections::BTreeMap;
 
@@ -78,7 +78,7 @@ impl Service {
         &self,
         user_id: &UserId,
         version: &str,
-    ) -> Result<BTreeMap<Box<RoomId>, RoomKeyBackup>> {
+    ) -> Result<BTreeMap<OwnedRoomId, RoomKeyBackup>> {
         self.db.get_all(user_id, version)
     }
 

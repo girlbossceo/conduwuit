@@ -33,18 +33,17 @@ use ruma::{
     },
     directory::{IncomingFilter, IncomingRoomNetwork},
     events::{
-        receipt::{ReceiptEvent, ReceiptEventContent},
+        receipt::{ReceiptEvent, ReceiptEventContent, ReceiptType},
         room::{
             join_rules::{JoinRule, RoomJoinRulesEventContent},
             member::{MembershipState, RoomMemberEventContent},
         },
         RoomEventType, StateEventType,
     },
-    receipt::ReceiptType,
     serde::{Base64, JsonObject, Raw},
-    signatures::CanonicalJsonValue,
     to_device::DeviceIdOrAllDevices,
-    EventId, MilliSecondsSinceUnixEpoch, RoomId, ServerName, ServerSigningKeyId,
+    CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId,
+    OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName, ServerSigningKeyId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
@@ -280,7 +279,7 @@ where
                         .write()
                         .unwrap()
                         .insert(
-                            Box::<ServerName>::from(destination),
+                            OwnedServerName::from(destination),
                             (actual_destination, host),
                         );
                 }
@@ -528,7 +527,7 @@ pub async fn get_server_keys_route() -> Result<impl IntoResponse> {
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    let mut verify_keys: BTreeMap<Box<ServerSigningKeyId>, VerifyKey> = BTreeMap::new();
+    let mut verify_keys: BTreeMap<OwnedServerSigningKeyId, VerifyKey> = BTreeMap::new();
     verify_keys.insert(
         format!("ed25519:{}", services().globals.keypair().version())
             .try_into()
@@ -669,7 +668,7 @@ pub async fn send_transaction_message_route(
         };
 
         // 0. Check the server is in the room
-        let room_id = match value
+        let room_id: OwnedRoomId = match value
             .get("room_id")
             .and_then(|id| RoomId::parse(id.as_str()?).ok())
         {
@@ -1007,7 +1006,7 @@ pub async fn get_missing_events_route(
                 continue;
             }
             queued_events.extend_from_slice(
-                &serde_json::from_value::<Vec<Box<EventId>>>(
+                &serde_json::from_value::<Vec<OwnedEventId>>(
                     serde_json::to_value(pdu.get("prev_events").cloned().ok_or_else(|| {
                         Error::bad_database("Event in db has no prev_events field.")
                     })?)
@@ -1411,7 +1410,7 @@ async fn create_join_event(
         }
     };
 
-    let origin: Box<ServerName> = serde_json::from_value(
+    let origin: OwnedServerName = serde_json::from_value(
         serde_json::to_value(value.get("origin").ok_or(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Event needs an origin field.",
@@ -1474,6 +1473,7 @@ async fn create_join_event(
             .filter_map(|(_, id)| services().rooms.timeline.get_pdu_json(id).ok().flatten())
             .map(PduEvent::convert_to_outgoing_federation_event)
             .collect(),
+        origin: services().globals.server_name().to_string(),
     })
 }
 
@@ -1564,10 +1564,10 @@ pub async fn create_invite_route(
     // Add event_id back
     signed_event.insert(
         "event_id".to_owned(),
-        CanonicalJsonValue::String(event_id.into()),
+        CanonicalJsonValue::String(event_id.to_string()),
     );
 
-    let sender: Box<_> = serde_json::from_value(
+    let sender: OwnedUserId = serde_json::from_value(
         signed_event
             .get("sender")
             .ok_or(Error::BadRequest(

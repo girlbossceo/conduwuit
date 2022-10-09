@@ -7,7 +7,8 @@ use ruma::{
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::AnyToDeviceEvent,
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MxcUri, RoomAliasId, UInt, UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MxcUri, OwnedDeviceId, OwnedDeviceKeyId,
+    OwnedMxcUri, OwnedUserId, RoomAliasId, UInt, UserId,
 };
 
 use crate::{services, Error, Result};
@@ -56,12 +57,12 @@ impl Service {
     }
 
     /// Find out which user an access token belongs to.
-    pub fn find_from_token(&self, token: &str) -> Result<Option<(Box<UserId>, String)>> {
+    pub fn find_from_token(&self, token: &str) -> Result<Option<(OwnedUserId, String)>> {
         self.db.find_from_token(token)
     }
 
     /// Returns an iterator over all users on this homeserver.
-    pub fn iter(&self) -> impl Iterator<Item = Result<Box<UserId>>> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Result<OwnedUserId>> + '_ {
         self.db.iter()
     }
 
@@ -93,12 +94,12 @@ impl Service {
     }
 
     /// Get the avatar_url of a user.
-    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<Box<MxcUri>>> {
+    pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<OwnedMxcUri>> {
         self.db.avatar_url(user_id)
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
-    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<Box<MxcUri>>) -> Result<()> {
+    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<OwnedMxcUri>) -> Result<()> {
         self.db.set_avatar_url(user_id, avatar_url)
     }
 
@@ -133,7 +134,7 @@ impl Service {
     pub fn all_device_ids<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> impl Iterator<Item = Result<Box<DeviceId>>> + 'a {
+    ) -> impl Iterator<Item = Result<OwnedDeviceId>> + 'a {
         self.db.all_device_ids(user_id)
     }
 
@@ -162,7 +163,7 @@ impl Service {
         user_id: &UserId,
         device_id: &DeviceId,
         key_algorithm: &DeviceKeyAlgorithm,
-    ) -> Result<Option<(Box<DeviceKeyId>, Raw<OneTimeKey>)>> {
+    ) -> Result<Option<(OwnedDeviceKeyId, Raw<OneTimeKey>)>> {
         self.db.take_one_time_key(user_id, device_id, key_algorithm)
     }
 
@@ -209,7 +210,7 @@ impl Service {
         user_or_room_id: &str,
         from: u64,
         to: Option<u64>,
-    ) -> impl Iterator<Item = Result<Box<UserId>>> + 'a {
+    ) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
         self.db.keys_changed(user_or_room_id, from, to)
     }
 

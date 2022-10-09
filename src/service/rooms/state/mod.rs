@@ -12,7 +12,7 @@ use ruma::{
     },
     serde::Raw,
     state_res::{self, StateMap},
-    EventId, RoomId, RoomVersionId, UserId,
+    EventId, OwnedEventId, RoomId, RoomVersionId, UserId,
 };
 use serde::Deserialize;
 use tokio::sync::MutexGuard;
@@ -346,7 +346,7 @@ impl Service {
     pub fn set_forward_extremities<'a>(
         &self,
         room_id: &RoomId,
-        event_ids: Vec<Box<EventId>>,
+        event_ids: Vec<OwnedEventId>,
         state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<()> {
         self.db

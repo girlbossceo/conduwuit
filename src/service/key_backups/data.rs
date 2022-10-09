@@ -4,7 +4,7 @@ use crate::Result;
 use ruma::{
     api::client::backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
     serde::Raw,
-    RoomId, UserId,
+    OwnedRoomId, RoomId, UserId,
 };
 
 pub trait Data: Send + Sync {
@@ -47,7 +47,7 @@ pub trait Data: Send + Sync {
         &self,
         user_id: &UserId,
         version: &str,
-    ) -> Result<BTreeMap<Box<RoomId>, RoomKeyBackup>>;
+    ) -> Result<BTreeMap<OwnedRoomId, RoomKeyBackup>>;
 
     fn get_room(
         &self,

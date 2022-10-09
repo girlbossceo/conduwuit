@@ -1,5 +1,5 @@
 use crate::Result;
-use ruma::{events::receipt::ReceiptEvent, serde::Raw, RoomId, UserId};
+use ruma::{events::receipt::ReceiptEvent, serde::Raw, OwnedUserId, RoomId, UserId};
 
 pub trait Data: Send + Sync {
     /// Replaces the previous read receipt.
@@ -18,7 +18,7 @@ pub trait Data: Send + Sync {
     ) -> Box<
         dyn Iterator<
                 Item = Result<(
-                    Box<UserId>,
+                    OwnedUserId,
                     u64,
                     Raw<ruma::events::AnySyncEphemeralRoomEvent>,
                 )>,

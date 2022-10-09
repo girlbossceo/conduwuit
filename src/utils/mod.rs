@@ -4,7 +4,7 @@ use argon2::{Config, Variant};
 use cmp::Ordering;
 use rand::prelude::*;
 use ring::digest;
-use ruma::serde::{try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
+use ruma::{canonical_json::try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
 use std::{
     cmp, fmt,
     str::FromStr,

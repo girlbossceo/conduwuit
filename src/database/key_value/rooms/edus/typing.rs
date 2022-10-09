@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use ruma::{RoomId, UserId};
+use ruma::{OwnedUserId, RoomId, UserId};
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -66,7 +66,7 @@ impl service::rooms::edus::typing::Data for KeyValueDatabase {
             .unwrap_or(0))
     }
 
-    fn typings_all(&self, room_id: &RoomId) -> Result<HashSet<Box<UserId>>> {
+    fn typings_all(&self, room_id: &RoomId) -> Result<HashSet<OwnedUserId>> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 

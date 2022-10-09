@@ -147,6 +147,8 @@ pub async fn login_route(body: Ruma<login::v3::IncomingRequest>) -> Result<login
         home_server: Some(services().globals.server_name().to_owned()),
         device_id,
         well_known: None,
+        refresh_token: None,
+        expires_in: None,
     })
 }
 

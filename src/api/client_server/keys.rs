@@ -14,7 +14,7 @@ use ruma::{
         federation,
     },
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, UserId,
+    DeviceId, DeviceKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -253,7 +253,7 @@ pub async fn get_key_changes_route(
 
 pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
     sender_user: Option<&UserId>,
-    device_keys_input: &BTreeMap<Box<UserId>, Vec<Box<DeviceId>>>,
+    device_keys_input: &BTreeMap<OwnedUserId, Vec<OwnedDeviceId>>,
     allowed_signatures: F,
 ) -> Result<get_keys::v3::Response> {
     let mut master_keys = BTreeMap::new();
@@ -396,7 +396,7 @@ fn add_unsigned_device_display_name(
 }
 
 pub(crate) async fn claim_keys_helper(
-    one_time_keys_input: &BTreeMap<Box<UserId>, BTreeMap<Box<DeviceId>, DeviceKeyAlgorithm>>,
+    one_time_keys_input: &BTreeMap<OwnedUserId, BTreeMap<OwnedDeviceId, DeviceKeyAlgorithm>>,
 ) -> Result<claim_keys::v3::Response> {
     let mut one_time_keys = BTreeMap::new();
 

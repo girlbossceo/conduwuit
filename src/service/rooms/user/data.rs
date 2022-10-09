@@ -1,5 +1,5 @@
 use crate::Result;
-use ruma::{RoomId, UserId};
+use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 
 pub trait Data: Send + Sync {
     fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
@@ -19,6 +19,6 @@ pub trait Data: Send + Sync {
 
     fn get_shared_rooms<'a>(
         &'a self,
-        users: Vec<Box<UserId>>,
-    ) -> Result<Box<dyn Iterator<Item = Result<Box<RoomId>>> + 'a>>;
+        users: Vec<OwnedUserId>,
+    ) -> Result<Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>>;
 }

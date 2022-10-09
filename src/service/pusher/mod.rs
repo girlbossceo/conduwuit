@@ -1,5 +1,6 @@
 mod data;
 pub use data::Data;
+use ruma::events::AnySyncTimelineEvent;
 
 use crate::{services, Error, PduEvent, Result};
 use bytes::BytesMut;
@@ -15,7 +16,7 @@ use ruma::{
     },
     events::{
         room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},
-        AnySyncRoomEvent, RoomEventType, StateEventType,
+        RoomEventType, StateEventType,
     },
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     serde::Raw,
@@ -195,12 +196,13 @@ impl Service {
         user: &UserId,
         ruleset: &'a Ruleset,
         power_levels: &RoomPowerLevelsEventContent,
-        pdu: &Raw<AnySyncRoomEvent>,
+        pdu: &Raw<AnySyncTimelineEvent>,
         room_id: &RoomId,
     ) -> Result<&'a [Action]> {
         let ctx = PushConditionRoomCtx {
             room_id: room_id.to_owned(),
             member_count: 10_u32.into(), // TODO: get member count efficiently
+            user_id: user.to_owned(),
             user_display_name: services()
                 .users
                 .displayname(user)?
@@ -242,7 +244,7 @@ impl Service {
         let mut data_minus_url = pusher.data.clone();
         // The url must be stripped off according to spec
         data_minus_url.url = None;
-        device.data = data_minus_url;
+        device.data = data_minus_url.into();
 
         // Tweaks are only added if the format is NOT event_id_only
         if !event_id_only {

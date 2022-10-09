@@ -3,7 +3,7 @@ mod data;
 pub use data::Data;
 
 use crate::Result;
-use ruma::{RoomAliasId, RoomId};
+use ruma::{OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId};
 
 pub struct Service {
     pub db: &'static dyn Data,
@@ -21,7 +21,7 @@ impl Service {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<Box<RoomId>>> {
+    pub fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
         self.db.resolve_local_alias(alias)
     }
 
@@ -29,7 +29,7 @@ impl Service {
     pub fn local_aliases_for_room<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<RoomAliasId>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a> {
         self.db.local_aliases_for_room(room_id)
     }
 }

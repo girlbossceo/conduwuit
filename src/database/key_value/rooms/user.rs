@@ -1,4 +1,4 @@
-use ruma::{RoomId, UserId};
+use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -85,8 +85,8 @@ impl service::rooms::user::Data for KeyValueDatabase {
 
     fn get_shared_rooms<'a>(
         &'a self,
-        users: Vec<Box<UserId>>,
-    ) -> Result<Box<dyn Iterator<Item = Result<Box<RoomId>>> + 'a>> {
+        users: Vec<OwnedUserId>,
+    ) -> Result<Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>> {
         let iterators = users.into_iter().map(move |user_id| {
             let mut prefix = user_id.as_bytes().to_vec();
             prefix.push(0xff);
@@ -110,7 +110,7 @@ impl service::rooms::user::Data for KeyValueDatabase {
         });
 
         // We use the default compare function because keys are sorted correctly (not reversed)
-        Ok(Box::new(Box::new(
+        Ok(Box::new(
             utils::common_elements(iterators, Ord::cmp)
                 .expect("users is not empty")
                 .map(|bytes| {
@@ -119,6 +119,6 @@ impl service::rooms::user::Data for KeyValueDatabase {
                     })?)
                     .map_err(|_| Error::bad_database("Invalid RoomId in userroomid_joined."))
                 }),
-        )))
+        ))
     }
 }

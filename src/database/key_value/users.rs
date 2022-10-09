@@ -5,8 +5,10 @@ use ruma::{
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::{AnyToDeviceEvent, StateEventType},
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, MxcUri, UInt, UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, MxcUri, OwnedUserId,
+    UInt, UserId,
 };
+use ruma::{OwnedDeviceId, OwnedDeviceKeyId, OwnedMxcUri};
 use tracing::warn;
 
 use crate::{
@@ -39,7 +41,7 @@ impl service::users::Data for KeyValueDatabase {
     }
 
     /// Find out which user an access token belongs to.
-    fn find_from_token(&self, token: &str) -> Result<Option<(Box<UserId>, String)>> {
+    fn find_from_token(&self, token: &str) -> Result<Option<(OwnedUserId, String)>> {
         self.token_userdeviceid
             .get(token.as_bytes())?
             .map_or(Ok(None), |bytes| {
@@ -66,7 +68,7 @@ impl service::users::Data for KeyValueDatabase {
     }
 
     /// Returns an iterator over all users on this homeserver.
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a> {
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
         Box::new(self.userid_password.iter().map(|(bytes, _)| {
             UserId::parse(utils::string_from_bytes(&bytes).map_err(|_| {
                 Error::bad_database("User ID in userid_password is invalid unicode.")
@@ -141,7 +143,7 @@ impl service::users::Data for KeyValueDatabase {
     }
 
     /// Get the avatar_url of a user.
-    fn avatar_url(&self, user_id: &UserId) -> Result<Option<Box<MxcUri>>> {
+    fn avatar_url(&self, user_id: &UserId) -> Result<Option<OwnedMxcUri>> {
         self.userid_avatarurl
             .get(user_id.as_bytes())?
             .map(|bytes| {
@@ -154,7 +156,7 @@ impl service::users::Data for KeyValueDatabase {
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
-    fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<Box<MxcUri>>) -> Result<()> {
+    fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<OwnedMxcUri>) -> Result<()> {
         if let Some(avatar_url) = avatar_url {
             self.userid_avatarurl
                 .insert(user_id.as_bytes(), avatar_url.to_string().as_bytes())?;
@@ -258,7 +260,7 @@ impl service::users::Data for KeyValueDatabase {
     fn all_device_ids<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<Box<DeviceId>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedDeviceId>> + 'a> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         // All devices have metadata
@@ -356,7 +358,7 @@ impl service::users::Data for KeyValueDatabase {
         user_id: &UserId,
         device_id: &DeviceId,
         key_algorithm: &DeviceKeyAlgorithm,
-    ) -> Result<Option<(Box<DeviceKeyId>, Raw<OneTimeKey>)>> {
+    ) -> Result<Option<(OwnedDeviceKeyId, Raw<OneTimeKey>)>> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
         prefix.extend_from_slice(device_id.as_bytes());
@@ -407,7 +409,7 @@ impl service::users::Data for KeyValueDatabase {
                 .scan_prefix(userdeviceid)
                 .map(|(bytes, _)| {
                     Ok::<_, Error>(
-                        serde_json::from_slice::<Box<DeviceKeyId>>(
+                        serde_json::from_slice::<OwnedDeviceKeyId>(
                             &*bytes.rsplit(|&b| b == 0xff).next().ok_or_else(|| {
                                 Error::bad_database("OneTimeKey ID in db is invalid.")
                             })?,
@@ -579,7 +581,7 @@ impl service::users::Data for KeyValueDatabase {
             .ok_or_else(|| Error::bad_database("key in keyid_key has no signatures field."))?
             .as_object_mut()
             .ok_or_else(|| Error::bad_database("key in keyid_key has invalid signatures field."))?
-            .entry(sender_id.to_owned())
+            .entry(sender_id.to_string())
             .or_insert_with(|| serde_json::Map::new().into());
 
         signatures
@@ -603,7 +605,7 @@ impl service::users::Data for KeyValueDatabase {
         user_or_room_id: &str,
         from: u64,
         to: Option<u64>,
-    ) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
         let mut prefix = user_or_room_id.as_bytes().to_vec();
         prefix.push(0xff);
 

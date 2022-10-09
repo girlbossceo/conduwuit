@@ -1,6 +1,8 @@
 use crate::{
     api::client_server::invite_helper, service::pdu::PduBuilder, services, Error, Result, Ruma,
 };
+use ruma::serde::JsonObject;
+use ruma::OwnedRoomAliasId;
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -21,9 +23,7 @@ use ruma::{
         },
         RoomEventType, StateEventType,
     },
-    int,
-    serde::{CanonicalJsonObject, JsonObject},
-    RoomAliasId, RoomId,
+    int, CanonicalJsonObject, RoomAliasId, RoomId,
 };
 use serde_json::{json, value::to_raw_value};
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
@@ -77,7 +77,7 @@ pub async fn create_room_route(
         ));
     }
 
-    let alias: Option<Box<RoomAliasId>> =
+    let alias: Option<OwnedRoomAliasId> =
         body.room_alias_name
             .as_ref()
             .map_or(Ok(None), |localpart| {

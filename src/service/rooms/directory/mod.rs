@@ -1,7 +1,7 @@
 mod data;
 
 pub use data::Data;
-use ruma::RoomId;
+use ruma::{OwnedRoomId, RoomId};
 
 use crate::Result;
 
@@ -26,7 +26,7 @@ impl Service {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn public_rooms(&self) -> impl Iterator<Item = Result<Box<RoomId>>> + '_ {
+    pub fn public_rooms(&self) -> impl Iterator<Item = Result<OwnedRoomId>> + '_ {
         self.db.public_rooms()
     }
 }

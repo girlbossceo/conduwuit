@@ -30,10 +30,11 @@ use ruma::{
         OutgoingRequest,
     },
     device_id,
-    events::{push_rules::PushRulesEvent, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType},
-    push,
-    receipt::ReceiptType,
-    uint, MilliSecondsSinceUnixEpoch, ServerName, UInt, UserId,
+    events::{
+        push_rules::PushRulesEvent, receipt::ReceiptType, AnySyncEphemeralRoomEvent,
+        GlobalAccountDataEventType,
+    },
+    push, uint, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedUserId, ServerName, UInt, UserId,
 };
 use tokio::{
     select,
@@ -44,8 +45,8 @@ use tracing::{error, warn};
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum OutgoingKind {
     Appservice(String),
-    Push(Box<UserId>, String), // user and pushkey
-    Normal(Box<ServerName>),
+    Push(OwnedUserId, String), // user and pushkey
+    Normal(OwnedServerName),
 }
 
 impl OutgoingKind {
@@ -381,7 +382,7 @@ impl Service {
     }
 
     #[tracing::instrument(skip(self, servers, pdu_id))]
-    pub fn send_pdu<I: Iterator<Item = Box<ServerName>>>(
+    pub fn send_pdu<I: Iterator<Item = OwnedServerName>>(
         &self,
         servers: I,
         pdu_id: &[u8],

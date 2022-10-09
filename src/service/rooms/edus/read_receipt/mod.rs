@@ -3,7 +3,7 @@ mod data;
 pub use data::Data;
 
 use crate::Result;
-use ruma::{events::receipt::ReceiptEvent, serde::Raw, RoomId, UserId};
+use ruma::{events::receipt::ReceiptEvent, serde::Raw, OwnedUserId, RoomId, UserId};
 
 pub struct Service {
     pub db: &'static dyn Data,
@@ -28,7 +28,7 @@ impl Service {
         since: u64,
     ) -> impl Iterator<
         Item = Result<(
-            Box<UserId>,
+            OwnedUserId,
             u64,
             Raw<ruma::events::AnySyncEphemeralRoomEvent>,
         )>,

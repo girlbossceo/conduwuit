@@ -17,8 +17,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use http::StatusCode;
 use ruma::{
     api::{client::error::ErrorKind, AuthScheme, IncomingRequest, OutgoingResponse},
-    signatures::CanonicalJsonValue,
-    DeviceId, ServerName, UserId,
+    CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedServerName, ServerName, UserId,
 };
 use serde::Deserialize;
 use tracing::{debug, error, warn};
@@ -81,7 +80,7 @@ where
         let (sender_user, sender_device, sender_servername, from_appservice) =
             if let Some((_id, registration)) = appservice_registration {
                 match metadata.authentication {
-                    AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
+                    AuthScheme::AccessToken => {
                         let user_id = query_params.user_id.map_or_else(
                             || {
                                 UserId::parse_with_server_name(
@@ -112,7 +111,7 @@ where
                 }
             } else {
                 match metadata.authentication {
-                    AuthScheme::AccessToken | AuthScheme::QueryOnlyAccessToken => {
+                    AuthScheme::AccessToken => {
                         let token = match token {
                             Some(token) => token,
                             _ => {
@@ -132,7 +131,7 @@ where
                             }
                             Some((user_id, device_id)) => (
                                 Some(user_id),
-                                Some(Box::<DeviceId>::from(device_id)),
+                                Some(OwnedDeviceId::from(device_id)),
                                 None,
                                 false,
                             ),
@@ -298,7 +297,7 @@ where
 }
 
 struct XMatrix {
-    origin: Box<ServerName>,
+    origin: OwnedServerName,
     key: String, // KeyName?
     sig: String,
 }

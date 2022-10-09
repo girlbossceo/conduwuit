@@ -1,4 +1,4 @@
-use ruma::{api::client::error::ErrorKind, RoomAliasId, RoomId};
+use ruma::{api::client::error::ErrorKind, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId};
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -31,7 +31,7 @@ impl service::rooms::alias::Data for KeyValueDatabase {
         Ok(())
     }
 
-    fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<Box<RoomId>>> {
+    fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
         self.alias_roomid
             .get(alias.alias().as_bytes())?
             .map(|bytes| {
@@ -46,7 +46,7 @@ impl service::rooms::alias::Data for KeyValueDatabase {
     fn local_aliases_for_room<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<RoomAliasId>>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 

@@ -4,7 +4,7 @@ use crate::Result;
 use ruma::{
     events::{AnyStrippedStateEvent, AnySyncStateEvent},
     serde::Raw,
-    RoomId, ServerName, UserId,
+    OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 
 pub trait Data: Send + Sync {
@@ -20,7 +20,7 @@ pub trait Data: Send + Sync {
 
     fn update_joined_count(&self, room_id: &RoomId) -> Result<()>;
 
-    fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<Box<UserId>>>>;
+    fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<OwnedUserId>>>;
 
     fn appservice_in_room(
         &self,
@@ -35,7 +35,7 @@ pub trait Data: Send + Sync {
     fn room_servers<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<ServerName>>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a>;
 
     fn server_in_room<'a>(&'a self, server: &ServerName, room_id: &RoomId) -> Result<bool>;
 
@@ -43,13 +43,13 @@ pub trait Data: Send + Sync {
     fn server_rooms<'a>(
         &'a self,
         server: &ServerName,
-    ) -> Box<dyn Iterator<Item = Result<Box<RoomId>>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>;
 
     /// Returns an iterator over all joined members of a room.
     fn room_members<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
 
     fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>>;
 
@@ -59,13 +59,13 @@ pub trait Data: Send + Sync {
     fn room_useroncejoined<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
 
     /// Returns an iterator over all invited members of a room.
     fn room_members_invited<'a>(
         &'a self,
         room_id: &RoomId,
-    ) -> Box<dyn Iterator<Item = Result<Box<UserId>>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
 
     fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>>;
 
@@ -75,13 +75,13 @@ pub trait Data: Send + Sync {
     fn rooms_joined<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<Box<RoomId>>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>;
 
     /// Returns an iterator over all rooms a user was invited to.
     fn rooms_invited<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<(Box<RoomId>, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
 
     fn invite_state(
         &self,
@@ -99,7 +99,7 @@ pub trait Data: Send + Sync {
     fn rooms_left<'a>(
         &'a self,
         user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<(Box<RoomId>, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
+    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
 
     fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool>;
 
