@@ -39,14 +39,6 @@ impl Service {
             // TODO: displayname, avatar url
         }
 
-        let mut roomserver_id = room_id.as_bytes().to_vec();
-        roomserver_id.push(0xff);
-        roomserver_id.extend_from_slice(user_id.server_name().as_bytes());
-
-        let mut serverroom_id = user_id.server_name().as_bytes().to_vec();
-        serverroom_id.push(0xff);
-        serverroom_id.extend_from_slice(room_id.as_bytes());
-
         match &membership {
             MembershipState::Join => {
                 // Check if the user never joined this room

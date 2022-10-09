@@ -124,6 +124,36 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
             .unwrap()
             .insert(room_id.to_owned(), Arc::new(real_users));
 
+        for old_joined_server in self.room_servers(room_id).filter_map(|r| r.ok()) {
+            if !joined_servers.remove(&old_joined_server) {
+                // Server not in room anymore
+                let mut roomserver_id = room_id.as_bytes().to_vec();
+                roomserver_id.push(0xff);
+                roomserver_id.extend_from_slice(old_joined_server.as_bytes());
+
+                let mut serverroom_id = old_joined_server.as_bytes().to_vec();
+                serverroom_id.push(0xff);
+                serverroom_id.extend_from_slice(room_id.as_bytes());
+
+                self.roomserverids.remove(&roomserver_id)?;
+                self.serverroomids.remove(&serverroom_id)?;
+            }
+        }
+
+        // Now only new servers are in joined_servers anymore
+        for server in joined_servers {
+            let mut roomserver_id = room_id.as_bytes().to_vec();
+            roomserver_id.push(0xff);
+            roomserver_id.extend_from_slice(server.as_bytes());
+
+            let mut serverroom_id = server.as_bytes().to_vec();
+            serverroom_id.push(0xff);
+            serverroom_id.extend_from_slice(room_id.as_bytes());
+
+            self.roomserverids.insert(&roomserver_id, &[])?;
+            self.serverroomids.insert(&serverroom_id, &[])?;
+        }
+
         self.appservice_in_room_cache
             .write()
             .unwrap()
