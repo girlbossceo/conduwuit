@@ -2200,6 +2200,7 @@ dependencies = [
  "ruma-common",
  "serde_json",
  "sha2",
+ "subslice",
  "thiserror",
 ]
 
@@ -2518,6 +2519,15 @@ checksum = "67cf02bbac7a337dc36e4f5a693db6c21e7863f45070f7064577eb4367a3212b"
 dependencies = [
  "base64ct",
  "der",
+]
+
+[[package]]
+name = "subslice"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0a8e4809a3bb02de01f1f7faf1ba01a83af9e8eabcd4d31dd6e413d14d56aae"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
