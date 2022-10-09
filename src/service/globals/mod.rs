@@ -40,7 +40,7 @@ pub struct Service {
     pub config: Config,
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     dns_resolver: TokioAsyncResolver,
-    jwt_decoding_key: Option<jsonwebtoken::DecodingKey<'static>>,
+    jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
     federation_client: reqwest::Client,
     default_client: reqwest::Client,
     pub stable_room_versions: Vec<RoomVersionId>,
@@ -105,7 +105,7 @@ impl Service {
         let jwt_decoding_key = config
             .jwt_secret
             .as_ref()
-            .map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()).into_static());
+            .map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
 
         let default_client = reqwest_client_builder(&config)?.build()?;
         let name_override = Arc::clone(&tls_name_override);
@@ -250,7 +250,7 @@ impl Service {
         &self.dns_resolver
     }
 
-    pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey<'_>> {
+    pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> {
         self.jwt_decoding_key.as_ref()
     }
 

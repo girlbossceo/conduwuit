@@ -1,8 +1,10 @@
 mod data;
+use std::io::Cursor;
+
 pub use data::Data;
 
 use crate::{services, Result};
-use image::{imageops::FilterType, GenericImageView};
+use image::imageops::FilterType;
 
 use tokio::{
     fs::File,
@@ -186,7 +188,10 @@ impl Service {
                 };
 
                 let mut thumbnail_bytes = Vec::new();
-                thumbnail.write_to(&mut thumbnail_bytes, image::ImageOutputFormat::Png)?;
+                thumbnail.write_to(
+                    &mut Cursor::new(&mut thumbnail_bytes),
+                    image::ImageOutputFormat::Png,
+                )?;
 
                 // Save thumbnail in database so we don't have to generate it again next time
                 let thumbnail_key = self.db.create_file_metadata(

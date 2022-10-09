@@ -1,5 +1,5 @@
 use crate::{services, Result, Ruma};
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use ruma::{api::client::voip::get_turn_server_info, SecondsSinceUnixEpoch};
 use sha1::Sha1;
 use std::time::{Duration, SystemTime};

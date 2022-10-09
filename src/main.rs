@@ -86,7 +86,7 @@ async fn main() {
 
     if config.allow_jaeger {
         opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-        let tracer = opentelemetry_jaeger::new_pipeline()
+        let tracer = opentelemetry_jaeger::new_agent_pipeline()
             .install_batch(opentelemetry::runtime::Tokio)
             .unwrap();
 
