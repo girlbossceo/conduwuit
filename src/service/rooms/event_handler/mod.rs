@@ -970,14 +970,11 @@ impl Service {
             // Set the new room state to the resolved state
             if update_state {
                 info!("Forcing new room state");
-                let sstatehash = services()
+                let (sstatehash, new, removed) = services()
                     .rooms
                     .state_compressor
                     .save_state(room_id, new_room_state)?;
-                services()
-                    .rooms
-                    .state
-                    .set_room_state(room_id, sstatehash, &state_lock)?;
+                services().rooms.state.force_state(room_id, sstatehash, new, removed, &state_lock).await?;
             }
         }
 

@@ -34,23 +34,13 @@ impl Service {
         shortstatehash: u64,
         statediffnew: HashSet<CompressedStateEvent>,
         _statediffremoved: HashSet<CompressedStateEvent>,
+        state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<()> {
-        let mutex_state = Arc::clone(
-            services()
-                .globals
-                .roomid_mutex_state
-                .write()
-                .unwrap()
-                .entry(room_id.to_owned())
-                .or_default(),
-        );
-        let state_lock = mutex_state.lock().await;
-
         for event_id in statediffnew.into_iter().filter_map(|new| {
             services()
                 .rooms
                 .state_compressor
-                .parse_compressed_state_event(new)
+                .parse_compressed_state_event(&new)
                 .ok()
                 .map(|(_, id)| id)
         }) {
@@ -104,8 +94,6 @@ impl Service {
 
         self.db
             .set_room_state(room_id, shortstatehash, &state_lock)?;
-
-        drop(state_lock);
 
         Ok(())
     }
@@ -312,6 +300,7 @@ impl Service {
         Ok(state)
     }
 
+    /// Set the state hash to a new version, but does not update state_cache.
     #[tracing::instrument(skip(self))]
     pub fn set_room_state(
         &self,
@@ -412,7 +401,7 @@ impl Service {
                 services()
                     .rooms
                     .state_compressor
-                    .parse_compressed_state_event(compressed)
+                    .parse_compressed_state_event(&compressed)
                     .ok()
             })
             .filter_map(|(shortstatekey, event_id)| {

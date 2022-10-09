@@ -669,24 +669,21 @@ async fn join_room_by_id_helper(
                 .add_pdu_outlier(&event_id, &value)?;
         }
 
-        let statehash_before_join = services().rooms.state.set_event_state(
-            event_id,
+        let (statehash_before_join, new, removed) = services().rooms.state_compressor.save_state(
             room_id,
             state
                 .into_iter()
-                .map(|(k, id)| {
-                    services()
-                        .rooms
-                        .state_compressor
-                        .compress_state_event(k, &id)
-                })
+                .map(|(k, id)| services().rooms.state_compressor.compress_state_event(k, &id))
                 .collect::<Result<_>>()?,
         )?;
 
         services()
             .rooms
             .state
-            .set_room_state(room_id, statehash_before_join, &state_lock)?;
+            .force_state(room_id, statehash_before_join, new, removed, &state_lock)
+            .await?;
+
+        services().rooms.state_cache.update_joined_count(room_id)?;
 
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.

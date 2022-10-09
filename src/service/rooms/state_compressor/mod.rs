@@ -100,7 +100,7 @@ impl Service {
     /// Returns shortstatekey, event id
     pub fn parse_compressed_state_event(
         &self,
-        compressed_event: CompressedStateEvent,
+        compressed_event: &CompressedStateEvent,
     ) -> Result<(u64, Arc<EventId>)> {
         Ok((
             utils::u64_from_bytes(&compressed_event[0..size_of::<u64>()])
@@ -246,12 +246,12 @@ impl Service {
         Ok(())
     }
 
-    /// Returns the new shortstatehash
+    /// Returns the new shortstatehash, and the state diff from the previous room state
     pub fn save_state(
         &self,
         room_id: &RoomId,
         new_state_ids_compressed: HashSet<CompressedStateEvent>,
-    ) -> Result<u64> {
+    ) -> Result<(u64, HashSet<CompressedStateEvent>, HashSet<CompressedStateEvent>)> {
         let previous_shortstatehash = services().rooms.state.get_room_shortstatehash(room_id)?;
 
         let state_hash = utils::calculate_hash(
@@ -267,7 +267,7 @@ impl Service {
             .get_or_create_shortstatehash(&state_hash)?;
 
         if Some(new_shortstatehash) == previous_shortstatehash {
-            return Ok(new_shortstatehash);
+            return Ok((new_shortstatehash, HashSet::new(), HashSet::new()));
         }
 
         let states_parents = previous_shortstatehash
@@ -295,12 +295,12 @@ impl Service {
             self.save_state_from_diff(
                 new_shortstatehash,
                 statediffnew.clone(),
-                statediffremoved,
+                statediffremoved.clone(),
                 2, // every state change is 2 event changes on average
                 states_parents,
             )?;
         };
 
-        Ok(new_shortstatehash)
+        Ok((new_shortstatehash, statediffnew, statediffremoved))
     }
 }

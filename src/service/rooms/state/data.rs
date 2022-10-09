@@ -8,7 +8,7 @@ pub trait Data: Send + Sync {
     /// Returns the last state hash key added to the db for the given room.
     fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>>;
 
-    /// Update the current state of the room.
+    /// Set the state hash to a new version, but does not update state_cache.
     fn set_room_state(
         &self,
         room_id: &RoomId,
