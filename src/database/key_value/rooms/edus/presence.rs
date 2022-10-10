@@ -88,7 +88,7 @@ impl service::rooms::edus::presence::Data for KeyValueDatabase {
 
         for (key, value) in self
             .presenceid_presence
-            .iter_from(&*first_possible_edu, false)
+            .iter_from(&first_possible_edu, false)
             .take_while(|(key, _)| key.starts_with(&prefix))
         {
             let user_id = UserId::parse(

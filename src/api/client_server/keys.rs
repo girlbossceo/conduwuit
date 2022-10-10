@@ -234,7 +234,7 @@ pub async fn get_key_changes_route(
             services()
                 .users
                 .keys_changed(
-                    &room_id.to_string(),
+                    room_id.as_ref(),
                     body.from.parse().map_err(|_| {
                         Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`.")
                     })?,
@@ -264,7 +264,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
     let mut get_over_federation = HashMap::new();
 
     for (user_id, device_ids) in device_keys_input {
-        let user_id: &UserId = &**user_id;
+        let user_id: &UserId = user_id;
 
         if user_id.server_name() != services().globals.server_name() {
             get_over_federation

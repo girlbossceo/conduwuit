@@ -9,7 +9,7 @@ impl service::rooms::alias::Data for KeyValueDatabase {
         let mut aliasid = room_id.as_bytes().to_vec();
         aliasid.push(0xff);
         aliasid.extend_from_slice(&services().globals.next_count()?.to_be_bytes());
-        self.aliasid_alias.insert(&aliasid, &*alias.as_bytes())?;
+        self.aliasid_alias.insert(&aliasid, alias.as_bytes())?;
         Ok(())
     }
 

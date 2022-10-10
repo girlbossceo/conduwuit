@@ -39,7 +39,7 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
         {
             hash_map::Entry::Vacant(v) => {
                 if let Some(last_count) = self
-                    .pdus_until(&sender_user, &room_id, u64::MAX)?
+                    .pdus_until(sender_user, room_id, u64::MAX)?
                     .filter_map(|r| {
                         // Filter out buggy events
                         if r.is_err() {
@@ -205,8 +205,7 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
             .unwrap()
             .insert(pdu.room_id.clone(), count);
 
-        self.eventid_pduid
-            .insert(pdu.event_id.as_bytes(), &pdu_id)?;
+        self.eventid_pduid.insert(pdu.event_id.as_bytes(), pdu_id)?;
         self.eventid_outlierpdu.remove(pdu.event_id.as_bytes())?;
 
         Ok(())

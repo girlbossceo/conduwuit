@@ -284,7 +284,7 @@ impl Service {
                 RoomVersion::new(room_version_id).expect("room version is supported");
 
             let mut val = match ruma::signatures::verify_event(
-                &*pub_key_map.read().expect("RwLock is poisoned."),
+                &pub_key_map.read().expect("RwLock is poisoned."),
                 &value,
                 room_version_id,
             ) {
@@ -1198,7 +1198,7 @@ impl Service {
                 .fetch_and_handle_outliers(
                     origin,
                     &[prev_event_id.clone()],
-                    &create_event,
+                    create_event,
                     room_id,
                     pub_key_map,
                 )
@@ -1224,7 +1224,7 @@ impl Service {
                         amount += 1;
                         for prev_prev in &pdu.prev_events {
                             if !graph.contains_key(prev_prev) {
-                                todo_outlier_stack.push(dbg!(prev_prev.clone()));
+                                todo_outlier_stack.push(prev_prev.clone());
                             }
                         }
 
@@ -1248,7 +1248,7 @@ impl Service {
             }
         }
 
-        let sorted = state_res::lexicographical_topological_sort(dbg!(&graph), |event_id| {
+        let sorted = state_res::lexicographical_topological_sort(&graph, |event_id| {
             // This return value is the key used for sorting events,
             // events are then sorted by power level, time,
             // and lexically by event_id.
@@ -1482,8 +1482,8 @@ impl Service {
         }
 
         let mut futures: FuturesUnordered<_> = servers
-            .into_iter()
-            .map(|(server, _)| async move {
+            .into_keys()
+            .map(|server| async move {
                 (
                     services()
                         .sending

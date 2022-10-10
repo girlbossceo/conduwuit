@@ -2,22 +2,17 @@ pub mod abstraction;
 pub mod key_value;
 
 use crate::{services, utils, Config, Error, PduEvent, Result, Services, SERVICES};
-use abstraction::KeyValueDatabaseEngine;
-use abstraction::KvTree;
+use abstraction::{KeyValueDatabaseEngine, KvTree};
 use directories::ProjectDirs;
 use lru_cache::LruCache;
-use ruma::CanonicalJsonValue;
-use ruma::OwnedDeviceId;
-use ruma::OwnedEventId;
-use ruma::OwnedRoomId;
-use ruma::OwnedUserId;
 use ruma::{
     events::{
         push_rules::PushRulesEventContent, room::message::RoomMessageEventContent,
         GlobalAccountDataEvent, GlobalAccountDataEventType, StateEventType,
     },
     push::Ruleset,
-    EventId, RoomId, UserId,
+    CanonicalJsonValue, EventId, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId,
+    UserId,
 };
 use std::{
     collections::{BTreeMap, HashMap, HashSet},

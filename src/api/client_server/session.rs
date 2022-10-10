@@ -53,11 +53,11 @@ pub async fn login_route(body: Ruma<login::v3::IncomingRequest>) -> Result<login
             } else {
                 return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
             };
-            let user_id = UserId::parse_with_server_name(
-                username.to_owned(),
-                services().globals.server_name(),
-            )
-            .map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
+            let user_id =
+                UserId::parse_with_server_name(username, services().globals.server_name())
+                    .map_err(|_| {
+                        Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
+                    })?;
             let hash = services()
                 .users
                 .password_hash(&user_id)?

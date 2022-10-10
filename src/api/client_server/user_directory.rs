@@ -75,7 +75,7 @@ pub async fn search_users_route(
         let user_is_in_shared_rooms = services()
             .rooms
             .user
-            .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])
+            .get_shared_rooms(vec![sender_user.clone(), user_id])
             .ok()?
             .next()
             .is_some();

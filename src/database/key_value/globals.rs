@@ -134,7 +134,7 @@ impl service::globals::Data for KeyValueDatabase {
 
         let mut parts = keypair_bytes.splitn(2, |&b| b == 0xff);
 
-        let keypair = utils::string_from_bytes(
+        utils::string_from_bytes(
             // 1. version
             parts
                 .next()
@@ -151,9 +151,7 @@ impl service::globals::Data for KeyValueDatabase {
         .and_then(|(version, key)| {
             Ed25519KeyPair::from_der(key, version)
                 .map_err(|_| Error::bad_database("Private or public keys are invalid."))
-        });
-
-        keypair
+        })
     }
     fn remove_keypair(&self) -> Result<()> {
         self.global.remove(b"keypair")

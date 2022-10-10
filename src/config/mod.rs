@@ -232,7 +232,7 @@ fn default_pdu_cache_capacity() -> u32 {
 }
 
 fn default_cleanup_second_interval() -> u32 {
-    1 * 60 // every minute
+    60 // every minute
 }
 
 fn default_max_request_size() -> u32 {

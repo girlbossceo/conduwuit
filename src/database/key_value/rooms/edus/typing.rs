@@ -17,7 +17,7 @@ impl service::rooms::edus::typing::Data for KeyValueDatabase {
         room_typing_id.extend_from_slice(&count);
 
         self.typingid_userid
-            .insert(&room_typing_id, &*user_id.as_bytes())?;
+            .insert(&room_typing_id, user_id.as_bytes())?;
 
         self.roomid_lasttypingupdate
             .insert(room_id.as_bytes(), &count)?;

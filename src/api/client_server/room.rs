@@ -1,8 +1,6 @@
 use crate::{
     api::client_server::invite_helper, service::pdu::PduBuilder, services, Error, Result, Ruma,
 };
-use ruma::serde::JsonObject;
-use ruma::OwnedRoomAliasId;
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -23,7 +21,9 @@ use ruma::{
         },
         RoomEventType, StateEventType,
     },
-    int, CanonicalJsonObject, RoomAliasId, RoomId,
+    int,
+    serde::JsonObject,
+    CanonicalJsonObject, OwnedRoomAliasId, RoomAliasId, RoomId,
 };
 use serde_json::{json, value::to_raw_value};
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
@@ -213,14 +213,11 @@ pub async fn create_room_route(
     // 3. Power levels
 
     // Figure out preset. We need it for preset specific events
-    let preset = body
-        .preset
-        .clone()
-        .unwrap_or_else(|| match &body.visibility {
-            room::Visibility::Private => RoomPreset::PrivateChat,
-            room::Visibility::Public => RoomPreset::PublicChat,
-            _ => RoomPreset::PrivateChat, // Room visibility should not be custom
-        });
+    let preset = body.preset.clone().unwrap_or(match &body.visibility {
+        room::Visibility::Private => RoomPreset::PrivateChat,
+        room::Visibility::Public => RoomPreset::PublicChat,
+        _ => RoomPreset::PrivateChat, // Room visibility should not be custom
+    });
 
     let mut users = BTreeMap::new();
     users.insert(sender_user.clone(), int!(100));

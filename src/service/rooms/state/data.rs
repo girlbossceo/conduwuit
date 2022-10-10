@@ -1,7 +1,6 @@
 use crate::Result;
 use ruma::{EventId, OwnedEventId, RoomId};
-use std::collections::HashSet;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 use tokio::sync::MutexGuard;
 
 pub trait Data: Send + Sync {

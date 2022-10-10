@@ -444,7 +444,7 @@ impl_ruma_handler!(T1, T2, T3, T4, T5, T6, T7);
 impl_ruma_handler!(T1, T2, T3, T4, T5, T6, T7, T8);
 
 fn method_to_filter(method: Method) -> MethodFilter {
-    let method_filter = match method {
+    match method {
         Method::DELETE => MethodFilter::DELETE,
         Method::GET => MethodFilter::GET,
         Method::HEAD => MethodFilter::HEAD,
@@ -454,6 +454,5 @@ fn method_to_filter(method: Method) -> MethodFilter {
         Method::PUT => MethodFilter::PUT,
         Method::TRACE => MethodFilter::TRACE,
         m => panic!("Unsupported HTTP method: {:?}", m),
-    };
-    method_filter
+    }
 }

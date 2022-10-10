@@ -15,7 +15,7 @@ impl service::rooms::search::Data for KeyValueDatabase {
                 let mut key = shortroomid.to_be_bytes().to_vec();
                 key.extend_from_slice(word.as_bytes());
                 key.push(0xff);
-                key.extend_from_slice(&pdu_id);
+                key.extend_from_slice(pdu_id);
                 (key, Vec::new())
             });
 

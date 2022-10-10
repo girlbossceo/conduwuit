@@ -75,7 +75,7 @@ use tracing::{info, warn};
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FedDest {
     Literal(SocketAddr),
     Named(String, String),
@@ -686,7 +686,7 @@ pub async fn send_transaction_message_route(
         services()
             .rooms
             .event_handler
-            .acl_check(&sender_servername, &room_id)?;
+            .acl_check(sender_servername, &room_id)?;
 
         let mutex = Arc::clone(
             services()
@@ -705,7 +705,7 @@ pub async fn send_transaction_message_route(
                 .rooms
                 .event_handler
                 .handle_incoming_pdu(
-                    &sender_servername,
+                    sender_servername,
                     &event_id,
                     &room_id,
                     value,
@@ -974,7 +974,7 @@ pub async fn get_missing_events_route(
     services()
         .rooms
         .event_handler
-        .acl_check(&sender_servername, &body.room_id)?;
+        .acl_check(sender_servername, &body.room_id)?;
 
     let mut queued_events = body.latest_events.clone();
     let mut events = Vec::new();
@@ -1053,7 +1053,7 @@ pub async fn get_event_authorization_route(
     services()
         .rooms
         .event_handler
-        .acl_check(&sender_servername, &body.room_id)?;
+        .acl_check(sender_servername, &body.room_id)?;
 
     let event = services()
         .rooms
@@ -1112,7 +1112,7 @@ pub async fn get_room_state_route(
     services()
         .rooms
         .event_handler
-        .acl_check(&sender_servername, &body.room_id)?;
+        .acl_check(sender_servername, &body.room_id)?;
 
     let shortstatehash = services()
         .rooms
@@ -1128,8 +1128,8 @@ pub async fn get_room_state_route(
         .state_accessor
         .state_full_ids(shortstatehash)
         .await?
-        .into_iter()
-        .map(|(_, id)| {
+        .into_values()
+        .map(|id| {
             PduEvent::convert_to_outgoing_federation_event(
                 services()
                     .rooms
@@ -1193,7 +1193,7 @@ pub async fn get_room_state_ids_route(
     services()
         .rooms
         .event_handler
-        .acl_check(&sender_servername, &body.room_id)?;
+        .acl_check(sender_servername, &body.room_id)?;
 
     let shortstatehash = services()
         .rooms
@@ -1209,8 +1209,8 @@ pub async fn get_room_state_ids_route(
         .state_accessor
         .state_full_ids(shortstatehash)
         .await?
-        .into_iter()
-        .map(|(_, id)| (*id).to_owned())
+        .into_values()
+        .map(|id| (*id).to_owned())
         .collect();
 
     let auth_chain_ids = services()
@@ -1250,7 +1250,7 @@ pub async fn create_join_event_template_route(
     services()
         .rooms
         .event_handler
-        .acl_check(&sender_servername, &body.room_id)?;
+        .acl_check(sender_servername, &body.room_id)?;
 
     let mutex_state = Arc::clone(
         services()
@@ -1354,7 +1354,7 @@ async fn create_join_event(
     services()
         .rooms
         .event_handler
-        .acl_check(&sender_servername, room_id)?;
+        .acl_check(sender_servername, room_id)?;
 
     // TODO: Conduit does not implement restricted join rules yet, we always reject
     let join_rules_event = services().rooms.state_accessor.room_state_get(
@@ -1448,10 +1448,7 @@ async fn create_join_event(
     let auth_chain_ids = services()
         .rooms
         .auth_chain
-        .get_auth_chain(
-            room_id,
-            state_ids.iter().map(|(_, id)| id.clone()).collect(),
-        )
+        .get_auth_chain(room_id, state_ids.values().cloned().collect())
         .await?;
 
     let servers = services()
@@ -1527,7 +1524,7 @@ pub async fn create_invite_route(
     services()
         .rooms
         .event_handler
-        .acl_check(&sender_servername, &body.room_id)?;
+        .acl_check(sender_servername, &body.room_id)?;
 
     if !services()
         .globals

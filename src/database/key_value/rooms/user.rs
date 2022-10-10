@@ -114,7 +114,7 @@ impl service::rooms::user::Data for KeyValueDatabase {
             utils::common_elements(iterators, Ord::cmp)
                 .expect("users is not empty")
                 .map(|bytes| {
-                    RoomId::parse(utils::string_from_bytes(&*bytes).map_err(|_| {
+                    RoomId::parse(utils::string_from_bytes(&bytes).map_err(|_| {
                         Error::bad_database("Invalid RoomId bytes in userroomid_joined")
                     })?)
                     .map_err(|_| Error::bad_database("Invalid RoomId in userroomid_joined."))

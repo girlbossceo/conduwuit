@@ -5,10 +5,9 @@ use ruma::{
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::{AnyToDeviceEvent, StateEventType},
     serde::Raw,
-    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedUserId, UInt,
-    UserId,
+    DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedDeviceId,
+    OwnedDeviceKeyId, OwnedMxcUri, OwnedUserId, UInt, UserId,
 };
-use ruma::{OwnedDeviceId, OwnedDeviceKeyId, OwnedMxcUri};
 use tracing::warn;
 
 use crate::{
@@ -380,13 +379,12 @@ impl service::users::Data for KeyValueDatabase {
 
                 Ok((
                     serde_json::from_slice(
-                        &*key
-                            .rsplit(|&b| b == 0xff)
+                        key.rsplit(|&b| b == 0xff)
                             .next()
                             .ok_or_else(|| Error::bad_database("OneTimeKeyId in db is invalid."))?,
                     )
                     .map_err(|_| Error::bad_database("OneTimeKeyId in db is invalid."))?,
-                    serde_json::from_slice(&*value)
+                    serde_json::from_slice(&value)
                         .map_err(|_| Error::bad_database("OneTimeKeys in db are invalid."))?,
                 ))
             })
@@ -410,7 +408,7 @@ impl service::users::Data for KeyValueDatabase {
                 .map(|(bytes, _)| {
                     Ok::<_, Error>(
                         serde_json::from_slice::<OwnedDeviceKeyId>(
-                            &*bytes.rsplit(|&b| b == 0xff).next().ok_or_else(|| {
+                            bytes.rsplit(|&b| b == 0xff).next().ok_or_else(|| {
                                 Error::bad_database("OneTimeKey ID in db is invalid.")
                             })?,
                         )

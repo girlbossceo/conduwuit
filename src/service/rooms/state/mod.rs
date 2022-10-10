@@ -93,7 +93,7 @@ impl Service {
         services().rooms.state_cache.update_joined_count(room_id)?;
 
         self.db
-            .set_room_state(room_id, shortstatehash, &state_lock)?;
+            .set_room_state(room_id, shortstatehash, state_lock)?;
 
         Ok(())
     }
@@ -331,7 +331,7 @@ impl Service {
             .transpose()?;
         let room_version = create_event_content
             .map(|create_event| create_event.room_version)
-            .ok_or_else(|| Error::BadDatabase("Invalid room version"))?;
+            .ok_or(Error::BadDatabase("Invalid room version"))?;
         Ok(room_version)
     }
 

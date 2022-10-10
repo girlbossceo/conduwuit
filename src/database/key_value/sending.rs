@@ -38,7 +38,7 @@ impl service::sending::Data for KeyValueDatabase {
 
     fn delete_all_active_requests_for(&self, outgoing_kind: &OutgoingKind) -> Result<()> {
         let prefix = outgoing_kind.get_prefix();
-        for (key, _) in self.servercurrentevent_data.scan_prefix(prefix.clone()) {
+        for (key, _) in self.servercurrentevent_data.scan_prefix(prefix) {
             self.servercurrentevent_data.remove(&key)?;
         }
 
@@ -51,7 +51,7 @@ impl service::sending::Data for KeyValueDatabase {
             self.servercurrentevent_data.remove(&key).unwrap();
         }
 
-        for (key, _) in self.servernameevent_data.scan_prefix(prefix.clone()) {
+        for (key, _) in self.servernameevent_data.scan_prefix(prefix) {
             self.servernameevent_data.remove(&key).unwrap();
         }
 
@@ -67,7 +67,7 @@ impl service::sending::Data for KeyValueDatabase {
         for (outgoing_kind, event) in requests {
             let mut key = outgoing_kind.get_prefix();
             key.extend_from_slice(if let SendingEventType::Pdu(value) = &event {
-                &**value
+                value
             } else {
                 &[]
             });
@@ -91,7 +91,7 @@ impl service::sending::Data for KeyValueDatabase {
         let prefix = outgoing_kind.get_prefix();
         return Box::new(
             self.servernameevent_data
-                .scan_prefix(prefix.clone())
+                .scan_prefix(prefix)
                 .map(|(k, v)| parse_servercurrentevent(&k, v).map(|(_, ev)| (ev, k))),
         );
     }
@@ -155,7 +155,7 @@ fn parse_servercurrentevent(
         let mut parts = key[1..].splitn(3, |&b| b == 0xff);
 
         let user = parts.next().expect("splitn always returns one element");
-        let user_string = utils::string_from_bytes(&user)
+        let user_string = utils::string_from_bytes(user)
             .map_err(|_| Error::bad_database("Invalid user string in servercurrentevent"))?;
         let user_id = UserId::parse(user_string)
             .map_err(|_| Error::bad_database("Invalid user id in servercurrentevent"))?;

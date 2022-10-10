@@ -2,29 +2,29 @@ mod data;
 
 use std::collections::HashMap;
 
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
 
 pub use data::Data;
 use regex::Regex;
-use ruma::canonical_json::to_canonical_value;
-use ruma::events::room::power_levels::RoomPowerLevelsEventContent;
-use ruma::push::Ruleset;
-use ruma::state_res::RoomVersion;
-use ruma::CanonicalJsonObject;
-use ruma::CanonicalJsonValue;
-use ruma::OwnedEventId;
-use ruma::OwnedRoomId;
-use ruma::OwnedServerName;
 use ruma::{
     api::client::error::ErrorKind,
+    canonical_json::to_canonical_value,
     events::{
         push_rules::PushRulesEvent,
-        room::{create::RoomCreateEventContent, member::MembershipState},
+        room::{
+            create::RoomCreateEventContent, member::MembershipState,
+            power_levels::RoomPowerLevelsEventContent,
+        },
         GlobalAccountDataEventType, RoomEventType, StateEventType,
     },
-    push::{Action, Tweak},
-    state_res, uint, EventId, RoomAliasId, RoomId, UserId,
+    push::{Action, Ruleset, Tweak},
+    state_res,
+    state_res::RoomVersion,
+    uint, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
+    OwnedServerName, RoomAliasId, RoomId, UserId,
 };
 use serde::Deserialize;
 use serde_json::value::to_raw_value;
@@ -267,7 +267,7 @@ impl Service {
                 .account_data
                 .get(
                     None,
-                    &user,
+                    user,
                     GlobalAccountDataEventType::PushRules.to_string().into(),
                 )?
                 .map(|event| {
@@ -276,13 +276,13 @@ impl Service {
                 })
                 .transpose()?
                 .map(|ev: PushRulesEvent| ev.content.global)
-                .unwrap_or_else(|| Ruleset::server_default(&user));
+                .unwrap_or_else(|| Ruleset::server_default(user));
 
             let mut highlight = false;
             let mut notify = false;
 
             for action in services().pusher.get_actions(
-                &user,
+                user,
                 &rules_for_user,
                 &power_levels,
                 &sync_pdu,
@@ -307,10 +307,8 @@ impl Service {
                 highlights.push(user.clone());
             }
 
-            for push_key in services().pusher.get_pushkeys(&user) {
-                services()
-                    .sending
-                    .send_push_pdu(&*pdu_id, &user, push_key?)?;
+            for push_key in services().pusher.get_pushkeys(user) {
+                services().sending.send_push_pdu(&pdu_id, user, push_key?)?;
             }
         }
 
@@ -388,7 +386,7 @@ impl Service {
                         && services().globals.emergency_password().is_none();
 
                     if to_conduit && !from_conduit && admin_room.as_ref() == Some(&pdu.room_id) {
-                        services().admin.process_message(body.to_string());
+                        services().admin.process_message(body);
                     }
                 }
             }
@@ -583,8 +581,8 @@ impl Service {
             prev_events,
             depth,
             auth_events: auth_events
-                .iter()
-                .map(|(_, pdu)| pdu.event_id.clone())
+                .values()
+                .map(|pdu| pdu.event_id.clone())
                 .collect(),
             redacts,
             unsigned: if unsigned.is_empty() {
@@ -683,7 +681,7 @@ impl Service {
         state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<Arc<EventId>> {
         let (pdu, pdu_json) =
-            self.create_hash_and_sign_event(pdu_builder, sender, room_id, &state_lock)?;
+            self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
 
         // We append to state before appending the pdu, so we don't have a moment in time with the
         // pdu without it's state. This is okay because append_pdu can't fail.

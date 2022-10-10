@@ -333,7 +333,7 @@ pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3:
     Ok(whoami::v3::Response {
         user_id: sender_user.clone(),
         device_id,
-        is_guest: services().users.is_deactivated(&sender_user)?,
+        is_guest: services().users.is_deactivated(sender_user)?,
     })
 }
 
@@ -383,7 +383,7 @@ pub async fn deactivate_route(
     }
 
     // Make the user leave all rooms before deactivation
-    client_server::leave_all_rooms(&sender_user).await?;
+    client_server::leave_all_rooms(sender_user).await?;
 
     // Remove devices and mark account as deactivated
     services().users.deactivate_account(sender_user)?;

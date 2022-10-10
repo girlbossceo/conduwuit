@@ -207,7 +207,7 @@ async fn sync_helper(
     device_list_updates.extend(
         services()
             .users
-            .keys_changed(&sender_user.to_string(), since, None)
+            .keys_changed(sender_user.as_ref(), since, None)
             .filter_map(|r| r.ok()),
     );
 
@@ -673,7 +673,7 @@ async fn sync_helper(
         device_list_updates.extend(
             services()
                 .users
-                .keys_changed(&room_id.to_string(), since, None)
+                .keys_changed(room_id.as_ref(), since, None)
                 .filter_map(|r| r.ok()),
         );
 
@@ -951,8 +951,8 @@ async fn sync_helper(
         },
         presence: Presence {
             events: presence_updates
-                .into_iter()
-                .map(|(_, v)| Raw::new(&v).expect("PresenceEvent always serializes successfully"))
+                .into_values()
+                .map(|v| Raw::new(&v).expect("PresenceEvent always serializes successfully"))
                 .collect(),
         },
         account_data: GlobalAccountData {

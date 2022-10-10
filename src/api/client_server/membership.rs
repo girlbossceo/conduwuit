@@ -62,15 +62,13 @@ pub async fn join_room_by_id_route(
 
     servers.push(body.room_id.server_name().to_owned());
 
-    let ret = join_room_by_id_helper(
+    join_room_by_id_helper(
         body.sender_user.as_deref(),
         &body.room_id,
         &servers,
         body.third_party_signed.as_ref(),
     )
-    .await;
-
-    ret
+    .await
 }
 
 /// # `POST /_matrix/client/r0/join/{roomIdOrAlias}`
@@ -171,7 +169,7 @@ pub async fn kick_user_route(
             .room_state_get(
                 &body.room_id,
                 &StateEventType::RoomMember,
-                &body.user_id.to_string(),
+                body.user_id.as_ref(),
             )?
             .ok_or(Error::BadRequest(
                 ErrorKind::BadState,
@@ -230,7 +228,7 @@ pub async fn ban_user_route(
         .room_state_get(
             &body.room_id,
             &StateEventType::RoomMember,
-            &body.user_id.to_string(),
+            body.user_id.as_ref(),
         )?
         .map_or(
             Ok(RoomMemberEventContent {
@@ -297,7 +295,7 @@ pub async fn unban_user_route(
             .room_state_get(
                 &body.room_id,
                 &StateEventType::RoomMember,
-                &body.user_id.to_string(),
+                body.user_id.as_ref(),
             )?
             .ok_or(Error::BadRequest(
                 ErrorKind::BadState,
@@ -408,7 +406,7 @@ pub async fn get_member_events_route(
             .await?
             .iter()
             .filter(|(key, _)| key.0 == StateEventType::RoomMember)
-            .map(|(_, pdu)| pdu.to_member_event().into())
+            .map(|(_, pdu)| pdu.to_member_event())
             .collect(),
     })
 }
@@ -864,7 +862,7 @@ pub(crate) async fn invite_helper<'a>(
             "${}",
             ruma::signatures::reference_hash(
                 &pdu_json,
-                &services().rooms.state.get_room_version(&room_id)?
+                &services().rooms.state.get_room_version(room_id)?
             )
             .expect("ruma can calculate reference hashes")
         );
@@ -878,7 +876,7 @@ pub(crate) async fn invite_helper<'a>(
                 create_invite::v2::Request {
                     room_id,
                     event_id: expected_event_id,
-                    room_version: &services().rooms.state.get_room_version(&room_id)?,
+                    room_version: &services().rooms.state.get_room_version(room_id)?,
                     event: &PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
                     invite_room_state: &invite_room_state,
                 },
@@ -938,7 +936,7 @@ pub(crate) async fn invite_helper<'a>(
     if !services()
         .rooms
         .state_cache
-        .is_joined(sender_user, &room_id)?
+        .is_joined(sender_user, room_id)?
     {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,

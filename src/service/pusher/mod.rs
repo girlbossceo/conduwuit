@@ -4,7 +4,6 @@ use ruma::events::AnySyncTimelineEvent;
 
 use crate::{services, Error, PduEvent, Result};
 use bytes::BytesMut;
-use ruma::api::IncomingResponse;
 use ruma::{
     api::{
         client::push::{get_pushers, set_pusher, PusherKind},
@@ -12,7 +11,7 @@ use ruma::{
             self,
             v1::{Device, Notification, NotificationCounts, NotificationPriority},
         },
-        MatrixVersion, OutgoingRequest, SendAccessToken,
+        IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
     },
     events::{
         room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},

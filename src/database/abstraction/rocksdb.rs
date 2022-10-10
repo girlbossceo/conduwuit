@@ -193,7 +193,7 @@ impl KvTree for RocksDbEngineTree<'_> {
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
         let lock = self.write_lock.write().unwrap();
 
-        let old = self.db.rocks.get_cf(&self.cf(), &key)?;
+        let old = self.db.rocks.get_cf(&self.cf(), key)?;
         let new = utils::increment(old.as_deref()).unwrap();
         self.db.rocks.put_cf(&self.cf(), key, &new)?;
 

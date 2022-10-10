@@ -110,7 +110,7 @@ impl Service {
     }
 
     pub fn start_handler(self: &Arc<Self>) {
-        let self2 = Arc::clone(&self);
+        let self2 = Arc::clone(self);
         tokio::spawn(async move {
             self2.handler().await.unwrap();
         });
@@ -280,7 +280,7 @@ impl Service {
             device_list_changes.extend(
                 services()
                     .users
-                    .keys_changed(&room_id.to_string(), since, None)
+                    .keys_changed(room_id.as_ref(), since, None)
                     .filter_map(|r| r.ok())
                     .filter(|user_id| user_id.server_name() == services().globals.server_name()),
             );
@@ -487,7 +487,7 @@ impl Service {
                 let response = appservice_server::send_request(
                     services()
                         .appservice
-                        .get_registration(&id)
+                        .get_registration(id)
                         .map_err(|e| (kind.clone(), e))?
                         .ok_or_else(|| {
                             (
@@ -562,7 +562,7 @@ impl Service {
 
                     let pusher = match services()
                         .pusher
-                        .get_pusher(&userid, pushkey)
+                        .get_pusher(userid, pushkey)
                         .map_err(|e| (OutgoingKind::Push(userid.clone(), pushkey.clone()), e))?
                     {
                         Some(pusher) => pusher,
@@ -573,18 +573,18 @@ impl Service {
                         .account_data
                         .get(
                             None,
-                            &userid,
+                            userid,
                             GlobalAccountDataEventType::PushRules.to_string().into(),
                         )
                         .unwrap_or_default()
                         .and_then(|event| serde_json::from_str::<PushRulesEvent>(event.get()).ok())
                         .map(|ev: PushRulesEvent| ev.content.global)
-                        .unwrap_or_else(|| push::Ruleset::server_default(&userid));
+                        .unwrap_or_else(|| push::Ruleset::server_default(userid));
 
                     let unread: UInt = services()
                         .rooms
                         .user
-                        .notification_count(&userid, &pdu.room_id)
+                        .notification_count(userid, &pdu.room_id)
                         .map_err(|e| (kind.clone(), e))?
                         .try_into()
                         .expect("notification count can't go that high");
@@ -593,7 +593,7 @@ impl Service {
 
                     let _response = services()
                         .pusher
-                        .send_push_notice(&userid, unread, &pusher, rules_for_user, &pdu)
+                        .send_push_notice(userid, unread, &pusher, rules_for_user, &pdu)
                         .await
                         .map(|_response| kind.clone())
                         .map_err(|e| (kind.clone(), e));
@@ -638,7 +638,7 @@ impl Service {
                 let permit = services().sending.maximum_requests.acquire().await;
 
                 let response = server_server::send_request(
-                    &*server,
+                    server,
                     send_transaction_message::v1::Request {
                         origin: services().globals.server_name(),
                         pdus: &pdu_jsons,
