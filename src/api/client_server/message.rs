@@ -127,8 +127,8 @@ pub async fn get_message_events_route(
             .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from` value."))?,
 
         None => match body.dir {
-            get_message_events::v3::Direction::Forward => 0,
-            get_message_events::v3::Direction::Backward => u64::MAX,
+            ruma::api::client::Direction::Forward => 0,
+            ruma::api::client::Direction::Backward => u64::MAX,
         },
     };
 
@@ -151,7 +151,7 @@ pub async fn get_message_events_route(
     let mut lazy_loaded = HashSet::new();
 
     match body.dir {
-        get_message_events::v3::Direction::Forward => {
+        ruma::api::client::Direction::Forward => {
             let events_after: Vec<_> = services()
                 .rooms
                 .timeline
@@ -196,7 +196,7 @@ pub async fn get_message_events_route(
             resp.end = next_token.map(|count| count.to_string());
             resp.chunk = events_after;
         }
-        get_message_events::v3::Direction::Backward => {
+        ruma::api::client::Direction::Backward => {
             let events_before: Vec<_> = services()
                 .rooms
                 .timeline

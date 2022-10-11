@@ -1,7 +1,7 @@
 use crate::{services, Error, Result, Ruma};
 use ruma::{
     api::client::{error::ErrorKind, read_marker::set_read_marker, receipt::create_receipt},
-    events::{receipt::ReceiptType, RoomAccountDataEventType},
+    events::{receipt::{ReceiptType, ReceiptThread}, RoomAccountDataEventType},
     MilliSecondsSinceUnixEpoch,
 };
 use std::collections::BTreeMap;
@@ -59,6 +59,7 @@ pub async fn set_read_marker_route(
             sender_user.clone(),
             ruma::events::receipt::Receipt {
                 ts: Some(MilliSecondsSinceUnixEpoch::now()),
+                thread: ReceiptThread::Unthreaded,
             },
         );
 
@@ -119,6 +120,7 @@ pub async fn create_receipt_route(
                 sender_user.clone(),
                 ruma::events::receipt::Receipt {
                     ts: Some(MilliSecondsSinceUnixEpoch::now()),
+                    thread: ReceiptThread::Unthreaded,
                 },
             );
             let mut receipts = BTreeMap::new();
