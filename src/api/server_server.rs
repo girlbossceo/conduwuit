@@ -1283,10 +1283,10 @@ pub async fn create_join_event_template_route(
     if let Some(join_rules_event_content) = join_rules_event_content {
         if matches!(
             join_rules_event_content.join_rule,
-            JoinRule::Restricted { .. }
+            JoinRule::Restricted { .. } | JoinRule::KnockRestricted { .. }
         ) {
             return Err(Error::BadRequest(
-                ErrorKind::Unknown,
+                ErrorKind::UnableToAuthorizeJoin,
                 "Conduit does not support restricted rooms yet.",
             ));
         }
@@ -1376,10 +1376,10 @@ async fn create_join_event(
     if let Some(join_rules_event_content) = join_rules_event_content {
         if matches!(
             join_rules_event_content.join_rule,
-            JoinRule::Restricted { .. }
+            JoinRule::Restricted { .. } | JoinRule::KnockRestricted { .. }
         ) {
             return Err(Error::BadRequest(
-                ErrorKind::Unknown,
+                ErrorKind::UnableToAuthorizeJoin,
                 "Conduit does not support restricted rooms yet.",
             ));
         }
