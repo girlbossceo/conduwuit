@@ -1149,18 +1149,15 @@ pub async fn get_room_state_route(
 
     Ok(get_room_state::v1::Response {
         auth_chain: auth_chain_ids
-            .filter_map(|id| {
-                match services()
-                    .rooms
-                    .timeline
-                    .get_pdu_json(&id).ok()? {
-                        Some(json) => Some(PduEvent::convert_to_outgoing_federation_event(json)),
-                        None => {
-                            error!("Could not find event json for {id} in db.");
-                            None
-                        }
+            .filter_map(
+                |id| match services().rooms.timeline.get_pdu_json(&id).ok()? {
+                    Some(json) => Some(PduEvent::convert_to_outgoing_federation_event(json)),
+                    None => {
+                        error!("Could not find event json for {id} in db.");
+                        None
                     }
-            })
+                },
+            )
             .collect(),
         pdus,
     })
