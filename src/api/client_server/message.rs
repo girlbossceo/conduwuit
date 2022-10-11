@@ -170,6 +170,9 @@ pub async fn get_message_events_route(
                 .collect();
 
             for (_, event) in &events_after {
+                /* TODO: Remove this when these are resolved:
+                 * https://github.com/vector-im/element-android/issues/3417
+                 * https://github.com/vector-im/element-web/issues/21034
                 if !services().rooms.lazy_loading.lazy_load_was_sent_before(
                     sender_user,
                     sender_device,
@@ -178,6 +181,8 @@ pub async fn get_message_events_route(
                 )? {
                     lazy_loaded.insert(event.sender.clone());
                 }
+                */
+                lazy_loaded.insert(event.sender.clone());
             }
 
             next_token = events_after.last().map(|(count, _)| count).copied();
@@ -210,6 +215,9 @@ pub async fn get_message_events_route(
                 .collect();
 
             for (_, event) in &events_before {
+                /* TODO: Remove this when these are resolved:
+                 * https://github.com/vector-im/element-android/issues/3417
+                 * https://github.com/vector-im/element-web/issues/21034
                 if !services().rooms.lazy_loading.lazy_load_was_sent_before(
                     sender_user,
                     sender_device,
@@ -218,6 +226,8 @@ pub async fn get_message_events_route(
                 )? {
                     lazy_loaded.insert(event.sender.clone());
                 }
+                */
+                lazy_loaded.insert(event.sender.clone());
             }
 
             next_token = events_before.last().map(|(count, _)| count).copied();
@@ -244,6 +254,8 @@ pub async fn get_message_events_route(
         }
     }
 
+    // TODO: enable again when we are sure clients can handle it
+    /*
     if let Some(next_token) = next_token {
         services().rooms.lazy_loading.lazy_load_mark_sent(
             sender_user,
@@ -253,6 +265,7 @@ pub async fn get_message_events_route(
             next_token,
         );
     }
+    */
 
     Ok(resp)
 }

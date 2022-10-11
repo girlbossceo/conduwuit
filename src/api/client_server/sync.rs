@@ -433,6 +433,8 @@ async fn sync_helper(
                 } else if !lazy_load_enabled
                     || body.full_state
                     || timeline_users.contains(&state_key)
+                    // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
+                    || *sender_user == state_key
                 {
                     let pdu = match services().rooms.timeline.get_pdu(&id)? {
                         Some(pdu) => pdu,
