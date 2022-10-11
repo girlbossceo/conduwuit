@@ -827,7 +827,9 @@ async fn sync_helper(
         .rooms_left(&sender_user)
         .collect();
     for result in all_left_rooms {
-        let (room_id, left_state_events) = result?;
+        let (room_id, _) = result?;
+
+        let mut left_state_events = Vec::new();
 
         {
             // Get and drop the lock to wait for remaining operations to finish
@@ -852,6 +854,88 @@ async fn sync_helper(
         // Left before last sync
         if Some(since) >= left_count {
             continue;
+        }
+
+        if !services().rooms.metadata.exists(&room_id)? {
+            // This is just a rejected invite, not a room we know
+            continue;
+        }
+
+        let since_shortstatehash = services()
+            .rooms
+            .user
+            .get_token_shortstatehash(&room_id, since)?;
+
+        let since_state_ids = match since_shortstatehash {
+            Some(s) => services().rooms.state_accessor.state_full_ids(s).await?,
+            None => BTreeMap::new(),
+        };
+
+        let left_event_id = match services().rooms.state_accessor.room_state_get_id(
+            &room_id,
+            &StateEventType::RoomMember,
+            sender_user.as_str(),
+        )? {
+            Some(e) => e,
+            None => {
+                error!("Left room but no left state event");
+                continue;
+            }
+        };
+
+        let left_shortstatehash = match services()
+            .rooms
+            .state_accessor
+            .pdu_shortstatehash(&left_event_id)?
+        {
+            Some(s) => s,
+            None => {
+                error!("Leave event has no state");
+                continue;
+            }
+        };
+
+        let mut left_state_ids = services()
+            .rooms
+            .state_accessor
+            .state_full_ids(left_shortstatehash)
+            .await?;
+
+        let leave_shortstatekey = services().rooms.short.get_or_create_shortstatekey(
+            &StateEventType::RoomMember,
+            &sender_user.as_str(),
+        )?;
+
+        left_state_ids.insert(leave_shortstatekey, left_event_id);
+
+        let mut i = 0;
+        for (key, id) in left_state_ids {
+            if body.full_state || since_state_ids.get(&key) != Some(&id) {
+                let (event_type, state_key) =
+                    services().rooms.short.get_statekey_from_short(key)?;
+
+                if !lazy_load_enabled
+                    || event_type != StateEventType::RoomMember
+                    || body.full_state
+                    // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
+                    || *sender_user == state_key
+                {
+                    let pdu = match services().rooms.timeline.get_pdu(&id)? {
+                        Some(pdu) => pdu,
+                        None => {
+                            error!("Pdu in state not found: {}", id);
+                            continue;
+                        }
+                    };
+
+                    left_state_events.push(pdu.to_sync_state_event());
+
+                    i += 1;
+                    if i % 100 == 0 {
+                        tokio::task::yield_now().await;
+                    }
+                }
+            }
         }
 
         left_rooms.insert(
