@@ -778,6 +778,7 @@ async fn sync_helper(
                     .collect(),
             },
             ephemeral: Ephemeral { events: edus },
+            unread_thread_notifications: BTreeMap::new(),
         };
 
         if !joined_room.is_empty() {

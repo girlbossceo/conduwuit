@@ -104,6 +104,7 @@ pub async fn get_content_route(
             file,
             content_type,
             content_disposition,
+            cross_origin_resource_policy: Some("cross-origin".to_owned()),
         })
     } else if &*body.server_name != services().globals.server_name() && body.allow_remote {
         let remote_content_response =
@@ -134,6 +135,7 @@ pub async fn get_content_as_filename_route(
             file,
             content_type,
             content_disposition: Some(format!("inline; filename={}", body.filename)),
+            cross_origin_resource_policy: Some("cross-origin".to_owned()),
         })
     } else if &*body.server_name != services().globals.server_name() && body.allow_remote {
         let remote_content_response =
@@ -143,6 +145,7 @@ pub async fn get_content_as_filename_route(
             content_disposition: Some(format!("inline: filename={}", body.filename)),
             content_type: remote_content_response.content_type,
             file: remote_content_response.file,
+            cross_origin_resource_policy: Some("cross-origin".to_owned()),
         })
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
@@ -174,7 +177,11 @@ pub async fn get_content_thumbnail_route(
         )
         .await?
     {
-        Ok(get_content_thumbnail::v3::Response { file, content_type })
+        Ok(get_content_thumbnail::v3::Response {
+            file,
+            content_type,
+            cross_origin_resource_policy: Some("cross-origin".to_owned()),
+        })
     } else if &*body.server_name != services().globals.server_name() && body.allow_remote {
         let get_thumbnail_response = services()
             .sending

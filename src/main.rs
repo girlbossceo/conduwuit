@@ -342,6 +342,14 @@ fn routes() -> Router {
         .ruma_route(server_server::get_profile_information_route)
         .ruma_route(server_server::get_keys_route)
         .ruma_route(server_server::claim_keys_route)
+        .route(
+            "/_matrix/client/r0/rooms/:room_id/initialSync",
+            get(initial_sync),
+        )
+        .route(
+            "/_matrix/client/v3/rooms/:room_id/initialSync",
+            get(initial_sync),
+        )
         .fallback(not_found.into_service())
 }
 
@@ -375,7 +383,11 @@ async fn shutdown_signal(handle: ServerHandle) {
 }
 
 async fn not_found(_uri: Uri) -> impl IntoResponse {
-    Error::BadRequest(ErrorKind::NotFound, "Unknown or unimplemented route")
+    Error::BadRequest(ErrorKind::Unrecognized, "Unrecognized request")
+}
+
+async fn initial_sync(_uri: Uri) -> impl IntoResponse {
+    Error::BadRequest(ErrorKind::GuestAccessForbidden, "Guest access not implemented")
 }
 
 trait RouterExt {
