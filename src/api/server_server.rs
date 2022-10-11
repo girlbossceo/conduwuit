@@ -55,7 +55,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -1149,16 +1149,18 @@ pub async fn get_room_state_route(
 
     Ok(get_room_state::v1::Response {
         auth_chain: auth_chain_ids
-            .map(|id| {
-                services()
+            .filter_map(|id| {
+                match services()
                     .rooms
                     .timeline
-                    .get_pdu_json(&id)
-                    .map(|maybe_json| {
-                        PduEvent::convert_to_outgoing_federation_event(maybe_json.unwrap())
-                    })
+                    .get_pdu_json(&id).ok()? {
+                        Some(json) => Some(PduEvent::convert_to_outgoing_federation_event(json)),
+                        None => {
+                            error!("Could not find event json for {id} in db.");
+                            None
+                        }
+                    }
             })
-            .filter_map(|r| r.ok())
             .collect(),
         pdus,
     })
