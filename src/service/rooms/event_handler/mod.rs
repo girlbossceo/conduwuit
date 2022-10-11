@@ -44,6 +44,7 @@ impl Service {
     /// When receiving an event one needs to:
     /// 0. Check the server is in the room
     /// 1. Skip the PDU if we already know about it
+    /// 1.1. Remove unsigned field
     /// 2. Check signatures, otherwise drop
     /// 3. Check content hash, redact if doesn't match
     /// 4. Fetch any missing auth events doing all checks listed here starting at 1. These are not
@@ -260,10 +261,13 @@ impl Service {
         create_event: &'a PduEvent,
         event_id: &'a EventId,
         room_id: &'a RoomId,
-        value: BTreeMap<String, CanonicalJsonValue>,
+        mut value: BTreeMap<String, CanonicalJsonValue>,
         pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     ) -> AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>> {
         Box::pin(async move {
+            // 1.1. Remove unsigned field
+            value.remove("unsigned");
+
             // TODO: For RoomVersion6 we must check that Raw<..> is canonical do we anywhere?: https://matrix.org/docs/spec/rooms/v6#canonical-json
 
             // We go through all the signatures we see on the value and fetch the corresponding signing

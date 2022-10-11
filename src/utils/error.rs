@@ -117,7 +117,7 @@ impl Error {
                         StatusCode::FORBIDDEN
                     }
                     Unauthorized | UnknownToken { .. } | MissingToken => StatusCode::UNAUTHORIZED,
-                    NotFound => StatusCode::NOT_FOUND,
+                    NotFound | Unrecognized => StatusCode::NOT_FOUND,
                     LimitExceeded { .. } => StatusCode::TOO_MANY_REQUESTS,
                     UserDeactivated => StatusCode::FORBIDDEN,
                     TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
