@@ -1313,7 +1313,7 @@ pub async fn create_join_event_template_route(
     })
     .expect("member event is valid value");
 
-    let (_pdu, pdu_json) = services().rooms.timeline.create_hash_and_sign_event(
+    let (_pdu, mut pdu_json) = services().rooms.timeline.create_hash_and_sign_event(
         PduBuilder {
             event_type: RoomEventType::RoomMember,
             content,
@@ -1327,6 +1327,8 @@ pub async fn create_join_event_template_route(
     )?;
 
     drop(state_lock);
+
+    pdu_json.remove("event_id");
 
     Ok(prepare_join_event::v1::Response {
         room_version: Some(room_version_id),
