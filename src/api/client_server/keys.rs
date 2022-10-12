@@ -440,25 +440,35 @@ pub(crate) async fn claim_keys_helper(
 
     let mut failures = BTreeMap::new();
 
-    for (server, vec) in get_over_federation {
+    let mut futures: FuturesUnordered<_> = get_over_federation
+        .into_iter()
+        .map(|(server, vec)| async move {
         let mut one_time_keys_input_fed = BTreeMap::new();
-        for (user_id, keys) in vec {
-            one_time_keys_input_fed.insert(user_id.clone(), keys.clone());
-        }
-        // Ignore failures
-        if let Ok(keys) = services()
-            .sending
-            .send_federation_request(
+            for (user_id, keys) in vec {
+                one_time_keys_input_fed.insert(user_id.clone(), keys.clone());
+            }
+            (
                 server,
-                federation::keys::claim_keys::v1::Request {
-                    one_time_keys: one_time_keys_input_fed,
-                },
+                services()
+                    .sending
+                    .send_federation_request(
+                        server,
+                        federation::keys::claim_keys::v1::Request {
+                            one_time_keys: one_time_keys_input_fed,
+                        },
+                    )
+                    .await,
             )
-            .await
-        {
-            one_time_keys.extend(keys.one_time_keys);
-        } else {
-            failures.insert(server.to_string(), json!({}));
+        }).collect();
+
+    while let Some((server, response)) = futures.next().await {
+        match response {
+            Ok(keys) => {
+                one_time_keys.extend(keys.one_time_keys);
+            }
+            Err(_e) => {
+                failures.insert(server.to_string(), json!({}));
+            }
         }
     }
 
