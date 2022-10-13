@@ -304,7 +304,10 @@ where
                 ))
             }
         }
-        Err(e) => Err(e.into()),
+        Err(e) => {
+            warn!("Could not send request to {} at {}: {}", destination, actual_destination_str, e);
+            Err(e.into())
+        },
     }
 }
 
@@ -831,7 +834,8 @@ pub async fn send_transaction_message_route(
                                     target_user_id,
                                     target_device_id,
                                     &ev_type.to_string(),
-                                    event.deserialize_as().map_err(|_| {
+                                    event.deserialize_as().map_err(|e| {
+                                        warn!("To-Device event is invalid: {event:?} {e}");
                                         Error::BadRequest(
                                             ErrorKind::InvalidParam,
                                             "Event is invalid",

@@ -45,11 +45,21 @@ where
     *reqwest_request.timeout_mut() = Some(Duration::from_secs(30));
 
     let url = reqwest_request.url().clone();
-    let mut response = services()
+    let mut response = match services()
         .globals
         .default_client()
         .execute(reqwest_request)
-        .await?;
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            warn!(
+                "Could not send request to appservice {:?} at {}: {}",
+                registration.get("id"), destination, e
+            );
+            return Err(e.into());
+        }
+    };
 
     // reqwest::Response -> http::Response conversion
     let status = response.status();

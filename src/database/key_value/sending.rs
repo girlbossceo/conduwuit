@@ -6,7 +6,7 @@ use crate::{
         self,
         sending::{OutgoingKind, SendingEventType},
     },
-    utils, Error, Result,
+    utils, Error, Result, services,
 };
 
 impl service::sending::Data for KeyValueDatabase {
@@ -66,11 +66,11 @@ impl service::sending::Data for KeyValueDatabase {
         let mut keys = Vec::new();
         for (outgoing_kind, event) in requests {
             let mut key = outgoing_kind.get_prefix();
-            key.extend_from_slice(if let SendingEventType::Pdu(value) = &event {
-                value
+            if let SendingEventType::Pdu(value) = &event {
+                key.extend_from_slice(value)
             } else {
-                &[]
-            });
+                key.extend_from_slice(&services().globals.next_count()?.to_be_bytes())
+            }
             let value = if let SendingEventType::Edu(value) = &event {
                 &**value
             } else {

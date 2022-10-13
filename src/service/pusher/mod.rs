@@ -128,7 +128,10 @@ impl Service {
                     Error::BadServerResponse("Push gateway returned bad response.")
                 })
             }
-            Err(e) => Err(e.into()),
+            Err(e) => {
+                warn!("Could not send request to pusher {}: {}", destination, e);
+                Err(e.into())
+            },
         }
     }
 

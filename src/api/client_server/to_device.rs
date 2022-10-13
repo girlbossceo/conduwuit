@@ -35,6 +35,7 @@ pub async fn send_event_to_device_route(
                 map.insert(target_device_id_maybe.clone(), event.clone());
                 let mut messages = BTreeMap::new();
                 messages.insert(target_user_id.clone(), map);
+                let count = services().globals.next_count()?;
 
                 services().sending.send_reliable_edu(
                     target_user_id.server_name(),
@@ -42,12 +43,12 @@ pub async fn send_event_to_device_route(
                         DirectDeviceContent {
                             sender: sender_user.clone(),
                             ev_type: ToDeviceEventType::from(&*body.event_type),
-                            message_id: body.txn_id.to_owned(),
+                            message_id: count.to_string().into(),
                             messages,
                         },
                     ))
                     .expect("DirectToDevice EDU can be serialized"),
-                    services().globals.next_count()?,
+                    count,
                 )?;
 
                 continue;

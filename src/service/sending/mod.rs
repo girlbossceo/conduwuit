@@ -158,8 +158,6 @@ impl Service {
                             // Find events that have been added since starting the last request
                             let new_events = self.db.queued_requests(&outgoing_kind).filter_map(|r| r.ok()).take(30).collect::<Vec<_>>();
 
-                            // TODO: find edus
-
                             if !new_events.is_empty() {
                                 // Insert pdus we found
                                 self.db.mark_as_active(&new_events)?;
