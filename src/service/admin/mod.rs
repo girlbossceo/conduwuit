@@ -37,6 +37,7 @@ use crate::{
 
 use super::pdu::PduBuilder;
 
+#[cfg_attr(test, derive(Debug))]
 #[derive(Parser)]
 #[command(name = "@conduit:server.name:", version = env!("CARGO_PKG_VERSION"))]
 enum AdminCommand {
@@ -1158,5 +1159,36 @@ impl Service {
         )?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn get_help_short() {
+        get_help_inner("-h");
+    }
+
+    #[test]
+    fn get_help_long() {
+        get_help_inner("--help");
+    }
+
+    #[test]
+    fn get_help_subcommand() {
+        get_help_inner("help");
+    }
+
+    fn get_help_inner(input: &str) {
+        let error = AdminCommand::try_parse_from(["argv[0] doesn't matter", input])
+            .unwrap_err()
+            .to_string();
+
+        // Search for a handful of keywords that suggest the help printed properly
+        assert!(error.contains("Usage:"));
+        assert!(error.contains("Commands:"));
+        assert!(error.contains("Options:"));
     }
 }
