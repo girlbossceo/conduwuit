@@ -83,7 +83,7 @@ thread_local = "1.1.3"
 hmac = "0.12.1"
 sha-1 = "0.10.0"
 # used for conduit's CLI and admin room command parsing
-clap = { version = "4.0.11", default-features = false, features = ["std", "derive"] }
+clap = { version = "4.0.11", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 futures-util = { version = "0.3.17", default-features = false }
 # Used for reading the configuration from conduit.toml & environment variables
 figment = { version = "0.10.6", features = ["env", "toml"] }
