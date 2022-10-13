@@ -65,7 +65,7 @@ use tracing::{error, info, warn};
 ///
 /// # Examples:
 /// ```rust
-/// # use conduit::server_server::FedDest;
+/// # use conduit::api::server_server::FedDest;
 /// # fn main() -> Result<(), std::net::AddrParseError> {
 /// FedDest::Literal("198.51.100.3:8448".parse()?);
 /// FedDest::Literal("[2001:db8::4:5]:443".parse()?);
