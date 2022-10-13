@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM docker.io/rust:1.58-bullseye AS builder
+FROM docker.io/rust:1.60-bullseye AS builder
 WORKDIR /usr/src/conduit
 
 # Install required packages to build Conduit and it's dependencies
