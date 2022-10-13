@@ -11,14 +11,8 @@ pub async fn get_capabilities_route(
     _body: Ruma<get_capabilities::v3::IncomingRequest>,
 ) -> Result<get_capabilities::v3::Response> {
     let mut available = BTreeMap::new();
-    if services().globals.allow_unstable_room_versions() {
-        for room_version in &services().globals.unstable_room_versions {
-            available.insert(room_version.clone(), RoomVersionStability::Stable);
-        }
-    } else {
-        for room_version in &services().globals.unstable_room_versions {
-            available.insert(room_version.clone(), RoomVersionStability::Unstable);
-        }
+    for room_version in &services().globals.unstable_room_versions {
+        available.insert(room_version.clone(), RoomVersionStability::Unstable);
     }
     for room_version in &services().globals.stable_room_versions {
         available.insert(room_version.clone(), RoomVersionStability::Stable);
