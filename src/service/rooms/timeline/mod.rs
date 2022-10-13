@@ -705,11 +705,12 @@ impl Service {
                         membership: MembershipState,
                     }
 
+                    let server_name = services().globals.server_name();
                     let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
                         .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
                     if content.membership == MembershipState::Leave {
-                        let server_user = format!("@conduit:{}", services().globals.server_name());
+                        let server_user = format!("@conduit:{}", server_name);
                         if sender == &server_user {
                             warn!("Conduit user cannot leave from admins room");
                             return Err(Error::BadRequest(
@@ -723,7 +724,7 @@ impl Service {
                             .state_cache
                             .room_members(room_id)
                             .filter_map(|m| m.ok())
-                            .filter(|m| m.server_name() == services().globals.server_name())
+                            .filter(|m| m.server_name() == server_name)
                             .count();
                         if count < 3 {
                             warn!("Last admin cannot leave from admins room");
@@ -735,7 +736,7 @@ impl Service {
                     }
 
                     if content.membership == MembershipState::Ban && pdu.state_key().is_some() {
-                        let server_user = format!("@conduit:{}", services().globals.server_name());
+                        let server_user = format!("@conduit:{}", server_name);
                         if pdu.state_key().as_ref().unwrap() == &server_user {
                             warn!("Conduit user cannot be banned in admins room");
                             return Err(Error::BadRequest(
@@ -749,7 +750,7 @@ impl Service {
                             .state_cache
                             .room_members(room_id)
                             .filter_map(|m| m.ok())
-                            .filter(|m| m.server_name() == services().globals.server_name())
+                            .filter(|m| m.server_name() == server_name)
                             .count();
                         if count < 3 {
                             warn!("Last admin cannot be banned in admins room");
