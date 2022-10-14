@@ -6,7 +6,7 @@ use crate::{
         self,
         sending::{OutgoingKind, SendingEventType},
     },
-    utils, Error, Result, services,
+    services, utils, Error, Result,
 };
 
 impl service::sending::Data for KeyValueDatabase {

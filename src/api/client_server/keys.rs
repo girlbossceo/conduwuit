@@ -443,7 +443,7 @@ pub(crate) async fn claim_keys_helper(
     let mut futures: FuturesUnordered<_> = get_over_federation
         .into_iter()
         .map(|(server, vec)| async move {
-        let mut one_time_keys_input_fed = BTreeMap::new();
+            let mut one_time_keys_input_fed = BTreeMap::new();
             for (user_id, keys) in vec {
                 one_time_keys_input_fed.insert(user_id.clone(), keys.clone());
             }
@@ -459,7 +459,8 @@ pub(crate) async fn claim_keys_helper(
                     )
                     .await,
             )
-        }).collect();
+        })
+        .collect();
 
     while let Some((server, response)) = futures.next().await {
         match response {
