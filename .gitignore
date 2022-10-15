@@ -57,7 +57,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # Conduit
-Rocket.toml
 conduit.toml
 conduit.db
 

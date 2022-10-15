@@ -12,13 +12,35 @@ pub mod sqlite;
 #[cfg(feature = "heed")]
 pub mod heed;
 
-pub trait DatabaseEngine: Sized {
-    fn open(config: &Config) -> Result<Arc<Self>>;
-    fn open_tree(self: &Arc<Self>, name: &'static str) -> Result<Arc<dyn Tree>>;
-    fn flush(self: &Arc<Self>) -> Result<()>;
+#[cfg(feature = "rocksdb")]
+pub mod rocksdb;
+
+#[cfg(feature = "persy")]
+pub mod persy;
+
+#[cfg(any(
+    feature = "sqlite",
+    feature = "rocksdb",
+    feature = "heed",
+    feature = "persy"
+))]
+pub mod watchers;
+
+pub trait KeyValueDatabaseEngine: Send + Sync {
+    fn open(config: &Config) -> Result<Self>
+    where
+        Self: Sized;
+    fn open_tree(&self, name: &'static str) -> Result<Arc<dyn KvTree>>;
+    fn flush(&self) -> Result<()>;
+    fn cleanup(&self) -> Result<()> {
+        Ok(())
+    }
+    fn memory_usage(&self) -> Result<String> {
+        Ok("Current database engine does not support memory usage reporting.".to_owned())
+    }
 }
 
-pub trait Tree: Send + Sync {
+pub trait KvTree: Send + Sync {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
 
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()>;

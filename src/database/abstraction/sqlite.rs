@@ -1,17 +1,15 @@
-use super::{DatabaseEngine, Tree};
+use super::{watchers::Watchers, KeyValueDatabaseEngine, KvTree};
 use crate::{database::Config, Result};
-use parking_lot::{Mutex, MutexGuard, RwLock};
+use parking_lot::{Mutex, MutexGuard};
 use rusqlite::{Connection, DatabaseName::Main, OptionalExtension};
 use std::{
     cell::RefCell,
-    collections::{hash_map, HashMap},
     future::Future,
     path::{Path, PathBuf},
     pin::Pin,
     sync::Arc,
 };
 use thread_local::ThreadLocal;
-use tokio::sync::watch;
 use tracing::debug;
 
 thread_local! {
@@ -21,7 +19,7 @@ thread_local! {
 
 struct PreparedStatementIterator<'a> {
     pub iterator: Box<dyn Iterator<Item = TupleOfBytes> + 'a>,
-    pub statement_ref: NonAliasingBox<rusqlite::Statement<'a>>,
+    pub _statement_ref: NonAliasingBox<rusqlite::Statement<'a>>,
 }
 
 impl Iterator for PreparedStatementIterator<'_> {
@@ -50,13 +48,13 @@ pub struct Engine {
 
 impl Engine {
     fn prepare_conn(path: &Path, cache_size_kb: u32) -> Result<Connection> {
-        let conn = Connection::open(&path)?;
+        let conn = Connection::open(path)?;
 
-        conn.pragma_update(Some(Main), "page_size", &2048)?;
-        conn.pragma_update(Some(Main), "journal_mode", &"WAL")?;
-        conn.pragma_update(Some(Main), "synchronous", &"NORMAL")?;
-        conn.pragma_update(Some(Main), "cache_size", &(-i64::from(cache_size_kb)))?;
-        conn.pragma_update(Some(Main), "wal_autocheckpoint", &0)?;
+        conn.pragma_update(Some(Main), "page_size", 2048)?;
+        conn.pragma_update(Some(Main), "journal_mode", "WAL")?;
+        conn.pragma_update(Some(Main), "synchronous", "NORMAL")?;
+        conn.pragma_update(Some(Main), "cache_size", -i64::from(cache_size_kb))?;
+        conn.pragma_update(Some(Main), "wal_autocheckpoint", 0)?;
 
         Ok(conn)
     }
@@ -77,13 +75,13 @@ impl Engine {
 
     pub fn flush_wal(self: &Arc<Self>) -> Result<()> {
         self.write_lock()
-            .pragma_update(Some(Main), "wal_checkpoint", &"RESTART")?;
+            .pragma_update(Some(Main), "wal_checkpoint", "RESTART")?;
         Ok(())
     }
 }
 
-impl DatabaseEngine for Engine {
-    fn open(config: &Config) -> Result<Arc<Self>> {
+impl KeyValueDatabaseEngine for Arc<Engine> {
+    fn open(config: &Config) -> Result<Self> {
         let path = Path::new(&config.database_path).join("conduit.db");
 
         // calculates cache-size per permanent connection
@@ -94,7 +92,7 @@ impl DatabaseEngine for Engine {
             / ((num_cpus::get().max(1) * 2) + 1) as f64)
             as u32;
 
-        let writer = Mutex::new(Self::prepare_conn(&path, cache_size_per_thread)?);
+        let writer = Mutex::new(Engine::prepare_conn(&path, cache_size_per_thread)?);
 
         let arc = Arc::new(Engine {
             writer,
@@ -107,32 +105,35 @@ impl DatabaseEngine for Engine {
         Ok(arc)
     }
 
-    fn open_tree(self: &Arc<Self>, name: &str) -> Result<Arc<dyn Tree>> {
+    fn open_tree(&self, name: &str) -> Result<Arc<dyn KvTree>> {
         self.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )", name), [])?;
 
         Ok(Arc::new(SqliteTable {
             engine: Arc::clone(self),
             name: name.to_owned(),
-            watchers: RwLock::new(HashMap::new()),
+            watchers: Watchers::default(),
         }))
     }
 
-    fn flush(self: &Arc<Self>) -> Result<()> {
+    fn flush(&self) -> Result<()> {
         // we enabled PRAGMA synchronous=normal, so this should not be necessary
         Ok(())
+    }
+
+    fn cleanup(&self) -> Result<()> {
+        self.flush_wal()
     }
 }
 
 pub struct SqliteTable {
     engine: Arc<Engine>,
     name: String,
-    watchers: RwLock<HashMap<Vec<u8>, (watch::Sender<()>, watch::Receiver<()>)>>,
+    watchers: Watchers,
 }
 
 type TupleOfBytes = (Vec<u8>, Vec<u8>);
 
 impl SqliteTable {
-    #[tracing::instrument(skip(self, guard, key))]
     fn get_with_guard(&self, guard: &Connection, key: &[u8]) -> Result<Option<Vec<u8>>> {
         //dbg!(&self.name);
         Ok(guard
@@ -141,7 +142,6 @@ impl SqliteTable {
             .optional()?)
     }
 
-    #[tracing::instrument(skip(self, guard, key, value))]
     fn insert_with_guard(&self, guard: &Connection, key: &[u8], value: &[u8]) -> Result<()> {
         //dbg!(&self.name);
         guard.execute(
@@ -184,47 +184,24 @@ impl SqliteTable {
 
         Box::new(PreparedStatementIterator {
             iterator,
-            statement_ref,
+            _statement_ref: statement_ref,
         })
     }
 }
 
-impl Tree for SqliteTable {
-    #[tracing::instrument(skip(self, key))]
+impl KvTree for SqliteTable {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         self.get_with_guard(self.engine.read_lock(), key)
     }
 
-    #[tracing::instrument(skip(self, key, value))]
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
         let guard = self.engine.write_lock();
         self.insert_with_guard(&guard, key, value)?;
         drop(guard);
-
-        let watchers = self.watchers.read();
-        let mut triggered = Vec::new();
-
-        for length in 0..=key.len() {
-            if watchers.contains_key(&key[..length]) {
-                triggered.push(&key[..length]);
-            }
-        }
-
-        drop(watchers);
-
-        if !triggered.is_empty() {
-            let mut watchers = self.watchers.write();
-            for prefix in triggered {
-                if let Some(tx) = watchers.remove(prefix) {
-                    let _ = tx.0.send(());
-                }
-            }
-        };
-
+        self.watchers.wake(key);
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, iter))]
     fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
         let guard = self.engine.write_lock();
 
@@ -239,7 +216,6 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, iter))]
     fn increment_batch<'a>(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
         let guard = self.engine.write_lock();
 
@@ -257,7 +233,6 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn remove(&self, key: &[u8]) -> Result<()> {
         let guard = self.engine.write_lock();
 
@@ -269,14 +244,12 @@ impl Tree for SqliteTable {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
         let guard = self.engine.read_lock_iterator();
 
         self.iter_with_guard(guard)
     }
 
-    #[tracing::instrument(skip(self, from, backwards))]
     fn iter_from<'a>(
         &'a self,
         from: &[u8],
@@ -310,7 +283,7 @@ impl Tree for SqliteTable {
             );
             Box::new(PreparedStatementIterator {
                 iterator,
-                statement_ref,
+                _statement_ref: statement_ref,
             })
         } else {
             let statement = Box::leak(Box::new(
@@ -336,12 +309,11 @@ impl Tree for SqliteTable {
 
             Box::new(PreparedStatementIterator {
                 iterator,
-                statement_ref,
+                _statement_ref: statement_ref,
             })
         }
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
         let guard = self.engine.write_lock();
 
@@ -355,7 +327,6 @@ impl Tree for SqliteTable {
         Ok(new)
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
         Box::new(
             self.iter_from(&prefix, false)
@@ -363,24 +334,10 @@ impl Tree for SqliteTable {
         )
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        let mut rx = match self.watchers.write().entry(prefix.to_vec()) {
-            hash_map::Entry::Occupied(o) => o.get().1.clone(),
-            hash_map::Entry::Vacant(v) => {
-                let (tx, rx) = tokio::sync::watch::channel(());
-                v.insert((tx, rx.clone()));
-                rx
-            }
-        };
-
-        Box::pin(async move {
-            // Tx is never destroyed
-            rx.changed().await.unwrap();
-        })
+        self.watchers.watch(prefix)
     }
 
-    #[tracing::instrument(skip(self))]
     fn clear(&self) -> Result<()> {
         debug!("clear: running");
         self.engine

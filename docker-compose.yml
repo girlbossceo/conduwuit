@@ -20,27 +20,21 @@ services:
         ports:
             - 8448:6167
         volumes:
-            - db:/srv/conduit/.local/share/conduit
-            ### Uncomment if you want to use conduit.toml to configure Conduit
-            ### Note: Set env vars will override conduit.toml values
-            # - ./conduit.toml:/srv/conduit/conduit.toml
+            - db:/var/lib/matrix-conduit/
         environment:
-            CONDUIT_SERVER_NAME: localhost:6167  # replace with your own name
-            CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
+            CONDUIT_SERVER_NAME: your.server.name # EDIT THIS
+            CONDUIT_DATABASE_PATH: /var/lib/matrix-conduit/
+            CONDUIT_DATABASE_BACKEND: rocksdb
+            CONDUIT_PORT: 6167
+            CONDUIT_MAX_REQUEST_SIZE: 20_000_000 # in bytes, ~20 MB
             CONDUIT_ALLOW_REGISTRATION: 'true'
-            ### Uncomment and change values as desired
-            # CONDUIT_ADDRESS: 0.0.0.0
-            # CONDUIT_PORT: 6167
-            # CONDUIT_CONFIG: '/srv/conduit/conduit.toml'  # if you want to configure purely by env vars, set this to an empty string ''
-            # Available levels are: error, warn, info, debug, trace - more info at: https://docs.rs/env_logger/*/env_logger/#enabling-logging
-            # CONDUIT_LOG: info  # default is: "info,rocket=off,_=off,sled=off"
-            # CONDUIT_ALLOW_JAEGER: 'false'
-            # CONDUIT_ALLOW_ENCRYPTION: 'false'
-            # CONDUIT_ALLOW_FEDERATION: 'false'
-            # CONDUIT_DATABASE_PATH: /srv/conduit/.local/share/conduit
-            # CONDUIT_WORKERS: 10
-            # CONDUIT_MAX_REQUEST_SIZE: 20_000_000  # in bytes, ~20 MB
-
+            CONDUIT_ALLOW_FEDERATION: 'true'
+            CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
+            #CONDUIT_MAX_CONCURRENT_REQUESTS: 100
+            #CONDUIT_LOG: warn,rocket=off,_=off,sled=off
+            CONDUIT_ADDRESS: 0.0.0.0
+            CONDUIT_CONFIG: '' # Ignore this
+    #
     ### Uncomment if you want to use your own Element-Web App.
     ### Note: You need to provide a config.json for Element and you also need a second
     ###       Domain or Subdomain for the communication between Element and Conduit
@@ -56,4 +50,4 @@ services:
     #         - homeserver
 
 volumes:
-  db:
+    db:

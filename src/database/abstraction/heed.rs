@@ -1,15 +1,13 @@
-use super::super::Config;
+use super::{super::Config, watchers::Watchers};
 use crossbeam::channel::{bounded, Sender as ChannelSender};
 use threadpool::ThreadPool;
 
 use crate::{Error, Result};
 use std::{
-    collections::HashMap,
     future::Future,
     pin::Pin,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
-use tokio::sync::oneshot::Sender;
 
 use super::{DatabaseEngine, Tree};
 
@@ -23,7 +21,7 @@ pub struct Engine {
 pub struct EngineTree {
     engine: Arc<Engine>,
     tree: Arc<heed::UntypedDatabase>,
-    watchers: RwLock<HashMap<Vec<u8>, Vec<Sender<()>>>>,
+    watchers: Watchers,
 }
 
 fn convert_error(error: heed::Error) -> Error {
@@ -60,7 +58,7 @@ impl DatabaseEngine for Engine {
                     .create_database(Some(name))
                     .map_err(convert_error)?,
             ),
-            watchers: RwLock::new(HashMap::new()),
+            watchers: Default::default(),
         }))
     }
 
@@ -71,7 +69,6 @@ impl DatabaseEngine for Engine {
 }
 
 impl EngineTree {
-    #[tracing::instrument(skip(self, tree, from, backwards))]
     fn iter_from_thread(
         &self,
         tree: Arc<heed::UntypedDatabase>,
@@ -96,7 +93,6 @@ impl EngineTree {
     }
 }
 
-#[tracing::instrument(skip(tree, txn, from, backwards))]
 fn iter_from_thread_work(
     tree: Arc<heed::UntypedDatabase>,
     txn: &heed::RoTxn<'_>,
@@ -128,7 +124,6 @@ fn iter_from_thread_work(
 }
 
 impl Tree for EngineTree {
-    #[tracing::instrument(skip(self, key))]
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let txn = self.engine.env.read_txn().map_err(convert_error)?;
         Ok(self
@@ -138,40 +133,16 @@ impl Tree for EngineTree {
             .map(|s| s.to_vec()))
     }
 
-    #[tracing::instrument(skip(self, key, value))]
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
         let mut txn = self.engine.env.write_txn().map_err(convert_error)?;
         self.tree
             .put(&mut txn, &key, &value)
             .map_err(convert_error)?;
         txn.commit().map_err(convert_error)?;
-
-        let watchers = self.watchers.read().unwrap();
-        let mut triggered = Vec::new();
-
-        for length in 0..=key.len() {
-            if watchers.contains_key(&key[..length]) {
-                triggered.push(&key[..length]);
-            }
-        }
-
-        drop(watchers);
-
-        if !triggered.is_empty() {
-            let mut watchers = self.watchers.write().unwrap();
-            for prefix in triggered {
-                if let Some(txs) = watchers.remove(prefix) {
-                    for tx in txs {
-                        let _ = tx.send(());
-                    }
-                }
-            }
-        };
-
+        self.watchers.wake(key);
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn remove(&self, key: &[u8]) -> Result<()> {
         let mut txn = self.engine.env.write_txn().map_err(convert_error)?;
         self.tree.delete(&mut txn, &key).map_err(convert_error)?;
@@ -179,12 +150,10 @@ impl Tree for EngineTree {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + Send + 'a> {
         self.iter_from(&[], false)
     }
 
-    #[tracing::instrument(skip(self, from, backwards))]
     fn iter_from(
         &self,
         from: &[u8],
@@ -193,7 +162,6 @@ impl Tree for EngineTree {
         self.iter_from_thread(Arc::clone(&self.tree), from.to_vec(), backwards)
     }
 
-    #[tracing::instrument(skip(self, key))]
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
         let mut txn = self.engine.env.write_txn().map_err(convert_error)?;
 
@@ -210,7 +178,6 @@ impl Tree for EngineTree {
         Ok(new)
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn scan_prefix<'a>(
         &'a self,
         prefix: Vec<u8>,
@@ -221,20 +188,7 @@ impl Tree for EngineTree {
         )
     }
 
-    #[tracing::instrument(skip(self, prefix))]
     fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-
-        self.watchers
-            .write()
-            .unwrap()
-            .entry(prefix.to_vec())
-            .or_default()
-            .push(tx);
-
-        Box::pin(async move {
-            // Tx is never destroyed
-            rx.await.unwrap();
-        })
+        self.watchers.watch(prefix)
     }
 }

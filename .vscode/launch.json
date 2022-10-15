@@ -1,0 +1,35 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug conduit",
+            "sourceLanguages": ["rust"],
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=conduit",
+                    "--package=conduit"
+                ],
+                "filter": {
+                    "name": "conduit",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "env": {
+                "RUST_BACKTRACE": "1",
+                "CONDUIT_CONFIG": "",
+                "CONDUIT_SERVER_NAME": "localhost",
+                "CONDUIT_DATABASE_PATH": "/tmp",
+                "CONDUIT_ADDRESS": "0.0.0.0",
+                "CONDUIT_PORT": "6167"
+            },
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
