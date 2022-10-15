@@ -338,7 +338,7 @@ pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3:
     Ok(whoami::v3::Response {
         user_id: sender_user.clone(),
         device_id,
-        is_guest: services().users.is_deactivated(sender_user)?,
+        is_guest: services().users.is_deactivated(sender_user)? && !body.from_appservice,
     })
 }
 
