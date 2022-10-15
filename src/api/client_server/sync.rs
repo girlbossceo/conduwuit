@@ -905,7 +905,7 @@ async fn sync_helper(
         let leave_shortstatekey = services()
             .rooms
             .short
-            .get_or_create_shortstatekey(&StateEventType::RoomMember, &sender_user.as_str())?;
+            .get_or_create_shortstatekey(&StateEventType::RoomMember, sender_user.as_str())?;
 
         left_state_ids.insert(leave_shortstatekey, left_event_id);
 
