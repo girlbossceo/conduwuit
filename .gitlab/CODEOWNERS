@@ -1,0 +1,4 @@
+# Nix things
+.envrc @CobaltCause
+flake.lock @CobaltCause
+flake.nix @CobaltCause
