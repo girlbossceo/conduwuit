@@ -145,6 +145,7 @@ async fn run_server() -> io::Result<()> {
             }),
         )
         .compression()
+        .layer(axum::middleware::from_fn(unrecognized_method))
         .layer(
             CorsLayer::new()
                 .allow_origin(cors::Any)
@@ -185,6 +186,22 @@ async fn run_server() -> io::Result<()> {
     services().globals.rotate.fire();
 
     Ok(())
+}
+
+async fn unrecognized_method<B>(
+    req: axum::http::Request<B>,
+    next: axum::middleware::Next<B>,
+) -> std::result::Result<axum::response::Response, axum::http::StatusCode> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    let inner = next.run(req).await;
+    if inner.status() == axum::http::StatusCode::METHOD_NOT_ALLOWED {
+        warn!("Method not allowed: {method} {uri}");
+        return Ok(
+            Error::BadRequest(ErrorKind::Unrecognized, "Unrecognized request").into_response(),
+        );
+    }
+    Ok(inner)
 }
 
 fn routes() -> Router {
@@ -386,12 +403,16 @@ async fn shutdown_signal(handle: ServerHandle) {
     handle.graceful_shutdown(Some(Duration::from_secs(30)));
 }
 
-async fn not_found(_uri: Uri) -> impl IntoResponse {
+async fn not_found(uri: Uri) -> impl IntoResponse {
+    warn!("Not found: {uri}");
     Error::BadRequest(ErrorKind::Unrecognized, "Unrecognized request")
 }
 
 async fn initial_sync(_uri: Uri) -> impl IntoResponse {
-    Error::BadRequest(ErrorKind::GuestAccessForbidden, "Guest access not implemented")
+    Error::BadRequest(
+        ErrorKind::GuestAccessForbidden,
+        "Guest access not implemented",
+    )
 }
 
 trait RouterExt {

@@ -305,9 +305,12 @@ where
             }
         }
         Err(e) => {
-            warn!("Could not send request to {} at {}: {}", destination, actual_destination_str, e);
+            warn!(
+                "Could not send request to {} at {}: {}",
+                destination, actual_destination_str, e
+            );
             Err(e.into())
-        },
+        }
     }
 }
 

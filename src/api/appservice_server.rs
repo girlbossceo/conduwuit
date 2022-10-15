@@ -55,7 +55,9 @@ where
         Err(e) => {
             warn!(
                 "Could not send request to appservice {:?} at {}: {}",
-                registration.get("id"), destination, e
+                registration.get("id"),
+                destination,
+                e
             );
             return Err(e.into());
         }

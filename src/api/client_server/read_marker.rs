@@ -1,7 +1,10 @@
 use crate::{services, Error, Result, Ruma};
 use ruma::{
     api::client::{error::ErrorKind, read_marker::set_read_marker, receipt::create_receipt},
-    events::{receipt::{ReceiptType, ReceiptThread}, RoomAccountDataEventType},
+    events::{
+        receipt::{ReceiptThread, ReceiptType},
+        RoomAccountDataEventType,
+    },
     MilliSecondsSinceUnixEpoch,
 };
 use std::collections::BTreeMap;
