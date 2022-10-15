@@ -2,3 +2,4 @@
 .envrc @CobaltCause
 flake.lock @CobaltCause
 flake.nix @CobaltCause
+nix/ @CobaltCause
