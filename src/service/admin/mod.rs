@@ -871,7 +871,7 @@ impl Service {
         let mut content = RoomCreateEventContent::new(conduit_user.clone());
         content.federate = true;
         content.predecessor = None;
-        content.room_version = RoomVersionId::V6;
+        content.room_version = services().globals.default_room_version();
 
         // 1. The room create event
         services().rooms.timeline.build_and_append_pdu(

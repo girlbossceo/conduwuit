@@ -258,6 +258,6 @@ fn default_turn_ttl() -> u64 {
 }
 
 // I know, it's a great name
-fn default_default_room_version() -> RoomVersionId {
-    RoomVersionId::V6
+pub fn default_default_room_version() -> RoomVersionId {
+    RoomVersionId::V9
 }
