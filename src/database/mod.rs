@@ -7,7 +7,7 @@ use directories::ProjectDirs;
 use lru_cache::LruCache;
 use ruma::{
     events::{
-        push_rules::PushRulesEventContent, room::message::RoomMessageEventContent,
+        push_rules::{PushRulesEventContent, PushRulesEvent}, room::message::RoomMessageEventContent,
         GlobalAccountDataEvent, GlobalAccountDataEventType, StateEventType,
     },
     push::Ruleset,
@@ -800,6 +800,72 @@ impl KeyValueDatabase {
 
                 warn!("Migration: 10 -> 11 finished");
             }
+
+	    if services().globals.database_version()? < 12 {
+
+		for username in services().users.list_local_users().unwrap() {
+
+		    let user = UserId::parse_with_server_name(username, services().globals.server_name())
+                    .unwrap();
+
+
+		    let raw_rules_list = services().account_data
+			.get(
+			    None,
+			    &user,
+			    GlobalAccountDataEventType::PushRules.to_string().into())
+			.unwrap()
+			.expect("Username is invalid");
+
+		    let mut account_data = serde_json::from_str::<PushRulesEvent>(raw_rules_list.get()).unwrap();
+		    let rules_list = &mut account_data.content.global;
+
+		    //content rule
+		    {
+			let content_rule_transformation =
+			    [".m.rules.contains_user_name", ".m.rule.contains_user_name"];
+
+			let rule = rules_list.content.get(content_rule_transformation[0]);
+			if rule.is_some() {
+			    let mut rule = rule.unwrap().clone();
+			    rule.rule_id = content_rule_transformation[1].to_string();
+			    rules_list.content.remove(content_rule_transformation[0]);
+			    rules_list.content.insert(rule);
+			}
+		    }
+
+		    //underride rules
+		    {
+			let underride_rule_transformation =
+			    [[".m.rules.call", ".m.rule.call"],
+			     [".m.rules.room_one_to_one", ".m.rule.room_one_to_one"],
+			     [".m.rules.encrypted_room_one_to_one", ".m.rule.encrypted_room_one_to_one"],
+			     [".m.rules.message", ".m.rule.message"],
+			     [".m.rules.encrypted", ".m.rule.encrypted"]];
+
+			for transformation in underride_rule_transformation {
+			    let rule = rules_list.underride.get(transformation[0]);
+			    if rule.is_some() {
+				let mut rule = rule.unwrap().clone();
+				rule.rule_id = transformation[1].to_string();
+				rules_list.underride.remove(transformation[0]);
+				rules_list.underride.insert(rule);
+			    }
+			}
+		    }
+
+		    services().account_data.update(
+			None,
+			&user,
+			GlobalAccountDataEventType::PushRules.to_string().into(),
+			&serde_json::to_value(account_data).expect("to json value always works"),
+		    )?;
+		}
+
+		services().globals.bump_database_version(12)?;
+
+		warn!("Migration: 11 -> 12 finished");
+	    }
 
             assert_eq!(11, latest_database_version);
 
