@@ -223,6 +223,8 @@ fn routes() -> Router {
         .ruma_route(client_server::change_password_route)
         .ruma_route(client_server::deactivate_route)
         .ruma_route(client_server::third_party_route)
+        .ruma_route(client_server::request_3pid_management_token_via_email_route)
+        .ruma_route(client_server::request_3pid_management_token_via_msisdn_route)
         .ruma_route(client_server::get_capabilities_route)
         .ruma_route(client_server::get_pushrules_all_route)
         .ruma_route(client_server::set_pushrule_route)
