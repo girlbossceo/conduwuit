@@ -3,7 +3,8 @@ use crate::{api::client_server, services, utils, Error, Result, Ruma};
 use ruma::{
     api::client::{
         account::{
-            change_password, deactivate, get_3pids, get_username_availability, register, whoami,
+            change_password, deactivate, get_3pids, get_username_availability, register,
+            request_3pid_management_token_via_email, request_3pid_management_token_via_msisdn, whoami,
             ThirdPartyIdRemovalStatus,
         },
         error::ErrorKind,
@@ -406,7 +407,7 @@ pub async fn deactivate_route(
     })
 }
 
-/// # `GET _matrix/client/r0/account/3pid`
+/// # `GET _matrix/client/v3/account/3pid`
 ///
 /// Get a list of third party identifiers associated with this account.
 ///
@@ -417,4 +418,32 @@ pub async fn third_party_route(
     let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     Ok(get_3pids::v3::Response::new(Vec::new()))
+}
+
+/// # `POST /_matrix/client/v3/account/3pid/email/requestToken`
+///
+/// "This API should be used to request validation tokens when adding an email address to an account"
+///
+/// - 403 signals that The homeserver does not allow the third party identifier as a contact option.
+pub async fn request_3pid_management_token_via_email_route(
+    _body: Ruma<request_3pid_management_token_via_email::v3::IncomingRequest>,
+) -> Result<request_3pid_management_token_via_email::v3::Response> {
+    Err(Error::BadRequest(
+        ErrorKind::ThreepidDenied,
+        "Third party identifier is not allowed",
+    ))
+}
+
+/// # `POST /_matrix/client/v3/account/3pid/msisdn/requestToken`
+///
+/// "This API should be used to request validation tokens when adding an phone number to an account"
+///
+/// - 403 signals that The homeserver does not allow the third party identifier as a contact option.
+pub async fn request_3pid_management_token_via_msisdn_route(
+    _body: Ruma<request_3pid_management_token_via_msisdn::v3::IncomingRequest>,
+) -> Result<request_3pid_management_token_via_msisdn::v3::Response> {
+    Err(Error::BadRequest(
+        ErrorKind::ThreepidDenied,
+        "Third party identifier is not allowed",
+    ))
 }
