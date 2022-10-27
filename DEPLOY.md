@@ -214,7 +214,7 @@ server {
     server_name your.server.name; # EDIT THIS
     merge_slashes off;
 
-    # Nginx default to only allow 1MB uploads. 
+    # Nginx defaults to only allow 1MB uploads
     client_max_body_size 20M;
 
     location /_matrix/ {
