@@ -10,7 +10,7 @@
 use std::{future::Future, io, net::SocketAddr, time::Duration};
 
 use axum::{
-    extract::{FromRequest, MatchedPath},
+    extract::{DefaultBodyLimit, FromRequest, MatchedPath},
     handler::Handler,
     response::IntoResponse,
     routing::{get, on, MethodFilter},
@@ -164,7 +164,13 @@ async fn run_server() -> io::Result<()> {
                     header::AUTHORIZATION,
                 ])
                 .max_age(Duration::from_secs(86400)),
-        );
+        )
+        .layer(DefaultBodyLimit::max(
+            config
+                .max_request_size
+                .try_into()
+                .expect("failed to convert max request size"),
+        ));
 
     let app = routes().layer(middlewares).into_make_service();
     let handle = ServerHandle::new();
@@ -217,6 +223,8 @@ fn routes() -> Router {
         .ruma_route(client_server::change_password_route)
         .ruma_route(client_server::deactivate_route)
         .ruma_route(client_server::third_party_route)
+        .ruma_route(client_server::request_3pid_management_token_via_email_route)
+        .ruma_route(client_server::request_3pid_management_token_via_msisdn_route)
         .ruma_route(client_server::get_capabilities_route)
         .ruma_route(client_server::get_pushrules_all_route)
         .ruma_route(client_server::set_pushrule_route)

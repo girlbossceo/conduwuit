@@ -34,6 +34,7 @@ Check out the [Conduit 1.0 Release Milestone](https://gitlab.com/famedly/conduit
 
 - Simple install (this was tested the most): [DEPLOY.md](DEPLOY.md)
 - Debian package: [debian/README.Debian](debian/README.Debian)
+- Nix/NixOS: [nix/README.md](nix/README.md)
 - Docker: [docker/README.md](docker/README.md)
 
 If you want to connect an Appservice to Conduit, take a look at [APPSERVICES.md](APPSERVICES.md).

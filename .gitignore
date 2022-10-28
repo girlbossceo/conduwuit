@@ -63,3 +63,9 @@ conduit.db
 # Etc.
 **/*.rs.bk
 cached_target
+
+# Nix artifacts
+/result*
+
+# Direnv cache
+/.direnv
