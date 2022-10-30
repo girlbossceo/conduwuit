@@ -10,6 +10,9 @@ pub trait Data: Send + Sync {
     /// Removes a user from typing before the timeout is reached.
     fn typing_remove(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
 
+    /// Makes sure that typing events with old timestamps get removed.
+    fn typings_maintain(&self, room_id: &RoomId) -> Result<()>;
+
     /// Returns the count of the last typing update in this room.
     fn last_typing_update(&self, room_id: &RoomId) -> Result<u64>;
 
