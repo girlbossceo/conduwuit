@@ -24,10 +24,13 @@ use figment::{
 };
 use http::{
     header::{self, HeaderName},
-    Method, Uri,
+    Method, StatusCode, Uri,
 };
 use opentelemetry::trace::{FutureExt, Tracer};
-use ruma::api::{client::error::ErrorKind, IncomingRequest};
+use ruma::api::{
+    client::{error::Error as RumaError, error::ErrorKind, uiaa::UiaaResponse},
+    IncomingRequest,
+};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -197,15 +200,18 @@ async fn run_server() -> io::Result<()> {
 async fn unrecognized_method<B>(
     req: axum::http::Request<B>,
     next: axum::middleware::Next<B>,
-) -> std::result::Result<axum::response::Response, axum::http::StatusCode> {
+) -> std::result::Result<axum::response::Response, StatusCode> {
     let method = req.method().clone();
     let uri = req.uri().clone();
     let inner = next.run(req).await;
     if inner.status() == axum::http::StatusCode::METHOD_NOT_ALLOWED {
         warn!("Method not allowed: {method} {uri}");
-        return Ok(
-            Error::BadRequest(ErrorKind::Unrecognized, "Unrecognized request").into_response(),
-        );
+        return Ok(RumaResponse(UiaaResponse::MatrixError(RumaError {
+            kind: ErrorKind::Unrecognized,
+            message: "M_UNRECOGNIZED: Unrecognized request".to_owned(),
+            status_code: StatusCode::METHOD_NOT_ALLOWED,
+        }))
+        .into_response());
     }
     Ok(inner)
 }
