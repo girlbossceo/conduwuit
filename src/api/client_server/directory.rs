@@ -87,10 +87,7 @@ pub async fn set_room_visibility_route(
 
     if !services().rooms.metadata.exists(&body.room_id)? {
         // Return 404 if the room doesn't exist
-        return Err(Error::BadRequest(
-            ErrorKind::NotFound,
-            "Room not found",
-        ));
+        return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
     }
 
     match &body.visibility {
@@ -116,13 +113,9 @@ pub async fn set_room_visibility_route(
 pub async fn get_room_visibility_route(
     body: Ruma<get_room_visibility::v3::IncomingRequest>,
 ) -> Result<get_room_visibility::v3::Response> {
-
     if !services().rooms.metadata.exists(&body.room_id)? {
         // Return 404 if the room doesn't exist
-        return Err(Error::BadRequest(
-            ErrorKind::NotFound,
-            "Room not found",
-        ));
+        return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
     }
 
     Ok(get_room_visibility::v3::Response {

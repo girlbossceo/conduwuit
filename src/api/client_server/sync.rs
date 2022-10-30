@@ -282,9 +282,8 @@ async fn sync_helper(
         let send_notification_counts = !timeline_pdus.is_empty()
             || services()
                 .rooms
-                .edus
-                .read_receipt
-                .last_privateread_update(&sender_user, &room_id)?
+                .user
+                .last_notification_read(&sender_user, &room_id)?
                 > since;
 
         let mut timeline_users = HashSet::new();

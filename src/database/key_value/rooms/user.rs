@@ -7,11 +7,19 @@ impl service::rooms::user::Data for KeyValueDatabase {
         let mut userroom_id = user_id.as_bytes().to_vec();
         userroom_id.push(0xff);
         userroom_id.extend_from_slice(room_id.as_bytes());
+        let mut roomuser_id = room_id.as_bytes().to_vec();
+        roomuser_id.push(0xff);
+        roomuser_id.extend_from_slice(user_id.as_bytes());
 
         self.userroomid_notificationcount
             .insert(&userroom_id, &0_u64.to_be_bytes())?;
         self.userroomid_highlightcount
             .insert(&userroom_id, &0_u64.to_be_bytes())?;
+
+        self.roomuserid_lastnotificationread.insert(
+            &roomuser_id,
+            &services().globals.next_count()?.to_be_bytes(),
+        )?;
 
         Ok(())
     }
@@ -42,6 +50,23 @@ impl service::rooms::user::Data for KeyValueDatabase {
                     .map_err(|_| Error::bad_database("Invalid highlight count in db."))
             })
             .unwrap_or(Ok(0))
+    }
+
+    fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
+        let mut key = room_id.as_bytes().to_vec();
+        key.push(0xff);
+        key.extend_from_slice(user_id.as_bytes());
+
+        Ok(self
+            .roomuserid_lastnotificationread
+            .get(&key)?
+            .map(|bytes| {
+                utils::u64_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("Count in roomuserid_lastprivatereadupdate is invalid.")
+                })
+            })
+            .transpose()?
+            .unwrap_or(0))
     }
 
     fn associate_token_shortstatehash(

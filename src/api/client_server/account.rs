@@ -4,8 +4,8 @@ use ruma::{
     api::client::{
         account::{
             change_password, deactivate, get_3pids, get_username_availability, register,
-            request_3pid_management_token_via_email, request_3pid_management_token_via_msisdn, whoami,
-            ThirdPartyIdRemovalStatus,
+            request_3pid_management_token_via_email, request_3pid_management_token_via_msisdn,
+            whoami, ThirdPartyIdRemovalStatus,
         },
         error::ErrorKind,
         uiaa::{AuthFlow, AuthType, UiaaInfo},

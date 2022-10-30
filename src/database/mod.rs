@@ -98,6 +98,7 @@ pub struct KeyValueDatabase {
 
     pub(super) userroomid_notificationcount: Arc<dyn KvTree>, // NotifyCount = u64
     pub(super) userroomid_highlightcount: Arc<dyn KvTree>,    // HightlightCount = u64
+    pub(super) roomuserid_lastnotificationread: Arc<dyn KvTree>, // LastNotificationRead = u64
 
     /// Remember the current state hash of a room.
     pub(super) roomid_shortstatehash: Arc<dyn KvTree>,
@@ -317,6 +318,7 @@ impl KeyValueDatabase {
 
             userroomid_notificationcount: builder.open_tree("userroomid_notificationcount")?,
             userroomid_highlightcount: builder.open_tree("userroomid_highlightcount")?,
+            roomuserid_lastnotificationread: builder.open_tree("userroomid_highlightcount")?,
 
             statekey_shortstatekey: builder.open_tree("statekey_shortstatekey")?,
             shortstatekey_statekey: builder.open_tree("shortstatekey_statekey")?,

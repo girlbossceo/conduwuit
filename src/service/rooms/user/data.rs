@@ -8,6 +8,9 @@ pub trait Data: Send + Sync {
 
     fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64>;
 
+    // Returns the count at which the last reset_notification_counts was called
+    fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64>;
+
     fn associate_token_shortstatehash(
         &self,
         room_id: &RoomId,
