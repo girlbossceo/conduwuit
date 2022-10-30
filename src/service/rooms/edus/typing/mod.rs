@@ -22,10 +22,7 @@ impl Service {
     }
 
     /// Makes sure that typing events with old timestamps get removed.
-    fn typings_maintain(
-        &self,
-        room_id: &RoomId,
-    ) -> Result<()> {
+    fn typings_maintain(&self, room_id: &RoomId) -> Result<()> {
         self.db.typings_maintain(room_id)
     }
 

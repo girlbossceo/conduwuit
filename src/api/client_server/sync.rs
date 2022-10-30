@@ -388,13 +388,35 @@ async fn sync_helper(
             ))
         };
 
+        let since_sender_member: Option<RoomMemberEventContent> = since_shortstatehash
+            .and_then(|shortstatehash| {
+                services()
+                    .rooms
+                    .state_accessor
+                    .state_get(
+                        shortstatehash,
+                        &StateEventType::RoomMember,
+                        sender_user.as_str(),
+                    )
+                    .transpose()
+            })
+            .transpose()?
+            .and_then(|pdu| {
+                serde_json::from_str(pdu.content.get())
+                    .map_err(|_| Error::bad_database("Invalid PDU in database."))
+                    .ok()
+            });
+
+        let joined_since_last_sync =
+            since_sender_member.map_or(true, |member| member.membership != MembershipState::Join);
+
         let (
             heroes,
             joined_member_count,
             invited_member_count,
             joined_since_last_sync,
             state_events,
-        ) = if since_shortstatehash.is_none() {
+        ) = if since_shortstatehash.is_none() || joined_since_last_sync {
             // Probably since = 0, we will do an initial sync
 
             let (joined_member_count, invited_member_count, heroes) = calculate_counts()?;
@@ -486,23 +508,6 @@ async fn sync_helper(
         } else {
             // Incremental /sync
             let since_shortstatehash = since_shortstatehash.unwrap();
-
-            let since_sender_member: Option<RoomMemberEventContent> = services()
-                .rooms
-                .state_accessor
-                .state_get(
-                    since_shortstatehash,
-                    &StateEventType::RoomMember,
-                    sender_user.as_str(),
-                )?
-                .and_then(|pdu| {
-                    serde_json::from_str(pdu.content.get())
-                        .map_err(|_| Error::bad_database("Invalid PDU in database."))
-                        .ok()
-                });
-
-            let joined_since_last_sync = since_sender_member
-                .map_or(true, |member| member.membership != MembershipState::Join);
 
             let mut state_events = Vec::new();
             let mut lazy_loaded = HashSet::new();

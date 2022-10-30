@@ -54,10 +54,7 @@ impl service::rooms::edus::typing::Data for KeyValueDatabase {
         Ok(())
     }
 
-    fn typings_maintain(
-        &self,
-        room_id: &RoomId,
-    ) -> Result<()> {
+    fn typings_maintain(&self, room_id: &RoomId) -> Result<()> {
         let mut prefix = room_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -89,8 +86,10 @@ impl service::rooms::edus::typing::Data for KeyValueDatabase {
         }
 
         if found_outdated {
-            self.roomid_lasttypingupdate
-                .insert(room_id.as_bytes(), &services().globals.next_count()?.to_be_bytes())?;
+            self.roomid_lasttypingupdate.insert(
+                room_id.as_bytes(),
+                &services().globals.next_count()?.to_be_bytes(),
+            )?;
         }
 
         Ok(())
