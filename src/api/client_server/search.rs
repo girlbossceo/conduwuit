@@ -103,7 +103,7 @@ pub async fn search_events_route(
         .take(limit)
         .collect();
 
-    let next_batch = if results.len() < limit as usize {
+    let next_batch = if results.len() < limit {
         None
     } else {
         Some((skip + limit).to_string())

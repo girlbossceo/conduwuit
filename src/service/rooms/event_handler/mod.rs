@@ -1464,7 +1464,17 @@ impl Service {
                     .write()
                     .map_err(|_| Error::bad_database("RwLock is poisoned."))?;
                 for k in keys.server_keys {
-                    let k = k.deserialize().unwrap();
+                    let k = match k.deserialize() {
+                        Ok(key) => key,
+                        Err(e) => {
+                            warn!(
+                                "Received error {} while fetching keys from trusted server {}",
+                                e, server
+                            );
+                            warn!("{}", k.into_json());
+                            continue;
+                        }
+                    };
 
                     // TODO: Check signature from trusted server?
                     servers.remove(&k.server_name);
