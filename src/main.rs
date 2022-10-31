@@ -28,7 +28,10 @@ use http::{
 };
 use opentelemetry::trace::{FutureExt, Tracer};
 use ruma::api::{
-    client::{error::Error as RumaError, error::ErrorKind, uiaa::UiaaResponse},
+    client::{
+        error::{Error as RumaError, ErrorKind},
+        uiaa::UiaaResponse,
+    },
     IncomingRequest,
 };
 use tokio::signal;

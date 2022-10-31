@@ -1,5 +1,4 @@
-use std::collections::HashSet;
-use std::mem;
+use std::{collections::HashSet, mem};
 
 use ruma::{OwnedUserId, RoomId, UserId};
 
