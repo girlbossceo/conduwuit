@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM docker.io/rust:1.63-bullseye AS builder
+FROM docker.io/rust:1.64-bullseye AS builder
 WORKDIR /usr/src/conduit
 
 # Install required packages to build Conduit and it's dependencies
@@ -27,6 +27,49 @@ COPY src src
 # Builds conduit and places the binary at /usr/src/conduit/target/release/conduit
 RUN touch src/main.rs && touch src/lib.rs && cargo build --release
 
+
+# ONLY USEFUL FOR CI: target stage to extract build artifacts
+FROM scratch AS builder-result
+COPY --from=builder /usr/src/conduit/target/release/conduit /conduit
+
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Build cargo-deb, a tool to package up rust binaries into .deb packages for Debian/Ubuntu based systems:
+# ---------------------------------------------------------------------------------------------------------------
+FROM docker.io/rust:1.64-bullseye AS build-cargo-deb
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    dpkg \
+    dpkg-dev \
+    liblzma-dev
+
+RUN cargo install cargo-deb 
+# => binary is in /usr/local/cargo/bin/cargo-deb
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Package conduit build-result into a .deb package:
+# ---------------------------------------------------------------------------------------------------------------
+FROM builder AS packager
+WORKDIR /usr/src/conduit
+
+COPY ./LICENSE ./LICENSE
+COPY ./README.md ./README.md
+COPY debian/README.Debian ./debian/
+COPY --from=build-cargo-deb /usr/local/cargo/bin/cargo-deb /usr/local/cargo/bin/cargo-deb
+
+# --no-build makes cargo-deb reuse already compiled project
+RUN cargo deb --no-build
+# => Package is in /usr/src/conduit/target/debian/<project_name>_<version>_<arch>.deb
+
+
+# ONLY USEFUL FOR CI: target stage to extract build artifacts
+FROM scratch AS packager-result
+COPY --from=packager /usr/src/conduit/target/debian/*.deb /conduit.deb
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # Stuff below this line actually ends up in the resulting docker image
 # ---------------------------------------------------------------------------------------------------------------
@@ -45,9 +88,11 @@ ENV CONDUIT_PORT=6167 \
 #    └─> Set no config file to do all configuration with env vars
 
 # Conduit needs:
+#   dpkg: to install conduit.deb
 #   ca-certificates: for https
 #   iproute2 & wget: for the healthcheck script
 RUN apt-get update && apt-get -y --no-install-recommends install \
+    dpkg \
     ca-certificates \
     iproute2 \
     wget \
@@ -57,8 +102,9 @@ RUN apt-get update && apt-get -y --no-install-recommends install \
 COPY ./docker/healthcheck.sh /srv/conduit/healthcheck.sh
 HEALTHCHECK --start-period=5s --interval=5s CMD ./healthcheck.sh
 
-# Copy over the actual Conduit binary from the builder stage
-COPY --from=builder /usr/src/conduit/target/release/conduit /srv/conduit/conduit
+# Install conduit.deb:
+COPY --from=packager /usr/src/conduit/target/debian/*.deb /srv/conduit/
+RUN dpkg -i /srv/conduit/*.deb
 
 # Improve security: Don't run stuff as root, that does not need to run as root
 # Most distros also use 1000:1000 for the first real user, so this should resolve volume mounting problems.
@@ -73,7 +119,7 @@ RUN chown -cR conduit:conduit /srv/conduit && \
     chmod +x /srv/conduit/healthcheck.sh && \
     mkdir -p ${DEFAULT_DB_PATH} && \
     chown -cR conduit:conduit ${DEFAULT_DB_PATH}
-    
+
 # Change user to conduit, no root permissions afterwards:
 USER conduit
 # Set container home directory
@@ -81,4 +127,4 @@ WORKDIR /srv/conduit
 
 # Run Conduit and print backtraces on panics
 ENV RUST_BACKTRACE=1
-ENTRYPOINT [ "/srv/conduit/conduit" ]
+ENTRYPOINT [ "/usr/sbin/matrix-conduit" ]
