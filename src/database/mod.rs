@@ -851,8 +851,8 @@ impl KeyValueDatabase {
 
                         for transformation in underride_rule_transformation {
                             let rule = rules_list.underride.get(transformation[0]);
-                            if rule.is_some() {
-                                let mut rule = rule.unwrap().clone();
+                            if let Some(rule) = rule {
+                                let mut rule = rule.clone();
                                 rule.rule_id = transformation[1].to_string();
                                 rules_list.underride.remove(transformation[0]);
                                 rules_list.underride.insert(rule);
