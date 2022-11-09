@@ -575,9 +575,10 @@ pub async fn set_pushers_route(
     body: Ruma<set_pusher::v3::Request>,
 ) -> Result<set_pusher::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-    let pusher = body.pusher.clone();
 
-    services().pusher.set_pusher(sender_user, pusher)?;
+    services()
+        .pusher
+        .set_pusher(sender_user, body.action.clone())?;
 
     Ok(set_pusher::v3::Response::default())
 }

@@ -1478,6 +1478,7 @@ async fn create_join_event(
             .filter_map(|(_, id)| services().rooms.timeline.get_pdu_json(id).ok().flatten())
             .map(PduEvent::convert_to_outgoing_federation_event)
             .collect(),
+        event: None, // TODO: handle restricted joins
     })
 }
 

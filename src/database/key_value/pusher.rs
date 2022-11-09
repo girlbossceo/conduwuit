@@ -1,38 +1,37 @@
 use ruma::{
-    api::client::push::{get_pushers, set_pusher},
+    api::client::push::{set_pusher, Pusher},
     UserId,
 };
 
 use crate::{database::KeyValueDatabase, service, utils, Error, Result};
 
 impl service::pusher::Data for KeyValueDatabase {
-    fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::Pusher) -> Result<()> {
-        let mut key = sender.as_bytes().to_vec();
-        key.push(0xff);
-        key.extend_from_slice(pusher.pushkey.as_bytes());
-
-        // There are 2 kinds of pushers but the spec says: null deletes the pusher.
-        if pusher.kind.is_none() {
-            return self
-                .senderkey_pusher
-                .remove(&key)
-                .map(|_| ())
-                .map_err(Into::into);
+    fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()> {
+        match &pusher {
+            set_pusher::v3::PusherAction::Post(data) => {
+                let mut key = sender.as_bytes().to_vec();
+                key.push(0xff);
+                key.extend_from_slice(data.pusher.ids.pushkey.as_bytes());
+                self.senderkey_pusher.insert(
+                    &key,
+                    &serde_json::to_vec(&pusher).expect("Pusher is valid JSON value"),
+                )?;
+                Ok(())
+            }
+            set_pusher::v3::PusherAction::Delete(ids) => {
+                let mut key = sender.as_bytes().to_vec();
+                key.push(0xff);
+                key.extend_from_slice(ids.pushkey.as_bytes());
+                return self
+                    .senderkey_pusher
+                    .remove(&key)
+                    .map(|_| ())
+                    .map_err(Into::into);
+            }
         }
-
-        self.senderkey_pusher.insert(
-            &key,
-            &serde_json::to_vec(&pusher).expect("Pusher is valid JSON value"),
-        )?;
-
-        Ok(())
     }
 
-    fn get_pusher(
-        &self,
-        sender: &UserId,
-        pushkey: &str,
-    ) -> Result<Option<get_pushers::v3::Pusher>> {
+    fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Option<Pusher>> {
         let mut senderkey = sender.as_bytes().to_vec();
         senderkey.push(0xff);
         senderkey.extend_from_slice(pushkey.as_bytes());
@@ -46,7 +45,7 @@ impl service::pusher::Data for KeyValueDatabase {
             .transpose()
     }
 
-    fn get_pushers(&self, sender: &UserId) -> Result<Vec<get_pushers::v3::Pusher>> {
+    fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>> {
         let mut prefix = sender.as_bytes().to_vec();
         prefix.push(0xff);
 
