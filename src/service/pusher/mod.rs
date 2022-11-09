@@ -6,7 +6,7 @@ use crate::{services, Error, PduEvent, Result};
 use bytes::BytesMut;
 use ruma::{
     api::{
-        client::push::{get_pushers, set_pusher, PusherKind},
+        client::push::{set_pusher, Pusher, PusherKind},
         push_gateway::send_event_notification::{
             self,
             v1::{Device, Notification, NotificationCounts, NotificationPriority},
@@ -23,26 +23,22 @@ use ruma::{
 };
 
 use std::{fmt::Debug, mem};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 pub struct Service {
     pub db: &'static dyn Data,
 }
 
 impl Service {
-    pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::Pusher) -> Result<()> {
+    pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()> {
         self.db.set_pusher(sender, pusher)
     }
 
-    pub fn get_pusher(
-        &self,
-        sender: &UserId,
-        pushkey: &str,
-    ) -> Result<Option<get_pushers::v3::Pusher>> {
+    pub fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Option<Pusher>> {
         self.db.get_pusher(sender, pushkey)
     }
 
-    pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<get_pushers::v3::Pusher>> {
+    pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>> {
         self.db.get_pushers(sender)
     }
 
@@ -140,7 +136,7 @@ impl Service {
         &self,
         user: &UserId,
         unread: UInt,
-        pusher: &get_pushers::v3::Pusher,
+        pusher: &Pusher,
         ruleset: Ruleset,
         pdu: &PduEvent,
     ) -> Result<()> {
@@ -221,91 +217,87 @@ impl Service {
     async fn send_notice(
         &self,
         unread: UInt,
-        pusher: &get_pushers::v3::Pusher,
+        pusher: &Pusher,
         tweaks: Vec<Tweak>,
         event: &PduEvent,
     ) -> Result<()> {
         // TODO: email
-        if pusher.kind == PusherKind::Email {
-            return Ok(());
-        }
+        match &pusher.kind {
+            PusherKind::Http(http) => {
+                // TODO:
+                // Two problems with this
+                // 1. if "event_id_only" is the only format kind it seems we should never add more info
+                // 2. can pusher/devices have conflicting formats
+                let event_id_only = http.format == Some(PushFormat::EventIdOnly);
 
-        // TODO:
-        // Two problems with this
-        // 1. if "event_id_only" is the only format kind it seems we should never add more info
-        // 2. can pusher/devices have conflicting formats
-        let event_id_only = pusher.data.format == Some(PushFormat::EventIdOnly);
-        let url = if let Some(url) = &pusher.data.url {
-            url
-        } else {
-            error!("Http Pusher must have URL specified.");
-            return Ok(());
-        };
+                let mut device = Device::new(pusher.ids.app_id.clone(), pusher.ids.pushkey.clone());
+                device.data.default_payload = http.default_payload.clone();
+                device.data.format = http.format.clone();
 
-        let mut device = Device::new(pusher.app_id.clone(), pusher.pushkey.clone());
-        let mut data_minus_url = pusher.data.clone();
-        // The url must be stripped off according to spec
-        data_minus_url.url = None;
-        device.data = data_minus_url.into();
+                // Tweaks are only added if the format is NOT event_id_only
+                if !event_id_only {
+                    device.tweaks = tweaks.clone();
+                }
 
-        // Tweaks are only added if the format is NOT event_id_only
-        if !event_id_only {
-            device.tweaks = tweaks.clone();
-        }
+                let d = &[device];
+                let mut notifi = Notification::new(d);
 
-        let d = &[device];
-        let mut notifi = Notification::new(d);
+                notifi.prio = NotificationPriority::Low;
+                notifi.event_id = Some(&event.event_id);
+                notifi.room_id = Some(&event.room_id);
+                // TODO: missed calls
+                notifi.counts = NotificationCounts::new(unread, uint!(0));
 
-        notifi.prio = NotificationPriority::Low;
-        notifi.event_id = Some(&event.event_id);
-        notifi.room_id = Some(&event.room_id);
-        // TODO: missed calls
-        notifi.counts = NotificationCounts::new(unread, uint!(0));
+                if event.kind == RoomEventType::RoomEncrypted
+                    || tweaks
+                        .iter()
+                        .any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
+                {
+                    notifi.prio = NotificationPriority::High
+                }
 
-        if event.kind == RoomEventType::RoomEncrypted
-            || tweaks
-                .iter()
-                .any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
-        {
-            notifi.prio = NotificationPriority::High
-        }
+                if event_id_only {
+                    self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
+                        .await?;
+                } else {
+                    notifi.sender = Some(&event.sender);
+                    notifi.event_type = Some(&event.kind);
+                    let content = serde_json::value::to_raw_value(&event.content).ok();
+                    notifi.content = content.as_deref();
 
-        if event_id_only {
-            self.send_request(url, send_event_notification::v1::Request::new(notifi))
-                .await?;
-        } else {
-            notifi.sender = Some(&event.sender);
-            notifi.event_type = Some(&event.kind);
-            let content = serde_json::value::to_raw_value(&event.content).ok();
-            notifi.content = content.as_deref();
+                    if event.kind == RoomEventType::RoomMember {
+                        notifi.user_is_target =
+                            event.state_key.as_deref() == Some(event.sender.as_str());
+                    }
 
-            if event.kind == RoomEventType::RoomMember {
-                notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
+                    let user_name = services().users.displayname(&event.sender)?;
+                    notifi.sender_display_name = user_name.as_deref();
+
+                    let room_name = if let Some(room_name_pdu) = services()
+                        .rooms
+                        .state_accessor
+                        .room_state_get(&event.room_id, &StateEventType::RoomName, "")?
+                    {
+                        serde_json::from_str::<RoomNameEventContent>(room_name_pdu.content.get())
+                            .map_err(|_| {
+                                Error::bad_database("Invalid room name event in database.")
+                            })?
+                            .name
+                    } else {
+                        None
+                    };
+
+                    notifi.room_name = room_name.as_deref();
+
+                    self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
+                        .await?;
+                }
+
+                Ok(())
             }
-
-            let user_name = services().users.displayname(&event.sender)?;
-            notifi.sender_display_name = user_name.as_deref();
-
-            let room_name = if let Some(room_name_pdu) = services()
-                .rooms
-                .state_accessor
-                .room_state_get(&event.room_id, &StateEventType::RoomName, "")?
-            {
-                serde_json::from_str::<RoomNameEventContent>(room_name_pdu.content.get())
-                    .map_err(|_| Error::bad_database("Invalid room name event in database."))?
-                    .name
-            } else {
-                None
-            };
-
-            notifi.room_name = room_name.as_deref();
-
-            self.send_request(url, send_event_notification::v1::Request::new(notifi))
-                .await?;
+            // TODO: Handle email
+            PusherKind::Email(_) => return Ok(()),
+            _ => return Ok(()),
         }
-
-        // TODO: email
-
-        Ok(())
     }
 }

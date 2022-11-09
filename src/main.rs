@@ -473,7 +473,7 @@ macro_rules! impl_ruma_handler {
                 let meta = Req::METADATA;
                 let method_filter = method_to_filter(meta.method);
 
-                for path in IntoIterator::into_iter([meta.unstable_path, meta.r0_path, meta.stable_path]).flatten() {
+                for path in meta.history.all_paths() {
                     let handler = self.clone();
 
                     router = router.route(path, on(method_filter, |$( $ty: $ty, )* req| async move {
