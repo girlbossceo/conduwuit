@@ -826,7 +826,7 @@ pub(crate) async fn invite_helper<'a>(
     is_direct: bool,
 ) -> Result<()> {
     if user_id.server_name() != services().globals.server_name() {
-        let (pdu_json, invite_room_state) = {
+        let (pdu, pdu_json, invite_room_state) = {
             let mutex_state = Arc::clone(
                 services()
                     .globals
@@ -867,20 +867,8 @@ pub(crate) async fn invite_helper<'a>(
 
             drop(state_lock);
 
-            (pdu_json, invite_room_state)
+            (pdu, pdu_json, invite_room_state)
         };
-
-        // Generate event id
-        let expected_event_id = format!(
-            "${}",
-            ruma::signatures::reference_hash(
-                &pdu_json,
-                &services().rooms.state.get_room_version(room_id)?
-            )
-            .expect("ruma can calculate reference hashes")
-        );
-        let expected_event_id = <&EventId>::try_from(expected_event_id.as_str())
-            .expect("ruma's reference hashes are valid event ids");
 
         let response = services()
             .sending
@@ -888,7 +876,7 @@ pub(crate) async fn invite_helper<'a>(
                 user_id.server_name(),
                 create_invite::v2::Request {
                     room_id,
-                    event_id: expected_event_id,
+                    event_id: &pdu.event_id,
                     room_version: &services().rooms.state.get_room_version(room_id)?,
                     event: &PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
                     invite_room_state: &invite_room_state,
@@ -910,7 +898,7 @@ pub(crate) async fn invite_helper<'a>(
             }
         };
 
-        if expected_event_id != event_id {
+        if pdu.event_id != event_id {
             warn!("Server {} changed invite event, that's not allowed in the spec: ours: {:?}, theirs: {:?}", user_id.server_name(), pdu_json, value);
         }
 
