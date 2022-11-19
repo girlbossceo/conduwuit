@@ -1051,19 +1051,32 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
         );
         let state_lock = mutex_state.lock().await;
 
-        let mut event: RoomMemberEventContent = serde_json::from_str(
-            services()
-                .rooms
-                .state_accessor
-                .room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
-                .ok_or(Error::BadRequest(
-                    ErrorKind::BadState,
-                    "Cannot leave a room you are not a member of.",
-                ))?
-                .content
-                .get(),
-        )
-        .map_err(|_| Error::bad_database("Invalid member event in database."))?;
+        let member_event = services().rooms.state_accessor.room_state_get(
+            room_id,
+            &StateEventType::RoomMember,
+            user_id.as_str(),
+        )?;
+
+        // Fix for broken rooms
+        let member_event = match member_event {
+            None => {
+                error!("Trying to leave a room you are not a member of.");
+
+                services().rooms.state_cache.update_membership(
+                    room_id,
+                    user_id,
+                    MembershipState::Leave,
+                    user_id,
+                    None,
+                    true,
+                )?;
+                return Ok(());
+            }
+            Some(e) => e,
+        };
+
+        let mut event: RoomMemberEventContent = serde_json::from_str(member_event.content.get())
+            .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
         event.membership = MembershipState::Leave;
 
