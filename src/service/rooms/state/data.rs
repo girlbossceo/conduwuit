@@ -22,7 +22,7 @@ pub trait Data: Send + Sync {
     fn get_forward_extremities(&self, room_id: &RoomId) -> Result<HashSet<Arc<EventId>>>;
 
     /// Replace the forward extremities of the room.
-    fn set_forward_extremities<'a>(
+    fn set_forward_extremities(
         &self,
         room_id: &RoomId,
         event_ids: Vec<OwnedEventId>,
