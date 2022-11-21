@@ -133,7 +133,8 @@ impl Service {
             .await?;
 
         let mut errors = 0;
-        for prev_id in dbg!(sorted_prev_events) {
+        debug!(events = ?sorted_prev_events, "Got previous events");
+        for prev_id in sorted_prev_events {
             // Check for disabled again because it might have changed
             if services().rooms.metadata.is_disabled(room_id)? {
                 return Err(Error::BadRequest(
@@ -330,7 +331,7 @@ impl Service {
             // 4. fetch any missing auth events doing all checks listed here starting at 1. These are not timeline events
             // 5. Reject "due to auth events" if can't get all the auth events or some of the auth events are also rejected "due to auth events"
             // NOTE: Step 5 is not applied anymore because it failed too often
-            warn!("Fetching auth events for {}", incoming_pdu.event_id);
+            debug!(event_id = ?incoming_pdu.event_id, "Fetching auth events");
             self.fetch_and_handle_outliers(
                 origin,
                 &incoming_pdu

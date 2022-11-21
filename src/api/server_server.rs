@@ -55,7 +55,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -724,7 +724,7 @@ pub async fn send_transaction_message_route(
         drop(mutex_lock);
 
         let elapsed = start_time.elapsed();
-        warn!(
+        debug!(
             "Handling transaction of event {} took {}m{}s",
             event_id,
             elapsed.as_secs() / 60,
