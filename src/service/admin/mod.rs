@@ -599,7 +599,8 @@ impl Service {
                 }
             }
             AdminCommand::CreateUser { username, password } => {
-                let password = password.unwrap_or(utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
+                let password =
+                    password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
                 // Validate user id
                 let user_id = match UserId::parse_with_server_name(
                     username.as_str().to_lowercase(),
@@ -732,9 +733,8 @@ impl Service {
                     }
 
                     for &user_id in &user_ids {
-                        match services().users.deactivate_account(user_id) {
-                            Ok(_) => deactivation_count += 1,
-                            Err(_) => {}
+                        if services().users.deactivate_account(user_id).is_ok() {
+                            deactivation_count += 1
                         }
                     }
 

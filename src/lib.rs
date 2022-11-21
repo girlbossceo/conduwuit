@@ -23,7 +23,7 @@ pub use utils::error::{Error, Result};
 
 pub static SERVICES: RwLock<Option<&'static Services>> = RwLock::new(None);
 
-pub fn services<'a>() -> &'static Services {
+pub fn services() -> &'static Services {
     SERVICES
         .read()
         .unwrap()

@@ -42,7 +42,7 @@ impl Service {
         self.db.get_pushers(sender)
     }
 
-    pub fn get_pushkeys<'a>(&'a self, sender: &UserId) -> Box<dyn Iterator<Item = Result<String>>> {
+    pub fn get_pushkeys(&self, sender: &UserId) -> Box<dyn Iterator<Item = Result<String>>> {
         self.db.get_pushkeys(sender)
     }
 
@@ -296,8 +296,8 @@ impl Service {
                 Ok(())
             }
             // TODO: Handle email
-            PusherKind::Email(_) => return Ok(()),
-            _ => return Ok(()),
+            PusherKind::Email(_) => Ok(()),
+            _ => Ok(()),
         }
     }
 }

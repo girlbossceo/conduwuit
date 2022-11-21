@@ -22,11 +22,10 @@ impl service::pusher::Data for KeyValueDatabase {
                 let mut key = sender.as_bytes().to_vec();
                 key.push(0xff);
                 key.extend_from_slice(ids.pushkey.as_bytes());
-                return self
-                    .senderkey_pusher
+                self.senderkey_pusher
                     .remove(&key)
                     .map(|_| ())
-                    .map_err(Into::into);
+                    .map_err(Into::into)
             }
         }
     }

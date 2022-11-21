@@ -40,10 +40,10 @@ impl Service {
         self.db.get_token_shortstatehash(room_id, token)
     }
 
-    pub fn get_shared_rooms<'a>(
-        &'a self,
+    pub fn get_shared_rooms(
+        &self,
         users: Vec<OwnedUserId>,
-    ) -> Result<impl Iterator<Item = Result<OwnedRoomId>> + 'a> {
+    ) -> Result<impl Iterator<Item = Result<OwnedRoomId>>> {
         self.db.get_shared_rooms(users)
     }
 }

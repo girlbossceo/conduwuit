@@ -74,7 +74,7 @@ pub async fn get_remote_content(
     services()
         .media
         .create(
-            mxc.to_string(),
+            mxc.to_owned(),
             content_response.content_disposition.as_deref(),
             content_response.content_type.as_deref(),
             &content_response.file,

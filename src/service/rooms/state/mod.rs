@@ -343,7 +343,7 @@ impl Service {
         self.db.get_forward_extremities(room_id)
     }
 
-    pub fn set_forward_extremities<'a>(
+    pub fn set_forward_extremities(
         &self,
         room_id: &RoomId,
         event_ids: Vec<OwnedEventId>,
