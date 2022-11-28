@@ -186,16 +186,29 @@ async fn run_server() -> io::Result<()> {
     match &config.tls {
         Some(tls) => {
             let conf = RustlsConfig::from_pem_file(&tls.certs, &tls.key).await?;
-            bind_rustls(addr, conf).handle(handle).serve(app).await?;
+            let server = bind_rustls(addr, conf).handle(handle).serve(app);
+
+            #[cfg(feature = "systemd")]
+            let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
+            server.await?
         }
         None => {
-            bind(addr).handle(handle).serve(app).await?;
+            let server = bind(addr).handle(handle).serve(app);
+
+            #[cfg(feature = "systemd")]
+            let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
+            server.await?
         }
     }
 
     // On shutdown
     info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
     services().globals.rotate.fire();
+
+    #[cfg(feature = "systemd")]
+    let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
 
     Ok(())
 }

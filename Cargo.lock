@@ -404,6 +404,7 @@ dependencies = [
  "ruma",
  "rusqlite",
  "rust-argon2",
+ "sd-notify",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2314,6 +2315,12 @@ dependencies = [
  "ring",
  "untrusted",
 ]
+
+[[package]]
+name = "sd-notify"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "621e3680f3e07db4c9c2c3fb07c6223ab2fab2e54bd3c04c3ae037990f428c32"
 
 [[package]]
 name = "security-framework"

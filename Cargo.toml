@@ -93,8 +93,10 @@ tikv-jemallocator = { version = "0.5.0", features = ["unprefixed_malloc_on_suppo
 lazy_static = "1.4.0"
 async-trait = "0.1.57"
 
+sd-notify = { version = "0.4.1", optional = true }
+
 [features]
-default = ["conduit_bin", "backend_sqlite", "backend_rocksdb", "jemalloc"]
+default = ["conduit_bin", "backend_sqlite", "backend_rocksdb", "jemalloc", "systemd"]
 #backend_sled = ["sled"]
 backend_persy = ["persy", "parking_lot"]
 backend_sqlite = ["sqlite"]
@@ -103,6 +105,7 @@ backend_rocksdb = ["rocksdb"]
 jemalloc = ["tikv-jemalloc-ctl", "tikv-jemallocator"]
 sqlite = ["rusqlite", "parking_lot", "tokio/signal"]
 conduit_bin = ["axum"]
+systemd = ["sd-notify"]
 
 [[bin]]
 name = "conduit"
