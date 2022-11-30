@@ -42,8 +42,8 @@ use ruma::{
     },
     serde::{Base64, JsonObject, Raw},
     to_device::DeviceIdOrAllDevices,
-    CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId,
-    OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName,
+    CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId,
+    OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
@@ -664,16 +664,11 @@ pub async fn send_transaction_message_route(
     // let mut auth_cache = EventMap::new();
 
     for pdu in &body.pdus {
-        // We do not add the event_id field to the pdu here because of signature and hashes checks
-        let (event_id, value) = match gen_event_id_canonical_json(pdu) {
-            Ok(t) => t,
-            Err(_) => {
-                // Event could not be converted to canonical json
-                continue;
-            }
-        };
+        let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
+            warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
+            Error::BadServerResponse("Invalid PDU in server response")
+        })?;
 
-        // 0. Check the server is in the room
         let room_id: OwnedRoomId = match value
             .get("room_id")
             .and_then(|id| RoomId::parse(id.as_str()?).ok())
@@ -681,13 +676,25 @@ pub async fn send_transaction_message_route(
             Some(id) => id,
             None => {
                 // Event is invalid
-                resolved_map.insert(
-                    event_id,
-                    Err(Error::bad_database("Event needs a valid RoomId.")),
-                );
                 continue;
             }
         };
+
+        let room_version_id = match services().rooms.state.get_room_version(&room_id) {
+            Ok(v) => v,
+            Err(_) => {
+                continue;
+            }
+        };
+
+        let (event_id, value) = match gen_event_id_canonical_json(pdu, &room_version_id) {
+            Ok(t) => t,
+            Err(_) => {
+                // Event could not be converted to canonical json
+                continue;
+            }
+        };
+        // We do not add the event_id field to the pdu here because of signature and hashes checks
 
         services()
             .rooms
@@ -1407,7 +1414,8 @@ async fn create_join_event(
     // let mut auth_cache = EventMap::new();
 
     // We do not add the event_id field to the pdu here because of signature and hashes checks
-    let (event_id, value) = match gen_event_id_canonical_json(pdu) {
+    let room_version_id = services().rooms.state.get_room_version(room_id)?;
+    let (event_id, value) = match gen_event_id_canonical_json(pdu, &room_version_id) {
         Ok(t) => t,
         Err(_) => {
             // Event could not be converted to canonical json
@@ -1610,8 +1618,12 @@ pub async fn create_invite_route(
 
     invite_state.push(pdu.to_stripped_state_event());
 
-    // If the room already exists, the remote server will notify us about the join via /send
-    if !services().rooms.metadata.exists(&pdu.room_id)? {
+    // If we are active in the room, the remote server will notify us about the join via /send
+    if !services()
+        .rooms
+        .state_cache
+        .server_in_room(services().globals.server_name(), &body.room_id)?
+    {
         services().rooms.state_cache.update_membership(
             &body.room_id,
             &invited_user,

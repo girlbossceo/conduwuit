@@ -76,6 +76,7 @@ impl Service {
         is_timeline_event: bool,
         pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     ) -> Result<Option<Vec<u8>>> {
+        // 0. Check the server is in the room
         if !services().rooms.metadata.exists(room_id)? {
             return Err(Error::BadRequest(
                 ErrorKind::NotFound,
@@ -100,6 +101,13 @@ impl Service {
             .state_accessor
             .room_state_get(room_id, &StateEventType::RoomCreate, "")?
             .ok_or_else(|| Error::bad_database("Failed to find create event in db."))?;
+
+        let create_event_content: RoomCreateEventContent =
+            serde_json::from_str(create_event.content.get()).map_err(|e| {
+                error!("Invalid create event: {}", e);
+                Error::BadDatabase("Invalid create event in db")
+            })?;
+        let room_version_id = &create_event_content.room_version;
 
         let first_pdu_in_room = services()
             .rooms
@@ -127,6 +135,7 @@ impl Service {
                 origin,
                 &create_event,
                 room_id,
+                room_version_id,
                 pub_key_map,
                 incoming_pdu.prev_events.clone(),
             )
@@ -341,6 +350,7 @@ impl Service {
                     .collect::<Vec<_>>(),
                 create_event,
                 room_id,
+                room_version_id,
                 pub_key_map,
             )
             .await;
@@ -645,6 +655,7 @@ impl Service {
                                 .collect::<Vec<_>>(),
                             create_event,
                             room_id,
+                            room_version_id,
                             pub_key_map,
                         )
                         .await;
@@ -1025,6 +1036,7 @@ impl Service {
         events: &'a [Arc<EventId>],
         create_event: &'a PduEvent,
         room_id: &'a RoomId,
+        room_version_id: &'a RoomVersionId,
         pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     ) -> AsyncRecursiveType<'a, Vec<(Arc<PduEvent>, Option<BTreeMap<String, CanonicalJsonValue>>)>>
     {
@@ -1107,7 +1119,7 @@ impl Service {
                         Ok(res) => {
                             info!("Got {} over federation", next_id);
                             let (calculated_event_id, value) =
-                                match pdu::gen_event_id_canonical_json(&res.pdu) {
+                                match pdu::gen_event_id_canonical_json(&res.pdu, room_version_id) {
                                     Ok(t) => t,
                                     Err(_) => {
                                         back_off((*next_id).to_owned());
@@ -1180,6 +1192,7 @@ impl Service {
         origin: &ServerName,
         create_event: &PduEvent,
         room_id: &RoomId,
+        room_version_id: &RoomVersionId,
         pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
         initial_set: Vec<Arc<EventId>>,
     ) -> Result<(
@@ -1205,6 +1218,7 @@ impl Service {
                     &[prev_event_id.clone()],
                     create_event,
                     room_id,
+                    room_version_id,
                     pub_key_map,
                 )
                 .await
