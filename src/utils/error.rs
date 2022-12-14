@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use http::StatusCode;
 use ruma::{
     api::client::{
-        error::{Error as RumaError, ErrorKind},
+        error::{Error as RumaError, ErrorBody, ErrorKind},
         uiaa::{UiaaInfo, UiaaResponse},
     },
     OwnedServerName,
@@ -131,8 +131,7 @@ impl Error {
         warn!("{}: {}", status_code, message);
 
         RumaResponse(UiaaResponse::MatrixError(RumaError {
-            kind,
-            message,
+            body: ErrorBody::Standard { kind, message },
             status_code,
         }))
     }

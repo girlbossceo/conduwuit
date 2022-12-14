@@ -1,7 +1,7 @@
 use crate::{services, Error, Result, Ruma, RumaResponse};
 use ruma::{
     api::client::{
-        filter::{IncomingFilterDefinition, LazyLoadOptions},
+        filter::{FilterDefinition, LazyLoadOptions},
         sync::sync_events::{self, DeviceLists, UnreadNotificationsCount},
         uiaa::UiaaResponse,
     },
@@ -55,7 +55,7 @@ use tracing::error;
 /// - Sync is handled in an async task, multiple requests from the same device with the same
 /// `since` will be cached
 pub async fn sync_events_route(
-    body: Ruma<sync_events::v3::IncomingRequest>,
+    body: Ruma<sync_events::v3::Request>,
 ) -> Result<sync_events::v3::Response, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.expect("user is authenticated");
     let sender_device = body.sender_device.expect("user is authenticated");
@@ -124,7 +124,7 @@ pub async fn sync_events_route(
 async fn sync_helper_wrapper(
     sender_user: OwnedUserId,
     sender_device: OwnedDeviceId,
-    body: sync_events::v3::IncomingRequest,
+    body: sync_events::v3::Request,
     tx: Sender<Option<Result<sync_events::v3::Response>>>,
 ) {
     let since = body.since.clone();
@@ -157,12 +157,12 @@ async fn sync_helper_wrapper(
 async fn sync_helper(
     sender_user: OwnedUserId,
     sender_device: OwnedDeviceId,
-    body: sync_events::v3::IncomingRequest,
+    body: sync_events::v3::Request,
     // bool = caching allowed
 ) -> Result<(sync_events::v3::Response, bool), Error> {
     use sync_events::v3::{
-        Ephemeral, GlobalAccountData, IncomingFilter, InviteState, InvitedRoom, JoinedRoom,
-        LeftRoom, Presence, RoomAccountData, RoomSummary, Rooms, State, Timeline, ToDevice,
+        Ephemeral, Filter, GlobalAccountData, InviteState, InvitedRoom, JoinedRoom, LeftRoom,
+        Presence, RoomAccountData, RoomSummary, Rooms, State, Timeline, ToDevice,
     };
 
     // TODO: match body.set_presence {
@@ -176,9 +176,9 @@ async fn sync_helper(
 
     // Load filter
     let filter = match body.filter {
-        None => IncomingFilterDefinition::default(),
-        Some(IncomingFilter::FilterDefinition(filter)) => filter,
-        Some(IncomingFilter::FilterId(filter_id)) => services()
+        None => FilterDefinition::default(),
+        Some(Filter::FilterDefinition(filter)) => filter,
+        Some(Filter::FilterId(filter_id)) => services()
             .users
             .get_filter(&sender_user, &filter_id)?
             .unwrap_or_default(),

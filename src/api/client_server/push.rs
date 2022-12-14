@@ -5,7 +5,7 @@ use ruma::{
         push::{
             delete_pushrule, get_pushers, get_pushrule, get_pushrule_actions, get_pushrule_enabled,
             get_pushrules_all, set_pusher, set_pushrule, set_pushrule_actions,
-            set_pushrule_enabled, RuleKind,
+            set_pushrule_enabled, RuleKind, RuleScope,
         },
     },
     events::{push_rules::PushRulesEvent, GlobalAccountDataEventType},
@@ -45,7 +45,7 @@ pub async fn get_pushrules_all_route(
 ///
 /// Retrieves a single specified push rule for this user.
 pub async fn get_pushrule_route(
-    body: Ruma<get_pushrule::v3::IncomingRequest>,
+    body: Ruma<get_pushrule::v3::Request>,
 ) -> Result<get_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -104,12 +104,12 @@ pub async fn get_pushrule_route(
 ///
 /// Creates a single specified push rule for this user.
 pub async fn set_pushrule_route(
-    body: Ruma<set_pushrule::v3::IncomingRequest>,
+    body: Ruma<set_pushrule::v3::Request>,
 ) -> Result<set_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let body = body.body;
 
-    if body.scope != "global" {
+    if body.scope != RuleScope::Global {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Scopes other than 'global' are not supported.",
@@ -208,7 +208,7 @@ pub async fn set_pushrule_route(
 ///
 /// Gets the actions of a single specified push rule for this user.
 pub async fn get_pushrule_actions_route(
-    body: Ruma<get_pushrule_actions::v3::IncomingRequest>,
+    body: Ruma<get_pushrule_actions::v3::Request>,
 ) -> Result<get_pushrule_actions::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -269,11 +269,11 @@ pub async fn get_pushrule_actions_route(
 ///
 /// Sets the actions of a single specified push rule for this user.
 pub async fn set_pushrule_actions_route(
-    body: Ruma<set_pushrule_actions::v3::IncomingRequest>,
+    body: Ruma<set_pushrule_actions::v3::Request>,
 ) -> Result<set_pushrule_actions::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if body.scope != "global" {
+    if body.scope != RuleScope::Global {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Scopes other than 'global' are not supported.",
@@ -344,11 +344,11 @@ pub async fn set_pushrule_actions_route(
 ///
 /// Gets the enabled status of a single specified push rule for this user.
 pub async fn get_pushrule_enabled_route(
-    body: Ruma<get_pushrule_enabled::v3::IncomingRequest>,
+    body: Ruma<get_pushrule_enabled::v3::Request>,
 ) -> Result<get_pushrule_enabled::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if body.scope != "global" {
+    if body.scope != RuleScope::Global {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Scopes other than 'global' are not supported.",
@@ -407,11 +407,11 @@ pub async fn get_pushrule_enabled_route(
 ///
 /// Sets the enabled status of a single specified push rule for this user.
 pub async fn set_pushrule_enabled_route(
-    body: Ruma<set_pushrule_enabled::v3::IncomingRequest>,
+    body: Ruma<set_pushrule_enabled::v3::Request>,
 ) -> Result<set_pushrule_enabled::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if body.scope != "global" {
+    if body.scope != RuleScope::Global {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Scopes other than 'global' are not supported.",
@@ -487,11 +487,11 @@ pub async fn set_pushrule_enabled_route(
 ///
 /// Deletes a single specified push rule for this user.
 pub async fn delete_pushrule_route(
-    body: Ruma<delete_pushrule::v3::IncomingRequest>,
+    body: Ruma<delete_pushrule::v3::Request>,
 ) -> Result<delete_pushrule::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if body.scope != "global" {
+    if body.scope != RuleScope::Global {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Scopes other than 'global' are not supported.",

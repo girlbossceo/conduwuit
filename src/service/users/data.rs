@@ -1,6 +1,6 @@
 use crate::Result;
 use ruma::{
-    api::client::{device::Device, filter::IncomingFilterDefinition},
+    api::client::{device::Device, filter::FilterDefinition},
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::AnyToDeviceEvent,
     serde::Raw,
@@ -191,11 +191,7 @@ pub trait Data: Send + Sync {
     ) -> Box<dyn Iterator<Item = Result<Device>> + 'a>;
 
     /// Creates a new sync filter. Returns the filter id.
-    fn create_filter(&self, user_id: &UserId, filter: &IncomingFilterDefinition) -> Result<String>;
+    fn create_filter(&self, user_id: &UserId, filter: &FilterDefinition) -> Result<String>;
 
-    fn get_filter(
-        &self,
-        user_id: &UserId,
-        filter_id: &str,
-    ) -> Result<Option<IncomingFilterDefinition>>;
+    fn get_filter(&self, user_id: &UserId, filter_id: &str) -> Result<Option<FilterDefinition>>;
 }

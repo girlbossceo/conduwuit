@@ -20,7 +20,7 @@ use std::sync::Arc;
 ///
 /// - Also makes sure other users receive the update using presence EDUs
 pub async fn set_displayname_route(
-    body: Ruma<set_display_name::v3::IncomingRequest>,
+    body: Ruma<set_display_name::v3::Request>,
 ) -> Result<set_display_name::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -121,7 +121,7 @@ pub async fn set_displayname_route(
 ///
 /// - If user is on another server: Fetches displayname over federation
 pub async fn get_displayname_route(
-    body: Ruma<get_display_name::v3::IncomingRequest>,
+    body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
     if body.user_id.server_name() != services().globals.server_name() {
         let response = services()
@@ -129,8 +129,8 @@ pub async fn get_displayname_route(
             .send_federation_request(
                 body.user_id.server_name(),
                 federation::query::get_profile_information::v1::Request {
-                    user_id: &body.user_id,
-                    field: Some(&ProfileField::DisplayName),
+                    user_id: body.user_id.clone(),
+                    field: Some(ProfileField::DisplayName),
                 },
             )
             .await?;
@@ -151,7 +151,7 @@ pub async fn get_displayname_route(
 ///
 /// - Also makes sure other users receive the update using presence EDUs
 pub async fn set_avatar_url_route(
-    body: Ruma<set_avatar_url::v3::IncomingRequest>,
+    body: Ruma<set_avatar_url::v3::Request>,
 ) -> Result<set_avatar_url::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -256,7 +256,7 @@ pub async fn set_avatar_url_route(
 ///
 /// - If user is on another server: Fetches avatar_url and blurhash over federation
 pub async fn get_avatar_url_route(
-    body: Ruma<get_avatar_url::v3::IncomingRequest>,
+    body: Ruma<get_avatar_url::v3::Request>,
 ) -> Result<get_avatar_url::v3::Response> {
     if body.user_id.server_name() != services().globals.server_name() {
         let response = services()
@@ -264,8 +264,8 @@ pub async fn get_avatar_url_route(
             .send_federation_request(
                 body.user_id.server_name(),
                 federation::query::get_profile_information::v1::Request {
-                    user_id: &body.user_id,
-                    field: Some(&ProfileField::AvatarUrl),
+                    user_id: body.user_id.clone(),
+                    field: Some(ProfileField::AvatarUrl),
                 },
             )
             .await?;
@@ -288,7 +288,7 @@ pub async fn get_avatar_url_route(
 ///
 /// - If user is on another server: Fetches profile over federation
 pub async fn get_profile_route(
-    body: Ruma<get_profile::v3::IncomingRequest>,
+    body: Ruma<get_profile::v3::Request>,
 ) -> Result<get_profile::v3::Response> {
     if body.user_id.server_name() != services().globals.server_name() {
         let response = services()
@@ -296,7 +296,7 @@ pub async fn get_profile_route(
             .send_federation_request(
                 body.user_id.server_name(),
                 federation::query::get_profile_information::v1::Request {
-                    user_id: &body.user_id,
+                    user_id: body.user_id.clone(),
                     field: None,
                 },
             )

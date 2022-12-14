@@ -6,7 +6,7 @@ use std::time::Duration;
 ///
 /// Sets the presence state of the sender user.
 pub async fn set_presence_route(
-    body: Ruma<set_presence::v3::IncomingRequest>,
+    body: Ruma<set_presence::v3::Request>,
 ) -> Result<set_presence::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -43,7 +43,7 @@ pub async fn set_presence_route(
 ///
 /// - Only works if you share a room with the user
 pub async fn get_presence_route(
-    body: Ruma<get_presence::v3::IncomingRequest>,
+    body: Ruma<get_presence::v3::Request>,
 ) -> Result<get_presence::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

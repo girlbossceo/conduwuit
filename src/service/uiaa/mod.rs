@@ -5,7 +5,7 @@ pub use data::Data;
 use ruma::{
     api::client::{
         error::ErrorKind,
-        uiaa::{AuthType, IncomingAuthData, IncomingPassword, IncomingUserIdentifier, UiaaInfo},
+        uiaa::{AuthData, AuthType, Password, UiaaInfo, UserIdentifier},
     },
     CanonicalJsonValue, DeviceId, UserId,
 };
@@ -44,7 +44,7 @@ impl Service {
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
-        auth: &IncomingAuthData,
+        auth: &AuthData,
         uiaainfo: &UiaaInfo,
     ) -> Result<(bool, UiaaInfo)> {
         let mut uiaainfo = auth
@@ -58,13 +58,13 @@ impl Service {
 
         match auth {
             // Find out what the user completed
-            IncomingAuthData::Password(IncomingPassword {
+            AuthData::Password(Password {
                 identifier,
                 password,
                 ..
             }) => {
                 let username = match identifier {
-                    IncomingUserIdentifier::UserIdOrLocalpart(username) => username,
+                    UserIdentifier::UserIdOrLocalpart(username) => username,
                     _ => {
                         return Err(Error::BadRequest(
                             ErrorKind::Unrecognized,
@@ -85,7 +85,7 @@ impl Service {
                         argon2::verify_encoded(&hash, password.as_bytes()).unwrap_or(false);
 
                     if !hash_matches {
-                        uiaainfo.auth_error = Some(ruma::api::client::error::ErrorBody {
+                        uiaainfo.auth_error = Some(ruma::api::client::error::StandardErrorBody {
                             kind: ErrorKind::Forbidden,
                             message: "Invalid username or password.".to_owned(),
                         });
@@ -96,7 +96,7 @@ impl Service {
                 // Password was correct! Let's add it to `completed`
                 uiaainfo.completed.push(AuthType::Password);
             }
-            IncomingAuthData::Dummy(_) => {
+            AuthData::Dummy(_) => {
                 uiaainfo.completed.push(AuthType::Dummy);
             }
             k => error!("type not supported: {:?}", k),

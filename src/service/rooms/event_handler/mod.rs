@@ -638,8 +638,8 @@ impl Service {
                 .send_federation_request(
                     origin,
                     get_room_state_ids::v1::Request {
-                        room_id,
-                        event_id: &incoming_pdu.event_id,
+                        room_id: room_id.to_owned(),
+                        event_id: (&*incoming_pdu.event_id).to_owned(),
                     },
                 )
                 .await
@@ -1112,7 +1112,9 @@ impl Service {
                         .sending
                         .send_federation_request(
                             origin,
-                            get_event::v1::Request { event_id: &next_id },
+                            get_event::v1::Request {
+                                event_id: next_id.into(),
+                            },
                         )
                         .await
                     {
@@ -1689,7 +1691,7 @@ impl Service {
                 .send_federation_request(
                     server,
                     get_remote_server_keys::v2::Request::new(
-                        origin,
+                        origin.to_owned(),
                         MilliSecondsSinceUnixEpoch::from_system_time(
                             SystemTime::now()
                                 .checked_add(Duration::from_secs(3600))
