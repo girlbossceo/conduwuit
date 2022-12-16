@@ -34,7 +34,7 @@
 
         # This will need to be updated when `package.rust-version` is changed in
         # `Cargo.toml`
-        sha256 = "sha256-KXx+ID0y4mg2B3LHp7IyaiMrdexF6octADnAtFIOjrY=";
+        sha256 = "sha256-8len3i8oTwJSOJZMosGGXHBL5BVuGQnWOT2St5YAUFU=";
       };
 
       builder = (pkgs.callPackage naersk {
