@@ -9,7 +9,7 @@ use ruma::{
         },
     },
     events::{push_rules::PushRulesEvent, GlobalAccountDataEventType},
-    push::{ConditionalPushRuleInit, PatternedPushRuleInit, SimplePushRuleInit},
+    push::{ConditionalPushRuleInit, NewPushRule, PatternedPushRuleInit, SimplePushRuleInit},
 };
 
 /// # `GET /_matrix/client/r0/pushrules`
@@ -132,66 +132,65 @@ pub async fn set_pushrule_route(
         .map_err(|_| Error::bad_database("Invalid account data event in db."))?;
 
     let global = &mut account_data.content.global;
-    match body.kind {
-        RuleKind::Override => {
+    match body.rule {
+        NewPushRule::Override(rule) => {
             global.override_.replace(
                 ConditionalPushRuleInit {
-                    actions: body.actions,
+                    actions: rule.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id,
-                    conditions: body.conditions,
+                    rule_id: rule.rule_id,
+                    conditions: rule.conditions,
                 }
                 .into(),
             );
         }
-        RuleKind::Underride => {
+        NewPushRule::Underride(rule) => {
             global.underride.replace(
                 ConditionalPushRuleInit {
-                    actions: body.actions,
+                    actions: rule.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id,
-                    conditions: body.conditions,
+                    rule_id: rule.rule_id,
+                    conditions: rule.conditions,
                 }
                 .into(),
             );
         }
-        RuleKind::Sender => {
+        NewPushRule::Sender(rule) => {
             global.sender.replace(
                 SimplePushRuleInit {
-                    actions: body.actions,
+                    actions: rule.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id,
+                    rule_id: rule.rule_id,
                 }
                 .into(),
             );
         }
-        RuleKind::Room => {
+        NewPushRule::Room(rule) => {
             global.room.replace(
                 SimplePushRuleInit {
-                    actions: body.actions,
+                    actions: rule.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id,
+                    rule_id: rule.rule_id,
                 }
                 .into(),
             );
         }
-        RuleKind::Content => {
+        NewPushRule::Content(rule) => {
             global.content.replace(
                 PatternedPushRuleInit {
-                    actions: body.actions,
+                    actions: rule.actions,
                     default: false,
                     enabled: true,
-                    rule_id: body.rule_id,
-                    pattern: body.pattern.unwrap_or_default(),
+                    rule_id: rule.rule_id,
+                    pattern: rule.pattern,
                 }
                 .into(),
             );
         }
-        _ => {}
     }
 
     services().account_data.update(
@@ -212,7 +211,7 @@ pub async fn get_pushrule_actions_route(
 ) -> Result<get_pushrule_actions::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if body.scope != "global" {
+    if body.scope != RuleScope::Global {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
             "Scopes other than 'global' are not supported.",

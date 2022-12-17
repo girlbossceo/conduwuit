@@ -239,12 +239,12 @@ impl Service {
                     device.tweaks = tweaks.clone();
                 }
 
-                let d = &[device];
+                let d = vec![device];
                 let mut notifi = Notification::new(d);
 
                 notifi.prio = NotificationPriority::Low;
-                notifi.event_id = Some(&event.event_id);
-                notifi.room_id = Some(&event.room_id);
+                notifi.event_id = Some((*event.event_id).to_owned());
+                notifi.room_id = Some((*event.room_id).to_owned());
                 // TODO: missed calls
                 notifi.counts = NotificationCounts::new(unread, uint!(0));
 
@@ -260,18 +260,16 @@ impl Service {
                     self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
                         .await?;
                 } else {
-                    notifi.sender = Some(&event.sender);
-                    notifi.event_type = Some(&event.kind);
-                    let content = serde_json::value::to_raw_value(&event.content).ok();
-                    notifi.content = content.as_deref();
+                    notifi.sender = Some(event.sender.clone());
+                    notifi.event_type = Some(event.kind.clone());
+                    notifi.content = serde_json::value::to_raw_value(&event.content).ok();
 
                     if event.kind == RoomEventType::RoomMember {
                         notifi.user_is_target =
                             event.state_key.as_deref() == Some(event.sender.as_str());
                     }
 
-                    let user_name = services().users.displayname(&event.sender)?;
-                    notifi.sender_display_name = user_name.as_deref();
+                    notifi.sender_display_name = services().users.displayname(&event.sender)?;
 
                     let room_name = if let Some(room_name_pdu) = services()
                         .rooms
@@ -287,7 +285,7 @@ impl Service {
                         None
                     };
 
-                    notifi.room_name = room_name.as_deref();
+                    notifi.room_name = room_name;
 
                     self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
                         .await?;

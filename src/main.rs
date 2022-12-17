@@ -29,7 +29,7 @@ use http::{
 use opentelemetry::trace::{FutureExt, Tracer};
 use ruma::api::{
     client::{
-        error::{Error as RumaError, ErrorKind},
+        error::{Error as RumaError, ErrorBody, ErrorKind},
         uiaa::UiaaResponse,
     },
     IncomingRequest,
@@ -223,8 +223,10 @@ async fn unrecognized_method<B>(
     if inner.status() == axum::http::StatusCode::METHOD_NOT_ALLOWED {
         warn!("Method not allowed: {method} {uri}");
         return Ok(RumaResponse(UiaaResponse::MatrixError(RumaError {
-            kind: ErrorKind::Unrecognized,
-            message: "M_UNRECOGNIZED: Unrecognized request".to_owned(),
+            body: ErrorBody::Standard {
+                kind: ErrorKind::Unrecognized,
+                message: "M_UNRECOGNIZED: Unrecognized request".to_owned(),
+            },
             status_code: StatusCode::METHOD_NOT_ALLOWED,
         }))
         .into_response());

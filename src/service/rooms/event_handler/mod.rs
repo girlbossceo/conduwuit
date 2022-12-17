@@ -1113,7 +1113,7 @@ impl Service {
                         .send_federation_request(
                             origin,
                             get_event::v1::Request {
-                                event_id: next_id.into(),
+                                event_id: (*next_id).to_owned(),
                             },
                         )
                         .await

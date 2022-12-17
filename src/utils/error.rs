@@ -102,7 +102,10 @@ impl Error {
 
         if let Self::FederationError(origin, error) = self {
             let mut error = error.clone();
-            error.message = format!("Answer from {}: {}", origin, error.message);
+            error.body = ErrorBody::Standard {
+                kind: Unknown,
+                message: format!("Answer from {}: {}", origin, error),
+            };
             return RumaResponse(UiaaResponse::MatrixError(error));
         }
 
