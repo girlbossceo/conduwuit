@@ -13,8 +13,9 @@ use ruma::{
     canonical_json::to_canonical_value,
     events::{
         room::{
-            join_rules::{JoinRule, RoomJoinRulesEventContent},
+            join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent},
             member::{MembershipState, RoomMemberEventContent},
+            power_levels::RoomPowerLevelsEventContent,
         },
         RoomEventType, StateEventType,
     },
@@ -751,6 +752,96 @@ async fn join_room_by_id_helper(
             .state
             .set_room_state(room_id, statehash_after_join, &state_lock)?;
     } else {
+        let join_rules_event = services().rooms.state_accessor.room_state_get(
+            &room_id,
+            &StateEventType::RoomJoinRules,
+            "",
+        )?;
+        let power_levels_event = services().rooms.state_accessor.room_state_get(
+            &room_id,
+            &StateEventType::RoomPowerLevels,
+            "",
+        )?;
+
+        let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
+            .as_ref()
+            .map(|join_rules_event| {
+                serde_json::from_str(join_rules_event.content.get()).map_err(|e| {
+                    warn!("Invalid join rules event: {}", e);
+                    Error::bad_database("Invalid join rules event in db.")
+                })
+            })
+            .transpose()?;
+        let power_levels_event_content: Option<RoomPowerLevelsEventContent> = power_levels_event
+            .as_ref()
+            .map(|power_levels_event| {
+                serde_json::from_str(power_levels_event.content.get()).map_err(|e| {
+                    warn!("Invalid power levels event: {}", e);
+                    Error::bad_database("Invalid power levels event in db.")
+                })
+            })
+            .transpose()?;
+
+        let restriction_rooms = match join_rules_event_content {
+            Some(RoomJoinRulesEventContent {
+                join_rule: JoinRule::Restricted(restricted),
+            })
+            | Some(RoomJoinRulesEventContent {
+                join_rule: JoinRule::KnockRestricted(restricted),
+            }) => restricted
+                .allow
+                .into_iter()
+                .filter_map(|a| match a {
+                    AllowRule::RoomMembership(r) => Some(r.room_id),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+
+        let authorized_user = restriction_rooms
+            .iter()
+            .find_map(|restriction_room_id| {
+                if !services()
+                    .rooms
+                    .state_cache
+                    .is_joined(sender_user, restriction_room_id)
+                    .ok()?
+                {
+                    return None;
+                }
+                let authorized_user = power_levels_event_content
+                    .as_ref()
+                    .and_then(|c| {
+                        c.users
+                            .iter()
+                            .filter(|(uid, i)| {
+                                uid.server_name() == services().globals.server_name()
+                                    && **i > ruma::int!(0)
+                                    && services()
+                                        .rooms
+                                        .state_cache
+                                        .is_joined(uid, restriction_room_id)
+                                        .unwrap_or(false)
+                            })
+                            .max_by_key(|(_, i)| *i)
+                            .map(|(u, _)| u.to_owned())
+                    })
+                    .or_else(|| {
+                        // TODO: Check here if user is actually allowed to invite. Currently the auth
+                        // check will just fail in this case.
+                        services()
+                            .rooms
+                            .state_cache
+                            .room_members(restriction_room_id)
+                            .filter_map(|r| r.ok())
+                            .filter(|uid| uid.server_name() == services().globals.server_name())
+                            .next()
+                    });
+                Some(authorized_user)
+            })
+            .flatten();
+
         let event = RoomMemberEventContent {
             membership: MembershipState::Join,
             displayname: services().users.displayname(sender_user)?,
@@ -759,7 +850,7 @@ async fn join_room_by_id_helper(
             third_party_invite: None,
             blurhash: services().users.blurhash(sender_user)?,
             reason: None,
-            join_authorized_via_users_server: None,
+            join_authorized_via_users_server: authorized_user,
         };
 
         // Try normal join first
@@ -779,32 +870,9 @@ async fn join_room_by_id_helper(
             Err(e) => e,
         };
 
-        // TODO: Conduit does not implement restricted join rules yet, we always ask over
-        // federation
-        let join_rules_event = services().rooms.state_accessor.room_state_get(
-            &room_id,
-            &StateEventType::RoomJoinRules,
-            "",
-        )?;
-
-        let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
-            .as_ref()
-            .map(|join_rules_event| {
-                serde_json::from_str(join_rules_event.content.get()).map_err(|e| {
-                    warn!("Invalid join rules event: {}", e);
-                    Error::bad_database("Invalid join rules event in db.")
-                })
-            })
-            .transpose()?;
-
-        if matches!(
-            join_rules_event_content,
-            Some(RoomJoinRulesEventContent {
-                join_rule: JoinRule::Restricted { .. }
-            }) | Some(RoomJoinRulesEventContent {
-                join_rule: JoinRule::KnockRestricted { .. }
-            })
-        ) {
+        if !restriction_rooms.is_empty() {
+            // We couldn't do the join locally, maybe federation can help to satisfy the restricted
+            // join requirements
             let (make_join_response, remote_server) =
                 make_join_request(sender_user, room_id, servers).await?;
 
