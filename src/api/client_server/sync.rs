@@ -873,7 +873,7 @@ async fn sync_helper(
 
         let since_state_ids = match since_shortstatehash {
             Some(s) => services().rooms.state_accessor.state_full_ids(s).await?,
-            None => BTreeMap::new(),
+            None => HashMap::new(),
         };
 
         let left_event_id = match services().rooms.state_accessor.room_state_get_id(

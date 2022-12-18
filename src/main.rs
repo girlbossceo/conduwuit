@@ -26,7 +26,6 @@ use http::{
     header::{self, HeaderName},
     Method, StatusCode, Uri,
 };
-use opentelemetry::trace::{FutureExt, Tracer};
 use ruma::api::{
     client::{
         error::{Error as RumaError, ErrorBody, ErrorKind},
@@ -93,14 +92,29 @@ async fn main() {
     if config.allow_jaeger {
         opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
         let tracer = opentelemetry_jaeger::new_agent_pipeline()
+            .with_auto_split_batch(true)
+            .with_service_name("conduit")
             .install_batch(opentelemetry::runtime::Tokio)
             .unwrap();
+        let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
-        let span = tracer.start("conduit");
-        start.with_current_context().await;
-        drop(span);
+        let filter_layer = match EnvFilter::try_new(&config.log) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "It looks like your log config is invalid. The following error occurred: {}",
+                    e
+                );
+                EnvFilter::try_new("warn").unwrap()
+            }
+        };
 
-        println!("exporting");
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(filter_layer)
+            .with(telemetry);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+        start.await;
+        println!("exporting remaining spans");
         opentelemetry::global::shutdown_tracer_provider();
     } else {
         let registry = tracing_subscriber::Registry::default();

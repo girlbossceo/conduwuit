@@ -7,7 +7,7 @@ use ruma::{
     RoomVersionId,
 };
 use std::{
-    collections::{btree_map, hash_map, BTreeMap, HashMap, HashSet},
+    collections::{hash_map, BTreeMap, HashMap, HashSet},
     pin::Pin,
     sync::{Arc, RwLock, RwLockWriteGuard},
     time::{Duration, Instant, SystemTime},
@@ -553,7 +553,7 @@ impl Service {
                 let mut auth_chain_sets = Vec::with_capacity(extremity_sstatehashes.len());
 
                 for (sstatehash, prev_event) in extremity_sstatehashes {
-                    let mut leaf_state: BTreeMap<_, _> = services()
+                    let mut leaf_state: HashMap<_, _> = services()
                         .rooms
                         .state_accessor
                         .state_full_ids(sstatehash)
@@ -660,7 +660,7 @@ impl Service {
                         )
                         .await;
 
-                    let mut state: BTreeMap<_, Arc<EventId>> = BTreeMap::new();
+                    let mut state: HashMap<_, Arc<EventId>> = HashMap::new();
                     for (pdu, _) in state_vec {
                         let state_key = pdu.state_key.clone().ok_or_else(|| {
                             Error::bad_database("Found non-state pdu in state events.")
@@ -672,10 +672,10 @@ impl Service {
                         )?;
 
                         match state.entry(shortstatekey) {
-                            btree_map::Entry::Vacant(v) => {
+                            hash_map::Entry::Vacant(v) => {
                                 v.insert(Arc::from(&*pdu.event_id));
                             }
-                            btree_map::Entry::Occupied(_) => return Err(
+                            hash_map::Entry::Occupied(_) => return Err(
                                 Error::bad_database("State event's type and state_key combination exists multiple times."),
                             ),
                         }

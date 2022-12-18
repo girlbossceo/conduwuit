@@ -15,7 +15,6 @@ pub struct Service {
 }
 
 impl Service {
-    #[tracing::instrument(skip(self))]
     pub fn get_cached_eventid_authchain<'a>(
         &'a self,
         key: &[u64],
