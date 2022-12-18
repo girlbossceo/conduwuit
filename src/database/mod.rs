@@ -258,7 +258,7 @@ impl KeyValueDatabase {
         };
 
         if config.max_request_size < 1024 {
-            eprintln!("ERROR: Max request size is less than 1KB. Please increase it.");
+            error!(?config.max_request_size, "Max request size is less than 1KB. Please increase it.");
         }
 
         let db_raw = Box::new(Self {
@@ -483,7 +483,7 @@ impl KeyValueDatabase {
                         for user in services().rooms.state_cache.room_members(&room?) {
                             let user = user?;
                             if user.server_name() != services().globals.server_name() {
-                                println!("Migration: Creating user {}", user);
+                                info!(?user, "Migration: creating user");
                                 services().users.create(&user, None)?;
                             }
                         }
@@ -545,7 +545,6 @@ impl KeyValueDatabase {
                      current_state: HashSet<_>,
                      last_roomstates: &mut HashMap<_, _>| {
                         counter += 1;
-                        println!("counter: {}", counter);
                         let last_roomsstatehash = last_roomstates.get(current_room);
 
                         let states_parents = last_roomsstatehash.map_or_else(
@@ -742,15 +741,13 @@ impl KeyValueDatabase {
                         new_key.extend_from_slice(word);
                         new_key.push(0xff);
                         new_key.extend_from_slice(pdu_id_count);
-                        println!("old {:?}", key);
-                        println!("new {:?}", new_key);
                         Some((new_key, Vec::new()))
                     })
                     .peekable();
 
                 while iter.peek().is_some() {
                     db.tokenids.insert_batch(&mut iter.by_ref().take(1000))?;
-                    println!("smaller batch done");
+                    debug!("Inserted smaller batch");
                 }
 
                 info!("Deleting starts");
@@ -760,7 +757,6 @@ impl KeyValueDatabase {
                     .iter()
                     .filter_map(|(key, _)| {
                         if key.starts_with(b"!") {
-                            println!("del {:?}", key);
                             Some(key)
                         } else {
                             None
@@ -769,7 +765,6 @@ impl KeyValueDatabase {
                     .collect();
 
                 for key in batch2 {
-                    println!("del");
                     db.tokenids.remove(&key)?;
                 }
 
@@ -945,7 +940,6 @@ impl KeyValueDatabase {
 
         #[cfg(unix)]
         use tokio::signal::unix::{signal, SignalKind};
-        use tracing::info;
 
         use std::time::{Duration, Instant};
 
@@ -961,23 +955,23 @@ impl KeyValueDatabase {
                 #[cfg(unix)]
                 tokio::select! {
                     _ = i.tick() => {
-                        info!("cleanup: Timer ticked");
+                        debug!("cleanup: Timer ticked");
                     }
                     _ = s.recv() => {
-                        info!("cleanup: Received SIGHUP");
+                        debug!("cleanup: Received SIGHUP");
                     }
                 };
                 #[cfg(not(unix))]
                 {
                     i.tick().await;
-                    info!("cleanup: Timer ticked")
+                    debug!("cleanup: Timer ticked")
                 }
 
                 let start = Instant::now();
                 if let Err(e) = services().globals.cleanup() {
                     error!("cleanup: Errored: {}", e);
                 } else {
-                    info!("cleanup: Finished in {:?}", start.elapsed());
+                    debug!("cleanup: Finished in {:?}", start.elapsed());
                 }
             }
         });

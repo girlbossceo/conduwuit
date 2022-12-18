@@ -40,7 +40,7 @@ use tower_http::{
     trace::TraceLayer,
     ServiceBuilderExt as _,
 };
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 pub use conduit::*; // Re-export everything from the library crate
@@ -68,26 +68,15 @@ async fn main() {
     let config = match raw_config.extract::<Config>() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("It looks like your config is invalid. The following error occured while parsing it: {}", e);
+            eprintln!(
+                "It looks like your config is invalid. The following error occurred: {}",
+                e
+            );
             std::process::exit(1);
         }
     };
 
     config.warn_deprecated();
-
-    if let Err(e) = KeyValueDatabase::load_or_create(config).await {
-        eprintln!(
-            "The database couldn't be loaded or created. The following error occured: {}",
-            e
-        );
-        std::process::exit(1);
-    };
-
-    let config = &services().globals.config;
-
-    let start = async {
-        run_server().await.unwrap();
-    };
 
     if config.allow_jaeger {
         opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
@@ -113,35 +102,44 @@ async fn main() {
             .with(filter_layer)
             .with(telemetry);
         tracing::subscriber::set_global_default(subscriber).unwrap();
-        start.await;
-        println!("exporting remaining spans");
-        opentelemetry::global::shutdown_tracer_provider();
+    } else if config.tracing_flame {
+        let registry = tracing_subscriber::Registry::default();
+        let (flame_layer, _guard) =
+            tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+        let flame_layer = flame_layer.with_empty_samples(false);
+
+        let filter_layer = EnvFilter::new("trace,h2=off");
+
+        let subscriber = registry.with(filter_layer).with(flame_layer);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
     } else {
         let registry = tracing_subscriber::Registry::default();
-        if config.tracing_flame {
-            let (flame_layer, _guard) =
-                tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
-            let flame_layer = flame_layer.with_empty_samples(false);
+        let fmt_layer = tracing_subscriber::fmt::Layer::new();
+        let filter_layer = match EnvFilter::try_new(&config.log) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("It looks like your config is invalid. The following error occured while parsing it: {}", e);
+                EnvFilter::try_new("warn").unwrap()
+            }
+        };
 
-            let filter_layer = EnvFilter::new("trace,h2=off");
+        let subscriber = registry.with(filter_layer).with(fmt_layer);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    }
 
-            let subscriber = registry.with(filter_layer).with(flame_layer);
-            tracing::subscriber::set_global_default(subscriber).unwrap();
-            start.await;
-        } else {
-            let fmt_layer = tracing_subscriber::fmt::Layer::new();
-            let filter_layer = match EnvFilter::try_new(&config.log) {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("It looks like your log config is invalid. The following error occurred: {}", e);
-                    EnvFilter::try_new("warn").unwrap()
-                }
-            };
+    info!("Loading database");
+    if let Err(error) = KeyValueDatabase::load_or_create(config).await {
+        error!(?error, "The database couldn't be loaded or created");
 
-            let subscriber = registry.with(filter_layer).with(fmt_layer);
-            tracing::subscriber::set_global_default(subscriber).unwrap();
-            start.await;
-        }
+        std::process::exit(1);
+    };
+    let config = &services().globals.config;
+
+    info!("Starting server");
+    run_server().await.unwrap();
+
+    if config.allow_jaeger {
+        opentelemetry::global::shutdown_tracer_provider();
     }
 }
 
