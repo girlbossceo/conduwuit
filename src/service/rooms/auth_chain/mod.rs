@@ -6,7 +6,7 @@ use std::{
 
 pub use data::Data;
 use ruma::{api::client::error::ErrorKind, EventId, RoomId};
-use tracing::log::warn;
+use tracing::{debug, error, warn};
 
 use crate::{services, Error, Result};
 
@@ -88,10 +88,10 @@ impl Service {
                         .rooms
                         .auth_chain
                         .cache_auth_chain(vec![sevent_id], Arc::clone(&auth_chain))?;
-                    println!(
-                        "cache missed event {} with auth chain len {}",
-                        event_id,
-                        auth_chain.len()
+                    debug!(
+                        event_id = ?event_id,
+                        chain_length = ?auth_chain.len(),
+                        "Cache missed event"
                     );
                     chunk_cache.extend(auth_chain.iter());
 
@@ -101,11 +101,11 @@ impl Service {
                     }
                 };
             }
-            println!(
-                "chunk missed with len {}, event hits2: {}, misses2: {}",
-                chunk_cache.len(),
-                hits2,
-                misses2
+            debug!(
+                chunk_cache_length = ?chunk_cache.len(),
+                hits = ?hits2,
+                misses = ?misses2,
+                "Chunk missed",
             );
             let chunk_cache = Arc::new(chunk_cache);
             services()
@@ -115,11 +115,11 @@ impl Service {
             full_auth_chain.extend(chunk_cache.iter());
         }
 
-        println!(
-            "total: {}, chunk hits: {}, misses: {}",
-            full_auth_chain.len(),
-            hits,
-            misses
+        debug!(
+            chain_length = ?full_auth_chain.len(),
+            hits = ?hits,
+            misses = ?misses,
+            "Auth chain stats",
         );
 
         Ok(full_auth_chain
@@ -151,10 +151,10 @@ impl Service {
                     }
                 }
                 Ok(None) => {
-                    warn!("Could not find pdu mentioned in auth events: {}", event_id);
+                    warn!(?event_id, "Could not find pdu mentioned in auth events");
                 }
-                Err(e) => {
-                    warn!("Could not load event in auth chain: {} {}", event_id, e);
+                Err(error) => {
+                    error!(?event_id, ?error, "Could not load event in auth chain");
                 }
             }
         }

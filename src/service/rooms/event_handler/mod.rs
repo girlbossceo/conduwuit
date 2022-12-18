@@ -839,8 +839,8 @@ impl Service {
             info!("Preparing for stateres to derive new room state");
             let mut extremity_sstatehashes = HashMap::new();
 
-            info!("Loading extremities");
-            for id in dbg!(&extremities) {
+            info!(?extremities, "Loading extremities");
+            for id in &extremities {
                 match services().rooms.timeline.get_pdu(id)? {
                     Some(leaf_pdu) => {
                         extremity_sstatehashes.insert(
@@ -1273,7 +1273,6 @@ impl Service {
             // This return value is the key used for sorting events,
             // events are then sorted by power level, time,
             // and lexically by event_id.
-            println!("{}", event_id);
             Ok((
                 int!(0),
                 MilliSecondsSinceUnixEpoch(
