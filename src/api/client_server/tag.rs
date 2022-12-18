@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 ///
 /// - Inserts the tag into the tag event of the room account data.
 pub async fn update_tag_route(
-    body: Ruma<create_tag::v3::IncomingRequest>,
+    body: Ruma<create_tag::v3::Request>,
 ) -> Result<create_tag::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -58,7 +58,7 @@ pub async fn update_tag_route(
 ///
 /// - Removes the tag from the tag event of the room account data.
 pub async fn delete_tag_route(
-    body: Ruma<delete_tag::v3::IncomingRequest>,
+    body: Ruma<delete_tag::v3::Request>,
 ) -> Result<delete_tag::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -98,9 +98,7 @@ pub async fn delete_tag_route(
 /// Returns tags on the room.
 ///
 /// - Gets the tag event of the room account data.
-pub async fn get_tags_route(
-    body: Ruma<get_tags::v3::IncomingRequest>,
-) -> Result<get_tags::v3::Response> {
+pub async fn get_tags_route(body: Ruma<get_tags::v3::Request>) -> Result<get_tags::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let event = services().account_data.get(

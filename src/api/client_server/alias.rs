@@ -9,14 +9,14 @@ use ruma::{
         },
         federation,
     },
-    RoomAliasId,
+    OwnedRoomAliasId,
 };
 
 /// # `PUT /_matrix/client/r0/directory/room/{roomAlias}`
 ///
 /// Creates a new room alias on this server.
 pub async fn create_alias_route(
-    body: Ruma<create_alias::v3::IncomingRequest>,
+    body: Ruma<create_alias::v3::Request>,
 ) -> Result<create_alias::v3::Response> {
     if body.room_alias.server_name() != services().globals.server_name() {
         return Err(Error::BadRequest(
@@ -49,7 +49,7 @@ pub async fn create_alias_route(
 /// - TODO: additional access control checks
 /// - TODO: Update canonical alias event
 pub async fn delete_alias_route(
-    body: Ruma<delete_alias::v3::IncomingRequest>,
+    body: Ruma<delete_alias::v3::Request>,
 ) -> Result<delete_alias::v3::Response> {
     if body.room_alias.server_name() != services().globals.server_name() {
         return Err(Error::BadRequest(
@@ -71,18 +71,22 @@ pub async fn delete_alias_route(
 ///
 /// - TODO: Suggest more servers to join via
 pub async fn get_alias_route(
-    body: Ruma<get_alias::v3::IncomingRequest>,
+    body: Ruma<get_alias::v3::Request>,
 ) -> Result<get_alias::v3::Response> {
-    get_alias_helper(&body.room_alias).await
+    get_alias_helper(body.body.room_alias).await
 }
 
-pub(crate) async fn get_alias_helper(room_alias: &RoomAliasId) -> Result<get_alias::v3::Response> {
+pub(crate) async fn get_alias_helper(
+    room_alias: OwnedRoomAliasId,
+) -> Result<get_alias::v3::Response> {
     if room_alias.server_name() != services().globals.server_name() {
         let response = services()
             .sending
             .send_federation_request(
                 room_alias.server_name(),
-                federation::query::get_room_information::v1::Request { room_alias },
+                federation::query::get_room_information::v1::Request {
+                    room_alias: room_alias.to_owned(),
+                },
             )
             .await?;
 
@@ -93,7 +97,7 @@ pub(crate) async fn get_alias_helper(room_alias: &RoomAliasId) -> Result<get_ali
     }
 
     let mut room_id = None;
-    match services().rooms.alias.resolve_local_alias(room_alias)? {
+    match services().rooms.alias.resolve_local_alias(&room_alias)? {
         Some(r) => room_id = Some(r),
         None => {
             for (_id, registration) in services().appservice.all()? {
@@ -115,7 +119,9 @@ pub(crate) async fn get_alias_helper(room_alias: &RoomAliasId) -> Result<get_ali
                         .sending
                         .send_appservice_request(
                             registration,
-                            appservice::query::query_room_alias::v1::Request { room_alias },
+                            appservice::query::query_room_alias::v1::Request {
+                                room_alias: room_alias.clone(),
+                            },
                         )
                         .await
                         .is_ok()
@@ -124,7 +130,7 @@ pub(crate) async fn get_alias_helper(room_alias: &RoomAliasId) -> Result<get_ali
                         services()
                             .rooms
                             .alias
-                            .resolve_local_alias(room_alias)?
+                            .resolve_local_alias(&room_alias)?
                             .ok_or_else(|| {
                                 Error::bad_config("Appservice lied to us. Room does not exist.")
                             })?,

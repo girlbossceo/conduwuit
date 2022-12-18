@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 /// - Updates fully-read account data event to `fully_read`
 /// - If `read_receipt` is set: Update private marker and public read receipt EDU
 pub async fn set_read_marker_route(
-    body: Ruma<set_read_marker::v3::IncomingRequest>,
+    body: Ruma<set_read_marker::v3::Request>,
 ) -> Result<set_read_marker::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -89,7 +89,7 @@ pub async fn set_read_marker_route(
 ///
 /// Sets private read marker and public read receipt EDU.
 pub async fn create_receipt_route(
-    body: Ruma<create_receipt::v3::IncomingRequest>,
+    body: Ruma<create_receipt::v3::Request>,
 ) -> Result<create_receipt::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

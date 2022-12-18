@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 ///
 /// Get information on the supported feature set and other relevent capabilities of this server.
 pub async fn get_capabilities_route(
-    _body: Ruma<get_capabilities::v3::IncomingRequest>,
+    _body: Ruma<get_capabilities::v3::Request>,
 ) -> Result<get_capabilities::v3::Response> {
     let mut available = BTreeMap::new();
     for room_version in &services().globals.unstable_room_versions {

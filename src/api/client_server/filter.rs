@@ -10,7 +10,7 @@ use ruma::api::client::{
 ///
 /// - A user can only access their own filters
 pub async fn get_filter_route(
-    body: Ruma<get_filter::v3::IncomingRequest>,
+    body: Ruma<get_filter::v3::Request>,
 ) -> Result<get_filter::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let filter = match services().users.get_filter(sender_user, &body.filter_id)? {
@@ -25,7 +25,7 @@ pub async fn get_filter_route(
 ///
 /// Creates a new filter to be used by other endpoints.
 pub async fn create_filter_route(
-    body: Ruma<create_filter::v3::IncomingRequest>,
+    body: Ruma<create_filter::v3::Request>,
 ) -> Result<create_filter::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     Ok(create_filter::v3::Response::new(

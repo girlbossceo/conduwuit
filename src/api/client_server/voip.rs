@@ -10,7 +10,7 @@ type HmacSha1 = Hmac<Sha1>;
 ///
 /// TODO: Returns information about the recommended turn server.
 pub async fn turn_server_route(
-    body: Ruma<get_turn_server_info::v3::IncomingRequest>,
+    body: Ruma<get_turn_server_info::v3::Request>,
 ) -> Result<get_turn_server_info::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

@@ -27,7 +27,7 @@ pub async fn get_media_config_route(
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
 pub async fn create_content_route(
-    body: Ruma<create_content::v3::IncomingRequest>,
+    body: Ruma<create_content::v3::Request>,
 ) -> Result<create_content::v3::Response> {
     let mxc = format!(
         "mxc://{}/{}",
@@ -57,7 +57,7 @@ pub async fn create_content_route(
 pub async fn get_remote_content(
     mxc: &str,
     server_name: &ruma::ServerName,
-    media_id: &str,
+    media_id: String,
 ) -> Result<get_content::v3::Response, Error> {
     let content_response = services()
         .sending
@@ -65,7 +65,7 @@ pub async fn get_remote_content(
             server_name,
             get_content::v3::Request {
                 allow_remote: false,
-                server_name,
+                server_name: server_name.to_owned(),
                 media_id,
             },
         )
@@ -90,7 +90,7 @@ pub async fn get_remote_content(
 ///
 /// - Only allows federation if `allow_remote` is true
 pub async fn get_content_route(
-    body: Ruma<get_content::v3::IncomingRequest>,
+    body: Ruma<get_content::v3::Request>,
 ) -> Result<get_content::v3::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
@@ -108,7 +108,7 @@ pub async fn get_content_route(
         })
     } else if &*body.server_name != services().globals.server_name() && body.allow_remote {
         let remote_content_response =
-            get_remote_content(&mxc, &body.server_name, &body.media_id).await?;
+            get_remote_content(&mxc, &body.server_name, body.media_id.clone()).await?;
         Ok(remote_content_response)
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
@@ -121,7 +121,7 @@ pub async fn get_content_route(
 ///
 /// - Only allows federation if `allow_remote` is true
 pub async fn get_content_as_filename_route(
-    body: Ruma<get_content_as_filename::v3::IncomingRequest>,
+    body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<get_content_as_filename::v3::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
@@ -139,7 +139,7 @@ pub async fn get_content_as_filename_route(
         })
     } else if &*body.server_name != services().globals.server_name() && body.allow_remote {
         let remote_content_response =
-            get_remote_content(&mxc, &body.server_name, &body.media_id).await?;
+            get_remote_content(&mxc, &body.server_name, body.media_id.clone()).await?;
 
         Ok(get_content_as_filename::v3::Response {
             content_disposition: Some(format!("inline: filename={}", body.filename)),
@@ -158,7 +158,7 @@ pub async fn get_content_as_filename_route(
 ///
 /// - Only allows federation if `allow_remote` is true
 pub async fn get_content_thumbnail_route(
-    body: Ruma<get_content_thumbnail::v3::IncomingRequest>,
+    body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<get_content_thumbnail::v3::Response> {
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
@@ -192,8 +192,8 @@ pub async fn get_content_thumbnail_route(
                     height: body.height,
                     width: body.width,
                     method: body.method.clone(),
-                    server_name: &body.server_name,
-                    media_id: &body.media_id,
+                    server_name: body.server_name.clone(),
+                    media_id: body.media_id.clone(),
                 },
             )
             .await?;

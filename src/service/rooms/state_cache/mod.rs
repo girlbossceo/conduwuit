@@ -164,7 +164,7 @@ impl Service {
                             .content
                             .ignored_users
                             .iter()
-                            .any(|user| user == sender)
+                            .any(|(user, _details)| user == sender)
                     });
 
                 if is_ignored {

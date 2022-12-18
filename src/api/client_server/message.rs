@@ -19,7 +19,7 @@ use std::{
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is allowed
 pub async fn send_message_event_route(
-    body: Ruma<send_message_event::v3::IncomingRequest>,
+    body: Ruma<send_message_event::v3::Request>,
 ) -> Result<send_message_event::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_deref();
@@ -105,7 +105,7 @@ pub async fn send_message_event_route(
 /// - Only works if the user is joined (TODO: always allow, but only show events where the user was
 /// joined, depending on history_visibility)
 pub async fn get_message_events_route(
-    body: Ruma<get_message_events::v3::IncomingRequest>,
+    body: Ruma<get_message_events::v3::Request>,
 ) -> Result<get_message_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");

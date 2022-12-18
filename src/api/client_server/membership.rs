@@ -5,7 +5,7 @@ use ruma::{
             membership::{
                 ban_user, forget_room, get_member_events, invite_user, join_room_by_id,
                 join_room_by_id_or_alias, joined_members, joined_rooms, kick_user, leave_room,
-                unban_user, IncomingThirdPartySigned,
+                unban_user, ThirdPartySigned,
             },
         },
         federation::{self, membership::create_invite},
@@ -44,7 +44,7 @@ use super::get_alias_helper;
 /// - If the server knowns about this room: creates the join event and does auth rules locally
 /// - If the server does not know about the room: asks other servers over federation
 pub async fn join_room_by_id_route(
-    body: Ruma<join_room_by_id::v3::IncomingRequest>,
+    body: Ruma<join_room_by_id::v3::Request>,
 ) -> Result<join_room_by_id::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -81,7 +81,7 @@ pub async fn join_room_by_id_route(
 /// - If the server knowns about this room: creates the join event and does auth rules locally
 /// - If the server does not know about the room: asks other servers over federation
 pub async fn join_room_by_id_or_alias_route(
-    body: Ruma<join_room_by_id_or_alias::v3::IncomingRequest>,
+    body: Ruma<join_room_by_id_or_alias::v3::Request>,
 ) -> Result<join_room_by_id_or_alias::v3::Response> {
     let sender_user = body.sender_user.as_deref().expect("user is authenticated");
     let body = body.body;
@@ -107,7 +107,7 @@ pub async fn join_room_by_id_or_alias_route(
             (servers, room_id)
         }
         Err(room_alias) => {
-            let response = get_alias_helper(&room_alias).await?;
+            let response = get_alias_helper(room_alias).await?;
 
             (response.servers.into_iter().collect(), response.room_id)
         }
@@ -132,7 +132,7 @@ pub async fn join_room_by_id_or_alias_route(
 ///
 /// - This should always work if the user is currently joined.
 pub async fn leave_room_route(
-    body: Ruma<leave_room::v3::IncomingRequest>,
+    body: Ruma<leave_room::v3::Request>,
 ) -> Result<leave_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -145,11 +145,11 @@ pub async fn leave_room_route(
 ///
 /// Tries to send an invite event into the room.
 pub async fn invite_user_route(
-    body: Ruma<invite_user::v3::IncomingRequest>,
+    body: Ruma<invite_user::v3::Request>,
 ) -> Result<invite_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if let invite_user::v3::IncomingInvitationRecipient::UserId { user_id } = &body.recipient {
+    if let invite_user::v3::InvitationRecipient::UserId { user_id } = &body.recipient {
         invite_helper(sender_user, user_id, &body.room_id, false).await?;
         Ok(invite_user::v3::Response {})
     } else {
@@ -161,7 +161,7 @@ pub async fn invite_user_route(
 ///
 /// Tries to send a kick event into the room.
 pub async fn kick_user_route(
-    body: Ruma<kick_user::v3::IncomingRequest>,
+    body: Ruma<kick_user::v3::Request>,
 ) -> Result<kick_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -218,9 +218,7 @@ pub async fn kick_user_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/ban`
 ///
 /// Tries to send a ban event into the room.
-pub async fn ban_user_route(
-    body: Ruma<ban_user::v3::IncomingRequest>,
-) -> Result<ban_user::v3::Response> {
+pub async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     // TODO: reason
@@ -287,7 +285,7 @@ pub async fn ban_user_route(
 ///
 /// Tries to send an unban event into the room.
 pub async fn unban_user_route(
-    body: Ruma<unban_user::v3::IncomingRequest>,
+    body: Ruma<unban_user::v3::Request>,
 ) -> Result<unban_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -349,7 +347,7 @@ pub async fn unban_user_route(
 /// Note: Other devices of the user have no way of knowing the room was forgotten, so this has to
 /// be called from every device
 pub async fn forget_room_route(
-    body: Ruma<forget_room::v3::IncomingRequest>,
+    body: Ruma<forget_room::v3::Request>,
 ) -> Result<forget_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -385,7 +383,7 @@ pub async fn joined_rooms_route(
 ///
 /// - Only works if the user is currently joined
 pub async fn get_member_events_route(
-    body: Ruma<get_member_events::v3::IncomingRequest>,
+    body: Ruma<get_member_events::v3::Request>,
 ) -> Result<get_member_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -421,7 +419,7 @@ pub async fn get_member_events_route(
 /// - The sender user must be in the room
 /// - TODO: An appservice just needs a puppet joined
 pub async fn joined_members_route(
-    body: Ruma<joined_members::v3::IncomingRequest>,
+    body: Ruma<joined_members::v3::Request>,
 ) -> Result<joined_members::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -462,7 +460,7 @@ async fn join_room_by_id_helper(
     sender_user: Option<&UserId>,
     room_id: &RoomId,
     servers: &[OwnedServerName],
-    _third_party_signed: Option<&IncomingThirdPartySigned>,
+    _third_party_signed: Option<&ThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
     let sender_user = sender_user.expect("user is authenticated");
 
@@ -575,9 +573,9 @@ async fn join_room_by_id_helper(
             .send_federation_request(
                 &remote_server,
                 federation::membership::create_join_event::v2::Request {
-                    room_id,
-                    event_id,
-                    pdu: &PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+                    room_id: room_id.to_owned(),
+                    event_id: event_id.to_owned(),
+                    pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
                 },
             )
             .await?;
@@ -896,9 +894,9 @@ async fn join_room_by_id_helper(
                 .send_federation_request(
                     &remote_server,
                     federation::membership::create_join_event::v2::Request {
-                        room_id,
-                        event_id,
-                        pdu: &PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+                        room_id: room_id.to_owned(),
+                        event_id: event_id.to_owned(),
+                        pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
                     },
                 )
                 .await?;
@@ -969,9 +967,9 @@ async fn make_join_request(
             .send_federation_request(
                 remote_server,
                 federation::membership::prepare_join_event::v1::Request {
-                    room_id,
-                    user_id: sender_user,
-                    ver: &services().globals.supported_room_versions(),
+                    room_id: room_id.to_owned(),
+                    user_id: sender_user.to_owned(),
+                    ver: services().globals.supported_room_versions(),
                 },
             )
             .await;
@@ -1105,18 +1103,18 @@ pub(crate) async fn invite_helper<'a>(
             (pdu, pdu_json, invite_room_state)
         };
 
-        let room_version_id = &services().rooms.state.get_room_version(room_id)?;
+        let room_version_id = services().rooms.state.get_room_version(room_id)?;
 
         let response = services()
             .sending
             .send_federation_request(
                 user_id.server_name(),
                 create_invite::v2::Request {
-                    room_id,
-                    event_id: &pdu.event_id,
-                    room_version: &room_version_id,
-                    event: &PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
-                    invite_room_state: &invite_room_state,
+                    room_id: room_id.to_owned(),
+                    event_id: (&*pdu.event_id).to_owned(),
+                    room_version: room_version_id.clone(),
+                    event: PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
+                    invite_room_state,
                 },
             )
             .await?;
@@ -1124,7 +1122,7 @@ pub(crate) async fn invite_helper<'a>(
         let pub_key_map = RwLock::new(BTreeMap::new());
 
         // We do not add the event_id field to the pdu here because of signature and hashes checks
-        let (event_id, value) = match gen_event_id_canonical_json(&response.event, room_version_id)
+        let (event_id, value) = match gen_event_id_canonical_json(&response.event, &room_version_id)
         {
             Ok(t) => t,
             Err(_) => {
@@ -1136,7 +1134,7 @@ pub(crate) async fn invite_helper<'a>(
             }
         };
 
-        if pdu.event_id != event_id {
+        if *pdu.event_id != *event_id {
             warn!("Server {} changed invite event, that's not allowed in the spec: ours: {:?}, theirs: {:?}", user_id.server_name(), pdu_json, value);
         }
 
@@ -1363,7 +1361,10 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
             .sending
             .send_federation_request(
                 &remote_server,
-                federation::membership::prepare_leave_event::v1::Request { room_id, user_id },
+                federation::membership::prepare_leave_event::v1::Request {
+                    room_id: room_id.to_owned(),
+                    user_id: user_id.to_owned(),
+                },
             )
             .await;
 
@@ -1440,9 +1441,9 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
         .send_federation_request(
             &remote_server,
             federation::membership::create_leave_event::v2::Request {
-                room_id,
-                event_id: &event_id,
-                pdu: &PduEvent::convert_to_outgoing_federation_event(leave_event.clone()),
+                room_id: room_id.to_owned(),
+                event_id,
+                pdu: PduEvent::convert_to_outgoing_federation_event(leave_event.clone()),
             },
         )
         .await?;
