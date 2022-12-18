@@ -2,7 +2,7 @@
 
 > ## Getting help
 >
-> If you run into any problems while setting up Conduit, write an email to `timo@koesters.xyz`, ask us
+> If you run into any problems while setting up Conduit, write an email to `conduit@koesters.xyz`, ask us
 > in `#conduit:fachschaften.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
 
 ## Installing Conduit

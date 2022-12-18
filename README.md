@@ -1,6 +1,11 @@
 # Conduit
-
 ### A Matrix homeserver written in Rust
+
+#### What is Matrix?
+[Matrix](https://matrix.org) is an open network for secure and decentralized
+communication. Users from every Matrix homeserver can chat with users from all
+other Matrix servers. You can even use bridges (also called Matrix appservices)
+to communicate with users outside of Matrix, like a community on Discord.
 
 #### What is the goal?
 
@@ -13,9 +18,10 @@ friends or company.
 Yes! You can test our Conduit instance by opening a Matrix client (<https://app.element.io> or Element Android for
 example) and registering on the `conduit.rs` homeserver.
 
-It is hosted on a ODROID HC 2 with 2GB RAM and a SAMSUNG Exynos 5422 CPU, which
-was used in the Samsung Galaxy S5. It joined many big rooms including Matrix
-HQ.
+*Registration is currently disabled because of scammers. For an account please
+  message us (see contact section below).*
+
+Server hosting for conduit.rs is donated by the Matrix.org Foundation.
 
 #### What is the current status?
 
@@ -25,8 +31,8 @@ from time to time.
 
 There are still a few important features missing:
 
-- E2EE verification over federation
-- Outgoing read receipts, typing, presence over federation
+- E2EE emoji comparison over federation (E2EE chat works)
+- Outgoing read receipts, typing, presence over federation (incoming works)
 
 Check out the [Conduit 1.0 Release Milestone](https://gitlab.com/famedly/conduit/-/milestones/3).
 
@@ -50,12 +56,20 @@ If you want to connect an Appservice to Conduit, take a look at [APPSERVICES.md]
 
 #### Thanks to
 
-Thanks to Famedly, Prototype Fund (DLR and German BMBF) and all other individuals for financially supporting this project.
+Thanks to FUTO, Famedly, Prototype Fund (DLR and German BMBF) and all individuals for financially supporting this project.
 
 Thanks to the contributors to Conduit and all libraries we use, for example:
 
 - Ruma: A clean library for the Matrix Spec in Rust
 - axum: A modular web framework
+
+#### Contact
+
+If you run into any question, feel free to
+- Ask us in `#conduit:fachschaften.org` on Matrix
+- Write an E-Mail to `conduit@koesters.xyz`
+- Send an direct message to `timo@fachschaften.org` on Matrix
+- [Open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new)
 
 #### Donate
 
