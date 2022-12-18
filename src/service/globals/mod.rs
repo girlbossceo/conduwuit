@@ -168,7 +168,7 @@ impl Service {
             .supported_room_versions()
             .contains(&s.config.default_room_version)
         {
-            error!("Room version in config isn't supported, falling back to default version");
+            error!(config=?s.config.default_room_version, fallback=?crate::config::default_default_room_version(), "Room version in config isn't supported, falling back to default version");
             s.config.default_room_version = crate::config::default_default_room_version();
         };
 
