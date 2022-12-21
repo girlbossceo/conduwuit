@@ -224,7 +224,7 @@ fn default_database_backend() -> String {
 }
 
 fn default_db_cache_capacity_mb() -> f64 {
-    10.0
+    1000.0
 }
 
 fn default_conduit_cache_capacity_modifier() -> f64 {
@@ -232,7 +232,7 @@ fn default_conduit_cache_capacity_modifier() -> f64 {
 }
 
 fn default_rocksdb_max_open_files() -> i32 {
-    20
+    1000
 }
 
 fn default_pdu_cache_capacity() -> u32 {
