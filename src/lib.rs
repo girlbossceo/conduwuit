@@ -7,19 +7,25 @@
 #![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
 
+pub mod api;
 mod config;
 mod database;
-mod error;
-mod pdu;
-mod ruma_wrapper;
+mod service;
 mod utils;
 
-pub mod appservice_server;
-pub mod client_server;
-pub mod server_server;
+use std::sync::RwLock;
 
+pub use api::ruma_wrapper::{Ruma, RumaResponse};
 pub use config::Config;
-pub use database::Database;
-pub use error::{Error, Result};
-pub use pdu::PduEvent;
-pub use ruma_wrapper::{Ruma, RumaResponse};
+pub use database::KeyValueDatabase;
+pub use service::{pdu::PduEvent, Services};
+pub use utils::error::{Error, Result};
+
+pub static SERVICES: RwLock<Option<&'static Services>> = RwLock::new(None);
+
+pub fn services() -> &'static Services {
+    SERVICES
+        .read()
+        .unwrap()
+        .expect("SERVICES should be initialized when this is called")
+}

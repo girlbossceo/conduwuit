@@ -1,6 +1,6 @@
 use crate::{
     database::{
-        abstraction::{watchers::Watchers, DatabaseEngine, Tree},
+        abstraction::{watchers::Watchers, KeyValueDatabaseEngine, KvTree},
         Config,
     },
     Result,
@@ -15,7 +15,7 @@ pub struct Engine {
     persy: Persy,
 }
 
-impl DatabaseEngine for Arc<Engine> {
+impl KeyValueDatabaseEngine for Arc<Engine> {
     fn open(config: &Config) -> Result<Self> {
         let mut cfg = persy::Config::new();
         cfg.change_cache_size((config.db_cache_capacity_mb * 1024.0 * 1024.0) as u64);
@@ -27,7 +27,7 @@ impl DatabaseEngine for Arc<Engine> {
         Ok(Arc::new(Engine { persy }))
     }
 
-    fn open_tree(&self, name: &'static str) -> Result<Arc<dyn Tree>> {
+    fn open_tree(&self, name: &'static str) -> Result<Arc<dyn KvTree>> {
         // Create if it doesn't exist
         if !self.persy.exists_index(name)? {
             let mut tx = self.persy.begin()?;
@@ -61,7 +61,7 @@ impl PersyTree {
     }
 }
 
-impl Tree for PersyTree {
+impl KvTree for PersyTree {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let result = self
             .persy

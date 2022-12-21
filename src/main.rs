@@ -7,34 +7,40 @@
 #![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
 
-use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
+use std::{future::Future, io, net::SocketAddr, time::Duration};
 
 use axum::{
-    extract::{FromRequest, MatchedPath},
+    extract::{DefaultBodyLimit, FromRequest, MatchedPath},
     handler::Handler,
     response::IntoResponse,
     routing::{get, on, MethodFilter},
     Router,
 };
 use axum_server::{bind, bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
+use conduit::api::{client_server, server_server};
 use figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
 use http::{
     header::{self, HeaderName},
-    Method, Uri,
+    Method, StatusCode, Uri,
 };
-use opentelemetry::trace::{FutureExt, Tracer};
-use ruma::api::{client::error::ErrorKind, IncomingRequest};
-use tokio::{signal, sync::RwLock};
+use ruma::api::{
+    client::{
+        error::{Error as RumaError, ErrorBody, ErrorKind},
+        uiaa::UiaaResponse,
+    },
+    IncomingRequest,
+};
+use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{self, CorsLayer},
     trace::TraceLayer,
     ServiceBuilderExt as _,
 };
-use tracing::warn;
+use tracing::{error, info, warn};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 pub use conduit::*; // Re-export everything from the library crate
@@ -48,6 +54,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() {
+    // Initialize DB
     let raw_config =
         Figment::new()
             .merge(
@@ -61,66 +68,79 @@ async fn main() {
     let config = match raw_config.extract::<Config>() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("It looks like your config is invalid. The following error occured while parsing it: {}", e);
+            eprintln!("It looks like your config is invalid. The following error occurred: {e}");
             std::process::exit(1);
         }
     };
 
-    let start = async {
-        config.warn_deprecated();
-
-        let db = match Database::load_or_create(&config).await {
-            Ok(db) => db,
-            Err(e) => {
-                eprintln!(
-                    "The database couldn't be loaded or created. The following error occured: {}",
-                    e
-                );
-                std::process::exit(1);
-            }
-        };
-
-        run_server(&config, db).await.unwrap();
-    };
+    config.warn_deprecated();
 
     if config.allow_jaeger {
         opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-        let tracer = opentelemetry_jaeger::new_pipeline()
+        let tracer = opentelemetry_jaeger::new_agent_pipeline()
+            .with_auto_split_batch(true)
+            .with_service_name("conduit")
             .install_batch(opentelemetry::runtime::Tokio)
             .unwrap();
+        let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
-        let span = tracer.start("conduit");
-        start.with_current_context().await;
-        drop(span);
+        let filter_layer = match EnvFilter::try_new(&config.log) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "It looks like your log config is invalid. The following error occurred: {e}"
+                );
+                EnvFilter::try_new("warn").unwrap()
+            }
+        };
 
-        println!("exporting");
-        opentelemetry::global::shutdown_tracer_provider();
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(filter_layer)
+            .with(telemetry);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    } else if config.tracing_flame {
+        let registry = tracing_subscriber::Registry::default();
+        let (flame_layer, _guard) =
+            tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+        let flame_layer = flame_layer.with_empty_samples(false);
+
+        let filter_layer = EnvFilter::new("trace,h2=off");
+
+        let subscriber = registry.with(filter_layer).with(flame_layer);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
     } else {
         let registry = tracing_subscriber::Registry::default();
-        if config.tracing_flame {
-            let (flame_layer, _guard) =
-                tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
-            let flame_layer = flame_layer.with_empty_samples(false);
+        let fmt_layer = tracing_subscriber::fmt::Layer::new();
+        let filter_layer = match EnvFilter::try_new(&config.log) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("It looks like your config is invalid. The following error occured while parsing it: {e}");
+                EnvFilter::try_new("warn").unwrap()
+            }
+        };
 
-            let filter_layer = EnvFilter::new("trace,h2=off");
+        let subscriber = registry.with(filter_layer).with(fmt_layer);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    }
 
-            let subscriber = registry.with(filter_layer).with(flame_layer);
-            tracing::subscriber::set_global_default(subscriber).unwrap();
-            start.await;
-        } else {
-            let fmt_layer = tracing_subscriber::fmt::Layer::new();
-            let filter_layer = EnvFilter::try_new(&config.log)
-                .or_else(|_| EnvFilter::try_new("info"))
-                .unwrap();
+    info!("Loading database");
+    if let Err(error) = KeyValueDatabase::load_or_create(config).await {
+        error!(?error, "The database couldn't be loaded or created");
 
-            let subscriber = registry.with(filter_layer).with(fmt_layer);
-            tracing::subscriber::set_global_default(subscriber).unwrap();
-            start.await;
-        }
+        std::process::exit(1);
+    };
+    let config = &services().globals.config;
+
+    info!("Starting server");
+    run_server().await.unwrap();
+
+    if config.allow_jaeger {
+        opentelemetry::global::shutdown_tracer_provider();
     }
 }
 
-async fn run_server(config: &Config, db: Arc<RwLock<Database>>) -> io::Result<()> {
+async fn run_server() -> io::Result<()> {
+    let config = &services().globals.config;
     let addr = SocketAddr::from((config.address, config.port));
 
     let x_requested_with = HeaderName::from_static("x-requested-with");
@@ -139,6 +159,7 @@ async fn run_server(config: &Config, db: Arc<RwLock<Database>>) -> io::Result<()
             }),
         )
         .compression()
+        .layer(axum::middleware::from_fn(unrecognized_method))
         .layer(
             CorsLayer::new()
                 .allow_origin(cors::Any)
@@ -158,7 +179,12 @@ async fn run_server(config: &Config, db: Arc<RwLock<Database>>) -> io::Result<()
                 ])
                 .max_age(Duration::from_secs(86400)),
         )
-        .add_extension(db.clone());
+        .layer(DefaultBodyLimit::max(
+            config
+                .max_request_size
+                .try_into()
+                .expect("failed to convert max request size"),
+        ));
 
     let app = routes().layer(middlewares).into_make_service();
     let handle = ServerHandle::new();
@@ -168,17 +194,52 @@ async fn run_server(config: &Config, db: Arc<RwLock<Database>>) -> io::Result<()
     match &config.tls {
         Some(tls) => {
             let conf = RustlsConfig::from_pem_file(&tls.certs, &tls.key).await?;
-            bind_rustls(addr, conf).handle(handle).serve(app).await?;
+            let server = bind_rustls(addr, conf).handle(handle).serve(app);
+
+            #[cfg(feature = "systemd")]
+            let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
+            server.await?
         }
         None => {
-            bind(addr).handle(handle).serve(app).await?;
+            let server = bind(addr).handle(handle).serve(app);
+
+            #[cfg(feature = "systemd")]
+            let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
+            server.await?
         }
     }
 
-    // After serve exits and before exiting, shutdown the DB
-    Database::on_shutdown(db).await;
+    // On shutdown
+    info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
+    services().globals.rotate.fire();
+
+    #[cfg(feature = "systemd")]
+    let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
 
     Ok(())
+}
+
+async fn unrecognized_method<B>(
+    req: axum::http::Request<B>,
+    next: axum::middleware::Next<B>,
+) -> std::result::Result<axum::response::Response, StatusCode> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    let inner = next.run(req).await;
+    if inner.status() == axum::http::StatusCode::METHOD_NOT_ALLOWED {
+        warn!("Method not allowed: {method} {uri}");
+        return Ok(RumaResponse(UiaaResponse::MatrixError(RumaError {
+            body: ErrorBody::Standard {
+                kind: ErrorKind::Unrecognized,
+                message: "M_UNRECOGNIZED: Unrecognized request".to_owned(),
+            },
+            status_code: StatusCode::METHOD_NOT_ALLOWED,
+        }))
+        .into_response());
+    }
+    Ok(inner)
 }
 
 fn routes() -> Router {
@@ -194,6 +255,8 @@ fn routes() -> Router {
         .ruma_route(client_server::change_password_route)
         .ruma_route(client_server::deactivate_route)
         .ruma_route(client_server::third_party_route)
+        .ruma_route(client_server::request_3pid_management_token_via_email_route)
+        .ruma_route(client_server::request_3pid_management_token_via_msisdn_route)
         .ruma_route(client_server::get_capabilities_route)
         .ruma_route(client_server::get_pushrules_all_route)
         .ruma_route(client_server::set_pushrule_route)
@@ -340,6 +403,14 @@ fn routes() -> Router {
         .ruma_route(server_server::get_profile_information_route)
         .ruma_route(server_server::get_keys_route)
         .ruma_route(server_server::claim_keys_route)
+        .route(
+            "/_matrix/client/r0/rooms/:room_id/initialSync",
+            get(initial_sync),
+        )
+        .route(
+            "/_matrix/client/v3/rooms/:room_id/initialSync",
+            get(initial_sync),
+        )
         .fallback(not_found.into_service())
 }
 
@@ -372,8 +443,16 @@ async fn shutdown_signal(handle: ServerHandle) {
     handle.graceful_shutdown(Some(Duration::from_secs(30)));
 }
 
-async fn not_found(_uri: Uri) -> impl IntoResponse {
-    Error::BadRequest(ErrorKind::NotFound, "Unknown or unimplemented route")
+async fn not_found(uri: Uri) -> impl IntoResponse {
+    warn!("Not found: {uri}");
+    Error::BadRequest(ErrorKind::Unrecognized, "Unrecognized request")
+}
+
+async fn initial_sync(_uri: Uri) -> impl IntoResponse {
+    Error::BadRequest(
+        ErrorKind::GuestAccessForbidden,
+        "Guest access not implemented",
+    )
 }
 
 trait RouterExt {
@@ -417,7 +496,7 @@ macro_rules! impl_ruma_handler {
                 let meta = Req::METADATA;
                 let method_filter = method_to_filter(meta.method);
 
-                for path in IntoIterator::into_iter([meta.unstable_path, meta.r0_path, meta.stable_path]).flatten() {
+                for path in meta.history.all_paths() {
                     let handler = self.clone();
 
                     router = router.route(path, on(method_filter, |$( $ty: $ty, )* req| async move {
@@ -442,7 +521,7 @@ impl_ruma_handler!(T1, T2, T3, T4, T5, T6, T7);
 impl_ruma_handler!(T1, T2, T3, T4, T5, T6, T7, T8);
 
 fn method_to_filter(method: Method) -> MethodFilter {
-    let method_filter = match method {
+    match method {
         Method::DELETE => MethodFilter::DELETE,
         Method::GET => MethodFilter::GET,
         Method::HEAD => MethodFilter::HEAD,
@@ -451,7 +530,6 @@ fn method_to_filter(method: Method) -> MethodFilter {
         Method::POST => MethodFilter::POST,
         Method::PUT => MethodFilter::PUT,
         Method::TRACE => MethodFilter::TRACE,
-        m => panic!("Unsupported HTTP method: {:?}", m),
-    };
-    method_filter
+        m => panic!("Unsupported HTTP method: {m:?}"),
+    }
 }

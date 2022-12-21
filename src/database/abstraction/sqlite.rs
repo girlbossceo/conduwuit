@@ -1,4 +1,4 @@
-use super::{watchers::Watchers, DatabaseEngine, Tree};
+use super::{watchers::Watchers, KeyValueDatabaseEngine, KvTree};
 use crate::{database::Config, Result};
 use parking_lot::{Mutex, MutexGuard};
 use rusqlite::{Connection, DatabaseName::Main, OptionalExtension};
@@ -48,13 +48,13 @@ pub struct Engine {
 
 impl Engine {
     fn prepare_conn(path: &Path, cache_size_kb: u32) -> Result<Connection> {
-        let conn = Connection::open(&path)?;
+        let conn = Connection::open(path)?;
 
-        conn.pragma_update(Some(Main), "page_size", &2048)?;
-        conn.pragma_update(Some(Main), "journal_mode", &"WAL")?;
-        conn.pragma_update(Some(Main), "synchronous", &"NORMAL")?;
-        conn.pragma_update(Some(Main), "cache_size", &(-i64::from(cache_size_kb)))?;
-        conn.pragma_update(Some(Main), "wal_autocheckpoint", &0)?;
+        conn.pragma_update(Some(Main), "page_size", 2048)?;
+        conn.pragma_update(Some(Main), "journal_mode", "WAL")?;
+        conn.pragma_update(Some(Main), "synchronous", "NORMAL")?;
+        conn.pragma_update(Some(Main), "cache_size", -i64::from(cache_size_kb))?;
+        conn.pragma_update(Some(Main), "wal_autocheckpoint", 0)?;
 
         Ok(conn)
     }
@@ -75,12 +75,12 @@ impl Engine {
 
     pub fn flush_wal(self: &Arc<Self>) -> Result<()> {
         self.write_lock()
-            .pragma_update(Some(Main), "wal_checkpoint", &"RESTART")?;
+            .pragma_update(Some(Main), "wal_checkpoint", "RESTART")?;
         Ok(())
     }
 }
 
-impl DatabaseEngine for Arc<Engine> {
+impl KeyValueDatabaseEngine for Arc<Engine> {
     fn open(config: &Config) -> Result<Self> {
         let path = Path::new(&config.database_path).join("conduit.db");
 
@@ -105,8 +105,8 @@ impl DatabaseEngine for Arc<Engine> {
         Ok(arc)
     }
 
-    fn open_tree(&self, name: &str) -> Result<Arc<dyn Tree>> {
-        self.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )", name), [])?;
+    fn open_tree(&self, name: &str) -> Result<Arc<dyn KvTree>> {
+        self.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {name} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )"), [])?;
 
         Ok(Arc::new(SqliteTable {
             engine: Arc::clone(self),
@@ -135,7 +135,6 @@ type TupleOfBytes = (Vec<u8>, Vec<u8>);
 
 impl SqliteTable {
     fn get_with_guard(&self, guard: &Connection, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        //dbg!(&self.name);
         Ok(guard
             .prepare(format!("SELECT value FROM {} WHERE key = ?", self.name).as_str())?
             .query_row([key], |row| row.get(0))
@@ -143,7 +142,6 @@ impl SqliteTable {
     }
 
     fn insert_with_guard(&self, guard: &Connection, key: &[u8], value: &[u8]) -> Result<()> {
-        //dbg!(&self.name);
         guard.execute(
             format!(
                 "INSERT OR REPLACE INTO {} (key, value) VALUES (?, ?)",
@@ -176,10 +174,7 @@ impl SqliteTable {
             statement
                 .query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
                 .unwrap()
-                .map(move |r| {
-                    //dbg!(&name);
-                    r.unwrap()
-                }),
+                .map(move |r| r.unwrap()),
         );
 
         Box::new(PreparedStatementIterator {
@@ -189,7 +184,7 @@ impl SqliteTable {
     }
 }
 
-impl Tree for SqliteTable {
+impl KvTree for SqliteTable {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         self.get_with_guard(self.engine.read_lock(), key)
     }
@@ -276,10 +271,7 @@ impl Tree for SqliteTable {
                 statement
                     .query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
                     .unwrap()
-                    .map(move |r| {
-                        //dbg!(&name);
-                        r.unwrap()
-                    }),
+                    .map(move |r| r.unwrap()),
             );
             Box::new(PreparedStatementIterator {
                 iterator,
@@ -301,10 +293,7 @@ impl Tree for SqliteTable {
                 statement
                     .query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
                     .unwrap()
-                    .map(move |r| {
-                        //dbg!(&name);
-                        r.unwrap()
-                    }),
+                    .map(move |r| r.unwrap()),
             );
 
             Box::new(PreparedStatementIterator {

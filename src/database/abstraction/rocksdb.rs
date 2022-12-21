@@ -1,4 +1,4 @@
-use super::{super::Config, watchers::Watchers, DatabaseEngine, Tree};
+use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
 use crate::{utils, Result};
 use std::{
     future::Future,
@@ -51,7 +51,7 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
     db_opts
 }
 
-impl DatabaseEngine for Arc<Engine> {
+impl KeyValueDatabaseEngine for Arc<Engine> {
     fn open(config: &Config) -> Result<Self> {
         let cache_capacity_bytes = (config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize;
         let rocksdb_cache = rocksdb::Cache::new_lru_cache(cache_capacity_bytes).unwrap();
@@ -83,7 +83,7 @@ impl DatabaseEngine for Arc<Engine> {
         }))
     }
 
-    fn open_tree(&self, name: &'static str) -> Result<Arc<dyn Tree>> {
+    fn open_tree(&self, name: &'static str) -> Result<Arc<dyn KvTree>> {
         if !self.old_cfs.contains(&name.to_owned()) {
             // Create if it didn't exist
             let _ = self
@@ -129,7 +129,7 @@ impl RocksDbEngineTree<'_> {
     }
 }
 
-impl Tree for RocksDbEngineTree<'_> {
+impl KvTree for RocksDbEngineTree<'_> {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self.db.rocks.get_cf(&self.cf(), key)?)
     }
@@ -161,6 +161,7 @@ impl Tree for RocksDbEngineTree<'_> {
             self.db
                 .rocks
                 .iterator_cf(&self.cf(), rocksdb::IteratorMode::Start)
+                //.map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v))),
         )
     }
@@ -184,6 +185,7 @@ impl Tree for RocksDbEngineTree<'_> {
                         },
                     ),
                 )
+                //.map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v))),
         )
     }
@@ -191,7 +193,7 @@ impl Tree for RocksDbEngineTree<'_> {
     fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
         let lock = self.write_lock.write().unwrap();
 
-        let old = self.db.rocks.get_cf(&self.cf(), &key)?;
+        let old = self.db.rocks.get_cf(&self.cf(), key)?;
         let new = utils::increment(old.as_deref()).unwrap();
         self.db.rocks.put_cf(&self.cf(), key, &new)?;
 
@@ -224,6 +226,7 @@ impl Tree for RocksDbEngineTree<'_> {
                     &self.cf(),
                     rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward),
                 )
+                //.map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v)))
                 .take_while(move |(k, _)| k.starts_with(&prefix)),
         )

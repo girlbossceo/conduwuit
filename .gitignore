@@ -31,7 +31,6 @@ modules.xml
 
 ### vscode ###
 .vscode/*
-!.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
@@ -62,3 +61,9 @@ conduit.db
 
 # Etc.
 **/*.rs.bk
+
+# Nix artifacts
+/result*
+
+# Direnv cache
+/.direnv

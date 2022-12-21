@@ -33,7 +33,7 @@ docker run -d -p 8448:6167 \
   -e CONDUIT_MAX_REQUEST_SIZE="20_000_000" \
   -e CONDUIT_TRUSTED_SERVERS="[\"matrix.org\"]" \
   -e CONDUIT_MAX_CONCURRENT_REQUESTS="100" \
-  -e CONDUIT_LOG="info,rocket=off,_=off,sled=off" \
+  -e CONDUIT_LOG="warn,rocket=off,_=off,sled=off" \
   --name conduit matrixconduit/matrix-conduit:latest
 ```
 
@@ -121,12 +121,12 @@ So...step by step:
 
          location /.well-known/matrix/server {
             return 200 '{"m.server": "<SUBDOMAIN>.<DOMAIN>:443"}';
-            add_header Content-Type application/json;
+            types { } default_type "application/json; charset=utf-8";
          }
 
         location /.well-known/matrix/client {
             return 200 '{"m.homeserver": {"base_url": "https://<SUBDOMAIN>.<DOMAIN>"}}';
-            add_header Content-Type application/json;
+            types { } default_type "application/json; charset=utf-8";
             add_header "Access-Control-Allow-Origin" *;
         }
 
