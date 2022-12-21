@@ -69,6 +69,7 @@ pub async fn join_room_by_id_route(
     join_room_by_id_helper(
         body.sender_user.as_deref(),
         &body.room_id,
+        body.reason.clone(),
         &servers,
         body.third_party_signed.as_ref(),
     )
@@ -117,6 +118,7 @@ pub async fn join_room_by_id_or_alias_route(
     let join_room_response = join_room_by_id_helper(
         Some(sender_user),
         &room_id,
+        body.reason.clone(),
         &servers,
         body.third_party_signed.as_ref(),
     )
@@ -137,7 +139,7 @@ pub async fn leave_room_route(
 ) -> Result<leave_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    leave_room(sender_user, &body.room_id).await?;
+    leave_room(sender_user, &body.room_id, body.reason.clone()).await?;
 
     Ok(leave_room::v3::Response::new())
 }
@@ -151,7 +153,14 @@ pub async fn invite_user_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if let invite_user::v3::InvitationRecipient::UserId { user_id } = &body.recipient {
-        invite_helper(sender_user, user_id, &body.room_id, false).await?;
+        invite_helper(
+            sender_user,
+            user_id,
+            &body.room_id,
+            body.reason.clone(),
+            false,
+        )
+        .await?;
         Ok(invite_user::v3::Response {})
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "User not found."))
@@ -185,7 +194,7 @@ pub async fn kick_user_route(
     .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
     event.membership = MembershipState::Leave;
-    // TODO: reason
+    event.reason = body.reason.clone();
 
     let mutex_state = Arc::clone(
         services()
@@ -222,8 +231,6 @@ pub async fn kick_user_route(
 pub async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    // TODO: reason
-
     let event = services()
         .rooms
         .state_accessor
@@ -240,7 +247,7 @@ pub async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_use
                 is_direct: None,
                 third_party_invite: None,
                 blurhash: services().users.blurhash(&body.user_id)?,
-                reason: None,
+                reason: body.reason.clone(),
                 join_authorized_via_users_server: None,
             }),
             |event| {
@@ -309,6 +316,7 @@ pub async fn unban_user_route(
     .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
     event.membership = MembershipState::Leave;
+    event.reason = body.reason.clone();
 
     let mutex_state = Arc::clone(
         services()
@@ -460,6 +468,7 @@ pub async fn joined_members_route(
 async fn join_room_by_id_helper(
     sender_user: Option<&UserId>,
     room_id: &RoomId,
+    reason: Option<String>,
     servers: &[OwnedServerName],
     _third_party_signed: Option<&ThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
@@ -533,7 +542,7 @@ async fn join_room_by_id_helper(
                 is_direct: None,
                 third_party_invite: None,
                 blurhash: services().users.blurhash(sender_user)?,
-                reason: None,
+                reason,
                 join_authorized_via_users_server,
             })
             .expect("event is valid, we just created it"),
@@ -848,7 +857,7 @@ async fn join_room_by_id_helper(
             is_direct: None,
             third_party_invite: None,
             blurhash: services().users.blurhash(sender_user)?,
-            reason: None,
+            reason: reason.clone(),
             join_authorized_via_users_server: authorized_user,
         };
 
@@ -920,7 +929,7 @@ async fn join_room_by_id_helper(
                     is_direct: None,
                     third_party_invite: None,
                     blurhash: services().users.blurhash(sender_user)?,
-                    reason: None,
+                    reason,
                     join_authorized_via_users_server,
                 })
                 .expect("event is valid, we just created it"),
@@ -1123,6 +1132,7 @@ pub(crate) async fn invite_helper<'a>(
     sender_user: &UserId,
     user_id: &UserId,
     room_id: &RoomId,
+    reason: Option<String>,
     is_direct: bool,
 ) -> Result<()> {
     if user_id.server_name() != services().globals.server_name() {
@@ -1145,7 +1155,7 @@ pub(crate) async fn invite_helper<'a>(
                 membership: MembershipState::Invite,
                 third_party_invite: None,
                 blurhash: None,
-                reason: None,
+                reason,
                 join_authorized_via_users_server: None,
             })
             .expect("member event is valid value");
@@ -1269,7 +1279,7 @@ pub(crate) async fn invite_helper<'a>(
                 is_direct: Some(is_direct),
                 third_party_invite: None,
                 blurhash: services().users.blurhash(user_id)?,
-                reason: None,
+                reason,
                 join_authorized_via_users_server: None,
             })
             .expect("event is valid, we just created it"),
@@ -1308,13 +1318,13 @@ pub async fn leave_all_rooms(user_id: &UserId) -> Result<()> {
             Err(_) => continue,
         };
 
-        let _ = leave_room(user_id, &room_id).await;
+        let _ = leave_room(user_id, &room_id, None).await;
     }
 
     Ok(())
 }
 
-pub async fn leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
+pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<String>) -> Result<()> {
     // Ask a remote server if we don't have this room
     if !services().rooms.metadata.exists(room_id)?
         && room_id.server_name() != services().globals.server_name()
@@ -1382,6 +1392,7 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
             .map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
         event.membership = MembershipState::Leave;
+        event.reason = reason;
 
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
