@@ -84,8 +84,8 @@ pub enum FedDest {
 impl FedDest {
     fn into_https_string(self) -> String {
         match self {
-            Self::Literal(addr) => format!("https://{}", addr),
-            Self::Named(host, port) => format!("https://{}{}", host, port),
+            Self::Literal(addr) => format!("https://{addr}"),
+            Self::Named(host, port) => format!("https://{host}{port}"),
         }
     }
 
@@ -385,7 +385,7 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
                                         }
 
                                         if let Some(port) = force_port {
-                                            FedDest::Named(delegated_hostname, format!(":{}", port))
+                                            FedDest::Named(delegated_hostname, format!(":{port}"))
                                         } else {
                                             add_port_to_hostname(&delegated_hostname)
                                         }
@@ -427,7 +427,7 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
                                 }
 
                                 if let Some(port) = force_port {
-                                    FedDest::Named(hostname.clone(), format!(":{}", port))
+                                    FedDest::Named(hostname.clone(), format!(":{port}"))
                                 } else {
                                     add_port_to_hostname(&hostname)
                                 }
@@ -460,7 +460,7 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
     if let Ok(Some(host_port)) = services()
         .globals
         .dns_resolver()
-        .srv_lookup(format!("_matrix._tcp.{}", hostname))
+        .srv_lookup(format!("_matrix._tcp.{hostname}"))
         .await
         .map(|srv| {
             srv.iter().next().map(|result| {
@@ -482,10 +482,7 @@ async fn request_well_known(destination: &str) -> Option<String> {
         &services()
             .globals
             .default_client()
-            .get(&format!(
-                "https://{}/.well-known/matrix/server",
-                destination
-            ))
+            .get(&format!("https://{destination}/.well-known/matrix/server"))
             .send()
             .await
             .ok()?

@@ -639,7 +639,7 @@ impl Service {
                     origin,
                     get_room_state_ids::v1::Request {
                         room_id: room_id.to_owned(),
-                        event_id: (&*incoming_pdu.event_id).to_owned(),
+                        event_id: (*incoming_pdu.event_id).to_owned(),
                     },
                 )
                 .await

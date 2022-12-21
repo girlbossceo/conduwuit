@@ -225,8 +225,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
     services()
         .admin
         .send_message(RoomMessageEventContent::notice_plain(format!(
-            "New user {} registered on this server.",
-            user_id
+            "New user {user_id} registered on this server."
         )));
 
     // If this is the first real user, grant them admin privileges
@@ -318,8 +317,7 @@ pub async fn change_password_route(
     services()
         .admin
         .send_message(RoomMessageEventContent::notice_plain(format!(
-            "User {} changed their password.",
-            sender_user
+            "User {sender_user} changed their password."
         )));
 
     Ok(change_password::v3::Response {})
@@ -396,8 +394,7 @@ pub async fn deactivate_route(
     services()
         .admin
         .send_message(RoomMessageEventContent::notice_plain(format!(
-            "User {} deactivated their account.",
-            sender_user
+            "User {sender_user} deactivated their account."
         )));
 
     Ok(deactivate::v3::Response {

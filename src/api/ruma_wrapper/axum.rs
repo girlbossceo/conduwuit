@@ -308,8 +308,7 @@ impl Credentials for XMatrix {
     fn decode(value: &http::HeaderValue) -> Option<Self> {
         debug_assert!(
             value.as_bytes().starts_with(b"X-Matrix "),
-            "HeaderValue to decode should start with \"X-Matrix ..\", received = {:?}",
-            value,
+            "HeaderValue to decode should start with \"X-Matrix ..\", received = {value:?}",
         );
 
         let parameters = str::from_utf8(&value.as_bytes()["X-Matrix ".len()..])

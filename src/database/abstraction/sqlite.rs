@@ -106,7 +106,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
     }
 
     fn open_tree(&self, name: &str) -> Result<Arc<dyn KvTree>> {
-        self.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )", name), [])?;
+        self.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {name} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )"), [])?;
 
         Ok(Arc::new(SqliteTable {
             engine: Arc::clone(self),

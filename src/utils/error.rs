@@ -104,12 +104,12 @@ impl Error {
             let mut error = error.clone();
             error.body = ErrorBody::Standard {
                 kind: Unknown,
-                message: format!("Answer from {}: {}", origin, error),
+                message: format!("Answer from {origin}: {error}"),
             };
             return RumaResponse(UiaaResponse::MatrixError(error));
         }
 
-        let message = format!("{}", self);
+        let message = format!("{self}");
 
         use ErrorKind::*;
         let (kind, status_code) = match self {

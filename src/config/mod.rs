@@ -197,7 +197,7 @@ impl fmt::Display for Config {
             msg += &format!("{}: {}\n", line.1 .0, line.1 .1);
         }
 
-        write!(f, "{}", msg)
+        write!(f, "{msg}")
     }
 }
 

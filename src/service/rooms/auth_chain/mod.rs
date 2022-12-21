@@ -15,10 +15,7 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn get_cached_eventid_authchain<'a>(
-        &'a self,
-        key: &[u64],
-    ) -> Result<Option<Arc<HashSet<u64>>>> {
+    pub fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<HashSet<u64>>>> {
         self.db.get_cached_eventid_authchain(key)
     }
 

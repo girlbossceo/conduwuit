@@ -287,13 +287,11 @@ impl Service {
             Err(error) => {
                 let markdown_message = format!(
                     "Encountered an error while handling the command:\n\
-                    ```\n{}\n```",
-                    error,
+                    ```\n{error}\n```",
                 );
                 let html_message = format!(
                     "Encountered an error while handling the command:\n\
-                    <pre>\n{}\n</pre>",
-                    error,
+                    <pre>\n{error}\n</pre>",
                 );
 
                 RoomMessageEventContent::text_html(markdown_message, html_message)
@@ -338,17 +336,14 @@ impl Service {
                     match parsed_config {
                         Ok(yaml) => match services().appservice.register_appservice(yaml) {
                             Ok(id) => RoomMessageEventContent::text_plain(format!(
-                                "Appservice registered with ID: {}.",
-                                id
+                                "Appservice registered with ID: {id}."
                             )),
                             Err(e) => RoomMessageEventContent::text_plain(format!(
-                                "Failed to register appservice: {}",
-                                e
+                                "Failed to register appservice: {e}"
                             )),
                         },
                         Err(e) => RoomMessageEventContent::text_plain(format!(
-                            "Could not parse appservice config: {}",
-                            e
+                            "Could not parse appservice config: {e}"
                         )),
                     }
                 } else {
@@ -365,8 +360,7 @@ impl Service {
             {
                 Ok(()) => RoomMessageEventContent::text_plain("Appservice unregistered."),
                 Err(e) => RoomMessageEventContent::text_plain(format!(
-                    "Failed to unregister appservice: {}",
-                    e
+                    "Failed to unregister appservice: {e}"
                 )),
             },
             AdminCommand::ListAppservices => {
@@ -459,8 +453,7 @@ impl Service {
                         .count();
                     let elapsed = start.elapsed();
                     RoomMessageEventContent::text_plain(format!(
-                        "Loaded auth chain with length {} in {:?}",
-                        count, elapsed
+                        "Loaded auth chain with length {count} in {elapsed:?}"
                     ))
                 } else {
                     RoomMessageEventContent::text_plain("Event not found.")
@@ -474,30 +467,26 @@ impl Service {
                         Ok(value) => {
                             match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
                                 Ok(hash) => {
-                                    let event_id = EventId::parse(format!("${}", hash));
+                                    let event_id = EventId::parse(format!("${hash}"));
 
                                     match serde_json::from_value::<PduEvent>(
                                         serde_json::to_value(value).expect("value is json"),
                                     ) {
                                         Ok(pdu) => RoomMessageEventContent::text_plain(format!(
-                                            "EventId: {:?}\n{:#?}",
-                                            event_id, pdu
+                                            "EventId: {event_id:?}\n{pdu:#?}"
                                         )),
                                         Err(e) => RoomMessageEventContent::text_plain(format!(
-                                            "EventId: {:?}\nCould not parse event: {}",
-                                            event_id, e
+                                            "EventId: {event_id:?}\nCould not parse event: {e}"
                                         )),
                                     }
                                 }
                                 Err(e) => RoomMessageEventContent::text_plain(format!(
-                                    "Could not parse PDU JSON: {:?}",
-                                    e
+                                    "Could not parse PDU JSON: {e:?}"
                                 )),
                             }
                         }
                         Err(e) => RoomMessageEventContent::text_plain(format!(
-                            "Invalid json in command body: {}",
-                            e
+                            "Invalid json in command body: {e}"
                         )),
                     }
                 } else {
@@ -545,8 +534,7 @@ impl Service {
             AdminCommand::DatabaseMemoryUsage => match services().globals.db.memory_usage() {
                 Ok(response) => RoomMessageEventContent::text_plain(response),
                 Err(e) => RoomMessageEventContent::text_plain(format!(
-                    "Failed to get database memory usage: {}",
-                    e
+                    "Failed to get database memory usage: {e}"
                 )),
             },
             AdminCommand::ShowConfig => {
@@ -561,8 +549,7 @@ impl Service {
                     Ok(id) => id,
                     Err(e) => {
                         return Ok(RoomMessageEventContent::text_plain(format!(
-                            "The supplied username is not a valid username: {}",
-                            e
+                            "The supplied username is not a valid username: {e}"
                         )))
                     }
                 };
@@ -589,12 +576,10 @@ impl Service {
                     .set_password(&user_id, Some(new_password.as_str()))
                 {
                     Ok(()) => RoomMessageEventContent::text_plain(format!(
-                        "Successfully reset the password for user {}: {}",
-                        user_id, new_password
+                        "Successfully reset the password for user {user_id}: {new_password}"
                     )),
                     Err(e) => RoomMessageEventContent::text_plain(format!(
-                        "Couldn't reset the password for user {}: {}",
-                        user_id, e
+                        "Couldn't reset the password for user {user_id}: {e}"
                     )),
                 }
             }
@@ -609,8 +594,7 @@ impl Service {
                     Ok(id) => id,
                     Err(e) => {
                         return Ok(RoomMessageEventContent::text_plain(format!(
-                            "The supplied username is not a valid username: {}",
-                            e
+                            "The supplied username is not a valid username: {e}"
                         )))
                     }
                 };
@@ -676,8 +660,7 @@ impl Service {
                 let user_id = Arc::<UserId>::from(user_id);
                 if services().users.exists(&user_id)? {
                     RoomMessageEventContent::text_plain(format!(
-                        "Making {} leave all rooms before deactivation...",
-                        user_id
+                        "Making {user_id} leave all rooms before deactivation..."
                     ));
 
                     services().users.deactivate_account(&user_id)?;
@@ -687,13 +670,11 @@ impl Service {
                     }
 
                     RoomMessageEventContent::text_plain(format!(
-                        "User {} has been deactivated",
-                        user_id
+                        "User {user_id} has been deactivated"
                     ))
                 } else {
                     RoomMessageEventContent::text_plain(format!(
-                        "User {} doesn't exist on this server",
-                        user_id
+                        "User {user_id} doesn't exist on this server"
                     ))
                 }
             }
@@ -709,8 +690,7 @@ impl Service {
                             Ok(user_id) => user_ids.push(user_id),
                             Err(_) => {
                                 return Ok(RoomMessageEventContent::text_plain(format!(
-                                    "{} is not a valid username",
-                                    username
+                                    "{username} is not a valid username"
                                 )))
                             }
                         }
@@ -746,8 +726,7 @@ impl Service {
 
                     if admins.is_empty() {
                         RoomMessageEventContent::text_plain(format!(
-                            "Deactivated {} accounts.",
-                            deactivation_count
+                            "Deactivated {deactivation_count} accounts."
                         ))
                     } else {
                         RoomMessageEventContent::text_plain(format!("Deactivated {} accounts.\nSkipped admin accounts: {:?}. Use --force to deactivate admin accounts", deactivation_count, admins.join(", ")))
@@ -767,8 +746,8 @@ impl Service {
     fn usage_to_html(&self, text: &str, server_name: &ServerName) -> String {
         // Replace `@conduit:servername:-subcmdname` with `@conduit:servername: subcmdname`
         let text = text.replace(
-            &format!("@conduit:{}:-", server_name),
-            &format!("@conduit:{}: ", server_name),
+            &format!("@conduit:{server_name}:-"),
+            &format!("@conduit:{server_name}: "),
         );
 
         // For the conduit admin room, subcommands become main commands

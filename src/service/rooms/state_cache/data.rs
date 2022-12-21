@@ -37,7 +37,7 @@ pub trait Data: Send + Sync {
         room_id: &RoomId,
     ) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a>;
 
-    fn server_in_room<'a>(&'a self, server: &ServerName, room_id: &RoomId) -> Result<bool>;
+    fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool>;
 
     /// Returns an iterator of all rooms a server participates in (as far as we know).
     fn server_rooms<'a>(
