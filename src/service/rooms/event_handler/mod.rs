@@ -313,7 +313,7 @@ impl Service {
                 Ok(ruma::signatures::Verified::Signatures) => {
                     // Redact
                     warn!("Calculated hash does not match: {}", event_id);
-                    match ruma::canonical_json::redact(&value, room_version_id) {
+                    match ruma::canonical_json::redact(value, room_version_id, None) {
                         Ok(obj) => obj,
                         Err(_) => {
                             return Err(Error::BadRequest(
