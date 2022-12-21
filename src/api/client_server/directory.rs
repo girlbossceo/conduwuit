@@ -361,7 +361,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
     let prev_batch = if num_since == 0 {
         None
     } else {
-        Some(format!("p{}", num_since))
+        Some(format!("p{num_since}"))
     };
 
     let next_batch = if chunk.len() < limit as usize {

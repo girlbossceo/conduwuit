@@ -68,10 +68,7 @@ async fn main() {
     let config = match raw_config.extract::<Config>() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!(
-                "It looks like your config is invalid. The following error occurred: {}",
-                e
-            );
+            eprintln!("It looks like your config is invalid. The following error occurred: {e}");
             std::process::exit(1);
         }
     };
@@ -91,8 +88,7 @@ async fn main() {
             Ok(s) => s,
             Err(e) => {
                 eprintln!(
-                    "It looks like your log config is invalid. The following error occurred: {}",
-                    e
+                    "It looks like your log config is invalid. The following error occurred: {e}"
                 );
                 EnvFilter::try_new("warn").unwrap()
             }
@@ -118,7 +114,7 @@ async fn main() {
         let filter_layer = match EnvFilter::try_new(&config.log) {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("It looks like your config is invalid. The following error occured while parsing it: {}", e);
+                eprintln!("It looks like your config is invalid. The following error occured while parsing it: {e}");
                 EnvFilter::try_new("warn").unwrap()
             }
         };
@@ -534,6 +530,6 @@ fn method_to_filter(method: Method) -> MethodFilter {
         Method::POST => MethodFilter::POST,
         Method::PUT => MethodFilter::PUT,
         Method::TRACE => MethodFilter::TRACE,
-        m => panic!("Unsupported HTTP method: {:?}", m),
+        m => panic!("Unsupported HTTP method: {m:?}"),
     }
 }

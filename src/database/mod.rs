@@ -827,7 +827,7 @@ impl KeyValueDatabase {
                         let rule = rules_list.content.get(content_rule_transformation[0]);
                         if rule.is_some() {
                             let mut rule = rule.unwrap().clone();
-                            rule.rule_id = content_rule_transformation[1].to_string();
+                            rule.rule_id = content_rule_transformation[1].to_owned();
                             rules_list.content.remove(content_rule_transformation[0]);
                             rules_list.content.insert(rule);
                         }
@@ -850,7 +850,7 @@ impl KeyValueDatabase {
                             let rule = rules_list.underride.get(transformation[0]);
                             if let Some(rule) = rule {
                                 let mut rule = rule.clone();
-                                rule.rule_id = transformation[1].to_string();
+                                rule.rule_id = transformation[1].to_owned();
                                 rules_list.underride.remove(transformation[0]);
                                 rules_list.underride.insert(rule);
                             }

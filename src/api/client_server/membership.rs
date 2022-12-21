@@ -583,7 +583,7 @@ async fn join_room_by_id_helper(
 
         if let Some(signed_raw) = &send_join_response.room_state.event {
             let (signed_event_id, signed_value) =
-                match gen_event_id_canonical_json(&signed_raw, &room_version_id) {
+                match gen_event_id_canonical_json(signed_raw, &room_version_id) {
                     Ok(t) => t,
                     Err(_) => {
                         // Event could not be converted to canonical json
@@ -594,7 +594,7 @@ async fn join_room_by_id_helper(
                     }
                 };
 
-            if &signed_event_id != event_id {
+            if signed_event_id != event_id {
                 return Err(Error::BadRequest(
                     ErrorKind::InvalidParam,
                     "Server sent event with wrong event id",
@@ -753,12 +753,12 @@ async fn join_room_by_id_helper(
             .set_room_state(room_id, statehash_after_join, &state_lock)?;
     } else {
         let join_rules_event = services().rooms.state_accessor.room_state_get(
-            &room_id,
+            room_id,
             &StateEventType::RoomJoinRules,
             "",
         )?;
         let power_levels_event = services().rooms.state_accessor.room_state_get(
-            &room_id,
+            room_id,
             &StateEventType::RoomPowerLevels,
             "",
         )?;
@@ -835,8 +835,7 @@ async fn join_room_by_id_helper(
                             .state_cache
                             .room_members(restriction_room_id)
                             .filter_map(|r| r.ok())
-                            .filter(|uid| uid.server_name() == services().globals.server_name())
-                            .next()
+                            .find(|uid| uid.server_name() == services().globals.server_name())
                     });
                 Some(authorized_user)
             })
@@ -982,7 +981,7 @@ async fn join_room_by_id_helper(
                         }
                     };
 
-                if &signed_event_id != event_id {
+                if signed_event_id != event_id {
                     return Err(Error::BadRequest(
                         ErrorKind::InvalidParam,
                         "Server sent event with wrong event id",
@@ -1179,7 +1178,7 @@ pub(crate) async fn invite_helper<'a>(
                 user_id.server_name(),
                 create_invite::v2::Request {
                     room_id: room_id.to_owned(),
-                    event_id: (&*pdu.event_id).to_owned(),
+                    event_id: (*pdu.event_id).to_owned(),
                     room_version: room_version_id.clone(),
                     event: PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
                     invite_room_state,
