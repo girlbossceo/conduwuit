@@ -6,7 +6,7 @@ authors = ["timokoesters <timo@koesters.xyz>"]
 homepage = "https://conduit.rs"
 repository = "https://gitlab.com/famedly/conduit"
 readme = "README.md"
-version = "0.5.0"
+version = "0.6.0-alpha"
 rust-version = "1.64"
 edition = "2021"
 
