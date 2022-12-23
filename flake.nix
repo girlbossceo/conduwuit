@@ -32,8 +32,7 @@
         # Use the Rust version defined in `Cargo.toml`
         channel = cargoToml.package.rust-version;
 
-        # This will need to be updated when `package.rust-version` is changed in
-        # `Cargo.toml`
+        # THE rust-version HASH
         sha256 = "sha256-8len3i8oTwJSOJZMosGGXHBL5BVuGQnWOT2St5YAUFU=";
       };
 
