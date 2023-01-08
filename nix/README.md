@@ -107,7 +107,7 @@ in
     recommendedProxySettings = true;
 
     virtualHosts = {
-      "${server_name}" = {
+      "${matrix_hostname}" = {
         forceSSL = true;
         enableACME = true;
 
@@ -124,14 +124,6 @@ in
           }
         ];
 
-        extraConfig = ''
-          merge_slashes off;
-        '';
-
-      "${matrix_hostname}" = {
-        forceSSL = true;
-        enableACME = true;
-
         locations."/_matrix/" = {
           proxyPass = "http://backend_conduit$request_uri";
           proxyWebsockets = true;
@@ -140,6 +132,15 @@ in
             proxy_buffering off;
           '';
         };
+
+        extraConfig = ''
+          merge_slashes off;
+        '';
+      };
+
+      "${server_name}" = {
+        forceSSL = true;
+        enableACME = true;
 
         locations."=/.well-known/matrix/server" = {
           # Use the contents of the derivation built previously
