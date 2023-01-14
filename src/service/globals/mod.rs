@@ -345,6 +345,7 @@ impl Service {
 
 fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
     let mut reqwest_client_builder = reqwest::Client::builder()
+        .pool_max_idle_per_host(0)
         .connect_timeout(Duration::from_secs(30))
         .timeout(Duration::from_secs(60 * 3));
 
