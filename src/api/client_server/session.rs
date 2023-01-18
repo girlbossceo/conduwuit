@@ -26,6 +26,7 @@ pub async fn get_login_types_route(
 ) -> Result<get_login_types::v3::Response> {
     Ok(get_login_types::v3::Response::new(vec![
         get_login_types::v3::LoginType::Password(Default::default()),
+        get_login_types::v3::LoginType::ApplicationService(Default::default()),
     ]))
 }
 
@@ -102,6 +103,27 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
                     "Token login is not supported (server has no jwt decoding key).",
                 ));
             }
+        }
+        login::v3::LoginInfo::ApplicationService(login::v3::ApplicationService { identifier }) => {
+            info!("hi");
+            if !body.from_appservice {
+                return Err(Error::BadRequest(
+                    ErrorKind::Forbidden,
+                    // TODO: is this the correct response
+                    "Wrong username or password.",
+                ));
+            };
+            let username = if let UserIdentifier::UserIdOrLocalpart(user_id) = identifier {
+                user_id.to_lowercase()
+            } else {
+                return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
+            };
+            let user_id =
+                UserId::parse_with_server_name(username, services().globals.server_name())
+                    .map_err(|_| {
+                        Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
+                    })?;
+            user_id
         }
         _ => {
             return Err(Error::BadRequest(
