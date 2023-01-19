@@ -16,14 +16,17 @@ variables:
 
 .docker-shared-settings:
   stage: "build docker image"
-  image: jdrouet/docker-with-buildx:20.10.21-0.9.1
+  image:
+    name: jdrouet/docker-with-buildx:20.10.21-0.9.1
+    pull_policy: if-not-present
   needs: []
-  tags: ["docker"]
+  tags: [ "docker" ]
   variables:
     # Docker in Docker:
     DOCKER_HOST: tcp://docker:2375/
     DOCKER_TLS_CERTDIR: ""
-    DOCKER_DRIVER: overlay2
+    # Famedly runners use BTRFS, overlayfs and overlay2 often break jobs
+    DOCKER_DRIVER: btrfs
   services:
     - docker:dind
   script:
