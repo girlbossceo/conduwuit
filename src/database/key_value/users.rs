@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, mem::size_of};
 
 use ruma::{
-    api::client::{device::Device, error::ErrorKind, filter::IncomingFilterDefinition},
+    api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::{AnyToDeviceEvent, StateEventType},
     serde::Raw,
@@ -899,7 +899,7 @@ impl service::users::Data for KeyValueDatabase {
     }
 
     /// Creates a new sync filter. Returns the filter id.
-    fn create_filter(&self, user_id: &UserId, filter: &IncomingFilterDefinition) -> Result<String> {
+    fn create_filter(&self, user_id: &UserId, filter: &FilterDefinition) -> Result<String> {
         let filter_id = utils::random_string(4);
 
         let mut key = user_id.as_bytes().to_vec();
@@ -914,11 +914,7 @@ impl service::users::Data for KeyValueDatabase {
         Ok(filter_id)
     }
 
-    fn get_filter(
-        &self,
-        user_id: &UserId,
-        filter_id: &str,
-    ) -> Result<Option<IncomingFilterDefinition>> {
+    fn get_filter(&self, user_id: &UserId, filter_id: &str) -> Result<Option<FilterDefinition>> {
         let mut key = user_id.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(filter_id.as_bytes());

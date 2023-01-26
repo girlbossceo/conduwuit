@@ -7,7 +7,8 @@ use directories::ProjectDirs;
 use lru_cache::LruCache;
 use ruma::{
     events::{
-        push_rules::PushRulesEventContent, room::message::RoomMessageEventContent,
+        push_rules::{PushRulesEvent, PushRulesEventContent},
+        room::message::RoomMessageEventContent,
         GlobalAccountDataEvent, GlobalAccountDataEventType, StateEventType,
     },
     push::Ruleset,
@@ -98,6 +99,7 @@ pub struct KeyValueDatabase {
 
     pub(super) userroomid_notificationcount: Arc<dyn KvTree>, // NotifyCount = u64
     pub(super) userroomid_highlightcount: Arc<dyn KvTree>,    // HightlightCount = u64
+    pub(super) roomuserid_lastnotificationread: Arc<dyn KvTree>, // LastNotificationRead = u64
 
     /// Remember the current state hash of a room.
     pub(super) roomid_shortstatehash: Arc<dyn KvTree>,
@@ -256,7 +258,7 @@ impl KeyValueDatabase {
         };
 
         if config.max_request_size < 1024 {
-            eprintln!("ERROR: Max request size is less than 1KB. Please increase it.");
+            error!(?config.max_request_size, "Max request size is less than 1KB. Please increase it.");
         }
 
         let db_raw = Box::new(Self {
@@ -317,6 +319,7 @@ impl KeyValueDatabase {
 
             userroomid_notificationcount: builder.open_tree("userroomid_notificationcount")?,
             userroomid_highlightcount: builder.open_tree("userroomid_highlightcount")?,
+            roomuserid_lastnotificationread: builder.open_tree("userroomid_highlightcount")?,
 
             statekey_shortstatekey: builder.open_tree("statekey_shortstatekey")?,
             shortstatekey_statekey: builder.open_tree("shortstatekey_statekey")?,
@@ -405,7 +408,7 @@ impl KeyValueDatabase {
         }
 
         // If the database has any data, perform data migrations before starting
-        let latest_database_version = 11;
+        let latest_database_version = 12;
 
         if services().users.count()? > 0 {
             // MIGRATIONS
@@ -480,7 +483,7 @@ impl KeyValueDatabase {
                         for user in services().rooms.state_cache.room_members(&room?) {
                             let user = user?;
                             if user.server_name() != services().globals.server_name() {
-                                println!("Migration: Creating user {}", user);
+                                info!(?user, "Migration: creating user");
                                 services().users.create(&user, None)?;
                             }
                         }
@@ -542,7 +545,6 @@ impl KeyValueDatabase {
                      current_state: HashSet<_>,
                      last_roomstates: &mut HashMap<_, _>| {
                         counter += 1;
-                        println!("counter: {}", counter);
                         let last_roomsstatehash = last_roomstates.get(current_room);
 
                         let states_parents = last_roomsstatehash.map_or_else(
@@ -739,15 +741,13 @@ impl KeyValueDatabase {
                         new_key.extend_from_slice(word);
                         new_key.push(0xff);
                         new_key.extend_from_slice(pdu_id_count);
-                        println!("old {:?}", key);
-                        println!("new {:?}", new_key);
                         Some((new_key, Vec::new()))
                     })
                     .peekable();
 
                 while iter.peek().is_some() {
                     db.tokenids.insert_batch(&mut iter.by_ref().take(1000))?;
-                    println!("smaller batch done");
+                    debug!("Inserted smaller batch");
                 }
 
                 info!("Deleting starts");
@@ -757,7 +757,6 @@ impl KeyValueDatabase {
                     .iter()
                     .filter_map(|(key, _)| {
                         if key.starts_with(b"!") {
-                            println!("del {:?}", key);
                             Some(key)
                         } else {
                             None
@@ -766,7 +765,6 @@ impl KeyValueDatabase {
                     .collect();
 
                 for key in batch2 {
-                    println!("del");
                     db.tokenids.remove(&key)?;
                 }
 
@@ -801,7 +799,81 @@ impl KeyValueDatabase {
                 warn!("Migration: 10 -> 11 finished");
             }
 
-            assert_eq!(11, latest_database_version);
+            if services().globals.database_version()? < 12 {
+                for username in services().users.list_local_users().unwrap() {
+                    let user =
+                        UserId::parse_with_server_name(username, services().globals.server_name())
+                            .unwrap();
+
+                    let raw_rules_list = services()
+                        .account_data
+                        .get(
+                            None,
+                            &user,
+                            GlobalAccountDataEventType::PushRules.to_string().into(),
+                        )
+                        .unwrap()
+                        .expect("Username is invalid");
+
+                    let mut account_data =
+                        serde_json::from_str::<PushRulesEvent>(raw_rules_list.get()).unwrap();
+                    let rules_list = &mut account_data.content.global;
+
+                    //content rule
+                    {
+                        let content_rule_transformation =
+                            [".m.rules.contains_user_name", ".m.rule.contains_user_name"];
+
+                        let rule = rules_list.content.get(content_rule_transformation[0]);
+                        if rule.is_some() {
+                            let mut rule = rule.unwrap().clone();
+                            rule.rule_id = content_rule_transformation[1].to_owned();
+                            rules_list.content.remove(content_rule_transformation[0]);
+                            rules_list.content.insert(rule);
+                        }
+                    }
+
+                    //underride rules
+                    {
+                        let underride_rule_transformation = [
+                            [".m.rules.call", ".m.rule.call"],
+                            [".m.rules.room_one_to_one", ".m.rule.room_one_to_one"],
+                            [
+                                ".m.rules.encrypted_room_one_to_one",
+                                ".m.rule.encrypted_room_one_to_one",
+                            ],
+                            [".m.rules.message", ".m.rule.message"],
+                            [".m.rules.encrypted", ".m.rule.encrypted"],
+                        ];
+
+                        for transformation in underride_rule_transformation {
+                            let rule = rules_list.underride.get(transformation[0]);
+                            if let Some(rule) = rule {
+                                let mut rule = rule.clone();
+                                rule.rule_id = transformation[1].to_owned();
+                                rules_list.underride.remove(transformation[0]);
+                                rules_list.underride.insert(rule);
+                            }
+                        }
+                    }
+
+                    services().account_data.update(
+                        None,
+                        &user,
+                        GlobalAccountDataEventType::PushRules.to_string().into(),
+                        &serde_json::to_value(account_data).expect("to json value always works"),
+                    )?;
+                }
+
+                services().globals.bump_database_version(12)?;
+
+                warn!("Migration: 11 -> 12 finished");
+            }
+
+            assert_eq!(
+                services().globals.database_version().unwrap(),
+                latest_database_version
+            );
 
             info!(
                 "Loaded {} database with version {}",
@@ -868,7 +940,6 @@ impl KeyValueDatabase {
 
         #[cfg(unix)]
         use tokio::signal::unix::{signal, SignalKind};
-        use tracing::info;
 
         use std::time::{Duration, Instant};
 
@@ -884,23 +955,23 @@ impl KeyValueDatabase {
                 #[cfg(unix)]
                 tokio::select! {
                     _ = i.tick() => {
-                        info!("cleanup: Timer ticked");
+                        debug!("cleanup: Timer ticked");
                     }
                     _ = s.recv() => {
-                        info!("cleanup: Received SIGHUP");
+                        debug!("cleanup: Received SIGHUP");
                     }
                 };
                 #[cfg(not(unix))]
                 {
                     i.tick().await;
-                    info!("cleanup: Timer ticked")
+                    debug!("cleanup: Timer ticked")
                 }
 
                 let start = Instant::now();
                 if let Err(e) = services().globals.cleanup() {
                     error!("cleanup: Errored: {}", e);
                 } else {
-                    info!("cleanup: Finished in {:?}", start.elapsed());
+                    debug!("cleanup: Finished in {:?}", start.elapsed());
                 }
             }
         });

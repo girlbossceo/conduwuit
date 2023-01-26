@@ -4,8 +4,8 @@ use ruma::{
     api::client::{
         account::{
             change_password, deactivate, get_3pids, get_username_availability, register,
-            request_3pid_management_token_via_email, request_3pid_management_token_via_msisdn, whoami,
-            ThirdPartyIdRemovalStatus,
+            request_3pid_management_token_via_email, request_3pid_management_token_via_msisdn,
+            whoami, ThirdPartyIdRemovalStatus,
         },
         error::ErrorKind,
         uiaa::{AuthFlow, AuthType, UiaaInfo},
@@ -30,7 +30,7 @@ const RANDOM_USER_ID_LENGTH: usize = 10;
 ///
 /// Note: This will not reserve the username, so the username might become invalid when trying to register
 pub async fn get_register_available_route(
-    body: Ruma<get_username_availability::v3::IncomingRequest>,
+    body: Ruma<get_username_availability::v3::Request>,
 ) -> Result<get_username_availability::v3::Response> {
     // Validate user id
     let user_id = UserId::parse_with_server_name(
@@ -73,9 +73,7 @@ pub async fn get_register_available_route(
 /// - If type is not guest and no username is given: Always fails after UIAA check
 /// - Creates a new account and populates it with default account data
 /// - If `inhibit_login` is false: Creates a device and returns device id and access_token
-pub async fn register_route(
-    body: Ruma<register::v3::IncomingRequest>,
-) -> Result<register::v3::Response> {
+pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<register::v3::Response> {
     if !services().globals.allow_registration() && !body.from_appservice {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
@@ -227,8 +225,7 @@ pub async fn register_route(
     services()
         .admin
         .send_message(RoomMessageEventContent::notice_plain(format!(
-            "New user {} registered on this server.",
-            user_id
+            "New user {user_id} registered on this server."
         )));
 
     // If this is the first real user, grant them admin privileges
@@ -266,7 +263,7 @@ pub async fn register_route(
 /// - Forgets to-device events
 /// - Triggers device list updates
 pub async fn change_password_route(
-    body: Ruma<change_password::v3::IncomingRequest>,
+    body: Ruma<change_password::v3::Request>,
 ) -> Result<change_password::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -320,8 +317,7 @@ pub async fn change_password_route(
     services()
         .admin
         .send_message(RoomMessageEventContent::notice_plain(format!(
-            "User {} changed their password.",
-            sender_user
+            "User {sender_user} changed their password."
         )));
 
     Ok(change_password::v3::Response {})
@@ -354,7 +350,7 @@ pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3:
 /// - Triggers device list updates
 /// - Removes ability to log in again
 pub async fn deactivate_route(
-    body: Ruma<deactivate::v3::IncomingRequest>,
+    body: Ruma<deactivate::v3::Request>,
 ) -> Result<deactivate::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -398,8 +394,7 @@ pub async fn deactivate_route(
     services()
         .admin
         .send_message(RoomMessageEventContent::notice_plain(format!(
-            "User {} deactivated their account.",
-            sender_user
+            "User {sender_user} deactivated their account."
         )));
 
     Ok(deactivate::v3::Response {
@@ -426,7 +421,7 @@ pub async fn third_party_route(
 ///
 /// - 403 signals that The homeserver does not allow the third party identifier as a contact option.
 pub async fn request_3pid_management_token_via_email_route(
-    _body: Ruma<request_3pid_management_token_via_email::v3::IncomingRequest>,
+    _body: Ruma<request_3pid_management_token_via_email::v3::Request>,
 ) -> Result<request_3pid_management_token_via_email::v3::Response> {
     Err(Error::BadRequest(
         ErrorKind::ThreepidDenied,
@@ -440,7 +435,7 @@ pub async fn request_3pid_management_token_via_email_route(
 ///
 /// - 403 signals that The homeserver does not allow the third party identifier as a contact option.
 pub async fn request_3pid_management_token_via_msisdn_route(
-    _body: Ruma<request_3pid_management_token_via_msisdn::v3::IncomingRequest>,
+    _body: Ruma<request_3pid_management_token_via_msisdn::v3::Request>,
 ) -> Result<request_3pid_management_token_via_msisdn::v3::Response> {
     Err(Error::BadRequest(
         ErrorKind::ThreepidDenied,

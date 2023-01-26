@@ -4,7 +4,7 @@ use ruma::{
     api::client::{
         error::ErrorKind,
         session::{get_login_types, login, logout, logout_all},
-        uiaa::IncomingUserIdentifier,
+        uiaa::UserIdentifier,
     },
     UserId,
 };
@@ -22,7 +22,7 @@ struct Claims {
 /// Get the supported login types of this server. One of these should be used as the `type` field
 /// when logging in.
 pub async fn get_login_types_route(
-    _body: Ruma<get_login_types::v3::IncomingRequest>,
+    _body: Ruma<get_login_types::v3::Request>,
 ) -> Result<get_login_types::v3::Response> {
     Ok(get_login_types::v3::Response::new(vec![
         get_login_types::v3::LoginType::Password(Default::default()),
@@ -40,15 +40,15 @@ pub async fn get_login_types_route(
 ///
 /// Note: You can use [`GET /_matrix/client/r0/login`](fn.get_supported_versions_route.html) to see
 /// supported login types.
-pub async fn login_route(body: Ruma<login::v3::IncomingRequest>) -> Result<login::v3::Response> {
+pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Response> {
     // Validate login method
     // TODO: Other login methods
     let user_id = match &body.login_info {
-        login::v3::IncomingLoginInfo::Password(login::v3::IncomingPassword {
+        login::v3::LoginInfo::Password(login::v3::Password {
             identifier,
             password,
         }) => {
-            let username = if let IncomingUserIdentifier::UserIdOrLocalpart(user_id) = identifier {
+            let username = if let UserIdentifier::UserIdOrLocalpart(user_id) = identifier {
                 user_id.to_lowercase()
             } else {
                 return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
@@ -84,7 +84,7 @@ pub async fn login_route(body: Ruma<login::v3::IncomingRequest>) -> Result<login
 
             user_id
         }
-        login::v3::IncomingLoginInfo::Token(login::v3::IncomingToken { token }) => {
+        login::v3::LoginInfo::Token(login::v3::Token { token }) => {
             if let Some(jwt_decoding_key) = services().globals.jwt_decoding_key() {
                 let token = jsonwebtoken::decode::<Claims>(
                     token,

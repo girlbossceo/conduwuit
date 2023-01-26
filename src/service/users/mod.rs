@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, mem};
 
 pub use data::Data;
 use ruma::{
-    api::client::{device::Device, error::ErrorKind, filter::IncomingFilterDefinition},
+    api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::AnyToDeviceEvent,
     serde::Raw,
@@ -326,11 +326,7 @@ impl Service {
     }
 
     /// Creates a new sync filter. Returns the filter id.
-    pub fn create_filter(
-        &self,
-        user_id: &UserId,
-        filter: &IncomingFilterDefinition,
-    ) -> Result<String> {
+    pub fn create_filter(&self, user_id: &UserId, filter: &FilterDefinition) -> Result<String> {
         self.db.create_filter(user_id, filter)
     }
 
@@ -338,7 +334,7 @@ impl Service {
         &self,
         user_id: &UserId,
         filter_id: &str,
-    ) -> Result<Option<IncomingFilterDefinition>> {
+    ) -> Result<Option<FilterDefinition>> {
         self.db.get_filter(user_id, filter_id)
     }
 }

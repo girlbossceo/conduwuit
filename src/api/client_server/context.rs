@@ -13,7 +13,7 @@ use tracing::error;
 /// - Only works if the user is joined (TODO: always allow, but only show events if the user was
 /// joined, depending on history_visibility)
 pub async fn get_context_route(
-    body: Ruma<get_context::v3::IncomingRequest>,
+    body: Ruma<get_context::v3::Request>,
 ) -> Result<get_context::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");

@@ -31,7 +31,7 @@ use ruma::{
         EndpointError, IncomingResponse, MatrixVersion, OutgoingRequest, OutgoingResponse,
         SendAccessToken,
     },
-    directory::{IncomingFilter, IncomingRoomNetwork},
+    directory::{Filter, RoomNetwork},
     events::{
         receipt::{ReceiptEvent, ReceiptEventContent, ReceiptType},
         room::{
@@ -42,8 +42,8 @@ use ruma::{
     },
     serde::{Base64, JsonObject, Raw},
     to_device::DeviceIdOrAllDevices,
-    CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId,
-    OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName,
+    CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId,
+    OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
@@ -55,7 +55,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -84,8 +84,8 @@ pub enum FedDest {
 impl FedDest {
     fn into_https_string(self) -> String {
         match self {
-            Self::Literal(addr) => format!("https://{}", addr),
-            Self::Named(host, port) => format!("https://{}{}", host, port),
+            Self::Literal(addr) => format!("https://{addr}"),
+            Self::Named(host, port) => format!("https://{host}{port}"),
         }
     }
 
@@ -294,13 +294,7 @@ where
             } else {
                 Err(Error::FederationError(
                     destination.to_owned(),
-                    RumaError::try_from_http_response(http_response).map_err(|e| {
-                        warn!(
-                            "Invalid {} response from {} on: {} {}",
-                            status, &destination, url, e
-                        );
-                        Error::BadServerResponse("Server returned bad error response.")
-                    })?,
+                    RumaError::from_http_response(http_response),
                 ))
             }
         }
@@ -391,7 +385,7 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
                                         }
 
                                         if let Some(port) = force_port {
-                                            FedDest::Named(delegated_hostname, format!(":{}", port))
+                                            FedDest::Named(delegated_hostname, format!(":{port}"))
                                         } else {
                                             add_port_to_hostname(&delegated_hostname)
                                         }
@@ -433,7 +427,7 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
                                 }
 
                                 if let Some(port) = force_port {
-                                    FedDest::Named(hostname.clone(), format!(":{}", port))
+                                    FedDest::Named(hostname.clone(), format!(":{port}"))
                                 } else {
                                     add_port_to_hostname(&hostname)
                                 }
@@ -466,7 +460,7 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
     if let Ok(Some(host_port)) = services()
         .globals
         .dns_resolver()
-        .srv_lookup(format!("_matrix._tcp.{}", hostname))
+        .srv_lookup(format!("_matrix._tcp.{hostname}"))
         .await
         .map(|srv| {
             srv.iter().next().map(|result| {
@@ -488,10 +482,7 @@ async fn request_well_known(destination: &str) -> Option<String> {
         &services()
             .globals
             .default_client()
-            .get(&format!(
-                "https://{}/.well-known/matrix/server",
-                destination
-            ))
+            .get(&format!("https://{destination}/.well-known/matrix/server"))
             .send()
             .await
             .ok()?
@@ -586,7 +577,7 @@ pub async fn get_server_keys_deprecated_route() -> impl IntoResponse {
 ///
 /// Lists the public rooms on this server.
 pub async fn get_public_rooms_filtered_route(
-    body: Ruma<get_public_rooms_filtered::v1::IncomingRequest>,
+    body: Ruma<get_public_rooms_filtered::v1::Request>,
 ) -> Result<get_public_rooms_filtered::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -613,7 +604,7 @@ pub async fn get_public_rooms_filtered_route(
 ///
 /// Lists the public rooms on this server.
 pub async fn get_public_rooms_route(
-    body: Ruma<get_public_rooms::v1::IncomingRequest>,
+    body: Ruma<get_public_rooms::v1::Request>,
 ) -> Result<get_public_rooms::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -623,8 +614,8 @@ pub async fn get_public_rooms_route(
         None,
         body.limit,
         body.since.as_deref(),
-        &IncomingFilter::default(),
-        &IncomingRoomNetwork::Matrix,
+        &Filter::default(),
+        &RoomNetwork::Matrix,
     )
     .await?;
 
@@ -640,7 +631,7 @@ pub async fn get_public_rooms_route(
 ///
 /// Push EDUs and PDUs to this server.
 pub async fn send_transaction_message_route(
-    body: Ruma<send_transaction_message::v1::IncomingRequest>,
+    body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -664,16 +655,11 @@ pub async fn send_transaction_message_route(
     // let mut auth_cache = EventMap::new();
 
     for pdu in &body.pdus {
-        // We do not add the event_id field to the pdu here because of signature and hashes checks
-        let (event_id, value) = match gen_event_id_canonical_json(pdu) {
-            Ok(t) => t,
-            Err(_) => {
-                // Event could not be converted to canonical json
-                continue;
-            }
-        };
+        let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
+            warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
+            Error::BadServerResponse("Invalid PDU in server response")
+        })?;
 
-        // 0. Check the server is in the room
         let room_id: OwnedRoomId = match value
             .get("room_id")
             .and_then(|id| RoomId::parse(id.as_str()?).ok())
@@ -681,13 +667,25 @@ pub async fn send_transaction_message_route(
             Some(id) => id,
             None => {
                 // Event is invalid
-                resolved_map.insert(
-                    event_id,
-                    Err(Error::bad_database("Event needs a valid RoomId.")),
-                );
                 continue;
             }
         };
+
+        let room_version_id = match services().rooms.state.get_room_version(&room_id) {
+            Ok(v) => v,
+            Err(_) => {
+                continue;
+            }
+        };
+
+        let (event_id, value) = match gen_event_id_canonical_json(pdu, &room_version_id) {
+            Ok(t) => t,
+            Err(_) => {
+                // Event could not be converted to canonical json
+                continue;
+            }
+        };
+        // We do not add the event_id field to the pdu here because of signature and hashes checks
 
         services()
             .rooms
@@ -724,7 +722,7 @@ pub async fn send_transaction_message_route(
         drop(mutex_lock);
 
         let elapsed = start_time.elapsed();
-        warn!(
+        debug!(
             "Handling transaction of event {} took {}m{}s",
             event_id,
             elapsed.as_secs() / 60,
@@ -909,7 +907,7 @@ pub async fn send_transaction_message_route(
 ///
 /// - Only works if a user of this server is currently invited or joined the room
 pub async fn get_event_route(
-    body: Ruma<get_event::v1::IncomingRequest>,
+    body: Ruma<get_event::v1::Request>,
 ) -> Result<get_event::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -956,7 +954,7 @@ pub async fn get_event_route(
 ///
 /// Retrieves events that the sender is missing.
 pub async fn get_missing_events_route(
-    body: Ruma<get_missing_events::v1::IncomingRequest>,
+    body: Ruma<get_missing_events::v1::Request>,
 ) -> Result<get_missing_events::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -1035,7 +1033,7 @@ pub async fn get_missing_events_route(
 ///
 /// - This does not include the event itself
 pub async fn get_event_authorization_route(
-    body: Ruma<get_event_authorization::v1::IncomingRequest>,
+    body: Ruma<get_event_authorization::v1::Request>,
 ) -> Result<get_event_authorization::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -1094,7 +1092,7 @@ pub async fn get_event_authorization_route(
 ///
 /// Retrieves the current state of the room.
 pub async fn get_room_state_route(
-    body: Ruma<get_room_state::v1::IncomingRequest>,
+    body: Ruma<get_room_state::v1::Request>,
 ) -> Result<get_room_state::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -1174,7 +1172,7 @@ pub async fn get_room_state_route(
 ///
 /// Retrieves the current state of the room.
 pub async fn get_room_state_ids_route(
-    body: Ruma<get_room_state_ids::v1::IncomingRequest>,
+    body: Ruma<get_room_state_ids::v1::Request>,
 ) -> Result<get_room_state_ids::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -1235,7 +1233,7 @@ pub async fn get_room_state_ids_route(
 ///
 /// Creates a join template.
 pub async fn create_join_event_template_route(
-    body: Ruma<prepare_join_event::v1::IncomingRequest>,
+    body: Ruma<prepare_join_event::v1::Request>,
 ) -> Result<prepare_join_event::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -1407,7 +1405,8 @@ async fn create_join_event(
     // let mut auth_cache = EventMap::new();
 
     // We do not add the event_id field to the pdu here because of signature and hashes checks
-    let (event_id, value) = match gen_event_id_canonical_json(pdu) {
+    let room_version_id = services().rooms.state.get_room_version(room_id)?;
+    let (event_id, value) = match gen_event_id_canonical_json(pdu, &room_version_id) {
         Ok(t) => t,
         Err(_) => {
             // Event could not be converted to canonical json
@@ -1478,6 +1477,7 @@ async fn create_join_event(
             .filter_map(|(_, id)| services().rooms.timeline.get_pdu_json(id).ok().flatten())
             .map(PduEvent::convert_to_outgoing_federation_event)
             .collect(),
+        event: None, // TODO: handle restricted joins
     })
 }
 
@@ -1485,7 +1485,7 @@ async fn create_join_event(
 ///
 /// Submits a signed join event.
 pub async fn create_join_event_v1_route(
-    body: Ruma<create_join_event::v1::IncomingRequest>,
+    body: Ruma<create_join_event::v1::Request>,
 ) -> Result<create_join_event::v1::Response> {
     let sender_servername = body
         .sender_servername
@@ -1501,7 +1501,7 @@ pub async fn create_join_event_v1_route(
 ///
 /// Submits a signed join event.
 pub async fn create_join_event_v2_route(
-    body: Ruma<create_join_event::v2::IncomingRequest>,
+    body: Ruma<create_join_event::v2::Request>,
 ) -> Result<create_join_event::v2::Response> {
     let sender_servername = body
         .sender_servername
@@ -1517,7 +1517,7 @@ pub async fn create_join_event_v2_route(
 ///
 /// Invites a remote user to a room.
 pub async fn create_invite_route(
-    body: Ruma<create_invite::v2::IncomingRequest>,
+    body: Ruma<create_invite::v2::Request>,
 ) -> Result<create_invite::v2::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -1609,8 +1609,12 @@ pub async fn create_invite_route(
 
     invite_state.push(pdu.to_stripped_state_event());
 
-    // If the room already exists, the remote server will notify us about the join via /send
-    if !services().rooms.metadata.exists(&pdu.room_id)? {
+    // If we are active in the room, the remote server will notify us about the join via /send
+    if !services()
+        .rooms
+        .state_cache
+        .server_in_room(services().globals.server_name(), &body.room_id)?
+    {
         services().rooms.state_cache.update_membership(
             &body.room_id,
             &invited_user,
@@ -1630,7 +1634,7 @@ pub async fn create_invite_route(
 ///
 /// Gets information on all devices of the user.
 pub async fn get_devices_route(
-    body: Ruma<get_devices::v1::IncomingRequest>,
+    body: Ruma<get_devices::v1::Request>,
 ) -> Result<get_devices::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -1677,7 +1681,7 @@ pub async fn get_devices_route(
 ///
 /// Resolve a room alias to a room id.
 pub async fn get_room_information_route(
-    body: Ruma<get_room_information::v1::IncomingRequest>,
+    body: Ruma<get_room_information::v1::Request>,
 ) -> Result<get_room_information::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
@@ -1702,7 +1706,7 @@ pub async fn get_room_information_route(
 ///
 /// Gets information on a profile.
 pub async fn get_profile_information_route(
-    body: Ruma<get_profile_information::v1::IncomingRequest>,
+    body: Ruma<get_profile_information::v1::Request>,
 ) -> Result<get_profile_information::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));

@@ -65,9 +65,7 @@ pub async fn upload_keys_route(
 /// - Always fetches users from other servers over federation
 /// - Gets master keys, self-signing keys, user signing keys and device keys.
 /// - The master and self-signing keys contain signatures that the user is allowed to see
-pub async fn get_keys_route(
-    body: Ruma<get_keys::v3::IncomingRequest>,
-) -> Result<get_keys::v3::Response> {
+pub async fn get_keys_route(body: Ruma<get_keys::v3::Request>) -> Result<get_keys::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     let response =
@@ -93,7 +91,7 @@ pub async fn claim_keys_route(
 ///
 /// - Requires UIAA to verify password
 pub async fn upload_signing_keys_route(
-    body: Ruma<upload_signing_keys::v3::IncomingRequest>,
+    body: Ruma<upload_signing_keys::v3::Request>,
 ) -> Result<upload_signing_keys::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -214,7 +212,7 @@ pub async fn upload_signatures_route(
 ///
 /// - TODO: left users
 pub async fn get_key_changes_route(
-    body: Ruma<get_key_changes::v3::IncomingRequest>,
+    body: Ruma<get_key_changes::v3::Request>,
 ) -> Result<get_key_changes::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

@@ -6,9 +6,13 @@ authors = ["timokoesters <timo@koesters.xyz>"]
 homepage = "https://conduit.rs"
 repository = "https://gitlab.com/famedly/conduit"
 readme = "README.md"
-version = "0.4.0-next"
-rust-version = "1.63"
+version = "0.6.0-alpha"
 edition = "2021"
+
+# When changing this, change the hash near the text "THE rust-version HASH" in
+# `/flake.nix` too. If you don't have Nix installed or otherwise don't know how
+# to do this, ping `@charles:computer.surgery` in the matrix room.
+rust-version = "1.64"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -21,7 +25,7 @@ tower-http = { version = "0.3.4", features = ["add-extension", "cors", "compress
 
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
-ruma = { git = "https://github.com/ruma/ruma", rev = "fba6f70c2df8294f96567f56464a46e3d237a8e9", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
+ruma = { git = "https://github.com/ruma/ruma", rev = "67d0f3cc04a8d1dc4a8a1ec947519967ce11ce26", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 #ruma = { git = "https://github.com/timokoesters/ruma", rev = "50c1db7e0a3a21fc794b0cce3b64285a4c750c71", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 
@@ -69,6 +73,7 @@ tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 tracing-flame = "0.2.0"
 opentelemetry = { version = "0.18.0", features = ["rt-tokio"] }
 opentelemetry-jaeger = { version = "0.17.0", features = ["rt-tokio"] }
+tracing-opentelemetry = "0.18.0"
 lru-cache = "0.1.2"
 rusqlite = { version = "0.28.0", optional = true, features = ["bundled"] }
 parking_lot = { version = "0.12.1", optional = true }
@@ -93,8 +98,10 @@ tikv-jemallocator = { version = "0.5.0", features = ["unprefixed_malloc_on_suppo
 lazy_static = "1.4.0"
 async-trait = "0.1.57"
 
+sd-notify = { version = "0.4.1", optional = true }
+
 [features]
-default = ["conduit_bin", "backend_sqlite", "backend_rocksdb", "jemalloc"]
+default = ["conduit_bin", "backend_sqlite", "backend_rocksdb", "jemalloc", "systemd"]
 #backend_sled = ["sled"]
 backend_persy = ["persy", "parking_lot"]
 backend_sqlite = ["sqlite"]
@@ -103,6 +110,7 @@ backend_rocksdb = ["rocksdb"]
 jemalloc = ["tikv-jemalloc-ctl", "tikv-jemallocator"]
 sqlite = ["rusqlite", "parking_lot", "tokio/signal"]
 conduit_bin = ["axum"]
+systemd = ["sd-notify"]
 
 [[bin]]
 name = "conduit"

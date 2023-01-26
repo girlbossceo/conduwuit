@@ -46,7 +46,7 @@ use tracing::{info, warn};
 /// - Send events implied by `name` and `topic`
 /// - Send invite events
 pub async fn create_room_route(
-    body: Ruma<create_room::v3::IncomingRequest>,
+    body: Ruma<create_room::v3::Request>,
 ) -> Result<create_room::v3::Response> {
     use create_room::v3::RoomPreset;
 
@@ -398,7 +398,7 @@ pub async fn create_room_route(
     // 8. Events implied by invite (and TODO: invite_3pid)
     drop(state_lock);
     for user_id in &body.invite {
-        let _ = invite_helper(sender_user, user_id, &room_id, body.is_direct).await;
+        let _ = invite_helper(sender_user, user_id, &room_id, None, body.is_direct).await;
     }
 
     // Homeserver specific stuff
@@ -421,7 +421,7 @@ pub async fn create_room_route(
 ///
 /// - You have to currently be joined to the room (TODO: Respect history visibility)
 pub async fn get_room_event_route(
-    body: Ruma<get_room_event::v3::IncomingRequest>,
+    body: Ruma<get_room_event::v3::Request>,
 ) -> Result<get_room_event::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -452,7 +452,7 @@ pub async fn get_room_event_route(
 ///
 /// - Only users joined to the room are allowed to call this TODO: Allow any user to call it if history_visibility is world readable
 pub async fn get_room_aliases_route(
-    body: Ruma<aliases::v3::IncomingRequest>,
+    body: Ruma<aliases::v3::Request>,
 ) -> Result<aliases::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -488,7 +488,7 @@ pub async fn get_room_aliases_route(
 /// - Moves local aliases
 /// - Modifies old room power levels to prevent users from speaking
 pub async fn upgrade_room_route(
-    body: Ruma<upgrade_room::v3::IncomingRequest>,
+    body: Ruma<upgrade_room::v3::Request>,
 ) -> Result<upgrade_room::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

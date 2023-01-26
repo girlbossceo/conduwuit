@@ -2,7 +2,7 @@
 
 > ## Getting help
 >
-> If you run into any problems while setting up Conduit, write an email to `timo@koesters.xyz`, ask us
+> If you run into any problems while setting up Conduit, write an email to `conduit@koesters.xyz`, ask us
 > in `#conduit:fachschaften.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
 
 ## Installing Conduit
@@ -12,21 +12,27 @@ only offer Linux binaries.
 
 You may simply download the binary that fits your machine. Run `uname -m` to see what you need. Now copy the right url:
 
-| CPU Architecture                            | Download stable version        | Download development version |
-| ------------------------------------------- | ------------------------------ | ---------------------------- |
-| x84_64 / amd64 (Most servers and computers) | [Download][x84_64-musl-master] | [Download][x84_64-musl-next] |
-| armv6                                       | [Download][armv6-musl-master]  | [Download][armv6-musl-next]  |
-| armv7 (e.g. Raspberry Pi by default)        | [Download][armv7-musl-master]  | [Download][armv7-musl-next]  |
-| armv8 / aarch64                             | [Download][armv8-musl-master]  | [Download][armv8-musl-next]  |
+| CPU Architecture                            | Download stable version                                         | Download development version                                |
+| ------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
+| x84_64 / amd64 (Most servers and computers) | [Binary][x84_64-glibc-master] / [.deb][x84_64-glibc-master-deb] | [Binary][x84_64-glibc-next] / [.deb][x84_64-glibc-next-deb] |
+| armv7 (e.g. Raspberry Pi by default)        | [Binary][armv7-glibc-master] / [.deb][armv7-glibc-master-deb]   | [Binary][armv7-glibc-next] / [.deb][armv7-glibc-next-deb]   |
+| armv8 / aarch64                             | [Binary][armv8-glibc-master] / [.deb][armv8-glibc-master-deb]   | [Binary][armv8-glibc-next] / [.deb][armv8-glibc-next-deb]   |
 
-[x84_64-musl-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-x86_64-unknown-linux-musl?job=build:release:cargo:x86_64-unknown-linux-musl
-[armv6-musl-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-arm-unknown-linux-musleabihf?job=build:release:cargo:arm-unknown-linux-musleabihf
-[armv7-musl-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-armv7-unknown-linux-musleabihf?job=build:release:cargo:armv7-unknown-linux-musleabihf
-[armv8-musl-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/conduit-aarch64-unknown-linux-musl?job=build:release:cargo:aarch64-unknown-linux-musl
-[x84_64-musl-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/conduit-x86_64-unknown-linux-musl?job=build:release:cargo:x86_64-unknown-linux-musl
-[armv6-musl-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/conduit-arm-unknown-linux-musleabihf?job=build:release:cargo:arm-unknown-linux-musleabihf
-[armv7-musl-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/conduit-armv7-unknown-linux-musleabihf?job=build:release:cargo:armv7-unknown-linux-musleabihf
-[armv8-musl-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/conduit-aarch64-unknown-linux-musl?job=build:release:cargo:aarch64-unknown-linux-musl
+These builds were created on and linked against the glibc version shipped with Debian bullseye.
+If you use a system with an older glibc version, you might need to compile Conduit yourself.
+
+[x84_64-glibc-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_amd64/conduit?job=docker:master
+[armv7-glibc-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_arm_v7/conduit?job=docker:master
+[armv8-glibc-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_arm64/conduit?job=docker:master
+[x84_64-glibc-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_amd64/conduit?job=docker:next
+[armv7-glibc-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_arm_v7/conduit?job=docker:next
+[armv8-glibc-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_arm64/conduit?job=docker:next
+[x84_64-glibc-master-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_amd64/conduit.deb?job=docker:master
+[armv7-glibc-master-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_arm_v7/conduit.deb?job=docker:master
+[armv8-glibc-master-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_arm64/conduit.deb?job=docker:master
+[x84_64-glibc-next-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_amd64/conduit.deb?job=docker:next
+[armv7-glibc-next-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_arm_v7/conduit.deb?job=docker:next
+[armv8-glibc-next-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_arm64/conduit.deb?job=docker:next
 
 ```bash
 $ sudo wget -O /usr/local/bin/matrix-conduit <url>
@@ -43,8 +49,25 @@ $ sudo apt install libclang-dev build-essential
 $ cargo build --release
 ```
 
+If you want to cross compile Conduit to another architecture, read the guide below.
 
-If you want to cross compile Conduit to another architecture, read the [Cross-Compile Guide](cross/README.md).
+<details>
+<summary>Cross compilation</summary>
+
+As easiest way to compile conduit for another platform [cross-rs](https://github.com/cross-rs/cross) is recommended, so install it first.
+
+In order to use RockDB as storage backend append `-latomic` to linker flags.
+
+For example, to build a binary for Raspberry Pi Zero W (ARMv6) you need `arm-unknown-linux-gnueabihf` as compilation
+target.
+
+```bash
+git clone https://gitlab.com/famedly/conduit.git
+cd conduit
+export RUSTFLAGS='-C link-arg=-lgcc -Clink-arg=-latomic -Clink-arg=-static-libgcc'
+cross build --release --no-default-features --features conduit_bin,backend_rocksdb,jemalloc --target=arm-unknown-linux-gnueabihf
+```
+</details>
 
 ## Adding a Conduit user
 
@@ -189,17 +212,20 @@ $ sudo systemctl reload apache2
 ```
 
 ### Caddy
+
 Create `/etc/caddy/conf.d/conduit_caddyfile` and enter this (substitute for your server name).
+
 ```caddy
 your.server.name, your.server.name:8448 {
         reverse_proxy /_matrix/* 127.0.0.1:6167
 }
 ```
+
 That's it! Just start or enable the service and you're set.
+
 ```bash
 $ sudo systemctl enable caddy
 ```
-
 
 ### Nginx
 

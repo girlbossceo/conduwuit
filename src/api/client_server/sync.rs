@@ -1,7 +1,7 @@
 use crate::{services, Error, Result, Ruma, RumaResponse};
 use ruma::{
     api::client::{
-        filter::{IncomingFilterDefinition, LazyLoadOptions},
+        filter::{FilterDefinition, LazyLoadOptions},
         sync::sync_events::{self, DeviceLists, UnreadNotificationsCount},
         uiaa::UiaaResponse,
     },
@@ -55,7 +55,7 @@ use tracing::error;
 /// - Sync is handled in an async task, multiple requests from the same device with the same
 /// `since` will be cached
 pub async fn sync_events_route(
-    body: Ruma<sync_events::v3::IncomingRequest>,
+    body: Ruma<sync_events::v3::Request>,
 ) -> Result<sync_events::v3::Response, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.expect("user is authenticated");
     let sender_device = body.sender_device.expect("user is authenticated");
@@ -124,7 +124,7 @@ pub async fn sync_events_route(
 async fn sync_helper_wrapper(
     sender_user: OwnedUserId,
     sender_device: OwnedDeviceId,
-    body: sync_events::v3::IncomingRequest,
+    body: sync_events::v3::Request,
     tx: Sender<Option<Result<sync_events::v3::Response>>>,
 ) {
     let since = body.since.clone();
@@ -157,12 +157,12 @@ async fn sync_helper_wrapper(
 async fn sync_helper(
     sender_user: OwnedUserId,
     sender_device: OwnedDeviceId,
-    body: sync_events::v3::IncomingRequest,
+    body: sync_events::v3::Request,
     // bool = caching allowed
 ) -> Result<(sync_events::v3::Response, bool), Error> {
     use sync_events::v3::{
-        Ephemeral, GlobalAccountData, IncomingFilter, InviteState, InvitedRoom, JoinedRoom,
-        LeftRoom, Presence, RoomAccountData, RoomSummary, Rooms, State, Timeline, ToDevice,
+        Ephemeral, Filter, GlobalAccountData, InviteState, InvitedRoom, JoinedRoom, LeftRoom,
+        Presence, RoomAccountData, RoomSummary, Rooms, State, Timeline, ToDevice,
     };
 
     // TODO: match body.set_presence {
@@ -176,9 +176,9 @@ async fn sync_helper(
 
     // Load filter
     let filter = match body.filter {
-        None => IncomingFilterDefinition::default(),
-        Some(IncomingFilter::FilterDefinition(filter)) => filter,
-        Some(IncomingFilter::FilterId(filter_id)) => services()
+        None => FilterDefinition::default(),
+        Some(Filter::FilterDefinition(filter)) => filter,
+        Some(Filter::FilterId(filter_id)) => services()
             .users
             .get_filter(&sender_user, &filter_id)?
             .unwrap_or_default(),
@@ -282,9 +282,8 @@ async fn sync_helper(
         let send_notification_counts = !timeline_pdus.is_empty()
             || services()
                 .rooms
-                .edus
-                .read_receipt
-                .last_privateread_update(&sender_user, &room_id)?
+                .user
+                .last_notification_read(&sender_user, &room_id)?
                 > since;
 
         let mut timeline_users = HashSet::new();
@@ -389,13 +388,35 @@ async fn sync_helper(
             ))
         };
 
+        let since_sender_member: Option<RoomMemberEventContent> = since_shortstatehash
+            .and_then(|shortstatehash| {
+                services()
+                    .rooms
+                    .state_accessor
+                    .state_get(
+                        shortstatehash,
+                        &StateEventType::RoomMember,
+                        sender_user.as_str(),
+                    )
+                    .transpose()
+            })
+            .transpose()?
+            .and_then(|pdu| {
+                serde_json::from_str(pdu.content.get())
+                    .map_err(|_| Error::bad_database("Invalid PDU in database."))
+                    .ok()
+            });
+
+        let joined_since_last_sync =
+            since_sender_member.map_or(true, |member| member.membership != MembershipState::Join);
+
         let (
             heroes,
             joined_member_count,
             invited_member_count,
             joined_since_last_sync,
             state_events,
-        ) = if since_shortstatehash.is_none() {
+        ) = if since_shortstatehash.is_none() || joined_since_last_sync {
             // Probably since = 0, we will do an initial sync
 
             let (joined_member_count, invited_member_count, heroes) = calculate_counts()?;
@@ -487,23 +508,6 @@ async fn sync_helper(
         } else {
             // Incremental /sync
             let since_shortstatehash = since_shortstatehash.unwrap();
-
-            let since_sender_member: Option<RoomMemberEventContent> = services()
-                .rooms
-                .state_accessor
-                .state_get(
-                    since_shortstatehash,
-                    &StateEventType::RoomMember,
-                    sender_user.as_str(),
-                )?
-                .and_then(|pdu| {
-                    serde_json::from_str(pdu.content.get())
-                        .map_err(|_| Error::bad_database("Invalid PDU in database."))
-                        .ok()
-                });
-
-            let joined_since_last_sync = since_sender_member
-                .map_or(true, |member| member.membership != MembershipState::Join);
 
             let mut state_events = Vec::new();
             let mut lazy_loaded = HashSet::new();
@@ -869,7 +873,7 @@ async fn sync_helper(
 
         let since_state_ids = match since_shortstatehash {
             Some(s) => services().rooms.state_accessor.state_full_ids(s).await?,
-            None => BTreeMap::new(),
+            None => HashMap::new(),
         };
 
         let left_event_id = match services().rooms.state_accessor.room_state_get_id(
@@ -905,7 +909,7 @@ async fn sync_helper(
         let leave_shortstatekey = services()
             .rooms
             .short
-            .get_or_create_shortstatekey(&StateEventType::RoomMember, &sender_user.as_str())?;
+            .get_or_create_shortstatekey(&StateEventType::RoomMember, sender_user.as_str())?;
 
         left_state_ids.insert(leave_shortstatekey, left_event_id);
 

@@ -1,4 +1,4 @@
-use crate::{services, Error};
+use crate::Error;
 use ruma::{
     events::{
         room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyStateEvent,
@@ -7,7 +7,7 @@ use ruma::{
     },
     serde::Raw,
     state_res, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch,
-    OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId,
+    OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, RoomVersionId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{
@@ -334,23 +334,17 @@ impl Ord for PduEvent {
 /// Returns a tuple of the new `EventId` and the PDU as a `BTreeMap<String, CanonicalJsonValue>`.
 pub(crate) fn gen_event_id_canonical_json(
     pdu: &RawJsonValue,
+    room_version_id: &RoomVersionId,
 ) -> crate::Result<(OwnedEventId, CanonicalJsonObject)> {
     let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
         warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
         Error::BadServerResponse("Invalid PDU in server response")
     })?;
 
-    let room_id = value
-        .get("room_id")
-        .and_then(|id| RoomId::parse(id.as_str()?).ok())
-        .ok_or_else(|| Error::bad_database("PDU in db has invalid room_id."))?;
-
-    let room_version_id = services().rooms.state.get_room_version(&room_id);
-
     let event_id = format!(
         "${}",
         // Anything higher than version3 behaves the same
-        ruma::signatures::reference_hash(&value, &room_version_id?)
+        ruma::signatures::reference_hash(&value, room_version_id)
             .expect("ruma can calculate reference hashes")
     )
     .try_into()

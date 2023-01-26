@@ -14,7 +14,7 @@ use serde_json::value::to_raw_value;
 ///
 /// - TODO: Handle txn id
 pub async fn redact_event_route(
-    body: Ruma<redact_event::v3::IncomingRequest>,
+    body: Ruma<redact_event::v3::Request>,
 ) -> Result<redact_event::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let body = body.body;

@@ -40,6 +40,8 @@ pub struct Config {
     pub max_request_size: u32,
     #[serde(default = "default_max_concurrent_requests")]
     pub max_concurrent_requests: u16,
+    #[serde(default = "default_max_fetch_prev_events")]
+    pub max_fetch_prev_events: u16,
     #[serde(default = "false_fn")]
     pub allow_registration: bool,
     #[serde(default = "true_fn")]
@@ -183,7 +185,7 @@ impl fmt::Display for Config {
             ("Turn TTL", &self.turn_ttl.to_string()),
             ("Turn URIs", {
                 let mut lst = vec![];
-                for item in self.turn_uris.to_vec().into_iter().enumerate() {
+                for item in self.turn_uris.iter().cloned().enumerate() {
                     let (_, uri): (usize, String) = item;
                     lst.push(uri);
                 }
@@ -191,13 +193,13 @@ impl fmt::Display for Config {
             }),
         ];
 
-        let mut msg: String = "Active config values:\n\n".to_string();
+        let mut msg: String = "Active config values:\n\n".to_owned();
 
         for line in lines.into_iter().enumerate() {
             msg += &format!("{}: {}\n", line.1 .0, line.1 .1);
         }
 
-        write!(f, "{}", msg)
+        write!(f, "{msg}")
     }
 }
 
@@ -222,7 +224,7 @@ fn default_database_backend() -> String {
 }
 
 fn default_db_cache_capacity_mb() -> f64 {
-    10.0
+    1000.0
 }
 
 fn default_conduit_cache_capacity_modifier() -> f64 {
@@ -230,7 +232,7 @@ fn default_conduit_cache_capacity_modifier() -> f64 {
 }
 
 fn default_rocksdb_max_open_files() -> i32 {
-    20
+    1000
 }
 
 fn default_pdu_cache_capacity() -> u32 {
@@ -247,6 +249,10 @@ fn default_max_request_size() -> u32 {
 
 fn default_max_concurrent_requests() -> u16 {
     100
+}
+
+fn default_max_fetch_prev_events() -> u16 {
+    100_u16
 }
 
 fn default_log() -> String {

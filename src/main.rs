@@ -24,10 +24,15 @@ use figment::{
 };
 use http::{
     header::{self, HeaderName},
-    Method, Uri,
+    Method, StatusCode, Uri,
 };
-use opentelemetry::trace::{FutureExt, Tracer};
-use ruma::api::{client::error::ErrorKind, IncomingRequest};
+use ruma::api::{
+    client::{
+        error::{Error as RumaError, ErrorBody, ErrorKind},
+        uiaa::UiaaResponse,
+    },
+    IncomingRequest,
+};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -35,7 +40,7 @@ use tower_http::{
     trace::TraceLayer,
     ServiceBuilderExt as _,
 };
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 pub use conduit::*; // Re-export everything from the library crate
@@ -63,65 +68,74 @@ async fn main() {
     let config = match raw_config.extract::<Config>() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("It looks like your config is invalid. The following error occured while parsing it: {}", e);
+            eprintln!("It looks like your config is invalid. The following error occurred: {e}");
             std::process::exit(1);
         }
     };
 
     config.warn_deprecated();
 
-    if let Err(e) = KeyValueDatabase::load_or_create(config).await {
-        eprintln!(
-            "The database couldn't be loaded or created. The following error occured: {}",
-            e
-        );
-        std::process::exit(1);
-    };
-
-    let config = &services().globals.config;
-
-    let start = async {
-        run_server().await.unwrap();
-    };
-
     if config.allow_jaeger {
         opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
         let tracer = opentelemetry_jaeger::new_agent_pipeline()
+            .with_auto_split_batch(true)
+            .with_service_name("conduit")
             .install_batch(opentelemetry::runtime::Tokio)
             .unwrap();
+        let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
-        let span = tracer.start("conduit");
-        start.with_current_context().await;
-        drop(span);
+        let filter_layer = match EnvFilter::try_new(&config.log) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "It looks like your log config is invalid. The following error occurred: {e}"
+                );
+                EnvFilter::try_new("warn").unwrap()
+            }
+        };
 
-        println!("exporting");
-        opentelemetry::global::shutdown_tracer_provider();
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(filter_layer)
+            .with(telemetry);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    } else if config.tracing_flame {
+        let registry = tracing_subscriber::Registry::default();
+        let (flame_layer, _guard) =
+            tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+        let flame_layer = flame_layer.with_empty_samples(false);
+
+        let filter_layer = EnvFilter::new("trace,h2=off");
+
+        let subscriber = registry.with(filter_layer).with(flame_layer);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
     } else {
         let registry = tracing_subscriber::Registry::default();
-        if config.tracing_flame {
-            let (flame_layer, _guard) =
-                tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
-            let flame_layer = flame_layer.with_empty_samples(false);
+        let fmt_layer = tracing_subscriber::fmt::Layer::new();
+        let filter_layer = match EnvFilter::try_new(&config.log) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("It looks like your config is invalid. The following error occured while parsing it: {e}");
+                EnvFilter::try_new("warn").unwrap()
+            }
+        };
 
-            let filter_layer = EnvFilter::new("trace,h2=off");
+        let subscriber = registry.with(filter_layer).with(fmt_layer);
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    }
 
-            let subscriber = registry.with(filter_layer).with(flame_layer);
-            tracing::subscriber::set_global_default(subscriber).unwrap();
-            start.await;
-        } else {
-            let fmt_layer = tracing_subscriber::fmt::Layer::new();
-            let filter_layer = match EnvFilter::try_new(&config.log) {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("It looks like your log config is invalid. The following error occurred: {}", e);
-                    EnvFilter::try_new("warn").unwrap()
-                }
-            };
+    info!("Loading database");
+    if let Err(error) = KeyValueDatabase::load_or_create(config).await {
+        error!(?error, "The database couldn't be loaded or created");
 
-            let subscriber = registry.with(filter_layer).with(fmt_layer);
-            tracing::subscriber::set_global_default(subscriber).unwrap();
-            start.await;
-        }
+        std::process::exit(1);
+    };
+    let config = &services().globals.config;
+
+    info!("Starting server");
+    run_server().await.unwrap();
+
+    if config.allow_jaeger {
+        opentelemetry::global::shutdown_tracer_provider();
     }
 }
 
@@ -180,10 +194,20 @@ async fn run_server() -> io::Result<()> {
     match &config.tls {
         Some(tls) => {
             let conf = RustlsConfig::from_pem_file(&tls.certs, &tls.key).await?;
-            bind_rustls(addr, conf).handle(handle).serve(app).await?;
+            let server = bind_rustls(addr, conf).handle(handle).serve(app);
+
+            #[cfg(feature = "systemd")]
+            let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
+            server.await?
         }
         None => {
-            bind(addr).handle(handle).serve(app).await?;
+            let server = bind(addr).handle(handle).serve(app);
+
+            #[cfg(feature = "systemd")]
+            let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
+            server.await?
         }
     }
 
@@ -191,21 +215,29 @@ async fn run_server() -> io::Result<()> {
     info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
     services().globals.rotate.fire();
 
+    #[cfg(feature = "systemd")]
+    let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
+
     Ok(())
 }
 
 async fn unrecognized_method<B>(
     req: axum::http::Request<B>,
     next: axum::middleware::Next<B>,
-) -> std::result::Result<axum::response::Response, axum::http::StatusCode> {
+) -> std::result::Result<axum::response::Response, StatusCode> {
     let method = req.method().clone();
     let uri = req.uri().clone();
     let inner = next.run(req).await;
     if inner.status() == axum::http::StatusCode::METHOD_NOT_ALLOWED {
         warn!("Method not allowed: {method} {uri}");
-        return Ok(
-            Error::BadRequest(ErrorKind::Unrecognized, "Unrecognized request").into_response(),
-        );
+        return Ok(RumaResponse(UiaaResponse::MatrixError(RumaError {
+            body: ErrorBody::Standard {
+                kind: ErrorKind::Unrecognized,
+                message: "M_UNRECOGNIZED: Unrecognized request".to_owned(),
+            },
+            status_code: StatusCode::METHOD_NOT_ALLOWED,
+        }))
+        .into_response());
     }
     Ok(inner)
 }
@@ -464,7 +496,7 @@ macro_rules! impl_ruma_handler {
                 let meta = Req::METADATA;
                 let method_filter = method_to_filter(meta.method);
 
-                for path in IntoIterator::into_iter([meta.unstable_path, meta.r0_path, meta.stable_path]).flatten() {
+                for path in meta.history.all_paths() {
                     let handler = self.clone();
 
                     router = router.route(path, on(method_filter, |$( $ty: $ty, )* req| async move {
@@ -498,6 +530,6 @@ fn method_to_filter(method: Method) -> MethodFilter {
         Method::POST => MethodFilter::POST,
         Method::PUT => MethodFilter::PUT,
         Method::TRACE => MethodFilter::TRACE,
-        m => panic!("Unsupported HTTP method: {:?}", m),
+        m => panic!("Unsupported HTTP method: {m:?}"),
     }
 }

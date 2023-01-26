@@ -106,7 +106,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
     }
 
     fn open_tree(&self, name: &str) -> Result<Arc<dyn KvTree>> {
-        self.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )", name), [])?;
+        self.write_lock().execute(&format!("CREATE TABLE IF NOT EXISTS {name} ( \"key\" BLOB PRIMARY KEY, \"value\" BLOB NOT NULL )"), [])?;
 
         Ok(Arc::new(SqliteTable {
             engine: Arc::clone(self),
@@ -135,7 +135,6 @@ type TupleOfBytes = (Vec<u8>, Vec<u8>);
 
 impl SqliteTable {
     fn get_with_guard(&self, guard: &Connection, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        //dbg!(&self.name);
         Ok(guard
             .prepare(format!("SELECT value FROM {} WHERE key = ?", self.name).as_str())?
             .query_row([key], |row| row.get(0))
@@ -143,7 +142,6 @@ impl SqliteTable {
     }
 
     fn insert_with_guard(&self, guard: &Connection, key: &[u8], value: &[u8]) -> Result<()> {
-        //dbg!(&self.name);
         guard.execute(
             format!(
                 "INSERT OR REPLACE INTO {} (key, value) VALUES (?, ?)",
@@ -176,10 +174,7 @@ impl SqliteTable {
             statement
                 .query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
                 .unwrap()
-                .map(move |r| {
-                    //dbg!(&name);
-                    r.unwrap()
-                }),
+                .map(move |r| r.unwrap()),
         );
 
         Box::new(PreparedStatementIterator {
@@ -276,10 +271,7 @@ impl KvTree for SqliteTable {
                 statement
                     .query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
                     .unwrap()
-                    .map(move |r| {
-                        //dbg!(&name);
-                        r.unwrap()
-                    }),
+                    .map(move |r| r.unwrap()),
             );
             Box::new(PreparedStatementIterator {
                 iterator,
@@ -301,10 +293,7 @@ impl KvTree for SqliteTable {
                 statement
                     .query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
                     .unwrap()
-                    .map(move |r| {
-                        //dbg!(&name);
-                        r.unwrap()
-                    }),
+                    .map(move |r| r.unwrap()),
             );
 
             Box::new(PreparedStatementIterator {

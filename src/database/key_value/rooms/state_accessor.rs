@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, PduEvent, Result};
 use async_trait::async_trait;
@@ -9,7 +6,7 @@ use ruma::{events::StateEventType, EventId, RoomId};
 
 #[async_trait]
 impl service::rooms::state_accessor::Data for KeyValueDatabase {
-    async fn state_full_ids(&self, shortstatehash: u64) -> Result<BTreeMap<u64, Arc<EventId>>> {
+    async fn state_full_ids(&self, shortstatehash: u64) -> Result<HashMap<u64, Arc<EventId>>> {
         let full_state = services()
             .rooms
             .state_compressor
@@ -17,7 +14,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
             .pop()
             .expect("there is always one layer")
             .1;
-        let mut result = BTreeMap::new();
+        let mut result = HashMap::new();
         let mut i = 0;
         for compressed in full_state.into_iter() {
             let parsed = services()

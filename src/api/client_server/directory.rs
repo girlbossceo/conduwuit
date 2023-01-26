@@ -11,10 +11,7 @@ use ruma::{
         },
         federation,
     },
-    directory::{
-        Filter, IncomingFilter, IncomingRoomNetwork, PublicRoomJoinRule, PublicRoomsChunk,
-        RoomNetwork,
-    },
+    directory::{Filter, PublicRoomJoinRule, PublicRoomsChunk, RoomNetwork},
     events::{
         room::{
             avatar::RoomAvatarEventContent,
@@ -38,7 +35,7 @@ use tracing::{error, info, warn};
 ///
 /// - Rooms are ordered by the number of joined members
 pub async fn get_public_rooms_filtered_route(
-    body: Ruma<get_public_rooms_filtered::v3::IncomingRequest>,
+    body: Ruma<get_public_rooms_filtered::v3::Request>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
     get_public_rooms_filtered_helper(
         body.server.as_deref(),
@@ -56,14 +53,14 @@ pub async fn get_public_rooms_filtered_route(
 ///
 /// - Rooms are ordered by the number of joined members
 pub async fn get_public_rooms_route(
-    body: Ruma<get_public_rooms::v3::IncomingRequest>,
+    body: Ruma<get_public_rooms::v3::Request>,
 ) -> Result<get_public_rooms::v3::Response> {
     let response = get_public_rooms_filtered_helper(
         body.server.as_deref(),
         body.limit,
         body.since.as_deref(),
-        &IncomingFilter::default(),
-        &IncomingRoomNetwork::Matrix,
+        &Filter::default(),
+        &RoomNetwork::Matrix,
     )
     .await?;
 
@@ -81,16 +78,13 @@ pub async fn get_public_rooms_route(
 ///
 /// - TODO: Access control checks
 pub async fn set_room_visibility_route(
-    body: Ruma<set_room_visibility::v3::IncomingRequest>,
+    body: Ruma<set_room_visibility::v3::Request>,
 ) -> Result<set_room_visibility::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
     if !services().rooms.metadata.exists(&body.room_id)? {
         // Return 404 if the room doesn't exist
-        return Err(Error::BadRequest(
-            ErrorKind::NotFound,
-            "Room not found",
-        ));
+        return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
     }
 
     match &body.visibility {
@@ -114,15 +108,11 @@ pub async fn set_room_visibility_route(
 ///
 /// Gets the visibility of a given room in the room directory.
 pub async fn get_room_visibility_route(
-    body: Ruma<get_room_visibility::v3::IncomingRequest>,
+    body: Ruma<get_room_visibility::v3::Request>,
 ) -> Result<get_room_visibility::v3::Response> {
-
     if !services().rooms.metadata.exists(&body.room_id)? {
         // Return 404 if the room doesn't exist
-        return Err(Error::BadRequest(
-            ErrorKind::NotFound,
-            "Room not found",
-        ));
+        return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
     }
 
     Ok(get_room_visibility::v3::Response {
@@ -138,8 +128,8 @@ pub(crate) async fn get_public_rooms_filtered_helper(
     server: Option<&ServerName>,
     limit: Option<UInt>,
     since: Option<&str>,
-    filter: &IncomingFilter,
-    _network: &IncomingRoomNetwork,
+    filter: &Filter,
+    _network: &RoomNetwork,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
     if let Some(other_server) =
         server.filter(|server| *server != services().globals.server_name().as_str())
@@ -150,9 +140,9 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                 other_server,
                 federation::directory::get_public_rooms_filtered::v1::Request {
                     limit,
-                    since,
+                    since: since.map(ToOwned::to_owned),
                     filter: Filter {
-                        generic_search_term: filter.generic_search_term.as_deref(),
+                        generic_search_term: filter.generic_search_term.clone(),
                         room_types: filter.room_types.clone(),
                     },
                     room_network: RoomNetwork::Matrix,
@@ -371,7 +361,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
     let prev_batch = if num_since == 0 {
         None
     } else {
-        Some(format!("p{}", num_since))
+        Some(format!("p{num_since}"))
     };
 
     let next_batch = if chunk.len() < limit as usize {

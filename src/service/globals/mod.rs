@@ -168,7 +168,7 @@ impl Service {
             .supported_room_versions()
             .contains(&s.config.default_room_version)
         {
-            error!("Room version in config isn't supported, falling back to default version");
+            error!(config=?s.config.default_room_version, fallback=?crate::config::default_default_room_version(), "Room version in config isn't supported, falling back to default version");
             s.config.default_room_version = crate::config::default_default_room_version();
         };
 
@@ -220,6 +220,10 @@ impl Service {
 
     pub fn max_request_size(&self) -> u32 {
         self.config.max_request_size
+    }
+
+    pub fn max_fetch_prev_events(&self) -> u16 {
+        self.config.max_fetch_prev_events
     }
 
     pub fn allow_registration(&self) -> bool {
@@ -341,6 +345,7 @@ impl Service {
 
 fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
     let mut reqwest_client_builder = reqwest::Client::builder()
+        .pool_max_idle_per_host(0)
         .connect_timeout(Duration::from_secs(30))
         .timeout(Duration::from_secs(60 * 3));
 

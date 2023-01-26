@@ -15,7 +15,7 @@ use crate::{Result, Ruma};
 /// Note: Unstable features are used while developing new features. Clients should avoid using
 /// unstable features in their stable releases
 pub async fn get_supported_versions_route(
-    _body: Ruma<get_supported_versions::IncomingRequest>,
+    _body: Ruma<get_supported_versions::Request>,
 ) -> Result<get_supported_versions::Response> {
     let resp = get_supported_versions::Response {
         versions: vec![

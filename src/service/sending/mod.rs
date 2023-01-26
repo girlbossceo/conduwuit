@@ -496,7 +496,7 @@ impl Service {
                             )
                         })?,
                     appservice::event::push_events::v1::Request {
-                        events: &pdu_jsons,
+                        events: pdu_jsons,
                         txn_id: (&*base64::encode_config(
                             calculate_hash(
                                 &events
@@ -638,9 +638,9 @@ impl Service {
                 let response = server_server::send_request(
                     server,
                     send_transaction_message::v1::Request {
-                        origin: services().globals.server_name(),
-                        pdus: &pdu_jsons,
-                        edus: &edu_jsons,
+                        origin: services().globals.server_name().to_owned(),
+                        pdus: pdu_jsons,
+                        edus: edu_jsons,
                         origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
                         transaction_id: (&*base64::encode_config(
                             calculate_hash(

@@ -7,7 +7,7 @@ use ruma::{
     RoomVersionId,
 };
 use std::{
-    collections::{btree_map, hash_map, BTreeMap, HashMap, HashSet},
+    collections::{hash_map, BTreeMap, HashMap, HashSet},
     pin::Pin,
     sync::{Arc, RwLock, RwLockWriteGuard},
     time::{Duration, Instant, SystemTime},
@@ -76,6 +76,7 @@ impl Service {
         is_timeline_event: bool,
         pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     ) -> Result<Option<Vec<u8>>> {
+        // 0. Check the server is in the room
         if !services().rooms.metadata.exists(room_id)? {
             return Err(Error::BadRequest(
                 ErrorKind::NotFound,
@@ -100,6 +101,13 @@ impl Service {
             .state_accessor
             .room_state_get(room_id, &StateEventType::RoomCreate, "")?
             .ok_or_else(|| Error::bad_database("Failed to find create event in db."))?;
+
+        let create_event_content: RoomCreateEventContent =
+            serde_json::from_str(create_event.content.get()).map_err(|e| {
+                error!("Invalid create event: {}", e);
+                Error::BadDatabase("Invalid create event in db")
+            })?;
+        let room_version_id = &create_event_content.room_version;
 
         let first_pdu_in_room = services()
             .rooms
@@ -127,13 +135,15 @@ impl Service {
                 origin,
                 &create_event,
                 room_id,
+                room_version_id,
                 pub_key_map,
                 incoming_pdu.prev_events.clone(),
             )
             .await?;
 
         let mut errors = 0;
-        for prev_id in dbg!(sorted_prev_events) {
+        debug!(events = ?sorted_prev_events, "Got previous events");
+        for prev_id in sorted_prev_events {
             // Check for disabled again because it might have changed
             if services().rooms.metadata.is_disabled(room_id)? {
                 return Err(Error::BadRequest(
@@ -303,7 +313,7 @@ impl Service {
                 Ok(ruma::signatures::Verified::Signatures) => {
                     // Redact
                     warn!("Calculated hash does not match: {}", event_id);
-                    match ruma::canonical_json::redact(&value, room_version_id) {
+                    match ruma::canonical_json::redact(value, room_version_id, None) {
                         Ok(obj) => obj,
                         Err(_) => {
                             return Err(Error::BadRequest(
@@ -330,7 +340,7 @@ impl Service {
             // 4. fetch any missing auth events doing all checks listed here starting at 1. These are not timeline events
             // 5. Reject "due to auth events" if can't get all the auth events or some of the auth events are also rejected "due to auth events"
             // NOTE: Step 5 is not applied anymore because it failed too often
-            warn!("Fetching auth events for {}", incoming_pdu.event_id);
+            debug!(event_id = ?incoming_pdu.event_id, "Fetching auth events");
             self.fetch_and_handle_outliers(
                 origin,
                 &incoming_pdu
@@ -340,6 +350,7 @@ impl Service {
                     .collect::<Vec<_>>(),
                 create_event,
                 room_id,
+                room_version_id,
                 pub_key_map,
             )
             .await;
@@ -542,7 +553,7 @@ impl Service {
                 let mut auth_chain_sets = Vec::with_capacity(extremity_sstatehashes.len());
 
                 for (sstatehash, prev_event) in extremity_sstatehashes {
-                    let mut leaf_state: BTreeMap<_, _> = services()
+                    let mut leaf_state: HashMap<_, _> = services()
                         .rooms
                         .state_accessor
                         .state_full_ids(sstatehash)
@@ -627,8 +638,8 @@ impl Service {
                 .send_federation_request(
                     origin,
                     get_room_state_ids::v1::Request {
-                        room_id,
-                        event_id: &incoming_pdu.event_id,
+                        room_id: room_id.to_owned(),
+                        event_id: (*incoming_pdu.event_id).to_owned(),
                     },
                 )
                 .await
@@ -644,11 +655,12 @@ impl Service {
                                 .collect::<Vec<_>>(),
                             create_event,
                             room_id,
+                            room_version_id,
                             pub_key_map,
                         )
                         .await;
 
-                    let mut state: BTreeMap<_, Arc<EventId>> = BTreeMap::new();
+                    let mut state: HashMap<_, Arc<EventId>> = HashMap::new();
                     for (pdu, _) in state_vec {
                         let state_key = pdu.state_key.clone().ok_or_else(|| {
                             Error::bad_database("Found non-state pdu in state events.")
@@ -660,10 +672,10 @@ impl Service {
                         )?;
 
                         match state.entry(shortstatekey) {
-                            btree_map::Entry::Vacant(v) => {
+                            hash_map::Entry::Vacant(v) => {
                                 v.insert(Arc::from(&*pdu.event_id));
                             }
-                            btree_map::Entry::Occupied(_) => return Err(
+                            hash_map::Entry::Occupied(_) => return Err(
                                 Error::bad_database("State event's type and state_key combination exists multiple times."),
                             ),
                         }
@@ -827,8 +839,8 @@ impl Service {
             info!("Preparing for stateres to derive new room state");
             let mut extremity_sstatehashes = HashMap::new();
 
-            info!("Loading extremities");
-            for id in dbg!(&extremities) {
+            info!(?extremities, "Loading extremities");
+            for id in &extremities {
                 match services().rooms.timeline.get_pdu(id)? {
                     Some(leaf_pdu) => {
                         extremity_sstatehashes.insert(
@@ -1024,6 +1036,7 @@ impl Service {
         events: &'a [Arc<EventId>],
         create_event: &'a PduEvent,
         room_id: &'a RoomId,
+        room_version_id: &'a RoomVersionId,
         pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     ) -> AsyncRecursiveType<'a, Vec<(Arc<PduEvent>, Option<BTreeMap<String, CanonicalJsonValue>>)>>
     {
@@ -1099,14 +1112,16 @@ impl Service {
                         .sending
                         .send_federation_request(
                             origin,
-                            get_event::v1::Request { event_id: &next_id },
+                            get_event::v1::Request {
+                                event_id: (*next_id).to_owned(),
+                            },
                         )
                         .await
                     {
                         Ok(res) => {
                             info!("Got {} over federation", next_id);
                             let (calculated_event_id, value) =
-                                match pdu::gen_event_id_canonical_json(&res.pdu) {
+                                match pdu::gen_event_id_canonical_json(&res.pdu, room_version_id) {
                                     Ok(t) => t,
                                     Err(_) => {
                                         back_off((*next_id).to_owned());
@@ -1179,6 +1194,7 @@ impl Service {
         origin: &ServerName,
         create_event: &PduEvent,
         room_id: &RoomId,
+        room_version_id: &RoomVersionId,
         pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
         initial_set: Vec<Arc<EventId>>,
     ) -> Result<(
@@ -1204,12 +1220,13 @@ impl Service {
                     &[prev_event_id.clone()],
                     create_event,
                     room_id,
+                    room_version_id,
                     pub_key_map,
                 )
                 .await
                 .pop()
             {
-                if amount > 100 {
+                if amount > services().globals.max_fetch_prev_events() {
                     // Max limit reached
                     warn!("Max prev event limit reached!");
                     graph.insert(prev_event_id.clone(), HashSet::new());
@@ -1256,7 +1273,6 @@ impl Service {
             // This return value is the key used for sorting events,
             // events are then sorted by power level, time,
             // and lexically by event_id.
-            println!("{}", event_id);
             Ok((
                 int!(0),
                 MilliSecondsSinceUnixEpoch(
@@ -1464,7 +1480,17 @@ impl Service {
                     .write()
                     .map_err(|_| Error::bad_database("RwLock is poisoned."))?;
                 for k in keys.server_keys {
-                    let k = k.deserialize().unwrap();
+                    let k = match k.deserialize() {
+                        Ok(key) => key,
+                        Err(e) => {
+                            warn!(
+                                "Received error {} while fetching keys from trusted server {}",
+                                e, server
+                            );
+                            warn!("{}", k.into_json());
+                            continue;
+                        }
+                    };
 
                     // TODO: Check signature from trusted server?
                     servers.remove(&k.server_name);
@@ -1664,7 +1690,7 @@ impl Service {
                 .send_federation_request(
                     server,
                     get_remote_server_keys::v2::Request::new(
-                        origin,
+                        origin.to_owned(),
                         MilliSecondsSinceUnixEpoch::from_system_time(
                             SystemTime::now()
                                 .checked_add(Duration::from_secs(3600))

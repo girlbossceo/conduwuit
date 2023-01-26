@@ -121,12 +121,12 @@ So...step by step:
 
          location /.well-known/matrix/server {
             return 200 '{"m.server": "<SUBDOMAIN>.<DOMAIN>:443"}';
-            add_header Content-Type application/json;
+            types { } default_type "application/json; charset=utf-8";
          }
 
         location /.well-known/matrix/client {
             return 200 '{"m.homeserver": {"base_url": "https://<SUBDOMAIN>.<DOMAIN>"}}';
-            add_header Content-Type application/json;
+            types { } default_type "application/json; charset=utf-8";
             add_header "Access-Control-Allow-Origin" *;
         }
 
