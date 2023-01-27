@@ -12,7 +12,7 @@ edition = "2021"
 # When changing this, change the hash near the text "THE rust-version HASH" in
 # `/flake.nix` too. If you don't have Nix installed or otherwise don't know how
 # to do this, ping `@charles:computer.surgery` in the matrix room.
-rust-version = "1.64"
+rust-version = "1.64.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
