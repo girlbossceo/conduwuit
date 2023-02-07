@@ -800,10 +800,17 @@ impl KeyValueDatabase {
             }
 
             if services().globals.database_version()? < 12 {
-                for username in services().users.list_local_users().unwrap() {
-                    let user =
-                        UserId::parse_with_server_name(username, services().globals.server_name())
-                            .unwrap();
+                for username in services().users.list_local_users()? {
+                    let user = match UserId::parse_with_server_name(
+                        username.clone(),
+                        services().globals.server_name(),
+                    ) {
+                        Ok(u) => u,
+                        Err(e) => {
+                            warn!("Invalid username {username}: {e}");
+                            continue;
+                        }
+                    };
 
                     let raw_rules_list = services()
                         .account_data
