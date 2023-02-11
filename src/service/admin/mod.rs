@@ -556,7 +556,6 @@ impl Service {
 
                 // Check if the specified user is valid
                 if !services().users.exists(&user_id)?
-                    || services().users.is_deactivated(&user_id)?
                     || user_id
                         == UserId::parse_with_server_name(
                             "conduit",
@@ -565,7 +564,7 @@ impl Service {
                         .expect("conduit user exists")
                 {
                     return Ok(RoomMessageEventContent::text_plain(
-                        "The specified user does not exist or is deactivated!",
+                        "The specified user does not exist!",
                     ));
                 }
 
@@ -600,12 +599,12 @@ impl Service {
                 };
                 if user_id.is_historical() {
                     return Ok(RoomMessageEventContent::text_plain(format!(
-                        "userid {user_id} is not allowed due to historical"
+                        "Userid {user_id} is not allowed due to historical"
                     )));
                 }
                 if services().users.exists(&user_id)? {
                     return Ok(RoomMessageEventContent::text_plain(format!(
-                        "userid {user_id} already exists"
+                        "Userid {user_id} already exists"
                     )));
                 }
                 // Create user
