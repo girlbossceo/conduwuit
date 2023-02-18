@@ -12,6 +12,7 @@ use ruma::{
         client::error::{Error as RumaError, ErrorKind},
         federation::{
             authorization::get_event_authorization,
+            backfill::get_backfill,
             device::get_devices::{self, v1::UserDevice},
             directory::{get_public_rooms, get_public_rooms_filtered},
             discovery::{get_server_keys, get_server_version, ServerSigningKeys, VerifyKey},
@@ -42,8 +43,9 @@ use ruma::{
     },
     serde::{Base64, JsonObject, Raw},
     to_device::DeviceIdOrAllDevices,
-    CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId,
-    OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName,
+    uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch,
+    OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId,
+    ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
@@ -947,6 +949,83 @@ pub async fn get_event_route(
         origin: services().globals.server_name().to_owned(),
         origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
         pdu: PduEvent::convert_to_outgoing_federation_event(event),
+    })
+}
+
+/// # `GET /_matrix/federation/v1/backfill/<room_id>`
+///
+/// Retrieves events from before the sender joined the room, if the room's
+/// history visibility allows.
+pub async fn get_backfill_route(
+    body: Ruma<get_backfill::v1::Request>,
+) -> Result<get_backfill::v1::Response> {
+    if !services().globals.allow_federation() {
+        return Err(Error::bad_config("Federation is disabled."));
+    }
+
+    let sender_servername = body
+        .sender_servername
+        .as_ref()
+        .expect("server is authenticated");
+
+    info!("Got backfill request from: {}", sender_servername);
+
+    if !services()
+        .rooms
+        .state_cache
+        .server_in_room(sender_servername, &body.room_id)?
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Server is not in room.",
+        ));
+    }
+
+    services()
+        .rooms
+        .event_handler
+        .acl_check(sender_servername, &body.room_id)?;
+
+    let until = body
+        .v
+        .iter()
+        .map(|eventid| services().rooms.timeline.get_pdu_count(eventid))
+        .filter_map(|r| r.ok().flatten())
+        .max()
+        .ok_or(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "No known eventid in v",
+        ))?;
+
+    let limit = body.limit.min(uint!(100));
+
+    let all_events = services()
+        .rooms
+        .timeline
+        .pdus_until(&user_id!("@doesntmatter:conduit.rs"), &body.room_id, until)?
+        .take(limit.try_into().unwrap());
+
+    let events = all_events
+        .filter_map(|r| r.ok())
+        .filter(|(_, e)| {
+            matches!(
+                services().rooms.state_accessor.server_can_see_event(
+                    sender_servername,
+                    &e.room_id,
+                    &e.event_id,
+                ),
+                Ok(true),
+            )
+        })
+        .map(|(pdu_id, _)| services().rooms.timeline.get_pdu_json_from_id(&pdu_id))
+        .filter_map(|r| r.ok().flatten())
+        .map(|pdu| PduEvent::convert_to_outgoing_federation_event(pdu))
+        .collect();
+
+    Ok(get_backfill::v1::Response {
+        origin: services().globals.server_name().to_owned(),
+        origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
+        pdus: events,
     })
 }
 
