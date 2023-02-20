@@ -392,11 +392,12 @@ impl Service {
             }
 
             // The original create event must be in the auth events
-            if auth_events
-                .get(&(StateEventType::RoomCreate, "".to_owned()))
-                .map(|a| a.as_ref())
-                != Some(create_event)
-            {
+            if !matches!(
+                auth_events
+                    .get(&(StateEventType::RoomCreate, "".to_owned()))
+                    .map(|a| a.as_ref()),
+                Some(_) | None
+            ) {
                 return Err(Error::BadRequest(
                     ErrorKind::InvalidParam,
                     "Incoming event refers to wrong create event.",
