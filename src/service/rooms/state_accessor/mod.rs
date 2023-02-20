@@ -14,7 +14,7 @@ use ruma::{
         },
         StateEventType,
     },
-    EventId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
+    EventId, OwnedServerName, RoomId, ServerName, UserId,
 };
 use tracing::error;
 

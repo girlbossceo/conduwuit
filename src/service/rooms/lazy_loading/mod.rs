@@ -9,11 +9,13 @@ use ruma::{DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 
 use crate::Result;
 
+use super::timeline::PduCount;
+
 pub struct Service {
     pub db: &'static dyn Data,
 
     pub lazy_load_waiting:
-        Mutex<HashMap<(OwnedUserId, OwnedDeviceId, OwnedRoomId, u64), HashSet<OwnedUserId>>>,
+        Mutex<HashMap<(OwnedUserId, OwnedDeviceId, OwnedRoomId, PduCount), HashSet<OwnedUserId>>>,
 }
 
 impl Service {
@@ -36,7 +38,7 @@ impl Service {
         device_id: &DeviceId,
         room_id: &RoomId,
         lazy_load: HashSet<OwnedUserId>,
-        count: u64,
+        count: PduCount,
     ) {
         self.lazy_load_waiting.lock().unwrap().insert(
             (
@@ -55,7 +57,7 @@ impl Service {
         user_id: &UserId,
         device_id: &DeviceId,
         room_id: &RoomId,
-        since: u64,
+        since: PduCount,
     ) -> Result<()> {
         if let Some(user_ids) = self.lazy_load_waiting.lock().unwrap().remove(&(
             user_id.to_owned(),

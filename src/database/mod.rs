@@ -1,7 +1,10 @@
 pub mod abstraction;
 pub mod key_value;
 
-use crate::{services, utils, Config, Error, PduEvent, Result, Services, SERVICES};
+use crate::{
+    service::rooms::timeline::PduCount, services, utils, Config, Error, PduEvent, Result, Services,
+    SERVICES,
+};
 use abstraction::{KeyValueDatabaseEngine, KvTree};
 use directories::ProjectDirs;
 use lru_cache::LruCache;
@@ -71,7 +74,9 @@ pub struct KeyValueDatabase {
 
     //pub rooms: rooms::Rooms,
     pub(super) pduid_pdu: Arc<dyn KvTree>, // PduId = ShortRoomId + Count
+    pub(super) pduid_backfillpdu: Arc<dyn KvTree>, // PduId = ShortRoomId + Count
     pub(super) eventid_pduid: Arc<dyn KvTree>,
+    pub(super) eventid_backfillpduid: Arc<dyn KvTree>,
     pub(super) roomid_pduleaves: Arc<dyn KvTree>,
     pub(super) alias_roomid: Arc<dyn KvTree>,
     pub(super) aliasid_alias: Arc<dyn KvTree>, // AliasId = RoomId + Count
@@ -161,7 +166,7 @@ pub struct KeyValueDatabase {
     pub(super) shortstatekey_cache: Mutex<LruCache<u64, (StateEventType, String)>>,
     pub(super) our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
     pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
-    pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, u64>>,
+    pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
 }
 
 impl KeyValueDatabase {
@@ -292,7 +297,9 @@ impl KeyValueDatabase {
             presenceid_presence: builder.open_tree("presenceid_presence")?,
             userid_lastpresenceupdate: builder.open_tree("userid_lastpresenceupdate")?,
             pduid_pdu: builder.open_tree("pduid_pdu")?,
+            pduid_backfillpdu: builder.open_tree("pduid_backfillpdu")?,
             eventid_pduid: builder.open_tree("eventid_pduid")?,
+            eventid_backfillpduid: builder.open_tree("eventid_backfillpduid")?,
             roomid_pduleaves: builder.open_tree("roomid_pduleaves")?,
 
             alias_roomid: builder.open_tree("alias_roomid")?,

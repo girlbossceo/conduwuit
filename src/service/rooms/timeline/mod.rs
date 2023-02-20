@@ -1,7 +1,9 @@
 mod data;
 
-use std::collections::HashMap;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashMap};
 
+use std::sync::RwLock;
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},
@@ -9,6 +11,8 @@ use std::{
 
 pub use data::Data;
 use regex::Regex;
+use ruma::api::federation;
+use ruma::serde::Base64;
 use ruma::{
     api::client::error::ErrorKind,
     canonical_json::to_canonical_value,
@@ -27,11 +31,13 @@ use ruma::{
     uint, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
     OwnedServerName, RoomAliasId, RoomId, UserId,
 };
+use ruma::{user_id, ServerName};
 use serde::Deserialize;
-use serde_json::value::to_raw_value;
+use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::MutexGuard;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
+use crate::api::server_server;
 use crate::{
     service::pdu::{EventHash, PduBuilder},
     services, utils, Error, PduEvent, Result,
@@ -39,10 +45,70 @@ use crate::{
 
 use super::state_compressor::CompressedStateEvent;
 
+#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
+pub enum PduCount {
+    Backfilled(u64),
+    Normal(u64),
+}
+
+impl PduCount {
+    pub fn min() -> Self {
+        Self::Backfilled(u64::MAX)
+    }
+    pub fn max() -> Self {
+        Self::Normal(u64::MAX)
+    }
+
+    pub fn try_from_string(token: &str) -> Result<Self> {
+        if token.starts_with('-') {
+            token[1..].parse().map(PduCount::Backfilled)
+        } else {
+            token.parse().map(PduCount::Normal)
+        }
+        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid pagination token."))
+    }
+
+    pub fn stringify(&self) -> String {
+        match self {
+            PduCount::Backfilled(x) => format!("-{x}"),
+            PduCount::Normal(x) => x.to_string(),
+        }
+    }
+}
+
+impl PartialOrd for PduCount {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PduCount {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (PduCount::Normal(s), PduCount::Normal(o)) => s.cmp(o),
+            (PduCount::Backfilled(s), PduCount::Backfilled(o)) => o.cmp(s),
+            (PduCount::Normal(_), PduCount::Backfilled(_)) => Ordering::Greater,
+            (PduCount::Backfilled(_), PduCount::Normal(_)) => Ordering::Less,
+        }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn comparisons() {
+        assert!(PduCount::Normal(1) < PduCount::Normal(2));
+        assert!(PduCount::Backfilled(2) < PduCount::Backfilled(1));
+        assert!(PduCount::Normal(1) > PduCount::Backfilled(1));
+        assert!(PduCount::Backfilled(1) < PduCount::Normal(1));
+    }
+}
+
 pub struct Service {
     pub db: &'static dyn Data,
 
-    pub lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, u64>>,
+    pub lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
 }
 
 impl Service {
@@ -52,8 +118,13 @@ impl Service {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<u64> {
+    pub fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
         self.db.last_timeline_count(sender_user, room_id)
+    }
+
+    /// Returns the `count` of this pdu's id.
+    pub fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<PduCount>> {
+        self.db.get_pdu_count(event_id)
     }
 
     // TODO Is this the same as the function above?
@@ -78,11 +149,6 @@ impl Service {
             .map(|op| op.unwrap_or_default())
     }
     */
-
-    /// Returns the `count` of this pdu's id.
-    pub fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<u64>> {
-        self.db.get_pdu_count(event_id)
-    }
 
     /// Returns the json of a pdu.
     pub fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
@@ -126,11 +192,6 @@ impl Service {
     /// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
     pub fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<CanonicalJsonObject>> {
         self.db.get_pdu_json_from_id(pdu_id)
-    }
-
-    /// Returns the `count` of this pdu's id.
-    pub fn pdu_count(&self, pdu_id: &[u8]) -> Result<u64> {
-        self.db.pdu_count(pdu_id)
     }
 
     /// Removes a pdu and creates a new one with the same id.
@@ -863,19 +924,8 @@ impl Service {
         &'a self,
         user_id: &UserId,
         room_id: &RoomId,
-    ) -> Result<impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a> {
-        self.pdus_since(user_id, room_id, 0)
-    }
-
-    /// Returns an iterator over all events in a room that happened after the event with id `since`
-    /// in chronological order.
-    pub fn pdus_since<'a>(
-        &'a self,
-        user_id: &UserId,
-        room_id: &RoomId,
-        since: u64,
-    ) -> Result<impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a> {
-        self.db.pdus_since(user_id, room_id, since)
+    ) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
+        self.pdus_after(user_id, room_id, PduCount::min())
     }
 
     /// Returns an iterator over all events and their tokens in a room that happened before the
@@ -885,8 +935,8 @@ impl Service {
         &'a self,
         user_id: &UserId,
         room_id: &RoomId,
-        until: u64,
-    ) -> Result<impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a> {
+        until: PduCount,
+    ) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
         self.db.pdus_until(user_id, room_id, until)
     }
 
@@ -897,8 +947,8 @@ impl Service {
         &'a self,
         user_id: &UserId,
         room_id: &RoomId,
-        from: u64,
-    ) -> Result<impl Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a> {
+        from: PduCount,
+    ) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
         self.db.pdus_after(user_id, room_id, from)
     }
 
@@ -913,6 +963,120 @@ impl Service {
             self.replace_pdu(&pdu_id, &pdu)?;
         }
         // If event does not exist, just noop
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self, room_id))]
+    pub async fn backfill_if_required(&self, room_id: &RoomId, from: PduCount) -> Result<()> {
+        let first_pdu = self
+            .all_pdus(&user_id!("@doesntmatter:conduit.rs"), &room_id)?
+            .next()
+            .expect("Room is not empty")?;
+
+        if first_pdu.0 < from {
+            // No backfill required, there are still events between them
+            return Ok(());
+        }
+
+        let power_levels: RoomPowerLevelsEventContent = services()
+            .rooms
+            .state_accessor
+            .room_state_get(&room_id, &StateEventType::RoomPowerLevels, "")?
+            .map(|ev| {
+                serde_json::from_str(ev.content.get())
+                    .map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+            })
+            .transpose()?
+            .unwrap_or_default();
+        let mut admin_servers = power_levels
+            .users
+            .iter()
+            .filter(|(_, level)| **level > power_levels.users_default)
+            .map(|(user_id, _)| user_id.server_name())
+            .collect::<HashSet<_>>();
+        admin_servers.remove(services().globals.server_name());
+
+        // Request backfill
+        for backfill_server in admin_servers {
+            info!("Asking {backfill_server} for backfill");
+            let response = services()
+                .sending
+                .send_federation_request(
+                    backfill_server,
+                    federation::backfill::get_backfill::v1::Request {
+                        room_id: room_id.to_owned(),
+                        v: vec![first_pdu.1.event_id.as_ref().to_owned()],
+                        limit: uint!(100),
+                    },
+                )
+                .await;
+            match response {
+                Ok(response) => {
+                    let mut pub_key_map = RwLock::new(BTreeMap::new());
+                    for pdu in response.pdus {
+                        if let Err(e) = self
+                            .backfill_pdu(backfill_server, pdu, &mut pub_key_map)
+                            .await
+                        {
+                            warn!("Failed to add backfilled pdu: {e}");
+                        }
+                    }
+                    return Ok(());
+                }
+                Err(e) => {
+                    warn!("{backfill_server} could not provide backfill: {e}");
+                }
+            }
+        }
+
+        info!("No servers could backfill");
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self, pdu))]
+    pub async fn backfill_pdu(
+        &self,
+        origin: &ServerName,
+        pdu: Box<RawJsonValue>,
+        pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
+    ) -> Result<()> {
+        let (event_id, value, room_id) = server_server::parse_incoming_pdu(&pdu)?;
+
+        services()
+            .rooms
+            .event_handler
+            .handle_incoming_pdu(origin, &event_id, &room_id, value, false, &pub_key_map)
+            .await?;
+
+        let value = self.get_pdu_json(&event_id)?.expect("We just created it");
+
+        let shortroomid = services()
+            .rooms
+            .short
+            .get_shortroomid(&room_id)?
+            .expect("room exists");
+
+        let mutex_insert = Arc::clone(
+            services()
+                .globals
+                .roomid_mutex_insert
+                .write()
+                .unwrap()
+                .entry(room_id.clone())
+                .or_default(),
+        );
+        let insert_lock = mutex_insert.lock().unwrap();
+
+        let count = services().globals.next_count()?;
+        let mut pdu_id = shortroomid.to_be_bytes().to_vec();
+        pdu_id.extend_from_slice(&count.to_be_bytes());
+
+        // Insert pdu
+        self.db.prepend_backfill_pdu(&pdu_id, &event_id, &value)?;
+
+        drop(insert_lock);
+
+        info!("Appended incoming pdu");
         Ok(())
     }
 }

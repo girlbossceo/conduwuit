@@ -1,4 +1,7 @@
-use crate::{service::pdu::PduBuilder, services, utils, Error, Result, Ruma};
+use crate::{
+    service::{pdu::PduBuilder, rooms::timeline::PduCount},
+    services, utils, Error, Result, Ruma,
+};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -122,17 +125,17 @@ pub async fn get_message_events_route(
     }
 
     let from = match body.from.clone() {
-        Some(from) => from
-            .parse()
-            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from` value."))?,
-
+        Some(from) => PduCount::try_from_string(&from)?,
         None => match body.dir {
-            ruma::api::client::Direction::Forward => 0,
-            ruma::api::client::Direction::Backward => u64::MAX,
+            ruma::api::client::Direction::Forward => PduCount::min(),
+            ruma::api::client::Direction::Backward => PduCount::max(),
         },
     };
 
-    let to = body.to.as_ref().map(|t| t.parse());
+    let to = body
+        .to
+        .as_ref()
+        .and_then(|t| PduCount::try_from_string(&t).ok());
 
     services().rooms.lazy_loading.lazy_load_confirm_delivery(
         sender_user,
@@ -158,15 +161,7 @@ pub async fn get_message_events_route(
                 .pdus_after(sender_user, &body.room_id, from)?
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
-                .filter_map(|(pdu_id, pdu)| {
-                    services()
-                        .rooms
-                        .timeline
-                        .pdu_count(&pdu_id)
-                        .map(|pdu_count| (pdu_count, pdu))
-                        .ok()
-                })
-                .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
+                .take_while(|&(k, _)| Some(k) != to) // Stop at `to`
                 .collect();
 
             for (_, event) in &events_after {
@@ -192,26 +187,23 @@ pub async fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect();
 
-            resp.start = from.to_string();
-            resp.end = next_token.map(|count| count.to_string());
+            resp.start = from.stringify();
+            resp.end = next_token.map(|count| count.stringify());
             resp.chunk = events_after;
         }
         ruma::api::client::Direction::Backward => {
+            services()
+                .rooms
+                .timeline
+                .backfill_if_required(&body.room_id, from)
+                .await?;
             let events_before: Vec<_> = services()
                 .rooms
                 .timeline
                 .pdus_until(sender_user, &body.room_id, from)?
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
-                .filter_map(|(pdu_id, pdu)| {
-                    services()
-                        .rooms
-                        .timeline
-                        .pdu_count(&pdu_id)
-                        .map(|pdu_count| (pdu_count, pdu))
-                        .ok()
-                })
-                .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
+                .take_while(|&(k, _)| Some(k) != to) // Stop at `to`
                 .collect();
 
             for (_, event) in &events_before {
@@ -237,8 +229,8 @@ pub async fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect();
 
-            resp.start = from.to_string();
-            resp.end = next_token.map(|count| count.to_string());
+            resp.start = from.stringify();
+            resp.end = next_token.map(|count| count.stringify());
             resp.chunk = events_before;
         }
     }

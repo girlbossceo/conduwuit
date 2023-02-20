@@ -1,4 +1,4 @@
-use crate::{services, Error, Result, Ruma};
+use crate::{service::rooms::timeline::PduCount, services, Error, Result, Ruma};
 use ruma::{
     api::client::{error::ErrorKind, read_marker::set_read_marker, receipt::create_receipt},
     events::{
@@ -42,18 +42,28 @@ pub async fn set_read_marker_route(
     }
 
     if let Some(event) = &body.private_read_receipt {
-        services().rooms.edus.read_receipt.private_read_set(
-            &body.room_id,
-            sender_user,
-            services()
-                .rooms
-                .timeline
-                .get_pdu_count(event)?
-                .ok_or(Error::BadRequest(
+        let count = services()
+            .rooms
+            .timeline
+            .get_pdu_count(event)?
+            .ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Event does not exist.",
+            ))?;
+        let count = match count {
+            PduCount::Backfilled(_) => {
+                return Err(Error::BadRequest(
                     ErrorKind::InvalidParam,
-                    "Event does not exist.",
-                ))?,
-        )?;
+                    "Read receipt is in backfilled timeline",
+                ))
+            }
+            PduCount::Normal(c) => c,
+        };
+        services()
+            .rooms
+            .edus
+            .read_receipt
+            .private_read_set(&body.room_id, sender_user, count)?;
     }
 
     if let Some(event) = &body.read_receipt {
@@ -142,17 +152,27 @@ pub async fn create_receipt_route(
             )?;
         }
         create_receipt::v3::ReceiptType::ReadPrivate => {
+            let count = services()
+                .rooms
+                .timeline
+                .get_pdu_count(&body.event_id)?
+                .ok_or(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "Event does not exist.",
+                ))?;
+            let count = match count {
+                PduCount::Backfilled(_) => {
+                    return Err(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Read receipt is in backfilled timeline",
+                    ))
+                }
+                PduCount::Normal(c) => c,
+            };
             services().rooms.edus.read_receipt.private_read_set(
                 &body.room_id,
                 sender_user,
-                services()
-                    .rooms
-                    .timeline
-                    .get_pdu_count(&body.event_id)?
-                    .ok_or(Error::BadRequest(
-                        ErrorKind::InvalidParam,
-                        "Event does not exist.",
-                    ))?,
+                count,
             )?;
         }
         _ => return Err(Error::bad_database("Unsupported receipt type")),

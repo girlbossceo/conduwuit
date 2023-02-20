@@ -1,4 +1,4 @@
-use crate::{services, Error, Result, Ruma, RumaResponse};
+use crate::{service::rooms::timeline::PduCount, services, Error, Result, Ruma, RumaResponse};
 use ruma::{
     api::client::{
         filter::{FilterDefinition, LazyLoadOptions},
@@ -172,6 +172,7 @@ async fn sync_helper(
     let watcher = services().globals.watch(&sender_user, &sender_device);
 
     let next_batch = services().globals.current_count()?;
+    let next_batchcount = PduCount::Normal(next_batch);
     let next_batch_string = next_batch.to_string();
 
     // Load filter
@@ -197,6 +198,7 @@ async fn sync_helper(
         .clone()
         .and_then(|string| string.parse().ok())
         .unwrap_or(0);
+    let sincecount = PduCount::Normal(since);
 
     let mut presence_updates = HashMap::new();
     let mut left_encrypted_users = HashSet::new(); // Users that have left any encrypted rooms the sender was in
@@ -241,12 +243,12 @@ async fn sync_helper(
             .rooms
             .timeline
             .last_timeline_count(&sender_user, &room_id)?
-            > since
+            > sincecount
         {
             let mut non_timeline_pdus = services()
                 .rooms
                 .timeline
-                .pdus_until(&sender_user, &room_id, u64::MAX)?
+                .pdus_until(&sender_user, &room_id, PduCount::max())?
                 .filter_map(|r| {
                     // Filter out buggy events
                     if r.is_err() {
@@ -254,13 +256,7 @@ async fn sync_helper(
                     }
                     r.ok()
                 })
-                .take_while(|(pduid, _)| {
-                    services()
-                        .rooms
-                        .timeline
-                        .pdu_count(pduid)
-                        .map_or(false, |count| count > since)
-                });
+                .take_while(|(pducount, _)| pducount > &sincecount);
 
             // Take the last 10 events for the timeline
             timeline_pdus = non_timeline_pdus
@@ -295,7 +291,7 @@ async fn sync_helper(
             &sender_user,
             &sender_device,
             &room_id,
-            since,
+            sincecount,
         )?;
 
         // Database queries:
@@ -492,7 +488,7 @@ async fn sync_helper(
                 &sender_device,
                 &room_id,
                 lazy_loaded,
-                next_batch,
+                next_batchcount,
             );
 
             (
@@ -582,7 +578,7 @@ async fn sync_helper(
                 &sender_device,
                 &room_id,
                 lazy_loaded,
-                next_batch,
+                next_batchcount,
             );
 
             let encrypted_room = services()
@@ -711,10 +707,14 @@ async fn sync_helper(
 
         let prev_batch = timeline_pdus
             .first()
-            .map_or(Ok::<_, Error>(None), |(pdu_id, _)| {
-                Ok(Some(
-                    services().rooms.timeline.pdu_count(pdu_id)?.to_string(),
-                ))
+            .map_or(Ok::<_, Error>(None), |(pdu_count, _)| {
+                Ok(Some(match pdu_count {
+                    PduCount::Backfilled(_) => {
+                        error!("timeline in backfill state?!");
+                        "0".to_owned()
+                    }
+                    PduCount::Normal(c) => c.to_string(),
+                }))
             })?;
 
         let room_events: Vec<_> = timeline_pdus

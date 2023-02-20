@@ -629,6 +629,37 @@ pub async fn get_public_rooms_route(
     })
 }
 
+pub fn parse_incoming_pdu(
+    pdu: &RawJsonValue,
+) -> Result<(OwnedEventId, CanonicalJsonObject, OwnedRoomId)> {
+    let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
+        warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
+        Error::BadServerResponse("Invalid PDU in server response")
+    })?;
+
+    let room_id: OwnedRoomId = value
+        .get("room_id")
+        .and_then(|id| RoomId::parse(id.as_str()?).ok())
+        .ok_or(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Invalid room id in pdu",
+        ))?;
+
+    let room_version_id = services().rooms.state.get_room_version(&room_id)?;
+
+    let (event_id, value) = match gen_event_id_canonical_json(&pdu, &room_version_id) {
+        Ok(t) => t,
+        Err(_) => {
+            // Event could not be converted to canonical json
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Could not convert event to canonical json.",
+            ));
+        }
+    };
+    Ok((event_id, value, room_id))
+}
+
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
 ///
 /// Push EDUs and PDUs to this server.
@@ -657,36 +688,7 @@ pub async fn send_transaction_message_route(
     // let mut auth_cache = EventMap::new();
 
     for pdu in &body.pdus {
-        let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
-            warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
-            Error::BadServerResponse("Invalid PDU in server response")
-        })?;
-
-        let room_id: OwnedRoomId = match value
-            .get("room_id")
-            .and_then(|id| RoomId::parse(id.as_str()?).ok())
-        {
-            Some(id) => id,
-            None => {
-                // Event is invalid
-                continue;
-            }
-        };
-
-        let room_version_id = match services().rooms.state.get_room_version(&room_id) {
-            Ok(v) => v,
-            Err(_) => {
-                continue;
-            }
-        };
-
-        let (event_id, value) = match gen_event_id_canonical_json(pdu, &room_version_id) {
-            Ok(t) => t,
-            Err(_) => {
-                // Event could not be converted to canonical json
-                continue;
-            }
-        };
+        let (event_id, value, room_id) = parse_incoming_pdu(&pdu)?;
         // We do not add the event_id field to the pdu here because of signature and hashes checks
 
         services()
@@ -1017,7 +1019,7 @@ pub async fn get_backfill_route(
                 Ok(true),
             )
         })
-        .map(|(pdu_id, _)| services().rooms.timeline.get_pdu_json_from_id(&pdu_id))
+        .map(|(_, pdu)| services().rooms.timeline.get_pdu_json(&pdu.event_id))
         .filter_map(|r| r.ok().flatten())
         .map(|pdu| PduEvent::convert_to_outgoing_federation_event(pdu))
         .collect();

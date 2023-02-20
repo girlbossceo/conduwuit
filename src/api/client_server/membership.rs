@@ -714,8 +714,10 @@ async fn join_room_by_id_helper(
                     .ok()?
             },
         )
-        .map_err(|_e| Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed"))?
-        {
+        .map_err(|e| {
+            warn!("Auth check failed: {e}");
+            Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed")
+        })? {
             return Err(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Auth check failed",
