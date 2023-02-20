@@ -114,7 +114,10 @@ pub struct Service {
 impl Service {
     #[tracing::instrument(skip(self))]
     pub fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
-        self.db.first_pdu_in_room(room_id)
+        self.all_pdus(&user_id!("@doesntmatter:conduit.rs"), &room_id)?
+            .next()
+            .map(|o| o.map(|(_, p)| Arc::new(p)))
+            .transpose()
     }
 
     #[tracing::instrument(skip(self))]

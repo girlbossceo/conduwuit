@@ -10,28 +10,6 @@ use crate::{database::KeyValueDatabase, service, services, utils, Error, PduEven
 use service::rooms::timeline::PduCount;
 
 impl service::rooms::timeline::Data for KeyValueDatabase {
-    fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
-        let prefix = services()
-            .rooms
-            .short
-            .get_shortroomid(room_id)?
-            .expect("room exists")
-            .to_be_bytes()
-            .to_vec();
-
-        // Look for PDUs in that room.
-        self.pduid_pdu
-            .iter_from(&prefix, false)
-            .filter(|(k, _)| k.starts_with(&prefix))
-            .map(|(_, pdu)| {
-                serde_json::from_slice(&pdu)
-                    .map_err(|_| Error::bad_database("Invalid first PDU in db."))
-                    .map(Arc::new)
-            })
-            .next()
-            .transpose()
-    }
-
     fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
         match self
             .lasttimelinecount_cache
@@ -81,20 +59,18 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 
     /// Returns the json of a pdu.
     fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
-        self.eventid_pduid
-            .get(event_id.as_bytes())?
-            .map_or_else(
-                || self.eventid_outlierpdu.get(event_id.as_bytes()),
-                |pduid| {
-                    Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
-                        Error::bad_database("Invalid pduid in eventid_pduid.")
-                    })?))
-                },
-            )?
-            .map(|pdu| {
-                serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
-            })
-            .transpose()
+        self.get_non_outlier_pdu_json(event_id)?.map_or_else(
+            || {
+                self.eventid_outlierpdu
+                    .get(event_id.as_bytes())?
+                    .map(|pdu| {
+                        serde_json::from_slice(&pdu)
+                            .map_err(|_| Error::bad_database("Invalid PDU in db."))
+                    })
+                    .transpose()
+            },
+            |x| Ok(Some(x)),
+        )
     }
 
     /// Returns the json of a pdu.
@@ -107,6 +83,21 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
                     .ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
             })
             .transpose()?
+            .map_or_else(
+                || {
+                    Ok::<_, Error>(
+                        self.eventid_backfillpduid
+                            .get(event_id.as_bytes())?
+                            .map(|pduid| {
+                                self.pduid_backfillpdu.get(&pduid)?.ok_or_else(|| {
+                                    Error::bad_database("Invalid pduid in eventid_pduid.")
+                                })
+                            })
+                            .transpose()?,
+                    )
+                },
+                |x| Ok(Some(x)),
+            )?
             .map(|pdu| {
                 serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
@@ -115,7 +106,10 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 
     /// Returns the pdu's id.
     fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>> {
-        self.eventid_pduid.get(event_id.as_bytes())
+        Ok(self.eventid_pduid.get(event_id.as_bytes())?.map_or_else(
+            || self.eventid_backfillpduid.get(event_id.as_bytes()),
+            |x| Ok(Some(x)),
+        )?)
     }
 
     /// Returns the pdu.
@@ -130,6 +124,21 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
                     .ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
             })
             .transpose()?
+            .map_or_else(
+                || {
+                    Ok::<_, Error>(
+                        self.eventid_backfillpduid
+                            .get(event_id.as_bytes())?
+                            .map(|pduid| {
+                                self.pduid_backfillpdu.get(&pduid)?.ok_or_else(|| {
+                                    Error::bad_database("Invalid pduid in eventid_pduid.")
+                                })
+                            })
+                            .transpose()?,
+                    )
+                },
+                |x| Ok(Some(x)),
+            )?
             .map(|pdu| {
                 serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))
             })
@@ -145,22 +154,20 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
         }
 
         if let Some(pdu) = self
-            .eventid_pduid
-            .get(event_id.as_bytes())?
+            .get_non_outlier_pdu(event_id)?
             .map_or_else(
-                || self.eventid_outlierpdu.get(event_id.as_bytes()),
-                |pduid| {
-                    Ok(Some(self.pduid_pdu.get(&pduid)?.ok_or_else(|| {
-                        Error::bad_database("Invalid pduid in eventid_pduid.")
-                    })?))
+                || {
+                    self.eventid_outlierpdu
+                        .get(event_id.as_bytes())?
+                        .map(|pdu| {
+                            serde_json::from_slice(&pdu)
+                                .map_err(|_| Error::bad_database("Invalid PDU in db."))
+                        })
+                        .transpose()
                 },
+                |x| Ok(Some(x)),
             )?
-            .map(|pdu| {
-                serde_json::from_slice(&pdu)
-                    .map_err(|_| Error::bad_database("Invalid PDU in db."))
-                    .map(Arc::new)
-            })
-            .transpose()?
+            .map(Arc::new)
         {
             self.pdu_cache
                 .lock()
@@ -176,22 +183,28 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
     ///
     /// This does __NOT__ check the outliers `Tree`.
     fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<Option<PduEvent>> {
-        self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
-            Ok(Some(
-                serde_json::from_slice(&pdu)
-                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
-            ))
-        })
+        self.pduid_pdu
+            .get(pdu_id)?
+            .map_or_else(|| self.pduid_backfillpdu.get(pdu_id), |x| Ok(Some(x)))?
+            .map_or(Ok(None), |pdu| {
+                Ok(Some(
+                    serde_json::from_slice(&pdu)
+                        .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
+                ))
+            })
     }
 
     /// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
     fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<CanonicalJsonObject>> {
-        self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
-            Ok(Some(
-                serde_json::from_slice(&pdu)
-                    .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
-            ))
-        })
+        self.pduid_pdu
+            .get(pdu_id)?
+            .map_or_else(|| self.pduid_backfillpdu.get(pdu_id), |x| Ok(Some(x)))?
+            .map_or(Ok(None), |pdu| {
+                Ok(Some(
+                    serde_json::from_slice(&pdu)
+                        .map_err(|_| Error::bad_database("Invalid PDU in db."))?,
+                ))
+            })
     }
 
     fn append_pdu(

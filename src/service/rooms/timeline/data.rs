@@ -7,7 +7,6 @@ use crate::{PduEvent, Result};
 use super::PduCount;
 
 pub trait Data: Send + Sync {
-    fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>>;
     fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount>;
 
     /// Returns the `count` of this pdu's id.
