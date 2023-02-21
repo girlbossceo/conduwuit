@@ -81,6 +81,14 @@ pub async fn search_events_route(
 
     let results: Vec<_> = results
         .iter()
+        .filter_map(|result| {
+            services()
+                .rooms
+                .timeline
+                .get_pdu_from_id(result)
+                .ok()?
+                .map(|pdu| pdu.to_room_event())
+        })
         .map(|result| {
             Ok::<_, Error>(SearchResult {
                 context: EventContextResult {
@@ -91,11 +99,7 @@ pub async fn search_events_route(
                     start: None,
                 },
                 rank: None,
-                result: services()
-                    .rooms
-                    .timeline
-                    .get_pdu_from_id(result)?
-                    .map(|pdu| pdu.to_room_event()),
+                result: Some(result),
             })
         })
         .filter_map(|r| r.ok())

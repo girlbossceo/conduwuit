@@ -1045,6 +1045,24 @@ impl Service {
     ) -> Result<()> {
         let (event_id, value, room_id) = server_server::parse_incoming_pdu(&pdu)?;
 
+        // Lock so we cannot backfill the same pdu twice at the same time
+        let mutex = Arc::clone(
+            services()
+                .globals
+                .roomid_mutex_federation
+                .write()
+                .unwrap()
+                .entry(room_id.to_owned())
+                .or_default(),
+        );
+        let mutex_lock = mutex.lock().await;
+
+        // Skip the PDU if we already have it as a timeline event
+        if let Some(pdu_id) = services().rooms.timeline.get_pdu_id(&event_id)? {
+            info!("We already know {event_id} at {pdu_id:?}");
+            return Ok(());
+        }
+
         services()
             .rooms
             .event_handler
@@ -1052,6 +1070,7 @@ impl Service {
             .await?;
 
         let value = self.get_pdu_json(&event_id)?.expect("We just created it");
+        let pdu = self.get_pdu(&event_id)?.expect("We just created it");
 
         let shortroomid = services()
             .rooms
@@ -1072,14 +1091,36 @@ impl Service {
 
         let count = services().globals.next_count()?;
         let mut pdu_id = shortroomid.to_be_bytes().to_vec();
-        pdu_id.extend_from_slice(&count.to_be_bytes());
+        pdu_id.extend_from_slice(&0_u64.to_be_bytes());
+        pdu_id.extend_from_slice(&(u64::MAX - count).to_be_bytes());
 
         // Insert pdu
         self.db.prepend_backfill_pdu(&pdu_id, &event_id, &value)?;
 
         drop(insert_lock);
 
-        info!("Appended incoming pdu");
+        match pdu.kind {
+            RoomEventType::RoomMessage => {
+                #[derive(Deserialize)]
+                struct ExtractBody {
+                    body: Option<String>,
+                }
+
+                let content = serde_json::from_str::<ExtractBody>(pdu.content.get())
+                    .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
+
+                if let Some(body) = content.body {
+                    services()
+                        .rooms
+                        .search
+                        .index_pdu(shortroomid, &pdu_id, &body)?;
+                }
+            }
+            _ => {}
+        }
+        drop(mutex_lock);
+
+        info!("Prepended backfill pdu");
         Ok(())
     }
 }

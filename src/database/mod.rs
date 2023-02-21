@@ -74,9 +74,7 @@ pub struct KeyValueDatabase {
 
     //pub rooms: rooms::Rooms,
     pub(super) pduid_pdu: Arc<dyn KvTree>, // PduId = ShortRoomId + Count
-    pub(super) pduid_backfillpdu: Arc<dyn KvTree>, // PduId = ShortRoomId + Count
     pub(super) eventid_pduid: Arc<dyn KvTree>,
-    pub(super) eventid_backfillpduid: Arc<dyn KvTree>,
     pub(super) roomid_pduleaves: Arc<dyn KvTree>,
     pub(super) alias_roomid: Arc<dyn KvTree>,
     pub(super) aliasid_alias: Arc<dyn KvTree>, // AliasId = RoomId + Count
@@ -297,9 +295,7 @@ impl KeyValueDatabase {
             presenceid_presence: builder.open_tree("presenceid_presence")?,
             userid_lastpresenceupdate: builder.open_tree("userid_lastpresenceupdate")?,
             pduid_pdu: builder.open_tree("pduid_pdu")?,
-            pduid_backfillpdu: builder.open_tree("pduid_backfillpdu")?,
             eventid_pduid: builder.open_tree("eventid_pduid")?,
-            eventid_backfillpduid: builder.open_tree("eventid_backfillpduid")?,
             roomid_pduleaves: builder.open_tree("roomid_pduleaves")?,
 
             alias_roomid: builder.open_tree("alias_roomid")?,
