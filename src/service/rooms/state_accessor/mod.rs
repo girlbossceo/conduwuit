@@ -101,7 +101,7 @@ impl Service {
     ) -> Result<bool> {
         let shortstatehash = match self.pdu_shortstatehash(event_id)? {
             Some(shortstatehash) => shortstatehash,
-            None => return Ok(false),
+            None => return Ok(true),
         };
 
         if let Some(visibility) = self
