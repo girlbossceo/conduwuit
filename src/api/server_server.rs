@@ -688,7 +688,14 @@ pub async fn send_transaction_message_route(
     // let mut auth_cache = EventMap::new();
 
     for pdu in &body.pdus {
-        let (event_id, value, room_id) = parse_incoming_pdu(&pdu)?;
+        let r = parse_incoming_pdu(&pdu);
+        let (event_id, value, room_id) = match r {
+            Ok(t) => t,
+            Err(e) => {
+                warn!("Could not parse pdu: {e}");
+                continue;
+            }
+        };
         // We do not add the event_id field to the pdu here because of signature and hashes checks
 
         services()
