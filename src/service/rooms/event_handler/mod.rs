@@ -1460,12 +1460,12 @@ impl Service {
         }
 
         if servers.is_empty() {
-            // We had all keys locally
+            info!("We had all keys locally");
             return Ok(());
         }
 
         for server in services().globals.trusted_servers() {
-            trace!("Asking batch signing keys from trusted server {}", server);
+            info!("Asking batch signing keys from trusted server {}", server);
             if let Ok(keys) = services()
                 .sending
                 .send_federation_request(
@@ -1508,10 +1508,12 @@ impl Service {
             }
 
             if servers.is_empty() {
+                info!("Trusted server supplied all signing keys");
                 return Ok(());
             }
         }
 
+        info!("Asking individual servers for signing keys");
         let mut futures: FuturesUnordered<_> = servers
             .into_keys()
             .map(|server| async move {
@@ -1540,6 +1542,8 @@ impl Service {
                     .insert(origin.to_string(), result);
             }
         }
+
+        info!("Search for signing keys done");
 
         Ok(())
     }
