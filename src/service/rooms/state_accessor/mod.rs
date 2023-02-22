@@ -14,7 +14,7 @@ use ruma::{
         },
         StateEventType,
     },
-    EventId, OwnedServerName, RoomId, ServerName, UserId,
+    EventId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 use tracing::error;
 
@@ -23,6 +23,7 @@ use crate::{services, Error, PduEvent, Result};
 pub struct Service {
     pub db: &'static dyn Data,
     pub server_visibility_cache: Mutex<LruCache<(OwnedServerName, u64), bool>>,
+    pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, u64), bool>>,
 }
 
 impl Service {
@@ -92,7 +93,7 @@ impl Service {
 
     /// Whether a server is allowed to see an event through federation, based on
     /// the room's history_visibility at that event's state.
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, origin, room_id, event_id))]
     pub fn server_can_see_event(
         &self,
         origin: &ServerName,
@@ -152,6 +153,85 @@ impl Service {
             .insert((origin.to_owned(), shortstatehash), visibility);
 
         Ok(visibility)
+    }
+
+    /// Whether a user is allowed to see an event, based on
+    /// the room's history_visibility at that event's state.
+    #[tracing::instrument(skip(self, user_id, room_id, event_id))]
+    pub fn user_can_see_event(
+        &self,
+        user_id: &UserId,
+        room_id: &RoomId,
+        event_id: &EventId,
+    ) -> Result<bool> {
+        let shortstatehash = match self.pdu_shortstatehash(event_id)? {
+            Some(shortstatehash) => shortstatehash,
+            None => return Ok(true),
+        };
+
+        if let Some(visibility) = self
+            .user_visibility_cache
+            .lock()
+            .unwrap()
+            .get_mut(&(user_id.to_owned(), shortstatehash))
+        {
+            return Ok(*visibility);
+        }
+
+        let currently_member = services().rooms.state_cache.is_joined(&user_id, &room_id)?;
+
+        let history_visibility = self
+            .state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")?
+            .map_or(Ok(HistoryVisibility::Shared), |s| {
+                serde_json::from_str(s.content.get())
+                    .map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
+                    .map_err(|_| {
+                        Error::bad_database("Invalid history visibility event in database.")
+                    })
+            })?;
+
+        let visibility = match history_visibility {
+            HistoryVisibility::WorldReadable => true,
+            HistoryVisibility::Shared => currently_member,
+            HistoryVisibility::Invited => {
+                // Allow if any member on requesting server was AT LEAST invited, else deny
+                self.user_was_invited(shortstatehash, &user_id)
+            }
+            HistoryVisibility::Joined => {
+                // Allow if any member on requested server was joined, else deny
+                self.user_was_joined(shortstatehash, &user_id)
+            }
+            _ => {
+                error!("Unknown history visibility {history_visibility}");
+                false
+            }
+        };
+
+        self.user_visibility_cache
+            .lock()
+            .unwrap()
+            .insert((user_id.to_owned(), shortstatehash), visibility);
+
+        Ok(visibility)
+    }
+
+    /// Whether a user is allowed to see an event, based on
+    /// the room's history_visibility at that event's state.
+    #[tracing::instrument(skip(self, user_id, room_id))]
+    pub fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+        let currently_member = services().rooms.state_cache.is_joined(&user_id, &room_id)?;
+
+        let history_visibility = self
+            .room_state_get(&room_id, &StateEventType::RoomHistoryVisibility, "")?
+            .map_or(Ok(HistoryVisibility::Shared), |s| {
+                serde_json::from_str(s.content.get())
+                    .map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
+                    .map_err(|_| {
+                        Error::bad_database("Invalid history visibility event in database.")
+                    })
+            })?;
+
+        Ok(currently_member || history_visibility == HistoryVisibility::WorldReadable)
     }
 
     /// Returns the state hash for this pdu.

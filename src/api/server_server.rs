@@ -954,6 +954,17 @@ pub async fn get_event_route(
         ));
     }
 
+    if !services().rooms.state_accessor.server_can_see_event(
+        sender_servername,
+        &room_id,
+        &body.event_id,
+    )? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Server is not allowed to see event.",
+        ));
+    }
+
     Ok(get_event::v1::Response {
         origin: services().globals.server_name().to_owned(),
         origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
@@ -1098,6 +1109,16 @@ pub async fn get_missing_events_route(
                 i += 1;
                 continue;
             }
+
+            if !services().rooms.state_accessor.server_can_see_event(
+                sender_servername,
+                &body.room_id,
+                &queued_events[i],
+            )? {
+                i += 1;
+                continue;
+            }
+
             queued_events.extend_from_slice(
                 &serde_json::from_value::<Vec<OwnedEventId>>(
                     serde_json::to_value(pdu.get("prev_events").cloned().ok_or_else(|| {

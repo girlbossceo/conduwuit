@@ -50,12 +50,12 @@ pub async fn get_context_route(
 
     if !services()
         .rooms
-        .state_cache
-        .is_joined(sender_user, &room_id)?
+        .state_accessor
+        .user_can_see_event(sender_user, &room_id, &body.event_id)?
     {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
-            "You don't have permission to view this room.",
+            "You don't have permission to view this event.",
         ));
     }
 
@@ -82,6 +82,13 @@ pub async fn get_context_route(
                 / 2,
         )
         .filter_map(|r| r.ok()) // Remove buggy events
+        .filter(|(_, pdu)| {
+            services()
+                .rooms
+                .state_accessor
+                .user_can_see_event(sender_user, &room_id, &pdu.event_id)
+                .unwrap_or(false)
+        })
         .collect();
 
     for (_, event) in &events_before {
@@ -114,6 +121,13 @@ pub async fn get_context_route(
                 / 2,
         )
         .filter_map(|r| r.ok()) // Remove buggy events
+        .filter(|(_, pdu)| {
+            services()
+                .rooms
+                .state_accessor
+                .user_can_see_event(sender_user, &room_id, &pdu.event_id)
+                .unwrap_or(false)
+        })
         .collect();
 
     for (_, event) in &events_after {

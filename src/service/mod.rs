@@ -82,6 +82,9 @@ impl Services {
                     server_visibility_cache: Mutex::new(LruCache::new(
                         (100.0 * config.conduit_cache_capacity_modifier) as usize,
                     )),
+                    user_visibility_cache: Mutex::new(LruCache::new(
+                        (100.0 * config.conduit_cache_capacity_modifier) as usize,
+                    )),
                 },
                 state_cache: rooms::state_cache::Service { db },
                 state_compressor: rooms::state_compressor::Service {

@@ -113,17 +113,6 @@ pub async fn get_message_events_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-    if !services()
-        .rooms
-        .state_cache
-        .is_joined(sender_user, &body.room_id)?
-    {
-        return Err(Error::BadRequest(
-            ErrorKind::Forbidden,
-            "You don't have permission to view this room.",
-        ));
-    }
-
     let from = match body.from.clone() {
         Some(from) => PduCount::try_from_string(&from)?,
         None => match body.dir {
@@ -161,6 +150,13 @@ pub async fn get_message_events_route(
                 .pdus_after(sender_user, &body.room_id, from)?
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
+                .filter(|(_, pdu)| {
+                    services()
+                        .rooms
+                        .state_accessor
+                        .user_can_see_event(sender_user, &body.room_id, &pdu.event_id)
+                        .unwrap_or(false)
+                })
                 .take_while(|&(k, _)| Some(k) != to) // Stop at `to`
                 .collect();
 
@@ -203,6 +199,13 @@ pub async fn get_message_events_route(
                 .pdus_until(sender_user, &body.room_id, from)?
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
+                .filter(|(_, pdu)| {
+                    services()
+                        .rooms
+                        .state_accessor
+                        .user_can_see_event(sender_user, &body.room_id, &pdu.event_id)
+                        .unwrap_or(false)
+                })
                 .take_while(|&(k, _)| Some(k) != to) // Stop at `to`
                 .collect();
 
