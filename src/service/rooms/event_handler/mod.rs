@@ -1529,17 +1529,18 @@ impl Service {
 
         while let Some(result) = futures.next().await {
             if let (Ok(get_keys_response), origin) = result {
-                let result: BTreeMap<_, _> = services()
-                    .globals
-                    .add_signing_key(&origin, get_keys_response.server_key.deserialize().unwrap())?
-                    .into_iter()
-                    .map(|(k, v)| (k.to_string(), v.key))
-                    .collect();
-
-                pub_key_map
-                    .write()
-                    .map_err(|_| Error::bad_database("RwLock is poisoned."))?
-                    .insert(origin.to_string(), result);
+                if let Ok(key) = get_keys_response.server_key.deserialize() {
+                    let result: BTreeMap<_, _> = services()
+                        .globals
+                        .add_signing_key(&origin, key)?
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v.key))
+                        .collect();
+                    pub_key_map
+                        .write()
+                        .map_err(|_| Error::bad_database("RwLock is poisoned."))?
+                        .insert(origin.to_string(), result);
+                }
             }
         }
 
