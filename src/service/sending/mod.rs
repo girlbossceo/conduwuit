@@ -684,7 +684,15 @@ impl Service {
         T: Debug,
     {
         let permit = self.maximum_requests.acquire().await;
-        let response = server_server::send_request(destination, request).await;
+        let response = tokio::time::timeout(
+            Duration::from_secs(2 * 60),
+            server_server::send_request(destination, request),
+        )
+        .await
+        .map_err(|_| {
+            warn!("Timeout waiting for server response of {destination}");
+            Error::BadServerResponse("Timeout waiting for server response")
+        })?;
         drop(permit);
 
         response
