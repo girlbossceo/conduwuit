@@ -340,36 +340,38 @@ fn add_port_to_hostname(destination_str: &str) -> FedDest {
 /// Implemented according to the specification at https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names
 /// Numbers in comments below refer to bullet points in linked section of specification
 async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDest) {
+    info!("Finding actual destination for {destination}");
     let destination_str = destination.as_str().to_owned();
     let mut hostname = destination_str.clone();
     let actual_destination = match get_ip_with_port(&destination_str) {
         Some(host_port) => {
-            // 1: IP literal with provided or default port
+            info!("1: IP literal with provided or default port");
             host_port
         }
         None => {
             if let Some(pos) = destination_str.find(':') {
-                // 2: Hostname with included port
+                info!("2: Hostname with included port");
                 let (host, port) = destination_str.split_at(pos);
                 FedDest::Named(host.to_owned(), port.to_owned())
             } else {
+                info!("Requesting well known for {destination}");
                 match request_well_known(destination.as_str()).await {
-                    // 3: A .well-known file is available
                     Some(delegated_hostname) => {
+                        info!("3: A .well-known file is available");
                         hostname = add_port_to_hostname(&delegated_hostname).into_uri_string();
                         match get_ip_with_port(&delegated_hostname) {
                             Some(host_and_port) => host_and_port, // 3.1: IP literal in .well-known file
                             None => {
                                 if let Some(pos) = delegated_hostname.find(':') {
-                                    // 3.2: Hostname with port in .well-known file
+                                    info!("3.2: Hostname with port in .well-known file");
                                     let (host, port) = delegated_hostname.split_at(pos);
                                     FedDest::Named(host.to_owned(), port.to_owned())
                                 } else {
-                                    // Delegated hostname has no port in this branch
+                                    info!("Delegated hostname has no port in this branch");
                                     if let Some(hostname_override) =
                                         query_srv_record(&delegated_hostname).await
                                     {
-                                        // 3.3: SRV lookup successful
+                                        info!("3.3: SRV lookup successful");
                                         let force_port = hostname_override.port();
 
                                         if let Ok(override_ip) = services()
@@ -400,18 +402,18 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
                                             add_port_to_hostname(&delegated_hostname)
                                         }
                                     } else {
-                                        // 3.4: No SRV records, just use the hostname from .well-known
+                                        info!("3.4: No SRV records, just use the hostname from .well-known");
                                         add_port_to_hostname(&delegated_hostname)
                                     }
                                 }
                             }
                         }
                     }
-                    // 4: No .well-known or an error occured
                     None => {
+                        info!("4: No .well-known or an error occured");
                         match query_srv_record(&destination_str).await {
-                            // 4: SRV record found
                             Some(hostname_override) => {
+                                info!("4: SRV record found");
                                 let force_port = hostname_override.port();
 
                                 if let Ok(override_ip) = services()
@@ -442,14 +444,17 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
                                     add_port_to_hostname(&hostname)
                                 }
                             }
-                            // 5: No SRV record found
-                            None => add_port_to_hostname(&destination_str),
+                            None => {
+                                info!("5: No SRV record found");
+                                add_port_to_hostname(&destination_str)
+                            }
                         }
                     }
                 }
             }
         }
     };
+    info!("Actual destination: {actual_destination:?}");
 
     // Can't use get_ip_with_port here because we don't want to add a port
     // to an IP address if it wasn't specified
@@ -488,19 +493,16 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
 }
 
 async fn request_well_known(destination: &str) -> Option<String> {
-    let body: serde_json::Value = serde_json::from_str(
-        &services()
-            .globals
-            .default_client()
-            .get(&format!("https://{destination}/.well-known/matrix/server"))
-            .send()
-            .await
-            .ok()?
-            .text()
-            .await
-            .ok()?,
-    )
-    .ok()?;
+    let response = services()
+        .globals
+        .default_client()
+        .get(&format!("https://{destination}/.well-known/matrix/server"))
+        .send()
+        .await;
+    info!("Got well known response");
+    let text = response.ok()?.text().await;
+    info!("Got well known response text");
+    let body: serde_json::Value = serde_json::from_str(&text.ok()?).ok()?;
     Some(body.get("m.server")?.as_str()?.to_owned())
 }
 
