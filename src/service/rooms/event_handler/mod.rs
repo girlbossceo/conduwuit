@@ -1513,7 +1513,7 @@ impl Service {
             }
         }
 
-        info!("Asking individual servers for signing keys");
+        info!("Asking individual servers for signing keys: {servers:?}");
         let mut futures: FuturesUnordered<_> = servers
             .into_keys()
             .map(|server| async move {
@@ -1528,6 +1528,7 @@ impl Service {
             .collect();
 
         while let Some(result) = futures.next().await {
+            info!("Received new result");
             if let (Ok(get_keys_response), origin) = result {
                 if let Ok(key) = get_keys_response.server_key.deserialize() {
                     let result: BTreeMap<_, _> = services()
@@ -1542,6 +1543,7 @@ impl Service {
                         .insert(origin.to_string(), result);
                 }
             }
+            info!("Done handling result");
         }
 
         info!("Search for signing keys done");
