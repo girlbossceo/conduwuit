@@ -472,10 +472,11 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
 }
 
 async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
+    let hostname = hostname.trim_end_matches('.');
     if let Ok(Some(host_port)) = services()
         .globals
         .dns_resolver()
-        .srv_lookup(format!("_matrix._tcp.{hostname}"))
+        .srv_lookup(format!("_matrix._tcp.{hostname}."))
         .await
         .map(|srv| {
             srv.iter().next().map(|result| {
