@@ -125,6 +125,8 @@ where
         return Err(Error::bad_config("Federation is disabled."));
     }
 
+    info!("Preparing to send request to {destination}");
+
     let mut write_destination_to_cache = false;
 
     let cached_result = services()
@@ -231,11 +233,13 @@ where
 
     let url = reqwest_request.url().clone();
 
+    info!("Sending request to {destination} at {url}");
     let response = services()
         .globals
         .federation_client()
         .execute(reqwest_request)
         .await;
+    info!("Received response from {destination} at {url}");
 
     match response {
         Ok(mut response) => {
@@ -251,10 +255,12 @@ where
                     .expect("http::response::Builder is usable"),
             );
 
+            info!("Getting response bytes from {destination}");
             let body = response.bytes().await.unwrap_or_else(|e| {
                 warn!("server error {}", e);
                 Vec::new().into()
             }); // TODO: handle timeout
+            info!("Got response bytes from {destination}");
 
             if status != 200 {
                 warn!(
@@ -273,6 +279,7 @@ where
                 .expect("reqwest body is valid http body");
 
             if status == 200 {
+                info!("Parsing response bytes from {destination}");
                 let response = T::IncomingResponse::try_from_http_response(http_response);
                 if response.is_ok() && write_destination_to_cache {
                     services()
@@ -294,6 +301,7 @@ where
                     Error::BadServerResponse("Server returned bad 200 response.")
                 })
             } else {
+                info!("Returning error from {destination}");
                 Err(Error::FederationError(
                     destination.to_owned(),
                     RumaError::from_http_response(http_response),
