@@ -411,7 +411,7 @@ impl KeyValueDatabase {
         }
 
         // If the database has any data, perform data migrations before starting
-        let latest_database_version = 12;
+        let latest_database_version = 13;
 
         if services().users.count()? > 0 {
             // MIGRATIONS
@@ -878,6 +878,52 @@ impl KeyValueDatabase {
                 services().globals.bump_database_version(12)?;
 
                 warn!("Migration: 11 -> 12 finished");
+            }
+
+            // This migration can be reused as-is anytime the server-default rules are updated.
+            if services().globals.database_version()? < 13 {
+                for username in services().users.list_local_users()? {
+                    let user = match UserId::parse_with_server_name(
+                        username.clone(),
+                        services().globals.server_name(),
+                    ) {
+                        Ok(u) => u,
+                        Err(e) => {
+                            warn!("Invalid username {username}: {e}");
+                            continue;
+                        }
+                    };
+
+                    let raw_rules_list = services()
+                        .account_data
+                        .get(
+                            None,
+                            &user,
+                            GlobalAccountDataEventType::PushRules.to_string().into(),
+                        )
+                        .unwrap()
+                        .expect("Username is invalid");
+
+                    let mut account_data =
+                        serde_json::from_str::<PushRulesEvent>(raw_rules_list.get()).unwrap();
+
+                    let user_default_rules = ruma::push::Ruleset::server_default(&user);
+                    account_data
+                        .content
+                        .global
+                        .update_with_server_default(user_default_rules);
+
+                    services().account_data.update(
+                        None,
+                        &user,
+                        GlobalAccountDataEventType::PushRules.to_string().into(),
+                        &serde_json::to_value(account_data).expect("to json value always works"),
+                    )?;
+                }
+
+                services().globals.bump_database_version(13)?;
+
+                warn!("Migration: 12 -> 13 finished");
             }
 
             assert_eq!(
