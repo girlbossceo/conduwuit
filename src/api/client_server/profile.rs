@@ -9,7 +9,7 @@ use ruma::{
         },
         federation::{self, query::get_profile_information::v1::ProfileField},
     },
-    events::{room::member::RoomMemberEventContent, RoomEventType, StateEventType},
+    events::{room::member::RoomMemberEventContent, StateEventType, TimelineEventType},
 };
 use serde_json::value::to_raw_value;
 use std::sync::Arc;
@@ -37,7 +37,7 @@ pub async fn set_displayname_route(
         .map(|room_id| {
             Ok::<_, Error>((
                 PduBuilder {
-                    event_type: RoomEventType::RoomMember,
+                    event_type: TimelineEventType::RoomMember,
                     content: to_raw_value(&RoomMemberEventContent {
                         displayname: body.displayname.clone(),
                         ..serde_json::from_str(
@@ -172,7 +172,7 @@ pub async fn set_avatar_url_route(
         .map(|room_id| {
             Ok::<_, Error>((
                 PduBuilder {
-                    event_type: RoomEventType::RoomMember,
+                    event_type: TimelineEventType::RoomMember,
                     content: to_raw_value(&RoomMemberEventContent {
                         avatar_url: body.avatar_url.clone(),
                         ..serde_json::from_str(

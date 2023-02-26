@@ -18,11 +18,7 @@ use ruma::{
             discovery::{get_server_keys, get_server_version, ServerSigningKeys, VerifyKey},
             event::{get_event, get_missing_events, get_room_state, get_room_state_ids},
             keys::{claim_keys, get_keys},
-            membership::{
-                create_invite,
-                create_join_event::{self, RoomState},
-                prepare_join_event,
-            },
+            membership::{create_invite, create_join_event, prepare_join_event},
             query::{get_profile_information, get_room_information},
             transactions::{
                 edu::{DeviceListUpdateContent, DirectDeviceContent, Edu, SigningKeyUpdateContent},
@@ -39,7 +35,7 @@ use ruma::{
             join_rules::{JoinRule, RoomJoinRulesEventContent},
             member::{MembershipState, RoomMemberEventContent},
         },
-        RoomEventType, StateEventType,
+        StateEventType, TimelineEventType,
     },
     serde::{Base64, JsonObject, Raw},
     to_device::DeviceIdOrAllDevices,
@@ -1440,7 +1436,7 @@ pub async fn create_join_event_template_route(
 
     let (_pdu, mut pdu_json) = services().rooms.timeline.create_hash_and_sign_event(
         PduBuilder {
-            event_type: RoomEventType::RoomMember,
+            event_type: TimelineEventType::RoomMember,
             content,
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
@@ -1465,7 +1461,7 @@ async fn create_join_event(
     sender_servername: &ServerName,
     room_id: &RoomId,
     pdu: &RawJsonValue,
-) -> Result<RoomState> {
+) -> Result<create_join_event::v1::RoomState> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
     }
@@ -1587,7 +1583,7 @@ async fn create_join_event(
 
     services().sending.send_pdu(servers, &pdu_id)?;
 
-    Ok(RoomState {
+    Ok(create_join_event::v1::RoomState {
         auth_chain: auth_chain_ids
             .filter_map(|id| services().rooms.timeline.get_pdu_json(&id).ok().flatten())
             .map(PduEvent::convert_to_outgoing_federation_event)
@@ -1628,7 +1624,18 @@ pub async fn create_join_event_v2_route(
         .as_ref()
         .expect("server is authenticated");
 
-    let room_state = create_join_event(sender_servername, &body.room_id, &body.pdu).await?;
+    let create_join_event::v1::RoomState {
+        auth_chain,
+        state,
+        event,
+    } = create_join_event(sender_servername, &body.room_id, &body.pdu).await?;
+    let room_state = create_join_event::v2::RoomState {
+        members_omitted: false,
+        auth_chain,
+        state,
+        event,
+        servers_in_room: None,
+    };
 
     Ok(create_join_event::v2::Response { room_state })
 }

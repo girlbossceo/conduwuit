@@ -7,7 +7,7 @@ use ruma::{
         error::ErrorKind,
         message::{get_message_events, send_message_event},
     },
-    events::{RoomEventType, StateEventType},
+    events::{StateEventType, TimelineEventType},
 };
 use std::{
     collections::{BTreeMap, HashSet},
@@ -39,7 +39,7 @@ pub async fn send_message_event_route(
     let state_lock = mutex_state.lock().await;
 
     // Forbid m.room.encrypted if encryption is disabled
-    if RoomEventType::RoomEncrypted == body.event_type.to_string().into()
+    if TimelineEventType::RoomEncrypted == body.event_type.to_string().into()
         && !services().globals.allow_encryption()
     {
         return Err(Error::BadRequest(
@@ -116,8 +116,8 @@ pub async fn get_message_events_route(
     let from = match body.from.clone() {
         Some(from) => PduCount::try_from_string(&from)?,
         None => match body.dir {
-            ruma::api::client::Direction::Forward => PduCount::min(),
-            ruma::api::client::Direction::Backward => PduCount::max(),
+            ruma::api::Direction::Forward => PduCount::min(),
+            ruma::api::Direction::Backward => PduCount::max(),
         },
     };
 
@@ -143,7 +143,7 @@ pub async fn get_message_events_route(
     let mut lazy_loaded = HashSet::new();
 
     match body.dir {
-        ruma::api::client::Direction::Forward => {
+        ruma::api::Direction::Forward => {
             let events_after: Vec<_> = services()
                 .rooms
                 .timeline
@@ -187,7 +187,7 @@ pub async fn get_message_events_route(
             resp.end = next_token.map(|count| count.stringify());
             resp.chunk = events_after;
         }
-        ruma::api::client::Direction::Backward => {
+        ruma::api::Direction::Backward => {
             services()
                 .rooms
                 .timeline

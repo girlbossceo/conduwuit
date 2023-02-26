@@ -14,7 +14,7 @@ use ruma::{
     },
     events::{
         room::member::{MembershipState, RoomMemberEventContent},
-        RoomEventType, StateEventType,
+        StateEventType, TimelineEventType,
     },
     serde::Raw,
     DeviceId, OwnedDeviceId, OwnedUserId, RoomId, UserId,
@@ -678,7 +678,7 @@ async fn load_joined_room(
                 .timeline
                 .all_pdus(&sender_user, &room_id)?
                 .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
-                .filter(|(_, pdu)| pdu.kind == RoomEventType::RoomMember)
+                .filter(|(_, pdu)| pdu.kind == TimelineEventType::RoomMember)
                 .map(|(_, pdu)| {
                     let content: RoomMemberEventContent = serde_json::from_str(pdu.content.get())
                         .map_err(|_| {
@@ -868,7 +868,7 @@ async fn load_joined_room(
                             }
                         };
 
-                        if pdu.kind == RoomEventType::RoomMember {
+                        if pdu.kind == TimelineEventType::RoomMember {
                             match UserId::parse(
                                 pdu.state_key
                                     .as_ref()
@@ -936,11 +936,11 @@ async fn load_joined_room(
 
             let send_member_count = state_events
                 .iter()
-                .any(|event| event.kind == RoomEventType::RoomMember);
+                .any(|event| event.kind == TimelineEventType::RoomMember);
 
             if encrypted_room {
                 for state_event in &state_events {
-                    if state_event.kind != RoomEventType::RoomMember {
+                    if state_event.kind != TimelineEventType::RoomMember {
                         continue;
                     }
 

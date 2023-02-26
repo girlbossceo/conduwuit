@@ -47,7 +47,7 @@ where
         let path_params = Path::<Vec<String>>::from_request(req).await?;
 
         let query = req.uri().query().unwrap_or_default();
-        let query_params: QueryParams = match ruma::serde::urlencoded::from_str(query) {
+        let query_params: QueryParams = match serde_html_form::from_str(query) {
             Ok(params) => params,
             Err(e) => {
                 error!(%query, "Failed to deserialize query parameters: {}", e);
