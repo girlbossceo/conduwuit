@@ -187,11 +187,13 @@ pub async fn get_pushrule_actions_route(
     let global = account_data.global;
     let actions = global
         .get(body.kind.clone(), &body.rule_id)
-        .map(|rule| rule.actions().to_owned());
+        .map(|rule| rule.actions().to_owned())
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Push rule not found.",
+        ))?;
 
-    Ok(get_pushrule_actions::v3::Response {
-        actions: actions.unwrap_or_default(),
-    })
+    Ok(get_pushrule_actions::v3::Response { actions })
 }
 
 /// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
@@ -280,7 +282,10 @@ pub async fn get_pushrule_enabled_route(
     let enabled = global
         .get(body.kind.clone(), &body.rule_id)
         .map(|r| r.enabled())
-        .unwrap_or_default();
+        .ok_or(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Push rule not found.",
+        ))?;
 
     Ok(get_pushrule_enabled::v3::Response { enabled })
 }
