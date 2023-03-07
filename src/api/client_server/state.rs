@@ -81,7 +81,7 @@ pub async fn get_state_events_route(
 ) -> Result<get_state_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if services()
+    if !services()
         .rooms
         .state_accessor
         .user_can_see_state_events(&sender_user, &body.room_id)?
@@ -114,7 +114,7 @@ pub async fn get_state_events_for_key_route(
 ) -> Result<get_state_events_for_key::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if services()
+    if !services()
         .rooms
         .state_accessor
         .user_can_see_state_events(&sender_user, &body.room_id)?
@@ -150,7 +150,7 @@ pub async fn get_state_events_for_empty_key_route(
 ) -> Result<RumaResponse<get_state_events_for_key::v3::Response>> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if services()
+    if !services()
         .rooms
         .state_accessor
         .user_can_see_state_events(&sender_user, &body.room_id)?

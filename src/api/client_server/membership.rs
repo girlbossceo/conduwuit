@@ -396,11 +396,10 @@ pub async fn get_member_events_route(
 ) -> Result<get_member_events::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    // TODO: check history visibility?
     if !services()
         .rooms
-        .state_cache
-        .is_joined(sender_user, &body.room_id)?
+        .state_accessor
+        .user_can_see_state_events(&sender_user, &body.room_id)?
     {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
@@ -434,12 +433,12 @@ pub async fn joined_members_route(
 
     if !services()
         .rooms
-        .state_cache
-        .is_joined(sender_user, &body.room_id)?
+        .state_accessor
+        .user_can_see_state_events(&sender_user, &body.room_id)?
     {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
-            "You aren't a member of the room.",
+            "You don't have permission to view this room.",
         ));
     }
 
