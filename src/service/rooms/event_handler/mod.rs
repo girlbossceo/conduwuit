@@ -1530,6 +1530,7 @@ impl Service {
         while let Some(result) = futures.next().await {
             info!("Received new result");
             if let (Ok(get_keys_response), origin) = result {
+                info!("Result is from {origin}");
                 if let Ok(key) = get_keys_response.server_key.deserialize() {
                     let result: BTreeMap<_, _> = services()
                         .globals
