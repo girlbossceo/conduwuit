@@ -390,6 +390,7 @@ fn routes() -> Router {
         .ruma_route(server_server::get_public_rooms_filtered_route)
         .ruma_route(server_server::send_transaction_message_route)
         .ruma_route(server_server::get_event_route)
+        .ruma_route(server_server::get_backfill_route)
         .ruma_route(server_server::get_missing_events_route)
         .ruma_route(server_server::get_event_authorization_route)
         .ruma_route(server_server::get_room_state_route)

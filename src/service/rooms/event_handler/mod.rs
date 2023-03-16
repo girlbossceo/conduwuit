@@ -392,11 +392,12 @@ impl Service {
             }
 
             // The original create event must be in the auth events
-            if auth_events
-                .get(&(StateEventType::RoomCreate, "".to_owned()))
-                .map(|a| a.as_ref())
-                != Some(create_event)
-            {
+            if !matches!(
+                auth_events
+                    .get(&(StateEventType::RoomCreate, "".to_owned()))
+                    .map(|a| a.as_ref()),
+                Some(_) | None
+            ) {
                 return Err(Error::BadRequest(
                     ErrorKind::InvalidParam,
                     "Incoming event refers to wrong create event.",
@@ -1459,12 +1460,12 @@ impl Service {
         }
 
         if servers.is_empty() {
-            // We had all keys locally
+            info!("We had all keys locally");
             return Ok(());
         }
 
         for server in services().globals.trusted_servers() {
-            trace!("Asking batch signing keys from trusted server {}", server);
+            info!("Asking batch signing keys from trusted server {}", server);
             if let Ok(keys) = services()
                 .sending
                 .send_federation_request(
@@ -1507,10 +1508,12 @@ impl Service {
             }
 
             if servers.is_empty() {
+                info!("Trusted server supplied all signing keys");
                 return Ok(());
             }
         }
 
+        info!("Asking individual servers for signing keys: {servers:?}");
         let mut futures: FuturesUnordered<_> = servers
             .into_keys()
             .map(|server| async move {
@@ -1525,20 +1528,26 @@ impl Service {
             .collect();
 
         while let Some(result) = futures.next().await {
+            info!("Received new result");
             if let (Ok(get_keys_response), origin) = result {
-                let result: BTreeMap<_, _> = services()
-                    .globals
-                    .add_signing_key(&origin, get_keys_response.server_key.deserialize().unwrap())?
-                    .into_iter()
-                    .map(|(k, v)| (k.to_string(), v.key))
-                    .collect();
-
-                pub_key_map
-                    .write()
-                    .map_err(|_| Error::bad_database("RwLock is poisoned."))?
-                    .insert(origin.to_string(), result);
+                info!("Result is from {origin}");
+                if let Ok(key) = get_keys_response.server_key.deserialize() {
+                    let result: BTreeMap<_, _> = services()
+                        .globals
+                        .add_signing_key(&origin, key)?
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v.key))
+                        .collect();
+                    pub_key_map
+                        .write()
+                        .map_err(|_| Error::bad_database("RwLock is poisoned."))?
+                        .insert(origin.to_string(), result);
+                }
             }
+            info!("Done handling result");
         }
+
+        info!("Search for signing keys done");
 
         Ok(())
     }

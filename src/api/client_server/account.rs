@@ -129,7 +129,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
         auth_error: None,
     };
 
-    if !body.from_appservice {
+    if !body.from_appservice && !is_guest {
         if let Some(auth) = &body.auth {
             let (worked, uiaainfo) = services().uiaa.try_auth(
                 &UserId::parse_with_server_name("", services().globals.server_name())

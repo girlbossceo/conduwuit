@@ -1,5 +1,3 @@
-use std::mem::size_of;
-
 use ruma::RoomId;
 
 use crate::{database::KeyValueDatabase, service, services, utils, Result};
@@ -15,7 +13,7 @@ impl service::rooms::search::Data for KeyValueDatabase {
                 let mut key = shortroomid.to_be_bytes().to_vec();
                 key.extend_from_slice(word.as_bytes());
                 key.push(0xff);
-                key.extend_from_slice(pdu_id);
+                key.extend_from_slice(pdu_id); // TODO: currently we save the room id a second time here
                 (key, Vec::new())
             });
 
@@ -34,7 +32,6 @@ impl service::rooms::search::Data for KeyValueDatabase {
             .expect("room exists")
             .to_be_bytes()
             .to_vec();
-        let prefix_clone = prefix.clone();
 
         let words: Vec<_> = search_string
             .split_terminator(|c: char| !c.is_alphanumeric())
@@ -46,6 +43,7 @@ impl service::rooms::search::Data for KeyValueDatabase {
             let mut prefix2 = prefix.clone();
             prefix2.extend_from_slice(word.as_bytes());
             prefix2.push(0xff);
+            let prefix3 = prefix2.clone();
 
             let mut last_possible_id = prefix2.clone();
             last_possible_id.extend_from_slice(&u64::MAX.to_be_bytes());
@@ -53,7 +51,7 @@ impl service::rooms::search::Data for KeyValueDatabase {
             self.tokenids
                 .iter_from(&last_possible_id, true) // Newest pdus first
                 .take_while(move |(k, _)| k.starts_with(&prefix2))
-                .map(|(key, _)| key[key.len() - size_of::<u64>()..].to_vec())
+                .map(move |(key, _)| key[prefix3.len()..].to_vec())
         });
 
         let common_elements = match utils::common_elements(iterators, |a, b| {
@@ -64,12 +62,6 @@ impl service::rooms::search::Data for KeyValueDatabase {
             None => return Ok(None),
         };
 
-        let mapped = common_elements.map(move |id| {
-            let mut pduid = prefix_clone.clone();
-            pduid.extend_from_slice(&id);
-            pduid
-        });
-
-        Ok(Some((Box::new(mapped), words)))
+        Ok(Some((Box::new(common_elements), words)))
     }
 }

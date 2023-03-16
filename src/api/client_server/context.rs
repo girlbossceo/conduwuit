@@ -27,36 +27,35 @@ pub async fn get_context_route(
 
     let mut lazy_loaded = HashSet::new();
 
-    let base_pdu_id = services()
+    let base_token = services()
         .rooms
         .timeline
-        .get_pdu_id(&body.event_id)?
+        .get_pdu_count(&body.event_id)?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "Base event id not found.",
         ))?;
 
-    let base_token = services().rooms.timeline.pdu_count(&base_pdu_id)?;
-
-    let base_event = services()
-        .rooms
-        .timeline
-        .get_pdu_from_id(&base_pdu_id)?
-        .ok_or(Error::BadRequest(
-            ErrorKind::NotFound,
-            "Base event not found.",
-        ))?;
+    let base_event =
+        services()
+            .rooms
+            .timeline
+            .get_pdu(&body.event_id)?
+            .ok_or(Error::BadRequest(
+                ErrorKind::NotFound,
+                "Base event not found.",
+            ))?;
 
     let room_id = base_event.room_id.clone();
 
     if !services()
         .rooms
-        .state_cache
-        .is_joined(sender_user, &room_id)?
+        .state_accessor
+        .user_can_see_event(sender_user, &room_id, &body.event_id)?
     {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
-            "You don't have permission to view this room.",
+            "You don't have permission to view this event.",
         ));
     }
 
@@ -83,6 +82,13 @@ pub async fn get_context_route(
                 / 2,
         )
         .filter_map(|r| r.ok()) // Remove buggy events
+        .filter(|(_, pdu)| {
+            services()
+                .rooms
+                .state_accessor
+                .user_can_see_event(sender_user, &room_id, &pdu.event_id)
+                .unwrap_or(false)
+        })
         .collect();
 
     for (_, event) in &events_before {
@@ -97,10 +103,7 @@ pub async fn get_context_route(
         }
     }
 
-    let start_token = events_before
-        .last()
-        .and_then(|(pdu_id, _)| services().rooms.timeline.pdu_count(pdu_id).ok())
-        .map(|count| count.to_string());
+    let start_token = events_before.last().map(|(count, _)| count.stringify());
 
     let events_before: Vec<_> = events_before
         .into_iter()
@@ -118,6 +121,13 @@ pub async fn get_context_route(
                 / 2,
         )
         .filter_map(|r| r.ok()) // Remove buggy events
+        .filter(|(_, pdu)| {
+            services()
+                .rooms
+                .state_accessor
+                .user_can_see_event(sender_user, &room_id, &pdu.event_id)
+                .unwrap_or(false)
+        })
         .collect();
 
     for (_, event) in &events_after {
@@ -151,10 +161,7 @@ pub async fn get_context_route(
         .state_full_ids(shortstatehash)
         .await?;
 
-    let end_token = events_after
-        .last()
-        .and_then(|(pdu_id, _)| services().rooms.timeline.pdu_count(pdu_id).ok())
-        .map(|count| count.to_string());
+    let end_token = events_after.last().map(|(count, _)| count.stringify());
 
     let events_after: Vec<_> = events_after
         .into_iter()

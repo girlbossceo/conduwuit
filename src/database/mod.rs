@@ -1,7 +1,10 @@
 pub mod abstraction;
 pub mod key_value;
 
-use crate::{services, utils, Config, Error, PduEvent, Result, Services, SERVICES};
+use crate::{
+    service::rooms::timeline::PduCount, services, utils, Config, Error, PduEvent, Result, Services,
+    SERVICES,
+};
 use abstraction::{KeyValueDatabaseEngine, KvTree};
 use directories::ProjectDirs;
 use lru_cache::LruCache;
@@ -161,7 +164,7 @@ pub struct KeyValueDatabase {
     pub(super) shortstatekey_cache: Mutex<LruCache<u64, (StateEventType, String)>>,
     pub(super) our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
     pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
-    pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, u64>>,
+    pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
 }
 
 impl KeyValueDatabase {

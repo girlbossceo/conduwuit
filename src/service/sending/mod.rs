@@ -40,7 +40,7 @@ use tokio::{
     select,
     sync::{mpsc, Mutex, Semaphore},
 };
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum OutgoingKind {
@@ -683,8 +683,18 @@ impl Service {
     where
         T: Debug,
     {
+        debug!("Waiting for permit");
         let permit = self.maximum_requests.acquire().await;
-        let response = server_server::send_request(destination, request).await;
+        debug!("Got permit");
+        let response = tokio::time::timeout(
+            Duration::from_secs(2 * 60),
+            server_server::send_request(destination, request),
+        )
+        .await
+        .map_err(|_| {
+            warn!("Timeout waiting for server response of {destination}");
+            Error::BadServerResponse("Timeout waiting for server response")
+        })?;
         drop(permit);
 
         response

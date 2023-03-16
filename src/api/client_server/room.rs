@@ -425,24 +425,25 @@ pub async fn get_room_event_route(
 ) -> Result<get_room_event::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    if !services()
+    let event = services()
         .rooms
-        .state_cache
-        .is_joined(sender_user, &body.room_id)?
-    {
+        .timeline
+        .get_pdu(&body.event_id)?
+        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?;
+
+    if !services().rooms.state_accessor.user_can_see_event(
+        sender_user,
+        &event.room_id,
+        &body.event_id,
+    )? {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
-            "You don't have permission to view this room.",
+            "You don't have permission to view this event.",
         ));
     }
 
     Ok(get_room_event::v3::Response {
-        event: services()
-            .rooms
-            .timeline
-            .get_pdu(&body.event_id)?
-            .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?
-            .to_room_event(),
+        event: event.to_room_event(),
     })
 }
 
