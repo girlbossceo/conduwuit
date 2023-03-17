@@ -147,6 +147,7 @@ async fn run_server() -> io::Result<()> {
 
     let middlewares = ServiceBuilder::new()
         .sensitive_headers([header::AUTHORIZATION])
+        .layer(axum::middleware::from_fn(spawn_task))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &http::Request<_>| {
                 let path = if let Some(path) = request.extensions().get::<MatchedPath>() {
@@ -219,6 +220,15 @@ async fn run_server() -> io::Result<()> {
     let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
 
     Ok(())
+}
+
+async fn spawn_task<B: Send + 'static>(
+    req: axum::http::Request<B>,
+    next: axum::middleware::Next<B>,
+) -> std::result::Result<axum::response::Response, StatusCode> {
+    tokio::spawn(next.run(req))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 async fn unrecognized_method<B>(
