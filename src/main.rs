@@ -7,7 +7,7 @@
 #![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
 
-use std::{future::Future, io, net::SocketAddr, time::Duration};
+use std::{future::Future, io, net::SocketAddr, sync::atomic, time::Duration};
 
 use axum::{
     extract::{DefaultBodyLimit, FromRequest, MatchedPath},
@@ -147,6 +147,7 @@ async fn run_server() -> io::Result<()> {
 
     let middlewares = ServiceBuilder::new()
         .sensitive_headers([header::AUTHORIZATION])
+        .layer(axum::middleware::from_fn(spawn_task))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &http::Request<_>| {
                 let path = if let Some(path) = request.extensions().get::<MatchedPath>() {
@@ -211,14 +212,19 @@ async fn run_server() -> io::Result<()> {
         }
     }
 
-    // On shutdown
-    info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
-    services().globals.rotate.fire();
-
-    #[cfg(feature = "systemd")]
-    let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
-
     Ok(())
+}
+
+async fn spawn_task<B: Send + 'static>(
+    req: axum::http::Request<B>,
+    next: axum::middleware::Next<B>,
+) -> std::result::Result<axum::response::Response, StatusCode> {
+    if services().globals.shutdown.load(atomic::Ordering::Relaxed) {
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
+    tokio::spawn(next.run(req))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 async fn unrecognized_method<B>(
@@ -442,6 +448,11 @@ async fn shutdown_signal(handle: ServerHandle) {
 
     warn!("Received {}, shutting down...", sig);
     handle.graceful_shutdown(Some(Duration::from_secs(30)));
+
+    services().globals.shutdown();
+
+    #[cfg(feature = "systemd")]
+    let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
 }
 
 async fn not_found(uri: Uri) -> impl IntoResponse {

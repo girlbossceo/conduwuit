@@ -6,7 +6,7 @@ use ruma::{
 
 use crate::api::server_server::FedDest;
 
-use crate::{Config, Error, Result};
+use crate::{services, Config, Error, Result};
 use ruma::{
     api::{
         client::sync::sync_events,
@@ -14,6 +14,7 @@ use ruma::{
     },
     DeviceId, RoomVersionId, ServerName, UserId,
 };
+use std::sync::atomic::{self, AtomicBool};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
@@ -24,7 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::{broadcast, watch::Receiver, Mutex as TokioMutex, Semaphore};
-use tracing::error;
+use tracing::{error, info};
 use trust_dns_resolver::TokioAsyncResolver;
 
 type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
@@ -58,6 +59,8 @@ pub struct Service {
     pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
     pub stateres_mutex: Arc<Mutex<()>>,
     pub rotate: RotationHandler,
+
+    pub shutdown: AtomicBool,
 }
 
 /// Handles "rotation" of long-polling requests. "Rotation" in this context is similar to "rotation" of log files and the like.
@@ -160,6 +163,7 @@ impl Service {
             stateres_mutex: Arc::new(Mutex::new(())),
             sync_receivers: RwLock::new(HashMap::new()),
             rotate: RotationHandler::new(),
+            shutdown: AtomicBool::new(false),
         };
 
         fs::create_dir_all(s.get_media_folder())?;
@@ -340,6 +344,13 @@ impl Service {
         r.push("media");
         r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));
         r
+    }
+
+    pub fn shutdown(&self) {
+        self.shutdown.store(true, atomic::Ordering::Relaxed);
+        // On shutdown
+        info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
+        services().globals.rotate.fire();
     }
 }
 
