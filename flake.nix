@@ -1,56 +1,74 @@
 {
-  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-  inputs.d2n.url = "github:nix-community/dream2nix";
-  inputs.d2n.inputs.nixpkgs.follows = "nixpkgs";
-  inputs.parts.url = "github:hercules-ci/flake-parts";
-  inputs.rust-overlay.url = "github:oxalica/rust-overlay";
-  inputs.rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs";
+    flake-utils.url = "github:numtide/flake-utils";
 
-  outputs = inp:
-    inp.parts.lib.mkFlake {inputs = inp;} {
-      systems = ["x86_64-linux"];
-      imports = [inp.d2n.flakeModuleBeta];
-      perSystem = {
-        config,
-        system,
-        pkgs,
-        ...
-      }: let
-        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-        pkgsWithToolchain = pkgs.appendOverlays [inp.rust-overlay.overlays.default];
-
-        toolchains = pkgsWithToolchain.rust-bin.stable."${cargoToml.package.rust-version}";
-        # toolchain to use when building conduit, includes only cargo and rustc to reduce closure size
-        buildToolchain = toolchains.minimal;
-        # toolchain to use in development shell
-        # the "default" component set of toolchain adds rustfmt, clippy etc.
-        devToolchain = toolchains.default.override {
-          extensions = ["rust-src"];
-        };
-
-        # flake outputs for conduit project
-        conduitOutputs = config.dream2nix.outputs.conduit;
-      in {
-        dream2nix.inputs.conduit = {
-          source = inp.self;
-          projects.conduit = {
-            name = "conduit";
-            subsystem = "rust";
-            translator = "cargo-lock";
-          };
-          packageOverrides = {
-            "^.*".set-toolchain.overrideRustToolchain = _: {
-              cargo = buildToolchain;
-              rustc = buildToolchain;
-            };
-          };
-        };
-        devShells.conduit = conduitOutputs.devShells.conduit.overrideAttrs (old: {
-          # export default crate sources for rust-analyzer to read
-          RUST_SRC_PATH = "${devToolchain}/lib/rustlib/src/rust/library";
-          nativeBuildInputs = (old.nativeBuildInputs or []) ++ [devToolchain];
-        });
-        devShells.default = config.devShells.conduit;
-      };
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
+    naersk = {
+      url = "github:nix-community/naersk";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs =
+    { self
+    , nixpkgs
+    , flake-utils
+
+    , fenix
+    , naersk
+    }: flake-utils.lib.eachDefaultSystem (system:
+    let
+      pkgs = nixpkgs.legacyPackages.${system};
+
+      # Nix-accessible `Cargo.toml`
+      cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
+      # The Rust toolchain to use
+      toolchain = fenix.packages.${system}.toolchainOf {
+        # Use the Rust version defined in `Cargo.toml`
+        channel = cargoToml.package.rust-version;
+
+        # THE rust-version HASH
+        sha256 = "sha256-8len3i8oTwJSOJZMosGGXHBL5BVuGQnWOT2St5YAUFU=";
+      };
+
+      builder = (pkgs.callPackage naersk {
+        inherit (toolchain) rustc cargo;
+      }).buildPackage;
+    in
+    {
+      packages.default = builder {
+        src = ./.;
+
+        nativeBuildInputs = (with pkgs.rustPlatform; [
+          bindgenHook
+        ]);
+      };
+
+      devShells.default = pkgs.mkShell {
+        # Rust Analyzer needs to be able to find the path to default crate
+        # sources, and it can read this environment variable to do so
+        RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/library";
+
+        # Development tools
+        nativeBuildInputs = (with pkgs.rustPlatform; [
+          bindgenHook
+        ]) ++ (with toolchain; [
+          cargo
+          clippy
+          rust-src
+          rustc
+          rustfmt
+        ]);
+      };
+
+      checks = {
+        packagesDefault = self.packages.${system}.default;
+        devShellsDefault = self.devShells.${system}.default;
+      };
+    });
 }
