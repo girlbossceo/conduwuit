@@ -41,6 +41,11 @@
       ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb_6_23}/include";
       ROCKSDB_LIB_DIR = "${pkgs.rocksdb_6_23}/lib";
 
+      # Shared between the package and the devShell
+      nativeBuildInputs = (with pkgs.rustPlatform; [
+        bindgenHook
+      ]);
+
       builder =
         ((crane.mkLib pkgs).overrideToolchain toolchain.toolchain).buildPackage;
     in
@@ -51,9 +56,7 @@
         # Use system RocksDB
         inherit ROCKSDB_INCLUDE_DIR ROCKSDB_LIB_DIR;
 
-        nativeBuildInputs = (with pkgs.rustPlatform; [
-          bindgenHook
-        ]);
+        inherit nativeBuildInputs;
       };
 
       devShells.default = pkgs.mkShell {
@@ -65,9 +68,7 @@
         inherit ROCKSDB_INCLUDE_DIR ROCKSDB_LIB_DIR;
 
         # Development tools
-        nativeBuildInputs = (with pkgs.rustPlatform; [
-          bindgenHook
-        ]) ++ (with toolchain; [
+        nativeBuildInputs = nativeBuildInputs ++ (with toolchain; [
           cargo
           clippy
           rust-src
