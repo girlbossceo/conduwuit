@@ -37,7 +37,7 @@
         sha256 = "sha256-8len3i8oTwJSOJZMosGGXHBL5BVuGQnWOT2St5YAUFU=";
       };
 
-      # Point to system RocksDB
+      # The system's RocksDB
       ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb_6_23}/include";
       ROCKSDB_LIB_DIR = "${pkgs.rocksdb_6_23}/lib";
 
@@ -53,10 +53,10 @@
       packages.default = builder {
         src = ./.;
 
-        # Use system RocksDB
-        inherit ROCKSDB_INCLUDE_DIR ROCKSDB_LIB_DIR;
-
-        inherit nativeBuildInputs;
+        inherit
+          nativeBuildInputs
+          ROCKSDB_INCLUDE_DIR
+          ROCKSDB_LIB_DIR;
       };
 
       devShells.default = pkgs.mkShell {
@@ -64,8 +64,9 @@
         # sources, and it can read this environment variable to do so
         RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/library";
 
-        # Use system RocksDB
-        inherit ROCKSDB_INCLUDE_DIR ROCKSDB_LIB_DIR;
+        inherit
+          ROCKSDB_INCLUDE_DIR
+          ROCKSDB_LIB_DIR;
 
         # Development tools
         nativeBuildInputs = nativeBuildInputs ++ (with toolchain; [
