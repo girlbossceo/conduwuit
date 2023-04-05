@@ -25,6 +25,12 @@
     let
       pkgs = nixpkgs.legacyPackages.${system};
 
+      # Use mold on Linux
+      stdenv = if pkgs.stdenv.isLinux then
+        pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
+      else
+        pkgs.stdenv;
+
       # Nix-accessible `Cargo.toml`
       cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 
@@ -54,12 +60,13 @@
         src = ./.;
 
         inherit
+          stdenv
           nativeBuildInputs
           ROCKSDB_INCLUDE_DIR
           ROCKSDB_LIB_DIR;
       };
 
-      devShells.default = pkgs.mkShell {
+      devShells.default = (pkgs.mkShell.override { inherit stdenv; }) {
         # Rust Analyzer needs to be able to find the path to default crate
         # sources, and it can read this environment variable to do so
         RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/library";
