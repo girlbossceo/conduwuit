@@ -7,9 +7,10 @@
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    naersk = {
-      url = "github:nix-community/naersk";
+    crane = {
+      url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
     };
   };
 
@@ -19,7 +20,7 @@
     , flake-utils
 
     , fenix
-    , naersk
+    , crane
     }: flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = nixpkgs.legacyPackages.${system};
@@ -40,9 +41,8 @@
       ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb_6_23}/include";
       ROCKSDB_LIB_DIR = "${pkgs.rocksdb_6_23}/lib";
 
-      builder = (pkgs.callPackage naersk {
-        inherit (toolchain) rustc cargo;
-      }).buildPackage;
+      builder =
+        ((crane.mkLib pkgs).overrideToolchain toolchain.toolchain).buildPackage;
     in
     {
       packages.default = builder {
