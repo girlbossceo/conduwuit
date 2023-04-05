@@ -1,56 +1,93 @@
 {
-  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-  inputs.d2n.url = "github:nix-community/dream2nix";
-  inputs.d2n.inputs.nixpkgs.follows = "nixpkgs";
-  inputs.parts.url = "github:hercules-ci/flake-parts";
-  inputs.rust-overlay.url = "github:oxalica/rust-overlay";
-  inputs.rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs";
+    flake-utils.url = "github:numtide/flake-utils";
 
-  outputs = inp:
-    inp.parts.lib.mkFlake {inputs = inp;} {
-      systems = ["x86_64-linux"];
-      imports = [inp.d2n.flakeModuleBeta];
-      perSystem = {
-        config,
-        system,
-        pkgs,
-        ...
-      }: let
-        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-        pkgsWithToolchain = pkgs.appendOverlays [inp.rust-overlay.overlays.default];
-
-        toolchains = pkgsWithToolchain.rust-bin.stable."${cargoToml.package.rust-version}";
-        # toolchain to use when building conduit, includes only cargo and rustc to reduce closure size
-        buildToolchain = toolchains.minimal;
-        # toolchain to use in development shell
-        # the "default" component set of toolchain adds rustfmt, clippy etc.
-        devToolchain = toolchains.default.override {
-          extensions = ["rust-src"];
-        };
-
-        # flake outputs for conduit project
-        conduitOutputs = config.dream2nix.outputs.conduit;
-      in {
-        dream2nix.inputs.conduit = {
-          source = inp.self;
-          projects.conduit = {
-            name = "conduit";
-            subsystem = "rust";
-            translator = "cargo-lock";
-          };
-          packageOverrides = {
-            "^.*".set-toolchain.overrideRustToolchain = _: {
-              cargo = buildToolchain;
-              rustc = buildToolchain;
-            };
-          };
-        };
-        devShells.conduit = conduitOutputs.devShells.conduit.overrideAttrs (old: {
-          # export default crate sources for rust-analyzer to read
-          RUST_SRC_PATH = "${devToolchain}/lib/rustlib/src/rust/library";
-          nativeBuildInputs = (old.nativeBuildInputs or []) ++ [devToolchain];
-        });
-        devShells.default = config.devShells.conduit;
-      };
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
+    crane = {
+      url = "github:ipetkov/crane";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+  };
+
+  outputs =
+    { self
+    , nixpkgs
+    , flake-utils
+
+    , fenix
+    , crane
+    }: flake-utils.lib.eachDefaultSystem (system:
+    let
+      pkgs = nixpkgs.legacyPackages.${system};
+
+      # Use mold on Linux
+      stdenv = if pkgs.stdenv.isLinux then
+        pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
+      else
+        pkgs.stdenv;
+
+      # Nix-accessible `Cargo.toml`
+      cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
+      # The Rust toolchain to use
+      toolchain = fenix.packages.${system}.toolchainOf {
+        # Use the Rust version defined in `Cargo.toml`
+        channel = cargoToml.package.rust-version;
+
+        # THE rust-version HASH
+        sha256 = "sha256-8len3i8oTwJSOJZMosGGXHBL5BVuGQnWOT2St5YAUFU=";
+      };
+
+      # The system's RocksDB
+      ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb_6_23}/include";
+      ROCKSDB_LIB_DIR = "${pkgs.rocksdb_6_23}/lib";
+
+      # Shared between the package and the devShell
+      nativeBuildInputs = (with pkgs.rustPlatform; [
+        bindgenHook
+      ]);
+
+      builder =
+        ((crane.mkLib pkgs).overrideToolchain toolchain.toolchain).buildPackage;
+    in
+    {
+      packages.default = builder {
+        src = ./.;
+
+        inherit
+          stdenv
+          nativeBuildInputs
+          ROCKSDB_INCLUDE_DIR
+          ROCKSDB_LIB_DIR;
+      };
+
+      devShells.default = (pkgs.mkShell.override { inherit stdenv; }) {
+        # Rust Analyzer needs to be able to find the path to default crate
+        # sources, and it can read this environment variable to do so
+        RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/library";
+
+        inherit
+          ROCKSDB_INCLUDE_DIR
+          ROCKSDB_LIB_DIR;
+
+        # Development tools
+        nativeBuildInputs = nativeBuildInputs ++ (with toolchain; [
+          cargo
+          clippy
+          rust-src
+          rustc
+          rustfmt
+        ]);
+      };
+
+      checks = {
+        packagesDefault = self.packages.${system}.default;
+        devShellsDefault = self.devShells.${system}.default;
+      };
+    });
 }
