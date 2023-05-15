@@ -443,7 +443,8 @@ impl Service {
                     )?;
                     let server_user = format!("@conduit:{}", services().globals.server_name());
 
-                    let to_conduit = body.starts_with(&format!("{server_user}: "));
+                    let to_conduit = body.starts_with(&format!("{server_user}: "))
+                        || body.starts_with(&format!("{server_user} "));
 
                     // This will evaluate to false if the emergency password is set up so that
                     // the administrator can execute commands as conduit
