@@ -7,7 +7,7 @@
 
 ## Installing Conduit
 
-Although you might be able to compile Conduit for Windows, we do recommend running it on a linux server. We therefore
+Although you might be able to compile Conduit for Windows, we do recommend running it on a Linux server. We therefore
 only offer Linux binaries.
 
 You may simply download the binary that fits your machine. Run `uname -m` to see what you need. Now copy the right url:
@@ -90,7 +90,7 @@ Conduit uses the ports 443 and 8448 both of which need to be open in the firewal
 
 If Conduit runs behind a router or in a container and has a different public IP address than the host system these public ports need to be forwarded directly or indirectly to the port mentioned in the config.
 
-## Delegation of federation traffic
+## Optional: Avoid port 8448
 
 If Conduit runs behind Cloudflare reverse proxy, which doesn't support port 8448 on free plans, [delegation](https://matrix-org.github.io/synapse/latest/delegate.html) can be set up to have federation traffic routed to port 443:
 ```apache
@@ -174,6 +174,7 @@ allow_registration = true
 
 allow_federation = true
 
+# Server to get public keys from. You probably shouldn't change this
 trusted_servers = ["matrix.org"]
 
 #max_concurrent_requests = 100 # How many requests Conduit sends to other servers at the same time
