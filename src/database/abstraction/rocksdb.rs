@@ -54,7 +54,7 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
 impl KeyValueDatabaseEngine for Arc<Engine> {
     fn open(config: &Config) -> Result<Self> {
         let cache_capacity_bytes = (config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize;
-        let rocksdb_cache = rocksdb::Cache::new_lru_cache(cache_capacity_bytes).unwrap();
+        let rocksdb_cache = rocksdb::Cache::new_lru_cache(cache_capacity_bytes);
 
         let db_opts = db_options(config.rocksdb_max_open_files, &rocksdb_cache);
 
@@ -161,7 +161,7 @@ impl KvTree for RocksDbEngineTree<'_> {
             self.db
                 .rocks
                 .iterator_cf(&self.cf(), rocksdb::IteratorMode::Start)
-                //.map(|r| r.unwrap())
+                .map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v))),
         )
     }
@@ -185,7 +185,7 @@ impl KvTree for RocksDbEngineTree<'_> {
                         },
                     ),
                 )
-                //.map(|r| r.unwrap())
+                .map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v))),
         )
     }
@@ -226,7 +226,7 @@ impl KvTree for RocksDbEngineTree<'_> {
                     &self.cf(),
                     rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward),
                 )
-                //.map(|r| r.unwrap())
+                .map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v)))
                 .take_while(move |(k, _)| k.starts_with(&prefix)),
         )
