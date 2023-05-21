@@ -28,7 +28,8 @@ variables:
     # Famedly runners use BTRFS, overlayfs and overlay2 often break jobs
     DOCKER_DRIVER: btrfs
   services:
-    - docker:dind
+    - name: docker:dind
+      alias: docker
   script:
     - apk add openssh-client
     - eval $(ssh-agent -s)
@@ -109,7 +110,7 @@ docker:tags:
 
 cargo check:
   stage: test
-  image: docker.io/rust:1.64.0-bullseye
+  image: docker.io/rust:1.69.0-bullseye
   needs: []
   interruptible: true
   before_script:
