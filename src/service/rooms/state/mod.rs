@@ -8,7 +8,7 @@ pub use data::Data;
 use ruma::{
     events::{
         room::{create::RoomCreateEventContent, member::MembershipState},
-        AnyStrippedStateEvent, RoomEventType, StateEventType,
+        AnyStrippedStateEvent, StateEventType, TimelineEventType,
     },
     serde::Raw,
     state_res::{self, StateMap},
@@ -358,7 +358,7 @@ impl Service {
     pub fn get_auth_events(
         &self,
         room_id: &RoomId,
-        kind: &RoomEventType,
+        kind: &TimelineEventType,
         sender: &UserId,
         state_key: Option<&str>,
         content: &serde_json::value::RawValue,

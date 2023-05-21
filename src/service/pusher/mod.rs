@@ -15,7 +15,7 @@ use ruma::{
     },
     events::{
         room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},
-        RoomEventType, StateEventType,
+        StateEventType, TimelineEventType,
     },
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     serde::Raw,
@@ -169,6 +169,7 @@ impl Service {
                     tweaks.push(tweak.clone());
                     continue;
                 }
+                _ => false,
             };
 
             if notify.is_some() {
@@ -248,7 +249,7 @@ impl Service {
                 // TODO: missed calls
                 notifi.counts = NotificationCounts::new(unread, uint!(0));
 
-                if event.kind == RoomEventType::RoomEncrypted
+                if event.kind == TimelineEventType::RoomEncrypted
                     || tweaks
                         .iter()
                         .any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
@@ -264,7 +265,7 @@ impl Service {
                     notifi.event_type = Some(event.kind.clone());
                     notifi.content = serde_json::value::to_raw_value(&event.content).ok();
 
-                    if event.kind == RoomEventType::RoomMember {
+                    if event.kind == TimelineEventType::RoomMember {
                         notifi.user_is_target =
                             event.state_key.as_deref() == Some(event.sender.as_str());
                     }

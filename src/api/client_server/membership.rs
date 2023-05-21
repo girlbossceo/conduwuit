@@ -17,7 +17,7 @@ use ruma::{
             member::{MembershipState, RoomMemberEventContent},
             power_levels::RoomPowerLevelsEventContent,
         },
-        RoomEventType, StateEventType,
+        StateEventType, TimelineEventType,
     },
     serde::Base64,
     state_res, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
@@ -209,7 +209,7 @@ pub async fn kick_user_route(
 
     services().rooms.timeline.build_and_append_pdu(
         PduBuilder {
-            event_type: RoomEventType::RoomMember,
+            event_type: TimelineEventType::RoomMember,
             content: to_raw_value(&event).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
@@ -273,7 +273,7 @@ pub async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_use
 
     services().rooms.timeline.build_and_append_pdu(
         PduBuilder {
-            event_type: RoomEventType::RoomMember,
+            event_type: TimelineEventType::RoomMember,
             content: to_raw_value(&event).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
@@ -331,7 +331,7 @@ pub async fn unban_user_route(
 
     services().rooms.timeline.build_and_append_pdu(
         PduBuilder {
-            event_type: RoomEventType::RoomMember,
+            event_type: TimelineEventType::RoomMember,
             content: to_raw_value(&event).expect("event is valid, we just created it"),
             unsigned: None,
             state_key: Some(body.user_id.to_string()),
@@ -590,6 +590,7 @@ async fn join_room_by_id_helper(
                     room_id: room_id.to_owned(),
                     event_id: event_id.to_owned(),
                     pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+                    omit_members: false,
                 },
             )
             .await?;
@@ -886,7 +887,7 @@ async fn join_room_by_id_helper(
         // Try normal join first
         let error = match services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomMember,
+                event_type: TimelineEventType::RoomMember,
                 content: to_raw_value(&event).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some(sender_user.to_string()),
@@ -996,6 +997,7 @@ async fn join_room_by_id_helper(
                         room_id: room_id.to_owned(),
                         event_id: event_id.to_owned(),
                         pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+                        omit_members: false,
                     },
                 )
                 .await?;
@@ -1186,7 +1188,7 @@ pub(crate) async fn invite_helper<'a>(
 
             let (pdu, pdu_json) = services().rooms.timeline.create_hash_and_sign_event(
                 PduBuilder {
-                    event_type: RoomEventType::RoomMember,
+                    event_type: TimelineEventType::RoomMember,
                     content,
                     unsigned: None,
                     state_key: Some(user_id.to_string()),
@@ -1295,7 +1297,7 @@ pub(crate) async fn invite_helper<'a>(
 
     services().rooms.timeline.build_and_append_pdu(
         PduBuilder {
-            event_type: RoomEventType::RoomMember,
+            event_type: TimelineEventType::RoomMember,
             content: to_raw_value(&RoomMemberEventContent {
                 membership: MembershipState::Invite,
                 displayname: services().users.displayname(user_id)?,
@@ -1420,7 +1422,7 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomMember,
+                event_type: TimelineEventType::RoomMember,
                 content: to_raw_value(&event).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some(user_id.to_string()),

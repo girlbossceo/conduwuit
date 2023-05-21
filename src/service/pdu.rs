@@ -3,7 +3,7 @@ use ruma::{
     events::{
         room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyStateEvent,
         AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent, AnyTimelineEvent,
-        RoomEventType, StateEvent,
+        StateEvent, TimelineEventType,
     },
     serde::Raw,
     state_res, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch,
@@ -31,7 +31,7 @@ pub struct PduEvent {
     pub sender: OwnedUserId,
     pub origin_server_ts: UInt,
     #[serde(rename = "type")]
-    pub kind: RoomEventType,
+    pub kind: TimelineEventType,
     pub content: Box<RawJsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state_key: Option<String>,
@@ -53,10 +53,10 @@ impl PduEvent {
         self.unsigned = None;
 
         let allowed: &[&str] = match self.kind {
-            RoomEventType::RoomMember => &["join_authorised_via_users_server", "membership"],
-            RoomEventType::RoomCreate => &["creator"],
-            RoomEventType::RoomJoinRules => &["join_rule"],
-            RoomEventType::RoomPowerLevels => &[
+            TimelineEventType::RoomMember => &["join_authorised_via_users_server", "membership"],
+            TimelineEventType::RoomCreate => &["creator"],
+            TimelineEventType::RoomJoinRules => &["join_rule"],
+            TimelineEventType::RoomPowerLevels => &[
                 "ban",
                 "events",
                 "events_default",
@@ -66,7 +66,7 @@ impl PduEvent {
                 "users",
                 "users_default",
             ],
-            RoomEventType::RoomHistoryVisibility => &["history_visibility"],
+            TimelineEventType::RoomHistoryVisibility => &["history_visibility"],
             _ => &[],
         };
 
@@ -296,7 +296,7 @@ impl state_res::Event for PduEvent {
         &self.sender
     }
 
-    fn event_type(&self) -> &RoomEventType {
+    fn event_type(&self) -> &TimelineEventType {
         &self.kind
     }
 
@@ -372,7 +372,7 @@ pub(crate) fn gen_event_id_canonical_json(
 #[derive(Debug, Deserialize)]
 pub struct PduBuilder {
     #[serde(rename = "type")]
-    pub event_type: RoomEventType,
+    pub event_type: TimelineEventType,
     pub content: Box<RawJsonValue>,
     pub unsigned: Option<BTreeMap<String, serde_json::Value>>,
     pub state_key: Option<String>,

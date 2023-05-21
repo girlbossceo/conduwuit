@@ -1,20 +1,19 @@
 mod data;
 
-use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+};
 
-use std::sync::RwLock;
 use std::{
     collections::HashSet,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 pub use data::Data;
 use regex::Regex;
-use ruma::api::federation;
-use ruma::serde::Base64;
 use ruma::{
-    api::client::error::ErrorKind,
+    api::{client::error::ErrorKind, federation},
     canonical_json::to_canonical_value,
     events::{
         push_rules::PushRulesEvent,
@@ -22,23 +21,22 @@ use ruma::{
             create::RoomCreateEventContent, member::MembershipState,
             power_levels::RoomPowerLevelsEventContent,
         },
-        GlobalAccountDataEventType, RoomEventType, StateEventType,
+        GlobalAccountDataEventType, StateEventType, TimelineEventType,
     },
     push::{Action, Ruleset, Tweak},
+    serde::Base64,
     state_res,
-    state_res::Event,
-    state_res::RoomVersion,
-    uint, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
-    OwnedServerName, RoomAliasId, RoomId, UserId,
+    state_res::{Event, RoomVersion},
+    uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
+    OwnedServerName, RoomAliasId, RoomId, ServerName, UserId,
 };
-use ruma::{user_id, ServerName};
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::MutexGuard;
 use tracing::{error, info, warn};
 
-use crate::api::server_server;
 use crate::{
+    api::server_server,
     service::pdu::{EventHash, PduBuilder},
     services, utils, Error, PduEvent, Result,
 };
@@ -381,12 +379,12 @@ impl Service {
             .increment_notification_counts(&pdu.room_id, notifies, highlights)?;
 
         match pdu.kind {
-            RoomEventType::RoomRedaction => {
+            TimelineEventType::RoomRedaction => {
                 if let Some(redact_id) = &pdu.redacts {
                     self.redact_pdu(redact_id, pdu)?;
                 }
             }
-            RoomEventType::RoomMember => {
+            TimelineEventType::RoomMember => {
                 if let Some(state_key) = &pdu.state_key {
                     #[derive(Deserialize)]
                     struct ExtractMembership {
@@ -420,7 +418,7 @@ impl Service {
                     )?;
                 }
             }
-            RoomEventType::RoomMessage => {
+            TimelineEventType::RoomMessage => {
                 #[derive(Deserialize)]
                 struct ExtractBody {
                     body: Option<String>,
@@ -473,7 +471,7 @@ impl Service {
 
             // If the RoomMember event has a non-empty state_key, it is targeted at someone.
             // If it is our appservice user, we send this PDU to it.
-            if pdu.kind == RoomEventType::RoomMember {
+            if pdu.kind == TimelineEventType::RoomMember {
                 if let Some(state_key_uid) = &pdu
                     .state_key
                     .as_ref()
@@ -523,7 +521,7 @@ impl Service {
 
                 let matching_users = |users: &Regex| {
                     users.is_match(pdu.sender.as_str())
-                        || pdu.kind == RoomEventType::RoomMember
+                        || pdu.kind == TimelineEventType::RoomMember
                             && pdu
                                 .state_key
                                 .as_ref()
@@ -757,14 +755,14 @@ impl Service {
         )?;
         if admin_room.filter(|v| v == room_id).is_some() {
             match pdu.event_type() {
-                RoomEventType::RoomEncryption => {
+                TimelineEventType::RoomEncryption => {
                     warn!("Encryption is not allowed in the admins room");
                     return Err(Error::BadRequest(
                         ErrorKind::Forbidden,
                         "Encryption is not allowed in the admins room.",
                     ));
                 }
-                RoomEventType::RoomMember => {
+                TimelineEventType::RoomMember => {
                     #[derive(Deserialize)]
                     struct ExtractMembership {
                         membership: MembershipState,
@@ -863,7 +861,7 @@ impl Service {
             .collect();
 
         // In case we are kicking or banning a user, we need to inform their server of the change
-        if pdu.kind == RoomEventType::RoomMember {
+        if pdu.kind == TimelineEventType::RoomMember {
             if let Some(state_key_uid) = &pdu
                 .state_key
                 .as_ref()
@@ -1101,7 +1099,7 @@ impl Service {
         drop(insert_lock);
 
         match pdu.kind {
-            RoomEventType::RoomMessage => {
+            TimelineEventType::RoomMessage => {
                 #[derive(Deserialize)]
                 struct ExtractBody {
                     body: Option<String>,

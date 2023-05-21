@@ -75,7 +75,7 @@ pub async fn get_global_account_data_route(
 
     let event: Box<RawJsonValue> = services()
         .account_data
-        .get(None, sender_user, body.event_type.clone().into())?
+        .get(None, sender_user, body.event_type.to_string().into())?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
     let account_data = serde_json::from_str::<ExtractGlobalEventContent>(event.get())
@@ -95,11 +95,7 @@ pub async fn get_room_account_data_route(
 
     let event: Box<RawJsonValue> = services()
         .account_data
-        .get(
-            Some(&body.room_id),
-            sender_user,
-            body.event_type.clone().into(),
-        )?
+        .get(Some(&body.room_id), sender_user, body.event_type.clone())?
         .ok_or(Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
 
     let account_data = serde_json::from_str::<ExtractRoomEventContent>(event.get())
