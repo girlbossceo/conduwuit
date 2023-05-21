@@ -20,9 +20,9 @@ rust-version = "1.64.0"
 [dependencies]
 # Web framework
 axum = { version = "0.5.17", default-features = false, features = ["form", "headers", "http1", "http2", "json", "matched-path"], optional = true }
-axum-server = { version = "0.4.0", features = ["tls-rustls"] }
-tower = { version = "0.4.8", features = ["util"] }
-tower-http = { version = "0.3.4", features = ["add-extension", "cors", "compression-full", "sensitive-headers", "trace", "util"] }
+axum-server = { version = "0.4.7", features = ["tls-rustls"] }
+tower = { version = "0.4.13", features = ["util"] }
+tower-http = { version = "0.3.5", features = ["add-extension", "cors", "compression-full", "sensitive-headers", "trace", "util"] }
 
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
@@ -31,46 +31,46 @@ ruma = { git = "https://github.com/ruma/ruma", rev = "8eea3e05490fa9a318f9ed66c3
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 
 # Async runtime and utilities
-tokio = { version = "1.11.0", features = ["fs", "macros", "signal", "sync"] }
+tokio = { version = "1.28.1", features = ["fs", "macros", "signal", "sync"] }
 # Used for storing data permanently
 #sled = { version = "0.34.7", features = ["compression", "no_metrics"], optional = true }
 #sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
-persy = { version = "1.0.0", optional = true, features = ["background_ops"] }
+persy = { version = "1.4.4", optional = true, features = ["background_ops"] }
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
-bytes = "1.1.0"
-http = "0.2.4"
+bytes = "1.4.0"
+http = "0.2.9"
 # Used to find data directory for default db path
-directories = "4.0.0"
+directories = "4.0.1"
 # Used for ruma wrapper
-serde_json = { version = "1.0.68", features = ["raw_value"] }
+serde_json = { version = "1.0.96", features = ["raw_value"] }
 # Used for appservice registration files
-serde_yaml = "0.9.13"
+serde_yaml = "0.9.21"
 # Used for pdu definition
-serde = { version = "1.0.130", features = ["rc"] }
+serde = { version = "1.0.163", features = ["rc"] }
 # Used for secure identifiers
-rand = "0.8.4"
+rand = "0.8.5"
 # Used to hash passwords
 rust-argon2 = "1.0.0"
 # Used to send requests
 reqwest = { default-features = false, features = ["rustls-tls-native-roots", "socks"], git = "https://github.com/timokoesters/reqwest", rev = "57b7cf4feb921573dfafad7d34b9ac6e44ead0bd" }
 # Used for conduit::Error type
-thiserror = "1.0.29"
+thiserror = "1.0.40"
 # Used to generate thumbnails for images
-image = { version = "0.24.4", default-features = false, features = ["jpeg", "png", "gif"] }
+image = { version = "0.24.6", default-features = false, features = ["jpeg", "png", "gif"] }
 # Used to encode server public key
-base64 = "0.13.0"
+base64 = "0.13.1"
 # Used when hashing the state
 ring = "0.16.20"
 # Used when querying the SRV record of other servers
 trust-dns-resolver = "0.22.0"
 # Used to find matching events for appservices
-regex = "1.5.4"
+regex = "1.8.1"
 # jwt jsonwebtokens
-jsonwebtoken = "8.1.1"
+jsonwebtoken = "8.3.0"
 # Performance measurements
-tracing = { version = "0.1.27", features = [] }
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+tracing = { version = "0.1.37", features = [] }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 tracing-flame = "0.2.0"
 opentelemetry = { version = "0.18.0", features = ["rt-tokio"] }
 opentelemetry-jaeger = { version = "0.17.0", features = ["rt-tokio"] }
@@ -78,8 +78,8 @@ tracing-opentelemetry = "0.18.0"
 lru-cache = "0.1.2"
 rusqlite = { version = "0.28.0", optional = true, features = ["bundled"] }
 parking_lot = { version = "0.12.1", optional = true }
-crossbeam = { version = "0.8.1", optional = true }
-num_cpus = "1.13.0"
+crossbeam = { version = "0.8.2", optional = true }
+num_cpus = "1.15.0"
 threadpool = "1.8.1"
 heed = { git = "https://github.com/timokoesters/heed.git", rev = "f6f825da7fb2c758867e05ad973ef800a6fe1d5d", optional = true }
 # Used for ruma wrapper
@@ -87,20 +87,20 @@ serde_html_form = "0.2.0"
 
 rocksdb = { version = "0.21.0", default-features = true, features = ["multi-threaded-cf", "zstd"], optional = true }
 
-thread_local = "1.1.3"
+thread_local = "1.1.7"
 # used for TURN server authentication
 hmac = "0.12.1"
-sha-1 = "0.10.0"
+sha-1 = "0.10.1"
 # used for conduit's CLI and admin room command parsing
-clap = { version = "4.0.11", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
-futures-util = { version = "0.3.17", default-features = false }
+clap = { version = "4.3.0", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
+futures-util = { version = "0.3.28", default-features = false }
 # Used for reading the configuration from conduit.toml & environment variables
-figment = { version = "0.10.6", features = ["env", "toml"] }
+figment = { version = "0.10.8", features = ["env", "toml"] }
 
 tikv-jemalloc-ctl = { version = "0.5.0", features = ["use_std"], optional = true }
 tikv-jemallocator = { version = "0.5.0", features = ["unprefixed_malloc_on_supported_platforms"], optional = true }
 lazy_static = "1.4.0"
-async-trait = "0.1.57"
+async-trait = "0.1.68"
 
 sd-notify = { version = "0.4.1", optional = true }
 
