@@ -105,12 +105,10 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
             }
         }
         login::v3::LoginInfo::ApplicationService(login::v3::ApplicationService { identifier }) => {
-            info!("hi");
             if !body.from_appservice {
                 return Err(Error::BadRequest(
                     ErrorKind::Forbidden,
-                    // TODO: is this the correct response
-                    "Wrong username or password.",
+                    "Forbidden login type."
                 ));
             };
             let username = if let UserIdentifier::UserIdOrLocalpart(user_id) = identifier {
