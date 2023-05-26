@@ -118,7 +118,16 @@ in
             ssl = true;
           }
           {
+            addr = "[::]";
+            port = 443;
+            ssl = true;
+          }          {
             addr = "0.0.0.0";
+            port = 8448;
+            ssl = true;
+          }
+          {
+            addr = "[::]";
             port = 8448;
             ssl = true;
           }
