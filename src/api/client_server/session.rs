@@ -108,7 +108,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
             if !body.from_appservice {
                 return Err(Error::BadRequest(
                     ErrorKind::Forbidden,
-                    "Forbidden login type."
+                    "Forbidden login type.",
                 ));
             };
             let username = if let UserIdentifier::UserIdOrLocalpart(user_id) = identifier {

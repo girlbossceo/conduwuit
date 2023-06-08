@@ -106,6 +106,7 @@ pub async fn join_room_by_id_or_alias_route(
             );
 
             servers.push(room_id.server_name().to_owned());
+
             (servers, room_id)
         }
         Err(room_alias) => {
@@ -598,7 +599,7 @@ async fn join_room_by_id_helper(
         info!("send_join finished");
 
         if let Some(signed_raw) = &send_join_response.room_state.event {
-            info!("There is a signed event. This room is probably using restricted joins");
+            info!("There is a signed event. This room is probably using restricted joins. Adding signature to our event");
             let (signed_event_id, signed_value) =
                 match gen_event_id_canonical_json(signed_raw, &room_version_id) {
                     Ok(t) => t,
@@ -901,7 +902,13 @@ async fn join_room_by_id_helper(
             Err(e) => e,
         };
 
-        if !restriction_rooms.is_empty() {
+        if !restriction_rooms.is_empty()
+            && servers
+                .iter()
+                .filter(|s| *s != services().globals.server_name())
+                .count()
+                > 0
+        {
             info!(
                 "We couldn't do the join locally, maybe federation can help to satisfy the restricted join requirements"
             );
