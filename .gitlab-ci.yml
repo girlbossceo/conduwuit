@@ -110,7 +110,7 @@ docker:tags:
 
 cargo check:
   stage: test
-  image: docker.io/rust:1.69.0-bullseye
+  image: docker.io/rust:1.70.0-bullseye
   needs: []
   interruptible: true
   before_script:
@@ -135,11 +135,7 @@ test:cargo:
     - apt-get update && apt-get -y --no-install-recommends install libclang-dev # dependency for rocksdb
   script:
     - rustc --version && cargo --version # Print version info for debugging
-    - "cargo test --color always --workspace --verbose --locked --no-fail-fast -- -Z unstable-options --format json | gitlab-report -p test > $CI_PROJECT_DIR/report.xml"
-  artifacts:
-    when: always
-    reports:
-      junit: report.xml
+    - "cargo test --color always --workspace --verbose --locked --no-fail-fast"
 
 test:clippy:
   extends: .test-shared-settings
