@@ -40,7 +40,7 @@
         channel = cargoToml.package.rust-version;
 
         # THE rust-version HASH
-        sha256 = "sha256-8len3i8oTwJSOJZMosGGXHBL5BVuGQnWOT2St5YAUFU=";
+        sha256 = "sha256-gdYqng0y9iHYzYPAdkC/ka3DRny3La/S5G8ASj0Ayyc=";
       };
 
       # The system's RocksDB
