@@ -383,6 +383,7 @@ fn routes() -> Router {
         .ruma_route(client_server::set_pushers_route)
         // .ruma_route(client_server::third_party_route)
         .ruma_route(client_server::upgrade_room_route)
+        .ruma_route(client_server::get_threads_route)
         .ruma_route(server_server::get_server_version_route)
         .route(
             "/_matrix/key/v2/server",

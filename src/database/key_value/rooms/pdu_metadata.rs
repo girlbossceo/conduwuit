@@ -5,6 +5,13 @@ use ruma::{EventId, RoomId};
 use crate::{database::KeyValueDatabase, service, Result};
 
 impl service::rooms::pdu_metadata::Data for KeyValueDatabase {
+    fn add_relation(&self, from: u64, to: u64) -> Result<()> {
+        let mut key = from.to_be_bytes().to_vec();
+        key.extend_from_slice(&to.to_be_bytes());
+        self.fromto_relation.insert(&key, &[])?;
+        Ok(())
+    }
+
     fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()> {
         for prev in event_ids {
             let mut key = room_id.as_bytes().to_vec();

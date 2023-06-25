@@ -69,18 +69,18 @@ pub async fn get_context_route(
         lazy_loaded.insert(base_event.sender.as_str().to_owned());
     }
 
+    // Use limit with maximum 100
+    let limit = usize::try_from(body.limit)
+        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid."))?
+        .min(100);
+
     let base_event = base_event.to_room_event();
 
     let events_before: Vec<_> = services()
         .rooms
         .timeline
         .pdus_until(sender_user, &room_id, base_token)?
-        .take(
-            u32::try_from(body.limit).map_err(|_| {
-                Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
-            })? as usize
-                / 2,
-        )
+        .take(limit / 2)
         .filter_map(|r| r.ok()) // Remove buggy events
         .filter(|(_, pdu)| {
             services()
@@ -114,12 +114,7 @@ pub async fn get_context_route(
         .rooms
         .timeline
         .pdus_after(sender_user, &room_id, base_token)?
-        .take(
-            u32::try_from(body.limit).map_err(|_| {
-                Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
-            })? as usize
-                / 2,
-        )
+        .take(limit / 2)
         .filter_map(|r| r.ok()) // Remove buggy events
         .filter(|(_, pdu)| {
             services()

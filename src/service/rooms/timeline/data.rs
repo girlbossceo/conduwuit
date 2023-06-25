@@ -57,7 +57,12 @@ pub trait Data: Send + Sync {
     ) -> Result<()>;
 
     /// Removes a pdu and creates a new one with the same id.
-    fn replace_pdu(&self, pdu_id: &[u8], pdu: &PduEvent) -> Result<()>;
+    fn replace_pdu(
+        &self,
+        pdu_id: &[u8],
+        pdu_json: &CanonicalJsonObject,
+        pdu: &PduEvent,
+    ) -> Result<()>;
 
     /// Returns an iterator over all events and their tokens in a room that happened before the
     /// event with id `until` in reverse-chronological order.

@@ -97,6 +97,7 @@ impl Services {
                     db,
                     lasttimelinecount_cache: Mutex::new(HashMap::new()),
                 },
+                threads: rooms::threads::Service { db },
                 user: rooms::user::Service { db },
             },
             transaction_ids: transaction_ids::Service { db },

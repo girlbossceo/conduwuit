@@ -198,19 +198,30 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
     }
 
     /// Removes a pdu and creates a new one with the same id.
-    fn replace_pdu(&self, pdu_id: &[u8], pdu: &PduEvent) -> Result<()> {
+    fn replace_pdu(
+        &self,
+        pdu_id: &[u8],
+        pdu_json: &CanonicalJsonObject,
+        pdu: &PduEvent,
+    ) -> Result<()> {
         if self.pduid_pdu.get(pdu_id)?.is_some() {
             self.pduid_pdu.insert(
                 pdu_id,
-                &serde_json::to_vec(pdu).expect("CanonicalJsonObject is always a valid"),
+                &serde_json::to_vec(pdu_json).expect("CanonicalJsonObject is always a valid"),
             )?;
-            Ok(())
         } else {
-            Err(Error::BadRequest(
+            return Err(Error::BadRequest(
                 ErrorKind::NotFound,
                 "PDU does not exist.",
-            ))
+            ));
         }
+
+        self.pdu_cache
+            .lock()
+            .unwrap()
+            .remove(&(*pdu.event_id).to_owned());
+
+        Ok(())
     }
 
     /// Returns an iterator over all events and their tokens in a room that happened before the
