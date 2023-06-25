@@ -159,7 +159,6 @@ async fn run_server() -> io::Result<()> {
                 tracing::info_span!("http_request", %path)
             }),
         )
-        .compression()
         .layer(axum::middleware::from_fn(unrecognized_method))
         .layer(
             CorsLayer::new()
