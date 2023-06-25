@@ -22,7 +22,7 @@ rust-version = "1.64.0"
 axum = { version = "0.5.16", default-features = false, features = ["form", "headers", "http1", "http2", "json", "matched-path"], optional = true }
 axum-server = { version = "0.5.1", features = ["tls-rustls"] }
 tower = { version = "0.4.13", features = ["util"] }
-tower-http = { version = "0.4.1", features = ["add-extension", "cors", "compression-zstd", "sensitive-headers", "trace", "util"] }
+tower-http = { version = "0.4.1", features = ["add-extension", "cors", "sensitive-headers", "trace", "util"] }
 
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
