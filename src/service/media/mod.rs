@@ -8,7 +8,7 @@ use image::imageops::FilterType;
 
 use tokio::{
     fs::File,
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt, BufReader},
 };
 
 pub struct FileMeta {
@@ -70,7 +70,9 @@ impl Service {
         {
             let path = services().globals.get_media_file(&key);
             let mut file = Vec::new();
-            File::open(path).await?.read_to_end(&mut file).await?;
+            BufReader::new(File::open(path).await?)
+                .read_to_end(&mut file)
+                .await?;
 
             Ok(Some(FileMeta {
                 content_disposition,

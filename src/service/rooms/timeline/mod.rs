@@ -18,13 +18,13 @@ use ruma::{
     events::{
         push_rules::PushRulesEvent,
         room::{
-            create::RoomCreateEventContent, member::MembershipState,
+            create::RoomCreateEventContent, encrypted::Relation, member::MembershipState,
             power_levels::RoomPowerLevelsEventContent,
         },
         GlobalAccountDataEventType, StateEventType, TimelineEventType,
     },
     push::{Action, Ruleset, Tweak},
-    serde::Base64,
+    serde::{Base64, JsonObject},
     state_res,
     state_res::{Event, RoomVersion},
     uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
@@ -197,8 +197,13 @@ impl Service {
 
     /// Removes a pdu and creates a new one with the same id.
     #[tracing::instrument(skip(self))]
-    fn replace_pdu(&self, pdu_id: &[u8], pdu: &PduEvent) -> Result<()> {
-        self.db.replace_pdu(pdu_id, pdu)
+    pub fn replace_pdu(
+        &self,
+        pdu_id: &[u8],
+        pdu_json: &CanonicalJsonObject,
+        pdu: &PduEvent,
+    ) -> Result<()> {
+        self.db.replace_pdu(pdu_id, pdu_json, pdu)
     }
 
     /// Creates a new persisted data unit and adds it to a room.
@@ -352,9 +357,7 @@ impl Service {
                 &pdu.room_id,
             )? {
                 match action {
-                    Action::DontNotify => notify = false,
-                    // TODO: Implement proper support for coalesce
-                    Action::Notify | Action::Coalesce => notify = true,
+                    Action::Notify => notify = true,
                     Action::SetTweak(Tweak::Highlight(true)) => {
                         highlight = true;
                     }
@@ -455,6 +458,50 @@ impl Service {
                 }
             }
             _ => {}
+        }
+
+        // Update Relationships
+        #[derive(Deserialize)]
+        struct ExtractRelatesTo {
+            #[serde(rename = "m.relates_to")]
+            relates_to: Relation,
+        }
+
+        #[derive(Clone, Debug, Deserialize)]
+        struct ExtractEventId {
+            event_id: OwnedEventId,
+        }
+        #[derive(Clone, Debug, Deserialize)]
+        struct ExtractRelatesToEventId {
+            #[serde(rename = "m.relates_to")]
+            relates_to: ExtractEventId,
+        }
+
+        if let Ok(content) = serde_json::from_str::<ExtractRelatesToEventId>(pdu.content.get()) {
+            services()
+                .rooms
+                .pdu_metadata
+                .add_relation(&pdu.event_id, &content.relates_to.event_id)?;
+        }
+
+        if let Ok(content) = serde_json::from_str::<ExtractRelatesTo>(pdu.content.get()) {
+            match content.relates_to {
+                Relation::Reply { in_reply_to } => {
+                    // We need to do it again here, because replies don't have
+                    // event_id as a top level field
+                    services()
+                        .rooms
+                        .pdu_metadata
+                        .add_relation(&pdu.event_id, &in_reply_to.event_id)?;
+                }
+                Relation::Thread(thread) => {
+                    services()
+                        .rooms
+                        .threads
+                        .add_to_thread(&thread.event_id, pdu)?;
+                }
+                _ => {} // TODO: Aggregate other types
+            }
         }
 
         for appservice in services().appservice.all()? {
@@ -957,12 +1004,17 @@ impl Service {
     /// Replace a PDU with the redacted form.
     #[tracing::instrument(skip(self, reason))]
     pub fn redact_pdu(&self, event_id: &EventId, reason: &PduEvent) -> Result<()> {
+        // TODO: Don't reserialize, keep original json
         if let Some(pdu_id) = self.get_pdu_id(event_id)? {
             let mut pdu = self
                 .get_pdu_from_id(&pdu_id)?
                 .ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
             pdu.redact(reason)?;
-            self.replace_pdu(&pdu_id, &pdu)?;
+            self.replace_pdu(
+                &pdu_id,
+                &utils::to_canonical_object(&pdu).expect("PDU is an object"),
+                &pdu,
+            )?;
         }
         // If event does not exist, just noop
         Ok(())

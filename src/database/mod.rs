@@ -80,6 +80,8 @@ pub struct KeyValueDatabase {
     pub(super) aliasid_alias: Arc<dyn KvTree>, // AliasId = RoomId + Count
     pub(super) publicroomids: Arc<dyn KvTree>,
 
+    pub(super) threadid_userids: Arc<dyn KvTree>, // ThreadId = RoomId + Count
+
     pub(super) tokenids: Arc<dyn KvTree>, // TokenId = ShortRoomId + Token + PduIdCount
 
     /// Participating servers in a room.
@@ -128,6 +130,8 @@ pub struct KeyValueDatabase {
     pub(super) eventid_outlierpdu: Arc<dyn KvTree>,
     pub(super) softfailedeventids: Arc<dyn KvTree>,
 
+    /// ShortEventId + ShortEventId -> ().
+    pub(super) fromto_relation: Arc<dyn KvTree>,
     /// RoomId + EventId -> Parent PDU EventId.
     pub(super) referencedevents: Arc<dyn KvTree>,
 
@@ -302,6 +306,8 @@ impl KeyValueDatabase {
             aliasid_alias: builder.open_tree("aliasid_alias")?,
             publicroomids: builder.open_tree("publicroomids")?,
 
+            threadid_userids: builder.open_tree("threadid_userids")?,
+
             tokenids: builder.open_tree("tokenids")?,
 
             roomserverids: builder.open_tree("roomserverids")?,
@@ -342,6 +348,7 @@ impl KeyValueDatabase {
             eventid_outlierpdu: builder.open_tree("eventid_outlierpdu")?,
             softfailedeventids: builder.open_tree("softfailedeventids")?,
 
+            fromto_relation: builder.open_tree("fromto_relation")?,
             referencedevents: builder.open_tree("referencedevents")?,
             roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
             roomusertype_roomuserdataid: builder.open_tree("roomusertype_roomuserdataid")?,

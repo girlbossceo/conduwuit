@@ -19,14 +19,14 @@ rust-version = "1.64.0"
 
 [dependencies]
 # Web framework
-axum = { version = "0.5.17", default-features = false, features = ["form", "headers", "http1", "http2", "json", "matched-path"], optional = true }
-axum-server = { version = "0.4.7", features = ["tls-rustls"] }
+axum = { version = "0.5.16", default-features = false, features = ["form", "headers", "http1", "http2", "json", "matched-path"], optional = true }
+axum-server = { version = "0.5.1", features = ["tls-rustls"] }
 tower = { version = "0.4.13", features = ["util"] }
-tower-http = { version = "0.3.5", features = ["add-extension", "cors", "compression-full", "sensitive-headers", "trace", "util"] }
+tower-http = { version = "0.4.1", features = ["add-extension", "cors", "compression-zstd", "sensitive-headers", "trace", "util"] }
 
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
-ruma = { git = "https://github.com/ruma/ruma", rev = "8eea3e05490fa9a318f9ed66c3a75272e6ef0ee5", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
+ruma = { git = "https://github.com/ruma/ruma", rev = "761771a317460f30590da170115d007892381e85", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 #ruma = { git = "https://github.com/timokoesters/ruma", rev = "50c1db7e0a3a21fc794b0cce3b64285a4c750c71", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 

@@ -1,3 +1,4 @@
+#[allow(deprecated)]
 use crate::{
     api::client_server::{self, claim_keys_helper, get_keys_helper},
     service::pdu::{gen_event_id_canonical_json, PduBuilder},
@@ -497,6 +498,9 @@ async fn request_well_known(destination: &str) -> Option<String> {
         .send()
         .await;
     debug!("Got well known response");
+    if let Err(e) = &response {
+        error!("Well known error: {e:?}");
+    }
     let text = response.ok()?.text().await;
     debug!("Got well known response text");
     let body: serde_json::Value = serde_json::from_str(&text.ok()?).ok()?;

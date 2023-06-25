@@ -1,9 +1,9 @@
 use crate::Error;
 use ruma::{
     events::{
-        room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyStateEvent,
-        AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent, AnyTimelineEvent,
-        StateEvent, TimelineEventType,
+        room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyMessageLikeEvent,
+        AnyStateEvent, AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent,
+        AnyTimelineEvent, StateEvent, TimelineEventType,
     },
     serde::Raw,
     state_res, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch,
@@ -153,6 +153,30 @@ impl PduEvent {
 
     #[tracing::instrument(skip(self))]
     pub fn to_room_event(&self) -> Raw<AnyTimelineEvent> {
+        let mut json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "event_id": self.event_id,
+            "sender": self.sender,
+            "origin_server_ts": self.origin_server_ts,
+            "room_id": self.room_id,
+        });
+
+        if let Some(unsigned) = &self.unsigned {
+            json["unsigned"] = json!(unsigned);
+        }
+        if let Some(state_key) = &self.state_key {
+            json["state_key"] = json!(state_key);
+        }
+        if let Some(redacts) = &self.redacts {
+            json["redacts"] = json!(redacts);
+        }
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn to_message_like_event(&self) -> Raw<AnyMessageLikeEvent> {
         let mut json = json!({
             "content": self.content,
             "type": self.kind,

@@ -162,9 +162,7 @@ impl Service {
             &pdu.room_id,
         )? {
             let n = match action {
-                Action::DontNotify => false,
-                // TODO: Implement proper support for coalesce
-                Action::Notify | Action::Coalesce => true,
+                Action::Notify => true,
                 Action::SetTweak(tweak) => {
                     tweaks.push(tweak.clone());
                     continue;

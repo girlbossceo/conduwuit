@@ -133,8 +133,12 @@ pub async fn get_message_events_route(
         from,
     )?;
 
-    // Use limit or else 10
-    let limit = body.limit.try_into().map_or(10_usize, |l: u32| l as usize);
+    // Use limit or else 10, with maximum 100
+    let limit = body
+        .limit
+        .try_into()
+        .map_or(10_usize, |l: u32| l as usize)
+        .min(100);
 
     let next_token;
 
