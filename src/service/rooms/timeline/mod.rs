@@ -478,10 +478,16 @@ impl Service {
         }
 
         if let Ok(content) = serde_json::from_str::<ExtractRelatesToEventId>(pdu.content.get()) {
-            services()
+            if let Some(related_pducount) = services()
                 .rooms
-                .pdu_metadata
-                .add_relation(&pdu.event_id, &content.relates_to.event_id)?;
+                .timeline
+                .get_pdu_count(&content.relates_to.event_id)?
+            {
+                services()
+                    .rooms
+                    .pdu_metadata
+                    .add_relation(PduCount::Normal(count2), related_pducount)?;
+            }
         }
 
         if let Ok(content) = serde_json::from_str::<ExtractRelatesTo>(pdu.content.get()) {
@@ -489,10 +495,16 @@ impl Service {
                 Relation::Reply { in_reply_to } => {
                     // We need to do it again here, because replies don't have
                     // event_id as a top level field
-                    services()
+                    if let Some(related_pducount) = services()
                         .rooms
-                        .pdu_metadata
-                        .add_relation(&pdu.event_id, &in_reply_to.event_id)?;
+                        .timeline
+                        .get_pdu_count(&in_reply_to.event_id)?
+                    {
+                        services()
+                            .rooms
+                            .pdu_metadata
+                            .add_relation(PduCount::Normal(count2), related_pducount)?;
+                    }
                 }
                 Relation::Thread(thread) => {
                     services()
