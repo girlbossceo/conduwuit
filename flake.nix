@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs";
+    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
     fenix = {
@@ -40,12 +40,8 @@
         channel = cargoToml.package.rust-version;
 
         # THE rust-version HASH
-        sha256 = "sha256-8len3i8oTwJSOJZMosGGXHBL5BVuGQnWOT2St5YAUFU=";
+        sha256 = "sha256-gdYqng0y9iHYzYPAdkC/ka3DRny3La/S5G8ASj0Ayyc=";
       };
-
-      # The system's RocksDB
-      ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb_6_23}/include";
-      ROCKSDB_LIB_DIR = "${pkgs.rocksdb_6_23}/lib";
 
       # Shared between the package and the devShell
       nativeBuildInputs = (with pkgs.rustPlatform; [
@@ -61,19 +57,13 @@
 
         inherit
           stdenv
-          nativeBuildInputs
-          ROCKSDB_INCLUDE_DIR
-          ROCKSDB_LIB_DIR;
+          nativeBuildInputs;
       };
 
       devShells.default = (pkgs.mkShell.override { inherit stdenv; }) {
         # Rust Analyzer needs to be able to find the path to default crate
         # sources, and it can read this environment variable to do so
         RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/library";
-
-        inherit
-          ROCKSDB_INCLUDE_DIR
-          ROCKSDB_LIB_DIR;
 
         # Development tools
         nativeBuildInputs = nativeBuildInputs ++ (with toolchain; [
