@@ -103,7 +103,10 @@ pub async fn get_context_route(
         }
     }
 
-    let start_token = events_before.last().map(|(count, _)| count.stringify());
+    let start_token = events_before
+        .last()
+        .map(|(count, _)| count.stringify())
+        .unwrap_or_else(|| base_token.stringify());
 
     let events_before: Vec<_> = events_before
         .into_iter()
@@ -156,7 +159,10 @@ pub async fn get_context_route(
         .state_full_ids(shortstatehash)
         .await?;
 
-    let end_token = events_after.last().map(|(count, _)| count.stringify());
+    let end_token = events_after
+        .last()
+        .map(|(count, _)| count.stringify())
+        .unwrap_or_else(|| base_token.stringify());
 
     let events_after: Vec<_> = events_after
         .into_iter()
@@ -193,8 +199,8 @@ pub async fn get_context_route(
     }
 
     let resp = get_context::v3::Response {
-        start: start_token,
-        end: end_token,
+        start: Some(start_token),
+        end: Some(end_token),
         events_before,
         event: Some(base_event),
         events_after,
