@@ -131,7 +131,7 @@ pub struct KeyValueDatabase {
     pub(super) softfailedeventids: Arc<dyn KvTree>,
 
     /// ShortEventId + ShortEventId -> ().
-    pub(super) fromto_relation: Arc<dyn KvTree>,
+    pub(super) tofrom_relation: Arc<dyn KvTree>,
     /// RoomId + EventId -> Parent PDU EventId.
     pub(super) referencedevents: Arc<dyn KvTree>,
 
@@ -348,7 +348,7 @@ impl KeyValueDatabase {
             eventid_outlierpdu: builder.open_tree("eventid_outlierpdu")?,
             softfailedeventids: builder.open_tree("softfailedeventids")?,
 
-            fromto_relation: builder.open_tree("fromto_relation")?,
+            tofrom_relation: builder.open_tree("tofrom_relation")?,
             referencedevents: builder.open_tree("referencedevents")?,
             roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
             roomusertype_roomuserdataid: builder.open_tree("roomusertype_roomuserdataid")?,
