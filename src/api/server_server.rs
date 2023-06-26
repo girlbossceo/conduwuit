@@ -1,4 +1,5 @@
-#[allow(deprecated)]
+#![allow(deprecated)]
+
 use crate::{
     api::client_server::{self, claim_keys_helper, get_keys_helper},
     service::pdu::{gen_event_id_canonical_json, PduBuilder},

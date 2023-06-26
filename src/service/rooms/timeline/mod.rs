@@ -24,7 +24,7 @@ use ruma::{
         GlobalAccountDataEventType, StateEventType, TimelineEventType,
     },
     push::{Action, Ruleset, Tweak},
-    serde::{Base64, JsonObject},
+    serde::Base64,
     state_res,
     state_res::{Event, RoomVersion},
     uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,

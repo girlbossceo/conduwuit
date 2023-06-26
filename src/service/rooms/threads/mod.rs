@@ -1,18 +1,15 @@
 mod data;
-use std::sync::Arc;
 
 pub use data::Data;
 use ruma::{
     api::client::{error::ErrorKind, threads::get_threads::v1::IncludeThreads},
-    events::{relation::BundledThread, StateEventType},
-    uint, CanonicalJsonValue, EventId, OwnedUserId, RoomId, UserId,
+    events::relation::BundledThread,
+    uint, CanonicalJsonValue, EventId, RoomId, UserId,
 };
-use serde::Deserialize;
+
 use serde_json::json;
 
-use crate::{services, utils, Error, PduEvent, Result};
-
-use super::timeline::PduCount;
+use crate::{services, Error, PduEvent, Result};
 
 pub struct Service {
     pub db: &'static dyn Data,
