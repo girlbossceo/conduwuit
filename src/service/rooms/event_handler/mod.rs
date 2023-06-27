@@ -774,15 +774,17 @@ impl Service {
         });
 
         info!("Compressing state at event");
-        let state_ids_compressed = state_at_incoming_event
-            .iter()
-            .map(|(shortstatekey, id)| {
-                services()
-                    .rooms
-                    .state_compressor
-                    .compress_state_event(*shortstatekey, id)
-            })
-            .collect::<Result<_>>()?;
+        let state_ids_compressed = Arc::new(
+            state_at_incoming_event
+                .iter()
+                .map(|(shortstatekey, id)| {
+                    services()
+                        .rooms
+                        .state_compressor
+                        .compress_state_event(*shortstatekey, id)
+                })
+                .collect::<Result<_>>()?,
+        );
 
         if incoming_pdu.state_key.is_some() {
             info!("Preparing for stateres to derive new room state");
@@ -886,7 +888,7 @@ impl Service {
         room_id: &RoomId,
         room_version_id: &RoomVersionId,
         incoming_state: HashMap<u64, Arc<EventId>>,
-    ) -> Result<HashSet<CompressedStateEvent>> {
+    ) -> Result<Arc<HashSet<CompressedStateEvent>>> {
         info!("Loading current room state ids");
         let current_sstatehash = services()
             .rooms
@@ -966,7 +968,7 @@ impl Service {
             })
             .collect::<Result<_>>()?;
 
-        Ok(new_room_state)
+        Ok(Arc::new(new_room_state))
     }
 
     /// Find the event and auth it. Once the event is validated (steps 1 - 8)

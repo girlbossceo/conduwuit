@@ -32,11 +32,11 @@ impl Service {
         &self,
         room_id: &RoomId,
         shortstatehash: u64,
-        statediffnew: HashSet<CompressedStateEvent>,
-        _statediffremoved: HashSet<CompressedStateEvent>,
+        statediffnew: Arc<HashSet<CompressedStateEvent>>,
+        _statediffremoved: Arc<HashSet<CompressedStateEvent>>,
         state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<()> {
-        for event_id in statediffnew.into_iter().filter_map(|new| {
+        for event_id in statediffnew.iter().filter_map(|new| {
             services()
                 .rooms
                 .state_compressor
@@ -107,7 +107,7 @@ impl Service {
         &self,
         event_id: &EventId,
         room_id: &RoomId,
-        state_ids_compressed: HashSet<CompressedStateEvent>,
+        state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
     ) -> Result<u64> {
         let shorteventid = services()
             .rooms
@@ -152,9 +152,9 @@ impl Service {
                         .copied()
                         .collect();
 
-                    (statediffnew, statediffremoved)
+                    (Arc::new(statediffnew), Arc::new(statediffremoved))
                 } else {
-                    (state_ids_compressed, HashSet::new())
+                    (state_ids_compressed, Arc::new(HashSet::new()))
                 };
             services().rooms.state_compressor.save_state_from_diff(
                 shortstatehash,
@@ -234,8 +234,8 @@ impl Service {
 
             services().rooms.state_compressor.save_state_from_diff(
                 shortstatehash,
-                statediffnew,
-                statediffremoved,
+                Arc::new(statediffnew),
+                Arc::new(statediffremoved),
                 2,
                 states_parents,
             )?;
@@ -396,7 +396,7 @@ impl Service {
             .1;
 
         Ok(full_state
-            .into_iter()
+            .iter()
             .filter_map(|compressed| {
                 services()
                     .rooms

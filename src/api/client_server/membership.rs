@@ -743,15 +743,17 @@ async fn join_room_by_id_helper(
         info!("Saving state from send_join");
         let (statehash_before_join, new, removed) = services().rooms.state_compressor.save_state(
             room_id,
-            state
-                .into_iter()
-                .map(|(k, id)| {
-                    services()
-                        .rooms
-                        .state_compressor
-                        .compress_state_event(k, &id)
-                })
-                .collect::<Result<_>>()?,
+            Arc::new(
+                state
+                    .into_iter()
+                    .map(|(k, id)| {
+                        services()
+                            .rooms
+                            .state_compressor
+                            .compress_state_event(k, &id)
+                    })
+                    .collect::<Result<_>>()?,
+            ),
         )?;
 
         services()
