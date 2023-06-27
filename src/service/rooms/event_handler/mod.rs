@@ -736,6 +736,23 @@ impl Service {
         }
         info!("Auth check succeeded");
 
+        // Soft fail check before doing state res
+        let auth_events = services().rooms.state.get_auth_events(
+            room_id,
+            &incoming_pdu.kind,
+            &incoming_pdu.sender,
+            incoming_pdu.state_key.as_deref(),
+            &incoming_pdu.content,
+        )?;
+
+        let soft_fail = !state_res::event_auth::auth_check(
+            &room_version,
+            &incoming_pdu,
+            None::<PduEvent>,
+            |k, s| auth_events.get(&(k.clone(), s.to_owned())),
+        )
+        .map_err(|_e| Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed."))?;
+
         // 13. Use state resolution to find new room state
 
         // We start looking at current room state now, so lets lock the room
@@ -821,22 +838,6 @@ impl Service {
 
         // 14. Check if the event passes auth based on the "current state" of the room, if not soft fail it
         info!("Starting soft fail auth check");
-
-        let auth_events = services().rooms.state.get_auth_events(
-            room_id,
-            &incoming_pdu.kind,
-            &incoming_pdu.sender,
-            incoming_pdu.state_key.as_deref(),
-            &incoming_pdu.content,
-        )?;
-
-        let soft_fail = !state_res::event_auth::auth_check(
-            &room_version,
-            &incoming_pdu,
-            None::<PduEvent>,
-            |k, s| auth_events.get(&(k.clone(), s.to_owned())),
-        )
-        .map_err(|_e| Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed."))?;
 
         if soft_fail {
             services().rooms.timeline.append_incoming_pdu(
