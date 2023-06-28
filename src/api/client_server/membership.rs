@@ -112,7 +112,7 @@ pub async fn join_room_by_id_or_alias_route(
         Err(room_alias) => {
             let response = get_alias_helper(room_alias).await?;
 
-            (response.servers.into_iter().collect(), response.room_id)
+            (response.servers, response.room_id)
         }
     };
 
