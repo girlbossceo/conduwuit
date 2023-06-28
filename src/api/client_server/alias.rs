@@ -1,4 +1,5 @@
 use crate::{services, Error, Result, Ruma};
+use rand::seq::SliceRandom;
 use regex::Regex;
 use ruma::{
     api::{
@@ -90,10 +91,10 @@ pub(crate) async fn get_alias_helper(
             )
             .await?;
 
-        return Ok(get_alias::v3::Response::new(
-            response.room_id,
-            response.servers,
-        ));
+        let mut servers = response.servers;
+        servers.shuffle(&mut rand::thread_rng());
+
+        return Ok(get_alias::v3::Response::new(response.room_id, servers));
     }
 
     let mut room_id = None;
