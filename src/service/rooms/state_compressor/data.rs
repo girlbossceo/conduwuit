@@ -1,12 +1,12 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use super::CompressedStateEvent;
 use crate::Result;
 
 pub struct StateDiff {
     pub parent: Option<u64>,
-    pub added: HashSet<CompressedStateEvent>,
-    pub removed: HashSet<CompressedStateEvent>,
+    pub added: Arc<HashSet<CompressedStateEvent>>,
+    pub removed: Arc<HashSet<CompressedStateEvent>>,
 }
 
 pub trait Data: Send + Sync {

@@ -20,10 +20,10 @@ pub struct Service {
         LruCache<
             u64,
             Vec<(
-                u64,                           // sstatehash
-                HashSet<CompressedStateEvent>, // full state
-                HashSet<CompressedStateEvent>, // added
-                HashSet<CompressedStateEvent>, // removed
+                u64,                                // sstatehash
+                Arc<HashSet<CompressedStateEvent>>, // full state
+                Arc<HashSet<CompressedStateEvent>>, // added
+                Arc<HashSet<CompressedStateEvent>>, // removed
             )>,
         >,
     >,
@@ -39,10 +39,10 @@ impl Service {
         shortstatehash: u64,
     ) -> Result<
         Vec<(
-            u64,                           // sstatehash
-            HashSet<CompressedStateEvent>, // full state
-            HashSet<CompressedStateEvent>, // added
-            HashSet<CompressedStateEvent>, // removed
+            u64,                                // sstatehash
+            Arc<HashSet<CompressedStateEvent>>, // full state
+            Arc<HashSet<CompressedStateEvent>>, // added
+            Arc<HashSet<CompressedStateEvent>>, // removed
         )>,
     > {
         if let Some(r) = self
@@ -62,13 +62,19 @@ impl Service {
 
         if let Some(parent) = parent {
             let mut response = self.load_shortstatehash_info(parent)?;
-            let mut state = response.last().unwrap().1.clone();
+            let mut state = (*response.last().unwrap().1).clone();
             state.extend(added.iter().copied());
+            let removed = (*removed).clone();
             for r in &removed {
                 state.remove(r);
             }
 
-            response.push((shortstatehash, state, added, removed));
+            response.push((shortstatehash, Arc::new(state), added, Arc::new(removed)));
+
+            self.stateinfo_cache
+                .lock()
+                .unwrap()
+                .insert(shortstatehash, response.clone());
 
             Ok(response)
         } else {
@@ -135,14 +141,14 @@ impl Service {
     pub fn save_state_from_diff(
         &self,
         shortstatehash: u64,
-        statediffnew: HashSet<CompressedStateEvent>,
-        statediffremoved: HashSet<CompressedStateEvent>,
+        statediffnew: Arc<HashSet<CompressedStateEvent>>,
+        statediffremoved: Arc<HashSet<CompressedStateEvent>>,
         diff_to_sibling: usize,
         mut parent_states: Vec<(
-            u64,                           // sstatehash
-            HashSet<CompressedStateEvent>, // full state
-            HashSet<CompressedStateEvent>, // added
-            HashSet<CompressedStateEvent>, // removed
+            u64,                                // sstatehash
+            Arc<HashSet<CompressedStateEvent>>, // full state
+            Arc<HashSet<CompressedStateEvent>>, // added
+            Arc<HashSet<CompressedStateEvent>>, // removed
         )>,
     ) -> Result<()> {
         let diffsum = statediffnew.len() + statediffremoved.len();
@@ -152,29 +158,29 @@ impl Service {
             // To many layers, we have to go deeper
             let parent = parent_states.pop().unwrap();
 
-            let mut parent_new = parent.2;
-            let mut parent_removed = parent.3;
+            let mut parent_new = (*parent.2).clone();
+            let mut parent_removed = (*parent.3).clone();
 
-            for removed in statediffremoved {
-                if !parent_new.remove(&removed) {
+            for removed in statediffremoved.iter() {
+                if !parent_new.remove(removed) {
                     // It was not added in the parent and we removed it
-                    parent_removed.insert(removed);
+                    parent_removed.insert(removed.clone());
                 }
                 // Else it was added in the parent and we removed it again. We can forget this change
             }
 
-            for new in statediffnew {
-                if !parent_removed.remove(&new) {
+            for new in statediffnew.iter() {
+                if !parent_removed.remove(new) {
                     // It was not touched in the parent and we added it
-                    parent_new.insert(new);
+                    parent_new.insert(new.clone());
                 }
                 // Else it was removed in the parent and we added it again. We can forget this change
             }
 
             self.save_state_from_diff(
                 shortstatehash,
-                parent_new,
-                parent_removed,
+                Arc::new(parent_new),
+                Arc::new(parent_removed),
                 diffsum,
                 parent_states,
             )?;
@@ -205,29 +211,29 @@ impl Service {
 
         if diffsum * diffsum >= 2 * diff_to_sibling * parent_diff {
             // Diff too big, we replace above layer(s)
-            let mut parent_new = parent.2;
-            let mut parent_removed = parent.3;
+            let mut parent_new = (*parent.2).clone();
+            let mut parent_removed = (*parent.3).clone();
 
-            for removed in statediffremoved {
-                if !parent_new.remove(&removed) {
+            for removed in statediffremoved.iter() {
+                if !parent_new.remove(removed) {
                     // It was not added in the parent and we removed it
-                    parent_removed.insert(removed);
+                    parent_removed.insert(removed.clone());
                 }
                 // Else it was added in the parent and we removed it again. We can forget this change
             }
 
-            for new in statediffnew {
-                if !parent_removed.remove(&new) {
+            for new in statediffnew.iter() {
+                if !parent_removed.remove(new) {
                     // It was not touched in the parent and we added it
-                    parent_new.insert(new);
+                    parent_new.insert(new.clone());
                 }
                 // Else it was removed in the parent and we added it again. We can forget this change
             }
 
             self.save_state_from_diff(
                 shortstatehash,
-                parent_new,
-                parent_removed,
+                Arc::new(parent_new),
+                Arc::new(parent_removed),
                 diffsum,
                 parent_states,
             )?;
@@ -250,11 +256,11 @@ impl Service {
     pub fn save_state(
         &self,
         room_id: &RoomId,
-        new_state_ids_compressed: HashSet<CompressedStateEvent>,
+        new_state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
     ) -> Result<(
         u64,
-        HashSet<CompressedStateEvent>,
-        HashSet<CompressedStateEvent>,
+        Arc<HashSet<CompressedStateEvent>>,
+        Arc<HashSet<CompressedStateEvent>>,
     )> {
         let previous_shortstatehash = services().rooms.state.get_room_shortstatehash(room_id)?;
 
@@ -271,7 +277,11 @@ impl Service {
             .get_or_create_shortstatehash(&state_hash)?;
 
         if Some(new_shortstatehash) == previous_shortstatehash {
-            return Ok((new_shortstatehash, HashSet::new(), HashSet::new()));
+            return Ok((
+                new_shortstatehash,
+                Arc::new(HashSet::new()),
+                Arc::new(HashSet::new()),
+            ));
         }
 
         let states_parents = previous_shortstatehash
@@ -290,9 +300,9 @@ impl Service {
                 .copied()
                 .collect();
 
-            (statediffnew, statediffremoved)
+            (Arc::new(statediffnew), Arc::new(statediffremoved))
         } else {
-            (new_state_ids_compressed, HashSet::new())
+            (new_state_ids_compressed, Arc::new(HashSet::new()))
         };
 
         if !already_existed {

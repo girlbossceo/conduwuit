@@ -587,8 +587,8 @@ impl KeyValueDatabase {
 
                         services().rooms.state_compressor.save_state_from_diff(
                             current_sstatehash,
-                            statediffnew,
-                            statediffremoved,
+                            Arc::new(statediffnew),
+                            Arc::new(statediffremoved),
                             2, // every state change is 2 event changes on average
                             states_parents,
                         )?;

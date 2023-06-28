@@ -16,7 +16,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
             .1;
         let mut result = HashMap::new();
         let mut i = 0;
-        for compressed in full_state.into_iter() {
+        for compressed in full_state.iter() {
             let parsed = services()
                 .rooms
                 .state_compressor
@@ -45,7 +45,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 
         let mut result = HashMap::new();
         let mut i = 0;
-        for compressed in full_state {
+        for compressed in full_state.iter() {
             let (_, eventid) = services()
                 .rooms
                 .state_compressor
@@ -95,7 +95,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
             .expect("there is always one layer")
             .1;
         Ok(full_state
-            .into_iter()
+            .iter()
             .find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
             .and_then(|compressed| {
                 services()

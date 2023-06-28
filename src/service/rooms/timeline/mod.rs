@@ -946,7 +946,7 @@ impl Service {
         pdu: &PduEvent,
         pdu_json: CanonicalJsonObject,
         new_room_leaves: Vec<OwnedEventId>,
-        state_ids_compressed: HashSet<CompressedStateEvent>,
+        state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
         soft_fail: bool,
         state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<Option<Vec<u8>>> {

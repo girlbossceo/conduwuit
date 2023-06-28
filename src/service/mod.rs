@@ -90,7 +90,7 @@ impl Services {
                 state_compressor: rooms::state_compressor::Service {
                     db,
                     stateinfo_cache: Mutex::new(LruCache::new(
-                        (100.0 * config.conduit_cache_capacity_modifier) as usize,
+                        (1000.0 * config.conduit_cache_capacity_modifier) as usize,
                     )),
                 },
                 timeline: rooms::timeline::Service {
