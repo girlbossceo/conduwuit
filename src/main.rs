@@ -10,8 +10,7 @@
 use std::{future::Future, io, net::SocketAddr, sync::atomic, time::Duration};
 
 use axum::{
-    extract::{DefaultBodyLimit, FromRequest, MatchedPath},
-    handler::Handler,
+    extract::{DefaultBodyLimit, FromRequestParts, MatchedPath},
     response::IntoResponse,
     routing::{get, on, MethodFilter},
     Router,
@@ -421,7 +420,7 @@ fn routes() -> Router {
             "/_matrix/client/v3/rooms/:room_id/initialSync",
             get(initial_sync),
         )
-        .fallback(not_found.into_service())
+        .fallback(not_found)
 }
 
 async fn shutdown_signal(handle: ServerHandle) {
@@ -505,7 +504,7 @@ macro_rules! impl_ruma_handler {
             Fut: Future<Output = Result<Req::OutgoingResponse, E>>
                 + Send,
             E: IntoResponse,
-            $( $ty: FromRequest<axum::body::Body> + Send + 'static, )*
+            $( $ty: FromRequestParts<()> + Send + 'static, )*
         {
             fn add_to_router(self, mut router: Router) -> Router {
                 let meta = Req::METADATA;
