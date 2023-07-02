@@ -224,7 +224,7 @@ Listen 8448
 ServerName your.server.name # EDIT THIS
 
 AllowEncodedSlashes NoDecode
-ProxyPass /_matrix/ http://127.0.0.1:6167/_matrix/ nocanon
+ProxyPass /_matrix/ http://127.0.0.1:6167/_matrix/ timeout=300 nocanon
 ProxyPassReverse /_matrix/ http://127.0.0.1:6167/_matrix/
 
 </VirtualHost>
@@ -270,12 +270,14 @@ server {
     merge_slashes off;
 
     # Nginx defaults to only allow 1MB uploads
+    # Increase this to allow posting large files such as videos
     client_max_body_size 20M;
 
     location /_matrix/ {
         proxy_pass http://127.0.0.1:6167$request_uri;
         proxy_set_header Host $http_host;
         proxy_buffering off;
+        proxy_read_timeout 5m;
     }
 
     ssl_certificate /etc/letsencrypt/live/your.server.name/fullchain.pem; # EDIT THIS
