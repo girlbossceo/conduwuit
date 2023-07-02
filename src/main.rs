@@ -2,7 +2,8 @@
     rust_2018_idioms,
     unused_qualifications,
     clippy::cloned_instead_of_copied,
-    clippy::str_to_string
+    clippy::str_to_string,
+    clippy::future_not_send
 )]
 #![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
@@ -386,6 +387,7 @@ fn routes() -> Router {
         .ruma_route(client_server::get_relating_events_with_rel_type_and_event_type_route)
         .ruma_route(client_server::get_relating_events_with_rel_type_route)
         .ruma_route(client_server::get_relating_events_route)
+        .ruma_route(client_server::get_hierarchy_route)
         .ruma_route(server_server::get_server_version_route)
         .route(
             "/_matrix/key/v2/server",

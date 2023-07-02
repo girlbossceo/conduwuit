@@ -90,7 +90,7 @@ impl Services {
                 state_compressor: rooms::state_compressor::Service {
                     db,
                     stateinfo_cache: Mutex::new(LruCache::new(
-                        (1000.0 * config.conduit_cache_capacity_modifier) as usize,
+                        (300.0 * config.conduit_cache_capacity_modifier) as usize,
                     )),
                 },
                 timeline: rooms::timeline::Service {
@@ -98,6 +98,9 @@ impl Services {
                     lasttimelinecount_cache: Mutex::new(HashMap::new()),
                 },
                 threads: rooms::threads::Service { db },
+                spaces: rooms::spaces::Service {
+                    roomid_spacechunk_cache: Mutex::new(LruCache::new(200)),
+                },
                 user: rooms::user::Service { db },
             },
             transaction_ids: transaction_ids::Service { db },

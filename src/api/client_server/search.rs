@@ -31,7 +31,8 @@ pub async fn search_events_route(
             .collect()
     });
 
-    let limit = filter.limit.map_or(10, |l| u64::from(l) as usize);
+    // Use limit or else 10, with maximum 100
+    let limit = filter.limit.map_or(10, u64::from).min(100) as usize;
 
     let mut searches = Vec::new();
 

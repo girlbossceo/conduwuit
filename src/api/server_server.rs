@@ -151,7 +151,7 @@ where
         .try_into_http_request::<Vec<u8>>(
             &actual_destination_str,
             SendAccessToken::IfRequired(""),
-            &[MatrixVersion::V1_0],
+            &[MatrixVersion::V1_4],
         )
         .map_err(|e| {
             warn!(

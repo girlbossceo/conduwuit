@@ -9,6 +9,7 @@ pub mod outlier;
 pub mod pdu_metadata;
 pub mod search;
 pub mod short;
+pub mod spaces;
 pub mod state;
 pub mod state_accessor;
 pub mod state_cache;
@@ -56,5 +57,6 @@ pub struct Service {
     pub state_compressor: state_compressor::Service,
     pub timeline: timeline::Service,
     pub threads: threads::Service,
+    pub spaces: spaces::Service,
     pub user: user::Service,
 }

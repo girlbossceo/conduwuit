@@ -1,9 +1,9 @@
 use crate::Error;
 use ruma::{
     events::{
-        room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyMessageLikeEvent,
-        AnyStateEvent, AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent,
-        AnyTimelineEvent, StateEvent, TimelineEventType,
+        room::member::RoomMemberEventContent, space::child::HierarchySpaceChildEvent,
+        AnyEphemeralRoomEvent, AnyMessageLikeEvent, AnyStateEvent, AnyStrippedStateEvent,
+        AnySyncStateEvent, AnySyncTimelineEvent, AnyTimelineEvent, StateEvent, TimelineEventType,
     },
     serde::Raw,
     state_res, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch,
@@ -243,6 +243,19 @@ impl PduEvent {
             "type": self.kind,
             "sender": self.sender,
             "state_key": self.state_key,
+        });
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn to_stripped_spacechild_state_event(&self) -> Raw<HierarchySpaceChildEvent> {
+        let json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "sender": self.sender,
+            "state_key": self.state_key,
+            "origin_server_ts": self.origin_server_ts,
         });
 
         serde_json::from_value(json).expect("Raw::from_value always works")
