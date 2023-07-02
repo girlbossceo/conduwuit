@@ -224,7 +224,6 @@ Listen 8448
 ServerName your.server.name # EDIT THIS
 
 AllowEncodedSlashes NoDecode
-# joining large rooms can be slow. increase timeout to 600 if you still have issues.
 ProxyPass /_matrix/ http://127.0.0.1:6167/_matrix/ timeout=300 nocanon
 ProxyPassReverse /_matrix/ http://127.0.0.1:6167/_matrix/
 
@@ -278,7 +277,6 @@ server {
         proxy_pass http://127.0.0.1:6167$request_uri;
         proxy_set_header Host $http_host;
         proxy_buffering off;
-        # joining large rooms can be slow. increase to 10m if you still have issues.
         proxy_read_timeout 5m;
     }
 
