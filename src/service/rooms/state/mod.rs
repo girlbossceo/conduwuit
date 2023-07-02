@@ -49,10 +49,6 @@ impl Service {
                 None => continue,
             };
 
-            if pdu.get("type").and_then(|val| val.as_str()) != Some("m.room.member") {
-                continue;
-            }
-
             let pdu: PduEvent = match serde_json::from_str(
                 &serde_json::to_string(&pdu).expect("CanonicalJsonObj can be serialized to JSON"),
             ) {
@@ -60,34 +56,49 @@ impl Service {
                 Err(_) => continue,
             };
 
-            #[derive(Deserialize)]
-            struct ExtractMembership {
-                membership: MembershipState,
+            match pdu.kind {
+                TimelineEventType::RoomMember => {
+                    #[derive(Deserialize)]
+                    struct ExtractMembership {
+                        membership: MembershipState,
+                    }
+
+                    let membership =
+                        match serde_json::from_str::<ExtractMembership>(pdu.content.get()) {
+                            Ok(e) => e.membership,
+                            Err(_) => continue,
+                        };
+
+                    let state_key = match pdu.state_key {
+                        Some(k) => k,
+                        None => continue,
+                    };
+
+                    let user_id = match UserId::parse(state_key) {
+                        Ok(id) => id,
+                        Err(_) => continue,
+                    };
+
+                    services().rooms.state_cache.update_membership(
+                        room_id,
+                        &user_id,
+                        membership,
+                        &pdu.sender,
+                        None,
+                        false,
+                    )?;
+                }
+                TimelineEventType::SpaceChild => {
+                    services()
+                        .rooms
+                        .spaces
+                        .roomid_spacechunk_cache
+                        .lock()
+                        .unwrap()
+                        .remove(&pdu.room_id);
+                }
+                _ => continue,
             }
-
-            let membership = match serde_json::from_str::<ExtractMembership>(pdu.content.get()) {
-                Ok(e) => e.membership,
-                Err(_) => continue,
-            };
-
-            let state_key = match pdu.state_key {
-                Some(k) => k,
-                None => continue,
-            };
-
-            let user_id = match UserId::parse(state_key) {
-                Ok(id) => id,
-                Err(_) => continue,
-            };
-
-            services().rooms.state_cache.update_membership(
-                room_id,
-                &user_id,
-                membership,
-                &pdu.sender,
-                None,
-                false,
-            )?;
         }
 
         services().rooms.state_cache.update_joined_count(room_id)?;
