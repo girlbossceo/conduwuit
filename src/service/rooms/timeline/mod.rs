@@ -387,6 +387,17 @@ impl Service {
                     self.redact_pdu(redact_id, pdu)?;
                 }
             }
+            TimelineEventType::SpaceChild => {
+                if let Some(_state_key) = &pdu.state_key {
+                    services()
+                        .rooms
+                        .spaces
+                        .roomid_spacechunk_cache
+                        .lock()
+                        .unwrap()
+                        .remove(&pdu.room_id);
+                }
+            }
             TimelineEventType::RoomMember => {
                 if let Some(state_key) = &pdu.state_key {
                     #[derive(Deserialize)]

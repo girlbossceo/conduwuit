@@ -3,7 +3,7 @@ use ruma::{
     api::client::{context::get_context, error::ErrorKind, filter::LazyLoadOptions},
     events::StateEventType,
 };
-use std::{collections::HashSet, convert::TryFrom};
+use std::collections::HashSet;
 use tracing::error;
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/context`
@@ -70,9 +70,7 @@ pub async fn get_context_route(
     }
 
     // Use limit with maximum 100
-    let limit = usize::try_from(body.limit)
-        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid."))?
-        .min(100);
+    let limit = u64::from(body.limit).min(100) as usize;
 
     let base_event = base_event.to_room_event();
 
