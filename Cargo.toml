@@ -105,7 +105,7 @@ async-trait = "0.1.68"
 sd-notify = { version = "0.4.1", optional = true }
 
 [features]
-default = ["conduit_bin", "backend_sqlite", "backend_rocksdb", "jemalloc", "systemd"]
+default = ["conduit_bin", "backend_sqlite", "backend_rocksdb", "systemd"]
 #backend_sled = ["sled"]
 backend_persy = ["persy", "parking_lot"]
 backend_sqlite = ["sqlite"]

@@ -15,7 +15,8 @@ pub trait Data: Send + Sync {
     fn current_count(&self) -> Result<u64>;
     async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()>;
     fn cleanup(&self) -> Result<()>;
-    fn memory_usage(&self) -> Result<String>;
+    fn memory_usage(&self) -> String;
+    fn clear_caches(&self, amount: u32);
     fn load_keypair(&self) -> Result<Ed25519KeyPair>;
     fn remove_keypair(&self) -> Result<()>;
     fn add_signing_key(

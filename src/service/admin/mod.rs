@@ -134,7 +134,13 @@ enum AdminCommand {
     },
 
     /// Print database memory usage statistics
-    DatabaseMemoryUsage,
+    MemoryUsage,
+
+    /// Clears all of Conduit's database caches with index smaller than the amount
+    ClearDatabaseCaches { amount: u32 },
+
+    /// Clears all of Conduit's service caches with index smaller than the amount
+    ClearServiceCaches { amount: u32 },
 
     /// Show configuration values
     ShowConfig,
@@ -531,12 +537,24 @@ impl Service {
                     None => RoomMessageEventContent::text_plain("PDU not found."),
                 }
             }
-            AdminCommand::DatabaseMemoryUsage => match services().globals.db.memory_usage() {
-                Ok(response) => RoomMessageEventContent::text_plain(response),
-                Err(e) => RoomMessageEventContent::text_plain(format!(
-                    "Failed to get database memory usage: {e}"
-                )),
-            },
+            AdminCommand::MemoryUsage => {
+                let response1 = services().memory_usage();
+                let response2 = services().globals.db.memory_usage();
+
+                RoomMessageEventContent::text_plain(format!(
+                    "Services:\n{response1}\n\nDatabase:\n{response2}"
+                ))
+            }
+            AdminCommand::ClearDatabaseCaches { amount } => {
+                services().globals.db.clear_caches(amount);
+
+                RoomMessageEventContent::text_plain("Done.")
+            }
+            AdminCommand::ClearServiceCaches { amount } => {
+                services().clear_caches(amount);
+
+                RoomMessageEventContent::text_plain("Done.")
+            }
             AdminCommand::ShowConfig => {
                 // Construct and send the response
                 RoomMessageEventContent::text_plain(format!("{}", services().globals.config))

@@ -118,8 +118,59 @@ impl service::globals::Data for KeyValueDatabase {
         self._db.cleanup()
     }
 
-    fn memory_usage(&self) -> Result<String> {
-        self._db.memory_usage()
+    fn memory_usage(&self) -> String {
+        let pdu_cache = self.pdu_cache.lock().unwrap().len();
+        let shorteventid_cache = self.shorteventid_cache.lock().unwrap().len();
+        let auth_chain_cache = self.auth_chain_cache.lock().unwrap().len();
+        let eventidshort_cache = self.eventidshort_cache.lock().unwrap().len();
+        let statekeyshort_cache = self.statekeyshort_cache.lock().unwrap().len();
+        let our_real_users_cache = self.our_real_users_cache.read().unwrap().len();
+        let appservice_in_room_cache = self.appservice_in_room_cache.read().unwrap().len();
+        let lasttimelinecount_cache = self.lasttimelinecount_cache.lock().unwrap().len();
+
+        let mut response = format!(
+            "\
+pdu_cache: {pdu_cache}
+shorteventid_cache: {shorteventid_cache}
+auth_chain_cache: {auth_chain_cache}
+eventidshort_cache: {eventidshort_cache}
+statekeyshort_cache: {statekeyshort_cache}
+our_real_users_cache: {our_real_users_cache}
+appservice_in_room_cache: {appservice_in_room_cache}
+lasttimelinecount_cache: {lasttimelinecount_cache}\n"
+        );
+        if let Ok(db_stats) = self._db.memory_usage() {
+            response += &db_stats;
+        }
+
+        response
+    }
+
+    fn clear_caches(&self, amount: u32) {
+        if amount > 0 {
+            self.pdu_cache.lock().unwrap().clear();
+        }
+        if amount > 1 {
+            self.shorteventid_cache.lock().unwrap().clear();
+        }
+        if amount > 2 {
+            self.auth_chain_cache.lock().unwrap().clear();
+        }
+        if amount > 3 {
+            self.eventidshort_cache.lock().unwrap().clear();
+        }
+        if amount > 4 {
+            self.statekeyshort_cache.lock().unwrap().clear();
+        }
+        if amount > 5 {
+            self.our_real_users_cache.write().unwrap().clear();
+        }
+        if amount > 6 {
+            self.appservice_in_room_cache.write().unwrap().clear();
+        }
+        if amount > 7 {
+            self.lasttimelinecount_cache.lock().unwrap().clear();
+        }
     }
 
     fn load_keypair(&self) -> Result<Ed25519KeyPair> {
