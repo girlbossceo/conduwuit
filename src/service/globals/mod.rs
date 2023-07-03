@@ -214,10 +214,6 @@ impl Service {
         self.db.cleanup()
     }
 
-    pub fn memory_usage(&self) -> Result<String> {
-        self.db.memory_usage()
-    }
-
     pub fn server_name(&self) -> &ServerName {
         self.config.server_name.as_ref()
     }

@@ -45,6 +45,10 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
     db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
     db_opts.optimize_level_style_compaction(10 * 1024 * 1024);
 
+    // https://github.com/facebook/rocksdb/wiki/Setup-Options-and-Basic-Tuning
+    db_opts.set_max_background_jobs(6);
+    db_opts.set_bytes_per_sync(1048576);
+
     let prefix_extractor = rocksdb::SliceTransform::create_fixed_prefix(1);
     db_opts.set_prefix_extractor(prefix_extractor);
 
@@ -121,6 +125,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
             self.cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
         ))
     }
+
+    fn clear_caches(&self) {}
 }
 
 impl RocksDbEngineTree<'_> {

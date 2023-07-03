@@ -90,7 +90,7 @@ impl Services {
                 state_compressor: rooms::state_compressor::Service {
                     db,
                     stateinfo_cache: Mutex::new(LruCache::new(
-                        (300.0 * config.conduit_cache_capacity_modifier) as usize,
+                        (100.0 * config.conduit_cache_capacity_modifier) as usize,
                     )),
                 },
                 timeline: rooms::timeline::Service {
@@ -114,5 +114,110 @@ impl Services {
 
             globals: globals::Service::load(db, config)?,
         })
+    }
+    fn memory_usage(&self) -> String {
+        let lazy_load_waiting = self
+            .rooms
+            .lazy_loading
+            .lazy_load_waiting
+            .lock()
+            .unwrap()
+            .len();
+        let server_visibility_cache = self
+            .rooms
+            .state_accessor
+            .server_visibility_cache
+            .lock()
+            .unwrap()
+            .len();
+        let user_visibility_cache = self
+            .rooms
+            .state_accessor
+            .user_visibility_cache
+            .lock()
+            .unwrap()
+            .len();
+        let stateinfo_cache = self
+            .rooms
+            .state_compressor
+            .stateinfo_cache
+            .lock()
+            .unwrap()
+            .len();
+        let lasttimelinecount_cache = self
+            .rooms
+            .timeline
+            .lasttimelinecount_cache
+            .lock()
+            .unwrap()
+            .len();
+        let roomid_spacechunk_cache = self
+            .rooms
+            .spaces
+            .roomid_spacechunk_cache
+            .lock()
+            .unwrap()
+            .len();
+
+        format!(
+            "\
+lazy_load_waiting: {lazy_load_waiting}
+server_visibility_cache: {server_visibility_cache}
+user_visibility_cache: {user_visibility_cache}
+stateinfo_cache: {stateinfo_cache}
+lasttimelinecount_cache: {lasttimelinecount_cache}
+roomid_spacechunk_cache: {roomid_spacechunk_cache}\
+            "
+        )
+    }
+    fn clear_caches(&self, amount: u32) {
+        if amount > 0 {
+            self.rooms
+                .lazy_loading
+                .lazy_load_waiting
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 1 {
+            self.rooms
+                .state_accessor
+                .server_visibility_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 2 {
+            self.rooms
+                .state_accessor
+                .user_visibility_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 3 {
+            self.rooms
+                .state_compressor
+                .stateinfo_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 4 {
+            self.rooms
+                .timeline
+                .lasttimelinecount_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 5 {
+            self.rooms
+                .spaces
+                .roomid_spacechunk_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
     }
 }

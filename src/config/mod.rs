@@ -224,7 +224,7 @@ fn default_database_backend() -> String {
 }
 
 fn default_db_cache_capacity_mb() -> f64 {
-    1000.0
+    300.0
 }
 
 fn default_conduit_cache_capacity_modifier() -> f64 {
