@@ -41,6 +41,7 @@ variables:
       --pull
       --tag "$CI_REGISTRY_IMAGE/temporary-ci-images:$CI_JOB_ID"
       --push
+      --provenance=false
       --file "Dockerfile" .
     # Build multiplatform image to deb stage and extract their .deb files:
     - >
@@ -48,6 +49,7 @@ variables:
       --platform "linux/arm/v7,linux/arm64,linux/amd64"
       --target "packager-result"
       --output="type=local,dest=/tmp/build-output"
+      --provenance=false
       --file "Dockerfile" .
     # Build multiplatform image to binary stage and extract their binaries:
     - >
@@ -55,6 +57,7 @@ variables:
       --platform "linux/arm/v7,linux/arm64,linux/amd64"
       --target "builder-result"
       --output="type=local,dest=/tmp/build-output"
+      --provenance=false
       --file "Dockerfile" .
     # Copy to GitLab container registry:
     - >
