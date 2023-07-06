@@ -357,6 +357,7 @@ fn routes() -> Router {
                 .put(client_server::send_state_event_for_empty_key_route),
         )
         .ruma_route(client_server::sync_events_route)
+        .ruma_route(client_server::sync_events_v4_route)
         .ruma_route(client_server::get_context_route)
         .ruma_route(client_server::get_message_events_route)
         .ruma_route(client_server::search_events_route)

@@ -273,15 +273,7 @@ impl Service {
                             Error::bad_database("Invalid canonical alias event in database.")
                         })
                 })?,
-            name: services()
-                .rooms
-                .state_accessor
-                .room_state_get(&room_id, &StateEventType::RoomName, "")?
-                .map_or(Ok(None), |s| {
-                    serde_json::from_str(s.content.get())
-                        .map(|c: RoomNameEventContent| c.name)
-                        .map_err(|_| Error::bad_database("Invalid room name event in database."))
-                })?,
+            name: services().rooms.state_accessor.get_name(&room_id)?,
             num_joined_members: services()
                 .rooms
                 .state_cache

@@ -270,21 +270,7 @@ impl Service {
 
                     notifi.sender_display_name = services().users.displayname(&event.sender)?;
 
-                    let room_name = if let Some(room_name_pdu) = services()
-                        .rooms
-                        .state_accessor
-                        .room_state_get(&event.room_id, &StateEventType::RoomName, "")?
-                    {
-                        serde_json::from_str::<RoomNameEventContent>(room_name_pdu.content.get())
-                            .map_err(|_| {
-                                Error::bad_database("Invalid room name event in database.")
-                            })?
-                            .name
-                    } else {
-                        None
-                    };
-
-                    notifi.room_name = room_name;
+                    notifi.room_name = services().rooms.state_accessor.get_name(&event.room_id)?;
 
                     self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
                         .await?;
