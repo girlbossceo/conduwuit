@@ -592,7 +592,6 @@ impl service::users::Data for KeyValueDatabase {
             &serde_json::to_vec(&cross_signing_key).expect("CrossSigningKey::to_vec always works"),
         )?;
 
-        // TODO: Should we notify about this change?
         self.mark_device_key_update(target_id)?;
 
         Ok(())
