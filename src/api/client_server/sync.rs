@@ -23,7 +23,7 @@ use ruma::{
     uint, DeviceId, OwnedDeviceId, OwnedUserId, RoomId, UInt, UserId,
 };
 use std::{
-    collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
     sync::Arc,
     time::Duration,
 };
@@ -1246,6 +1246,18 @@ pub async fn sync_events_v4_route(
         let (timeline_pdus, limited) =
             load_timeline(&sender_user, &room_id, sincecount, timeline_limit)?;
 
+        let prev_batch = timeline_pdus
+            .first()
+            .map_or(Ok::<_, Error>(None), |(pdu_count, _)| {
+                Ok(Some(match pdu_count {
+                    PduCount::Backfilled(_) => {
+                        error!("timeline in backfill state?!");
+                        "0".to_owned()
+                    }
+                    PduCount::Normal(c) => c.to_string(),
+                }))
+            })?;
+
         let room_events: Vec<_> = timeline_pdus
             .iter()
             .map(|(_, pdu)| pdu.to_sync_room_event())
@@ -1277,7 +1289,7 @@ pub async fn sync_events_v4_route(
                 },
                 timeline: room_events,
                 required_state,
-                prev_batch: None,
+                prev_batch,
                 limited,
                 joined_count: Some(
                     (services()
