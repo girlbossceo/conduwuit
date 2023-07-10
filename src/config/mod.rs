@@ -54,6 +54,7 @@ pub struct Config {
     pub allow_unstable_room_versions: bool,
     #[serde(default = "default_default_room_version")]
     pub default_room_version: RoomVersionId,
+    pub well_known_client: Option<String>,
     #[serde(default = "false_fn")]
     pub allow_jaeger: bool,
     #[serde(default = "false_fn")]

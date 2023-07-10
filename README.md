@@ -68,7 +68,7 @@ Thanks to the contributors to Conduit and all libraries we use, for example:
 If you run into any question, feel free to
 - Ask us in `#conduit:fachschaften.org` on Matrix
 - Write an E-Mail to `conduit@koesters.xyz`
-- Send an direct message to `timo@fachschaften.org` on Matrix
+- Send an direct message to `timokoesters@fachschaften.org` on Matrix
 - [Open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new)
 
 #### Donate

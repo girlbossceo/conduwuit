@@ -1,7 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use async_trait::async_trait;
 use futures_util::{stream::FuturesUnordered, StreamExt};
+use lru_cache::LruCache;
 use ruma::{
     api::federation::discovery::{ServerSigningKeys, VerifyKey},
     signatures::Ed25519KeyPair,
@@ -148,28 +149,36 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 
     fn clear_caches(&self, amount: u32) {
         if amount > 0 {
-            self.pdu_cache.lock().unwrap().clear();
+            let c = &mut *self.pdu_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
         }
         if amount > 1 {
-            self.shorteventid_cache.lock().unwrap().clear();
+            let c = &mut *self.shorteventid_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
         }
         if amount > 2 {
-            self.auth_chain_cache.lock().unwrap().clear();
+            let c = &mut *self.auth_chain_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
         }
         if amount > 3 {
-            self.eventidshort_cache.lock().unwrap().clear();
+            let c = &mut *self.eventidshort_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
         }
         if amount > 4 {
-            self.statekeyshort_cache.lock().unwrap().clear();
+            let c = &mut *self.statekeyshort_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
         }
         if amount > 5 {
-            self.our_real_users_cache.write().unwrap().clear();
+            let c = &mut *self.our_real_users_cache.write().unwrap();
+            *c = HashMap::new();
         }
         if amount > 6 {
-            self.appservice_in_room_cache.write().unwrap().clear();
+            let c = &mut *self.appservice_in_room_cache.write().unwrap();
+            *c = HashMap::new();
         }
         if amount > 7 {
-            self.lasttimelinecount_cache.lock().unwrap().clear();
+            let c = &mut *self.lasttimelinecount_cache.lock().unwrap();
+            *c = HashMap::new();
         }
     }
 
