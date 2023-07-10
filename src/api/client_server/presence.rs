@@ -1,5 +1,8 @@
-use crate::{services, utils, Result, Ruma};
-use ruma::api::client::presence::{get_presence, set_presence};
+use crate::{services, Error, Result, Ruma};
+use ruma::api::client::{
+    error::ErrorKind,
+    presence::{get_presence, set_presence},
+};
 use std::time::Duration;
 
 /// # `PUT /_matrix/client/r0/presence/{userId}/status`
@@ -9,28 +12,16 @@ pub async fn set_presence_route(
     body: Ruma<set_presence::v3::Request>,
 ) -> Result<set_presence::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
     for room_id in services().rooms.state_cache.rooms_joined(sender_user) {
         let room_id = room_id?;
 
-        services().rooms.edus.presence.update_presence(
-            sender_user,
+        services().rooms.edus.presence.set_presence(
             &room_id,
-            ruma::events::presence::PresenceEvent {
-                content: ruma::events::presence::PresenceEventContent {
-                    avatar_url: services().users.avatar_url(sender_user)?,
-                    currently_active: None,
-                    displayname: services().users.displayname(sender_user)?,
-                    last_active_ago: Some(
-                        utils::millis_since_unix_epoch()
-                            .try_into()
-                            .expect("time is valid"),
-                    ),
-                    presence: body.presence.clone(),
-                    status_msg: body.status_msg.clone(),
-                },
-                sender: sender_user.clone(),
-            },
+            sender_user,
+            body.presence.clone(),
+            None,
+            None,
+            body.status_msg.clone(),
         )?;
     }
 
@@ -60,7 +51,7 @@ pub async fn get_presence_route(
             .rooms
             .edus
             .presence
-            .get_last_presence_event(sender_user, &room_id)?
+            .get_presence(&room_id, sender_user)?
         {
             presence_event = Some(presence);
             break;
@@ -79,6 +70,9 @@ pub async fn get_presence_route(
             presence: presence.content.presence,
         })
     } else {
-        todo!();
+        Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Presence state for this used was not found",
+        ))
     }
 }
