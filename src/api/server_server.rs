@@ -123,6 +123,12 @@ where
         return Err(Error::bad_config("Federation is disabled."));
     }
 
+    if destination == services().globals.server_name() {
+        return Err(Error::bad_config(
+            "Won't send federation request to ourselves",
+        ));
+    }
+
     debug!("Preparing to send request to {destination}");
 
     let mut write_destination_to_cache = false;
