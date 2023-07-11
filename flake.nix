@@ -25,8 +25,8 @@
     let
       pkgs = nixpkgs.legacyPackages.${system};
 
-      # Use mold on Linux
-      stdenv = if pkgs.stdenv.isLinux then
+      # Use mold where possible
+      stdenv = if pkgs.stdenv.isLinux && pkgs.stdenv.isx86_64 then
         pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
       else
         pkgs.stdenv;
