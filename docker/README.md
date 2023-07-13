@@ -4,7 +4,7 @@
 
 ## Docker
 
-To run conduit with docker you can either build the image yourself or pull it from a registry.
+To run Conduit with Docker you can either build the image yourself or pull it from a registry.
 
 
 ### Use a registry
