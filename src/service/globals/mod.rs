@@ -1,5 +1,6 @@
 mod data;
 pub use data::Data;
+use ruma::serde::Base64;
 use ruma::{
     OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
 };
@@ -316,7 +317,19 @@ impl Service {
         &self,
         origin: &ServerName,
     ) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
-        self.db.signing_keys_for(origin)
+        let mut keys = self.db.signing_keys_for(origin)?;
+        if origin == self.server_name() {
+            keys.insert(
+                format!("ed25519:{}", services().globals.keypair().version())
+                    .try_into()
+                    .expect("found invalid server signing keys in DB"),
+                VerifyKey {
+                    key: Base64::new(self.keypair.public_key().to_vec()),
+                },
+            );
+        }
+
+        Ok(keys)
     }
 
     pub fn database_version(&self) -> Result<u64> {
