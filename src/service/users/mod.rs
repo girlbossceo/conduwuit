@@ -226,20 +226,43 @@ impl Service {
         self.db.get_device_keys(user_id, device_id)
     }
 
-    pub fn get_master_key(
+    pub fn parse_master_key(
         &self,
+        user_id: &UserId,
+        master_key: &Raw<CrossSigningKey>,
+    ) -> Result<(Vec<u8>, CrossSigningKey)> {
+        self.db.parse_master_key(user_id, master_key)
+    }
+
+    pub fn get_key(
+        &self,
+        key: &[u8],
+        sender_user: Option<&UserId>,
         user_id: &UserId,
         allowed_signatures: &dyn Fn(&UserId) -> bool,
     ) -> Result<Option<Raw<CrossSigningKey>>> {
-        self.db.get_master_key(user_id, allowed_signatures)
+        self.db
+            .get_key(key, sender_user, user_id, allowed_signatures)
+    }
+
+    pub fn get_master_key(
+        &self,
+        sender_user: Option<&UserId>,
+        user_id: &UserId,
+        allowed_signatures: &dyn Fn(&UserId) -> bool,
+    ) -> Result<Option<Raw<CrossSigningKey>>> {
+        self.db
+            .get_master_key(sender_user, user_id, allowed_signatures)
     }
 
     pub fn get_self_signing_key(
         &self,
+        sender_user: Option<&UserId>,
         user_id: &UserId,
         allowed_signatures: &dyn Fn(&UserId) -> bool,
     ) -> Result<Option<Raw<CrossSigningKey>>> {
-        self.db.get_self_signing_key(user_id, allowed_signatures)
+        self.db
+            .get_self_signing_key(sender_user, user_id, allowed_signatures)
     }
 
     pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<Raw<CrossSigningKey>>> {
@@ -342,6 +365,7 @@ impl Service {
 /// Ensure that a user only sees signatures from themselves and the target user
 pub fn clean_signatures<F: Fn(&UserId) -> bool>(
     cross_signing_key: &mut serde_json::Value,
+    sender_user: Option<&UserId>,
     user_id: &UserId,
     allowed_signatures: F,
 ) -> Result<(), Error> {
@@ -355,9 +379,9 @@ pub fn clean_signatures<F: Fn(&UserId) -> bool>(
         for (user, signature) in
             mem::replace(signatures, serde_json::Map::with_capacity(new_capacity))
         {
-            let id = <&UserId>::try_from(user.as_str())
+            let sid = <&UserId>::try_from(user.as_str())
                 .map_err(|_| Error::bad_database("Invalid user ID in database."))?;
-            if id == user_id || allowed_signatures(id) {
+            if sender_user == Some(user_id) || sid == user_id || allowed_signatures(sid) {
                 signatures.insert(user, signature);
             }
         }

@@ -136,14 +136,30 @@ pub trait Data: Send + Sync {
         device_id: &DeviceId,
     ) -> Result<Option<Raw<DeviceKeys>>>;
 
+    fn parse_master_key(
+        &self,
+        user_id: &UserId,
+        master_key: &Raw<CrossSigningKey>,
+    ) -> Result<(Vec<u8>, CrossSigningKey)>;
+
+    fn get_key(
+        &self,
+        key: &[u8],
+        sender_user: Option<&UserId>,
+        user_id: &UserId,
+        allowed_signatures: &dyn Fn(&UserId) -> bool,
+    ) -> Result<Option<Raw<CrossSigningKey>>>;
+
     fn get_master_key(
         &self,
+        sender_user: Option<&UserId>,
         user_id: &UserId,
         allowed_signatures: &dyn Fn(&UserId) -> bool,
     ) -> Result<Option<Raw<CrossSigningKey>>>;
 
     fn get_self_signing_key(
         &self,
+        sender_user: Option<&UserId>,
         user_id: &UserId,
         allowed_signatures: &dyn Fn(&UserId) -> bool,
     ) -> Result<Option<Raw<CrossSigningKey>>>;
