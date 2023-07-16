@@ -13,10 +13,7 @@ use ruma::{
         },
         IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
     },
-    events::{
-        room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},
-        StateEventType, TimelineEventType,
-    },
+    events::{room::power_levels::RoomPowerLevelsEventContent, StateEventType, TimelineEventType},
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     serde::Raw,
     uint, RoomId, UInt, UserId,

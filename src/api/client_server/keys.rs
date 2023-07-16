@@ -311,15 +311,17 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
             }
         }
 
-        if let Some(master_key) = services()
-            .users
-            .get_master_key(user_id, &allowed_signatures)?
+        if let Some(master_key) =
+            services()
+                .users
+                .get_master_key(sender_user, user_id, &allowed_signatures)?
         {
             master_keys.insert(user_id.to_owned(), master_key);
         }
-        if let Some(self_signing_key) = services()
-            .users
-            .get_self_signing_key(user_id, &allowed_signatures)?
+        if let Some(self_signing_key) =
+            services()
+                .users
+                .get_self_signing_key(sender_user, user_id, &allowed_signatures)?
         {
             self_signing_keys.insert(user_id.to_owned(), self_signing_key);
         }
@@ -357,7 +359,25 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
     while let Some((server, response)) = futures.next().await {
         match response {
             Ok(response) => {
-                master_keys.extend(response.master_keys);
+                for (user, masterkey) in response.master_keys {
+                    let (master_key_id, mut master_key) =
+                        services().users.parse_master_key(&user, &masterkey)?;
+
+                    if let Some(our_master_key) = services().users.get_key(
+                        &master_key_id,
+                        sender_user,
+                        &user,
+                        &allowed_signatures,
+                    )? {
+                        let (_, our_master_key) =
+                            services().users.parse_master_key(&user, &our_master_key)?;
+                        master_key.signatures.extend(our_master_key.signatures);
+                    }
+                    let json = serde_json::to_value(master_key).expect("to_value always works");
+                    let raw = serde_json::from_value(json).expect("Raw::from_value always works");
+                    master_keys.insert(user, raw);
+                }
+
                 self_signing_keys.extend(response.self_signing_keys);
                 device_keys.extend(response.device_keys);
             }

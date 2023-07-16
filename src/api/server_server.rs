@@ -1806,12 +1806,14 @@ pub async fn get_devices_route(
                 })
             })
             .collect(),
-        master_key: services()
-            .users
-            .get_master_key(&body.user_id, &|u| u.server_name() == sender_servername)?,
+        master_key: services().users.get_master_key(None, &body.user_id, &|u| {
+            u.server_name() == sender_servername
+        })?,
         self_signing_key: services()
             .users
-            .get_self_signing_key(&body.user_id, &|u| u.server_name() == sender_servername)?,
+            .get_self_signing_key(None, &body.user_id, &|u| {
+                u.server_name() == sender_servername
+            })?,
     })
 }
 

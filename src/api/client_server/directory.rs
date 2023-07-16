@@ -20,7 +20,6 @@ use ruma::{
             guest_access::{GuestAccess, RoomGuestAccessEventContent},
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
             join_rules::{JoinRule, RoomJoinRulesEventContent},
-            name::RoomNameEventContent,
             topic::RoomTopicEventContent,
         },
         StateEventType,
