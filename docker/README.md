@@ -9,16 +9,21 @@ To run Conduit with Docker you can either build the image yourself or pull it fr
 
 ### Use a registry
 
-The image is available in the following registries:
+OCI images for Conduit are available in the registries listed below. We recommend using the image tagged as `latest` from GitLab's own registry.
 
-| Registry        | Image                                                           | Size                  |
-| --------------- | --------------------------------------------------------------- | --------------------- |
-| Docker Hub      | [matrixconduit/matrix-conduit:latest][dh]                       | ![Image Size][shield] |
-| GitLab Registry | [registry.gitlab.com/famedly/conduit/matrix-conduit:latest][gl] | ![Image Size][shield] |
+| Registry        | Image                                                           | Size                          | Notes                  |
+| --------------- | --------------------------------------------------------------- | ----------------------------- | ---------------------- |
+| GitLab Registry | [registry.gitlab.com/famedly/conduit/matrix-conduit:latest][gl] | ![Image Size][shield-latest]  | Stable image.          |
+| Docker Hub      | [docker.io/matrixconduit/matrix-conduit:latest][dh]             | ![Image Size][shield-latest]  | Stable image.          |
+| GitLab Registry | [registry.gitlab.com/famedly/conduit/matrix-conduit:next][gl]   | ![Image Size][shield-next]    | Development version.   |
+| Docker Hub      | [docker.io/matrixconduit/matrix-conduit:next][dh]               | ![Image Size][shield-next]    | Development version.   |
+
 
 [dh]: https://hub.docker.com/r/matrixconduit/matrix-conduit
 [gl]: https://gitlab.com/famedly/conduit/container_registry/2497937
-[shield]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/latest
+[shield-latest]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/latest
+[shield-next]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/next
+
 
 Use 
 ```bash
@@ -60,7 +65,7 @@ docker run -d -p 8448:6167 \
   -e CONDUIT_TRUSTED_SERVERS="[\"matrix.org\"]" \
   -e CONDUIT_MAX_CONCURRENT_REQUESTS="100" \
   -e CONDUIT_LOG="warn,rocket=off,_=off,sled=off" \
-  --name conduit matrixconduit/matrix-conduit:latest
+  --name conduit <link>
 ```
 
 or you can use [docker-compose](#docker-compose).
