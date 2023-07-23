@@ -117,8 +117,7 @@ After=network.target
 [Service]
 Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
 User=conduit
-Group=nogroup
-# On RHEL: Group=nobody
+Group=conduit
 Restart=always
 ExecStart=/usr/local/bin/matrix-conduit
 
@@ -198,8 +197,7 @@ If you use the default database path you also need to run this:
 
 ```bash
 sudo mkdir -p /var/lib/matrix-conduit/
-sudo chown -R conduit:nogroup /var/lib/matrix-conduit/
-# On RHEL: sudo chown -R conduit:nobody /var/lib/matrix-conduit/
+sudo chown -R conduit:conduit /var/lib/matrix-conduit/
 sudo chmod 700 /var/lib/matrix-conduit/
 ```
 
