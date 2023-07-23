@@ -23,7 +23,7 @@ use ruma::{
     uint, DeviceId, OwnedDeviceId, OwnedUserId, RoomId, UInt, UserId,
 };
 use std::{
-    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
+    collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
     sync::Arc,
     time::Duration,
 };
@@ -1174,8 +1174,7 @@ pub async fn sync_events_v4_route(
 ) -> Result<sync_events::v4::Response, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.expect("user is authenticated");
     let sender_device = body.sender_device.expect("user is authenticated");
-    let body = dbg!(body.body);
-
+    let mut body = dbg!(body.body);
     // Setup watchers, so if there's no response, we can wait for them
     let watcher = services().globals.watch(&sender_user, &sender_device);
 
@@ -1188,7 +1187,21 @@ pub async fn sync_events_v4_route(
         .unwrap_or(0);
     let sincecount = PduCount::Normal(since);
 
-    let initial = since == 0;
+    if since == 0 {
+        if let Some(conn_id) = &body.conn_id {
+            services().users.forget_sync_request_connection(
+                sender_user.clone(),
+                sender_device.clone(),
+                conn_id.clone(),
+            )
+        }
+    }
+
+    let known_rooms = services().users.update_sync_request_with_cache(
+        sender_user.clone(),
+        sender_device.clone(),
+        &mut body,
+    );
 
     let all_joined_rooms = services()
         .rooms
@@ -1205,8 +1218,10 @@ pub async fn sync_events_v4_route(
             continue;
         }
 
+        let mut new_known_rooms = BTreeMap::new();
+
         lists.insert(
-            list_id,
+            list_id.clone(),
             sync_events::v4::SyncList {
                 ops: list
                     .ranges
@@ -1219,14 +1234,27 @@ pub async fn sync_events_v4_route(
                         let room_ids = all_joined_rooms
                             [(u64::from(r.0) as usize)..=(u64::from(r.1) as usize)]
                             .to_vec();
-                        todo_rooms.extend(room_ids.iter().cloned().map(|r| {
+                        new_known_rooms.extend(room_ids.iter().cloned().map(|r| (r, true)));
+                        for room_id in &room_ids {
+                            let todo_room = todo_rooms.entry(room_id.clone()).or_insert((
+                                BTreeSet::new(),
+                                0,
+                                true,
+                            ));
                             let limit = list
                                 .room_details
                                 .timeline_limit
                                 .map_or(10, u64::from)
                                 .min(100);
-                            (r, (list.room_details.required_state.clone(), limit))
-                        }));
+                            todo_room
+                                .0
+                                .extend(list.room_details.required_state.iter().cloned());
+                            todo_room.1 = todo_room.1.min(limit);
+                            if known_rooms.get(&list_id).and_then(|k| k.get(room_id)) != Some(&true)
+                            {
+                                todo_room.2 = false;
+                            }
+                        }
                         sync_events::v4::SyncOp {
                             op: SlidingOp::Sync,
                             range: Some(r.clone()),
@@ -1239,12 +1267,36 @@ pub async fn sync_events_v4_route(
                 count: UInt::from(all_joined_rooms.len() as u32),
             },
         );
+
+        if let Some(conn_id) = &body.conn_id {
+            services().users.update_sync_known_rooms(
+                sender_user.clone(),
+                sender_device.clone(),
+                conn_id.clone(),
+                list_id,
+                new_known_rooms,
+            );
+        }
+    }
+
+    for (room_id, room) in body.room_subscriptions {
+        let todo_room = todo_rooms
+            .entry(room_id.clone())
+            .or_insert((BTreeSet::new(), 0, true));
+        let limit = room.timeline_limit.map_or(10, u64::from).min(100);
+        todo_room.0.extend(room.required_state.iter().cloned());
+        todo_room.1 = todo_room.1.min(limit);
+        todo_room.2 = false;
     }
 
     let mut rooms = BTreeMap::new();
-    for (room_id, (required_state_request, timeline_limit)) in todo_rooms {
+    for (room_id, (required_state_request, timeline_limit, known)) in &todo_rooms {
         let (timeline_pdus, limited) =
-            load_timeline(&sender_user, &room_id, sincecount, timeline_limit)?;
+            load_timeline(&sender_user, &room_id, sincecount, *timeline_limit)?;
+
+        if *known && timeline_pdus.is_empty() {
+            continue;
+        }
 
         let prev_batch = timeline_pdus
             .first()
@@ -1256,7 +1308,14 @@ pub async fn sync_events_v4_route(
                     }
                     PduCount::Normal(c) => c.to_string(),
                 }))
-            })?;
+            })?
+            .or_else(|| {
+                if since != 0 {
+                    Some(since.to_string())
+                } else {
+                    None
+                }
+            });
 
         let room_events: Vec<_> = timeline_pdus
             .iter()
@@ -1279,8 +1338,41 @@ pub async fn sync_events_v4_route(
         rooms.insert(
             room_id.clone(),
             sync_events::v4::SlidingSyncRoom {
-                name: services().rooms.state_accessor.get_name(&room_id)?,
-                initial: Some(initial),
+                name: services()
+                    .rooms
+                    .state_accessor
+                    .get_name(&room_id)?
+                    .or_else(|| {
+                        // Heroes
+                        let mut names = services()
+                            .rooms
+                            .state_cache
+                            .room_members(&room_id)
+                            .filter_map(|r| r.ok())
+                            .filter(|member| member != &sender_user)
+                            .map(|member| {
+                                Ok::<_, Error>(
+                                    services()
+                                        .rooms
+                                        .state_accessor
+                                        .get_member(&room_id, &member)?
+                                        .and_then(|memberevent| memberevent.displayname)
+                                        .unwrap_or(member.to_string()),
+                                )
+                            })
+                            .filter_map(|r| r.ok())
+                            .take(5)
+                            .collect::<Vec<_>>();
+                        if names.len() > 1 {
+                            let last = names.pop().unwrap();
+                            Some(names.join(", ") + " and " + &last)
+                        } else if names.len() == 1 {
+                            Some(names.pop().unwrap())
+                        } else {
+                            None
+                        }
+                    }),
+                initial: Some(*known),
                 is_dm: None,
                 invite_state: None,
                 unread_notifications: UnreadNotificationsCount {
@@ -1326,7 +1418,7 @@ pub async fn sync_events_v4_route(
     }
 
     Ok(dbg!(sync_events::v4::Response {
-        initial: initial,
+        initial: since == 0,
         txn_id: body.txn_id.clone(),
         pos: next_batch.to_string(),
         lists,
