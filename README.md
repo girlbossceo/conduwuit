@@ -39,7 +39,7 @@ Check out the [Conduit 1.0 Release Milestone](https://gitlab.com/famedly/conduit
 #### How can I deploy my own?
 
 - Simple install (this was tested the most): [DEPLOY.md](DEPLOY.md)
-- Debian package: [debian/README.Debian](debian/README.Debian)
+- Debian package: [debian/README.md](debian/README.md)
 - Nix/NixOS: [nix/README.md](nix/README.md)
 - Docker: [docker/README.md](docker/README.md)
 
