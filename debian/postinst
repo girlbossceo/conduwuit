@@ -19,11 +19,11 @@ case "$1" in
         _matrix-conduit
     fi
 
-    # Create the database path if it does not exist yet.
-    if [ ! -d "$CONDUIT_DATABASE_PATH" ]; then
-      mkdir -p "$CONDUIT_DATABASE_PATH"
-      chown _matrix-conduit "$CONDUIT_DATABASE_PATH"
-    fi
+    # Create the database path if it does not exist yet and fix up ownership
+    # and permissions.
+    mkdir -p "$CONDUIT_DATABASE_PATH"
+    chown _matrix-conduit "$CONDUIT_DATABASE_PATH"
+    chmod 700 "$CONDUIT_DATABASE_PATH"
 
     if [ ! -e "$CONDUIT_CONFIG_FILE" ]; then
       # Write the debconf values in the config.
