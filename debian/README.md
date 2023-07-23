@@ -1,6 +1,14 @@
 Conduit for Debian
 ==================
 
+Installation
+------------
+
+Information about downloading, building and deploying the Debian package, see
+the "Installing Conduit" section in [DEPLOY.md](../DEPLOY.md).
+All following sections until "Setting up the Reverse Proxy" be ignored because
+this is handled automatically by the packaging.
+
 Configuration
 -------------
 
