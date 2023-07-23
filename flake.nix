@@ -25,8 +25,8 @@
     let
       pkgs = nixpkgs.legacyPackages.${system};
 
-      # Use mold where possible
-      stdenv = if pkgs.stdenv.isLinux && pkgs.stdenv.isx86_64 then
+      # Use mold on Linux
+      stdenv = if pkgs.stdenv.isLinux then
         pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
       else
         pkgs.stdenv;
@@ -43,6 +43,10 @@
         sha256 = "sha256-gdYqng0y9iHYzYPAdkC/ka3DRny3La/S5G8ASj0Ayyc=";
       };
 
+      # The system's RocksDB
+      ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb}/include";
+      ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib";
+
       # Shared between the package and the devShell
       nativeBuildInputs = (with pkgs.rustPlatform; [
         bindgenHook
@@ -57,13 +61,19 @@
 
         inherit
           stdenv
-          nativeBuildInputs;
+          nativeBuildInputs
+          ROCKSDB_INCLUDE_DIR
+          ROCKSDB_LIB_DIR;
       };
 
       devShells.default = (pkgs.mkShell.override { inherit stdenv; }) {
         # Rust Analyzer needs to be able to find the path to default crate
         # sources, and it can read this environment variable to do so
         RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/library";
+
+        inherit
+          ROCKSDB_INCLUDE_DIR
+          ROCKSDB_LIB_DIR;
 
         # Development tools
         nativeBuildInputs = nativeBuildInputs ++ (with toolchain; [

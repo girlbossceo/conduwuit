@@ -179,7 +179,7 @@ in
     upstreams = {
       "backend_conduit" = {
         servers = {
-          "localhost:${toString config.services.matrix-conduit.settings.global.port}" = { };
+          "[::1]:${toString config.services.matrix-conduit.settings.global.port}" = { };
         };
       };
     };
