@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
-    sync::Arc,
+    sync::{Arc, RwLock},
     time::Instant,
 };
 
@@ -163,6 +163,20 @@ enum AdminCommand {
     DisableRoom { room_id: Box<RoomId> },
     /// Enables incoming federation handling for a room again.
     EnableRoom { room_id: Box<RoomId> },
+
+    /// Verify json signatures
+    /// [commandbody]
+    /// # ```
+    /// # json here
+    /// # ```
+    SignJson,
+
+    /// Verify json signatures
+    /// [commandbody]
+    /// # ```
+    /// # json here
+    /// # ```
+    VerifyJson,
 }
 
 #[derive(Debug)]
@@ -747,6 +761,60 @@ impl Service {
                         ))
                     } else {
                         RoomMessageEventContent::text_plain(format!("Deactivated {} accounts.\nSkipped admin accounts: {:?}. Use --force to deactivate admin accounts", deactivation_count, admins.join(", ")))
+                    }
+                } else {
+                    RoomMessageEventContent::text_plain(
+                        "Expected code block in command body. Add --help for details.",
+                    )
+                }
+            }
+            AdminCommand::SignJson => {
+                if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```"
+                {
+                    let string = body[1..body.len() - 1].join("\n");
+                    match serde_json::from_str(&string) {
+                        Ok(mut value) => {
+                            ruma::signatures::sign_json(
+                                services().globals.server_name().as_str(),
+                                services().globals.keypair(),
+                                &mut value,
+                            )
+                            .expect("our request json is what ruma expects");
+                            let json_text = serde_json::to_string_pretty(&value)
+                                .expect("canonical json is valid json");
+                            RoomMessageEventContent::text_plain(json_text)
+                        }
+                        Err(e) => RoomMessageEventContent::text_plain(format!("Invalid json: {e}")),
+                    }
+                } else {
+                    RoomMessageEventContent::text_plain(
+                        "Expected code block in command body. Add --help for details.",
+                    )
+                }
+            }
+            AdminCommand::VerifyJson => {
+                if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```"
+                {
+                    let string = body[1..body.len() - 1].join("\n");
+                    match serde_json::from_str(&string) {
+                        Ok(value) => {
+                            let pub_key_map = RwLock::new(BTreeMap::new());
+
+                            services()
+                                .rooms
+                                .event_handler
+                                .fetch_required_signing_keys(&value, &pub_key_map)
+                                .await?;
+
+                            let pub_key_map = pub_key_map.read().unwrap();
+                            match ruma::signatures::verify_json(&pub_key_map, &value) {
+                                Ok(_) => RoomMessageEventContent::text_plain("Signature correct"),
+                                Err(e) => RoomMessageEventContent::text_plain(format!(
+                                    "Signature verification failed: {e}"
+                                )),
+                            }
+                        }
+                        Err(e) => RoomMessageEventContent::text_plain(format!("Invalid json: {e}")),
                     }
                 } else {
                     RoomMessageEventContent::text_plain(
