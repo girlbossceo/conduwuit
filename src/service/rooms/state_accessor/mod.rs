@@ -282,4 +282,19 @@ impl Service {
                     .map_err(|_| Error::bad_database("Invalid room name event in database."))
             })
     }
+
+    pub fn get_member(
+        &self,
+        room_id: &RoomId,
+        user_id: &UserId,
+    ) -> Result<Option<RoomMemberEventContent>> {
+        services()
+            .rooms
+            .state_accessor
+            .room_state_get(&room_id, &StateEventType::RoomMember, user_id.as_str())?
+            .map_or(Ok(None), |s| {
+                serde_json::from_str(s.content.get())
+                    .map_err(|_| Error::bad_database("Invalid room member event in database."))
+            })
+    }
 }

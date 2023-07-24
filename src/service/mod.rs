@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
 };
 
@@ -105,7 +105,10 @@ impl Services {
             },
             transaction_ids: transaction_ids::Service { db },
             uiaa: uiaa::Service { db },
-            users: users::Service { db },
+            users: users::Service {
+                db,
+                connections: Mutex::new(BTreeMap::new()),
+            },
             account_data: account_data::Service { db },
             admin: admin::Service::build(),
             key_backups: key_backups::Service { db },
