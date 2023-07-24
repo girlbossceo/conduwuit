@@ -463,7 +463,7 @@ async fn sync_helper(
     }
 
     for user_id in left_encrypted_users {
-        let still_share_encrypted_room = services()
+        let dont_share_encrypted_room = services()
             .rooms
             .user
             .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])?
@@ -481,7 +481,7 @@ async fn sync_helper(
             .all(|encrypted| !encrypted);
         // If the user doesn't share an encrypted room with the target anymore, we need to tell
         // them
-        if still_share_encrypted_room {
+        if dont_share_encrypted_room {
             device_list_left.insert(user_id);
         }
     }
@@ -1197,6 +1197,7 @@ pub async fn sync_events_v4_route(
         }
     }
 
+    // Get sticky parameters from cache
     let known_rooms = services().users.update_sync_request_with_cache(
         sender_user.clone(),
         sender_device.clone(),
@@ -1209,6 +1210,195 @@ pub async fn sync_events_v4_route(
         .rooms_joined(&sender_user)
         .filter_map(|r| r.ok())
         .collect::<Vec<_>>();
+
+    if body.extensions.to_device.enabled.unwrap_or(false) {
+        services()
+            .users
+            .remove_to_device_events(&sender_user, &sender_device, since)?;
+    }
+
+    let mut left_encrypted_users = HashSet::new(); // Users that have left any encrypted rooms the sender was in
+    let mut device_list_changes = HashSet::new();
+    let mut device_list_left = HashSet::new();
+
+    if body.extensions.e2ee.enabled.unwrap_or(false) {
+        // Look for device list updates of this account
+        device_list_changes.extend(
+            services()
+                .users
+                .keys_changed(sender_user.as_ref(), since, None)
+                .filter_map(|r| r.ok()),
+        );
+
+        for room_id in &all_joined_rooms {
+            let current_shortstatehash =
+                if let Some(s) = services().rooms.state.get_room_shortstatehash(&room_id)? {
+                    s
+                } else {
+                    error!("Room {} has no state", room_id);
+                    continue;
+                };
+
+            let since_shortstatehash = services()
+                .rooms
+                .user
+                .get_token_shortstatehash(&room_id, since)?;
+
+            let since_sender_member: Option<RoomMemberEventContent> = since_shortstatehash
+                .and_then(|shortstatehash| {
+                    services()
+                        .rooms
+                        .state_accessor
+                        .state_get(
+                            shortstatehash,
+                            &StateEventType::RoomMember,
+                            sender_user.as_str(),
+                        )
+                        .transpose()
+                })
+                .transpose()?
+                .and_then(|pdu| {
+                    serde_json::from_str(pdu.content.get())
+                        .map_err(|_| Error::bad_database("Invalid PDU in database."))
+                        .ok()
+                });
+
+            let encrypted_room = services()
+                .rooms
+                .state_accessor
+                .state_get(current_shortstatehash, &StateEventType::RoomEncryption, "")?
+                .is_some();
+
+            if let Some(since_shortstatehash) = since_shortstatehash {
+                // Skip if there are only timeline changes
+                if since_shortstatehash == current_shortstatehash {
+                    continue;
+                }
+
+                let since_encryption = services().rooms.state_accessor.state_get(
+                    since_shortstatehash,
+                    &StateEventType::RoomEncryption,
+                    "",
+                )?;
+
+                let joined_since_last_sync = since_sender_member
+                    .map_or(true, |member| member.membership != MembershipState::Join);
+
+                let new_encrypted_room = encrypted_room && since_encryption.is_none();
+                if encrypted_room {
+                    let current_state_ids = services()
+                        .rooms
+                        .state_accessor
+                        .state_full_ids(current_shortstatehash)
+                        .await?;
+                    let since_state_ids = services()
+                        .rooms
+                        .state_accessor
+                        .state_full_ids(since_shortstatehash)
+                        .await?;
+
+                    for (key, id) in current_state_ids {
+                        if since_state_ids.get(&key) != Some(&id) {
+                            let pdu = match services().rooms.timeline.get_pdu(&id)? {
+                                Some(pdu) => pdu,
+                                None => {
+                                    error!("Pdu in state not found: {}", id);
+                                    continue;
+                                }
+                            };
+                            if pdu.kind == TimelineEventType::RoomMember {
+                                if let Some(state_key) = &pdu.state_key {
+                                    let user_id =
+                                        UserId::parse(state_key.clone()).map_err(|_| {
+                                            Error::bad_database("Invalid UserId in member PDU.")
+                                        })?;
+
+                                    if user_id == sender_user {
+                                        continue;
+                                    }
+
+                                    let new_membership = serde_json::from_str::<
+                                        RoomMemberEventContent,
+                                    >(
+                                        pdu.content.get()
+                                    )
+                                    .map_err(|_| Error::bad_database("Invalid PDU in database."))?
+                                    .membership;
+
+                                    match new_membership {
+                                        MembershipState::Join => {
+                                            // A new user joined an encrypted room
+                                            if !share_encrypted_room(
+                                                &sender_user,
+                                                &user_id,
+                                                &room_id,
+                                            )? {
+                                                device_list_changes.insert(user_id);
+                                            }
+                                        }
+                                        MembershipState::Leave => {
+                                            // Write down users that have left encrypted rooms we are in
+                                            left_encrypted_users.insert(user_id);
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if joined_since_last_sync || new_encrypted_room {
+                        // If the user is in a new encrypted room, give them all joined users
+                        device_list_changes.extend(
+                            services()
+                                .rooms
+                                .state_cache
+                                .room_members(&room_id)
+                                .flatten()
+                                .filter(|user_id| {
+                                    // Don't send key updates from the sender to the sender
+                                    &sender_user != user_id
+                                })
+                                .filter(|user_id| {
+                                    // Only send keys if the sender doesn't share an encrypted room with the target already
+                                    !share_encrypted_room(&sender_user, user_id, &room_id)
+                                        .unwrap_or(false)
+                                }),
+                        );
+                    }
+                }
+            }
+            // Look for device list updates in this room
+            device_list_changes.extend(
+                services()
+                    .users
+                    .keys_changed(room_id.as_ref(), since, None)
+                    .filter_map(|r| r.ok()),
+            );
+        }
+        for user_id in left_encrypted_users {
+            let dont_share_encrypted_room = services()
+                .rooms
+                .user
+                .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])?
+                .filter_map(|r| r.ok())
+                .filter_map(|other_room_id| {
+                    Some(
+                        services()
+                            .rooms
+                            .state_accessor
+                            .room_state_get(&other_room_id, &StateEventType::RoomEncryption, "")
+                            .ok()?
+                            .is_some(),
+                    )
+                })
+                .all(|encrypted| !encrypted);
+            // If the user doesn't share an encrypted room with the target anymore, we need to tell
+            // them
+            if dont_share_encrypted_room {
+                device_list_left.insert(user_id);
+            }
+        }
+    }
 
     let mut lists = BTreeMap::new();
     let mut todo_rooms = BTreeMap::new(); // and required state
@@ -1249,7 +1439,7 @@ pub async fn sync_events_v4_route(
                             todo_room
                                 .0
                                 .extend(list.room_details.required_state.iter().cloned());
-                            todo_room.1 = todo_room.1.min(limit);
+                            todo_room.1 = todo_room.1.max(limit);
                             if known_rooms.get(&list_id).and_then(|k| k.get(room_id)) != Some(&true)
                             {
                                 todo_room.2 = false;
@@ -1279,18 +1469,51 @@ pub async fn sync_events_v4_route(
         }
     }
 
-    for (room_id, room) in body.room_subscriptions {
+    let mut known_subscription_rooms = BTreeMap::new();
+    for (room_id, room) in dbg!(&body.room_subscriptions) {
         let todo_room = todo_rooms
             .entry(room_id.clone())
             .or_insert((BTreeSet::new(), 0, true));
         let limit = room.timeline_limit.map_or(10, u64::from).min(100);
         todo_room.0.extend(room.required_state.iter().cloned());
-        todo_room.1 = todo_room.1.min(limit);
-        todo_room.2 = false;
+        todo_room.1 = todo_room.1.max(limit);
+        if known_rooms
+            .get("subscriptions")
+            .and_then(|k| k.get(room_id))
+            != Some(&true)
+        {
+            todo_room.2 = false;
+        }
+        known_subscription_rooms.insert(room_id.clone(), true);
+    }
+
+    for r in body.unsubscribe_rooms {
+        known_subscription_rooms.remove(&r);
+        body.room_subscriptions.remove(&r);
+    }
+
+    if let Some(conn_id) = &body.conn_id {
+        services().users.update_sync_known_rooms(
+            sender_user.clone(),
+            sender_device.clone(),
+            conn_id.clone(),
+            "subscriptions".to_owned(),
+            known_subscription_rooms,
+        );
+    }
+
+    if let Some(conn_id) = &body.conn_id {
+        services().users.update_sync_subscriptions(
+            sender_user.clone(),
+            sender_device.clone(),
+            conn_id.clone(),
+            body.room_subscriptions,
+        );
     }
 
     let mut rooms = BTreeMap::new();
     for (room_id, (required_state_request, timeline_limit, known)) in &todo_rooms {
+        // TODO: per-room sync tokens
         let (timeline_pdus, limited) =
             load_timeline(&sender_user, &room_id, sincecount, *timeline_limit)?;
 
@@ -1372,12 +1595,26 @@ pub async fn sync_events_v4_route(
                             None
                         }
                     }),
-                initial: Some(*known),
+                initial: Some(!known),
                 is_dm: None,
                 invite_state: None,
                 unread_notifications: UnreadNotificationsCount {
-                    highlight_count: None,
-                    notification_count: None,
+                    highlight_count: Some(
+                        services()
+                            .rooms
+                            .user
+                            .highlight_count(&sender_user, &room_id)?
+                            .try_into()
+                            .expect("notification count can't go that high"),
+                    ),
+                    notification_count: Some(
+                        services()
+                            .rooms
+                            .user
+                            .notification_count(&sender_user, &room_id)?
+                            .try_into()
+                            .expect("notification count can't go that high"),
+                    ),
                 },
                 timeline: room_events,
                 required_state,
@@ -1399,7 +1636,7 @@ pub async fn sync_events_v4_route(
                         .unwrap_or(0) as u32)
                         .into(),
                 ),
-                num_live: None,
+                num_live: None, // Count events in timeline greater than global sync counter
             },
         );
     }
@@ -1424,17 +1661,44 @@ pub async fn sync_events_v4_route(
         lists,
         rooms,
         extensions: sync_events::v4::Extensions {
-            to_device: None,
+            to_device: if body.extensions.to_device.enabled.unwrap_or(false) {
+                Some(sync_events::v4::ToDevice {
+                    events: services()
+                        .users
+                        .get_to_device_events(&sender_user, &sender_device)?,
+                    next_batch: next_batch.to_string(),
+                })
+            } else {
+                None
+            },
             e2ee: sync_events::v4::E2EE {
                 device_lists: DeviceLists {
-                    changed: Vec::new(),
-                    left: Vec::new(),
+                    changed: device_list_changes.into_iter().collect(),
+                    left: device_list_left.into_iter().collect(),
                 },
-                device_one_time_keys_count: BTreeMap::new(),
+                device_one_time_keys_count: services()
+                    .users
+                    .count_one_time_keys(&sender_user, &sender_device)?,
+                // Fallback keys are not yet supported
                 device_unused_fallback_key_types: None,
             },
             account_data: sync_events::v4::AccountData {
-                global: Vec::new(),
+                global: if body.extensions.account_data.enabled.unwrap_or(false) {
+                    services()
+                        .account_data
+                        .changes_since(None, &sender_user, since)?
+                        .into_iter()
+                        .filter_map(|(_, v)| {
+                            serde_json::from_str(v.json().get())
+                                .map_err(|_| {
+                                    Error::bad_database("Invalid account event in database.")
+                                })
+                                .ok()
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                },
                 rooms: BTreeMap::new(),
             },
             receipts: sync_events::v4::Receipts {
