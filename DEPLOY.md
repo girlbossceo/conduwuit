@@ -81,7 +81,7 @@ you to make sure that the file permissions are correctly set up.
 In Debian or RHEL, you can use this command to create a Conduit user:
 
 ```bash
-sudo adduser --system conduit --no-create-home
+sudo adduser --system conduit --group --disable-login --no-create-home
 ```
 
 ## Forwarding ports in the firewall or the router

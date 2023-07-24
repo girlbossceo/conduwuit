@@ -137,7 +137,7 @@ instead of a server that has high scalability."""
 section = "net"
 priority = "optional"
 assets = [
-  ["debian/README.Debian", "usr/share/doc/matrix-conduit/", "644"],
+  ["debian/README.md", "usr/share/doc/matrix-conduit/README.Debian", "644"],
   ["README.md", "usr/share/doc/matrix-conduit/", "644"],
   ["target/release/conduit", "usr/sbin/matrix-conduit", "755"],
 ]
