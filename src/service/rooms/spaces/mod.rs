@@ -16,7 +16,7 @@ use ruma::{
             create::RoomCreateEventContent,
             guest_access::{GuestAccess, RoomGuestAccessEventContent},
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
-            join_rules::{JoinRule, RoomJoinRulesEventContent},
+            join_rules::{self, AllowRule, JoinRule, RoomJoinRulesEventContent},
             topic::RoomTopicEventContent,
         },
         StateEventType,
@@ -30,7 +30,7 @@ use tracing::{debug, error, warn};
 use crate::{services, Error, PduEvent, Result};
 
 pub enum CachedJoinRule {
-    Simplified(SpaceRoomJoinRule),
+    //Simplified(SpaceRoomJoinRule),
     Full(JoinRule),
 }
 
@@ -84,9 +84,9 @@ impl Service {
             {
                 if let Some(cached) = cached {
                     let allowed = match &cached.join_rule {
-                        CachedJoinRule::Simplified(s) => {
-                            self.handle_simplified_join_rule(s, sender_user, &current_room)?
-                        }
+                        //CachedJoinRule::Simplified(s) => {
+                        //self.handle_simplified_join_rule(s, sender_user, &current_room)?
+                        //}
                         CachedJoinRule::Full(f) => {
                             self.handle_join_rule(f, sender_user, &current_room)?
                         }
@@ -211,11 +211,34 @@ impl Service {
                         .map(|c| c.room_id.clone())
                         .collect::<Vec<_>>();
 
-                    if self.handle_simplified_join_rule(
-                        &response.room.join_rule,
-                        sender_user,
-                        &current_room,
-                    )? {
+                    let join_rule = match response.room.join_rule {
+                        SpaceRoomJoinRule::Invite => JoinRule::Invite,
+                        SpaceRoomJoinRule::Knock => JoinRule::Knock,
+                        SpaceRoomJoinRule::Private => JoinRule::Private,
+                        SpaceRoomJoinRule::Restricted => {
+                            JoinRule::Restricted(join_rules::Restricted {
+                                allow: response
+                                    .room
+                                    .allowed_room_ids
+                                    .into_iter()
+                                    .map(|room| AllowRule::room_membership(room))
+                                    .collect(),
+                            })
+                        }
+                        SpaceRoomJoinRule::KnockRestricted => {
+                            JoinRule::KnockRestricted(join_rules::Restricted {
+                                allow: response
+                                    .room
+                                    .allowed_room_ids
+                                    .into_iter()
+                                    .map(|room| AllowRule::room_membership(room))
+                                    .collect(),
+                            })
+                        }
+                        SpaceRoomJoinRule::Public => JoinRule::Public,
+                        _ => return Err(Error::BadServerResponse("Unknown join rule")),
+                    };
+                    if self.handle_join_rule(&join_rule, sender_user, &current_room)? {
                         if left_to_skip > 0 {
                             left_to_skip -= 1;
                         } else {
@@ -231,7 +254,7 @@ impl Service {
                         Some(CachedSpaceChunk {
                             chunk,
                             children,
-                            join_rule: CachedJoinRule::Simplified(response.room.join_rule),
+                            join_rule: CachedJoinRule::Full(join_rule),
                         }),
                     );
 
@@ -437,8 +460,22 @@ impl Service {
         }
 
         match join_rule {
-            JoinRule::Restricted(_) => {
-                // TODO: Check rules
+            JoinRule::Restricted(r) => {
+                for rule in &r.allow {
+                    match rule {
+                        join_rules::AllowRule::RoomMembership(rm) => {
+                            if let Ok(true) = services()
+                                .rooms
+                                .state_cache
+                                .is_joined(sender_user, &rm.room_id)
+                            {
+                                return Ok(true);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
                 Ok(false)
             }
             JoinRule::KnockRestricted(_) => {
