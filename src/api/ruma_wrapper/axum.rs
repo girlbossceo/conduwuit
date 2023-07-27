@@ -292,10 +292,8 @@ where
         debug!("{:?}", http_request);
 
         let body = T::try_from_http_request(http_request, &path_params).map_err(|e| {
-            warn!(
-                "try_from_http_request failed: {:?}\nJSON body: {:?}",
-                e, json_body
-            );
+            warn!("try_from_http_request failed: {:?}", e);
+            debug!("JSON body: {:?}", json_body);
             Error::BadRequest(ErrorKind::BadJson, "Failed to deserialize request.")
         })?;
 
