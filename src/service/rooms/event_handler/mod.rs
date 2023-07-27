@@ -1526,9 +1526,13 @@ impl Service {
         if acl_event_content.is_allowed(server_name) {
             Ok(())
         } else {
+            info!(
+                "Server {} was denied by room ACL in {}",
+                server_name, room_id
+            );
             Err(Error::BadRequest(
                 ErrorKind::Forbidden,
-                "Server was denied by ACL",
+                "Server was denied by room ACL",
             ))
         }
     }
