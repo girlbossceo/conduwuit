@@ -54,6 +54,16 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() {
+    // This is needed for opening lots of file descriptors, which tends to
+    // happen more often when using RocksDB and making lots of federation
+    // connections at startup. The soft limit is usually 1024, and the hard
+    // limit is usually 512000; I've personally seen it hit >2000.
+    //
+    // * https://www.freedesktop.org/software/systemd/man/systemd.exec.html#id-1.12.2.1.17.6
+    // * https://github.com/systemd/systemd/commit/0abf94923b4a95a7d89bc526efc84e7ca2b71741
+    #[cfg(unix)]
+    maximize_fd_limit().expect("should be able to increase the soft limit to the hard limit");
+
     // Initialize DB
     let raw_config =
         Figment::new()
@@ -549,4 +559,15 @@ fn method_to_filter(method: Method) -> MethodFilter {
         Method::TRACE => MethodFilter::TRACE,
         m => panic!("Unsupported HTTP method: {m:?}"),
     }
+}
+
+#[cfg(unix)]
+fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
+    use nix::sys::resource::{getrlimit, setrlimit, Resource};
+
+    let res = Resource::RLIMIT_NOFILE;
+
+    let (_, hard_limit) = getrlimit(res)?;
+
+    setrlimit(res, hard_limit, hard_limit)
 }
