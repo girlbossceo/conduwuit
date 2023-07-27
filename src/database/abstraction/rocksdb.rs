@@ -49,6 +49,13 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
     db_opts.set_max_background_jobs(6);
     db_opts.set_bytes_per_sync(1048576);
 
+    // https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes#ktoleratecorruptedtailrecords
+    //
+    // Unclean shutdowns of a Matrix homeserver are likely to be fine when
+    // recovered in this manner as it's likely any lost information will be
+    // restored via federation.
+    db_opts.set_wal_recovery_mode(rocksdb::DBRecoveryMode::TolerateCorruptedTailRecords);
+
     let prefix_extractor = rocksdb::SliceTransform::create_fixed_prefix(1);
     db_opts.set_prefix_extractor(prefix_extractor);
 
