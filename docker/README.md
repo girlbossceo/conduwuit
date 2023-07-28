@@ -4,7 +4,36 @@
 
 ## Docker
 
-### Build & Dockerfile
+To run Conduit with Docker you can either build the image yourself or pull it from a registry.
+
+
+### Use a registry
+
+OCI images for Conduit are available in the registries listed below. We recommend using the image tagged as `latest` from GitLab's own registry.
+
+| Registry        | Image                                                           | Size                          | Notes                  |
+| --------------- | --------------------------------------------------------------- | ----------------------------- | ---------------------- |
+| GitLab Registry | [registry.gitlab.com/famedly/conduit/matrix-conduit:latest][gl] | ![Image Size][shield-latest]  | Stable image.          |
+| Docker Hub      | [docker.io/matrixconduit/matrix-conduit:latest][dh]             | ![Image Size][shield-latest]  | Stable image.          |
+| GitLab Registry | [registry.gitlab.com/famedly/conduit/matrix-conduit:next][gl]   | ![Image Size][shield-next]    | Development version.   |
+| Docker Hub      | [docker.io/matrixconduit/matrix-conduit:next][dh]               | ![Image Size][shield-next]    | Development version.   |
+
+
+[dh]: https://hub.docker.com/r/matrixconduit/matrix-conduit
+[gl]: https://gitlab.com/famedly/conduit/container_registry/2497937
+[shield-latest]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/latest
+[shield-next]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/next
+
+
+Use 
+```bash
+docker image pull <link>
+```
+to pull it to your machine.
+
+
+
+### Build using a dockerfile
 
 The Dockerfile provided by Conduit has two stages, each of which creates an image.
 
@@ -19,9 +48,11 @@ docker build --tag matrixconduit/matrix-conduit:latest .
 
 which also will tag the resulting image as `matrixconduit/matrix-conduit:latest`.
 
+
+
 ### Run
 
-After building the image you can simply run it with
+When you have the image you can simply run it with
 
 ```bash
 docker run -d -p 8448:6167 \
@@ -34,19 +65,10 @@ docker run -d -p 8448:6167 \
   -e CONDUIT_TRUSTED_SERVERS="[\"matrix.org\"]" \
   -e CONDUIT_MAX_CONCURRENT_REQUESTS="100" \
   -e CONDUIT_LOG="warn,rocket=off,_=off,sled=off" \
-  --name conduit matrixconduit/matrix-conduit:latest
+  --name conduit <link>
 ```
 
-or you can skip the build step and pull the image from one of the following registries:
-
-| Registry        | Image                                                           | Size                  |
-| --------------- | --------------------------------------------------------------- | --------------------- |
-| Docker Hub      | [matrixconduit/matrix-conduit:latest][dh]                       | ![Image Size][shield] |
-| GitLab Registry | [registry.gitlab.com/famedly/conduit/matrix-conduit:latest][gl] | ![Image Size][shield] |
-
-[dh]: https://hub.docker.com/r/matrixconduit/matrix-conduit
-[gl]: https://gitlab.com/famedly/conduit/container_registry/2497937
-[shield]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/latest
+or you can use [docker-compose](#docker-compose).
 
 The `-d` flag lets the container run in detached mode. You now need to supply a `conduit.toml` config file, an example can be found [here](../conduit-example.toml).
 You can pass in different env vars to change config values on the fly. You can even configure Conduit completely by using env vars, but for that you need
