@@ -429,7 +429,9 @@ pub async fn get_room_event_route(
         .rooms
         .timeline
         .get_pdu(&body.event_id)?
-        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?;
+        .ok_or({
+            warn!("Event not found, event ID: {:?}", &body.event_id);
+            Error::BadRequest(ErrorKind::NotFound, "Event not found.")})?;
 
     if !services().rooms.state_accessor.user_can_see_event(
         sender_user,
