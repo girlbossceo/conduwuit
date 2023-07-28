@@ -506,7 +506,8 @@ async fn request_well_known(destination: &str) -> Option<String> {
         .await;
     debug!("Got well known response");
     if let Err(e) = &response {
-        error!("Well known error: {e:?}");
+        debug!("Well known error: {e:?}");
+        return None;
     }
     let text = response.ok()?.text().await;
     debug!("Got well known response text");
