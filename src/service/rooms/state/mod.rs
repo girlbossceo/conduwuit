@@ -344,7 +344,8 @@ impl Service {
             .map(|create_event| create_event.room_version)
             .ok_or({
                 warn!("Invalid room version for room {room_id}");
-                Error::BadDatabase("Invalid room version")})?;
+                Error::BadDatabase("Invalid room version")
+            })?;
         Ok(room_version)
     }
 

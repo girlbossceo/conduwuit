@@ -131,10 +131,12 @@ pub async fn get_state_events_for_key_route(
         .state_accessor
         .room_state_get(&body.room_id, &body.event_type, &body.state_key)?
         .ok_or({
-            warn!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
-            Error::BadRequest(ErrorKind::NotFound,
-            "State event not found.",
-        )})?;
+            warn!(
+                "State event {:?} not found in room {:?}",
+                &body.event_type, &body.room_id
+            );
+            Error::BadRequest(ErrorKind::NotFound, "State event not found.")
+        })?;
 
     Ok(get_state_events_for_key::v3::Response {
         content: serde_json::from_str(event.content.get())
@@ -168,9 +170,12 @@ pub async fn get_state_events_for_empty_key_route(
         .state_accessor
         .room_state_get(&body.room_id, &body.event_type, "")?
         .ok_or({
-            warn!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
-            Error::BadRequest(ErrorKind::NotFound,
-            "State event not found.",)})?;
+            warn!(
+                "State event {:?} not found in room {:?}",
+                &body.event_type, &body.room_id
+            );
+            Error::BadRequest(ErrorKind::NotFound, "State event not found.")
+        })?;
 
     Ok(get_state_events_for_key::v3::Response {
         content: serde_json::from_str(event.content.get())
