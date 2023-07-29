@@ -12,6 +12,7 @@ use ruma::{
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
 pub const COUNTER: &[u8] = b"c";
+pub const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
 
 #[async_trait]
 impl service::globals::Data for KeyValueDatabase {
@@ -25,6 +26,23 @@ impl service::globals::Data for KeyValueDatabase {
             utils::u64_from_bytes(&bytes)
                 .map_err(|_| Error::bad_database("Count has invalid bytes."))
         })
+    }
+
+    fn last_check_for_updates_id(&self) -> Result<u64> {
+        self.global
+            .get(LAST_CHECK_FOR_UPDATES_COUNT)?
+            .map_or(Ok(0_u64), |bytes| {
+                utils::u64_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("last check for updates count has invalid bytes.")
+                })
+            })
+    }
+
+    fn update_check_for_updates_id(&self, id: u64) -> Result<()> {
+        self.global
+            .insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes())?;
+
+        Ok(())
     }
 
     async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {

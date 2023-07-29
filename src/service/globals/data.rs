@@ -13,6 +13,8 @@ use crate::Result;
 pub trait Data: Send + Sync {
     fn next_count(&self) -> Result<u64>;
     fn current_count(&self) -> Result<u64>;
+    fn last_check_for_updates_id(&self) -> Result<u64>;
+    fn update_check_for_updates_id(&self, id: u64) -> Result<()>;
     async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()>;
     fn cleanup(&self) -> Result<()>;
     fn memory_usage(&self) -> String;
