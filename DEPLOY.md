@@ -118,6 +118,8 @@ After=network.target
 Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
 User=conduit
 Group=conduit
+RuntimeDirectory=conduit
+RuntimeDirectoryMode=0750
 Restart=always
 ExecStart=/usr/local/bin/matrix-conduit
 
@@ -223,8 +225,14 @@ Listen 8448
 ServerName your.server.name # EDIT THIS
 
 AllowEncodedSlashes NoDecode
+
+# TCP
 ProxyPass /_matrix/ http://127.0.0.1:6167/_matrix/ timeout=300 nocanon
 ProxyPassReverse /_matrix/ http://127.0.0.1:6167/_matrix/
+
+# UNIX socket
+#ProxyPass /_matrix/ unix:/run/conduit/conduit.sock|http://127.0.0.1:6167/_matrix/ nocanon
+#ProxyPassReverse /_matrix/ unix:/run/conduit/conduit.sock|http://127.0.0.1:6167/_matrix/
 
 </VirtualHost>
 ```
@@ -245,7 +253,11 @@ Create `/etc/caddy/conf.d/conduit_caddyfile` and enter this (substitute for your
 
 ```caddy
 your.server.name, your.server.name:8448 {
+        # TCP
         reverse_proxy /_matrix/* 127.0.0.1:6167
+
+        # UNIX socket
+        #reverse_proxy /_matrix/* unix//run/conduit/conduit.sock
 }
 ```
 
@@ -272,8 +284,18 @@ server {
     # Increase this to allow posting large files such as videos
     client_max_body_size 20M;
 
+    # UNIX socket
+    #upstream backend {
+    #    server unix:/run/conduit/conduit.sock;
+    #}
+
     location /_matrix/ {
+        # TCP
         proxy_pass http://127.0.0.1:6167$request_uri;
+
+        # UNIX socket
+        #proxy_pass http://backend;
+
         proxy_set_header Host $http_host;
         proxy_buffering off;
         proxy_read_timeout 5m;

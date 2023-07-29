@@ -1071,33 +1071,46 @@ impl KeyValueDatabase {
         let timer_interval =
             Duration::from_secs(services().globals.config.cleanup_second_interval as u64);
 
+        fn perform_cleanup() {
+            let start = Instant::now();
+            if let Err(e) = services().globals.cleanup() {
+                error!(target: "database-cleanup", "Ran into an error during cleanup: {}", e);
+            } else {
+                debug!(target: "database-cleanup", "Finished cleanup in {:#?}.", start.elapsed());
+            }
+        }
+
         tokio::spawn(async move {
             let mut i = interval(timer_interval);
             #[cfg(unix)]
-            let mut s = signal(SignalKind::hangup()).unwrap();
+            let mut hangup = signal(SignalKind::hangup()).unwrap();
+            let mut ctrl_c = signal(SignalKind::interrupt()).unwrap();
+            let mut terminate = signal(SignalKind::terminate()).unwrap();
 
             loop {
                 #[cfg(unix)]
                 tokio::select! {
                     _ = i.tick() => {
-                        debug!("cleanup: Timer ticked");
+                        debug!(target: "database-cleanup", "Timer ticked");
                     }
-                    _ = s.recv() => {
-                        debug!("cleanup: Received SIGHUP");
+                    _ = hangup.recv() => {
+                        debug!(target: "database-cleanup","Received SIGHUP");
+                    }
+                    _ = ctrl_c.recv() => {
+                        debug!(target: "database-cleanup", "Received Ctrl+C, performing last cleanup");
+                        perform_cleanup();
+                    }
+                    _ = terminate.recv() => {
+                        debug!(target: "database-cleanup","Received SIGTERM, performing last cleanup");
+                        perform_cleanup();
                     }
                 };
                 #[cfg(not(unix))]
                 {
                     i.tick().await;
-                    debug!("cleanup: Timer ticked")
+                    debug!(target: "database-cleanup", "Timer ticked")
                 }
-
-                let start = Instant::now();
-                if let Err(e) = services().globals.cleanup() {
-                    error!("cleanup: Errored: {}", e);
-                } else {
-                    debug!("cleanup: Finished in {:?}", start.elapsed());
-                }
+                perform_cleanup();
             }
         });
     }

@@ -31,6 +31,10 @@ ruma = { git = "https://github.com/ruma/ruma", rev = "b4853aa8fa5e3a24e3689fc880
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 
 # Async runtime and utilities
+hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d149644600d326559af0d2b235c945b05c04", features = [
+  "server",
+] }
+hyper = { version = "0.14", features = ["server", "http1"] }
 tokio = { version = "1.28.1", features = ["fs", "macros", "signal", "sync"] }
 # Used for storing data permanently
 #sled = { version = "0.34.7", features = ["compression", "no_metrics"], optional = true }

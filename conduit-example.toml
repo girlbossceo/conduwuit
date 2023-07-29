@@ -55,3 +55,10 @@ trusted_servers = ["matrix.org"]
 
 address = "127.0.0.1" # This makes sure Conduit can only be reached using the reverse proxy
 #address = "0.0.0.0" # If Conduit is running in a container, make sure the reverse proxy (ie. Traefik) can reach it.
+
+# Uncomment unix_socket_path to listen on a UNIX socket at the specified path.
+# If listening on a UNIX socket, you must remove the 'address' key if defined and add your
+# reverse proxy (nginx/Caddy/Apache/etc) to the 'conduit' group, unless world RW
+# permissions are specified with unix_socket_perms (666 minimum).
+#unix_socket_path = "/run/conduit/conduit.sock"
+#unix_socket_perms = 660

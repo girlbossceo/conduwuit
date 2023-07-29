@@ -375,6 +375,8 @@ dependencies = [
  "heed",
  "hmac",
  "http",
+ "hyper",
+ "hyperlocal",
  "image",
  "jsonwebtoken",
  "lazy_static",
@@ -1032,6 +1034,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1093,9 +1101,9 @@ checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 
 [[package]]
 name = "hyper"
-version = "0.14.26"
+version = "0.14.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab302d72a6f11a3b910431ff93aae7e773078c769f0a3ef15fb9ec692ed147d4"
+checksum = "ffb1cfd654a8219eaef89881fdb3bb3b1cdc5fa75ded05d6933b2b382e395468"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1126,6 +1134,17 @@ dependencies = [
  "rustls 0.20.8",
  "tokio",
  "tokio-rustls 0.23.4",
+]
+
+[[package]]
+name = "hyperlocal"
+version = "0.8.0"
+source = "git+https://github.com/softprops/hyperlocal?rev=2ee4d149644600d326559af0d2b235c945b05c04#2ee4d149644600d326559af0d2b235c945b05c04"
+dependencies = [
+ "hex",
+ "hyper",
+ "pin-project-lite",
+ "tokio",
 ]
 
 [[package]]
