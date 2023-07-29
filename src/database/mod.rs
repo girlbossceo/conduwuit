@@ -18,6 +18,7 @@ use ruma::{
     CanonicalJsonValue, EventId, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId,
     UserId,
 };
+use serde::Deserialize;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs::{self, remove_dir_all},
@@ -25,7 +26,9 @@ use std::{
     mem::size_of,
     path::Path,
     sync::{Arc, Mutex, RwLock},
+    time::Duration,
 };
+use tokio::time::interval;
 
 use tracing::{debug, error, info, warn};
 
@@ -982,6 +985,9 @@ impl KeyValueDatabase {
         services().sending.start_handler();
 
         Self::start_cleanup_task().await;
+        if services().globals.allow_check_for_updates() {
+            Self::start_check_for_updates_task();
+        }
 
         Ok(())
     }
@@ -998,9 +1004,61 @@ impl KeyValueDatabase {
     }
 
     #[tracing::instrument]
-    pub async fn start_cleanup_task() {
-        use tokio::time::interval;
+    pub fn start_check_for_updates_task() {
+        tokio::spawn(async move {
+            let timer_interval = Duration::from_secs(60 * 60);
+            let mut i = interval(timer_interval);
+            loop {
+                i.tick().await;
+                let _ = Self::try_handle_updates().await;
+            }
+        });
+    }
 
+    async fn try_handle_updates() -> Result<()> {
+        let response = services()
+            .globals
+            .default_client()
+            .get("https://conduit.rs/check-for-updates/stable")
+            .send()
+            .await?;
+
+        #[derive(Deserialize)]
+        struct CheckForUpdatesResponseEntry {
+            id: u64,
+            date: String,
+            message: String,
+        }
+        #[derive(Deserialize)]
+        struct CheckForUpdatesResponse {
+            updates: Vec<CheckForUpdatesResponseEntry>,
+        }
+
+        let response = serde_json::from_str::<CheckForUpdatesResponse>(&response.text().await?)
+            .map_err(|_| Error::BadServerResponse("Bad version check response"))?;
+
+        let mut last_update_id = services().globals.last_check_for_updates_id()?;
+        for update in response.updates {
+            last_update_id = last_update_id.max(update.id);
+            if update.id > services().globals.last_check_for_updates_id()? {
+                println!("{}", update.message);
+                services()
+                    .admin
+                    .send_message(RoomMessageEventContent::text_plain(format!(
+                    "@room: The following is a message from the Conduit developers. It was sent on '{}':\n\n{}",
+                    update.date, update.message
+                )))
+            }
+        }
+        services()
+            .globals
+            .update_check_for_updates_id(last_update_id)?;
+
+        Ok(())
+    }
+
+    #[tracing::instrument]
+    pub async fn start_cleanup_task() {
         #[cfg(unix)]
         use tokio::signal::unix::{signal, SignalKind};
 

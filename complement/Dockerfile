@@ -30,6 +30,7 @@ ENV CONDUIT_CONFIG=/workdir/conduit.toml
 
 RUN sed -i "s/port = 6167/port = 8008/g" conduit.toml
 RUN echo "allow_federation = true" >> conduit.toml
+RUN echo "allow_check_for_updates = true" >> conduit.toml
 RUN echo "allow_encryption = true" >> conduit.toml
 RUN echo "allow_registration = true" >> conduit.toml
 RUN echo "log = \"warn,_=off,sled=off\"" >> conduit.toml

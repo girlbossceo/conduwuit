@@ -209,6 +209,16 @@ impl Service {
         self.db.current_count()
     }
 
+    #[tracing::instrument(skip(self))]
+    pub fn last_check_for_updates_id(&self) -> Result<u64> {
+        self.db.last_check_for_updates_id()
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn update_check_for_updates_id(&self, id: u64) -> Result<()> {
+        self.db.update_check_for_updates_id(id)
+    }
+
     pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
         self.db.watch(user_id, device_id).await
     }
@@ -255,6 +265,10 @@ impl Service {
 
     pub fn enable_lightning_bolt(&self) -> bool {
         self.config.enable_lightning_bolt
+    }
+
+    pub fn allow_check_for_updates(&self) -> bool {
+        self.config.allow_check_for_updates
     }
 
     pub fn trusted_servers(&self) -> &[OwnedServerName] {

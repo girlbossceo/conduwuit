@@ -172,6 +172,7 @@ max_request_size = 20_000_000 # in bytes
 allow_registration = true
 
 allow_federation = true
+allow_check_for_updates = true
 
 # Server to get public keys from. You probably shouldn't change this
 trusted_servers = ["matrix.org"]

@@ -28,6 +28,8 @@ pub struct Config {
     pub db_cache_capacity_mb: f64,
     #[serde(default = "true_fn")]
     pub enable_lightning_bolt: bool,
+    #[serde(default = "true_fn")]
+    pub allow_check_for_updates: bool,
     #[serde(default = "default_conduit_cache_capacity_modifier")]
     pub conduit_cache_capacity_modifier: f64,
     #[serde(default = "default_rocksdb_max_open_files")]
