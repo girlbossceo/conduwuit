@@ -433,6 +433,7 @@ fn routes() -> Router {
             "/_matrix/client/v3/rooms/:room_id/initialSync",
             get(initial_sync),
         )
+        .route("/", get(it_works))
         .fallback(not_found)
 }
 
@@ -480,6 +481,10 @@ async fn initial_sync(_uri: Uri) -> impl IntoResponse {
         ErrorKind::GuestAccessForbidden,
         "Guest access not implemented",
     )
+}
+
+async fn it_works() -> &'static str {
+    "Hello from Conduit!"
 }
 
 trait RouterExt {

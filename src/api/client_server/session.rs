@@ -9,7 +9,7 @@ use ruma::{
     UserId,
 };
 use serde::Deserialize;
-use tracing::info;
+use tracing::{info, warn};
 
 #[derive(Debug, Deserialize)]
 struct Claims {
@@ -52,6 +52,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
             let username = if let UserIdentifier::UserIdOrLocalpart(user_id) = identifier {
                 user_id.to_lowercase()
             } else {
+                warn!("Bad login type: {:?}", &body.login_info);
                 return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
             };
             let user_id =
@@ -124,6 +125,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
             user_id
         }
         _ => {
+            warn!("Unsupported or unknown login type: {:?}", &body.login_info);
             return Err(Error::BadRequest(
                 ErrorKind::Unknown,
                 "Unsupported login type.",

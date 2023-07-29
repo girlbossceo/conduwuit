@@ -1,8 +1,8 @@
 mod data;
 pub use data::Data;
-use ruma::serde::Base64;
 use ruma::{
-    OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
+    serde::Base64, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName,
+    OwnedServerSigningKeyId, OwnedUserId,
 };
 
 use crate::api::server_server::FedDest;
@@ -15,14 +15,16 @@ use ruma::{
     },
     DeviceId, RoomVersionId, ServerName, UserId,
 };
-use std::sync::atomic::{self, AtomicBool};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
     future::Future,
     net::{IpAddr, SocketAddr},
     path::PathBuf,
-    sync::{Arc, Mutex, RwLock},
+    sync::{
+        atomic::{self, AtomicBool},
+        Arc, Mutex, RwLock,
+    },
     time::{Duration, Instant},
 };
 use tokio::sync::{broadcast, watch::Receiver, Mutex as TokioMutex, Semaphore};

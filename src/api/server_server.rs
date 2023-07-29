@@ -711,7 +711,8 @@ pub async fn send_transaction_message_route(
         let (event_id, value, room_id) = match r {
             Ok(t) => t,
             Err(e) => {
-                warn!("Could not parse pdu: {e}");
+                warn!("Could not parse PDU: {e}");
+                warn!("Full PDU: {:?}", &pdu);
                 continue;
             }
         };
@@ -952,7 +953,10 @@ pub async fn get_event_route(
         .rooms
         .timeline
         .get_pdu_json(&body.event_id)?
-        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?;
+        .ok_or({
+            warn!("Event not found, event ID: {:?}", &body.event_id);
+            Error::BadRequest(ErrorKind::NotFound, "Event not found.")
+        })?;
 
     let room_id_str = event
         .get("room_id")
@@ -1192,7 +1196,10 @@ pub async fn get_event_authorization_route(
         .rooms
         .timeline
         .get_pdu_json(&body.event_id)?
-        .ok_or(Error::BadRequest(ErrorKind::NotFound, "Event not found."))?;
+        .ok_or({
+            warn!("Event not found, event ID: {:?}", &body.event_id);
+            Error::BadRequest(ErrorKind::NotFound, "Event not found.")
+        })?;
 
     let room_id_str = event
         .get("room_id")

@@ -62,7 +62,9 @@ impl Service {
         device_id: OwnedDeviceId,
         request: &mut sync_events::v4::Request,
     ) -> BTreeMap<String, BTreeMap<OwnedRoomId, bool>> {
-        let Some(conn_id) = request.conn_id.clone() else { return BTreeMap::new(); };
+        let Some(conn_id) = request.conn_id.clone() else {
+            return BTreeMap::new();
+        };
 
         let cache = &mut self.connections.lock().unwrap();
         let cached = Arc::clone(
