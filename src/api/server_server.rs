@@ -953,7 +953,7 @@ pub async fn get_event_route(
         .rooms
         .timeline
         .get_pdu_json(&body.event_id)?
-        .ok_or({
+        .ok_or_else(|| {
             warn!("Event not found, event ID: {:?}", &body.event_id);
             Error::BadRequest(ErrorKind::NotFound, "Event not found.")
         })?;
@@ -1196,7 +1196,7 @@ pub async fn get_event_authorization_route(
         .rooms
         .timeline
         .get_pdu_json(&body.event_id)?
-        .ok_or({
+        .ok_or_else(|| {
             warn!("Event not found, event ID: {:?}", &body.event_id);
             Error::BadRequest(ErrorKind::NotFound, "Event not found.")
         })?;
