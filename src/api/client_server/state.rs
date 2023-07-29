@@ -130,7 +130,7 @@ pub async fn get_state_events_for_key_route(
         .rooms
         .state_accessor
         .room_state_get(&body.room_id, &body.event_type, &body.state_key)?
-        .ok_or({
+        .ok_or_else(|| {
             warn!(
                 "State event {:?} not found in room {:?}",
                 &body.event_type, &body.room_id
@@ -169,7 +169,7 @@ pub async fn get_state_events_for_empty_key_route(
         .rooms
         .state_accessor
         .room_state_get(&body.room_id, &body.event_type, "")?
-        .ok_or({
+        .ok_or_else(|| {
             warn!(
                 "State event {:?} not found in room {:?}",
                 &body.event_type, &body.room_id
