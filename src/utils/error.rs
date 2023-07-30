@@ -138,6 +138,28 @@ impl Error {
             status_code,
         }))
     }
+
+    /// Sanitizes public-facing errors that can leak sensitive information.
+    pub fn sanitized_error(&self) -> String {
+        let db_error = String::from("Database or I/O error occurred.");
+
+        match self {
+            #[cfg(feature = "sled")]
+            Self::SledError { .. } => db_error,
+            #[cfg(feature = "sqlite")]
+            Self::SqliteError { .. } => db_error,
+            #[cfg(feature = "persy")]
+            Self::PersyError { .. } => db_error,
+            #[cfg(feature = "heed")]
+            Self::HeedError => db_error,
+            #[cfg(feature = "rocksdb")]
+            Self::RocksDbError { .. } => db_error,
+            Self::IoError { .. } => db_error,
+            Self::BadConfig { .. } => db_error,
+            Self::BadDatabase { .. } => db_error,
+            _ => self.to_string(),
+        }
+    }
 }
 
 #[cfg(feature = "persy")]
