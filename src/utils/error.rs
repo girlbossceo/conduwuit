@@ -9,7 +9,7 @@ use ruma::{
     OwnedServerName,
 };
 use thiserror::Error;
-use tracing::{error, warn};
+use tracing::{error, info};
 
 #[cfg(feature = "persy")]
 use persy::PersyError;
@@ -131,7 +131,7 @@ impl Error {
             _ => (Unknown, StatusCode::INTERNAL_SERVER_ERROR),
         };
 
-        warn!("{}: {}", status_code, message);
+        info!("Returning an error: {}: {}", status_code, message);
 
         RumaResponse(UiaaResponse::MatrixError(RumaError {
             body: ErrorBody::Standard { kind, message },

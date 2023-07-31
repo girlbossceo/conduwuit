@@ -357,7 +357,7 @@ impl Service {
             .await;
 
             // 6. Reject "due to auth events" if the event doesn't pass auth based on the auth events
-            info!(
+            debug!(
                 "Auth check for {} based on auth events",
                 incoming_pdu.event_id
             );
@@ -419,7 +419,7 @@ impl Service {
                 ));
             }
 
-            info!("Validation successful.");
+            debug!("Validation successful.");
 
             // 7. Persist the event as an outlier.
             services()
@@ -427,7 +427,7 @@ impl Service {
                 .outlier
                 .add_pdu_outlier(&incoming_pdu.event_id, &val)?;
 
-            info!("Added pdu as outlier.");
+            debug!("Added pdu as outlier.");
 
             Ok((Arc::new(incoming_pdu), val))
         })
@@ -476,7 +476,7 @@ impl Service {
         // TODO: if we know the prev_events of the incoming event we can avoid the request and build
         // the state from a known point and resolve if > 1 prev_event
 
-        info!("Requesting state at event");
+        debug!("Requesting state at event");
         let mut state_at_incoming_event = None;
 
         if incoming_pdu.prev_events.len() == 1 {
@@ -499,7 +499,7 @@ impl Service {
             };
 
             if let Some(Ok(mut state)) = state {
-                info!("Using cached state");
+                debug!("Using cached state");
                 let prev_pdu = services()
                     .rooms
                     .timeline
@@ -523,7 +523,7 @@ impl Service {
                 state_at_incoming_event = Some(state);
             }
         } else {
-            info!("Calculating state at event using state res");
+            debug!("Calculating state at event using state res");
             let mut extremity_sstatehashes = HashMap::new();
 
             let mut okay = true;
@@ -632,7 +632,7 @@ impl Service {
         }
 
         if state_at_incoming_event.is_none() {
-            info!("Calling /state_ids");
+            debug!("Calling /state_ids");
             // Call /state_ids to find out what the state at this pdu is. We trust the server's
             // response to some extend, but we still do a lot of checks on the events
             match services()
@@ -647,7 +647,7 @@ impl Service {
                 .await
             {
                 Ok(res) => {
-                    info!("Fetching state events at event.");
+                    debug!("Fetching state events at event.");
                     let state_vec = self
                         .fetch_and_handle_outliers(
                             origin,
@@ -710,7 +710,7 @@ impl Service {
         let state_at_incoming_event =
             state_at_incoming_event.expect("we always set this to some above");
 
-        info!("Starting auth check");
+        debug!("Starting auth check");
         // 11. Check the auth of the event passes based on the state of the event
         let check_result = state_res::event_auth::auth_check(
             &room_version,
@@ -734,7 +734,7 @@ impl Service {
                 "Event has failed auth check with state at the event.",
             ));
         }
-        info!("Auth check succeeded");
+        debug!("Auth check succeeded");
 
         // Soft fail check before doing state res
         let auth_events = services().rooms.state.get_auth_events(
@@ -769,7 +769,7 @@ impl Service {
 
         // Now we calculate the set of extremities this room has after the incoming event has been
         // applied. We start with the previous extremities (aka leaves)
-        info!("Calculating extremities");
+        debug!("Calculating extremities");
         let mut extremities = services().rooms.state.get_forward_extremities(room_id)?;
 
         // Remove any forward extremities that are referenced by this incoming event's prev_events
@@ -790,7 +790,7 @@ impl Service {
             )
         });
 
-        info!("Compressing state at event");
+        debug!("Compressing state at event");
         let state_ids_compressed = Arc::new(
             state_at_incoming_event
                 .iter()
@@ -804,7 +804,7 @@ impl Service {
         );
 
         if incoming_pdu.state_key.is_some() {
-            info!("Preparing for stateres to derive new room state");
+            debug!("Preparing for stateres to derive new room state");
 
             // We also add state after incoming event to the fork states
             let mut state_after = state_at_incoming_event.clone();
@@ -822,7 +822,7 @@ impl Service {
                 .await?;
 
             // Set the new room state to the resolved state
-            info!("Forcing new room state");
+            debug!("Forcing new room state");
 
             let (sstatehash, new, removed) = services()
                 .rooms
@@ -837,7 +837,7 @@ impl Service {
         }
 
         // 14. Check if the event passes auth based on the "current state" of the room, if not soft fail it
-        info!("Starting soft fail auth check");
+        debug!("Starting soft fail auth check");
 
         if soft_fail {
             services().rooms.timeline.append_incoming_pdu(
@@ -861,7 +861,7 @@ impl Service {
             ));
         }
 
-        info!("Appending pdu to timeline");
+        debug!("Appending pdu to timeline");
         extremities.insert(incoming_pdu.event_id.clone());
 
         // Now that the event has passed all auth it is added into the timeline.
@@ -877,7 +877,7 @@ impl Service {
             &state_lock,
         )?;
 
-        info!("Appended incoming pdu");
+        debug!("Appended incoming pdu");
 
         // Event has passed all auth/stateres checks
         drop(state_lock);
@@ -890,7 +890,7 @@ impl Service {
         room_version_id: &RoomVersionId,
         incoming_state: HashMap<u64, Arc<EventId>>,
     ) -> Result<Arc<HashSet<CompressedStateEvent>>> {
-        info!("Loading current room state ids");
+        debug!("Loading current room state ids");
         let current_sstatehash = services()
             .rooms
             .state
@@ -917,7 +917,7 @@ impl Service {
             );
         }
 
-        info!("Loading fork states");
+        debug!("Loading fork states");
 
         let fork_states: Vec<_> = fork_states
             .into_iter()
@@ -935,7 +935,7 @@ impl Service {
             })
             .collect();
 
-        info!("Resolving state");
+        debug!("Resolving state");
 
         let lock = services().globals.stateres_mutex.lock();
         let state = match state_res::resolve(room_version_id, &fork_states, auth_chain_sets, |id| {
@@ -953,7 +953,7 @@ impl Service {
 
         drop(lock);
 
-        info!("State resolution done. Compressing state");
+        debug!("State resolution done. Compressing state");
 
         let new_room_state = state
             .into_iter()

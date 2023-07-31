@@ -445,6 +445,9 @@ pub async fn get_room_event_route(
         ));
     }
 
+    let mut event = (*event).clone();
+    event.add_age()?;
+
     Ok(get_room_event::v3::Response {
         event: event.to_room_event(),
     })

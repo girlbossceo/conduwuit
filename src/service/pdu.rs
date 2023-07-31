@@ -103,6 +103,19 @@ impl PduEvent {
         Ok(())
     }
 
+    pub fn add_age(&mut self) -> crate::Result<()> {
+        let mut unsigned: BTreeMap<String, Box<RawJsonValue>> = self
+            .unsigned
+            .as_ref()
+            .map_or_else(|| Ok(BTreeMap::new()), |u| serde_json::from_str(u.get()))
+            .map_err(|_| Error::bad_database("Invalid unsigned in pdu event"))?;
+
+        unsigned.insert("age".to_owned(), to_raw_value(&1).unwrap());
+        self.unsigned = Some(to_raw_value(&unsigned).expect("unsigned is valid"));
+
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self))]
     pub fn to_sync_room_event(&self) -> Raw<AnySyncTimelineEvent> {
         let mut json = json!({

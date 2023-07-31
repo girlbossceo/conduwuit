@@ -20,8 +20,9 @@ use ruma::{
         StateEventType, TimelineEventType,
     },
     serde::Raw,
-    uint, DeviceId, OwnedDeviceId, OwnedUserId, RoomId, UInt, UserId,
+    uint, DeviceId, OwnedDeviceId, OwnedEventId, OwnedUserId, RoomId, UInt, UserId,
 };
+use serde::Deserialize;
 use std::{
     collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
     sync::Arc,

@@ -246,6 +246,7 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
                     if pdu.sender != user_id {
                         pdu.remove_transaction_id()?;
                     }
+                    pdu.add_age()?;
                     let count = pdu_count(&pdu_id)?;
                     Ok((count, pdu))
                 }),
@@ -272,6 +273,7 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
                     if pdu.sender != user_id {
                         pdu.remove_transaction_id()?;
                     }
+                    pdu.add_age()?;
                     let count = pdu_count(&pdu_id)?;
                     Ok((count, pdu))
                 }),

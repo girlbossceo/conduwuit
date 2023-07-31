@@ -674,7 +674,7 @@ async fn join_room_by_id_helper(
             };
 
             let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
-                warn!("{:?}: {}", value, e);
+                warn!("Invalid PDU in send_join response: {} {:?}", e, value);
                 Error::BadServerResponse("Invalid PDU in send_join response.")
             })?;
 
