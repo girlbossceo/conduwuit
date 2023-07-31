@@ -813,7 +813,7 @@ pub async fn send_transaction_message_route(
                                 .readreceipt_update(&user_id, &room_id, event)?;
                         } else {
                             // TODO fetch missing events
-                            info!("No known event ids in read receipt: {:?}", user_updates);
+                            debug!("No known event ids in read receipt: {:?}", user_updates);
                         }
                     }
                 }
@@ -1011,7 +1011,7 @@ pub async fn get_backfill_route(
         .as_ref()
         .expect("server is authenticated");
 
-    info!("Got backfill request from: {}", sender_servername);
+    debug!("Got backfill request from: {}", sender_servername);
 
     if !services()
         .rooms
