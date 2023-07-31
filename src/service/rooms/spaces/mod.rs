@@ -326,7 +326,10 @@ impl Service {
                 .map_or(Ok(None), |s| {
                     serde_json::from_str(s.content.get())
                         .map(|c: RoomTopicEventContent| Some(c.topic))
-                        .map_err(|_| Error::bad_database("Invalid room topic event in database."))
+                        .map_err(|_| {
+                            error!("Invalid room topic event in database for room {}", room_id);
+                            Error::bad_database("Invalid room topic event in database.")
+                        })
                 })?,
             world_readable: services()
                 .rooms
