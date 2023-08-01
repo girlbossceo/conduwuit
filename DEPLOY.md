@@ -10,7 +10,7 @@
 Although you might be able to compile Conduit for Windows, we do recommend running it on a Linux server. We therefore
 only offer Linux binaries.
 
-You may simply download the binary that fits your machine. Run `uname -m` to see what you need. Now copy the right url:
+You may simply download the binary that fits your machine. Run `uname -m` to see what you need. Now copy the appropriate url:
 
 | CPU Architecture                            | Download stable version                                         | Download development version                                |
 | ------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
