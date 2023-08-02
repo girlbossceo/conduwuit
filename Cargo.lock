@@ -368,7 +368,7 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-server",
- "base64 0.13.1",
+ "base64 0.21.2",
  "bytes",
  "clap",
  "crossbeam",
