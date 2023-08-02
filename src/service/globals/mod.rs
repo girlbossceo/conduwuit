@@ -31,6 +31,8 @@ use tokio::sync::{broadcast, watch::Receiver, Mutex as TokioMutex, Semaphore};
 use tracing::{error, info};
 use trust_dns_resolver::TokioAsyncResolver;
 
+use base64::{engine::general_purpose, Engine as _};
+
 type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
 type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
@@ -367,7 +369,7 @@ impl Service {
         let mut r = PathBuf::new();
         r.push(self.config.database_path.clone());
         r.push("media");
-        r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));
+        r.push(general_purpose::URL_SAFE_NO_PAD.encode(key));
         r
     }
 

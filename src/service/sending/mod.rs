@@ -18,6 +18,8 @@ use crate::{
 use federation::transactions::send_transaction_message;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 
+use base64::{engine::general_purpose, Engine as _};
+
 use ruma::{
     api::{
         appservice,
@@ -497,17 +499,14 @@ impl Service {
                         })?,
                     appservice::event::push_events::v1::Request {
                         events: pdu_jsons,
-                        txn_id: (&*base64::encode_config(
-                            calculate_hash(
-                                &events
-                                    .iter()
-                                    .map(|e| match e {
-                                        SendingEventType::Edu(b) | SendingEventType::Pdu(b) => &**b,
-                                    })
-                                    .collect::<Vec<_>>(),
-                            ),
-                            base64::URL_SAFE_NO_PAD,
-                        ))
+                        txn_id: (&*general_purpose::URL_SAFE_NO_PAD.encode(calculate_hash(
+                            &events
+                                .iter()
+                                .map(|e| match e {
+                                    SendingEventType::Edu(b) | SendingEventType::Pdu(b) => &**b,
+                                })
+                                .collect::<Vec<_>>(),
+                        )))
                             .into(),
                     },
                 )
@@ -642,7 +641,7 @@ impl Service {
                         pdus: pdu_jsons,
                         edus: edu_jsons,
                         origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
-                        transaction_id: (&*base64::encode_config(
+                        transaction_id: (&*general_purpose::URL_SAFE_NO_PAD.encode(
                             calculate_hash(
                                 &events
                                     .iter()
@@ -651,7 +650,6 @@ impl Service {
                                     })
                                     .collect::<Vec<_>>(),
                             ),
-                            base64::URL_SAFE_NO_PAD,
                         ))
                             .into(),
                     },
