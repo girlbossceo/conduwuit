@@ -1,0 +1,4 @@
+[target.x86_64-unknown-linux-gnu]
+image = "fedora:rawhide"
+#pre-build = ["dnf update -y && dnf install -y make automake gcc gcc-c++ kernel-devel clang llvm llvm-devel llvm-libs lld lld-devel liburing liburing-devel && dnf groupinstall -y \"Development Tools\" \"Development Libraries\""]
+pre-build = ["dnf install -y liburing-devel llvm clang"]
