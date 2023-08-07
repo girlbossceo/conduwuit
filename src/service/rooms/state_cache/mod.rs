@@ -14,6 +14,7 @@ use ruma::{
     serde::Raw,
     OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
+use tracing::warn;
 
 use crate::{services, Error, Result};
 
@@ -88,8 +89,9 @@ impl Service {
                                 RoomAccountDataEventType::Tag,
                             )?
                             .map(|event| {
-                                serde_json::from_str(event.get()).map_err(|_| {
-                                    Error::bad_database("Invalid account data event in db.")
+                                serde_json::from_str(event.get()).map_err(|e| {
+                                    warn!("Invalid account data event in db: {e:?}");
+                                    Error::BadDatabase("Invalid account data event in db.")
                                 })
                             })
                         {
@@ -113,8 +115,9 @@ impl Service {
                                 GlobalAccountDataEventType::Direct.to_string().into(),
                             )?
                             .map(|event| {
-                                serde_json::from_str::<DirectEvent>(event.get()).map_err(|_| {
-                                    Error::bad_database("Invalid account data event in db.")
+                                serde_json::from_str::<DirectEvent>(event.get()).map_err(|e| {
+                                    warn!("Invalid account data event in db: {e:?}");
+                                    Error::BadDatabase("Invalid account data event in db.")
                                 })
                             })
                         {
@@ -155,8 +158,10 @@ impl Service {
                             .into(),
                     )?
                     .map(|event| {
-                        serde_json::from_str::<IgnoredUserListEvent>(event.get())
-                            .map_err(|_| Error::bad_database("Invalid account data event in db."))
+                        serde_json::from_str::<IgnoredUserListEvent>(event.get()).map_err(|e| {
+                            warn!("Invalid account data event in db: {e:?}");
+                            Error::BadDatabase("Invalid account data event in db.")
+                        })
                     })
                     .transpose()?
                     .map_or(false, |ignored| {

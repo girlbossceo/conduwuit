@@ -66,7 +66,7 @@ impl Service {
             return BTreeMap::new();
         };
 
-        let cache = &mut self.connections.lock().unwrap();
+        let mut cache = self.connections.lock().unwrap();
         let cached = Arc::clone(
             cache
                 .entry((user_id, device_id, conn_id))
@@ -185,7 +185,7 @@ impl Service {
         conn_id: String,
         subscriptions: BTreeMap<OwnedRoomId, sync_events::v4::RoomSubscription>,
     ) {
-        let cache = &mut self.connections.lock().unwrap();
+        let mut cache = self.connections.lock().unwrap();
         let cached = Arc::clone(
             cache
                 .entry((user_id, device_id, conn_id))
@@ -212,7 +212,7 @@ impl Service {
         list_id: String,
         new_cached_rooms: BTreeMap<OwnedRoomId, bool>,
     ) {
-        let cache = &mut self.connections.lock().unwrap();
+        let mut cache = self.connections.lock().unwrap();
         let cached = Arc::clone(
             cache
                 .entry((user_id, device_id, conn_id))
@@ -398,9 +398,15 @@ impl Service {
         master_key: &Raw<CrossSigningKey>,
         self_signing_key: &Option<Raw<CrossSigningKey>>,
         user_signing_key: &Option<Raw<CrossSigningKey>>,
+        notify: bool,
     ) -> Result<()> {
-        self.db
-            .add_cross_signing_keys(user_id, master_key, self_signing_key, user_signing_key)
+        self.db.add_cross_signing_keys(
+            user_id,
+            master_key,
+            self_signing_key,
+            user_signing_key,
+            notify,
+        )
     }
 
     pub fn sign_key(

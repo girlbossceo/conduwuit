@@ -55,7 +55,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -917,6 +917,7 @@ pub async fn send_transaction_message_route(
                         &master_key,
                         &self_signing_key,
                         &None,
+                        true,
                     )?;
                 }
             }

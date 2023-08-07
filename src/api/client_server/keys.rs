@@ -132,6 +132,7 @@ pub async fn upload_signing_keys_route(
             master_key,
             &body.self_signing_key,
             &body.user_signing_key,
+            true, // notify so that other users see the new keys
         )?;
     }
 
@@ -375,6 +376,10 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                     }
                     let json = serde_json::to_value(master_key).expect("to_value always works");
                     let raw = serde_json::from_value(json).expect("Raw::from_value always works");
+                    services().users.add_cross_signing_keys(
+                        &user, &raw, &None, &None,
+                        false, // Dont notify. A notification would trigger another key request resulting in an endless loop
+                    )?;
                     master_keys.insert(user, raw);
                 }
 

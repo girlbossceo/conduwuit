@@ -111,6 +111,7 @@ pub trait Data: Send + Sync {
         master_key: &Raw<CrossSigningKey>,
         self_signing_key: &Option<Raw<CrossSigningKey>>,
         user_signing_key: &Option<Raw<CrossSigningKey>>,
+        notify: bool,
     ) -> Result<()>;
 
     fn sign_key(
