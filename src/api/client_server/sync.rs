@@ -1558,6 +1558,56 @@ pub async fn sync_events_v4_route(
             .map(|state| state.to_sync_state_event())
             .collect();
 
+        // Heroes
+        let heroes = services()
+            .rooms
+            .state_cache
+            .room_members(&room_id)
+            .filter_map(|r| r.ok())
+            .filter(|member| member != &sender_user)
+            .map(|member| {
+                Ok::<_, Error>(
+                    services()
+                        .rooms
+                        .state_accessor
+                        .get_member(&room_id, &member)?
+                        .map(|memberevent| {
+                            (
+                                memberevent
+                                    .displayname
+                                    .unwrap_or_else(|| member.to_string()),
+                                memberevent.avatar_url,
+                            )
+                        }),
+                )
+            })
+            .filter_map(|r| r.ok())
+            .filter_map(|o| o)
+            .take(5)
+            .collect::<Vec<_>>();
+        let name = if heroes.len() > 1 {
+            let last = heroes[0].0.clone();
+            Some(
+                heroes[1..]
+                    .iter()
+                    .map(|h| h.0.clone())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+                    + " and "
+                    + &last,
+            )
+        } else if heroes.len() == 1 {
+            Some(heroes[0].0.clone())
+        } else {
+            None
+        };
+
+        let avatar = if heroes.len() == 1 {
+            heroes[0].1.clone()
+        } else {
+            None
+        };
+
         rooms.insert(
             room_id.clone(),
             sync_events::v4::SlidingSyncRoom {
@@ -1565,36 +1615,12 @@ pub async fn sync_events_v4_route(
                     .rooms
                     .state_accessor
                     .get_name(&room_id)?
-                    .or_else(|| {
-                        // Heroes
-                        let mut names = services()
-                            .rooms
-                            .state_cache
-                            .room_members(&room_id)
-                            .filter_map(|r| r.ok())
-                            .filter(|member| member != &sender_user)
-                            .map(|member| {
-                                Ok::<_, Error>(
-                                    services()
-                                        .rooms
-                                        .state_accessor
-                                        .get_member(&room_id, &member)?
-                                        .and_then(|memberevent| memberevent.displayname)
-                                        .unwrap_or(member.to_string()),
-                                )
-                            })
-                            .filter_map(|r| r.ok())
-                            .take(5)
-                            .collect::<Vec<_>>();
-                        if names.len() > 1 {
-                            let last = names.pop().unwrap();
-                            Some(names.join(", ") + " and " + &last)
-                        } else if names.len() == 1 {
-                            Some(names.pop().unwrap())
-                        } else {
-                            None
-                        }
-                    }),
+                    .or_else(|| name),
+                avatar: services()
+                    .rooms
+                    .state_accessor
+                    .get_avatar(&room_id)?
+                    .map_or(avatar, |a| a.url),
                 initial: Some(!known),
                 is_dm: None,
                 invite_state: None,
