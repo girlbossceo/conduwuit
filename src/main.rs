@@ -40,7 +40,7 @@ use tower_http::{
     trace::TraceLayer,
     ServiceBuilderExt as _,
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 pub use conduit::*; // Re-export everything from the library crate
@@ -54,17 +54,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() {
-    // This is needed for opening lots of file descriptors, which tends to
-    // happen more often when using RocksDB and making lots of federation
-    // connections at startup. The soft limit is usually 1024, and the hard
-    // limit is usually 512000; I've personally seen it hit >2000.
-    //
-    // * https://www.freedesktop.org/software/systemd/man/systemd.exec.html#id-1.12.2.1.17.6
-    // * https://github.com/systemd/systemd/commit/0abf94923b4a95a7d89bc526efc84e7ca2b71741
-    #[cfg(unix)]
-    maximize_fd_limit().expect("should be able to increase the soft limit to the hard limit");
-
-    // Initialize DB
+    // Initialize config
     let raw_config =
         Figment::new()
             .merge(
@@ -134,6 +124,16 @@ async fn main() {
         let subscriber = registry.with(filter_layer).with(fmt_layer);
         tracing::subscriber::set_global_default(subscriber).unwrap();
     }
+
+    // This is needed for opening lots of file descriptors, which tends to
+    // happen more often when using RocksDB and making lots of federation
+    // connections at startup. The soft limit is usually 1024, and the hard
+    // limit is usually 512000; I've personally seen it hit >2000.
+    //
+    // * https://www.freedesktop.org/software/systemd/man/systemd.exec.html#id-1.12.2.1.17.6
+    // * https://github.com/systemd/systemd/commit/0abf94923b4a95a7d89bc526efc84e7ca2b71741
+    #[cfg(unix)]
+    maximize_fd_limit().expect("should be able to increase the soft limit to the hard limit");
 
     info!("Loading database");
     if let Err(error) = KeyValueDatabase::load_or_create(config).await {
@@ -569,12 +569,19 @@ fn method_to_filter(method: Method) -> MethodFilter {
 }
 
 #[cfg(unix)]
+#[tracing::instrument(err)]
 fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
     use nix::sys::resource::{getrlimit, setrlimit, Resource};
 
     let res = Resource::RLIMIT_NOFILE;
 
-    let (_, hard_limit) = getrlimit(res)?;
+    let (soft_limit, hard_limit) = getrlimit(res)?;
 
-    setrlimit(res, hard_limit, hard_limit)
+    debug!("Current nofile soft limit: {soft_limit}");
+
+    setrlimit(res, hard_limit, hard_limit)?;
+
+    debug!("Increased nofile soft limit to {hard_limit}");
+
+    Ok(())
 }

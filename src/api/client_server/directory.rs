@@ -221,6 +221,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                         serde_json::from_str(s.content.get())
                             .map(|c: RoomTopicEventContent| Some(c.topic))
                             .map_err(|_| {
+                                error!("Invalid room topic event in database for room {}", room_id);
                                 Error::bad_database("Invalid room topic event in database.")
                             })
                     })?,
