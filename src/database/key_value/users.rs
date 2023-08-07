@@ -449,6 +449,7 @@ impl service::users::Data for KeyValueDatabase {
         master_key: &Raw<CrossSigningKey>,
         self_signing_key: &Option<Raw<CrossSigningKey>>,
         user_signing_key: &Option<Raw<CrossSigningKey>>,
+        notify: bool,
     ) -> Result<()> {
         // TODO: Check signatures
         let mut prefix = user_id.as_bytes().to_vec();
@@ -530,7 +531,9 @@ impl service::users::Data for KeyValueDatabase {
                 .insert(user_id.as_bytes(), &user_signing_key_key)?;
         }
 
-        self.mark_device_key_update(user_id)?;
+        if notify {
+            self.mark_device_key_update(user_id)?;
+        }
 
         Ok(())
     }
