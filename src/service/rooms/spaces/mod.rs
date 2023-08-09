@@ -19,6 +19,7 @@ use ruma::{
             join_rules::{self, AllowRule, JoinRule, RoomJoinRulesEventContent},
             topic::RoomTopicEventContent,
         },
+        space::child::SpaceChildEventContent,
         StateEventType,
     },
     space::SpaceRoomJoinRule,
@@ -124,11 +125,24 @@ impl Service {
                     if event_type != StateEventType::SpaceChild {
                         continue;
                     }
+
+                    let pdu = services()
+                        .rooms
+                        .timeline
+                        .get_pdu(&id)?
+                        .ok_or_else(|| Error::bad_database("Event in space state not found"))?;
+
+                    if serde_json::from_str::<SpaceChildEventContent>(pdu.content.get())
+                        .ok()
+                        .and_then(|c| c.via)
+                        .map_or(true, |v| v.is_empty())
+                    {
+                        continue;
+                    }
+
                     if let Ok(room_id) = OwnedRoomId::try_from(state_key) {
                         children_ids.push(room_id);
-                        children_pdus.push(services().rooms.timeline.get_pdu(&id)?.ok_or_else(
-                            || Error::bad_database("Event in space state not found"),
-                        )?);
+                        children_pdus.push(pdu);
                     }
                 }
 
