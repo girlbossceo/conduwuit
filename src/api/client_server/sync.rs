@@ -1174,7 +1174,7 @@ pub async fn sync_events_v4_route(
 ) -> Result<sync_events::v4::Response, RumaResponse<UiaaResponse>> {
     let sender_user = body.sender_user.expect("user is authenticated");
     let sender_device = body.sender_device.expect("user is authenticated");
-    let mut body = dbg!(body.body);
+    let mut body = body.body;
     // Setup watchers, so if there's no response, we can wait for them
     let watcher = services().globals.watch(&sender_user, &sender_device);
 
@@ -1470,7 +1470,7 @@ pub async fn sync_events_v4_route(
     }
 
     let mut known_subscription_rooms = BTreeMap::new();
-    for (room_id, room) in dbg!(&body.room_subscriptions) {
+    for (room_id, room) in &body.room_subscriptions {
         let todo_room = todo_rooms
             .entry(room_id.clone())
             .or_insert((BTreeSet::new(), 0, true));
@@ -1680,7 +1680,7 @@ pub async fn sync_events_v4_route(
         let _ = tokio::time::timeout(duration, watcher).await;
     }
 
-    Ok(dbg!(sync_events::v4::Response {
+    Ok(sync_events::v4::Response {
         initial: since == 0,
         txn_id: body.txn_id.clone(),
         pos: next_batch.to_string(),
@@ -1735,5 +1735,5 @@ pub async fn sync_events_v4_route(
             },
         },
         delta_token: None,
-    }))
+    })
 }

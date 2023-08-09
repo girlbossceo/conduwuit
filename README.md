@@ -16,10 +16,7 @@ friends or company.
 #### Can I try it out?
 
 Yes! You can test our Conduit instance by opening a Matrix client (<https://app.element.io> or Element Android for
-example) and registering on the `conduit.rs` homeserver.
-
-*Registration is currently disabled because of scammers. For an account please
-  message us (see contact section below).*
+example) and registering on the `conduit.rs` homeserver. The registration token is "for_testing_only". Don't share personal information.
 
 Server hosting for conduit.rs is donated by the Matrix.org Foundation.
 
