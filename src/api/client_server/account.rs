@@ -74,7 +74,10 @@ pub async fn get_register_available_route(
 /// - Creates a new account and populates it with default account data
 /// - If `inhibit_login` is false: Creates a device and returns device id and access_token
 pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<register::v3::Response> {
-    if !services().globals.allow_registration() && !body.from_appservice {
+    if !services().globals.allow_registration()
+        && !body.from_appservice
+        && services().globals.config.registration_token.is_none()
+    {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "Registration has been disabled.",
@@ -121,7 +124,11 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
     // UIAA
     let mut uiaainfo = UiaaInfo {
         flows: vec![AuthFlow {
-            stages: vec![AuthType::Dummy],
+            stages: if services().globals.config.registration_token.is_some() {
+                vec![AuthType::RegistrationToken]
+            } else {
+                vec![AuthType::Dummy]
+            },
         }],
         completed: Vec::new(),
         params: Default::default(),
@@ -222,11 +229,13 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
     )?;
 
     info!("New user {} registered on this server.", user_id);
-    services()
-        .admin
-        .send_message(RoomMessageEventContent::notice_plain(format!(
-            "New user {user_id} registered on this server."
-        )));
+    if !body.from_appservice && !is_guest {
+        services()
+            .admin
+            .send_message(RoomMessageEventContent::notice_plain(format!(
+                "New user {user_id} registered on this server."
+            )));
+    }
 
     // If this is the first real user, grant them admin privileges
     // Note: the server user, @conduit:servername, is generated first

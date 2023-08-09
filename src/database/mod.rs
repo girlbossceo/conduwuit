@@ -267,6 +267,10 @@ impl KeyValueDatabase {
             }
         };
 
+        if config.registration_token == Some(String::new()) {
+            return Err(Error::bad_config("Registration token is empty"));
+        }
+
         if config.max_request_size < 1024 {
             error!(?config.max_request_size, "Max request size is less than 1KB. Please increase it.");
         }

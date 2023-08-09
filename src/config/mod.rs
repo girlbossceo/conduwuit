@@ -46,6 +46,7 @@ pub struct Config {
     pub max_fetch_prev_events: u16,
     #[serde(default = "false_fn")]
     pub allow_registration: bool,
+    pub registration_token: Option<String>,
     #[serde(default = "true_fn")]
     pub allow_encryption: bool,
     #[serde(default = "false_fn")]
