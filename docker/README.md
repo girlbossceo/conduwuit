@@ -128,7 +128,8 @@ With the service `well-known` we use a single `nginx` container that will serve 
 
 So...step by step:
 
-1. Copy [`docker-compose.traefik.yml`](docker-compose.traefik.yml) and [`docker-compose.override.yml`](docker-compose.override.yml) from the repository and remove `.traefik` from the filename.
+1. Copy [`docker-compose.for-traefik.yml`](docker-compose.for-traefik.yml) (or
+[`docker-compose.with-traefik.yml`](docker-compose.with-traefik.yml)) and [`docker-compose.override.yml`](docker-compose.override.yml) from the repository and remove `.for-traefik` (or `.with-traefik`) from the filename.
 2. Open both files and modify/adjust them to your needs. Meaning, change the `CONDUIT_SERVER_NAME` and the volume host mappings according to your needs.
 3. Create the `conduit.toml` config file, an example can be found [here](../conduit-example.toml), or set `CONDUIT_CONFIG=""` and configure Conduit per env vars.
 4. Uncomment the `element-web` service if you want to host your own Element Web Client and create a `element_config.json`.
