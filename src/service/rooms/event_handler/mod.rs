@@ -119,6 +119,7 @@ impl Service {
         let (incoming_pdu, val) = self
             .handle_outlier_pdu(origin, &create_event, event_id, room_id, value, pub_key_map)
             .await?;
+        self.check_room_id(room_id, &incoming_pdu)?;
 
         // 8. if not timeline event: stop
         if !is_timeline_event {
@@ -338,6 +339,8 @@ impl Service {
             )
             .map_err(|_| Error::bad_database("Event is not a valid PDU."))?;
 
+            self.check_room_id(room_id, &incoming_pdu)?;
+
             // 4. fetch any missing auth events doing all checks listed here starting at 1. These are not timeline events
             // 5. Reject "due to auth events" if can't get all the auth events or some of the auth events are also rejected "due to auth events"
             // NOTE: Step 5 is not applied anymore because it failed too often
@@ -372,6 +375,8 @@ impl Service {
                         continue;
                     }
                 };
+
+                self.check_room_id(room_id, &auth_event)?;
 
                 match auth_events.entry((
                     auth_event.kind.to_string().into(),
@@ -1178,6 +1183,8 @@ impl Service {
                 .await
                 .pop()
             {
+                self.check_room_id(room_id, &pdu)?;
+
                 if amount > services().globals.max_fetch_prev_events() {
                     // Max limit reached
                     warn!("Max prev event limit reached!");
@@ -1701,5 +1708,16 @@ impl Service {
         Err(Error::BadServerResponse(
             "Failed to find public key for server",
         ))
+    }
+
+    fn check_room_id(&self, room_id: &RoomId, pdu: &PduEvent) -> Result<()> {
+        if pdu.room_id != room_id {
+            warn!("Found event from room {} in room {}", pdu.room_id, room_id);
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Event has wrong room id",
+            ));
+        }
+        Ok(())
     }
 }
