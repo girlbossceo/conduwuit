@@ -287,7 +287,7 @@ impl Service {
 
     // Parse and process a message from the admin room
     async fn process_admin_message(&self, room_message: String) -> RoomMessageEventContent {
-        let mut lines = room_message.lines();
+        let mut lines = room_message.lines().filter(|l| !l.trim().is_empty());
         let command_line = lines.next().expect("each string has at least one line");
         let body: Vec<_> = lines.collect();
 
