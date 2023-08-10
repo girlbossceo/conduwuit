@@ -155,6 +155,8 @@ use-auth-secret
 static-auth-secret=<a secret key>
 realm=<your server domain>
 ```
+A common way to generate a suitable alphanumeric secret key is by using `pwgen -s 64 1`.
+
 These same values need to be set in conduit. You can either modify conduit.toml to include these lines:
 ```
 turn_uris = ["turn:<your server domain>?transport=udp", "turn:<your server domain>?transport=tcp"]
