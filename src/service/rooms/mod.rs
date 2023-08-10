@@ -9,10 +9,12 @@ pub mod outlier;
 pub mod pdu_metadata;
 pub mod search;
 pub mod short;
+pub mod spaces;
 pub mod state;
 pub mod state_accessor;
 pub mod state_cache;
 pub mod state_compressor;
+pub mod threads;
 pub mod timeline;
 pub mod user;
 
@@ -32,6 +34,7 @@ pub trait Data:
     + state_cache::Data
     + state_compressor::Data
     + timeline::Data
+    + threads::Data
     + user::Data
 {
 }
@@ -53,5 +56,7 @@ pub struct Service {
     pub state_cache: state_cache::Service,
     pub state_compressor: state_compressor::Service,
     pub timeline: timeline::Service,
+    pub threads: threads::Service,
+    pub spaces: spaces::Service,
     pub user: user::Service,
 }

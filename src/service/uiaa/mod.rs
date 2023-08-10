@@ -96,6 +96,17 @@ impl Service {
                 // Password was correct! Let's add it to `completed`
                 uiaainfo.completed.push(AuthType::Password);
             }
+            AuthData::RegistrationToken(t) => {
+                if Some(t.token.trim()) == services().globals.config.registration_token.as_deref() {
+                    uiaainfo.completed.push(AuthType::RegistrationToken);
+                } else {
+                    uiaainfo.auth_error = Some(ruma::api::client::error::StandardErrorBody {
+                        kind: ErrorKind::Forbidden,
+                        message: "Invalid registration token.".to_owned(),
+                    });
+                    return Ok((false, uiaainfo));
+                }
+            }
             AuthData::Dummy(_) => {
                 uiaainfo.completed.push(AuthType::Dummy);
             }

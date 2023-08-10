@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{service::media::FileMeta, services, utils, Error, Result, Ruma};
 use ruma::api::client::{
     error::ErrorKind,
@@ -67,6 +69,8 @@ pub async fn get_remote_content(
                 allow_remote: false,
                 server_name: server_name.to_owned(),
                 media_id,
+                timeout_ms: Duration::from_secs(20),
+                allow_redirect: false,
             },
         )
         .await?;
@@ -194,6 +198,8 @@ pub async fn get_content_thumbnail_route(
                     method: body.method.clone(),
                     server_name: body.server_name.clone(),
                     media_id: body.media_id.clone(),
+                    timeout_ms: Duration::from_secs(20),
+                    allow_redirect: false,
                 },
             )
             .await?;

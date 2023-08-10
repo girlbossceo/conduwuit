@@ -3,7 +3,7 @@ use ruma::{
     api::client::{context::get_context, error::ErrorKind, filter::LazyLoadOptions},
     events::StateEventType,
 };
-use std::{collections::HashSet, convert::TryFrom};
+use std::collections::HashSet;
 use tracing::error;
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/context`
@@ -27,36 +27,35 @@ pub async fn get_context_route(
 
     let mut lazy_loaded = HashSet::new();
 
-    let base_pdu_id = services()
+    let base_token = services()
         .rooms
         .timeline
-        .get_pdu_id(&body.event_id)?
+        .get_pdu_count(&body.event_id)?
         .ok_or(Error::BadRequest(
             ErrorKind::NotFound,
             "Base event id not found.",
         ))?;
 
-    let base_token = services().rooms.timeline.pdu_count(&base_pdu_id)?;
-
-    let base_event = services()
-        .rooms
-        .timeline
-        .get_pdu_from_id(&base_pdu_id)?
-        .ok_or(Error::BadRequest(
-            ErrorKind::NotFound,
-            "Base event not found.",
-        ))?;
+    let base_event =
+        services()
+            .rooms
+            .timeline
+            .get_pdu(&body.event_id)?
+            .ok_or(Error::BadRequest(
+                ErrorKind::NotFound,
+                "Base event not found.",
+            ))?;
 
     let room_id = base_event.room_id.clone();
 
     if !services()
         .rooms
-        .state_cache
-        .is_joined(sender_user, &room_id)?
+        .state_accessor
+        .user_can_see_event(sender_user, &room_id, &body.event_id)?
     {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
-            "You don't have permission to view this room.",
+            "You don't have permission to view this event.",
         ));
     }
 
@@ -70,19 +69,24 @@ pub async fn get_context_route(
         lazy_loaded.insert(base_event.sender.as_str().to_owned());
     }
 
+    // Use limit with maximum 100
+    let limit = u64::from(body.limit).min(100) as usize;
+
     let base_event = base_event.to_room_event();
 
     let events_before: Vec<_> = services()
         .rooms
         .timeline
         .pdus_until(sender_user, &room_id, base_token)?
-        .take(
-            u32::try_from(body.limit).map_err(|_| {
-                Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
-            })? as usize
-                / 2,
-        )
+        .take(limit / 2)
         .filter_map(|r| r.ok()) // Remove buggy events
+        .filter(|(_, pdu)| {
+            services()
+                .rooms
+                .state_accessor
+                .user_can_see_event(sender_user, &room_id, &pdu.event_id)
+                .unwrap_or(false)
+        })
         .collect();
 
     for (_, event) in &events_before {
@@ -99,8 +103,8 @@ pub async fn get_context_route(
 
     let start_token = events_before
         .last()
-        .and_then(|(pdu_id, _)| services().rooms.timeline.pdu_count(pdu_id).ok())
-        .map(|count| count.to_string());
+        .map(|(count, _)| count.stringify())
+        .unwrap_or_else(|| base_token.stringify());
 
     let events_before: Vec<_> = events_before
         .into_iter()
@@ -111,13 +115,15 @@ pub async fn get_context_route(
         .rooms
         .timeline
         .pdus_after(sender_user, &room_id, base_token)?
-        .take(
-            u32::try_from(body.limit).map_err(|_| {
-                Error::BadRequest(ErrorKind::InvalidParam, "Limit value is invalid.")
-            })? as usize
-                / 2,
-        )
+        .take(limit / 2)
         .filter_map(|r| r.ok()) // Remove buggy events
+        .filter(|(_, pdu)| {
+            services()
+                .rooms
+                .state_accessor
+                .user_can_see_event(sender_user, &room_id, &pdu.event_id)
+                .unwrap_or(false)
+        })
         .collect();
 
     for (_, event) in &events_after {
@@ -153,8 +159,8 @@ pub async fn get_context_route(
 
     let end_token = events_after
         .last()
-        .and_then(|(pdu_id, _)| services().rooms.timeline.pdu_count(pdu_id).ok())
-        .map(|count| count.to_string());
+        .map(|(count, _)| count.stringify())
+        .unwrap_or_else(|| base_token.stringify());
 
     let events_after: Vec<_> = events_after
         .into_iter()
@@ -191,8 +197,8 @@ pub async fn get_context_route(
     }
 
     let resp = get_context::v3::Response {
-        start: start_token,
-        end: end_token,
+        start: Some(start_token),
+        end: Some(end_token),
         events_before,
         event: Some(base_event),
         events_after,

@@ -4,12 +4,13 @@ use ruma::{CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId};
 
 use crate::{PduEvent, Result};
 
+use super::PduCount;
+
 pub trait Data: Send + Sync {
-    fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>>;
-    fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<u64>;
+    fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount>;
 
     /// Returns the `count` of this pdu's id.
-    fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<u64>>;
+    fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<PduCount>>;
 
     /// Returns the json of a pdu.
     fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>>;
@@ -38,9 +39,6 @@ pub trait Data: Send + Sync {
     /// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
     fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<CanonicalJsonObject>>;
 
-    /// Returns the `count` of this pdu's id.
-    fn pdu_count(&self, pdu_id: &[u8]) -> Result<u64>;
-
     /// Adds a new pdu to the timeline
     fn append_pdu(
         &self,
@@ -50,17 +48,21 @@ pub trait Data: Send + Sync {
         count: u64,
     ) -> Result<()>;
 
-    /// Removes a pdu and creates a new one with the same id.
-    fn replace_pdu(&self, pdu_id: &[u8], pdu: &PduEvent) -> Result<()>;
+    // Adds a new pdu to the backfilled timeline
+    fn prepend_backfill_pdu(
+        &self,
+        pdu_id: &[u8],
+        event_id: &EventId,
+        json: &CanonicalJsonObject,
+    ) -> Result<()>;
 
-    /// Returns an iterator over all events in a room that happened after the event with id `since`
-    /// in chronological order.
-    fn pdus_since<'a>(
-        &'a self,
-        user_id: &UserId,
-        room_id: &RoomId,
-        since: u64,
-    ) -> Result<Box<dyn Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a>>;
+    /// Removes a pdu and creates a new one with the same id.
+    fn replace_pdu(
+        &self,
+        pdu_id: &[u8],
+        pdu_json: &CanonicalJsonObject,
+        pdu: &PduEvent,
+    ) -> Result<()>;
 
     /// Returns an iterator over all events and their tokens in a room that happened before the
     /// event with id `until` in reverse-chronological order.
@@ -68,15 +70,17 @@ pub trait Data: Send + Sync {
         &'a self,
         user_id: &UserId,
         room_id: &RoomId,
-        until: u64,
-    ) -> Result<Box<dyn Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a>>;
+        until: PduCount,
+    ) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>>;
 
+    /// Returns an iterator over all events in a room that happened after the event with id `from`
+    /// in chronological order.
     fn pdus_after<'a>(
         &'a self,
         user_id: &UserId,
         room_id: &RoomId,
-        from: u64,
-    ) -> Result<Box<dyn Iterator<Item = Result<(Vec<u8>, PduEvent)>> + 'a>>;
+        from: PduCount,
+    ) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>>;
 
     fn increment_notification_counts(
         &self,

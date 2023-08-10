@@ -9,7 +9,7 @@ use ruma::{
     OwnedServerName,
 };
 use thiserror::Error;
-use tracing::{error, warn};
+use tracing::{error, info};
 
 #[cfg(feature = "persy")]
 use persy::PersyError;
@@ -131,12 +131,34 @@ impl Error {
             _ => (Unknown, StatusCode::INTERNAL_SERVER_ERROR),
         };
 
-        warn!("{}: {}", status_code, message);
+        info!("Returning an error: {}: {}", status_code, message);
 
         RumaResponse(UiaaResponse::MatrixError(RumaError {
             body: ErrorBody::Standard { kind, message },
             status_code,
         }))
+    }
+
+    /// Sanitizes public-facing errors that can leak sensitive information.
+    pub fn sanitized_error(&self) -> String {
+        let db_error = String::from("Database or I/O error occurred.");
+
+        match self {
+            #[cfg(feature = "sled")]
+            Self::SledError { .. } => db_error,
+            #[cfg(feature = "sqlite")]
+            Self::SqliteError { .. } => db_error,
+            #[cfg(feature = "persy")]
+            Self::PersyError { .. } => db_error,
+            #[cfg(feature = "heed")]
+            Self::HeedError => db_error,
+            #[cfg(feature = "rocksdb")]
+            Self::RocksDbError { .. } => db_error,
+            Self::IoError { .. } => db_error,
+            Self::BadConfig { .. } => db_error,
+            Self::BadDatabase { .. } => db_error,
+            _ => self.to_string(),
+        }
     }
 }
 

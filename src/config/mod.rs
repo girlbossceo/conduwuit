@@ -28,6 +28,8 @@ pub struct Config {
     pub db_cache_capacity_mb: f64,
     #[serde(default = "true_fn")]
     pub enable_lightning_bolt: bool,
+    #[serde(default = "true_fn")]
+    pub allow_check_for_updates: bool,
     #[serde(default = "default_conduit_cache_capacity_modifier")]
     pub conduit_cache_capacity_modifier: f64,
     #[serde(default = "default_rocksdb_max_open_files")]
@@ -44,6 +46,7 @@ pub struct Config {
     pub max_fetch_prev_events: u16,
     #[serde(default = "false_fn")]
     pub allow_registration: bool,
+    pub registration_token: Option<String>,
     #[serde(default = "true_fn")]
     pub allow_encryption: bool,
     #[serde(default = "false_fn")]
@@ -54,6 +57,7 @@ pub struct Config {
     pub allow_unstable_room_versions: bool,
     #[serde(default = "default_default_room_version")]
     pub default_room_version: RoomVersionId,
+    pub well_known_client: Option<String>,
     #[serde(default = "false_fn")]
     pub allow_jaeger: bool,
     #[serde(default = "false_fn")]
@@ -61,7 +65,7 @@ pub struct Config {
     #[serde(default)]
     pub proxy: ProxyConfig,
     pub jwt_secret: Option<String>,
-    #[serde(default = "Vec::new")]
+    #[serde(default = "default_trusted_servers")]
     pub trusted_servers: Vec<OwnedServerName>,
     #[serde(default = "default_log")]
     pub log: String,
@@ -224,7 +228,7 @@ fn default_database_backend() -> String {
 }
 
 fn default_db_cache_capacity_mb() -> f64 {
-    1000.0
+    300.0
 }
 
 fn default_conduit_cache_capacity_modifier() -> f64 {
@@ -253,6 +257,10 @@ fn default_max_concurrent_requests() -> u16 {
 
 fn default_max_fetch_prev_events() -> u16 {
     100_u16
+}
+
+fn default_trusted_servers() -> Vec<OwnedServerName> {
+    vec![OwnedServerName::try_from("matrix.org").unwrap()]
 }
 
 fn default_log() -> String {

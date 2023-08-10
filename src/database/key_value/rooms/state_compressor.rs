@@ -1,4 +1,4 @@
-use std::{collections::HashSet, mem::size_of};
+use std::{collections::HashSet, mem::size_of, sync::Arc};
 
 use crate::{
     database::KeyValueDatabase,
@@ -37,20 +37,20 @@ impl service::rooms::state_compressor::Data for KeyValueDatabase {
 
         Ok(StateDiff {
             parent,
-            added,
-            removed,
+            added: Arc::new(added),
+            removed: Arc::new(removed),
         })
     }
 
     fn save_statediff(&self, shortstatehash: u64, diff: StateDiff) -> Result<()> {
         let mut value = diff.parent.unwrap_or(0).to_be_bytes().to_vec();
-        for new in &diff.added {
+        for new in diff.added.iter() {
             value.extend_from_slice(&new[..]);
         }
 
         if !diff.removed.is_empty() {
             value.extend_from_slice(&0_u64.to_be_bytes());
-            for removed in &diff.removed {
+            for removed in diff.removed.iter() {
                 value.extend_from_slice(&removed[..]);
             }
         }

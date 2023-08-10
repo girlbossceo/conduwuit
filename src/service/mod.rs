@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
 };
 
@@ -77,7 +77,15 @@ impl Services {
                 search: rooms::search::Service { db },
                 short: rooms::short::Service { db },
                 state: rooms::state::Service { db },
-                state_accessor: rooms::state_accessor::Service { db },
+                state_accessor: rooms::state_accessor::Service {
+                    db,
+                    server_visibility_cache: Mutex::new(LruCache::new(
+                        (100.0 * config.conduit_cache_capacity_modifier) as usize,
+                    )),
+                    user_visibility_cache: Mutex::new(LruCache::new(
+                        (100.0 * config.conduit_cache_capacity_modifier) as usize,
+                    )),
+                },
                 state_cache: rooms::state_cache::Service { db },
                 state_compressor: rooms::state_compressor::Service {
                     db,
@@ -89,11 +97,18 @@ impl Services {
                     db,
                     lasttimelinecount_cache: Mutex::new(HashMap::new()),
                 },
+                threads: rooms::threads::Service { db },
+                spaces: rooms::spaces::Service {
+                    roomid_spacechunk_cache: Mutex::new(LruCache::new(200)),
+                },
                 user: rooms::user::Service { db },
             },
             transaction_ids: transaction_ids::Service { db },
             uiaa: uiaa::Service { db },
-            users: users::Service { db },
+            users: users::Service {
+                db,
+                connections: Mutex::new(BTreeMap::new()),
+            },
             account_data: account_data::Service { db },
             admin: admin::Service::build(),
             key_backups: key_backups::Service { db },
@@ -102,5 +117,110 @@ impl Services {
 
             globals: globals::Service::load(db, config)?,
         })
+    }
+    fn memory_usage(&self) -> String {
+        let lazy_load_waiting = self
+            .rooms
+            .lazy_loading
+            .lazy_load_waiting
+            .lock()
+            .unwrap()
+            .len();
+        let server_visibility_cache = self
+            .rooms
+            .state_accessor
+            .server_visibility_cache
+            .lock()
+            .unwrap()
+            .len();
+        let user_visibility_cache = self
+            .rooms
+            .state_accessor
+            .user_visibility_cache
+            .lock()
+            .unwrap()
+            .len();
+        let stateinfo_cache = self
+            .rooms
+            .state_compressor
+            .stateinfo_cache
+            .lock()
+            .unwrap()
+            .len();
+        let lasttimelinecount_cache = self
+            .rooms
+            .timeline
+            .lasttimelinecount_cache
+            .lock()
+            .unwrap()
+            .len();
+        let roomid_spacechunk_cache = self
+            .rooms
+            .spaces
+            .roomid_spacechunk_cache
+            .lock()
+            .unwrap()
+            .len();
+
+        format!(
+            "\
+lazy_load_waiting: {lazy_load_waiting}
+server_visibility_cache: {server_visibility_cache}
+user_visibility_cache: {user_visibility_cache}
+stateinfo_cache: {stateinfo_cache}
+lasttimelinecount_cache: {lasttimelinecount_cache}
+roomid_spacechunk_cache: {roomid_spacechunk_cache}\
+            "
+        )
+    }
+    fn clear_caches(&self, amount: u32) {
+        if amount > 0 {
+            self.rooms
+                .lazy_loading
+                .lazy_load_waiting
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 1 {
+            self.rooms
+                .state_accessor
+                .server_visibility_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 2 {
+            self.rooms
+                .state_accessor
+                .user_visibility_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 3 {
+            self.rooms
+                .state_compressor
+                .stateinfo_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 4 {
+            self.rooms
+                .timeline
+                .lasttimelinecount_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
+        if amount > 5 {
+            self.rooms
+                .spaces
+                .roomid_spacechunk_cache
+                .lock()
+                .unwrap()
+                .clear();
+        }
     }
 }

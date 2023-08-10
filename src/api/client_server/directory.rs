@@ -20,7 +20,6 @@ use ruma::{
             guest_access::{GuestAccess, RoomGuestAccessEventContent},
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
             join_rules::{JoinRule, RoomJoinRulesEventContent},
-            name::RoomNameEventContent,
             topic::RoomTopicEventContent,
         },
         StateEventType,
@@ -203,17 +202,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                                 Error::bad_database("Invalid canonical alias event in database.")
                             })
                     })?,
-                name: services()
-                    .rooms
-                    .state_accessor
-                    .room_state_get(&room_id, &StateEventType::RoomName, "")?
-                    .map_or(Ok(None), |s| {
-                        serde_json::from_str(s.content.get())
-                            .map(|c: RoomNameEventContent| c.name)
-                            .map_err(|_| {
-                                Error::bad_database("Invalid room name event in database.")
-                            })
-                    })?,
+                name: services().rooms.state_accessor.get_name(&room_id)?,
                 num_joined_members: services()
                     .rooms
                     .state_cache
@@ -232,6 +221,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                         serde_json::from_str(s.content.get())
                             .map(|c: RoomTopicEventContent| Some(c.topic))
                             .map_err(|_| {
+                                error!("Invalid room topic event in database for room {}", room_id);
                                 Error::bad_database("Invalid room topic event in database.")
                             })
                     })?,

@@ -35,8 +35,9 @@ services:
             # Available levels are: error, warn, info, debug, trace - more info at: https://docs.rs/env_logger/*/env_logger/#enabling-logging
             # CONDUIT_LOG: info  # default is: "warn,_=off,sled=off"
             # CONDUIT_ALLOW_JAEGER: 'false'
-            # CONDUIT_ALLOW_ENCRYPTION: 'false'
-            # CONDUIT_ALLOW_FEDERATION: 'false'
+            # CONDUIT_ALLOW_ENCRYPTION: 'true'
+            # CONDUIT_ALLOW_FEDERATION: 'true'
+            # CONDUIT_ALLOW_CHECK_FOR_UPDATES: 'true'
             # CONDUIT_DATABASE_PATH: /srv/conduit/.local/share/conduit
             # CONDUIT_WORKERS: 10
             # CONDUIT_MAX_REQUEST_SIZE: 20_000_000  # in bytes, ~20 MB

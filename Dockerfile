@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
-FROM docker.io/rust:1.64-bullseye AS builder
+FROM docker.io/rust:1.70-bullseye AS base
+
+FROM base AS builder
 WORKDIR /usr/src/conduit
 
 # Install required packages to build Conduit and it's dependencies
@@ -37,7 +39,7 @@ COPY --from=builder /usr/src/conduit/target/release/conduit /conduit
 # ---------------------------------------------------------------------------------------------------------------
 # Build cargo-deb, a tool to package up rust binaries into .deb packages for Debian/Ubuntu based systems:
 # ---------------------------------------------------------------------------------------------------------------
-FROM docker.io/rust:1.64-bullseye AS build-cargo-deb
+FROM base AS build-cargo-deb
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -57,7 +59,7 @@ WORKDIR /usr/src/conduit
 
 COPY ./LICENSE ./LICENSE
 COPY ./README.md ./README.md
-COPY debian/README.Debian ./debian/
+COPY debian ./debian
 COPY --from=build-cargo-deb /usr/local/cargo/bin/cargo-deb /usr/local/cargo/bin/cargo-deb
 
 # --no-build makes cargo-deb reuse already compiled project

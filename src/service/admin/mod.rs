@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
-    sync::Arc,
+    sync::{Arc, RwLock},
     time::Instant,
 };
 
@@ -21,7 +21,7 @@ use ruma::{
             power_levels::RoomPowerLevelsEventContent,
             topic::RoomTopicEventContent,
         },
-        RoomEventType,
+        TimelineEventType,
     },
     EventId, OwnedRoomAliasId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
@@ -134,7 +134,13 @@ enum AdminCommand {
     },
 
     /// Print database memory usage statistics
-    DatabaseMemoryUsage,
+    MemoryUsage,
+
+    /// Clears all of Conduit's database caches with index smaller than the amount
+    ClearDatabaseCaches { amount: u32 },
+
+    /// Clears all of Conduit's service caches with index smaller than the amount
+    ClearServiceCaches { amount: u32 },
 
     /// Show configuration values
     ShowConfig,
@@ -157,6 +163,20 @@ enum AdminCommand {
     DisableRoom { room_id: Box<RoomId> },
     /// Enables incoming federation handling for a room again.
     EnableRoom { room_id: Box<RoomId> },
+
+    /// Verify json signatures
+    /// [commandbody]
+    /// # ```
+    /// # json here
+    /// # ```
+    SignJson,
+
+    /// Verify json signatures
+    /// [commandbody]
+    /// # ```
+    /// # json here
+    /// # ```
+    VerifyJson,
 }
 
 #[derive(Debug)]
@@ -212,7 +232,7 @@ impl Service {
                 .timeline
                 .build_and_append_pdu(
                     PduBuilder {
-                        event_type: RoomEventType::RoomMessage,
+                        event_type: TimelineEventType::RoomMessage,
                         content: to_raw_value(&message)
                             .expect("event is valid, we just created it"),
                         unsigned: None,
@@ -267,7 +287,7 @@ impl Service {
 
     // Parse and process a message from the admin room
     async fn process_admin_message(&self, room_message: String) -> RoomMessageEventContent {
-        let mut lines = room_message.lines();
+        let mut lines = room_message.lines().filter(|l| !l.trim().is_empty());
         let command_line = lines.next().expect("each string has at least one line");
         let body: Vec<_> = lines.collect();
 
@@ -531,12 +551,24 @@ impl Service {
                     None => RoomMessageEventContent::text_plain("PDU not found."),
                 }
             }
-            AdminCommand::DatabaseMemoryUsage => match services().globals.db.memory_usage() {
-                Ok(response) => RoomMessageEventContent::text_plain(response),
-                Err(e) => RoomMessageEventContent::text_plain(format!(
-                    "Failed to get database memory usage: {e}"
-                )),
-            },
+            AdminCommand::MemoryUsage => {
+                let response1 = services().memory_usage();
+                let response2 = services().globals.db.memory_usage();
+
+                RoomMessageEventContent::text_plain(format!(
+                    "Services:\n{response1}\n\nDatabase:\n{response2}"
+                ))
+            }
+            AdminCommand::ClearDatabaseCaches { amount } => {
+                services().globals.db.clear_caches(amount);
+
+                RoomMessageEventContent::text_plain("Done.")
+            }
+            AdminCommand::ClearServiceCaches { amount } => {
+                services().clear_caches(amount);
+
+                RoomMessageEventContent::text_plain("Done.")
+            }
             AdminCommand::ShowConfig => {
                 // Construct and send the response
                 RoomMessageEventContent::text_plain(format!("{}", services().globals.config))
@@ -556,7 +588,6 @@ impl Service {
 
                 // Check if the specified user is valid
                 if !services().users.exists(&user_id)?
-                    || services().users.is_deactivated(&user_id)?
                     || user_id
                         == UserId::parse_with_server_name(
                             "conduit",
@@ -565,7 +596,7 @@ impl Service {
                         .expect("conduit user exists")
                 {
                     return Ok(RoomMessageEventContent::text_plain(
-                        "The specified user does not exist or is deactivated!",
+                        "The specified user does not exist!",
                     ));
                 }
 
@@ -600,12 +631,12 @@ impl Service {
                 };
                 if user_id.is_historical() {
                     return Ok(RoomMessageEventContent::text_plain(format!(
-                        "userid {user_id} is not allowed due to historical"
+                        "Userid {user_id} is not allowed due to historical"
                     )));
                 }
                 if services().users.exists(&user_id)? {
                     return Ok(RoomMessageEventContent::text_plain(format!(
-                        "userid {user_id} already exists"
+                        "Userid {user_id} already exists"
                     )));
                 }
                 // Create user
@@ -737,6 +768,60 @@ impl Service {
                     )
                 }
             }
+            AdminCommand::SignJson => {
+                if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```"
+                {
+                    let string = body[1..body.len() - 1].join("\n");
+                    match serde_json::from_str(&string) {
+                        Ok(mut value) => {
+                            ruma::signatures::sign_json(
+                                services().globals.server_name().as_str(),
+                                services().globals.keypair(),
+                                &mut value,
+                            )
+                            .expect("our request json is what ruma expects");
+                            let json_text = serde_json::to_string_pretty(&value)
+                                .expect("canonical json is valid json");
+                            RoomMessageEventContent::text_plain(json_text)
+                        }
+                        Err(e) => RoomMessageEventContent::text_plain(format!("Invalid json: {e}")),
+                    }
+                } else {
+                    RoomMessageEventContent::text_plain(
+                        "Expected code block in command body. Add --help for details.",
+                    )
+                }
+            }
+            AdminCommand::VerifyJson => {
+                if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```"
+                {
+                    let string = body[1..body.len() - 1].join("\n");
+                    match serde_json::from_str(&string) {
+                        Ok(value) => {
+                            let pub_key_map = RwLock::new(BTreeMap::new());
+
+                            services()
+                                .rooms
+                                .event_handler
+                                .fetch_required_signing_keys(&value, &pub_key_map)
+                                .await?;
+
+                            let pub_key_map = pub_key_map.read().unwrap();
+                            match ruma::signatures::verify_json(&pub_key_map, &value) {
+                                Ok(_) => RoomMessageEventContent::text_plain("Signature correct"),
+                                Err(e) => RoomMessageEventContent::text_plain(format!(
+                                    "Signature verification failed: {e}"
+                                )),
+                            }
+                        }
+                        Err(e) => RoomMessageEventContent::text_plain(format!("Invalid json: {e}")),
+                    }
+                } else {
+                    RoomMessageEventContent::text_plain(
+                        "Expected code block in command body. Add --help for details.",
+                    )
+                }
+            }
         };
 
         Ok(reply_message_content)
@@ -855,7 +940,7 @@ impl Service {
         // 1. The room create event
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomCreate,
+                event_type: TimelineEventType::RoomCreate,
                 content: to_raw_value(&content).expect("event is valid, we just created it"),
                 unsigned: None,
                 state_key: Some("".to_owned()),
@@ -869,7 +954,7 @@ impl Service {
         // 2. Make conduit bot join
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomMember,
+                event_type: TimelineEventType::RoomMember,
                 content: to_raw_value(&RoomMemberEventContent {
                     membership: MembershipState::Join,
                     displayname: None,
@@ -896,7 +981,7 @@ impl Service {
 
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomPowerLevels,
+                event_type: TimelineEventType::RoomPowerLevels,
                 content: to_raw_value(&RoomPowerLevelsEventContent {
                     users,
                     ..Default::default()
@@ -914,7 +999,7 @@ impl Service {
         // 4.1 Join Rules
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomJoinRules,
+                event_type: TimelineEventType::RoomJoinRules,
                 content: to_raw_value(&RoomJoinRulesEventContent::new(JoinRule::Invite))
                     .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -929,7 +1014,7 @@ impl Service {
         // 4.2 History Visibility
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomHistoryVisibility,
+                event_type: TimelineEventType::RoomHistoryVisibility,
                 content: to_raw_value(&RoomHistoryVisibilityEventContent::new(
                     HistoryVisibility::Shared,
                 ))
@@ -946,7 +1031,7 @@ impl Service {
         // 4.3 Guest Access
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomGuestAccess,
+                event_type: TimelineEventType::RoomGuestAccess,
                 content: to_raw_value(&RoomGuestAccessEventContent::new(GuestAccess::Forbidden))
                     .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -962,7 +1047,7 @@ impl Service {
         let room_name = format!("{} Admin Room", services().globals.server_name());
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomName,
+                event_type: TimelineEventType::RoomName,
                 content: to_raw_value(&RoomNameEventContent::new(Some(room_name)))
                     .expect("event is valid, we just created it"),
                 unsigned: None,
@@ -976,7 +1061,7 @@ impl Service {
 
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomTopic,
+                event_type: TimelineEventType::RoomTopic,
                 content: to_raw_value(&RoomTopicEventContent {
                     topic: format!("Manage {}", services().globals.server_name()),
                 })
@@ -997,7 +1082,7 @@ impl Service {
 
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomCanonicalAlias,
+                event_type: TimelineEventType::RoomCanonicalAlias,
                 content: to_raw_value(&RoomCanonicalAliasEventContent {
                     alias: Some(alias.clone()),
                     alt_aliases: Vec::new(),
@@ -1054,7 +1139,7 @@ impl Service {
         // Invite and join the real user
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomMember,
+                event_type: TimelineEventType::RoomMember,
                 content: to_raw_value(&RoomMemberEventContent {
                     membership: MembershipState::Invite,
                     displayname: None,
@@ -1076,7 +1161,7 @@ impl Service {
         )?;
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomMember,
+                event_type: TimelineEventType::RoomMember,
                 content: to_raw_value(&RoomMemberEventContent {
                     membership: MembershipState::Join,
                     displayname: Some(displayname),
@@ -1104,7 +1189,7 @@ impl Service {
 
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomPowerLevels,
+                event_type: TimelineEventType::RoomPowerLevels,
                 content: to_raw_value(&RoomPowerLevelsEventContent {
                     users,
                     ..Default::default()
@@ -1122,7 +1207,7 @@ impl Service {
         // Send welcome message
         services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
-                event_type: RoomEventType::RoomMessage,
+                event_type: TimelineEventType::RoomMessage,
                 content: to_raw_value(&RoomMessageEventContent::text_html(
                         format!("## Thank you for trying out Conduit!\n\nConduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.\n\nHelpful links:\n> Website: https://conduit.rs\n> Git and Documentation: https://gitlab.com/famedly/conduit\n> Report issues: https://gitlab.com/famedly/conduit/-/issues\n\nFor a list of available commands, send the following message in this room: `@conduit:{}: --help`\n\nHere are some rooms you can join (by typing the command):\n\nConduit room (Ask questions and get notified on updates):\n`/join #conduit:fachschaften.org`\n\nConduit lounge (Off-topic, only Conduit users are allowed to join)\n`/join #conduit-lounge:conduit.rs`", services().globals.server_name()),
                         format!("<h2>Thank you for trying out Conduit!</h2>\n<p>Conduit is currently in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.</p>\n<p>Helpful links:</p>\n<blockquote>\n<p>Website: https://conduit.rs<br>Git and Documentation: https://gitlab.com/famedly/conduit<br>Report issues: https://gitlab.com/famedly/conduit/-/issues</p>\n</blockquote>\n<p>For a list of available commands, send the following message in this room: <code>@conduit:{}: --help</code></p>\n<p>Here are some rooms you can join (by typing the command):</p>\n<p>Conduit room (Ask questions and get notified on updates):<br><code>/join #conduit:fachschaften.org</code></p>\n<p>Conduit lounge (Off-topic, only Conduit users are allowed to join)<br><code>/join #conduit-lounge:conduit.rs</code></p>\n", services().globals.server_name()),

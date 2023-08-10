@@ -8,7 +8,7 @@ pub use data::Data;
 use ruma::{
     events::{
         room::{create::RoomCreateEventContent, member::MembershipState},
-        AnyStrippedStateEvent, RoomEventType, StateEventType,
+        AnyStrippedStateEvent, StateEventType, TimelineEventType,
     },
     serde::Raw,
     state_res::{self, StateMap},
@@ -32,11 +32,11 @@ impl Service {
         &self,
         room_id: &RoomId,
         shortstatehash: u64,
-        statediffnew: HashSet<CompressedStateEvent>,
-        _statediffremoved: HashSet<CompressedStateEvent>,
+        statediffnew: Arc<HashSet<CompressedStateEvent>>,
+        _statediffremoved: Arc<HashSet<CompressedStateEvent>>,
         state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<()> {
-        for event_id in statediffnew.into_iter().filter_map(|new| {
+        for event_id in statediffnew.iter().filter_map(|new| {
             services()
                 .rooms
                 .state_compressor
@@ -49,10 +49,6 @@ impl Service {
                 None => continue,
             };
 
-            if pdu.get("type").and_then(|val| val.as_str()) != Some("m.room.member") {
-                continue;
-            }
-
             let pdu: PduEvent = match serde_json::from_str(
                 &serde_json::to_string(&pdu).expect("CanonicalJsonObj can be serialized to JSON"),
             ) {
@@ -60,34 +56,49 @@ impl Service {
                 Err(_) => continue,
             };
 
-            #[derive(Deserialize)]
-            struct ExtractMembership {
-                membership: MembershipState,
+            match pdu.kind {
+                TimelineEventType::RoomMember => {
+                    #[derive(Deserialize)]
+                    struct ExtractMembership {
+                        membership: MembershipState,
+                    }
+
+                    let membership =
+                        match serde_json::from_str::<ExtractMembership>(pdu.content.get()) {
+                            Ok(e) => e.membership,
+                            Err(_) => continue,
+                        };
+
+                    let state_key = match pdu.state_key {
+                        Some(k) => k,
+                        None => continue,
+                    };
+
+                    let user_id = match UserId::parse(state_key) {
+                        Ok(id) => id,
+                        Err(_) => continue,
+                    };
+
+                    services().rooms.state_cache.update_membership(
+                        room_id,
+                        &user_id,
+                        membership,
+                        &pdu.sender,
+                        None,
+                        false,
+                    )?;
+                }
+                TimelineEventType::SpaceChild => {
+                    services()
+                        .rooms
+                        .spaces
+                        .roomid_spacechunk_cache
+                        .lock()
+                        .unwrap()
+                        .remove(&pdu.room_id);
+                }
+                _ => continue,
             }
-
-            let membership = match serde_json::from_str::<ExtractMembership>(pdu.content.get()) {
-                Ok(e) => e.membership,
-                Err(_) => continue,
-            };
-
-            let state_key = match pdu.state_key {
-                Some(k) => k,
-                None => continue,
-            };
-
-            let user_id = match UserId::parse(state_key) {
-                Ok(id) => id,
-                Err(_) => continue,
-            };
-
-            services().rooms.state_cache.update_membership(
-                room_id,
-                &user_id,
-                membership,
-                &pdu.sender,
-                None,
-                false,
-            )?;
         }
 
         services().rooms.state_cache.update_joined_count(room_id)?;
@@ -107,7 +118,7 @@ impl Service {
         &self,
         event_id: &EventId,
         room_id: &RoomId,
-        state_ids_compressed: HashSet<CompressedStateEvent>,
+        state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
     ) -> Result<u64> {
         let shorteventid = services()
             .rooms
@@ -152,9 +163,9 @@ impl Service {
                         .copied()
                         .collect();
 
-                    (statediffnew, statediffremoved)
+                    (Arc::new(statediffnew), Arc::new(statediffremoved))
                 } else {
-                    (state_ids_compressed, HashSet::new())
+                    (state_ids_compressed, Arc::new(HashSet::new()))
                 };
             services().rooms.state_compressor.save_state_from_diff(
                 shortstatehash,
@@ -234,8 +245,8 @@ impl Service {
 
             services().rooms.state_compressor.save_state_from_diff(
                 shortstatehash,
-                statediffnew,
-                statediffremoved,
+                Arc::new(statediffnew),
+                Arc::new(statediffremoved),
                 2,
                 states_parents,
             )?;
@@ -331,7 +342,10 @@ impl Service {
             .transpose()?;
         let room_version = create_event_content
             .map(|create_event| create_event.room_version)
-            .ok_or(Error::BadDatabase("Invalid room version"))?;
+            .ok_or_else(|| {
+                warn!("Invalid room version for room {room_id}");
+                Error::BadDatabase("Invalid room version")
+            })?;
         Ok(room_version)
     }
 
@@ -358,7 +372,7 @@ impl Service {
     pub fn get_auth_events(
         &self,
         room_id: &RoomId,
-        kind: &RoomEventType,
+        kind: &TimelineEventType,
         sender: &UserId,
         state_key: Option<&str>,
         content: &serde_json::value::RawValue,
@@ -396,7 +410,7 @@ impl Service {
             .1;
 
         Ok(full_state
-            .into_iter()
+            .iter()
             .filter_map(|compressed| {
                 services()
                     .rooms

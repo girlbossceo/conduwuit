@@ -31,7 +31,8 @@ pub async fn search_events_route(
             .collect()
     });
 
-    let limit = filter.limit.map_or(10, |l| u64::from(l) as usize);
+    // Use limit or else 10, with maximum 100
+    let limit = filter.limit.map_or(10, u64::from).min(100) as usize;
 
     let mut searches = Vec::new();
 
@@ -81,6 +82,21 @@ pub async fn search_events_route(
 
     let results: Vec<_> = results
         .iter()
+        .filter_map(|result| {
+            services()
+                .rooms
+                .timeline
+                .get_pdu_from_id(result)
+                .ok()?
+                .filter(|pdu| {
+                    services()
+                        .rooms
+                        .state_accessor
+                        .user_can_see_event(sender_user, &pdu.room_id, &pdu.event_id)
+                        .unwrap_or(false)
+                })
+                .map(|pdu| pdu.to_room_event())
+        })
         .map(|result| {
             Ok::<_, Error>(SearchResult {
                 context: EventContextResult {
@@ -91,11 +107,7 @@ pub async fn search_events_route(
                     start: None,
                 },
                 rank: None,
-                result: services()
-                    .rooms
-                    .timeline
-                    .get_pdu_from_id(result)?
-                    .map(|pdu| pdu.to_room_event()),
+                result: Some(result),
             })
         })
         .filter_map(|r| r.ok())

@@ -1,7 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use async_trait::async_trait;
 use futures_util::{stream::FuturesUnordered, StreamExt};
+use lru_cache::LruCache;
 use ruma::{
     api::federation::discovery::{ServerSigningKeys, VerifyKey},
     signatures::Ed25519KeyPair,
@@ -11,6 +12,7 @@ use ruma::{
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
 pub const COUNTER: &[u8] = b"c";
+pub const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
 
 #[async_trait]
 impl service::globals::Data for KeyValueDatabase {
@@ -24,6 +26,23 @@ impl service::globals::Data for KeyValueDatabase {
             utils::u64_from_bytes(&bytes)
                 .map_err(|_| Error::bad_database("Count has invalid bytes."))
         })
+    }
+
+    fn last_check_for_updates_id(&self) -> Result<u64> {
+        self.global
+            .get(LAST_CHECK_FOR_UPDATES_COUNT)?
+            .map_or(Ok(0_u64), |bytes| {
+                utils::u64_from_bytes(&bytes).map_err(|_| {
+                    Error::bad_database("last check for updates count has invalid bytes.")
+                })
+            })
+    }
+
+    fn update_check_for_updates_id(&self, id: u64) -> Result<()> {
+        self.global
+            .insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes())?;
+
+        Ok(())
     }
 
     async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
@@ -118,8 +137,67 @@ impl service::globals::Data for KeyValueDatabase {
         self._db.cleanup()
     }
 
-    fn memory_usage(&self) -> Result<String> {
-        self._db.memory_usage()
+    fn memory_usage(&self) -> String {
+        let pdu_cache = self.pdu_cache.lock().unwrap().len();
+        let shorteventid_cache = self.shorteventid_cache.lock().unwrap().len();
+        let auth_chain_cache = self.auth_chain_cache.lock().unwrap().len();
+        let eventidshort_cache = self.eventidshort_cache.lock().unwrap().len();
+        let statekeyshort_cache = self.statekeyshort_cache.lock().unwrap().len();
+        let our_real_users_cache = self.our_real_users_cache.read().unwrap().len();
+        let appservice_in_room_cache = self.appservice_in_room_cache.read().unwrap().len();
+        let lasttimelinecount_cache = self.lasttimelinecount_cache.lock().unwrap().len();
+
+        let mut response = format!(
+            "\
+pdu_cache: {pdu_cache}
+shorteventid_cache: {shorteventid_cache}
+auth_chain_cache: {auth_chain_cache}
+eventidshort_cache: {eventidshort_cache}
+statekeyshort_cache: {statekeyshort_cache}
+our_real_users_cache: {our_real_users_cache}
+appservice_in_room_cache: {appservice_in_room_cache}
+lasttimelinecount_cache: {lasttimelinecount_cache}\n"
+        );
+        if let Ok(db_stats) = self._db.memory_usage() {
+            response += &db_stats;
+        }
+
+        response
+    }
+
+    fn clear_caches(&self, amount: u32) {
+        if amount > 0 {
+            let c = &mut *self.pdu_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
+        }
+        if amount > 1 {
+            let c = &mut *self.shorteventid_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
+        }
+        if amount > 2 {
+            let c = &mut *self.auth_chain_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
+        }
+        if amount > 3 {
+            let c = &mut *self.eventidshort_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
+        }
+        if amount > 4 {
+            let c = &mut *self.statekeyshort_cache.lock().unwrap();
+            *c = LruCache::new(c.capacity());
+        }
+        if amount > 5 {
+            let c = &mut *self.our_real_users_cache.write().unwrap();
+            *c = HashMap::new();
+        }
+        if amount > 6 {
+            let c = &mut *self.appservice_in_room_cache.write().unwrap();
+            *c = HashMap::new();
+        }
+        if amount > 7 {
+            let c = &mut *self.lasttimelinecount_cache.lock().unwrap();
+            *c = HashMap::new();
+        }
     }
 
     fn load_keypair(&self) -> Result<Ed25519KeyPair> {

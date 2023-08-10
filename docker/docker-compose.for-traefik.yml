@@ -29,6 +29,7 @@ services:
             CONDUIT_MAX_REQUEST_SIZE: 20_000_000 # in bytes, ~20 MB
             CONDUIT_ALLOW_REGISTRATION: 'true'
             CONDUIT_ALLOW_FEDERATION: 'true'
+            CONDUIT_ALLOW_CHECK_FOR_UPDATES: 'true'
             CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
             #CONDUIT_MAX_CONCURRENT_REQUESTS: 100
             #CONDUIT_LOG: warn,rocket=off,_=off,sled=off

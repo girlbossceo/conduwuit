@@ -1,4 +1,5 @@
 use crate::{services, Result, Ruma};
+use base64::{engine::general_purpose, Engine as _};
 use hmac::{Hmac, Mac};
 use ruma::{api::client::voip::get_turn_server_info, SecondsSinceUnixEpoch};
 use sha1::Sha1;
@@ -28,7 +29,7 @@ pub async fn turn_server_route(
             .expect("HMAC can take key of any size");
         mac.update(username.as_bytes());
 
-        let password: String = base64::encode_config(mac.finalize().into_bytes(), base64::STANDARD);
+        let password: String = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
 
         (username, password)
     } else {

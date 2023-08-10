@@ -16,10 +16,7 @@ friends or company.
 #### Can I try it out?
 
 Yes! You can test our Conduit instance by opening a Matrix client (<https://app.element.io> or Element Android for
-example) and registering on the `conduit.rs` homeserver.
-
-*Registration is currently disabled because of scammers. For an account please
-  message us (see contact section below).*
+example) and registering on the `conduit.rs` homeserver. The registration token is "for_testing_only". Don't share personal information.
 
 Server hosting for conduit.rs is donated by the Matrix.org Foundation.
 
@@ -39,7 +36,7 @@ Check out the [Conduit 1.0 Release Milestone](https://gitlab.com/famedly/conduit
 #### How can I deploy my own?
 
 - Simple install (this was tested the most): [DEPLOY.md](DEPLOY.md)
-- Debian package: [debian/README.Debian](debian/README.Debian)
+- Debian package: [debian/README.md](debian/README.md)
 - Nix/NixOS: [nix/README.md](nix/README.md)
 - Docker: [docker/README.md](docker/README.md)
 
@@ -68,7 +65,7 @@ Thanks to the contributors to Conduit and all libraries we use, for example:
 If you run into any question, feel free to
 - Ask us in `#conduit:fachschaften.org` on Matrix
 - Write an E-Mail to `conduit@koesters.xyz`
-- Send an direct message to `timo@fachschaften.org` on Matrix
+- Send an direct message to `timokoesters@fachschaften.org` on Matrix
 - [Open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new)
 
 #### Donate

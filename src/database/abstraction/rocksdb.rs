@@ -45,6 +45,17 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
     db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
     db_opts.optimize_level_style_compaction(10 * 1024 * 1024);
 
+    // https://github.com/facebook/rocksdb/wiki/Setup-Options-and-Basic-Tuning
+    db_opts.set_max_background_jobs(6);
+    db_opts.set_bytes_per_sync(1048576);
+
+    // https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes#ktoleratecorruptedtailrecords
+    //
+    // Unclean shutdowns of a Matrix homeserver are likely to be fine when
+    // recovered in this manner as it's likely any lost information will be
+    // restored via federation.
+    db_opts.set_wal_recovery_mode(rocksdb::DBRecoveryMode::TolerateCorruptedTailRecords);
+
     let prefix_extractor = rocksdb::SliceTransform::create_fixed_prefix(1);
     db_opts.set_prefix_extractor(prefix_extractor);
 
@@ -54,7 +65,7 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
 impl KeyValueDatabaseEngine for Arc<Engine> {
     fn open(config: &Config) -> Result<Self> {
         let cache_capacity_bytes = (config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize;
-        let rocksdb_cache = rocksdb::Cache::new_lru_cache(cache_capacity_bytes).unwrap();
+        let rocksdb_cache = rocksdb::Cache::new_lru_cache(cache_capacity_bytes);
 
         let db_opts = db_options(config.rocksdb_max_open_files, &rocksdb_cache);
 
@@ -121,6 +132,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
             self.cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
         ))
     }
+
+    fn clear_caches(&self) {}
 }
 
 impl RocksDbEngineTree<'_> {
@@ -161,7 +174,7 @@ impl KvTree for RocksDbEngineTree<'_> {
             self.db
                 .rocks
                 .iterator_cf(&self.cf(), rocksdb::IteratorMode::Start)
-                //.map(|r| r.unwrap())
+                .map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v))),
         )
     }
@@ -185,7 +198,7 @@ impl KvTree for RocksDbEngineTree<'_> {
                         },
                     ),
                 )
-                //.map(|r| r.unwrap())
+                .map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v))),
         )
     }
@@ -226,7 +239,7 @@ impl KvTree for RocksDbEngineTree<'_> {
                     &self.cf(),
                     rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward),
                 )
-                //.map(|r| r.unwrap())
+                .map(|r| r.unwrap())
                 .map(|(k, v)| (Vec::from(k), Vec::from(v)))
                 .take_while(move |(k, _)| k.starts_with(&prefix)),
         )

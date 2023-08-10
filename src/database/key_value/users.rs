@@ -449,33 +449,13 @@ impl service::users::Data for KeyValueDatabase {
         master_key: &Raw<CrossSigningKey>,
         self_signing_key: &Option<Raw<CrossSigningKey>>,
         user_signing_key: &Option<Raw<CrossSigningKey>>,
+        notify: bool,
     ) -> Result<()> {
         // TODO: Check signatures
-
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 
-        // Master key
-        let mut master_key_ids = master_key
-            .deserialize()
-            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid master key"))?
-            .keys
-            .into_values();
-
-        let master_key_id = master_key_ids.next().ok_or(Error::BadRequest(
-            ErrorKind::InvalidParam,
-            "Master key contained no key.",
-        ))?;
-
-        if master_key_ids.next().is_some() {
-            return Err(Error::BadRequest(
-                ErrorKind::InvalidParam,
-                "Master key contained more than one key.",
-            ));
-        }
-
-        let mut master_key_key = prefix.clone();
-        master_key_key.extend_from_slice(master_key_id.as_bytes());
+        let (master_key_key, _) = self.parse_master_key(user_id, master_key)?;
 
         self.keyid_key
             .insert(&master_key_key, master_key.json().get().as_bytes())?;
@@ -551,7 +531,9 @@ impl service::users::Data for KeyValueDatabase {
                 .insert(user_id.as_bytes(), &user_signing_key_key)?;
         }
 
-        self.mark_device_key_update(user_id)?;
+        if notify {
+            self.mark_device_key_update(user_id)?;
+        }
 
         Ok(())
     }
@@ -592,7 +574,6 @@ impl service::users::Data for KeyValueDatabase {
             &serde_json::to_vec(&cross_signing_key).expect("CrossSigningKey::to_vec always works"),
         )?;
 
-        // TODO: Should we notify about this change?
         self.mark_device_key_update(target_id)?;
 
         Ok(())
@@ -691,45 +672,80 @@ impl service::users::Data for KeyValueDatabase {
         })
     }
 
+    fn parse_master_key(
+        &self,
+        user_id: &UserId,
+        master_key: &Raw<CrossSigningKey>,
+    ) -> Result<(Vec<u8>, CrossSigningKey)> {
+        let mut prefix = user_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        let master_key = master_key
+            .deserialize()
+            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid master key"))?;
+        let mut master_key_ids = master_key.keys.values();
+        let master_key_id = master_key_ids.next().ok_or(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Master key contained no key.",
+        ))?;
+        if master_key_ids.next().is_some() {
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Master key contained more than one key.",
+            ));
+        }
+        let mut master_key_key = prefix.clone();
+        master_key_key.extend_from_slice(master_key_id.as_bytes());
+        Ok((master_key_key, master_key))
+    }
+
+    fn get_key(
+        &self,
+        key: &[u8],
+        sender_user: Option<&UserId>,
+        user_id: &UserId,
+        allowed_signatures: &dyn Fn(&UserId) -> bool,
+    ) -> Result<Option<Raw<CrossSigningKey>>> {
+        self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+            let mut cross_signing_key = serde_json::from_slice::<serde_json::Value>(&bytes)
+                .map_err(|_| Error::bad_database("CrossSigningKey in db is invalid."))?;
+            clean_signatures(
+                &mut cross_signing_key,
+                sender_user,
+                user_id,
+                allowed_signatures,
+            )?;
+
+            Ok(Some(Raw::from_json(
+                serde_json::value::to_raw_value(&cross_signing_key)
+                    .expect("Value to RawValue serialization"),
+            )))
+        })
+    }
+
     fn get_master_key(
         &self,
+        sender_user: Option<&UserId>,
         user_id: &UserId,
         allowed_signatures: &dyn Fn(&UserId) -> bool,
     ) -> Result<Option<Raw<CrossSigningKey>>> {
         self.userid_masterkeyid
             .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
-                self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
-                    let mut cross_signing_key = serde_json::from_slice::<serde_json::Value>(&bytes)
-                        .map_err(|_| Error::bad_database("CrossSigningKey in db is invalid."))?;
-                    clean_signatures(&mut cross_signing_key, user_id, allowed_signatures)?;
-
-                    Ok(Some(Raw::from_json(
-                        serde_json::value::to_raw_value(&cross_signing_key)
-                            .expect("Value to RawValue serialization"),
-                    )))
-                })
+                self.get_key(&key, sender_user, user_id, allowed_signatures)
             })
     }
 
     fn get_self_signing_key(
         &self,
+        sender_user: Option<&UserId>,
         user_id: &UserId,
         allowed_signatures: &dyn Fn(&UserId) -> bool,
     ) -> Result<Option<Raw<CrossSigningKey>>> {
         self.userid_selfsigningkeyid
             .get(user_id.as_bytes())?
             .map_or(Ok(None), |key| {
-                self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
-                    let mut cross_signing_key = serde_json::from_slice::<serde_json::Value>(&bytes)
-                        .map_err(|_| Error::bad_database("CrossSigningKey in db is invalid."))?;
-                    clean_signatures(&mut cross_signing_key, user_id, allowed_signatures)?;
-
-                    Ok(Some(Raw::from_json(
-                        serde_json::value::to_raw_value(&cross_signing_key)
-                            .expect("Value to RawValue serialization"),
-                    )))
-                })
+                self.get_key(&key, sender_user, user_id, allowed_signatures)
             })
     }
 
@@ -929,6 +945,8 @@ impl service::users::Data for KeyValueDatabase {
         }
     }
 }
+
+impl KeyValueDatabase {}
 
 /// Will only return with Some(username) if the password was not empty and the
 /// username could be successfully parsed.

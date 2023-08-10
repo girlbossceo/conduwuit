@@ -107,7 +107,7 @@ in
     recommendedProxySettings = true;
 
     virtualHosts = {
-      "${server_name}" = {
+      "${matrix_hostname}" = {
         forceSSL = true;
         enableACME = true;
 
@@ -118,19 +118,20 @@ in
             ssl = true;
           }
           {
+            addr = "[::]";
+            port = 443;
+            ssl = true;
+          }          {
             addr = "0.0.0.0";
             port = 8448;
             ssl = true;
           }
+          {
+            addr = "[::]";
+            port = 8448;
+            ssl = true;
+          }
         ];
-
-        extraConfig = ''
-          merge_slashes off;
-        '';
-
-      "${matrix_hostname}" = {
-        forceSSL = true;
-        enableACME = true;
 
         locations."/_matrix/" = {
           proxyPass = "http://backend_conduit$request_uri";
@@ -140,6 +141,15 @@ in
             proxy_buffering off;
           '';
         };
+
+        extraConfig = ''
+          merge_slashes off;
+        '';
+      };
+
+      "${server_name}" = {
+        forceSSL = true;
+        enableACME = true;
 
         locations."=/.well-known/matrix/server" = {
           # Use the contents of the derivation built previously
@@ -169,7 +179,7 @@ in
     upstreams = {
       "backend_conduit" = {
         servers = {
-          "localhost:${toString config.services.matrix-conduit.settings.global.port}" = { };
+          "[::1]:${toString config.services.matrix-conduit.settings.global.port}" = { };
         };
       };
     };

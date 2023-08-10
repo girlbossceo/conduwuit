@@ -1,8 +1,9 @@
 use std::{collections::BTreeMap, iter::FromIterator};
 
-use ruma::api::client::discovery::get_supported_versions;
+use axum::{response::IntoResponse, Json};
+use ruma::api::client::{discovery::get_supported_versions, error::ErrorKind};
 
-use crate::{Result, Ruma};
+use crate::{services, Error, Result, Ruma};
 
 /// # `GET /_matrix/client/versions`
 ///
@@ -23,9 +24,26 @@ pub async fn get_supported_versions_route(
             "r0.6.0".to_owned(),
             "v1.1".to_owned(),
             "v1.2".to_owned(),
+            "v1.3".to_owned(),
+            "v1.4".to_owned(),
         ],
         unstable_features: BTreeMap::from_iter([("org.matrix.e2e_cross_signing".to_owned(), true)]),
     };
 
     Ok(resp)
+}
+
+/// # `GET /.well-known/matrix/client`
+pub async fn well_known_client_route(
+    _body: Ruma<get_supported_versions::Request>,
+) -> Result<impl IntoResponse> {
+    let client_url = match services().globals.well_known_client() {
+        Some(url) => url.clone(),
+        None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
+    };
+
+    Ok(Json(serde_json::json!({
+        "m.homeserver": {"base_url": client_url},
+        "org.matrix.msc3575.proxy": {"url": client_url}
+    })))
 }

@@ -18,7 +18,7 @@ where
     let mut http_request = request
         .try_into_http_request::<BytesMut>(
             destination,
-            SendAccessToken::IfRequired(""),
+            SendAccessToken::IfRequired(hs_token),
             &[MatrixVersion::V1_0],
         )
         .unwrap()

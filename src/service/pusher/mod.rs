@@ -13,10 +13,7 @@ use ruma::{
         },
         IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
     },
-    events::{
-        room::{name::RoomNameEventContent, power_levels::RoomPowerLevelsEventContent},
-        RoomEventType, StateEventType,
-    },
+    events::{room::power_levels::RoomPowerLevelsEventContent, StateEventType, TimelineEventType},
     push::{Action, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     serde::Raw,
     uint, RoomId, UInt, UserId,
@@ -162,13 +159,12 @@ impl Service {
             &pdu.room_id,
         )? {
             let n = match action {
-                Action::DontNotify => false,
-                // TODO: Implement proper support for coalesce
-                Action::Notify | Action::Coalesce => true,
+                Action::Notify => true,
                 Action::SetTweak(tweak) => {
                     tweaks.push(tweak.clone());
                     continue;
                 }
+                _ => false,
             };
 
             if notify.is_some() {
@@ -248,7 +244,7 @@ impl Service {
                 // TODO: missed calls
                 notifi.counts = NotificationCounts::new(unread, uint!(0));
 
-                if event.kind == RoomEventType::RoomEncrypted
+                if event.kind == TimelineEventType::RoomEncrypted
                     || tweaks
                         .iter()
                         .any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
@@ -264,28 +260,14 @@ impl Service {
                     notifi.event_type = Some(event.kind.clone());
                     notifi.content = serde_json::value::to_raw_value(&event.content).ok();
 
-                    if event.kind == RoomEventType::RoomMember {
+                    if event.kind == TimelineEventType::RoomMember {
                         notifi.user_is_target =
                             event.state_key.as_deref() == Some(event.sender.as_str());
                     }
 
                     notifi.sender_display_name = services().users.displayname(&event.sender)?;
 
-                    let room_name = if let Some(room_name_pdu) = services()
-                        .rooms
-                        .state_accessor
-                        .room_state_get(&event.room_id, &StateEventType::RoomName, "")?
-                    {
-                        serde_json::from_str::<RoomNameEventContent>(room_name_pdu.content.get())
-                            .map_err(|_| {
-                                Error::bad_database("Invalid room name event in database.")
-                            })?
-                            .name
-                    } else {
-                        None
-                    };
-
-                    notifi.room_name = room_name;
+                    notifi.room_name = services().rooms.state_accessor.get_name(&event.room_id)?;
 
                     self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
                         .await?;

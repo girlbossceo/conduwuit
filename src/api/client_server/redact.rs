@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{service::pdu::PduBuilder, services, Result, Ruma};
 use ruma::{
     api::client::redact::redact_event,
-    events::{room::redaction::RoomRedactionEventContent, RoomEventType},
+    events::{room::redaction::RoomRedactionEventContent, TimelineEventType},
 };
 
 use serde_json::value::to_raw_value;
@@ -32,7 +32,7 @@ pub async fn redact_event_route(
 
     let event_id = services().rooms.timeline.build_and_append_pdu(
         PduBuilder {
-            event_type: RoomEventType::RoomRedaction,
+            event_type: TimelineEventType::RoomRedaction,
             content: to_raw_value(&RoomRedactionEventContent {
                 reason: body.reason.clone(),
             })

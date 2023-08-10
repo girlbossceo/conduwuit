@@ -1,9 +1,9 @@
 use crate::Error;
 use ruma::{
     events::{
-        room::member::RoomMemberEventContent, AnyEphemeralRoomEvent, AnyStateEvent,
-        AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent, AnyTimelineEvent,
-        RoomEventType, StateEvent,
+        room::member::RoomMemberEventContent, space::child::HierarchySpaceChildEvent,
+        AnyEphemeralRoomEvent, AnyMessageLikeEvent, AnyStateEvent, AnyStrippedStateEvent,
+        AnySyncStateEvent, AnySyncTimelineEvent, AnyTimelineEvent, StateEvent, TimelineEventType,
     },
     serde::Raw,
     state_res, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch,
@@ -31,7 +31,7 @@ pub struct PduEvent {
     pub sender: OwnedUserId,
     pub origin_server_ts: UInt,
     #[serde(rename = "type")]
-    pub kind: RoomEventType,
+    pub kind: TimelineEventType,
     pub content: Box<RawJsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state_key: Option<String>,
@@ -53,10 +53,10 @@ impl PduEvent {
         self.unsigned = None;
 
         let allowed: &[&str] = match self.kind {
-            RoomEventType::RoomMember => &["join_authorised_via_users_server", "membership"],
-            RoomEventType::RoomCreate => &["creator"],
-            RoomEventType::RoomJoinRules => &["join_rule"],
-            RoomEventType::RoomPowerLevels => &[
+            TimelineEventType::RoomMember => &["join_authorised_via_users_server", "membership"],
+            TimelineEventType::RoomCreate => &["creator"],
+            TimelineEventType::RoomJoinRules => &["join_rule"],
+            TimelineEventType::RoomPowerLevels => &[
                 "ban",
                 "events",
                 "events_default",
@@ -66,7 +66,7 @@ impl PduEvent {
                 "users",
                 "users_default",
             ],
-            RoomEventType::RoomHistoryVisibility => &["history_visibility"],
+            TimelineEventType::RoomHistoryVisibility => &["history_visibility"],
             _ => &[],
         };
 
@@ -103,6 +103,19 @@ impl PduEvent {
         Ok(())
     }
 
+    pub fn add_age(&mut self) -> crate::Result<()> {
+        let mut unsigned: BTreeMap<String, Box<RawJsonValue>> = self
+            .unsigned
+            .as_ref()
+            .map_or_else(|| Ok(BTreeMap::new()), |u| serde_json::from_str(u.get()))
+            .map_err(|_| Error::bad_database("Invalid unsigned in pdu event"))?;
+
+        unsigned.insert("age".to_owned(), to_raw_value(&1).unwrap());
+        self.unsigned = Some(to_raw_value(&unsigned).expect("unsigned is valid"));
+
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self))]
     pub fn to_sync_room_event(&self) -> Raw<AnySyncTimelineEvent> {
         let mut json = json!({
@@ -111,9 +124,11 @@ impl PduEvent {
             "event_id": self.event_id,
             "sender": self.sender,
             "origin_server_ts": self.origin_server_ts,
-            "unsigned": self.unsigned,
         });
 
+        if let Some(unsigned) = &self.unsigned {
+            json["unsigned"] = json!(unsigned);
+        }
         if let Some(state_key) = &self.state_key {
             json["state_key"] = json!(state_key);
         }
@@ -133,10 +148,12 @@ impl PduEvent {
             "event_id": self.event_id,
             "sender": self.sender,
             "origin_server_ts": self.origin_server_ts,
-            "unsigned": self.unsigned,
             "room_id": self.room_id,
         });
 
+        if let Some(unsigned) = &self.unsigned {
+            json["unsigned"] = json!(unsigned);
+        }
         if let Some(state_key) = &self.state_key {
             json["state_key"] = json!(state_key);
         }
@@ -155,10 +172,36 @@ impl PduEvent {
             "event_id": self.event_id,
             "sender": self.sender,
             "origin_server_ts": self.origin_server_ts,
-            "unsigned": self.unsigned,
             "room_id": self.room_id,
         });
 
+        if let Some(unsigned) = &self.unsigned {
+            json["unsigned"] = json!(unsigned);
+        }
+        if let Some(state_key) = &self.state_key {
+            json["state_key"] = json!(state_key);
+        }
+        if let Some(redacts) = &self.redacts {
+            json["redacts"] = json!(redacts);
+        }
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn to_message_like_event(&self) -> Raw<AnyMessageLikeEvent> {
+        let mut json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "event_id": self.event_id,
+            "sender": self.sender,
+            "origin_server_ts": self.origin_server_ts,
+            "room_id": self.room_id,
+        });
+
+        if let Some(unsigned) = &self.unsigned {
+            json["unsigned"] = json!(unsigned);
+        }
         if let Some(state_key) = &self.state_key {
             json["state_key"] = json!(state_key);
         }
@@ -171,31 +214,37 @@ impl PduEvent {
 
     #[tracing::instrument(skip(self))]
     pub fn to_state_event(&self) -> Raw<AnyStateEvent> {
-        let json = json!({
+        let mut json = json!({
             "content": self.content,
             "type": self.kind,
             "event_id": self.event_id,
             "sender": self.sender,
             "origin_server_ts": self.origin_server_ts,
-            "unsigned": self.unsigned,
             "room_id": self.room_id,
             "state_key": self.state_key,
         });
+
+        if let Some(unsigned) = &self.unsigned {
+            json["unsigned"] = json!(unsigned);
+        }
 
         serde_json::from_value(json).expect("Raw::from_value always works")
     }
 
     #[tracing::instrument(skip(self))]
     pub fn to_sync_state_event(&self) -> Raw<AnySyncStateEvent> {
-        let json = json!({
+        let mut json = json!({
             "content": self.content,
             "type": self.kind,
             "event_id": self.event_id,
             "sender": self.sender,
             "origin_server_ts": self.origin_server_ts,
-            "unsigned": self.unsigned,
             "state_key": self.state_key,
         });
+
+        if let Some(unsigned) = &self.unsigned {
+            json["unsigned"] = json!(unsigned);
+        }
 
         serde_json::from_value(json).expect("Raw::from_value always works")
     }
@@ -213,18 +262,34 @@ impl PduEvent {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn to_member_event(&self) -> Raw<StateEvent<RoomMemberEventContent>> {
+    pub fn to_stripped_spacechild_state_event(&self) -> Raw<HierarchySpaceChildEvent> {
         let json = json!({
+            "content": self.content,
+            "type": self.kind,
+            "sender": self.sender,
+            "state_key": self.state_key,
+            "origin_server_ts": self.origin_server_ts,
+        });
+
+        serde_json::from_value(json).expect("Raw::from_value always works")
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn to_member_event(&self) -> Raw<StateEvent<RoomMemberEventContent>> {
+        let mut json = json!({
             "content": self.content,
             "type": self.kind,
             "event_id": self.event_id,
             "sender": self.sender,
             "origin_server_ts": self.origin_server_ts,
             "redacts": self.redacts,
-            "unsigned": self.unsigned,
             "room_id": self.room_id,
             "state_key": self.state_key,
         });
+
+        if let Some(unsigned) = &self.unsigned {
+            json["unsigned"] = json!(unsigned);
+        }
 
         serde_json::from_value(json).expect("Raw::from_value always works")
     }
@@ -281,7 +346,7 @@ impl state_res::Event for PduEvent {
         &self.sender
     }
 
-    fn event_type(&self) -> &RoomEventType {
+    fn event_type(&self) -> &TimelineEventType {
         &self.kind
     }
 
@@ -357,7 +422,7 @@ pub(crate) fn gen_event_id_canonical_json(
 #[derive(Debug, Deserialize)]
 pub struct PduBuilder {
     #[serde(rename = "type")]
-    pub event_type: RoomEventType,
+    pub event_type: TimelineEventType,
     pub content: Box<RawJsonValue>,
     pub unsigned: Option<BTreeMap<String, serde_json::Value>>,
     pub state_key: Option<String>,

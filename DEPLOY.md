@@ -7,10 +7,10 @@
 
 ## Installing Conduit
 
-Although you might be able to compile Conduit for Windows, we do recommend running it on a linux server. We therefore
+Although you might be able to compile Conduit for Windows, we do recommend running it on a Linux server. We therefore
 only offer Linux binaries.
 
-You may simply download the binary that fits your machine. Run `uname -m` to see what you need. Now copy the right url:
+You may simply download the binary that fits your machine. Run `uname -m` to see what you need. Now copy the appropriate url:
 
 | CPU Architecture                            | Download stable version                                         | Download development version                                |
 | ------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -19,7 +19,7 @@ You may simply download the binary that fits your machine. Run `uname -m` to see
 | armv8 / aarch64                             | [Binary][armv8-glibc-master] / [.deb][armv8-glibc-master-deb]   | [Binary][armv8-glibc-next] / [.deb][armv8-glibc-next-deb]   |
 
 These builds were created on and linked against the glibc version shipped with Debian bullseye.
-If you use a system with an older glibc version, you might need to compile Conduit yourself.
+If you use a system with an older glibc version (e.g. RHEL8), you might need to compile Conduit yourself.
 
 [x84_64-glibc-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_amd64/conduit?job=docker:master
 [armv7-glibc-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_arm_v7/conduit?job=docker:master
@@ -39,12 +39,16 @@ $ sudo wget -O /usr/local/bin/matrix-conduit <url>
 $ sudo chmod +x /usr/local/bin/matrix-conduit
 ```
 
-Alternatively, you may compile the binary yourself
+Alternatively, you may compile the binary yourself. First, install any dependencies:
 
 ```bash
+# Debian
 $ sudo apt install libclang-dev build-essential
-```
 
+# RHEL
+$ sudo dnf install clang
+```
+Then, `cd` into the source tree of conduit-next and run:
 ```bash
 $ cargo build --release
 ```
@@ -74,10 +78,10 @@ cross build --release --no-default-features --features conduit_bin,backend_rocks
 While Conduit can run as any user it is usually better to use dedicated users for different services. This also allows
 you to make sure that the file permissions are correctly set up.
 
-In Debian you can use this command to create a Conduit user:
+In Debian or RHEL, you can use this command to create a Conduit user:
 
 ```bash
-sudo adduser --system conduit --no-create-home
+sudo adduser --system conduit --group --disabled-login --no-create-home
 ```
 
 ## Forwarding ports in the firewall or the router
@@ -85,6 +89,19 @@ sudo adduser --system conduit --no-create-home
 Conduit uses the ports 443 and 8448 both of which need to be open in the firewall.
 
 If Conduit runs behind a router or in a container and has a different public IP address than the host system these public ports need to be forwarded directly or indirectly to the port mentioned in the config.
+
+## Optional: Avoid port 8448
+
+If Conduit runs behind Cloudflare reverse proxy, which doesn't support port 8448 on free plans, [delegation](https://matrix-org.github.io/synapse/latest/delegate.html) can be set up to have federation traffic routed to port 443:
+```apache
+# .well-known delegation on Apache
+<Files "/.well-known/matrix/server">
+    ErrorDocument 200 '{"m.server": "your.server.name:443"}'
+    Header always set Content-Type application/json
+    Header always set Access-Control-Allow-Origin *
+</Files>
+```
+[SRV DNS record](https://spec.matrix.org/latest/server-server-api/#resolving-server-names) delegation is also [possible](https://www.cloudflare.com/en-gb/learning/dns/dns-records/dns-srv-record/).
 
 ## Setting up a systemd service
 
@@ -100,7 +117,7 @@ After=network.target
 [Service]
 Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
 User=conduit
-Group=nogroup
+Group=conduit
 Restart=always
 ExecStart=/usr/local/bin/matrix-conduit
 
@@ -155,7 +172,9 @@ max_request_size = 20_000_000 # in bytes
 allow_registration = true
 
 allow_federation = true
+allow_check_for_updates = true
 
+# Server to get public keys from. You probably shouldn't change this
 trusted_servers = ["matrix.org"]
 
 #max_concurrent_requests = 100 # How many requests Conduit sends to other servers at the same time
@@ -168,7 +187,7 @@ address = "127.0.0.1" # This makes sure Conduit can only be reached using the re
 ## Setting the correct file permissions
 
 As we are using a Conduit specific user we need to allow it to read the config. To do that you can run this command on
-Debian:
+Debian or RHEL:
 
 ```bash
 sudo chown -R root:root /etc/matrix-conduit
@@ -179,7 +198,7 @@ If you use the default database path you also need to run this:
 
 ```bash
 sudo mkdir -p /var/lib/matrix-conduit/
-sudo chown -R conduit:nogroup /var/lib/matrix-conduit/
+sudo chown -R conduit:conduit /var/lib/matrix-conduit/
 sudo chmod 700 /var/lib/matrix-conduit/
 ```
 
@@ -192,6 +211,11 @@ This depends on whether you use Apache, Caddy, Nginx or another web server.
 Create `/etc/apache2/sites-enabled/050-conduit.conf` and copy-and-paste this:
 
 ```apache
+# Requires mod_proxy and mod_proxy_http
+#
+# On Apache instance compiled from source,
+# paste into httpd-ssl.conf or httpd.conf
+
 Listen 8448
 
 <VirtualHost *:443 *:8448>
@@ -199,7 +223,7 @@ Listen 8448
 ServerName your.server.name # EDIT THIS
 
 AllowEncodedSlashes NoDecode
-ProxyPass /_matrix/ http://127.0.0.1:6167/_matrix/ nocanon
+ProxyPass /_matrix/ http://127.0.0.1:6167/_matrix/ timeout=300 nocanon
 ProxyPassReverse /_matrix/ http://127.0.0.1:6167/_matrix/
 
 </VirtualHost>
@@ -208,7 +232,11 @@ ProxyPassReverse /_matrix/ http://127.0.0.1:6167/_matrix/
 **You need to make some edits again.** When you are done, run
 
 ```bash
+# Debian
 $ sudo systemctl reload apache2
+
+# Installed from source
+$ sudo apachectl -k graceful
 ```
 
 ### Caddy
@@ -241,12 +269,14 @@ server {
     merge_slashes off;
 
     # Nginx defaults to only allow 1MB uploads
+    # Increase this to allow posting large files such as videos
     client_max_body_size 20M;
 
     location /_matrix/ {
         proxy_pass http://127.0.0.1:6167$request_uri;
         proxy_set_header Host $http_host;
         proxy_buffering off;
+        proxy_read_timeout 5m;
     }
 
     ssl_certificate /etc/letsencrypt/live/your.server.name/fullchain.pem; # EDIT THIS
@@ -266,11 +296,19 @@ $ sudo systemctl reload nginx
 
 If you chose Caddy as your web proxy SSL certificates are handled automatically and you can skip this step.
 
-The easiest way to get an SSL certificate, if you don't have one already, is to install `certbot` and run this:
+The easiest way to get an SSL certificate, if you don't have one already, is to [install](https://certbot.eff.org/instructions) `certbot` and run this:
 
 ```bash
+# To use ECC for the private key, 
+# paste into /etc/letsencrypt/cli.ini:
+# key-type = ecdsa
+# elliptic-curve = secp384r1
+
 $ sudo certbot -d your.server.name
 ```
+[Automated renewal](https://eff-certbot.readthedocs.io/en/stable/using.html#automated-renewals) is usually preconfigured.
+
+If using Cloudflare, configure instead the edge and origin certificates in dashboard. In case you’re already running a website on the same Apache server, you can just copy-and-paste the SSL configuration from your main virtual host on port 443 into the above-mentioned vhost.
 
 ## You're done!
 
@@ -294,6 +332,8 @@ You can also use these commands as a quick health check.
 
 ```bash
 $ curl https://your.server.name/_matrix/client/versions
+
+# If using port 8448
 $ curl https://your.server.name:8448/_matrix/client/versions
 ```
 

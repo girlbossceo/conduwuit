@@ -1,10 +1,13 @@
-use crate::{service::pdu::PduBuilder, services, utils, Error, Result, Ruma};
+use crate::{
+    service::{pdu::PduBuilder, rooms::timeline::PduCount},
+    services, utils, Error, Result, Ruma,
+};
 use ruma::{
     api::client::{
         error::ErrorKind,
         message::{get_message_events, send_message_event},
     },
-    events::{RoomEventType, StateEventType},
+    events::{StateEventType, TimelineEventType},
 };
 use std::{
     collections::{BTreeMap, HashSet},
@@ -36,7 +39,7 @@ pub async fn send_message_event_route(
     let state_lock = mutex_state.lock().await;
 
     // Forbid m.room.encrypted if encryption is disabled
-    if RoomEventType::RoomEncrypted == body.event_type.to_string().into()
+    if TimelineEventType::RoomEncrypted == body.event_type.to_string().into()
         && !services().globals.allow_encryption()
     {
         return Err(Error::BadRequest(
@@ -110,29 +113,18 @@ pub async fn get_message_events_route(
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
     let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-    if !services()
-        .rooms
-        .state_cache
-        .is_joined(sender_user, &body.room_id)?
-    {
-        return Err(Error::BadRequest(
-            ErrorKind::Forbidden,
-            "You don't have permission to view this room.",
-        ));
-    }
-
     let from = match body.from.clone() {
-        Some(from) => from
-            .parse()
-            .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from` value."))?,
-
+        Some(from) => PduCount::try_from_string(&from)?,
         None => match body.dir {
-            ruma::api::client::Direction::Forward => 0,
-            ruma::api::client::Direction::Backward => u64::MAX,
+            ruma::api::Direction::Forward => PduCount::min(),
+            ruma::api::Direction::Backward => PduCount::max(),
         },
     };
 
-    let to = body.to.as_ref().map(|t| t.parse());
+    let to = body
+        .to
+        .as_ref()
+        .and_then(|t| PduCount::try_from_string(&t).ok());
 
     services().rooms.lazy_loading.lazy_load_confirm_delivery(
         sender_user,
@@ -141,8 +133,7 @@ pub async fn get_message_events_route(
         from,
     )?;
 
-    // Use limit or else 10
-    let limit = body.limit.try_into().map_or(10_usize, |l: u32| l as usize);
+    let limit = u64::from(body.limit).min(100) as usize;
 
     let next_token;
 
@@ -151,22 +142,21 @@ pub async fn get_message_events_route(
     let mut lazy_loaded = HashSet::new();
 
     match body.dir {
-        ruma::api::client::Direction::Forward => {
+        ruma::api::Direction::Forward => {
             let events_after: Vec<_> = services()
                 .rooms
                 .timeline
                 .pdus_after(sender_user, &body.room_id, from)?
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
-                .filter_map(|(pdu_id, pdu)| {
+                .filter(|(_, pdu)| {
                     services()
                         .rooms
-                        .timeline
-                        .pdu_count(&pdu_id)
-                        .map(|pdu_count| (pdu_count, pdu))
-                        .ok()
+                        .state_accessor
+                        .user_can_see_event(sender_user, &body.room_id, &pdu.event_id)
+                        .unwrap_or(false)
                 })
-                .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
+                .take_while(|&(k, _)| Some(k) != to) // Stop at `to`
                 .collect();
 
             for (_, event) in &events_after {
@@ -192,26 +182,30 @@ pub async fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect();
 
-            resp.start = from.to_string();
-            resp.end = next_token.map(|count| count.to_string());
+            resp.start = from.stringify();
+            resp.end = next_token.map(|count| count.stringify());
             resp.chunk = events_after;
         }
-        ruma::api::client::Direction::Backward => {
+        ruma::api::Direction::Backward => {
+            services()
+                .rooms
+                .timeline
+                .backfill_if_required(&body.room_id, from)
+                .await?;
             let events_before: Vec<_> = services()
                 .rooms
                 .timeline
                 .pdus_until(sender_user, &body.room_id, from)?
                 .take(limit)
                 .filter_map(|r| r.ok()) // Filter out buggy events
-                .filter_map(|(pdu_id, pdu)| {
+                .filter(|(_, pdu)| {
                     services()
                         .rooms
-                        .timeline
-                        .pdu_count(&pdu_id)
-                        .map(|pdu_count| (pdu_count, pdu))
-                        .ok()
+                        .state_accessor
+                        .user_can_see_event(sender_user, &body.room_id, &pdu.event_id)
+                        .unwrap_or(false)
                 })
-                .take_while(|&(k, _)| Some(Ok(k)) != to) // Stop at `to`
+                .take_while(|&(k, _)| Some(k) != to) // Stop at `to`
                 .collect();
 
             for (_, event) in &events_before {
@@ -237,8 +231,8 @@ pub async fn get_message_events_route(
                 .map(|(_, pdu)| pdu.to_room_event())
                 .collect();
 
-            resp.start = from.to_string();
-            resp.end = next_token.map(|count| count.to_string());
+            resp.start = from.stringify();
+            resp.end = next_token.map(|count| count.stringify());
             resp.chunk = events_before;
         }
     }

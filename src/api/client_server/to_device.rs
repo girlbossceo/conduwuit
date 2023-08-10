@@ -1,4 +1,3 @@
-use ruma::events::ToDeviceEventType;
 use std::collections::BTreeMap;
 
 use crate::{services, Error, Result, Ruma};
@@ -42,7 +41,7 @@ pub async fn send_event_to_device_route(
                     serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(
                         DirectDeviceContent {
                             sender: sender_user.clone(),
-                            ev_type: ToDeviceEventType::from(&*body.event_type),
+                            ev_type: body.event_type.clone(),
                             message_id: count.to_string().into(),
                             messages,
                         },
@@ -60,7 +59,7 @@ pub async fn send_event_to_device_route(
                         sender_user,
                         target_user_id,
                         target_device_id,
-                        &body.event_type,
+                        &body.event_type.to_string(),
                         event.deserialize_as().map_err(|_| {
                             Error::BadRequest(ErrorKind::InvalidParam, "Event is invalid")
                         })?,
@@ -73,7 +72,7 @@ pub async fn send_event_to_device_route(
                             sender_user,
                             target_user_id,
                             &target_device_id?,
-                            &body.event_type,
+                            &body.event_type.to_string(),
                             event.deserialize_as().map_err(|_| {
                                 Error::BadRequest(ErrorKind::InvalidParam, "Event is invalid")
                             })?,
