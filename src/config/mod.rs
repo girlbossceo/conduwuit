@@ -65,7 +65,7 @@ pub struct Config {
     #[serde(default)]
     pub proxy: ProxyConfig,
     pub jwt_secret: Option<String>,
-    #[serde(default = "Vec::new")]
+    #[serde(default = "default_trusted_servers")]
     pub trusted_servers: Vec<OwnedServerName>,
     #[serde(default = "default_log")]
     pub log: String,
@@ -257,6 +257,10 @@ fn default_max_concurrent_requests() -> u16 {
 
 fn default_max_fetch_prev_events() -> u16 {
     100_u16
+}
+
+fn default_trusted_servers() -> Vec<OwnedServerName> {
+    vec![OwnedServerName::try_from("matrix.org").unwrap()]
 }
 
 fn default_log() -> String {
