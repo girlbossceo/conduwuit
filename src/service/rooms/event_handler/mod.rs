@@ -226,7 +226,7 @@ impl Service {
                     .write()
                     .unwrap()
                     .remove(&room_id.to_owned());
-                warn!(
+                debug!(
                     "Handling prev event {} took {}m{}s",
                     prev_id,
                     elapsed.as_secs() / 60,
