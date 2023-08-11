@@ -1,12 +1,12 @@
 [package]
-name = "conduit"
+name = "cowonduit"
 description = "A Matrix homeserver written in Rust"
 license = "Apache-2.0"
 authors = ["timokoesters <timo@koesters.xyz>"]
 homepage = "https://conduit.rs"
 repository = "https://gitlab.com/famedly/conduit"
 readme = "README.md"
-version = "0.7.0-alpha"
+version = "4.2.0-6.9-barkbarkbark"
 edition = "2021"
 
 # When changing this, make sure to update the `flake.lock` file by running

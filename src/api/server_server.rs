@@ -544,7 +544,7 @@ pub async fn get_server_version_route(
 
     Ok(get_server_version::v1::Response {
         server: Some(get_server_version::v1::Server {
-            name: Some("Conduit".to_owned()),
+            name: Some("cowonduit".to_owned()),
             version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         }),
     })
