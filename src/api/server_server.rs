@@ -55,7 +55,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use tracing::{debug, error, warn};
+use tracing::{debug, error, trace, warn};
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -707,6 +707,23 @@ pub async fn send_transaction_message_route(
     // let mut auth_cache = EventMap::new();
 
     for pdu in &body.pdus {
+        let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
+            warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
+            Error::BadServerResponse("Invalid PDU in server response")
+        })?;
+        let room_id: OwnedRoomId = value
+            .get("room_id")
+            .and_then(|id| RoomId::parse(id.as_str()?).ok())
+            .ok_or(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "Invalid room id in pdu",
+            ))?;
+
+        if services().rooms.state.get_room_version(&room_id).is_err() {
+            debug!("Server is not in room {room_id}");
+            continue;
+        }
+
         let r = parse_incoming_pdu(&pdu);
         let (event_id, value, room_id) = match r {
             Ok(t) => t,
