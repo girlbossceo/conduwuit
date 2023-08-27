@@ -187,8 +187,8 @@ turn_secret = "<secret key from coturn configuration>"
 ```
 or append the following to the docker environment variables dependig on which configuration method you used earlier:
 ```yml
-- CONDUIT_TURN_URIS=["turn:<your server domain>?transport=udp", "turn:<your server domain>?transport=tcp"]
-- CONDUIT_TURN_SECRET="<secret key from coturn configuration>
+CONDUIT_TURN_URIS: '["turn:<your server domain>?transport=udp", "turn:<your server domain>?transport=tcp"]'
+CONDUIT_TURN_SECRET: "<secret key from coturn configuration>"
 ```
 Restart Conduit to apply these changes.
 
