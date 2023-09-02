@@ -6,6 +6,7 @@ use crate::{
     services, utils, Error, PduEvent, Result, Ruma,
 };
 use axum::{response::IntoResponse, Json};
+use futures_util::future::TryFutureExt;
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION};
 
@@ -54,8 +55,9 @@ use std::{
     sync::{Arc, RwLock},
     time::{Duration, Instant, SystemTime},
 };
+use trust_dns_resolver::{error::ResolveError, lookup::SrvLookup};
 
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -476,25 +478,40 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
 }
 
 async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
-    let hostname = hostname.trim_end_matches('.');
-    if let Ok(Some(host_port)) = services()
-        .globals
-        .dns_resolver()
-        .srv_lookup(format!("_matrix._tcp.{hostname}."))
-        .await
-        .map(|srv| {
-            srv.iter().next().map(|result| {
-                FedDest::Named(
-                    result.target().to_string().trim_end_matches('.').to_owned(),
-                    format!(":{}", result.port()),
-                )
-            })
+    fn handle_successful_srv(srv: SrvLookup) -> Option<FedDest> {
+        srv.iter().next().map(|result| {
+            FedDest::Named(
+                result.target().to_string().trim_end_matches('.').to_owned(),
+                format!(":{}", result.port()),
+            )
         })
-    {
-        Some(host_port)
-    } else {
-        None
     }
+
+    async fn lookup_srv(hostname: &str) -> Result<SrvLookup, ResolveError> {
+        debug!("querying SRV for {:?}", hostname);
+        let hostname = hostname.trim_end_matches('.');
+        services()
+            .globals
+            .dns_resolver()
+            .srv_lookup(format!("{}", hostname))
+            .await
+    }
+
+    let first_hostname = format!("_matrix-fed._tcp.{hostname}.");
+    let second_hostname = format!("_matrix._tcp.{hostname}.");
+
+    lookup_srv(&first_hostname)
+        .or_else(|_| {
+            info!(
+                "Querying deprecated _matrix SRV record for host {:?}",
+                hostname
+            );
+            lookup_srv(&second_hostname)
+        })
+        .and_then(|srv_lookup| async { Ok(handle_successful_srv(srv_lookup)) })
+        .await
+        .ok()
+        .flatten()
 }
 
 async fn request_well_known(destination: &str) -> Option<String> {
