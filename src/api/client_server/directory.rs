@@ -36,6 +36,17 @@ use tracing::{error, info, warn};
 pub async fn get_public_rooms_filtered_route(
     body: Ruma<get_public_rooms_filtered::v3::Request>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
+    if !services()
+        .globals
+        .config
+        .allow_public_room_directory_without_auth
+    {
+        let _sender_user = body
+            .sender_user
+            .as_ref()
+            .ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
+    }
+
     get_public_rooms_filtered_helper(
         body.server.as_deref(),
         body.limit,
@@ -54,6 +65,17 @@ pub async fn get_public_rooms_filtered_route(
 pub async fn get_public_rooms_route(
     body: Ruma<get_public_rooms::v3::Request>,
 ) -> Result<get_public_rooms::v3::Response> {
+    if !services()
+        .globals
+        .config
+        .allow_public_room_directory_without_auth
+    {
+        let _sender_user = body
+            .sender_user
+            .as_ref()
+            .ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
+    }
+
     let response = get_public_rooms_filtered_helper(
         body.server.as_deref(),
         body.limit,

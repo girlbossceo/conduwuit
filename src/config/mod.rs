@@ -51,6 +51,10 @@ pub struct Config {
     pub allow_encryption: bool,
     #[serde(default = "false_fn")]
     pub allow_federation: bool,
+    #[serde(default = "false_fn")]
+    pub allow_public_room_directory_over_federation: bool,
+    #[serde(default = "false_fn")]
+    pub allow_public_room_directory_without_auth: bool,
     #[serde(default = "true_fn")]
     pub allow_room_creation: bool,
     #[serde(default = "true_fn")]
@@ -150,6 +154,14 @@ impl fmt::Display for Config {
             ("Allow encryption", &self.allow_encryption.to_string()),
             ("Allow federation", &self.allow_federation.to_string()),
             ("Allow room creation", &self.allow_room_creation.to_string()),
+            (
+                "Allow public room directory over federation",
+                &self.allow_public_room_directory_over_federation.to_string(),
+            ),
+            (
+                "Allow public room directory without authentication",
+                &self.allow_public_room_directory_without_auth.to_string(),
+            ),
             (
                 "JWT secret",
                 match self.jwt_secret {

@@ -621,6 +621,13 @@ pub async fn get_public_rooms_filtered_route(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
+    if !services()
+        .globals
+        .allow_public_room_directory_over_federation()
+    {
+        return Err(Error::bad_config("Room directory is not public."));
+    }
+
     let response = client_server::get_public_rooms_filtered_helper(
         None,
         body.limit,
@@ -646,6 +653,13 @@ pub async fn get_public_rooms_route(
 ) -> Result<get_public_rooms::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
+    }
+
+    if !services()
+        .globals
+        .allow_public_room_directory_over_federation()
+    {
+        return Err(Error::bad_config("Room directory is not public."));
     }
 
     let response = client_server::get_public_rooms_filtered_helper(

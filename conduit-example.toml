@@ -55,3 +55,12 @@ trusted_servers = ["matrix.org"]
 
 address = "127.0.0.1" # This makes sure Conduit can only be reached using the reverse proxy
 #address = "0.0.0.0" # If Conduit is running in a container, make sure the reverse proxy (ie. Traefik) can reach it.
+
+# Set this to true to allow your server's public room directory to be federated.
+# Set this to false to protect against /publicRooms spiders, but will forbid external users from viewing your server's public room directory.
+# If federation is disabled entirely (`allow_federation`), this is inherently false.
+allow_public_room_directory_over_federation = false
+
+# Set this to true to allow your server's public room directory to be queried without client authentication (access token) through the Client APIs.
+# Set this to false to protect against /publicRooms spiders.
+allow_public_room_directory_without_auth = false
