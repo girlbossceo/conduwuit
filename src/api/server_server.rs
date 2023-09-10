@@ -1848,13 +1848,18 @@ pub async fn get_devices_route(
             .all_devices_metadata(&body.user_id)
             .filter_map(|r| r.ok())
             .filter_map(|metadata| {
+                let device_id_string = metadata.device_id.as_str().to_string();
+                let device_display_name = match services().globals.allow_device_name_federation() {
+                    true => Some(device_id_string.to_string()),
+                    false => metadata.display_name,
+                };
                 Some(UserDevice {
                     keys: services()
                         .users
                         .get_device_keys(&body.user_id, &metadata.device_id)
                         .ok()??,
                     device_id: metadata.device_id,
-                    device_display_name: metadata.display_name,
+                    device_display_name: device_display_name,
                 })
             })
             .collect(),
@@ -1940,9 +1945,12 @@ pub async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_key
         return Err(Error::bad_config("Federation is disabled."));
     }
 
-    let result = get_keys_helper(None, &body.device_keys, |u| {
-        Some(u.server_name()) == body.sender_servername.as_deref()
-    })
+    let result = get_keys_helper(
+        None,
+        &body.device_keys,
+        |u| Some(u.server_name()) == body.sender_servername.as_deref(),
+        services().globals.allow_device_name_federation(),
+    )
     .await?;
 
     Ok(get_keys::v1::Response {

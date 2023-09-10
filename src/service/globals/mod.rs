@@ -307,6 +307,10 @@ impl Service {
         self.config.allow_public_room_directory_without_auth
     }
 
+    pub fn allow_device_name_federation(&self) -> bool {
+        self.config.allow_device_name_federation
+    }
+
     pub fn allow_room_creation(&self) -> bool {
         self.config.allow_room_creation
     }

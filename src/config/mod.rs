@@ -55,6 +55,8 @@ pub struct Config {
     pub allow_public_room_directory_over_federation: bool,
     #[serde(default = "false_fn")]
     pub allow_public_room_directory_without_auth: bool,
+    #[serde(default = "false_fn")]
+    pub allow_device_name_federation: bool,
     #[serde(default = "true_fn")]
     pub allow_room_creation: bool,
     #[serde(default = "true_fn")]
@@ -153,6 +155,10 @@ impl fmt::Display for Config {
             ),
             ("Allow encryption", &self.allow_encryption.to_string()),
             ("Allow federation", &self.allow_federation.to_string()),
+            (
+                "Allow device name federation",
+                &self.allow_device_name_federation.to_string(),
+            ),
             ("Allow room creation", &self.allow_room_creation.to_string()),
             (
                 "Allow public room directory over federation",
