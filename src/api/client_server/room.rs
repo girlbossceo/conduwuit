@@ -142,8 +142,9 @@ pub async fn create_room_route(
             content
         }
         None => {
+            // TODO: Add correct value for v11
             let mut content = serde_json::from_str::<CanonicalJsonObject>(
-                to_raw_value(&RoomCreateEventContent::new(sender_user.clone()))
+                to_raw_value(&RoomCreateEventContent::new_v1(sender_user.clone()))
                     .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid creation content"))?
                     .get(),
             )

@@ -326,7 +326,7 @@ impl Service {
                 Ok(ruma::signatures::Verified::Signatures) => {
                     // Redact
                     warn!("Calculated hash does not match: {}", event_id);
-                    match ruma::canonical_json::redact(value, room_version_id, None) {
+                    let obj = match ruma::canonical_json::redact(value, room_version_id, None) {
                         Ok(obj) => obj,
                         Err(_) => {
                             return Err(Error::BadRequest(
@@ -334,7 +334,17 @@ impl Service {
                                 "Redaction failed",
                             ))
                         }
+                    };
+
+                    // Skip the PDU if it is redacted and we already have it as an outlier event
+                    if services().rooms.timeline.get_pdu_json(event_id)?.is_some() {
+                        return Err(Error::BadRequest(
+                            ErrorKind::InvalidParam,
+                            "Event was redacted and we already knew about it",
+                        ));
                     }
+
+                    obj
                 }
                 Ok(ruma::signatures::Verified::All) => value,
             };
@@ -1563,6 +1573,11 @@ impl Service {
                     return Ok(());
                 }
             };
+
+        if acl_event_content.allow.is_empty() {
+            // Ignore broken acl events
+            return Ok(());
+        }
 
         if acl_event_content.is_allowed(server_name) {
             Ok(())

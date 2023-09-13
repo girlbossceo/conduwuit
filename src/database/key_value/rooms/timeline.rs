@@ -84,8 +84,6 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
     }
 
     /// Returns the pdu.
-    ///
-    /// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
     fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
         self.eventid_pduid
             .get(event_id.as_bytes())?
