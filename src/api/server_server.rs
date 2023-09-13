@@ -735,11 +735,6 @@ pub async fn send_transaction_message_route(
         };
         // We do not add the event_id field to the pdu here because of signature and hashes checks
 
-        services()
-            .rooms
-            .event_handler
-            .acl_check(sender_servername, &room_id)?;
-
         let mutex = Arc::clone(
             services()
                 .globals
