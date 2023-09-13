@@ -1102,7 +1102,7 @@ async fn load_joined_room(
 fn load_timeline(
     sender_user: &UserId,
     room_id: &RoomId,
-    sincecount: PduCount,
+    roomsincecount: PduCount,
     limit: u64,
 ) -> Result<(Vec<(PduCount, PduEvent)>, bool), Error> {
     let timeline_pdus;
@@ -1111,7 +1111,7 @@ fn load_timeline(
         .rooms
         .timeline
         .last_timeline_count(&sender_user, &room_id)?
-        > sincecount
+        > roomsincecount
     {
         let mut non_timeline_pdus = services()
             .rooms
@@ -1124,7 +1124,7 @@ fn load_timeline(
                 }
                 r.ok()
             })
-            .take_while(|(pducount, _)| pducount > &sincecount);
+            .take_while(|(pducount, _)| pducount > &roomsincecount);
 
         // Take the last events for the timeline
         timeline_pdus = non_timeline_pdus
@@ -1172,22 +1172,22 @@ fn share_encrypted_room(
 pub async fn sync_events_v4_route(
     body: Ruma<sync_events::v4::Request>,
 ) -> Result<sync_events::v4::Response, RumaResponse<UiaaResponse>> {
+    dbg!(&body.body);
     let sender_user = body.sender_user.expect("user is authenticated");
     let sender_device = body.sender_device.expect("user is authenticated");
     let mut body = body.body;
     // Setup watchers, so if there's no response, we can wait for them
     let watcher = services().globals.watch(&sender_user, &sender_device);
 
-    let next_batch = services().globals.current_count()?;
+    let next_batch = services().globals.next_count()?;
 
-    let since = body
+    let globalsince = body
         .pos
         .as_ref()
         .and_then(|string| string.parse().ok())
         .unwrap_or(0);
-    let sincecount = PduCount::Normal(since);
 
-    if since == 0 {
+    if globalsince == 0 {
         if let Some(conn_id) = &body.conn_id {
             services().users.forget_sync_request_connection(
                 sender_user.clone(),
@@ -1214,7 +1214,7 @@ pub async fn sync_events_v4_route(
     if body.extensions.to_device.enabled.unwrap_or(false) {
         services()
             .users
-            .remove_to_device_events(&sender_user, &sender_device, since)?;
+            .remove_to_device_events(&sender_user, &sender_device, globalsince)?;
     }
 
     let mut left_encrypted_users = HashSet::new(); // Users that have left any encrypted rooms the sender was in
@@ -1226,7 +1226,7 @@ pub async fn sync_events_v4_route(
         device_list_changes.extend(
             services()
                 .users
-                .keys_changed(sender_user.as_ref(), since, None)
+                .keys_changed(sender_user.as_ref(), globalsince, None)
                 .filter_map(|r| r.ok()),
         );
 
@@ -1242,7 +1242,7 @@ pub async fn sync_events_v4_route(
             let since_shortstatehash = services()
                 .rooms
                 .user
-                .get_token_shortstatehash(&room_id, since)?;
+                .get_token_shortstatehash(&room_id, globalsince)?;
 
             let since_sender_member: Option<RoomMemberEventContent> = since_shortstatehash
                 .and_then(|shortstatehash| {
@@ -1371,7 +1371,7 @@ pub async fn sync_events_v4_route(
             device_list_changes.extend(
                 services()
                     .users
-                    .keys_changed(room_id.as_ref(), since, None)
+                    .keys_changed(room_id.as_ref(), globalsince, None)
                     .filter_map(|r| r.ok()),
             );
         }
@@ -1408,7 +1408,7 @@ pub async fn sync_events_v4_route(
             continue;
         }
 
-        let mut new_known_rooms = BTreeMap::new();
+        let mut new_known_rooms = BTreeSet::new();
 
         lists.insert(
             list_id.clone(),
@@ -1424,12 +1424,12 @@ pub async fn sync_events_v4_route(
                         let room_ids = all_joined_rooms
                             [(u64::from(r.0) as usize)..=(u64::from(r.1) as usize)]
                             .to_vec();
-                        new_known_rooms.extend(room_ids.iter().cloned().map(|r| (r, true)));
+                        new_known_rooms.extend(room_ids.iter().cloned());
                         for room_id in &room_ids {
                             let todo_room = todo_rooms.entry(room_id.clone()).or_insert((
                                 BTreeSet::new(),
                                 0,
-                                true,
+                                u64::MAX,
                             ));
                             let limit = list
                                 .room_details
@@ -1440,10 +1440,14 @@ pub async fn sync_events_v4_route(
                                 .0
                                 .extend(list.room_details.required_state.iter().cloned());
                             todo_room.1 = todo_room.1.max(limit);
-                            if known_rooms.get(&list_id).and_then(|k| k.get(room_id)) != Some(&true)
-                            {
-                                todo_room.2 = false;
-                            }
+                            // 0 means unknown because it got out of date
+                            todo_room.2 = todo_room.2.min(
+                                known_rooms
+                                    .get(&list_id)
+                                    .and_then(|k| k.get(room_id))
+                                    .copied()
+                                    .unwrap_or(0),
+                            );
                         }
                         sync_events::v4::SyncOp {
                             op: SlidingOp::Sync,
@@ -1465,26 +1469,28 @@ pub async fn sync_events_v4_route(
                 conn_id.clone(),
                 list_id,
                 new_known_rooms,
+                globalsince,
             );
         }
     }
 
-    let mut known_subscription_rooms = BTreeMap::new();
+    let mut known_subscription_rooms = BTreeSet::new();
     for (room_id, room) in &body.room_subscriptions {
         let todo_room = todo_rooms
             .entry(room_id.clone())
-            .or_insert((BTreeSet::new(), 0, true));
+            .or_insert((BTreeSet::new(), 0, u64::MAX));
         let limit = room.timeline_limit.map_or(10, u64::from).min(100);
         todo_room.0.extend(room.required_state.iter().cloned());
         todo_room.1 = todo_room.1.max(limit);
-        if known_rooms
-            .get("subscriptions")
-            .and_then(|k| k.get(room_id))
-            != Some(&true)
-        {
-            todo_room.2 = false;
-        }
-        known_subscription_rooms.insert(room_id.clone(), true);
+        // 0 means unknown because it got out of date
+        todo_room.2 = todo_room.2.min(
+            known_rooms
+                .get("subscriptions")
+                .and_then(|k| k.get(room_id))
+                .copied()
+                .unwrap_or(0),
+        );
+        known_subscription_rooms.insert(room_id.clone());
     }
 
     for r in body.unsubscribe_rooms {
@@ -1499,6 +1505,7 @@ pub async fn sync_events_v4_route(
             conn_id.clone(),
             "subscriptions".to_owned(),
             known_subscription_rooms,
+            globalsince,
         );
     }
 
@@ -1512,12 +1519,13 @@ pub async fn sync_events_v4_route(
     }
 
     let mut rooms = BTreeMap::new();
-    for (room_id, (required_state_request, timeline_limit, known)) in &todo_rooms {
-        // TODO: per-room sync tokens
-        let (timeline_pdus, limited) =
-            load_timeline(&sender_user, &room_id, sincecount, *timeline_limit)?;
+    for (room_id, (required_state_request, timeline_limit, roomsince)) in &todo_rooms {
+        let roomsincecount = PduCount::Normal(*roomsince);
 
-        if *known && timeline_pdus.is_empty() {
+        let (timeline_pdus, limited) =
+            load_timeline(&sender_user, &room_id, roomsincecount, *timeline_limit)?;
+
+        if roomsince != &0 && timeline_pdus.is_empty() {
             continue;
         }
 
@@ -1533,8 +1541,8 @@ pub async fn sync_events_v4_route(
                 }))
             })?
             .or_else(|| {
-                if since != 0 {
-                    Some(since.to_string())
+                if roomsince != &0 {
+                    Some(roomsince.to_string())
                 } else {
                     None
                 }
@@ -1621,7 +1629,7 @@ pub async fn sync_events_v4_route(
                     .state_accessor
                     .get_avatar(&room_id)?
                     .map_or(avatar, |a| a.url),
-                initial: Some(!known),
+                initial: Some(roomsince == &0),
                 is_dm: None,
                 invite_state: None,
                 unread_notifications: UnreadNotificationsCount {
@@ -1663,6 +1671,7 @@ pub async fn sync_events_v4_route(
                         .into(),
                 ),
                 num_live: None, // Count events in timeline greater than global sync counter
+                timestamp: None,
             },
         );
     }
@@ -1680,8 +1689,8 @@ pub async fn sync_events_v4_route(
         let _ = tokio::time::timeout(duration, watcher).await;
     }
 
-    Ok(sync_events::v4::Response {
-        initial: since == 0,
+    Ok(dbg!(sync_events::v4::Response {
+        initial: globalsince == 0,
         txn_id: body.txn_id.clone(),
         pos: next_batch.to_string(),
         lists,
@@ -1712,7 +1721,7 @@ pub async fn sync_events_v4_route(
                 global: if body.extensions.account_data.enabled.unwrap_or(false) {
                     services()
                         .account_data
-                        .changes_since(None, &sender_user, since)?
+                        .changes_since(None, &sender_user, globalsince)?
                         .into_iter()
                         .filter_map(|(_, v)| {
                             serde_json::from_str(v.json().get())
@@ -1735,5 +1744,5 @@ pub async fn sync_events_v4_route(
             },
         },
         delta_token: None,
-    })
+    }))
 }

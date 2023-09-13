@@ -34,6 +34,7 @@ pub async fn redact_event_route(
         PduBuilder {
             event_type: TimelineEventType::RoomRedaction,
             content: to_raw_value(&RoomRedactionEventContent {
+                redacts: Some(body.event_id.clone()),
                 reason: body.reason.clone(),
             })
             .expect("event is valid, we just created it"),

@@ -932,7 +932,7 @@ impl Service {
 
         services().users.create(&conduit_user, None)?;
 
-        let mut content = RoomCreateEventContent::new(conduit_user.clone());
+        let mut content = RoomCreateEventContent::new_v1(conduit_user.clone());
         content.federate = true;
         content.predecessor = None;
         content.room_version = services().globals.default_room_version();

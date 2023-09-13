@@ -1,6 +1,6 @@
 mod data;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     mem,
     sync::{Arc, Mutex},
 };
@@ -28,7 +28,7 @@ use crate::{services, Error, Result};
 pub struct SlidingSyncCache {
     lists: BTreeMap<String, SyncRequestList>,
     subscriptions: BTreeMap<OwnedRoomId, sync_events::v4::RoomSubscription>,
-    known_rooms: BTreeMap<String, BTreeMap<OwnedRoomId, bool>>,
+    known_rooms: BTreeMap<String, BTreeMap<OwnedRoomId, u64>>, // For every room, the roomsince number
     extensions: ExtensionsConfig,
 }
 
@@ -61,7 +61,7 @@ impl Service {
         user_id: OwnedUserId,
         device_id: OwnedDeviceId,
         request: &mut sync_events::v4::Request,
-    ) -> BTreeMap<String, BTreeMap<OwnedRoomId, bool>> {
+    ) -> BTreeMap<String, BTreeMap<OwnedRoomId, u64>> {
         let Some(conn_id) = request.conn_id.clone() else {
             return BTreeMap::new();
         };
@@ -127,6 +127,7 @@ impl Service {
                         }
                     }
                     (_, Some(cached_filters)) => list.filters = Some(cached_filters),
+                    (Some(list_filters), _) => list.filters = Some(list_filters.clone()),
                     (_, _) => {}
                 }
                 if list.bump_event_types.is_empty() {
@@ -210,7 +211,8 @@ impl Service {
         device_id: OwnedDeviceId,
         conn_id: String,
         list_id: String,
-        new_cached_rooms: BTreeMap<OwnedRoomId, bool>,
+        new_cached_rooms: BTreeSet<OwnedRoomId>,
+        globalsince: u64,
     ) {
         let mut cache = self.connections.lock().unwrap();
         let cached = Arc::clone(
@@ -228,7 +230,20 @@ impl Service {
         let cached = &mut cached.lock().unwrap();
         drop(cache);
 
-        cached.known_rooms.insert(list_id, new_cached_rooms);
+        for (roomid, lastsince) in cached
+            .known_rooms
+            .entry(list_id.clone())
+            .or_default()
+            .iter_mut()
+        {
+            if !new_cached_rooms.contains(roomid) {
+                *lastsince = 0;
+            }
+        }
+        let list = cached.known_rooms.entry(list_id).or_default();
+        for roomid in new_cached_rooms {
+            list.insert(roomid, globalsince);
+        }
     }
 
     /// Check if account is deactivated
