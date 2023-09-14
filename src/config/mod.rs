@@ -2,11 +2,13 @@ use std::{
     collections::BTreeMap,
     fmt,
     net::{IpAddr, Ipv4Addr},
+    path::PathBuf,
 };
 
+use figment::Figment;
 use ruma::{OwnedServerName, RoomVersionId};
 use serde::{de::IgnoredAny, Deserialize};
-use tracing::warn;
+use tracing::{error, warn};
 
 mod proxy;
 
@@ -19,7 +21,9 @@ pub struct Config {
     #[serde(default = "default_port")]
     pub port: u16,
     pub tls: Option<TlsConfig>,
-
+    pub unix_socket_path: Option<PathBuf>,
+    #[serde(default = "default_unix_socket_perms")]
+    pub unix_socket_perms: u32,
     pub server_name: OwnedServerName,
     #[serde(default = "default_database_backend")]
     pub database_backend: String,
@@ -108,13 +112,26 @@ impl Config {
             .keys()
             .filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key))
         {
-            warn!("Config parameter {} is deprecated", key);
+            warn!("Config parameter \"{}\" is deprecated.", key);
             was_deprecated = true;
         }
 
         if was_deprecated {
             warn!("Read conduit documentation and check your configuration if any new configuration parameters should be adjusted");
         }
+    }
+
+    /// Checks the presence of the `address` and `unix_socket_path` keys in the raw_config, exiting the process if both keys were detected.
+    pub fn error_dual_listening(&self, raw_config: Figment) -> Result<(), ()> {
+        let check_address = raw_config.find_value("address");
+        let check_unix_socket = raw_config.find_value("unix_socket_path");
+
+        if check_address.is_ok() && check_unix_socket.is_ok() {
+            error!("TOML keys \"address\" and \"unix_socket_path\" were both defined. Please specify only one option.");
+            return Err(());
+        }
+
+        Ok(())
     }
 }
 
@@ -239,6 +256,10 @@ fn default_address() -> IpAddr {
 
 fn default_port() -> u16 {
     8000
+}
+
+fn default_unix_socket_perms() -> u32 {
+    660
 }
 
 fn default_database_backend() -> String {

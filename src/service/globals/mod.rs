@@ -435,9 +435,26 @@ impl Service {
         &self.config.well_known_client
     }
 
+    pub fn unix_socket_path(&self) -> &Option<PathBuf> {
+        &self.config.unix_socket_path
+    }
+
     pub fn shutdown(&self) {
         self.shutdown.store(true, atomic::Ordering::Relaxed);
         // On shutdown
+
+        if self.unix_socket_path().is_some() {
+            match &self.unix_socket_path() {
+                Some(path) => {
+                    std::fs::remove_file(path.to_owned()).unwrap();
+                }
+                None => error!(
+                    "Unable to remove socket file at {:?} during shutdown.",
+                    &self.unix_socket_path()
+                ),
+            };
+        };
+
         info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
         services().globals.rotate.fire();
     }
