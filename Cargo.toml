@@ -41,7 +41,7 @@ persy = { version = "1.4.4", optional = true, features = ["background_ops"] }
 bytes = "1.4.0"
 http = "0.2.9"
 # Used to find data directory for default db path
-directories = "4.0.1"
+directories = "5.0.1"
 # Used for ruma wrapper
 serde_json = { version = "1.0.96", features = ["raw_value"] }
 # Used for appservice registration files
@@ -51,7 +51,7 @@ serde = { version = "1.0.163", features = ["rc"] }
 # Used for secure identifiers
 rand = "0.8.5"
 # Used to hash passwords
-rust-argon2 = "1.0.0"
+rust-argon2 = "2.0.0"
 # Used to send requests
 reqwest = { default-features = false, features = ["rustls-tls-native-roots", "socks"], git = "https://github.com/timokoesters/reqwest", rev = "57b7cf4feb921573dfafad7d34b9ac6e44ead0bd" }
 # Used for conduit::Error type
@@ -63,7 +63,7 @@ base64 = "0.21.2"
 # Used when hashing the state
 ring = "0.16.20"
 # Used when querying the SRV record of other servers
-trust-dns-resolver = "0.22.0"
+trust-dns-resolver = "0.23.0"
 # Used to find matching events for appservices
 regex = "1.8.1"
 # jwt jsonwebtokens
