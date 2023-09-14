@@ -178,6 +178,18 @@ where
                             CanonicalJsonValue::Object(origin_signatures),
                         )]);
 
+                        let server_destination =
+                            services().globals.server_name().as_str().to_owned();
+
+                        if let Some(destination) = x_matrix.destination.as_ref() {
+                            if destination != &server_destination {
+                                return Err(Error::BadRequest(
+                                    ErrorKind::Forbidden,
+                                    "Invalid authorization.",
+                                ));
+                            }
+                        }
+
                         let mut request_map = BTreeMap::from_iter([
                             (
                                 "method".to_owned(),
@@ -193,9 +205,7 @@ where
                             ),
                             (
                                 "destination".to_owned(),
-                                CanonicalJsonValue::String(
-                                    services().globals.server_name().as_str().to_owned(),
-                                ),
+                                CanonicalJsonValue::String(server_destination),
                             ),
                             (
                                 "signatures".to_owned(),
@@ -310,6 +320,7 @@ where
 
 struct XMatrix {
     origin: OwnedServerName,
+    destination: Option<String>,
     key: String, // KeyName?
     sig: String,
 }
@@ -328,6 +339,7 @@ impl Credentials for XMatrix {
             .trim_start();
 
         let mut origin = None;
+        let mut destination = None;
         let mut key = None;
         let mut sig = None;
 
@@ -346,6 +358,7 @@ impl Credentials for XMatrix {
                 "origin" => origin = Some(value.try_into().ok()?),
                 "key" => key = Some(value.to_owned()),
                 "sig" => sig = Some(value.to_owned()),
+                "destination" => destination = Some(value.to_owned()),
                 _ => debug!(
                     "Unexpected field `{}` in X-Matrix Authorization header",
                     name
@@ -357,6 +370,7 @@ impl Credentials for XMatrix {
             origin: origin?,
             key: key?,
             sig: sig?,
+            destination,
         })
     }
 
