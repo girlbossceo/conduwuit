@@ -1172,7 +1172,6 @@ fn share_encrypted_room(
 pub async fn sync_events_v4_route(
     body: Ruma<sync_events::v4::Request>,
 ) -> Result<sync_events::v4::Response, RumaResponse<UiaaResponse>> {
-    dbg!(&body.body);
     let sender_user = body.sender_user.expect("user is authenticated");
     let sender_device = body.sender_device.expect("user is authenticated");
     let mut body = body.body;
@@ -1689,7 +1688,7 @@ pub async fn sync_events_v4_route(
         let _ = tokio::time::timeout(duration, watcher).await;
     }
 
-    Ok(dbg!(sync_events::v4::Response {
+    Ok(sync_events::v4::Response {
         initial: globalsince == 0,
         txn_id: body.txn_id.clone(),
         pos: next_batch.to_string(),
@@ -1744,5 +1743,5 @@ pub async fn sync_events_v4_route(
             },
         },
         delta_token: None,
-    }))
+    })
 }

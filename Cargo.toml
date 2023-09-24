@@ -47,11 +47,11 @@ http = "0.2.9"
 # Used to find data directory for default db path
 directories = "5.0.1"
 # Used for ruma wrapper
-serde_json = { version = "1.0.96", features = ["raw_value"] }
+serde_json = { version = "1.0.107", features = ["raw_value"] }
 # Used for appservice registration files
 serde_yaml = "0.9.21"
 # Used for pdu definition
-serde = { version = "1.0.163", features = ["rc"] }
+serde = { version = "1.0.188", features = ["rc"] }
 # Used for secure identifiers
 rand = "0.8.5"
 # Used to hash passwords
@@ -88,7 +88,7 @@ heed = { git = "https://github.com/timokoesters/heed.git", rev = "f6f825da7fb2c7
 # Used for ruma wrapper
 serde_html_form = "0.2.0"
 
-rocksdb = { version = "0.21.0", default-features = true, features = ["multi-threaded-cf", "zstd"], optional = true }
+rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "734cf99e732c84702a4e73be5dd4aea99bc268f5", default-features = true, features = ["multi-threaded-cf", "zstd", "io-uring"], optional = true }
 
 thread_local = "1.1.7"
 # used for TURN server authentication
