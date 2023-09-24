@@ -974,7 +974,8 @@ impl Service {
             res.ok().flatten()
         }) {
             Ok(new_state) => new_state,
-            Err(_) => {
+            Err(e) => {
+                error!("State resolution failed: {}", e);
                 return Err(Error::bad_database("State resolution failed, either an event could not be found or deserialization"));
             }
         };
