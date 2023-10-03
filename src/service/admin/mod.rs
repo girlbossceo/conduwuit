@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use regex::Regex;
 use ruma::{
     events::{
@@ -41,6 +41,37 @@ use super::pdu::PduBuilder;
 #[derive(Parser)]
 #[command(name = "@conduit:server.name:", version = env!("CARGO_PKG_VERSION"))]
 enum AdminCommand {
+    #[command(subcommand)]
+    /// Commands for managing appservices
+    Appservice(AppserviceCommand),
+
+    #[command(subcommand)]
+    /// Commands for managing local users
+    User(UserCommand),
+
+    #[command(subcommand)]
+    /// Commands for managing rooms
+    Room(RoomCommand),
+
+    #[command(subcommand)]
+    /// Commands for managing federation
+    Federation(FederationCommand),
+
+    #[command(subcommand)]
+    /// Commands for managing the server
+    Server(ServerCommand),
+
+    #[command(subcommand)]
+    // TODO: should i split out debug commands to a separate thing? the
+    // debug commands seem like they could fit in the other categories fine
+    // this is more like a "miscellaneous" category than a debug one
+    /// Commands for debugging things
+    Debug(DebugCommand),
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+enum AppserviceCommand {
     #[command(verbatim_doc_comment)]
     /// Register an appservice using its registration YAML
     ///
@@ -54,33 +85,42 @@ enum AdminCommand {
     /// # ```
     /// # yaml content here
     /// # ```
-    RegisterAppservice,
+    Register,
 
     /// Unregister an appservice using its ID
     ///
     /// You can find the ID using the `list-appservices` command.
-    UnregisterAppservice {
+    Unregister {
         /// The appservice to unregister
         appservice_identifier: String,
     },
 
     /// List all the currently registered appservices
-    ListAppservices,
+    List,
+}
 
-    /// List all rooms the server knows about
-    ListRooms,
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+enum UserCommand {
+    /// Create a new user
+    Create {
+        /// Username of the new user
+        username: String,
+        /// Password of the new user, if unspecified one is generated
+        password: Option<String>,
+    },
 
-    /// List users in the database
-    ListLocalUsers,
-
-    /// List all rooms we are currently handling an incoming pdu from
-    IncomingFederation,
+    /// Reset user password
+    ResetPassword {
+        /// Username of the user for whom the password should be reset
+        username: String,
+    },
 
     /// Deactivate a user
     ///
     /// User will not be removed from all rooms by default.
     /// Use --leave-rooms to force the user to leave all rooms
-    DeactivateUser {
+    Deactivate {
         #[arg(short, long)]
         leave_rooms: bool,
         user_id: Box<UserId>,
@@ -109,6 +149,49 @@ enum AdminCommand {
         force: bool,
     },
 
+    /// List local users in the database
+    List,
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+enum RoomCommand {
+    /// List all rooms the server knows about
+    List,
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+enum FederationCommand {
+    /// List all rooms we are currently handling an incoming pdu from
+    IncomingFederation,
+
+    /// Disables incoming federation handling for a room.
+    DisableRoom { room_id: Box<RoomId> },
+
+    /// Enables incoming federation handling for a room again.
+    EnableRoom { room_id: Box<RoomId> },
+
+    #[command(verbatim_doc_comment)]
+    /// Verify json signatures
+    /// [commandbody]
+    /// # ```
+    /// # json here
+    /// # ```
+    SignJson,
+
+    #[command(verbatim_doc_comment)]
+    /// Verify json signatures
+    /// [commandbody]
+    /// # ```
+    /// # json here
+    /// # ```
+    VerifyJson,
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+enum DebugCommand {
     /// Get the auth_chain of a PDU
     GetAuthChain {
         /// An event ID (the $ character followed by the base64 reference hash)
@@ -132,6 +215,13 @@ enum AdminCommand {
         /// An event ID (a $ followed by the base64 reference hash)
         event_id: Box<EventId>,
     },
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+enum ServerCommand {
+    /// Show configuration values
+    ShowConfig,
 
     /// Print database memory usage statistics
     MemoryUsage,
@@ -141,42 +231,6 @@ enum AdminCommand {
 
     /// Clears all of Conduit's service caches with index smaller than the amount
     ClearServiceCaches { amount: u32 },
-
-    /// Show configuration values
-    ShowConfig,
-
-    /// Reset user password
-    ResetPassword {
-        /// Username of the user for whom the password should be reset
-        username: String,
-    },
-
-    /// Create a new user
-    CreateUser {
-        /// Username of the new user
-        username: String,
-        /// Password of the new user, if unspecified one is generated
-        password: Option<String>,
-    },
-
-    /// Disables incoming federation handling for a room.
-    DisableRoom { room_id: Box<RoomId> },
-    /// Enables incoming federation handling for a room again.
-    EnableRoom { room_id: Box<RoomId> },
-
-    /// Verify json signatures
-    /// [commandbody]
-    /// # ```
-    /// # json here
-    /// # ```
-    SignJson,
-
-    /// Verify json signatures
-    /// [commandbody]
-    /// # ```
-    /// # json here
-    /// # ```
-    VerifyJson,
 }
 
 #[derive(Debug)]
@@ -341,481 +395,510 @@ impl Service {
         body: Vec<&str>,
     ) -> Result<RoomMessageEventContent> {
         let reply_message_content = match command {
-            AdminCommand::RegisterAppservice => {
-                if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```"
-                {
-                    let appservice_config = body[1..body.len() - 1].join("\n");
-                    let parsed_config =
-                        serde_yaml::from_str::<serde_yaml::Value>(&appservice_config);
-                    match parsed_config {
-                        Ok(yaml) => match services().appservice.register_appservice(yaml) {
-                            Ok(id) => RoomMessageEventContent::text_plain(format!(
-                                "Appservice registered with ID: {id}."
-                            )),
-                            Err(e) => RoomMessageEventContent::text_plain(format!(
-                                "Failed to register appservice: {e}"
-                            )),
-                        },
-                        Err(e) => RoomMessageEventContent::text_plain(format!(
-                            "Could not parse appservice config: {e}"
-                        )),
-                    }
-                } else {
-                    RoomMessageEventContent::text_plain(
-                        "Expected code block in command body. Add --help for details.",
-                    )
-                }
-            }
-            AdminCommand::UnregisterAppservice {
-                appservice_identifier,
-            } => match services()
-                .appservice
-                .unregister_appservice(&appservice_identifier)
-            {
-                Ok(()) => RoomMessageEventContent::text_plain("Appservice unregistered."),
-                Err(e) => RoomMessageEventContent::text_plain(format!(
-                    "Failed to unregister appservice: {e}"
-                )),
-            },
-            AdminCommand::ListAppservices => {
-                if let Ok(appservices) = services()
-                    .appservice
-                    .iter_ids()
-                    .map(|ids| ids.collect::<Vec<_>>())
-                {
-                    let count = appservices.len();
-                    let output = format!(
-                        "Appservices ({}): {}",
-                        count,
-                        appservices
-                            .into_iter()
-                            .filter_map(|r| r.ok())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    );
-                    RoomMessageEventContent::text_plain(output)
-                } else {
-                    RoomMessageEventContent::text_plain("Failed to get appservices.")
-                }
-            }
-            AdminCommand::ListRooms => {
-                let room_ids = services().rooms.metadata.iter_ids();
-                let output = format!(
-                    "Rooms:\n{}",
-                    room_ids
-                        .filter_map(|r| r.ok())
-                        .map(|id| id.to_string()
-                            + "\tMembers: "
-                            + &services()
-                                .rooms
-                                .state_cache
-                                .room_joined_count(&id)
-                                .ok()
-                                .flatten()
-                                .unwrap_or(0)
-                                .to_string())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                );
-                RoomMessageEventContent::text_plain(output)
-            }
-            AdminCommand::ListLocalUsers => match services().users.list_local_users() {
-                Ok(users) => {
-                    let mut msg: String = format!("Found {} local user account(s):\n", users.len());
-                    msg += &users.join("\n");
-                    RoomMessageEventContent::text_plain(&msg)
-                }
-                Err(e) => RoomMessageEventContent::text_plain(e.to_string()),
-            },
-            AdminCommand::IncomingFederation => {
-                let map = services()
-                    .globals
-                    .roomid_federationhandletime
-                    .read()
-                    .unwrap();
-                let mut msg: String = format!("Handling {} incoming pdus:\n", map.len());
-
-                for (r, (e, i)) in map.iter() {
-                    let elapsed = i.elapsed();
-                    msg += &format!(
-                        "{} {}: {}m{}s\n",
-                        r,
-                        e,
-                        elapsed.as_secs() / 60,
-                        elapsed.as_secs() % 60
-                    );
-                }
-                RoomMessageEventContent::text_plain(&msg)
-            }
-            AdminCommand::GetAuthChain { event_id } => {
-                let event_id = Arc::<EventId>::from(event_id);
-                if let Some(event) = services().rooms.timeline.get_pdu_json(&event_id)? {
-                    let room_id_str = event
-                        .get("room_id")
-                        .and_then(|val| val.as_str())
-                        .ok_or_else(|| Error::bad_database("Invalid event in database"))?;
-
-                    let room_id = <&RoomId>::try_from(room_id_str).map_err(|_| {
-                        Error::bad_database("Invalid room id field in event in database")
-                    })?;
-                    let start = Instant::now();
-                    let count = services()
-                        .rooms
-                        .auth_chain
-                        .get_auth_chain(room_id, vec![event_id])
-                        .await?
-                        .count();
-                    let elapsed = start.elapsed();
-                    RoomMessageEventContent::text_plain(format!(
-                        "Loaded auth chain with length {count} in {elapsed:?}"
-                    ))
-                } else {
-                    RoomMessageEventContent::text_plain("Event not found.")
-                }
-            }
-            AdminCommand::ParsePdu => {
-                if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```"
-                {
-                    let string = body[1..body.len() - 1].join("\n");
-                    match serde_json::from_str(&string) {
-                        Ok(value) => {
-                            match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
-                                Ok(hash) => {
-                                    let event_id = EventId::parse(format!("${hash}"));
-
-                                    match serde_json::from_value::<PduEvent>(
-                                        serde_json::to_value(value).expect("value is json"),
-                                    ) {
-                                        Ok(pdu) => RoomMessageEventContent::text_plain(format!(
-                                            "EventId: {event_id:?}\n{pdu:#?}"
-                                        )),
-                                        Err(e) => RoomMessageEventContent::text_plain(format!(
-                                            "EventId: {event_id:?}\nCould not parse event: {e}"
-                                        )),
-                                    }
-                                }
-                                Err(e) => RoomMessageEventContent::text_plain(format!(
-                                    "Could not parse PDU JSON: {e:?}"
+            AdminCommand::Appservice(command) => match command {
+                AppserviceCommand::Register => {
+                    if body.len() > 2
+                        && body[0].trim() == "```"
+                        && body.last().unwrap().trim() == "```"
+                    {
+                        let appservice_config = body[1..body.len() - 1].join("\n");
+                        let parsed_config =
+                            serde_yaml::from_str::<serde_yaml::Value>(&appservice_config);
+                        match parsed_config {
+                            Ok(yaml) => match services().appservice.register_appservice(yaml) {
+                                Ok(id) => RoomMessageEventContent::text_plain(format!(
+                                    "Appservice registered with ID: {id}."
                                 )),
-                            }
-                        }
-                        Err(e) => RoomMessageEventContent::text_plain(format!(
-                            "Invalid json in command body: {e}"
-                        )),
-                    }
-                } else {
-                    RoomMessageEventContent::text_plain("Expected code block in command body.")
-                }
-            }
-            AdminCommand::GetPdu { event_id } => {
-                let mut outlier = false;
-                let mut pdu_json = services()
-                    .rooms
-                    .timeline
-                    .get_non_outlier_pdu_json(&event_id)?;
-                if pdu_json.is_none() {
-                    outlier = true;
-                    pdu_json = services().rooms.timeline.get_pdu_json(&event_id)?;
-                }
-                match pdu_json {
-                    Some(json) => {
-                        let json_text = serde_json::to_string_pretty(&json)
-                            .expect("canonical json is valid json");
-                        RoomMessageEventContent::text_html(
-                            format!(
-                                "{}\n```json\n{}\n```",
-                                if outlier {
-                                    "PDU is outlier"
-                                } else {
-                                    "PDU was accepted"
-                                },
-                                json_text
-                            ),
-                            format!(
-                                "<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-                                if outlier {
-                                    "PDU is outlier"
-                                } else {
-                                    "PDU was accepted"
-                                },
-                                HtmlEscape(&json_text)
-                            ),
-                        )
-                    }
-                    None => RoomMessageEventContent::text_plain("PDU not found."),
-                }
-            }
-            AdminCommand::MemoryUsage => {
-                let response1 = services().memory_usage();
-                let response2 = services().globals.db.memory_usage();
-
-                RoomMessageEventContent::text_plain(format!(
-                    "Services:\n{response1}\n\nDatabase:\n{response2}"
-                ))
-            }
-            AdminCommand::ClearDatabaseCaches { amount } => {
-                services().globals.db.clear_caches(amount);
-
-                RoomMessageEventContent::text_plain("Done.")
-            }
-            AdminCommand::ClearServiceCaches { amount } => {
-                services().clear_caches(amount);
-
-                RoomMessageEventContent::text_plain("Done.")
-            }
-            AdminCommand::ShowConfig => {
-                // Construct and send the response
-                RoomMessageEventContent::text_plain(format!("{}", services().globals.config))
-            }
-            AdminCommand::ResetPassword { username } => {
-                let user_id = match UserId::parse_with_server_name(
-                    username.as_str().to_lowercase(),
-                    services().globals.server_name(),
-                ) {
-                    Ok(id) => id,
-                    Err(e) => {
-                        return Ok(RoomMessageEventContent::text_plain(format!(
-                            "The supplied username is not a valid username: {e}"
-                        )))
-                    }
-                };
-
-                // Check if the specified user is valid
-                if !services().users.exists(&user_id)?
-                    || user_id
-                        == UserId::parse_with_server_name(
-                            "conduit",
-                            services().globals.server_name(),
-                        )
-                        .expect("conduit user exists")
-                {
-                    return Ok(RoomMessageEventContent::text_plain(
-                        "The specified user does not exist!",
-                    ));
-                }
-
-                let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
-
-                match services()
-                    .users
-                    .set_password(&user_id, Some(new_password.as_str()))
-                {
-                    Ok(()) => RoomMessageEventContent::text_plain(format!(
-                        "Successfully reset the password for user {user_id}: {new_password}"
-                    )),
-                    Err(e) => RoomMessageEventContent::text_plain(format!(
-                        "Couldn't reset the password for user {user_id}: {e}"
-                    )),
-                }
-            }
-            AdminCommand::CreateUser { username, password } => {
-                let password =
-                    password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
-                // Validate user id
-                let user_id = match UserId::parse_with_server_name(
-                    username.as_str().to_lowercase(),
-                    services().globals.server_name(),
-                ) {
-                    Ok(id) => id,
-                    Err(e) => {
-                        return Ok(RoomMessageEventContent::text_plain(format!(
-                            "The supplied username is not a valid username: {e}"
-                        )))
-                    }
-                };
-                if user_id.is_historical() {
-                    return Ok(RoomMessageEventContent::text_plain(format!(
-                        "Userid {user_id} is not allowed due to historical"
-                    )));
-                }
-                if services().users.exists(&user_id)? {
-                    return Ok(RoomMessageEventContent::text_plain(format!(
-                        "Userid {user_id} already exists"
-                    )));
-                }
-                // Create user
-                services().users.create(&user_id, Some(password.as_str()))?;
-
-                // Default to pretty displayname
-                let mut displayname = user_id.localpart().to_owned();
-
-                // If enabled append lightning bolt to display name (default true)
-                if services().globals.enable_lightning_bolt() {
-                    displayname.push_str(" ⚡️");
-                }
-
-                services()
-                    .users
-                    .set_displayname(&user_id, Some(displayname))?;
-
-                // Initial account data
-                services().account_data.update(
-                    None,
-                    &user_id,
-                    ruma::events::GlobalAccountDataEventType::PushRules
-                        .to_string()
-                        .into(),
-                    &serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
-                        content: ruma::events::push_rules::PushRulesEventContent {
-                            global: ruma::push::Ruleset::server_default(&user_id),
-                        },
-                    })
-                    .expect("to json value always works"),
-                )?;
-
-                // we dont add a device since we're not the user, just the creator
-
-                // Inhibit login does not work for guests
-                RoomMessageEventContent::text_plain(format!(
-                    "Created user with user_id: {user_id} and password: {password}"
-                ))
-            }
-            AdminCommand::DisableRoom { room_id } => {
-                services().rooms.metadata.disable_room(&room_id, true)?;
-                RoomMessageEventContent::text_plain("Room disabled.")
-            }
-            AdminCommand::EnableRoom { room_id } => {
-                services().rooms.metadata.disable_room(&room_id, false)?;
-                RoomMessageEventContent::text_plain("Room enabled.")
-            }
-            AdminCommand::DeactivateUser {
-                leave_rooms,
-                user_id,
-            } => {
-                let user_id = Arc::<UserId>::from(user_id);
-                if services().users.exists(&user_id)? {
-                    RoomMessageEventContent::text_plain(format!(
-                        "Making {user_id} leave all rooms before deactivation..."
-                    ));
-
-                    services().users.deactivate_account(&user_id)?;
-
-                    if leave_rooms {
-                        leave_all_rooms(&user_id).await?;
-                    }
-
-                    RoomMessageEventContent::text_plain(format!(
-                        "User {user_id} has been deactivated"
-                    ))
-                } else {
-                    RoomMessageEventContent::text_plain(format!(
-                        "User {user_id} doesn't exist on this server"
-                    ))
-                }
-            }
-            AdminCommand::DeactivateAll { leave_rooms, force } => {
-                if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```"
-                {
-                    let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
-
-                    let mut user_ids: Vec<&UserId> = Vec::new();
-
-                    for &username in &usernames {
-                        match <&UserId>::try_from(username) {
-                            Ok(user_id) => user_ids.push(user_id),
-                            Err(_) => {
-                                return Ok(RoomMessageEventContent::text_plain(format!(
-                                    "{username} is not a valid username"
-                                )))
-                            }
-                        }
-                    }
-
-                    let mut deactivation_count = 0;
-                    let mut admins = Vec::new();
-
-                    if !force {
-                        user_ids.retain(|&user_id| match services().users.is_admin(user_id) {
-                            Ok(is_admin) => match is_admin {
-                                true => {
-                                    admins.push(user_id.localpart());
-                                    false
-                                }
-                                false => true,
+                                Err(e) => RoomMessageEventContent::text_plain(format!(
+                                    "Failed to register appservice: {e}"
+                                )),
                             },
-                            Err(_) => false,
+                            Err(e) => RoomMessageEventContent::text_plain(format!(
+                                "Could not parse appservice config: {e}"
+                            )),
+                        }
+                    } else {
+                        RoomMessageEventContent::text_plain(
+                            "Expected code block in command body. Add --help for details.",
+                        )
+                    }
+                }
+                AppserviceCommand::Unregister {
+                    appservice_identifier,
+                } => match services()
+                    .appservice
+                    .unregister_appservice(&appservice_identifier)
+                {
+                    Ok(()) => RoomMessageEventContent::text_plain("Appservice unregistered."),
+                    Err(e) => RoomMessageEventContent::text_plain(format!(
+                        "Failed to unregister appservice: {e}"
+                    )),
+                },
+                AppserviceCommand::List => {
+                    if let Ok(appservices) = services()
+                        .appservice
+                        .iter_ids()
+                        .map(|ids| ids.collect::<Vec<_>>())
+                    {
+                        let count = appservices.len();
+                        let output = format!(
+                            "Appservices ({}): {}",
+                            count,
+                            appservices
+                                .into_iter()
+                                .filter_map(|r| r.ok())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        );
+                        RoomMessageEventContent::text_plain(output)
+                    } else {
+                        RoomMessageEventContent::text_plain("Failed to get appservices.")
+                    }
+                }
+            },
+            AdminCommand::User(command) => match command {
+                UserCommand::List => match services().users.list_local_users() {
+                    Ok(users) => {
+                        let mut msg: String =
+                            format!("Found {} local user account(s):\n", users.len());
+                        msg += &users.join("\n");
+                        RoomMessageEventContent::text_plain(&msg)
+                    }
+                    Err(e) => RoomMessageEventContent::text_plain(e.to_string()),
+                },
+                UserCommand::Create { username, password } => {
+                    let password =
+                        password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
+                    // Validate user id
+                    let user_id = match UserId::parse_with_server_name(
+                        username.as_str().to_lowercase(),
+                        services().globals.server_name(),
+                    ) {
+                        Ok(id) => id,
+                        Err(e) => {
+                            return Ok(RoomMessageEventContent::text_plain(format!(
+                                "The supplied username is not a valid username: {e}"
+                            )))
+                        }
+                    };
+                    if user_id.is_historical() {
+                        return Ok(RoomMessageEventContent::text_plain(format!(
+                            "Userid {user_id} is not allowed due to historical"
+                        )));
+                    }
+                    if services().users.exists(&user_id)? {
+                        return Ok(RoomMessageEventContent::text_plain(format!(
+                            "Userid {user_id} already exists"
+                        )));
+                    }
+                    // Create user
+                    services().users.create(&user_id, Some(password.as_str()))?;
+
+                    // Default to pretty displayname
+                    let mut displayname = user_id.localpart().to_owned();
+
+                    // If enabled append lightning bolt to display name (default true)
+                    if services().globals.enable_lightning_bolt() {
+                        displayname.push_str(" ⚡️");
+                    }
+
+                    services()
+                        .users
+                        .set_displayname(&user_id, Some(displayname))?;
+
+                    // Initial account data
+                    services().account_data.update(
+                        None,
+                        &user_id,
+                        ruma::events::GlobalAccountDataEventType::PushRules
+                            .to_string()
+                            .into(),
+                        &serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
+                            content: ruma::events::push_rules::PushRulesEventContent {
+                                global: ruma::push::Ruleset::server_default(&user_id),
+                            },
                         })
-                    }
+                        .expect("to json value always works"),
+                    )?;
 
-                    for &user_id in &user_ids {
-                        if services().users.deactivate_account(user_id).is_ok() {
-                            deactivation_count += 1
-                        }
-                    }
+                    // we dont add a device since we're not the user, just the creator
 
-                    if leave_rooms {
-                        for &user_id in &user_ids {
-                            let _ = leave_all_rooms(user_id).await;
-                        }
-                    }
-
-                    if admins.is_empty() {
+                    // Inhibit login does not work for guests
+                    RoomMessageEventContent::text_plain(format!(
+                        "Created user with user_id: {user_id} and password: {password}"
+                    ))
+                }
+                UserCommand::Deactivate {
+                    leave_rooms,
+                    user_id,
+                } => {
+                    let user_id = Arc::<UserId>::from(user_id);
+                    if services().users.exists(&user_id)? {
                         RoomMessageEventContent::text_plain(format!(
-                            "Deactivated {deactivation_count} accounts."
+                            "Making {user_id} leave all rooms before deactivation..."
+                        ));
+
+                        services().users.deactivate_account(&user_id)?;
+
+                        if leave_rooms {
+                            leave_all_rooms(&user_id).await?;
+                        }
+
+                        RoomMessageEventContent::text_plain(format!(
+                            "User {user_id} has been deactivated"
                         ))
                     } else {
-                        RoomMessageEventContent::text_plain(format!("Deactivated {} accounts.\nSkipped admin accounts: {:?}. Use --force to deactivate admin accounts", deactivation_count, admins.join(", ")))
+                        RoomMessageEventContent::text_plain(format!(
+                            "User {user_id} doesn't exist on this server"
+                        ))
                     }
-                } else {
-                    RoomMessageEventContent::text_plain(
-                        "Expected code block in command body. Add --help for details.",
-                    )
                 }
-            }
-            AdminCommand::SignJson => {
-                if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```"
-                {
-                    let string = body[1..body.len() - 1].join("\n");
-                    match serde_json::from_str(&string) {
-                        Ok(mut value) => {
-                            ruma::signatures::sign_json(
-                                services().globals.server_name().as_str(),
-                                services().globals.keypair(),
-                                &mut value,
-                            )
-                            .expect("our request json is what ruma expects");
-                            let json_text = serde_json::to_string_pretty(&value)
-                                .expect("canonical json is valid json");
-                            RoomMessageEventContent::text_plain(json_text)
+                UserCommand::ResetPassword { username } => {
+                    let user_id = match UserId::parse_with_server_name(
+                        username.as_str().to_lowercase(),
+                        services().globals.server_name(),
+                    ) {
+                        Ok(id) => id,
+                        Err(e) => {
+                            return Ok(RoomMessageEventContent::text_plain(format!(
+                                "The supplied username is not a valid username: {e}"
+                            )))
                         }
-                        Err(e) => RoomMessageEventContent::text_plain(format!("Invalid json: {e}")),
+                    };
+
+                    // Check if the specified user is valid
+                    if !services().users.exists(&user_id)?
+                        || user_id
+                            == UserId::parse_with_server_name(
+                                "conduit",
+                                services().globals.server_name(),
+                            )
+                            .expect("conduit user exists")
+                    {
+                        return Ok(RoomMessageEventContent::text_plain(
+                            "The specified user does not exist!",
+                        ));
                     }
-                } else {
-                    RoomMessageEventContent::text_plain(
-                        "Expected code block in command body. Add --help for details.",
-                    )
+
+                    let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
+
+                    match services()
+                        .users
+                        .set_password(&user_id, Some(new_password.as_str()))
+                    {
+                        Ok(()) => RoomMessageEventContent::text_plain(format!(
+                            "Successfully reset the password for user {user_id}: {new_password}"
+                        )),
+                        Err(e) => RoomMessageEventContent::text_plain(format!(
+                            "Couldn't reset the password for user {user_id}: {e}"
+                        )),
+                    }
                 }
-            }
-            AdminCommand::VerifyJson => {
-                if body.len() > 2 && body[0].trim() == "```" && body.last().unwrap().trim() == "```"
-                {
-                    let string = body[1..body.len() - 1].join("\n");
-                    match serde_json::from_str(&string) {
-                        Ok(value) => {
-                            let pub_key_map = RwLock::new(BTreeMap::new());
+                UserCommand::DeactivateAll { leave_rooms, force } => {
+                    if body.len() > 2
+                        && body[0].trim() == "```"
+                        && body.last().unwrap().trim() == "```"
+                    {
+                        let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
 
-                            services()
-                                .rooms
-                                .event_handler
-                                .fetch_required_signing_keys([&value], &pub_key_map)
-                                .await?;
+                        let mut user_ids: Vec<&UserId> = Vec::new();
 
-                            let pub_key_map = pub_key_map.read().unwrap();
-                            match ruma::signatures::verify_json(&pub_key_map, &value) {
-                                Ok(_) => RoomMessageEventContent::text_plain("Signature correct"),
-                                Err(e) => RoomMessageEventContent::text_plain(format!(
-                                    "Signature verification failed: {e}"
-                                )),
+                        for &username in &usernames {
+                            match <&UserId>::try_from(username) {
+                                Ok(user_id) => user_ids.push(user_id),
+                                Err(_) => {
+                                    return Ok(RoomMessageEventContent::text_plain(format!(
+                                        "{username} is not a valid username"
+                                    )))
+                                }
                             }
                         }
-                        Err(e) => RoomMessageEventContent::text_plain(format!("Invalid json: {e}")),
+
+                        let mut deactivation_count = 0;
+                        let mut admins = Vec::new();
+
+                        if !force {
+                            user_ids.retain(|&user_id| match services().users.is_admin(user_id) {
+                                Ok(is_admin) => match is_admin {
+                                    true => {
+                                        admins.push(user_id.localpart());
+                                        false
+                                    }
+                                    false => true,
+                                },
+                                Err(_) => false,
+                            })
+                        }
+
+                        for &user_id in &user_ids {
+                            if services().users.deactivate_account(user_id).is_ok() {
+                                deactivation_count += 1
+                            }
+                        }
+
+                        if leave_rooms {
+                            for &user_id in &user_ids {
+                                let _ = leave_all_rooms(user_id).await;
+                            }
+                        }
+
+                        if admins.is_empty() {
+                            RoomMessageEventContent::text_plain(format!(
+                                "Deactivated {deactivation_count} accounts."
+                            ))
+                        } else {
+                            RoomMessageEventContent::text_plain(format!("Deactivated {} accounts.\nSkipped admin accounts: {:?}. Use --force to deactivate admin accounts", deactivation_count, admins.join(", ")))
+                        }
+                    } else {
+                        RoomMessageEventContent::text_plain(
+                            "Expected code block in command body. Add --help for details.",
+                        )
                     }
-                } else {
-                    RoomMessageEventContent::text_plain(
-                        "Expected code block in command body. Add --help for details.",
-                    )
                 }
-            }
+            },
+            AdminCommand::Room(command) => match command {
+                RoomCommand::List => {
+                    let room_ids = services().rooms.metadata.iter_ids();
+                    let output = format!(
+                        "Rooms:\n{}",
+                        room_ids
+                            .filter_map(|r| r.ok())
+                            .map(|id| id.to_string()
+                                + "\tMembers: "
+                                + &services()
+                                    .rooms
+                                    .state_cache
+                                    .room_joined_count(&id)
+                                    .ok()
+                                    .flatten()
+                                    .unwrap_or(0)
+                                    .to_string())
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    );
+                    RoomMessageEventContent::text_plain(output)
+                }
+            },
+            AdminCommand::Federation(command) => match command {
+                FederationCommand::DisableRoom { room_id } => {
+                    services().rooms.metadata.disable_room(&room_id, true)?;
+                    RoomMessageEventContent::text_plain("Room disabled.")
+                }
+                FederationCommand::EnableRoom { room_id } => {
+                    services().rooms.metadata.disable_room(&room_id, false)?;
+                    RoomMessageEventContent::text_plain("Room enabled.")
+                }
+                FederationCommand::IncomingFederation => {
+                    let map = services()
+                        .globals
+                        .roomid_federationhandletime
+                        .read()
+                        .unwrap();
+                    let mut msg: String = format!("Handling {} incoming pdus:\n", map.len());
+
+                    for (r, (e, i)) in map.iter() {
+                        let elapsed = i.elapsed();
+                        msg += &format!(
+                            "{} {}: {}m{}s\n",
+                            r,
+                            e,
+                            elapsed.as_secs() / 60,
+                            elapsed.as_secs() % 60
+                        );
+                    }
+                    RoomMessageEventContent::text_plain(&msg)
+                }
+                FederationCommand::SignJson => {
+                    if body.len() > 2
+                        && body[0].trim() == "```"
+                        && body.last().unwrap().trim() == "```"
+                    {
+                        let string = body[1..body.len() - 1].join("\n");
+                        match serde_json::from_str(&string) {
+                            Ok(mut value) => {
+                                ruma::signatures::sign_json(
+                                    services().globals.server_name().as_str(),
+                                    services().globals.keypair(),
+                                    &mut value,
+                                )
+                                .expect("our request json is what ruma expects");
+                                let json_text = serde_json::to_string_pretty(&value)
+                                    .expect("canonical json is valid json");
+                                RoomMessageEventContent::text_plain(json_text)
+                            }
+                            Err(e) => {
+                                RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))
+                            }
+                        }
+                    } else {
+                        RoomMessageEventContent::text_plain(
+                            "Expected code block in command body. Add --help for details.",
+                        )
+                    }
+                }
+                FederationCommand::VerifyJson => {
+                    if body.len() > 2
+                        && body[0].trim() == "```"
+                        && body.last().unwrap().trim() == "```"
+                    {
+                        let string = body[1..body.len() - 1].join("\n");
+                        match serde_json::from_str(&string) {
+                            Ok(value) => {
+                                let pub_key_map = RwLock::new(BTreeMap::new());
+
+                                services()
+                                    .rooms
+                                    .event_handler
+                                    .fetch_required_signing_keys([&value], &pub_key_map)
+                                    .await?;
+
+                                let pub_key_map = pub_key_map.read().unwrap();
+                                match ruma::signatures::verify_json(&pub_key_map, &value) {
+                                    Ok(_) => {
+                                        RoomMessageEventContent::text_plain("Signature correct")
+                                    }
+                                    Err(e) => RoomMessageEventContent::text_plain(format!(
+                                        "Signature verification failed: {e}"
+                                    )),
+                                }
+                            }
+                            Err(e) => {
+                                RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))
+                            }
+                        }
+                    } else {
+                        RoomMessageEventContent::text_plain(
+                            "Expected code block in command body. Add --help for details.",
+                        )
+                    }
+                }
+            },
+            AdminCommand::Server(command) => match command {
+                ServerCommand::ShowConfig => {
+                    // Construct and send the response
+                    RoomMessageEventContent::text_plain(format!("{}", services().globals.config))
+                }
+                ServerCommand::MemoryUsage => {
+                    let response1 = services().memory_usage();
+                    let response2 = services().globals.db.memory_usage();
+
+                    RoomMessageEventContent::text_plain(format!(
+                        "Services:\n{response1}\n\nDatabase:\n{response2}"
+                    ))
+                }
+                ServerCommand::ClearDatabaseCaches { amount } => {
+                    services().globals.db.clear_caches(amount);
+
+                    RoomMessageEventContent::text_plain("Done.")
+                }
+                ServerCommand::ClearServiceCaches { amount } => {
+                    services().clear_caches(amount);
+
+                    RoomMessageEventContent::text_plain("Done.")
+                }
+            },
+            AdminCommand::Debug(command) => match command {
+                DebugCommand::GetAuthChain { event_id } => {
+                    let event_id = Arc::<EventId>::from(event_id);
+                    if let Some(event) = services().rooms.timeline.get_pdu_json(&event_id)? {
+                        let room_id_str = event
+                            .get("room_id")
+                            .and_then(|val| val.as_str())
+                            .ok_or_else(|| Error::bad_database("Invalid event in database"))?;
+
+                        let room_id = <&RoomId>::try_from(room_id_str).map_err(|_| {
+                            Error::bad_database("Invalid room id field in event in database")
+                        })?;
+                        let start = Instant::now();
+                        let count = services()
+                            .rooms
+                            .auth_chain
+                            .get_auth_chain(room_id, vec![event_id])
+                            .await?
+                            .count();
+                        let elapsed = start.elapsed();
+                        RoomMessageEventContent::text_plain(format!(
+                            "Loaded auth chain with length {count} in {elapsed:?}"
+                        ))
+                    } else {
+                        RoomMessageEventContent::text_plain("Event not found.")
+                    }
+                }
+                DebugCommand::ParsePdu => {
+                    if body.len() > 2
+                        && body[0].trim() == "```"
+                        && body.last().unwrap().trim() == "```"
+                    {
+                        let string = body[1..body.len() - 1].join("\n");
+                        match serde_json::from_str(&string) {
+                            Ok(value) => {
+                                match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
+                                    Ok(hash) => {
+                                        let event_id = EventId::parse(format!("${hash}"));
+
+                                        match serde_json::from_value::<PduEvent>(
+                                            serde_json::to_value(value).expect("value is json"),
+                                        ) {
+                                            Ok(pdu) => RoomMessageEventContent::text_plain(
+                                                format!("EventId: {event_id:?}\n{pdu:#?}"),
+                                            ),
+                                            Err(e) => RoomMessageEventContent::text_plain(format!(
+                                                "EventId: {event_id:?}\nCould not parse event: {e}"
+                                            )),
+                                        }
+                                    }
+                                    Err(e) => RoomMessageEventContent::text_plain(format!(
+                                        "Could not parse PDU JSON: {e:?}"
+                                    )),
+                                }
+                            }
+                            Err(e) => RoomMessageEventContent::text_plain(format!(
+                                "Invalid json in command body: {e}"
+                            )),
+                        }
+                    } else {
+                        RoomMessageEventContent::text_plain("Expected code block in command body.")
+                    }
+                }
+                DebugCommand::GetPdu { event_id } => {
+                    let mut outlier = false;
+                    let mut pdu_json = services()
+                        .rooms
+                        .timeline
+                        .get_non_outlier_pdu_json(&event_id)?;
+                    if pdu_json.is_none() {
+                        outlier = true;
+                        pdu_json = services().rooms.timeline.get_pdu_json(&event_id)?;
+                    }
+                    match pdu_json {
+                        Some(json) => {
+                            let json_text = serde_json::to_string_pretty(&json)
+                                .expect("canonical json is valid json");
+                            RoomMessageEventContent::text_html(
+                                format!(
+                                    "{}\n```json\n{}\n```",
+                                    if outlier {
+                                        "PDU is outlier"
+                                    } else {
+                                        "PDU was accepted"
+                                    },
+                                    json_text
+                                ),
+                                format!(
+                                    "<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
+                                    if outlier {
+                                        "PDU is outlier"
+                                    } else {
+                                        "PDU was accepted"
+                                    },
+                                    HtmlEscape(&json_text)
+                                ),
+                            )
+                        }
+                        None => RoomMessageEventContent::text_plain("PDU not found."),
+                    }
+                }
+            },
         };
 
         Ok(reply_message_content)
