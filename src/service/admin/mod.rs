@@ -40,6 +40,7 @@ use super::pdu::PduBuilder;
 #[cfg_attr(test, derive(Debug))]
 #[derive(Parser)]
 #[command(name = "@conduit:server.name:", version = env!("CARGO_PKG_VERSION"))]
+// TODO: bikeshedding - should command names be singular or plural
 enum AdminCommand {
     #[command(subcommand)]
     /// Commands for managing appservices
@@ -168,6 +169,45 @@ enum UserCommand {
 enum RoomCommand {
     /// List all rooms the server knows about
     List,
+
+    #[command(subcommand)]
+    /// Manage rooms' aliases
+    Alias(RoomAliasCommand),
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+enum RoomAliasCommand {
+    /// Make an alias point to a room.
+    Set {
+        #[arg(short, long)]
+        /// Set the alias even if a room is already using it
+        force: bool,
+
+        // The room id to set the alias on
+        room_id: Box<RoomId>,
+
+        // The alias localpart to use (`alias`, not `#alias:servername.tld`)
+        room_alias_localpart: Box<String>,
+    },
+
+    /// Remove an alias
+    Remove {
+        /// The alias localpart to remove (`alias`, not `#alias:servername.tld`)
+        room_alias_localpart: Box<String>,
+    },
+
+    /// Show which room is using an alias
+    Which {
+        /// The alias localpart to look up (`alias`, not `#alias:servername.tld`)
+        room_alias_localpart: Box<String>,
+    },
+
+    /// List aliases currently being used
+    List {
+        /// If set, only list the aliases for this room
+        room_id: Option<Box<RoomId>>,
+    },
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -444,17 +484,19 @@ impl Service {
                         "Failed to unregister appservice: {e}"
                     )),
                 },
-                AppserviceCommand::Show { appservice_identifier } => {
+                AppserviceCommand::Show {
+                    appservice_identifier,
+                } => {
                     match services()
                         .appservice
-                        .get_registration(&appservice_identifier) {
+                        .get_registration(&appservice_identifier)
+                    {
                         Ok(Some(config)) => {
                             let config_str = serde_yaml::to_string(&config)
                                 .expect("config should've been validated on register");
                             let output = format!(
                                 "Config for {}:\n\n```yaml\n{}\n```",
-                                appservice_identifier,
-                                config_str,
+                                appservice_identifier, config_str,
                             );
                             let output_html = format!(
                                 "Config for {}:\n\n<pre><code class=\"language-yaml\">{}</code></pre>",
@@ -462,8 +504,10 @@ impl Service {
                                 escape_html(&config_str),
                             );
                             RoomMessageEventContent::text_html(output, output_html)
-                        },
-                        Ok(None) => RoomMessageEventContent::text_plain("Appservice does not exist."),
+                        }
+                        Ok(None) => {
+                            RoomMessageEventContent::text_plain("Appservice does not exist.")
+                        }
                         Err(_) => RoomMessageEventContent::text_plain("Failed to get appservice."),
                     }
                 }
@@ -711,6 +755,162 @@ impl Service {
                     );
                     RoomMessageEventContent::text_plain(output)
                 }
+                // TODO: clean up and deduplicate code
+                RoomCommand::Alias(command) => match command {
+                    RoomAliasCommand::Set {
+                        ref room_alias_localpart,
+                        ..
+                    }
+                    | RoomAliasCommand::Remove {
+                        ref room_alias_localpart,
+                    }
+                    | RoomAliasCommand::Which {
+                        ref room_alias_localpart,
+                    } => {
+                        let room_alias_str = format!(
+                            "#{}:{}",
+                            room_alias_localpart,
+                            services().globals.server_name()
+                        );
+                        let room_alias = match RoomAliasId::parse_box(room_alias_str) {
+                            Ok(alias) => alias,
+                            Err(err) => {
+                                return Ok(RoomMessageEventContent::text_plain(format!(
+                                    "Failed to parse alias: {}",
+                                    err
+                                )))
+                            }
+                        };
+
+                        match command {
+                            RoomAliasCommand::Set { force, room_id, .. } => {
+                                match (force, services().rooms.alias.resolve_local_alias(&room_alias)) {
+                                        (true, Ok(Some(id))) => match services().rooms.alias.set_alias(&room_alias, &room_id) {
+                                            Ok(()) => RoomMessageEventContent::text_plain(format!("Successfully overwrote alias (formerly {})", id)),
+                                            Err(err) => RoomMessageEventContent::text_plain(format!("Failed to remove alias: {}", err)),
+                                        }
+                                        (false, Ok(Some(id))) => {
+                                            RoomMessageEventContent::text_plain(format!("Refusing to overwrite in use alias for {}, use -f or --force to overwrite", id))
+                                        }
+                                        (_, Ok(None)) => match services().rooms.alias.set_alias(&room_alias, &room_id) {
+                                            Ok(()) => RoomMessageEventContent::text_plain("Successfully set alias"),
+                                            Err(err) => RoomMessageEventContent::text_plain(format!("Failed to remove alias: {}", err)),
+                                        }
+                                        (_, Err(err)) => RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {}", err)),
+                                    }
+                            }
+                            RoomAliasCommand::Remove { .. } => {
+                                match services().rooms.alias.resolve_local_alias(&room_alias) {
+                                    Ok(Some(id)) => {
+                                        match services().rooms.alias.remove_alias(&room_alias) {
+                                            Ok(()) => RoomMessageEventContent::text_plain(format!(
+                                                "Removed alias from {}",
+                                                id
+                                            )),
+                                            Err(err) => RoomMessageEventContent::text_plain(
+                                                format!("Failed to remove alias: {}", err),
+                                            ),
+                                        }
+                                    }
+                                    Ok(None) => {
+                                        RoomMessageEventContent::text_plain("Alias isn't in use.")
+                                    }
+                                    Err(err) => RoomMessageEventContent::text_plain(format!(
+                                        "Unable to lookup alias: {}",
+                                        err
+                                    )),
+                                }
+                            }
+                            RoomAliasCommand::Which { .. } => {
+                                match services().rooms.alias.resolve_local_alias(&room_alias) {
+                                    Ok(Some(id)) => RoomMessageEventContent::text_plain(format!(
+                                        "Alias resolves to {}",
+                                        id
+                                    )),
+                                    Ok(None) => {
+                                        RoomMessageEventContent::text_plain("Alias isn't in use.")
+                                    }
+                                    Err(err) => RoomMessageEventContent::text_plain(&format!(
+                                        "Unable to lookup alias: {}",
+                                        err
+                                    )),
+                                }
+                            }
+                            RoomAliasCommand::List { .. } => unreachable!(),
+                        }
+                    }
+                    RoomAliasCommand::List { room_id } => match room_id {
+                        Some(room_id) => {
+                            let aliases: Result<Vec<_>, _> = services()
+                                .rooms
+                                .alias
+                                .local_aliases_for_room(&room_id)
+                                .collect();
+                            match aliases {
+                                Ok(aliases) => {
+                                    let plain_list: String = aliases
+                                        .iter()
+                                        .map(|alias| format!("- {}\n", alias))
+                                        .collect();
+
+                                    let html_list: String = aliases
+                                        .iter()
+                                        .map(|alias| {
+                                            format!(
+                                                "<li>{}</li>\n",
+                                                escape_html(&alias.to_string())
+                                            )
+                                        })
+                                        .collect();
+
+                                    let plain = format!("Aliases for {}:\n{}", room_id, plain_list);
+                                    let html =
+                                        format!("Aliases for {}:\n<ul>{}</ul>", room_id, html_list);
+                                    RoomMessageEventContent::text_html(plain, html)
+                                }
+                                Err(err) => RoomMessageEventContent::text_plain(&format!(
+                                    "Unable to list aliases: {}",
+                                    err
+                                )),
+                            }
+                        }
+                        None => {
+                            let aliases: Result<Vec<_>, _> =
+                                services().rooms.alias.all_local_aliases().collect();
+                            match aliases {
+                                Ok(aliases) => {
+                                    let server_name = services().globals.server_name();
+                                    let plain_list: String = aliases
+                                        .iter()
+                                        .map(|(id, alias)| {
+                                            format!("- #{}:{} -> {}\n", alias, server_name, id)
+                                        })
+                                        .collect();
+
+                                    let html_list: String = aliases
+                                        .iter()
+                                        .map(|(id, alias)| {
+                                            format!(
+                                                "<li>#{}:{} -> {}</li>\n",
+                                                escape_html(&alias.to_string()),
+                                                server_name,
+                                                escape_html(&id.to_string())
+                                            )
+                                        })
+                                        .collect();
+
+                                    let plain = format!("Aliases:\n{}", plain_list);
+                                    let html = format!("Aliases:\n<ul>{}</ul>", html_list);
+                                    RoomMessageEventContent::text_html(plain, html)
+                                }
+                                Err(err) => RoomMessageEventContent::text_plain(&format!(
+                                    "Unable to list aliases: {}",
+                                    err
+                                )),
+                            }
+                        }
+                    },
+                },
             },
             AdminCommand::Federation(command) => match command {
                 FederationCommand::DisableRoom { room_id } => {
@@ -1387,7 +1587,9 @@ impl Service {
 }
 
 fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[cfg(test)]

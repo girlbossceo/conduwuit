@@ -32,4 +32,11 @@ impl Service {
     ) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a> {
         self.db.local_aliases_for_room(room_id)
     }
+
+    #[tracing::instrument(skip(self))]
+    pub fn all_local_aliases<'a>(
+        &'a self,
+    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a> {
+        self.db.all_local_aliases()
+    }
 }

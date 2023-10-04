@@ -57,4 +57,28 @@ impl service::rooms::alias::Data for KeyValueDatabase {
                 .map_err(|_| Error::bad_database("Invalid alias in aliasid_alias."))
         }))
     }
+
+    fn all_local_aliases<'a>(
+        &'a self,
+    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a> {
+        Box::new(
+            self.alias_roomid
+                .iter()
+                .map(|(room_alias_bytes, room_id_bytes)| {
+                    let room_alias_localpart = utils::string_from_bytes(&room_alias_bytes)
+                        .map_err(|_| {
+                            Error::bad_database("Invalid alias bytes in aliasid_alias.")
+                        })?;
+
+                    let room_id = utils::string_from_bytes(&room_id_bytes)
+                        .map_err(|_| {
+                            Error::bad_database("Invalid room_id bytes in aliasid_alias.")
+                        })?
+                        .try_into()
+                        .map_err(|_| Error::bad_database("Invalid room_id in aliasid_alias."))?;
+
+                    Ok((room_id, room_alias_localpart))
+                }),
+        )
+    }
 }

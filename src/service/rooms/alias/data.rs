@@ -16,4 +16,9 @@ pub trait Data: Send + Sync {
         &'a self,
         room_id: &RoomId,
     ) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a>;
+
+    /// Returns all local aliases on the server
+    fn all_local_aliases<'a>(
+        &'a self,
+    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a>;
 }
