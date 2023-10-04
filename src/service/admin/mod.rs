@@ -87,11 +87,21 @@ enum AppserviceCommand {
     /// # ```
     Register,
 
+    #[command(verbatim_doc_comment)]
     /// Unregister an appservice using its ID
     ///
     /// You can find the ID using the `list-appservices` command.
     Unregister {
         /// The appservice to unregister
+        appservice_identifier: String,
+    },
+
+    #[command(verbatim_doc_comment)]
+    /// Show an appservice's config using its ID
+    ///
+    /// You can find the ID using the `list-appservices` command.
+    Show {
+        /// The appservice to show
         appservice_identifier: String,
     },
 
@@ -434,6 +444,29 @@ impl Service {
                         "Failed to unregister appservice: {e}"
                     )),
                 },
+                AppserviceCommand::Show { appservice_identifier } => {
+                    match services()
+                        .appservice
+                        .get_registration(&appservice_identifier) {
+                        Ok(Some(config)) => {
+                            let config_str = serde_yaml::to_string(&config)
+                                .expect("config should've been validated on register");
+                            let output = format!(
+                                "Config for {}:\n\n```yaml\n{}\n```",
+                                appservice_identifier,
+                                config_str,
+                            );
+                            let output_html = format!(
+                                "Config for {}:\n\n<pre><code class=\"language-yaml\">{}</code></pre>",
+                                escape_html(&appservice_identifier),
+                                escape_html(&config_str),
+                            );
+                            RoomMessageEventContent::text_html(output, output_html)
+                        },
+                        Ok(None) => RoomMessageEventContent::text_plain("Appservice does not exist."),
+                        Err(_) => RoomMessageEventContent::text_plain("Failed to get appservice."),
+                    }
+                }
                 AppserviceCommand::List => {
                     if let Ok(appservices) = services()
                         .appservice
@@ -917,7 +950,7 @@ impl Service {
         let text = text.replace("subcommand", "command");
 
         // Escape option names (e.g. `<element-id>`) since they look like HTML tags
-        let text = text.replace('<', "&lt;").replace('>', "&gt;");
+        let text = escape_html(&text);
 
         // Italicize the first line (command name and version text)
         let re = Regex::new("^(.*?)\n").expect("Regex compilation should not fail");
@@ -1351,6 +1384,10 @@ impl Service {
 
         Ok(())
     }
+}
+
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 #[cfg(test)]
