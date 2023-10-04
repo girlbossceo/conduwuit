@@ -398,7 +398,7 @@ impl Service {
             AdminCommand::Appservice(command) => match command {
                 AppserviceCommand::Register => {
                     if body.len() > 2
-                        && body[0].trim() == "```"
+                        && body[0].trim().starts_with("```")
                         && body.last().unwrap().trim() == "```"
                     {
                         let appservice_config = body[1..body.len() - 1].join("\n");
@@ -596,7 +596,7 @@ impl Service {
                 }
                 UserCommand::DeactivateAll { leave_rooms, force } => {
                     if body.len() > 2
-                        && body[0].trim() == "```"
+                        && body[0].trim().starts_with("```")
                         && body.last().unwrap().trim() == "```"
                     {
                         let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
@@ -710,7 +710,7 @@ impl Service {
                 }
                 FederationCommand::SignJson => {
                     if body.len() > 2
-                        && body[0].trim() == "```"
+                        && body[0].trim().starts_with("```")
                         && body.last().unwrap().trim() == "```"
                     {
                         let string = body[1..body.len() - 1].join("\n");
@@ -738,7 +738,7 @@ impl Service {
                 }
                 FederationCommand::VerifyJson => {
                     if body.len() > 2
-                        && body[0].trim() == "```"
+                        && body[0].trim().starts_with("```")
                         && body.last().unwrap().trim() == "```"
                     {
                         let string = body[1..body.len() - 1].join("\n");
@@ -826,7 +826,7 @@ impl Service {
                 }
                 DebugCommand::ParsePdu => {
                     if body.len() > 2
-                        && body[0].trim() == "```"
+                        && body[0].trim().starts_with("```")
                         && body.last().unwrap().trim() == "```"
                     {
                         let string = body[1..body.len() - 1].join("\n");
