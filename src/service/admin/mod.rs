@@ -38,6 +38,8 @@ use crate::{
 
 use super::pdu::PduBuilder;
 
+const PAGE_SIZE: usize = 100;
+
 #[cfg_attr(test, derive(Debug))]
 #[derive(Parser)]
 #[command(name = "@conduit:server.name:", version = env!("CARGO_PKG_VERSION"))]
@@ -169,11 +171,15 @@ enum UserCommand {
 #[derive(Subcommand)]
 enum RoomCommand {
     /// List all rooms the server knows about
-    List,
+    List { page: Option<usize> },
 
     #[command(subcommand)]
     /// Manage rooms' aliases
     Alias(RoomAliasCommand),
+
+    #[command(subcommand)]
+    /// Manage the room directory
+    Directory(RoomDirectoryCommand),
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -185,10 +191,10 @@ enum RoomAliasCommand {
         /// Set the alias even if a room is already using it
         force: bool,
 
-        // The room id to set the alias on
+        /// The room id to set the alias on
         room_id: Box<RoomId>,
 
-        // The alias localpart to use (`alias`, not `#alias:servername.tld`)
+        /// The alias localpart to use (`alias`, not `#alias:servername.tld`)
         room_alias_localpart: Box<String>,
     },
 
@@ -209,6 +215,26 @@ enum RoomAliasCommand {
         /// If set, only list the aliases for this room
         room_id: Option<Box<RoomId>>,
     },
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+enum RoomDirectoryCommand {
+    /// Publish a room to the room directory
+    Publish {
+        /// The room id of the room to publish
+        room_id: Box<RoomId>,
+    },
+
+    /// Unpublish a room to the room directory
+    Unpublish {
+        /// The room id of the room to unpublish
+        room_id: Box<RoomId>,
+    },
+
+    /// List rooms that are published
+    // TODO: is this really necessary?
+    List { page: Option<usize> },
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -741,26 +767,70 @@ impl Service {
                 }
             },
             AdminCommand::Room(command) => match command {
-                RoomCommand::List => {
-                    let room_ids = services().rooms.metadata.iter_ids();
-                    let output = format!(
-                        "Rooms:\n{}",
-                        room_ids
-                            .filter_map(|r| r.ok())
-                            .map(|id| id.to_string()
-                                + "\tMembers: "
-                                + &services()
+                RoomCommand::List { page } => {
+                    // TODO: i know there's a way to do this with clap, but i can't seem to find it
+                    let page = page.unwrap_or(1);
+                    let mut rooms = services()
+                        .rooms
+                        .metadata
+                        .iter_ids()
+                        .filter_map(|r| r.ok())
+                        .map(|id| {
+                            (
+                                id.clone(),
+                                services()
                                     .rooms
                                     .state_cache
                                     .room_joined_count(&id)
                                     .ok()
                                     .flatten()
-                                    .unwrap_or(0)
-                                    .to_string())
+                                    .unwrap_or(0),
+                                services()
+                                    .rooms
+                                    .state_accessor
+                                    .get_name(&id)
+                                    .ok()
+                                    .flatten()
+                                    .unwrap_or(id.to_string()),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    rooms.sort_by_key(|r| r.1);
+                    rooms.reverse();
+
+                    let rooms: Vec<_> = rooms
+                        .into_iter()
+                        .skip(page.saturating_sub(1) * PAGE_SIZE)
+                        .take(PAGE_SIZE)
+                        .collect();
+
+                    if rooms.is_empty() {
+                        return Ok(RoomMessageEventContent::text_plain("No more rooms."));
+                    };
+
+                    let output_plain = format!(
+                        "Rooms:\n{}",
+                        rooms
+                            .iter()
+                            .map(|(id, members, name)| format!(
+                                "{id}\tMembers: {members}\tName: {name}"
+                            ))
                             .collect::<Vec<_>>()
                             .join("\n")
                     );
-                    RoomMessageEventContent::text_plain(output)
+                    let output_html = format!(
+                        "<table><caption>Room list - page {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
+                        rooms
+                            .iter()
+                            .map(|(id, members, name)| format!(
+                                "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>\n",
+                                escape_html(&id.to_string()),
+                                members,
+                                escape_html(name),
+                            ))
+                            .collect::<String>()
+                    );
+                    RoomMessageEventContent::text_html(output_plain, output_html)
                 }
                 // TODO: clean up and deduplicate code
                 RoomCommand::Alias(command) => match command {
@@ -917,6 +987,91 @@ impl Service {
                             }
                         }
                     },
+                },
+                RoomCommand::Directory(command) => match command {
+                    RoomDirectoryCommand::Publish { room_id } => {
+                        match services().rooms.directory.set_public(&room_id) {
+                            Ok(()) => RoomMessageEventContent::text_plain("Room published"),
+                            Err(err) => RoomMessageEventContent::text_plain(&format!(
+                                "Unable to update room: {}",
+                                err
+                            )),
+                        }
+                    }
+                    RoomDirectoryCommand::Unpublish { room_id } => {
+                        match services().rooms.directory.set_not_public(&room_id) {
+                            Ok(()) => RoomMessageEventContent::text_plain("Room unpublished"),
+                            Err(err) => RoomMessageEventContent::text_plain(&format!(
+                                "Unable to update room: {}",
+                                err
+                            )),
+                        }
+                    }
+                    RoomDirectoryCommand::List { page } => {
+                        // TODO: i know there's a way to do this with clap, but i can't seem to find it
+                        let page = page.unwrap_or(1);
+                        let mut rooms = services()
+                            .rooms
+                            .directory
+                            .public_rooms()
+                            .filter_map(|r| r.ok())
+                            .map(|id| {
+                                (
+                                    id.clone(),
+                                    services()
+                                        .rooms
+                                        .state_cache
+                                        .room_joined_count(&id)
+                                        .ok()
+                                        .flatten()
+                                        .unwrap_or(0),
+                                    services()
+                                        .rooms
+                                        .state_accessor
+                                        .get_name(&id)
+                                        .ok()
+                                        .flatten()
+                                        .unwrap_or(id.to_string()),
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        rooms.sort_by_key(|r| r.1);
+                        rooms.reverse();
+
+                        let rooms: Vec<_> = rooms
+                            .into_iter()
+                            .skip(page.saturating_sub(1) * PAGE_SIZE)
+                            .take(PAGE_SIZE)
+                            .collect();
+
+                        if rooms.is_empty() {
+                            return Ok(RoomMessageEventContent::text_plain("No more rooms."));
+                        };
+
+                        let output_plain = format!(
+                            "Rooms:\n{}",
+                            rooms
+                                .iter()
+                                .map(|(id, members, name)| format!(
+                                    "{id}\tMembers: {members}\tName: {name}"
+                                ))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        );
+                        let output_html = format!(
+                            "<table><caption>Room directory - page {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
+                            rooms
+                                .iter()
+                                .map(|(id, members, name)| format!(
+                                    "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>\n",
+                                    escape_html(&id.to_string()),
+                                    members,
+                                    escape_html(name),
+                                ))
+                                .collect::<String>()
+                        );
+                        RoomMessageEventContent::text_html(output_plain, output_html)
+                    }
                 },
             },
             AdminCommand::Federation(command) => match command {
