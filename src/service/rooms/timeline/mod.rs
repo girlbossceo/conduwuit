@@ -483,7 +483,7 @@ impl Service {
                         && services().globals.emergency_password().is_none();
 
                     if to_conduit && !from_conduit && admin_room.as_ref() == Some(&pdu.room_id) {
-                        services().admin.process_message(body);
+                        services().admin.process_message(body, pdu.event_id.clone());
                     }
                 }
             }

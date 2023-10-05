@@ -9,6 +9,7 @@ use clap::{Parser, Subcommand};
 use regex::Regex;
 use ruma::{
     events::{
+        relation::InReplyTo,
         room::{
             canonical_alias::RoomCanonicalAliasEventContent,
             create::RoomCreateEventContent,
@@ -16,7 +17,7 @@ use ruma::{
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
             join_rules::{JoinRule, RoomJoinRulesEventContent},
             member::{MembershipState, RoomMemberEventContent},
-            message::RoomMessageEventContent,
+            message::{Relation::Reply, RoomMessageEventContent},
             name::RoomNameEventContent,
             power_levels::RoomPowerLevelsEventContent,
             topic::RoomTopicEventContent,
@@ -285,7 +286,7 @@ enum ServerCommand {
 
 #[derive(Debug)]
 pub enum AdminRoomEvent {
-    ProcessMessage(String),
+    ProcessMessage(String, Arc<EventId>),
     SendMessage(RoomMessageEventContent),
 }
 
@@ -333,9 +334,11 @@ impl Service {
         loop {
             tokio::select! {
                 Some(event) = receiver.recv() => {
-                    let message_content = match event {
-                        AdminRoomEvent::SendMessage(content) => content,
-                        AdminRoomEvent::ProcessMessage(room_message) => self.process_admin_message(room_message).await
+                    let (mut message_content, reply) = match event {
+                        AdminRoomEvent::SendMessage(content) => (content, None),
+                        AdminRoomEvent::ProcessMessage(room_message, reply_id) => {
+                            (self.process_admin_message(room_message).await, Some(reply_id))
+                        }
                     };
 
                     let mutex_state = Arc::clone(
@@ -349,20 +352,24 @@ impl Service {
 
                     let state_lock = mutex_state.lock().await;
 
-                    services().rooms.timeline.build_and_append_pdu(
-                        PduBuilder {
-                          event_type: TimelineEventType::RoomMessage,
-                          content: to_raw_value(&message_content)
-                              .expect("event is valid, we just created it"),
-                          unsigned: None,
-                          state_key: None,
-                          redacts: None,
-                        },
-                        &conduit_user,
-                        &conduit_room,
-                        &state_lock)
-                      .await
-                      .unwrap();
+                    if let Some(reply) = reply {
+                        message_content.relates_to = Some(Reply { in_reply_to: InReplyTo { event_id: reply.into() } })
+                    }
+
+                services().rooms.timeline.build_and_append_pdu(
+                    PduBuilder {
+                      event_type: TimelineEventType::RoomMessage,
+                      content: to_raw_value(&message_content)
+                          .expect("event is valid, we just created it"),
+                      unsigned: None,
+                      state_key: None,
+                      redacts: None,
+                    },
+                    &conduit_user,
+                    &conduit_room,
+                    &state_lock)
+                  .await
+                  .unwrap();
 
 
                     drop(state_lock);
@@ -371,9 +378,9 @@ impl Service {
         }
     }
 
-    pub fn process_message(&self, room_message: String) {
+    pub fn process_message(&self, room_message: String, event_id: Arc<EventId>) {
         self.sender
-            .send(AdminRoomEvent::ProcessMessage(room_message))
+            .send(AdminRoomEvent::ProcessMessage(room_message, event_id))
             .unwrap();
     }
 
