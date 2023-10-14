@@ -43,19 +43,18 @@ const PAGE_SIZE: usize = 100;
 #[cfg_attr(test, derive(Debug))]
 #[derive(Parser)]
 #[command(name = "@conduit:server.name:", version = env!("CARGO_PKG_VERSION"))]
-// TODO: bikeshedding - should command names be singular or plural
 enum AdminCommand {
     #[command(subcommand)]
     /// Commands for managing appservices
-    Appservice(AppserviceCommand),
+    Appservices(AppserviceCommand),
 
     #[command(subcommand)]
     /// Commands for managing local users
-    User(UserCommand),
+    Users(UserCommand),
 
     #[command(subcommand)]
     /// Commands for managing rooms
-    Room(RoomCommand),
+    Rooms(RoomCommand),
 
     #[command(subcommand)]
     /// Commands for managing federation
@@ -233,7 +232,6 @@ enum RoomDirectoryCommand {
     },
 
     /// List rooms that are published
-    // TODO: is this really necessary?
     List { page: Option<usize> },
 }
 
@@ -478,7 +476,7 @@ impl Service {
         body: Vec<&str>,
     ) -> Result<RoomMessageEventContent> {
         let reply_message_content = match command {
-            AdminCommand::Appservice(command) => match command {
+            AdminCommand::Appservices(command) => match command {
                 AppserviceCommand::Register => {
                     if body.len() > 2
                         && body[0].trim().starts_with("```")
@@ -566,7 +564,7 @@ impl Service {
                     }
                 }
             },
-            AdminCommand::User(command) => match command {
+            AdminCommand::Users(command) => match command {
                 UserCommand::List => match services().users.list_local_users() {
                     Ok(users) => {
                         let mut msg: String =
@@ -766,7 +764,7 @@ impl Service {
                     }
                 }
             },
-            AdminCommand::Room(command) => match command {
+            AdminCommand::Rooms(command) => match command {
                 RoomCommand::List { page } => {
                     // TODO: i know there's a way to do this with clap, but i can't seem to find it
                     let page = page.unwrap_or(1);
@@ -832,7 +830,6 @@ impl Service {
                     );
                     RoomMessageEventContent::text_html(output_plain, output_html)
                 }
-                // TODO: clean up and deduplicate code
                 RoomCommand::Alias(command) => match command {
                     RoomAliasCommand::Set {
                         ref room_alias_localpart,
