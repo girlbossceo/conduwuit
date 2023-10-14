@@ -24,7 +24,7 @@ use ruma::{
         },
         TimelineEventType,
     },
-    EventId, OwnedRoomAliasId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
+    EventId, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex, MutexGuard};
@@ -773,25 +773,7 @@ impl Service {
                         .metadata
                         .iter_ids()
                         .filter_map(|r| r.ok())
-                        .map(|id| {
-                            (
-                                id.clone(),
-                                services()
-                                    .rooms
-                                    .state_cache
-                                    .room_joined_count(&id)
-                                    .ok()
-                                    .flatten()
-                                    .unwrap_or(0),
-                                services()
-                                    .rooms
-                                    .state_accessor
-                                    .get_name(&id)
-                                    .ok()
-                                    .flatten()
-                                    .unwrap_or(id.to_string()),
-                            )
-                        })
+                        .map(Self::get_room_info)
                         .collect::<Vec<_>>();
                     rooms.sort_by_key(|r| r.1);
                     rooms.reverse();
@@ -1012,25 +994,7 @@ impl Service {
                             .directory
                             .public_rooms()
                             .filter_map(|r| r.ok())
-                            .map(|id| {
-                                (
-                                    id.clone(),
-                                    services()
-                                        .rooms
-                                        .state_cache
-                                        .room_joined_count(&id)
-                                        .ok()
-                                        .flatten()
-                                        .unwrap_or(0),
-                                    services()
-                                        .rooms
-                                        .state_accessor
-                                        .get_name(&id)
-                                        .ok()
-                                        .flatten()
-                                        .unwrap_or(id.to_string()),
-                                )
-                            })
+                            .map(Self::get_room_info)
                             .collect::<Vec<_>>();
                         rooms.sort_by_key(|r| r.1);
                         rooms.reverse();
@@ -1294,6 +1258,26 @@ impl Service {
         };
 
         Ok(reply_message_content)
+    }
+
+    fn get_room_info(id: OwnedRoomId) -> (OwnedRoomId, u64, String) {
+        (
+            id.clone(),
+            services()
+                .rooms
+                .state_cache
+                .room_joined_count(&id)
+                .ok()
+                .flatten()
+                .unwrap_or(0),
+            services()
+                .rooms
+                .state_accessor
+                .get_name(&id)
+                .ok()
+                .flatten()
+                .unwrap_or(id.to_string()),
+        )
     }
 
     // Utility to turn clap's `--help` text to HTML.
