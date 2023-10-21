@@ -21,7 +21,7 @@ use std::{
     collections::{hash_map, BTreeMap, HashMap, HashSet},
     time::{Duration, Instant},
 };
-use tracing::debug;
+use tracing::{debug, error};
 
 /// # `POST /_matrix/client/r0/keys/upload`
 ///
@@ -400,7 +400,10 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                     ),
                 )
                 .await
-                .map_err(|e| Error::BadServerResponse("Query took too long")),
+                .map_err(|e| {
+                    error!("get_keys_helper query took too long: {}", e);
+                    Error::BadServerResponse("get_keys_helper query took too long")
+                }),
             )
         })
         .collect();
