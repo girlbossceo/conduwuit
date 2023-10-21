@@ -1850,8 +1850,8 @@ pub async fn get_devices_route(
             .filter_map(|metadata| {
                 let device_id_string = metadata.device_id.as_str().to_string();
                 let device_display_name = match services().globals.allow_device_name_federation() {
-                    true => Some(device_id_string.to_string()),
-                    false => metadata.display_name,
+                    true => metadata.display_name,
+                    false => Some(device_id_string.to_string()),
                 };
                 Some(UserDevice {
                     keys: services()
