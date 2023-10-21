@@ -1229,7 +1229,7 @@ impl Service {
 
                 if amount > services().globals.max_fetch_prev_events() {
                     // Max limit reached
-                    warn!("Max prev event limit reached!");
+                    info!("Max prev event limit reached!");
                     graph.insert(prev_event_id.clone(), HashSet::new());
                     continue;
                 }

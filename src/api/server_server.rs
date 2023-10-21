@@ -315,10 +315,30 @@ where
             }
         }
         Err(e) => {
-            warn!(
-                "Could not send request to {} at {}: {}",
-                destination, actual_destination_str, e
-            );
+            if e.is_timeout() {
+                info!(
+                    "Timed out sending request to {} at {}: {}",
+                    destination, actual_destination_str, e
+                );
+            } else if e.is_redirect() {
+                info!(
+                    "Redirect loop sending request to {} at {}: {}\nFinal URL: {:?}",
+                    destination,
+                    actual_destination_str,
+                    e,
+                    e.url()
+                );
+            } else if e.is_connect() {
+                info!(
+                    "Failed to connect to {} at {}: {}",
+                    destination, actual_destination_str, e
+                );
+            } else {
+                warn!(
+                    "Could not send request to {} at {}: {}",
+                    destination, actual_destination_str, e
+                );
+            }
             Err(e.into())
         }
     }
