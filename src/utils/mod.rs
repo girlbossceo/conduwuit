@@ -75,7 +75,7 @@ pub fn random_string(length: usize) -> String {
 pub fn calculate_password_hash(password: &str) -> Result<String, argon2::Error> {
     let hashing_config = Config {
         variant: Variant::Argon2id,
-        ..Default::default()
+        ..Config::owasp2() // m=19456 (19 MiB), t=2, p=1 from https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
     };
 
     let salt = random_string(32);
