@@ -262,14 +262,14 @@ where
 
             debug!("Getting response bytes from {destination}");
             let body = response.bytes().await.unwrap_or_else(|e| {
-                warn!("server error {}", e);
+                info!("server error {}", e);
                 Vec::new().into()
             }); // TODO: handle timeout
             debug!("Got response bytes from {destination}");
 
             if !status.is_success() {
-                warn!(
-                    "{} {}: {}",
+                debug!(
+                    "Response not successful\n{} {}: {}",
                     url,
                     status,
                     String::from_utf8_lossy(&body)
@@ -314,29 +314,31 @@ where
             }
         }
         Err(e) => {
-            if e.is_timeout() {
-                info!(
+            // we do not need to log that servers in a room are dead, this is normal in public rooms and just spams the logs.
+            match e.is_timeout() {
+                true => info!(
                     "Timed out sending request to {} at {}: {}",
                     destination, actual_destination_str, e
-                );
-            } else if e.is_redirect() {
-                info!(
-                    "Redirect loop sending request to {} at {}: {}\nFinal URL: {:?}",
-                    destination,
-                    actual_destination_str,
-                    e,
-                    e.url()
-                );
-            } else if e.is_connect() {
-                info!(
-                    "Failed to connect to {} at {}: {}",
-                    destination, actual_destination_str, e
-                );
-            } else {
-                warn!(
-                    "Could not send request to {} at {}: {}",
-                    destination, actual_destination_str, e
-                );
+                ),
+                false => match e.is_connect() {
+                    true => info!(
+                        "Failed to connect to {} at {}: {}",
+                        destination, actual_destination_str, e
+                    ),
+                    false => match e.is_redirect() {
+                        true => info!(
+                            "Redirect loop sending request to {} at {}: {}\nFinal URL: {:?}",
+                            destination,
+                            actual_destination_str,
+                            e,
+                            e.url()
+                        ),
+                        false => warn!(
+                            "Could not send request to {} at {}: {}",
+                            destination, actual_destination_str, e
+                        ),
+                    },
+                },
             }
             Err(e.into())
         }
@@ -418,7 +420,10 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
                                                     ),
                                                 );
                                         } else {
-                                            warn!("Using SRV record, but could not resolve to IP");
+                                            debug!(
+                                                "Using SRV record {}, but could not resolve to IP",
+                                                hostname_override.hostname()
+                                            );
                                         }
 
                                         if let Some(port) = force_port {
@@ -460,7 +465,10 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
                                             ),
                                         );
                                 } else {
-                                    warn!("Using SRV record, but could not resolve to IP");
+                                    debug!(
+                                        "Using SRV record {}, but could not resolve to IP",
+                                        hostname_override.hostname()
+                                    );
                                 }
 
                                 if let Some(port) = force_port {
