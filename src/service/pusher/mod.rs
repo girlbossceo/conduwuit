@@ -97,7 +97,7 @@ impl Service {
                     Vec::new().into()
                 }); // TODO: handle timeout
 
-                if status != 200 {
+                if !status.is_success() {
                     info!(
                         "Push gateway returned bad response {} {}\n{}\n{:?}",
                         destination,

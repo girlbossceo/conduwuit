@@ -267,7 +267,7 @@ where
             }); // TODO: handle timeout
             debug!("Got response bytes from {destination}");
 
-            if status != 200 {
+            if !status.is_success() {
                 warn!(
                     "{} {}: {}",
                     url,
@@ -283,7 +283,7 @@ where
                 .body(body)
                 .expect("reqwest body is valid http body");
 
-            if status == 200 {
+            if status.is_success() {
                 debug!("Parsing response bytes from {destination}");
                 let response = T::IncomingResponse::try_from_http_response(http_response);
                 if response.is_ok() && write_destination_to_cache {

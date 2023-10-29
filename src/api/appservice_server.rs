@@ -79,7 +79,7 @@ where
         Vec::new().into()
     }); // TODO: handle timeout
 
-    if status != 200 {
+    if !status.is_success() {
         warn!(
             "Appservice returned bad response {} {}\n{}\n{:?}",
             destination,
