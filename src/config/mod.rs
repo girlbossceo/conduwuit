@@ -92,6 +92,9 @@ pub struct Config {
 
     pub emergency_password: Option<String>,
 
+    #[serde(default = "default_notification_push_path")]
+    pub notification_push_path: String,
+
     #[serde(default = "false_fn")]
     pub allow_local_presence: bool,
     #[serde(default = "false_fn")]
@@ -186,6 +189,10 @@ impl fmt::Display for Config {
             (
                 "Allow device name federation",
                 &self.allow_device_name_federation.to_string(),
+            ),
+            (
+                "Notification push path",
+                &self.notification_push_path.to_string(),
             ),
             ("Allow room creation", &self.allow_room_creation.to_string()),
             (
@@ -315,6 +322,10 @@ fn default_trusted_servers() -> Vec<OwnedServerName> {
 
 fn default_log() -> String {
     "warn,state_res=warn,_=off,sled=off".to_owned()
+}
+
+fn default_notification_push_path() -> String {
+    "/_matrix/push/v1/notify".to_owned()
 }
 
 fn default_turn_ttl() -> u64 {

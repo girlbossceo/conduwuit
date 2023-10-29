@@ -52,7 +52,7 @@ impl Service {
     where
         T: Debug,
     {
-        let destination = destination.replace("/_matrix/push/v1/notify", "");
+        let destination = destination.replace(services().globals.notification_push_path(), "");
 
         let http_request = request
             .try_into_http_request::<BytesMut>(
