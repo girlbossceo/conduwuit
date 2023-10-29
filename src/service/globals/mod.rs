@@ -363,6 +363,10 @@ impl Service {
         &self.config.turn_secret
     }
 
+    pub fn notification_push_path(&self) -> &String {
+        &self.config.notification_push_path
+    }
+
     pub fn emergency_password(&self) -> &Option<String> {
         &self.config.emergency_password
     }
