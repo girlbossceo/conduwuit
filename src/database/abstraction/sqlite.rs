@@ -33,7 +33,9 @@ impl Iterator for PreparedStatementIterator<'_> {
 struct NonAliasingBox<T>(*mut T);
 impl<T> Drop for NonAliasingBox<T> {
     fn drop(&mut self) {
-        unsafe { Box::from_raw(self.0) };
+        unsafe {
+            let _ = Box::from_raw(self.0);
+        };
     }
 }
 
