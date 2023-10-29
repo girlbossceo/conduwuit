@@ -39,8 +39,7 @@ where
     );
     *http_request.uri_mut() = parts.try_into().expect("our manipulation is always valid");
 
-    let mut reqwest_request = reqwest::Request::try_from(http_request)
-        .expect("all http requests are valid reqwest requests");
+    let mut reqwest_request = reqwest::Request::try_from(http_request)?;
 
     *reqwest_request.timeout_mut() = Some(Duration::from_secs(30));
 
