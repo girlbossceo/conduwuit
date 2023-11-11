@@ -2328,8 +2328,7 @@ dependencies = [
 [[package]]
 name = "rust-argon2"
 version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e71971821b3ae0e769e4a4328dbcb517607b434db7697e9aba17203ec14e46a"
+source = "git+https://github.com/sru-systems/rust-argon2?rev=e6cb5bf99643e565f4f0d103960d655dac9f3097#e6cb5bf99643e565f4f0d103960d655dac9f3097"
 dependencies = [
  "base64",
  "blake2b_simd",
