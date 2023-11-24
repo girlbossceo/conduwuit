@@ -1036,6 +1036,11 @@ async fn join_room_by_id_helper(
                 services()
                     .rooms
                     .event_handler
+                    .fetch_required_signing_keys([&signed_value], &pub_key_map)
+                    .await?;
+                services()
+                    .rooms
+                    .event_handler
                     .handle_incoming_pdu(
                         &remote_server,
                         &signed_event_id,
@@ -1258,6 +1263,12 @@ pub(crate) async fn invite_helper<'a>(
             .expect("CanonicalJson is valid json value"),
         )
         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
+
+        services()
+            .rooms
+            .event_handler
+            .fetch_required_signing_keys([&value], &pub_key_map)
+            .await?;
 
         let pdu_id: Vec<u8> = services()
             .rooms

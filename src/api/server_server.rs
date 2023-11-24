@@ -764,6 +764,7 @@ pub async fn send_transaction_message_route(
     // events that it references.
     // let mut auth_cache = EventMap::new();
 
+    let mut parsed_pdus = vec![];
     for pdu in &body.pdus {
         let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
             warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
@@ -791,8 +792,28 @@ pub async fn send_transaction_message_route(
                 continue;
             }
         };
+        parsed_pdus.push((event_id, value, room_id));
         // We do not add the event_id field to the pdu here because of signature and hashes checks
+    }
 
+    // We go through all the signatures we see on the PDUs and fetch the corresponding
+    // signing keys
+    services()
+        .rooms
+        .event_handler
+        .fetch_required_signing_keys(
+            parsed_pdus.iter().map(|(_event_id, event, _room_id)| event),
+            &pub_key_map,
+        )
+        .await
+        .unwrap_or_else(|e| {
+            warn!(
+                "Could not fetch all signatures for PDUs from {}: {:?}",
+                sender_servername, e
+            )
+        });
+
+    for (event_id, value, room_id) in parsed_pdus {
         let mutex = Arc::clone(
             services()
                 .globals

@@ -1142,6 +1142,12 @@ impl Service {
         services()
             .rooms
             .event_handler
+            .fetch_required_signing_keys([&value], &pub_key_map)
+            .await?;
+
+        services()
+            .rooms
+            .event_handler
             .handle_incoming_pdu(origin, &event_id, &room_id, value, false, &pub_key_map)
             .await?;
 

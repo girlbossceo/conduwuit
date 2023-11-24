@@ -803,7 +803,7 @@ impl Service {
                             services()
                                 .rooms
                                 .event_handler
-                                .fetch_required_signing_keys(&value, &pub_key_map)
+                                .fetch_required_signing_keys([&value], &pub_key_map)
                                 .await?;
 
                             let pub_key_map = pub_key_map.read().unwrap();
