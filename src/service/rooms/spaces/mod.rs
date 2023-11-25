@@ -205,7 +205,7 @@ impl Service {
                     )
                     .await
                 {
-                    warn!("Got response from {server} for /hierarchy\n{response:?}");
+                    debug!("Got response from {server} for /hierarchy\n{response:?}");
                     let chunk = SpaceHierarchyRoomsChunk {
                         canonical_alias: response.room.canonical_alias,
                         name: response.room.name,

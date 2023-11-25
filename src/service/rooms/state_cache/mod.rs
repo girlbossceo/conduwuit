@@ -25,7 +25,7 @@ pub struct Service {
 impl Service {
     /// Update current membership data.
     #[tracing::instrument(skip(self, last_state))]
-    pub fn update_membership(
+    pub async fn update_membership(
         &self,
         room_id: &RoomId,
         user_id: &UserId,

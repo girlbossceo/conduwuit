@@ -860,14 +860,18 @@ impl Service {
         debug!("Starting soft fail auth check");
 
         if soft_fail {
-            services().rooms.timeline.append_incoming_pdu(
-                &incoming_pdu,
-                val,
-                extremities.iter().map(|e| (**e).to_owned()).collect(),
-                state_ids_compressed,
-                soft_fail,
-                &state_lock,
-            )?;
+            services()
+                .rooms
+                .timeline
+                .append_incoming_pdu(
+                    &incoming_pdu,
+                    val,
+                    extremities.iter().map(|e| (**e).to_owned()).collect(),
+                    state_ids_compressed,
+                    soft_fail,
+                    &state_lock,
+                )
+                .await?;
 
             // Soft fail, we keep the event as an outlier but don't add it to the timeline
             warn!("Event was soft failed: {:?}", incoming_pdu);
@@ -888,14 +892,18 @@ impl Service {
         // We use the `state_at_event` instead of `state_after` so we accurately
         // represent the state for this event.
 
-        let pdu_id = services().rooms.timeline.append_incoming_pdu(
-            &incoming_pdu,
-            val,
-            extremities.iter().map(|e| (**e).to_owned()).collect(),
-            state_ids_compressed,
-            soft_fail,
-            &state_lock,
-        )?;
+        let pdu_id = services()
+            .rooms
+            .timeline
+            .append_incoming_pdu(
+                &incoming_pdu,
+                val,
+                extremities.iter().map(|e| (**e).to_owned()).collect(),
+                state_ids_compressed,
+                soft_fail,
+                &state_lock,
+            )
+            .await?;
 
         debug!("Appended incoming pdu");
 

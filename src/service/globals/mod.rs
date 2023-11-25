@@ -69,7 +69,7 @@ pub struct Service {
     pub bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
     pub servername_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, Arc<Semaphore>>>>,
     pub sync_receivers: RwLock<HashMap<(OwnedUserId, OwnedDeviceId), SyncHandle>>,
-    pub roomid_mutex_insert: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>,
+    pub roomid_mutex_insert: RwLock<HashMap<OwnedRoomId, Arc<TokioMutex<()>>>>,
     pub roomid_mutex_state: RwLock<HashMap<OwnedRoomId, Arc<TokioMutex<()>>>>,
     pub roomid_mutex_federation: RwLock<HashMap<OwnedRoomId, Arc<TokioMutex<()>>>>, // this lock will be held longer
     pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
@@ -452,9 +452,6 @@ impl Service {
     /// new SHA256 file name media function, requires "sha256_media" feature flag enabled and database migrated
     /// uses SHA256 hash of the base64 key as the file name
     pub fn get_media_file_new(&self, key: &[u8]) -> PathBuf {
-        if services().globals.database_version().unwrap() < 14 {
-            error!("Using SHA256 key file names requires database to be migrated.")
-        }
         let mut r = PathBuf::new();
         r.push(self.config.database_path.clone());
         r.push("media");

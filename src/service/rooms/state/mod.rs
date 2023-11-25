@@ -80,14 +80,11 @@ impl Service {
                         Err(_) => continue,
                     };
 
-                    services().rooms.state_cache.update_membership(
-                        room_id,
-                        &user_id,
-                        membership,
-                        &pdu.sender,
-                        None,
-                        false,
-                    )?;
+                    services()
+                        .rooms
+                        .state_cache
+                        .update_membership(room_id, &user_id, membership, &pdu.sender, None, false)
+                        .await?;
                 }
                 TimelineEventType::SpaceChild => {
                     services()

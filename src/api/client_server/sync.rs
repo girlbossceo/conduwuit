@@ -282,7 +282,7 @@ async fn sync_helper(
                     .entry(room_id.clone())
                     .or_default(),
             );
-            let insert_lock = mutex_insert.lock().unwrap();
+            let insert_lock = mutex_insert.lock().await;
             drop(insert_lock);
         }
 
@@ -414,7 +414,7 @@ async fn sync_helper(
                     .entry(room_id.clone())
                     .or_default(),
             );
-            let insert_lock = mutex_insert.lock().unwrap();
+            let insert_lock = mutex_insert.lock().await;
             drop(insert_lock);
         }
 
@@ -599,7 +599,7 @@ async fn load_joined_room(
                 .entry(room_id.to_owned())
                 .or_default(),
         );
-        let insert_lock = mutex_insert.lock().unwrap();
+        let insert_lock = mutex_insert.lock().await;
         drop(insert_lock);
     }
 

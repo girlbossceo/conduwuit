@@ -30,22 +30,26 @@ pub async fn redact_event_route(
     );
     let state_lock = mutex_state.lock().await;
 
-    let event_id = services().rooms.timeline.build_and_append_pdu(
-        PduBuilder {
-            event_type: TimelineEventType::RoomRedaction,
-            content: to_raw_value(&RoomRedactionEventContent {
-                redacts: Some(body.event_id.clone()),
-                reason: body.reason.clone(),
-            })
-            .expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: None,
-            redacts: Some(body.event_id.into()),
-        },
-        sender_user,
-        &body.room_id,
-        &state_lock,
-    )?;
+    let event_id = services()
+        .rooms
+        .timeline
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: TimelineEventType::RoomRedaction,
+                content: to_raw_value(&RoomRedactionEventContent {
+                    redacts: Some(body.event_id.clone()),
+                    reason: body.reason.clone(),
+                })
+                .expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: None,
+                redacts: Some(body.event_id.into()),
+            },
+            sender_user,
+            &body.room_id,
+            &state_lock,
+        )
+        .await?;
 
     drop(state_lock);
 

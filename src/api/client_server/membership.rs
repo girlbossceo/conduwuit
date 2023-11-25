@@ -208,18 +208,22 @@ pub async fn kick_user_route(
     );
     let state_lock = mutex_state.lock().await;
 
-    services().rooms.timeline.build_and_append_pdu(
-        PduBuilder {
-            event_type: TimelineEventType::RoomMember,
-            content: to_raw_value(&event).expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: Some(body.user_id.to_string()),
-            redacts: None,
-        },
-        sender_user,
-        &body.room_id,
-        &state_lock,
-    )?;
+    services()
+        .rooms
+        .timeline
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: TimelineEventType::RoomMember,
+                content: to_raw_value(&event).expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(body.user_id.to_string()),
+                redacts: None,
+            },
+            sender_user,
+            &body.room_id,
+            &state_lock,
+        )
+        .await?;
 
     drop(state_lock);
 
@@ -272,18 +276,22 @@ pub async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_use
     );
     let state_lock = mutex_state.lock().await;
 
-    services().rooms.timeline.build_and_append_pdu(
-        PduBuilder {
-            event_type: TimelineEventType::RoomMember,
-            content: to_raw_value(&event).expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: Some(body.user_id.to_string()),
-            redacts: None,
-        },
-        sender_user,
-        &body.room_id,
-        &state_lock,
-    )?;
+    services()
+        .rooms
+        .timeline
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: TimelineEventType::RoomMember,
+                content: to_raw_value(&event).expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(body.user_id.to_string()),
+                redacts: None,
+            },
+            sender_user,
+            &body.room_id,
+            &state_lock,
+        )
+        .await?;
 
     drop(state_lock);
 
@@ -330,18 +338,22 @@ pub async fn unban_user_route(
     );
     let state_lock = mutex_state.lock().await;
 
-    services().rooms.timeline.build_and_append_pdu(
-        PduBuilder {
-            event_type: TimelineEventType::RoomMember,
-            content: to_raw_value(&event).expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: Some(body.user_id.to_string()),
-            redacts: None,
-        },
-        sender_user,
-        &body.room_id,
-        &state_lock,
-    )?;
+    services()
+        .rooms
+        .timeline
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: TimelineEventType::RoomMember,
+                content: to_raw_value(&event).expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(body.user_id.to_string()),
+                redacts: None,
+            },
+            sender_user,
+            &body.room_id,
+            &state_lock,
+        )
+        .await?;
 
     drop(state_lock);
 
@@ -770,12 +782,16 @@ async fn join_room_by_id_helper(
         let statehash_after_join = services().rooms.state.append_to_state(&parsed_join_pdu)?;
 
         info!("Appending new room join event");
-        services().rooms.timeline.append_pdu(
-            &parsed_join_pdu,
-            join_event,
-            vec![(*parsed_join_pdu.event_id).to_owned()],
-            &state_lock,
-        )?;
+        services()
+            .rooms
+            .timeline
+            .append_pdu(
+                &parsed_join_pdu,
+                join_event,
+                vec![(*parsed_join_pdu.event_id).to_owned()],
+                &state_lock,
+            )
+            .await?;
 
         info!("Setting final room state for new room");
         // We set the room state after inserting the pdu, so that we never have a moment in time
@@ -888,18 +904,23 @@ async fn join_room_by_id_helper(
         };
 
         // Try normal join first
-        let error = match services().rooms.timeline.build_and_append_pdu(
-            PduBuilder {
-                event_type: TimelineEventType::RoomMember,
-                content: to_raw_value(&event).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(sender_user.to_string()),
-                redacts: None,
-            },
-            sender_user,
-            room_id,
-            &state_lock,
-        ) {
+        let error = match services()
+            .rooms
+            .timeline
+            .build_and_append_pdu(
+                PduBuilder {
+                    event_type: TimelineEventType::RoomMember,
+                    content: to_raw_value(&event).expect("event is valid, we just created it"),
+                    unsigned: None,
+                    state_key: Some(sender_user.to_string()),
+                    redacts: None,
+                },
+                sender_user,
+                room_id,
+                &state_lock,
+            )
+            .await
+        {
             Ok(_event_id) => return Ok(join_room_by_id::v3::Response::new(room_id.to_owned())),
             Err(e) => e,
         };
@@ -1315,28 +1336,32 @@ pub(crate) async fn invite_helper<'a>(
     );
     let state_lock = mutex_state.lock().await;
 
-    services().rooms.timeline.build_and_append_pdu(
-        PduBuilder {
-            event_type: TimelineEventType::RoomMember,
-            content: to_raw_value(&RoomMemberEventContent {
-                membership: MembershipState::Invite,
-                displayname: services().users.displayname(user_id)?,
-                avatar_url: services().users.avatar_url(user_id)?,
-                is_direct: Some(is_direct),
-                third_party_invite: None,
-                blurhash: services().users.blurhash(user_id)?,
-                reason,
-                join_authorized_via_users_server: None,
-            })
-            .expect("event is valid, we just created it"),
-            unsigned: None,
-            state_key: Some(user_id.to_string()),
-            redacts: None,
-        },
-        sender_user,
-        room_id,
-        &state_lock,
-    )?;
+    services()
+        .rooms
+        .timeline
+        .build_and_append_pdu(
+            PduBuilder {
+                event_type: TimelineEventType::RoomMember,
+                content: to_raw_value(&RoomMemberEventContent {
+                    membership: MembershipState::Invite,
+                    displayname: services().users.displayname(user_id)?,
+                    avatar_url: services().users.avatar_url(user_id)?,
+                    is_direct: Some(is_direct),
+                    third_party_invite: None,
+                    blurhash: services().users.blurhash(user_id)?,
+                    reason,
+                    join_authorized_via_users_server: None,
+                })
+                .expect("event is valid, we just created it"),
+                unsigned: None,
+                state_key: Some(user_id.to_string()),
+                redacts: None,
+            },
+            sender_user,
+            room_id,
+            &state_lock,
+        )
+        .await?;
 
     drop(state_lock);
 
@@ -1390,14 +1415,18 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
             )?;
 
         // We always drop the invite, we can't rely on other servers
-        services().rooms.state_cache.update_membership(
-            room_id,
-            user_id,
-            MembershipState::Leave,
-            user_id,
-            last_state,
-            true,
-        )?;
+        services()
+            .rooms
+            .state_cache
+            .update_membership(
+                room_id,
+                user_id,
+                MembershipState::Leave,
+                user_id,
+                last_state,
+                true,
+            )
+            .await?;
     } else {
         let mutex_state = Arc::clone(
             services()
@@ -1421,14 +1450,18 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
             None => {
                 error!("Trying to leave a room you are not a member of.");
 
-                services().rooms.state_cache.update_membership(
-                    room_id,
-                    user_id,
-                    MembershipState::Leave,
-                    user_id,
-                    None,
-                    true,
-                )?;
+                services()
+                    .rooms
+                    .state_cache
+                    .update_membership(
+                        room_id,
+                        user_id,
+                        MembershipState::Leave,
+                        user_id,
+                        None,
+                        true,
+                    )
+                    .await?;
                 return Ok(());
             }
             Some(e) => e,
@@ -1440,18 +1473,22 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
         event.membership = MembershipState::Leave;
         event.reason = reason;
 
-        services().rooms.timeline.build_and_append_pdu(
-            PduBuilder {
-                event_type: TimelineEventType::RoomMember,
-                content: to_raw_value(&event).expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: Some(user_id.to_string()),
-                redacts: None,
-            },
-            user_id,
-            room_id,
-            &state_lock,
-        )?;
+        services()
+            .rooms
+            .timeline
+            .build_and_append_pdu(
+                PduBuilder {
+                    event_type: TimelineEventType::RoomMember,
+                    content: to_raw_value(&event).expect("event is valid, we just created it"),
+                    unsigned: None,
+                    state_key: Some(user_id.to_string()),
+                    redacts: None,
+                },
+                user_id,
+                room_id,
+                &state_lock,
+            )
+            .await?;
     }
 
     Ok(())
