@@ -106,6 +106,10 @@ pub struct Config {
     #[serde(default = "default_presence_offline_timeout_s")]
     pub presence_offline_timeout_s: u64,
 
+    #[cfg(feature = "zstd_compression")]
+    #[serde(default = "false_fn")]
+    pub zstd_compression: bool,
+
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
 }
@@ -248,6 +252,10 @@ impl fmt::Display for Config {
                 }
                 &lst.join(", ")
             }),
+            (
+                "zstd Response Body Compression",
+                &self.zstd_compression.to_string(),
+            ),
         ];
 
         let mut msg: String = "Active config values:\n\n".to_owned();

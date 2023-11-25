@@ -68,3 +68,6 @@ cached_target
 
 # Direnv cache
 /.direnv
+
+test-conduit/
+test-conduit.toml

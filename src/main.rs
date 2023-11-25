@@ -205,7 +205,16 @@ async fn run_server() -> io::Result<()> {
                 .expect("failed to convert max request size"),
         ));
 
-    let app = routes().layer(middlewares).into_make_service();
+    let app: axum::routing::IntoMakeService<Router>;
+
+    if cfg!(feature = "zstd_compression") && config.zstd_compression == true {
+        debug!("zstd body compression is enabled");
+        app = routes()
+            .layer(middlewares.compression())
+            .into_make_service();
+    } else {
+        app = routes().layer(middlewares).into_make_service();
+    }
     let handle = ServerHandle::new();
     let (tx, rx) = oneshot::channel::<()>();
 

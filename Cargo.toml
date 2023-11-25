@@ -21,10 +21,10 @@ rust-version = "1.70.0"
 
 [dependencies]
 # Web framework
-axum = { version = "0.6.18", default-features = false, features = ["form", "headers", "http1", "http2", "json", "matched-path"], optional = true }
+axum = { version = "0.6.20", default-features = false, features = ["form", "headers", "http1", "http2", "json", "matched-path"], optional = true }
 axum-server = { version = "0.5.1", features = ["tls-rustls"] }
 tower = { version = "0.4.13", features = ["util"] }
-tower-http = { version = "0.4.1", features = ["add-extension", "cors", "sensitive-headers", "trace", "util"] }
+tower-http = { version = "0.4.4", features = ["add-extension", "cors", "sensitive-headers", "trace", "util"] }
 
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
@@ -36,43 +36,43 @@ ruma = { git = "https://github.com/ruma/ruma", rev = "b4853aa8fa5e3a24e3689fc880
 hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d149644600d326559af0d2b235c945b05c04", features = [
   "server",
 ] }
-hyper = { version = "0.14", features = ["server", "http1"] }
-tokio = { version = "1.28.1", features = ["fs", "macros", "signal", "sync"] }
+hyper = { version = "0.14", features = ["server", "http1", "http2"] }
+tokio = { version = "1.34.0", features = ["fs", "macros", "signal", "sync"] }
 # Used for storing data permanently
 #sled = { version = "0.34.7", features = ["compression", "no_metrics"], optional = true }
 #sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
 persy = { version = "1.4.4", optional = true, features = ["background_ops"] }
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
-bytes = "1.4.0"
-http = "0.2.9"
+bytes = "1.5.0"
+http = "0.2.11"
 # Used to find data directory for default db path
 directories = "5.0.1"
 # Used for ruma wrapper
-serde_json = { version = "1.0.107", features = ["raw_value"] }
+serde_json = { version = "1.0.108", features = ["raw_value"] }
 # Used for appservice registration files
-serde_yaml = "0.9.21"
+serde_yaml = "0.9.27"
 # Used for pdu definition
-serde = { version = "1.0.188", features = ["rc"] }
+serde = { version = "1.0.193", features = ["rc"] }
 # Used for secure identifiers
 rand = "0.8.5"
 # Used to hash passwords
 rust-argon2 = { git = "https://github.com/sru-systems/rust-argon2", rev = "e6cb5bf99643e565f4f0d103960d655dac9f3097" }
-reqwest = { version = "0.11.18", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
+reqwest = { version = "0.11.22", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
 # Used for conduit::Error type
 thiserror = "1.0.40"
 # Used to generate thumbnails for images
-image = { version = "0.24.6", default-features = false, features = ["jpeg", "png", "gif"] }
+image = { version = "0.24.7", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 # Used to encode server public key
-base64 = "0.21.2"
+base64 = "0.21.5"
 # Used when hashing the state
 ring = "0.17.5"
 # Used when querying the SRV record of other servers
-trust-dns-resolver = "0.23.0"
+trust-dns-resolver = "0.23.2"
 # Used to find matching events for appservices
-regex = "1.8.1"
+regex = "1.10.2"
 # jwt jsonwebtokens
-jsonwebtoken = "9.0.0"
+jsonwebtoken = "9.1.0"
 # Performance measurements
 tracing = { version = "0.1.37", features = [] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
@@ -81,7 +81,7 @@ opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
 opentelemetry-jaeger = { version = "0.19.0", features = ["rt-tokio"] }
 tracing-opentelemetry = "0.21.0"
 lru-cache = "0.1.2"
-rusqlite = { version = "0.29.0", optional = true, features = ["bundled"] }
+rusqlite = { version = "0.30.0", optional = true, features = ["bundled"] }
 parking_lot = { version = "0.12.1", optional = true }
 crossbeam = { version = "0.8.2", optional = true }
 num_cpus = "1.15.0"
@@ -90,22 +90,22 @@ heed = { git = "https://github.com/timokoesters/heed.git", rev = "f6f825da7fb2c7
 # Used for ruma wrapper
 serde_html_form = "0.2.0"
 
-rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "4b8a2ce57e9c4b745784fa3d023c8e3b4ab3a83c", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd", "io-uring"], optional = true }
+rocksdb = { git = "https://github.com/girlbossceo/rust-rocksdb", rev = "eaa2beedb1f36466a52ca01ffbf3a2118b2cb41b", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd", "io-uring"], optional = true }
 
 thread_local = "1.1.7"
 # used for TURN server authentication
 hmac = "0.12.1"
 sha-1 = "0.10.1"
 # used for conduit's CLI and admin room command parsing
-clap = { version = "4.3.0", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
-futures-util = { version = "0.3.28", default-features = false }
+clap = { version = "4.4.8", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
+futures-util = { version = "0.3.29", default-features = false }
 # Used for reading the configuration from conduit.toml & environment variables
-figment = { version = "0.10.8", features = ["env", "toml"] }
+figment = { version = "0.10.12", features = ["env", "toml"] }
 
 tikv-jemalloc-ctl = { version = "0.5.0", features = ["use_std"], optional = true }
 tikv-jemallocator = { version = "0.5.0", features = ["unprefixed_malloc_on_supported_platforms"], optional = true }
 lazy_static = "1.4.0"
-async-trait = "0.1.68"
+async-trait = "0.1.74"
 
 sd-notify = { version = "0.4.1", optional = true }
 
@@ -113,7 +113,7 @@ sd-notify = { version = "0.4.1", optional = true }
 nix = { version = "0.26.2", features = ["resource"] }
 
 [features]
-default = ["conduit_bin", "backend_sqlite", "backend_rocksdb", "systemd"]
+default = ["conduit_bin", "backend_sqlite", "backend_rocksdb", "systemd", "zstd_compression"]
 #backend_sled = ["sled"]
 backend_persy = ["persy", "parking_lot"]
 backend_sqlite = ["sqlite"]
@@ -123,6 +123,10 @@ jemalloc = ["tikv-jemalloc-ctl", "tikv-jemallocator"]
 sqlite = ["rusqlite", "parking_lot", "tokio/signal"]
 conduit_bin = ["axum"]
 systemd = ["sd-notify"]
+#gzip_compression = ["tower-http/compression-gzip"]
+zstd_compression = ["tower-http/compression-zstd"]
+#brotli_compression = ["tower-http/compression-br"]
+#compression = ["tower-http/compression-full"]
 
 [[bin]]
 name = "conduit"

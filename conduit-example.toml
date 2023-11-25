@@ -75,3 +75,9 @@ allow_device_name_federation = false
 # permissions are specified with unix_socket_perms (666 minimum).
 #unix_socket_path = "/run/conduit/conduit.sock"
 #unix_socket_perms = 660
+
+# Set this to true for Conduit to compress HTTP response bodies using zstd.
+# Please be aware that enabling HTTP compression may introduce compression side-channel attacks and response body tampering to potentially defeat TLS.
+# Most users should not need to enable this.
+# See https://breachattack.com/ and https://wikipedia.org/wiki/BREACH before deciding to enable this.
+zstd_compression = false
