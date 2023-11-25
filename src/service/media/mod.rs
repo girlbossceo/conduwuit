@@ -3,8 +3,6 @@ use std::io::Cursor;
 
 pub use data::Data;
 
-use base64::{engine::general_purpose, Engine as _};
-
 use crate::{services, Result};
 use image::imageops::FilterType;
 
@@ -264,6 +262,8 @@ mod tests {
     use std::path::PathBuf;
 
     use sha2::Digest;
+
+    use base64::{engine::general_purpose, Engine as _};
 
     use super::*;
 

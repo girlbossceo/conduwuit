@@ -50,6 +50,8 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::oneshot::Sender;
 
+use clap::Parser;
+
 pub use conduit::*; // Re-export everything from the library crate
 
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
@@ -59,8 +61,13 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+#[derive(Parser)]
+#[clap(version, about, long_about = None)]
+struct Args {}
+
 #[tokio::main]
 async fn main() {
+    Args::parse();
     // Initialize config
     let raw_config =
         Figment::new()
