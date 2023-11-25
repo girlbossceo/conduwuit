@@ -233,9 +233,9 @@ impl Service {
 
                 let path: std::path::PathBuf;
                 if cfg!(feature = "sha256_media") {
-                    path = services().globals.get_media_file_new(&key);
+                    path = services().globals.get_media_file_new(&thumbnail_key);
                 } else {
-                    path = services().globals.get_media_file(&key);
+                    path = services().globals.get_media_file(&thumbnail_key);
                 }
                 let mut f = File::create(path).await?;
                 f.write_all(&thumbnail_bytes).await?;

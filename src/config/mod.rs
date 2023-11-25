@@ -106,7 +106,6 @@ pub struct Config {
     #[serde(default = "default_presence_offline_timeout_s")]
     pub presence_offline_timeout_s: u64,
 
-    #[cfg(feature = "zstd_compression")]
     #[serde(default = "false_fn")]
     pub zstd_compression: bool,
 
