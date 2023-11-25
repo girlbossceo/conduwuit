@@ -942,6 +942,30 @@ impl KeyValueDatabase {
                 warn!("Migration: 12 -> 13 finished");
             }
 
+            if services().globals.database_version()? < 14 && cfg!(feature = "sha256_media") {
+                warn!("sha256_media feature flag is enabled, migrating legacy base64 file names to sha256 file names");
+                // Move old media files to new names
+                for (key, _) in db.mediaid_file.iter() {
+                    // we know that this method is deprecated, but we need to use it to migrate the old files
+                    // to the new location
+                    //
+                    // TODO: remove this once we're sure that all users have migrated
+                    #[allow(deprecated)]
+                    let old_path = services().globals.get_media_file(&key);
+                    let path = services().globals.get_media_file_new(&key);
+                    // move the file to the new location
+                    if old_path.exists() {
+                        tokio::fs::rename(&old_path, &path).await?;
+                    }
+                }
+
+                services().globals.bump_database_version(13)?;
+
+                warn!("Migration: 13 -> 14 finished");
+            } else {
+                warn!("Skipping migration from version 13 to 14 for converting legacy base64 key file names to sha256 hashes of the base64 keys");
+            }
+
             assert_eq!(
                 services().globals.database_version().unwrap(),
                 latest_database_version

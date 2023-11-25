@@ -5,6 +5,8 @@ use ruma::{
     OwnedServerSigningKeyId, OwnedUserId,
 };
 
+use sha2::Digest;
+
 use crate::api::server_server::FedDest;
 
 use crate::{services, Config, Error, Result};
@@ -447,6 +449,27 @@ impl Service {
         r
     }
 
+    /// new SHA256 file name media function, requires "sha256_media" feature flag enabled and database migrated
+    /// uses SHA256 hash of the base64 key as the file name
+    pub fn get_media_file_new(&self, key: &[u8]) -> PathBuf {
+        if services().globals.database_version().unwrap() < 14 {
+            error!("Using SHA256 key file names requires database to be migrated.")
+        }
+        let mut r = PathBuf::new();
+        r.push(self.config.database_path.clone());
+        r.push("media");
+        // Using the hash of the base64 key as the filename
+        // This is to prevent the total length of the path from exceeding the maximum length in most filesystems
+        r.push(general_purpose::URL_SAFE_NO_PAD.encode(sha2::Sha256::digest(key)));
+        r
+    }
+
+    /// old base64 file name media function
+    /// This is the old version of `get_media_file` that uses the full base64 key as the filename.
+    ///
+    /// This is deprecated and will be removed in a future release.
+    /// Please use `get_media_file_new` instead.
+    #[deprecated(note = "Use get_media_file_new instead")]
     pub fn get_media_file(&self, key: &[u8]) -> PathBuf {
         let mut r = PathBuf::new();
         r.push(self.config.database_path.clone());

@@ -96,6 +96,7 @@ thread_local = "1.1.7"
 # used for TURN server authentication
 hmac = "0.12.1"
 sha-1 = "0.10.1"
+sha2 = { version = "0.10.8" }
 # used for conduit's CLI and admin room command parsing
 clap = { version = "4.4.8", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 futures-util = { version = "0.3.29", default-features = false }
@@ -127,6 +128,7 @@ systemd = ["sd-notify"]
 zstd_compression = ["tower-http/compression-zstd"]
 #brotli_compression = ["tower-http/compression-br"]
 #compression = ["tower-http/compression-full"]
+sha256_media = []
 
 [[bin]]
 name = "conduit"
