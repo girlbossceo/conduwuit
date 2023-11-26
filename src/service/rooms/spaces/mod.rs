@@ -149,7 +149,9 @@ impl Service {
                 // TODO: Sort children
                 children_ids.reverse();
 
-                let chunk = self.get_room_chunk(sender_user, &current_room, children_pdus);
+                let chunk = self
+                    .get_room_chunk(sender_user, &current_room, children_pdus)
+                    .await;
                 if let Ok(chunk) = chunk {
                     if left_to_skip > 0 {
                         left_to_skip -= 1;
@@ -303,7 +305,7 @@ impl Service {
         })
     }
 
-    fn get_room_chunk(
+    async fn get_room_chunk(
         &self,
         sender_user: &UserId,
         room_id: &RoomId,

@@ -17,7 +17,7 @@ use axum::{
     extract::{DefaultBodyLimit, FromRequestParts, MatchedPath},
     response::IntoResponse,
     routing::{get, on, MethodFilter},
-    Router,
+    Json, Router,
 };
 use axum_server::{bind, bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
 use conduit::api::{client_server, server_server};
@@ -38,6 +38,7 @@ use ruma::api::{
     },
     IncomingRequest,
 };
+use serde::Deserialize;
 use tokio::{net::UnixListener, signal, sync::oneshot};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -214,7 +215,7 @@ async fn run_server() -> io::Result<()> {
 
     let app: axum::routing::IntoMakeService<Router>;
 
-    if cfg!(feature = "zstd_compression") && config.zstd_compression == true {
+    if cfg!(feature = "zstd_compression") && config.zstd_compression {
         debug!("zstd body compression is enabled");
         app = routes()
             .layer(middlewares.compression())
@@ -489,6 +490,7 @@ fn routes() -> Router {
             "/_matrix/client/v3/rooms/:room_id/initialSync",
             get(initial_sync),
         )
+        //.route("/client/server.json", get(syncv3_client_server_json))
         .route("/", get(it_works))
         .fallback(not_found)
 }
@@ -543,8 +545,21 @@ async fn initial_sync(_uri: Uri) -> impl IntoResponse {
 }
 
 async fn it_works() -> &'static str {
-    "Hello from Conduit!"
+    "hewwo from cowonduit woof!"
 }
+
+/*
+// TODO: add /client/server.json support by querying our client well-known for the true matrix homeserver URL
+async fn syncv3_client_server_json(uri: Uri) -> impl IntoResponse {
+    let server_name = services().globals.server_name().to_string();
+    let response = services().globals.default_client().get(&format!("https://{server_name"))
+    let server = uri.scheme_str().unwrap_or("https").to_owned() + "://" + uri.host().unwrap();
+    let version = format!("cowonduit {}", env!("CARGO_PKG_VERSION").to_owned());
+    let body = format!("{{\"server\":\"{server}\",\"version\":\"{version}\"}}");
+
+    Json(body)
+}
+*/
 
 trait RouterExt {
     fn ruma_route<H, T>(self, handler: H) -> Self

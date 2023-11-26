@@ -859,7 +859,7 @@ impl Service {
 
                     let target = pdu
                         .state_key()
-                        .filter(|v| v.starts_with("@"))
+                        .filter(|v| v.starts_with('@'))
                         .unwrap_or(sender.as_str());
                     let server_name = services().globals.server_name();
                     let server_user = format!("@conduit:{}", server_name);

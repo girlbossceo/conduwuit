@@ -84,12 +84,11 @@ pub async fn set_displayname_route(
         );
         let state_lock = mutex_state.lock().await;
 
-        let _ = services().rooms.timeline.build_and_append_pdu(
-            pdu_builder,
-            sender_user,
-            &room_id,
-            &state_lock,
-        );
+        let _ = services()
+            .rooms
+            .timeline
+            .build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock)
+            .await;
     }
 
     if services().globals.allow_local_presence() {
@@ -207,12 +206,11 @@ pub async fn set_avatar_url_route(
         );
         let state_lock = mutex_state.lock().await;
 
-        let _ = services().rooms.timeline.build_and_append_pdu(
-            pdu_builder,
-            sender_user,
-            &room_id,
-            &state_lock,
-        );
+        let _ = services()
+            .rooms
+            .timeline
+            .build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock)
+            .await;
     }
 
     if services().globals.allow_local_presence() {

@@ -427,7 +427,14 @@ impl KeyValueDatabase {
         }
 
         // If the database has any data, perform data migrations before starting
-        let latest_database_version = 13;
+        let latest_database_version: u64;
+
+        // do not increment the db version if the user is not using sha256_media
+        if cfg!(feature = "sha256_media") {
+            latest_database_version = 14;
+        } else {
+            latest_database_version = 13;
+        }
 
         if services().users.count()? > 0 {
             // MIGRATIONS
@@ -959,7 +966,7 @@ impl KeyValueDatabase {
                     }
                 }
 
-                services().globals.bump_database_version(13)?;
+                services().globals.bump_database_version(14)?;
 
                 warn!("Migration: 13 -> 14 finished");
             } else {

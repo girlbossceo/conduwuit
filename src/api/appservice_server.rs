@@ -21,7 +21,10 @@ where
             SendAccessToken::IfRequired(hs_token),
             &[MatrixVersion::V1_0],
         )
-        .unwrap()
+        .map_err(|e| {
+            warn!("Failed to find destination {}: {}", destination, e);
+            Error::BadServerResponse("Invalid destination")
+        })?
         .map(|body| body.freeze());
 
     let mut parts = http_request.uri().clone().into_parts();

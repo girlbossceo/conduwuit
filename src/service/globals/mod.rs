@@ -490,7 +490,7 @@ impl Service {
         if self.unix_socket_path().is_some() {
             match &self.unix_socket_path() {
                 Some(path) => {
-                    std::fs::remove_file(path.to_owned()).unwrap();
+                    std::fs::remove_file(path).unwrap();
                 }
                 None => error!(
                     "Unable to remove socket file at {:?} during shutdown.",
