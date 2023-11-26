@@ -99,7 +99,9 @@ impl Services {
                 },
                 threads: rooms::threads::Service { db },
                 spaces: rooms::spaces::Service {
-                    roomid_spacechunk_cache: Mutex::new(LruCache::new(200)),
+                    roomid_spacechunk_cache: Mutex::new(LruCache::new(
+                        (100.0 * config.conduit_cache_capacity_modifier) as usize,
+                    )),
                 },
                 user: rooms::user::Service { db },
             },
