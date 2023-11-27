@@ -367,7 +367,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                 .bad_query_ratelimiter
                 .read()
                 .unwrap()
-                .get(&*server)
+                .get(server)
             {
                 // Exponential backoff
                 let mut min_elapsed_duration = Duration::from_secs(30) * (*tries) * (*tries);
@@ -468,7 +468,7 @@ fn add_unsigned_device_display_name(
             } else {
                 unsigned_object.insert(
                     "device_display_name".to_owned(),
-                    Some(metadata.device_id.as_str().to_string()).into(),
+                    Some(metadata.device_id.as_str().to_owned()).into(),
                 );
             }
         }

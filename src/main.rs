@@ -5,7 +5,6 @@
     clippy::str_to_string,
     clippy::future_not_send
 )]
-#![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
 
 use std::{
@@ -17,7 +16,7 @@ use axum::{
     extract::{DefaultBodyLimit, FromRequestParts, MatchedPath},
     response::IntoResponse,
     routing::{get, on, MethodFilter},
-    Json, Router,
+    Router,
 };
 use axum_server::{bind, bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
 use conduit::api::{client_server, server_server};
@@ -38,7 +37,6 @@ use ruma::api::{
     },
     IncomingRequest,
 };
-use serde::Deserialize;
 use tokio::{net::UnixListener, signal, sync::oneshot};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -147,7 +145,7 @@ async fn main() {
     maximize_fd_limit().expect("should be able to increase the soft limit to the hard limit");
 
     config.warn_deprecated();
-    if let Err(_) = config.error_dual_listening(raw_config) {
+    if config.error_dual_listening(raw_config).is_err() {
         return;
     };
 
@@ -213,16 +211,15 @@ async fn run_server() -> io::Result<()> {
                 .expect("failed to convert max request size"),
         ));
 
-    let app: axum::routing::IntoMakeService<Router>;
-
-    if cfg!(feature = "zstd_compression") && config.zstd_compression {
+    let app = if cfg!(feature = "zstd_compression") && config.zstd_compression {
         debug!("zstd body compression is enabled");
-        app = routes()
+        routes()
             .layer(middlewares.compression())
-            .into_make_service();
+            .into_make_service()
     } else {
-        app = routes().layer(middlewares).into_make_service();
-    }
+        routes().layer(middlewares).into_make_service()
+    };
+
     let handle = ServerHandle::new();
     let (tx, rx) = oneshot::channel::<()>();
 

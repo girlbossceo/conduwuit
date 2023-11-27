@@ -27,10 +27,12 @@ use crate::Result;
 /// If a domain matches both the exclude and include list, the proxy will only be used if it was
 /// included because of a more specific rule than it was excluded. In the above example, the proxy
 /// would be used for `ordinary.onion`, `matrix.myspecial.onion`, but not `hello.myspecial.onion`.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Default, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProxyConfig {
+    #[default]
     None,
+
     Global {
         #[serde(deserialize_with = "crate::utils::deserialize_from_str")]
         url: Url,
@@ -46,11 +48,6 @@ impl ProxyConfig {
                 proxies.iter().find_map(|proxy| proxy.for_url(url)).cloned() // first matching proxy
             })),
         })
-    }
-}
-impl Default for ProxyConfig {
-    fn default() -> Self {
-        ProxyConfig::None
     }
 }
 

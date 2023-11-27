@@ -134,7 +134,7 @@ impl Service {
 
                     if serde_json::from_str::<SpaceChildEventContent>(pdu.content.get())
                         .ok()
-                        .and_then(|c| Some(c.via))
+                        .map(|c| c.via)
                         .map_or(true, |v| v.is_empty())
                     {
                         continue;
@@ -199,7 +199,7 @@ impl Service {
                 if let Ok(response) = services()
                     .sending
                     .send_federation_request(
-                        &server,
+                        server,
                         federation::space::get_hierarchy::v1::Request {
                             room_id: current_room.to_owned(),
                             suggested_only,
@@ -237,7 +237,7 @@ impl Service {
                                     .room
                                     .allowed_room_ids
                                     .into_iter()
-                                    .map(|room| AllowRule::room_membership(room))
+                                    .map(AllowRule::room_membership)
                                     .collect(),
                             })
                         }
@@ -247,7 +247,7 @@ impl Service {
                                     .room
                                     .allowed_room_ids
                                     .into_iter()
-                                    .map(|room| AllowRule::room_membership(room))
+                                    .map(AllowRule::room_membership)
                                     .collect(),
                             })
                         }
@@ -315,7 +315,7 @@ impl Service {
             canonical_alias: services()
                 .rooms
                 .state_accessor
-                .room_state_get(&room_id, &StateEventType::RoomCanonicalAlias, "")?
+                .room_state_get(room_id, &StateEventType::RoomCanonicalAlias, "")?
                 .map_or(Ok(None), |s| {
                     serde_json::from_str(s.content.get())
                         .map(|c: RoomCanonicalAliasEventContent| c.alias)
@@ -323,11 +323,11 @@ impl Service {
                             Error::bad_database("Invalid canonical alias event in database.")
                         })
                 })?,
-            name: services().rooms.state_accessor.get_name(&room_id)?,
+            name: services().rooms.state_accessor.get_name(room_id)?,
             num_joined_members: services()
                 .rooms
                 .state_cache
-                .room_joined_count(&room_id)?
+                .room_joined_count(room_id)?
                 .unwrap_or_else(|| {
                     warn!("Room {} has no member count", room_id);
                     0
@@ -338,7 +338,7 @@ impl Service {
             topic: services()
                 .rooms
                 .state_accessor
-                .room_state_get(&room_id, &StateEventType::RoomTopic, "")?
+                .room_state_get(room_id, &StateEventType::RoomTopic, "")?
                 .map_or(Ok(None), |s| {
                     serde_json::from_str(s.content.get())
                         .map(|c: RoomTopicEventContent| Some(c.topic))
@@ -350,7 +350,7 @@ impl Service {
             world_readable: services()
                 .rooms
                 .state_accessor
-                .room_state_get(&room_id, &StateEventType::RoomHistoryVisibility, "")?
+                .room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
                 .map_or(Ok(false), |s| {
                     serde_json::from_str(s.content.get())
                         .map(|c: RoomHistoryVisibilityEventContent| {
@@ -365,7 +365,7 @@ impl Service {
             guest_can_join: services()
                 .rooms
                 .state_accessor
-                .room_state_get(&room_id, &StateEventType::RoomGuestAccess, "")?
+                .room_state_get(room_id, &StateEventType::RoomGuestAccess, "")?
                 .map_or(Ok(false), |s| {
                     serde_json::from_str(s.content.get())
                         .map(|c: RoomGuestAccessEventContent| {
@@ -378,7 +378,7 @@ impl Service {
             avatar_url: services()
                 .rooms
                 .state_accessor
-                .room_state_get(&room_id, &StateEventType::RoomAvatar, "")?
+                .room_state_get(room_id, &StateEventType::RoomAvatar, "")?
                 .map(|s| {
                     serde_json::from_str(s.content.get())
                         .map(|c: RoomAvatarEventContent| c.url)
@@ -391,7 +391,7 @@ impl Service {
                 let join_rule = services()
                     .rooms
                     .state_accessor
-                    .room_state_get(&room_id, &StateEventType::RoomJoinRules, "")?
+                    .room_state_get(room_id, &StateEventType::RoomJoinRules, "")?
                     .map(|s| {
                         serde_json::from_str(s.content.get())
                             .map(|c: RoomJoinRulesEventContent| c.join_rule)
@@ -417,7 +417,7 @@ impl Service {
             room_type: services()
                 .rooms
                 .state_accessor
-                .room_state_get(&room_id, &StateEventType::RoomCreate, "")?
+                .room_state_get(room_id, &StateEventType::RoomCreate, "")?
                 .map(|s| {
                     serde_json::from_str::<RoomCreateEventContent>(s.content.get()).map_err(|e| {
                         error!("Invalid room create event in database: {}", e);
@@ -457,7 +457,7 @@ impl Service {
             SpaceRoomJoinRule::Invite => services()
                 .rooms
                 .state_cache
-                .is_joined(sender_user, &room_id)?,
+                .is_joined(sender_user, room_id)?,
             _ => false,
         };
 
@@ -481,17 +481,14 @@ impl Service {
         match join_rule {
             JoinRule::Restricted(r) => {
                 for rule in &r.allow {
-                    match rule {
-                        join_rules::AllowRule::RoomMembership(rm) => {
-                            if let Ok(true) = services()
-                                .rooms
-                                .state_cache
-                                .is_joined(sender_user, &rm.room_id)
-                            {
-                                return Ok(true);
-                            }
+                    if let join_rules::AllowRule::RoomMembership(rm) = rule {
+                        if let Ok(true) = services()
+                            .rooms
+                            .state_cache
+                            .is_joined(sender_user, &rm.room_id)
+                        {
+                            return Ok(true);
                         }
-                        _ => {}
                     }
                 }
 

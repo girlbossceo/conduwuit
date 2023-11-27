@@ -35,19 +35,19 @@ impl Service {
             .db
             .create_file_metadata(mxc, 0, 0, content_disposition, content_type)?;
 
-        let path: std::path::PathBuf;
-        if cfg!(feature = "sha256_media") {
-            path = services().globals.get_media_file_new(&key);
+        let path = if cfg!(feature = "sha256_media") {
+            services().globals.get_media_file_new(&key)
         } else {
-            path = services().globals.get_media_file(&key);
-        }
+            #[allow(deprecated)]
+            services().globals.get_media_file(&key)
+        };
+
         let mut f = File::create(path).await?;
         f.write_all(file).await?;
         Ok(())
     }
 
     /// Uploads or replaces a file thumbnail.
-    #[allow(clippy::too_many_arguments)]
     pub async fn upload_thumbnail(
         &self,
         mxc: String,
@@ -61,12 +61,13 @@ impl Service {
             self.db
                 .create_file_metadata(mxc, width, height, content_disposition, content_type)?;
 
-        let path: std::path::PathBuf;
-        if cfg!(feature = "sha256_media") {
-            path = services().globals.get_media_file_new(&key);
+        let path = if cfg!(feature = "sha256_media") {
+            services().globals.get_media_file_new(&key)
         } else {
-            path = services().globals.get_media_file(&key);
-        }
+            #[allow(deprecated)]
+            services().globals.get_media_file(&key)
+        };
+
         let mut f = File::create(path).await?;
         f.write_all(file).await?;
 
@@ -78,12 +79,13 @@ impl Service {
         if let Ok((content_disposition, content_type, key)) =
             self.db.search_file_metadata(mxc, 0, 0)
         {
-            let path: std::path::PathBuf;
-            if cfg!(feature = "sha256_media") {
-                path = services().globals.get_media_file_new(&key);
+            let path = if cfg!(feature = "sha256_media") {
+                services().globals.get_media_file_new(&key)
             } else {
-                path = services().globals.get_media_file(&key);
-            }
+                #[allow(deprecated)]
+                services().globals.get_media_file(&key)
+            };
+
             let mut file = Vec::new();
             BufReader::new(File::open(path).await?)
                 .read_to_end(&mut file)
@@ -136,12 +138,13 @@ impl Service {
             self.db.search_file_metadata(mxc.clone(), width, height)
         {
             // Using saved thumbnail
-            let path: std::path::PathBuf;
-            if cfg!(feature = "sha256_media") {
-                path = services().globals.get_media_file_new(&key);
+            let path = if cfg!(feature = "sha256_media") {
+                services().globals.get_media_file_new(&key)
             } else {
-                path = services().globals.get_media_file(&key);
-            }
+                #[allow(deprecated)]
+                services().globals.get_media_file(&key)
+            };
+
             let mut file = Vec::new();
             File::open(path).await?.read_to_end(&mut file).await?;
 
@@ -154,12 +157,13 @@ impl Service {
             self.db.search_file_metadata(mxc.clone(), 0, 0)
         {
             // Generate a thumbnail
-            let path: std::path::PathBuf;
-            if cfg!(feature = "sha256_media") {
-                path = services().globals.get_media_file_new(&key);
+            let path = if cfg!(feature = "sha256_media") {
+                services().globals.get_media_file_new(&key)
             } else {
-                path = services().globals.get_media_file(&key);
-            }
+                #[allow(deprecated)]
+                services().globals.get_media_file(&key)
+            };
+
             let mut file = Vec::new();
             File::open(path).await?.read_to_end(&mut file).await?;
 
@@ -229,12 +233,13 @@ impl Service {
                     content_type.as_deref(),
                 )?;
 
-                let path: std::path::PathBuf;
-                if cfg!(feature = "sha256_media") {
-                    path = services().globals.get_media_file_new(&thumbnail_key);
+                let path = if cfg!(feature = "sha256_media") {
+                    services().globals.get_media_file_new(&thumbnail_key)
                 } else {
-                    path = services().globals.get_media_file(&thumbnail_key);
-                }
+                    #[allow(deprecated)]
+                    services().globals.get_media_file(&thumbnail_key)
+                };
+
                 let mut f = File::create(path).await?;
                 f.write_all(&thumbnail_bytes).await?;
 
@@ -337,7 +342,7 @@ mod tests {
         // r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));
         // use the sha256 hash of the key as the file name instead of the key itself
         // this is because the base64 encoded key can be longer than 255 characters.
-        r.push(general_purpose::URL_SAFE_NO_PAD.encode(sha2::Sha256::digest(&key)));
+        r.push(general_purpose::URL_SAFE_NO_PAD.encode(sha2::Sha256::digest(key)));
         // Check that the file path is not longer than 255 characters
         // (255 is the maximum length of a file path on most file systems)
         assert!(

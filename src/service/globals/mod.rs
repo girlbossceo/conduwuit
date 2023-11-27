@@ -164,7 +164,7 @@ impl Service {
             .dns_resolver(Arc::new(Resolver::new(Box::new(move |domain| {
                 let read_guard = name_override.read().unwrap();
                 let (override_name, port) = read_guard.get(domain)?;
-                let first_name = override_name.get(0)?;
+                let first_name = override_name.first()?;
                 Some(SocketAddr::new(*first_name, *port))
             }))))
             .build()?;

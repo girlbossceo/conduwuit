@@ -182,7 +182,7 @@ fn process_presence_timer(user_id: OwnedUserId) -> Result<()> {
         }
     }
 
-    let new_state = match (&presence_state, last_active_ago.map(|ago| u64::from(ago))) {
+    let new_state = match (&presence_state, last_active_ago.map(u64::from)) {
         (PresenceState::Online, Some(ago)) if ago >= idle_timeout => {
             Some(PresenceState::Unavailable)
         }

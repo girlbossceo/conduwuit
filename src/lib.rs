@@ -4,7 +4,6 @@
     clippy::cloned_instead_of_copied,
     clippy::str_to_string
 )]
-#![allow(clippy::suspicious_else_formatting)]
 #![deny(clippy::dbg_macro)]
 
 pub mod api;

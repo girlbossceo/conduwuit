@@ -5,6 +5,8 @@ use std::{
     time::Instant,
 };
 
+use std::fmt::Write;
+
 use clap::{Parser, Subcommand};
 use regex::Regex;
 use ruma::{
@@ -27,7 +29,7 @@ use ruma::{
     EventId, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::sync::{mpsc, Mutex, MutexGuard};
+use tokio::sync::{mpsc, Mutex};
 
 use crate::{
     api::client_server::{leave_all_rooms, AUTO_GEN_PASSWORD_LENGTH},
@@ -194,19 +196,19 @@ enum RoomAliasCommand {
         room_id: Box<RoomId>,
 
         /// The alias localpart to use (`alias`, not `#alias:servername.tld`)
-        room_alias_localpart: Box<String>,
+        room_alias_localpart: String,
     },
 
     /// Remove an alias
     Remove {
         /// The alias localpart to remove (`alias`, not `#alias:servername.tld`)
-        room_alias_localpart: Box<String>,
+        room_alias_localpart: String,
     },
 
     /// Show which room is using an alias
     Which {
         /// The alias localpart to look up (`alias`, not `#alias:servername.tld`)
-        room_alias_localpart: Box<String>,
+        room_alias_localpart: String,
     },
 
     /// List aliases currently being used
@@ -802,13 +804,12 @@ impl Service {
                         "<table><caption>Room list - page {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
                         rooms
                             .iter()
-                            .map(|(id, members, name)| format!(
-                                "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>\n",
-                                escape_html(&id.to_string()),
+                            .fold(String::new(), |mut output, (id, members, name)| {
+                                writeln!(output, "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>", escape_html(id.as_ref()),
                                 members,
-                                escape_html(name),
-                            ))
-                            .collect::<String>()
+                                escape_html(name)).unwrap();
+                                output
+                            })
                     );
                     RoomMessageEventContent::text_html(output_plain, output_html)
                 }
@@ -886,7 +887,7 @@ impl Service {
                                     Ok(None) => {
                                         RoomMessageEventContent::text_plain("Alias isn't in use.")
                                     }
-                                    Err(err) => RoomMessageEventContent::text_plain(&format!(
+                                    Err(err) => RoomMessageEventContent::text_plain(format!(
                                         "Unable to lookup alias: {}",
                                         err
                                     )),
@@ -904,27 +905,29 @@ impl Service {
                                 .collect();
                             match aliases {
                                 Ok(aliases) => {
-                                    let plain_list: String = aliases
-                                        .iter()
-                                        .map(|alias| format!("- {}\n", alias))
-                                        .collect();
+                                    let plain_list: String =
+                                        aliases.iter().fold(String::new(), |mut output, alias| {
+                                            writeln!(output, "- {}", alias).unwrap();
+                                            output
+                                        });
 
-                                    let html_list: String = aliases
-                                        .iter()
-                                        .map(|alias| {
-                                            format!(
-                                                "<li>{}</li>\n",
-                                                escape_html(&alias.to_string())
+                                    let html_list: String =
+                                        aliases.iter().fold(String::new(), |mut output, alias| {
+                                            writeln!(
+                                                output,
+                                                "<li>{}</li>",
+                                                escape_html(alias.as_ref())
                                             )
-                                        })
-                                        .collect();
+                                            .unwrap();
+                                            output
+                                        });
 
                                     let plain = format!("Aliases for {}:\n{}", room_id, plain_list);
                                     let html =
                                         format!("Aliases for {}:\n<ul>{}</ul>", room_id, html_list);
                                     RoomMessageEventContent::text_html(plain, html)
                                 }
-                                Err(err) => RoomMessageEventContent::text_plain(&format!(
+                                Err(err) => RoomMessageEventContent::text_plain(format!(
                                     "Unable to list aliases: {}",
                                     err
                                 )),
@@ -936,30 +939,39 @@ impl Service {
                             match aliases {
                                 Ok(aliases) => {
                                     let server_name = services().globals.server_name();
-                                    let plain_list: String = aliases
-                                        .iter()
-                                        .map(|(id, alias)| {
-                                            format!("- #{}:{} -> {}\n", alias, server_name, id)
-                                        })
-                                        .collect();
-
-                                    let html_list: String = aliases
-                                        .iter()
-                                        .map(|(id, alias)| {
-                                            format!(
-                                                "<li>#{}:{} -> {}</li>\n",
-                                                escape_html(&alias.to_string()),
-                                                server_name,
-                                                escape_html(&id.to_string())
+                                    let plain_list: String = aliases.iter().fold(
+                                        String::new(),
+                                        |mut output, (alias, id)| {
+                                            writeln!(
+                                                output,
+                                                "- #{}:{} -> {}",
+                                                alias, server_name, id
                                             )
-                                        })
-                                        .collect();
+                                            .unwrap();
+                                            output
+                                        },
+                                    );
+
+                                    let html_list: String = aliases.iter().fold(
+                                        String::new(),
+                                        |mut output, (alias, id)| {
+                                            writeln!(
+                                                output,
+                                                "<li>#{}:{} -> {}</li>",
+                                                escape_html(alias.as_ref()),
+                                                server_name,
+                                                escape_html(id.as_ref())
+                                            )
+                                            .unwrap();
+                                            output
+                                        },
+                                    );
 
                                     let plain = format!("Aliases:\n{}", plain_list);
                                     let html = format!("Aliases:\n<ul>{}</ul>", html_list);
                                     RoomMessageEventContent::text_html(plain, html)
                                 }
-                                Err(err) => RoomMessageEventContent::text_plain(&format!(
+                                Err(err) => RoomMessageEventContent::text_plain(format!(
                                     "Unable to list aliases: {}",
                                     err
                                 )),
@@ -971,7 +983,7 @@ impl Service {
                     RoomDirectoryCommand::Publish { room_id } => {
                         match services().rooms.directory.set_public(&room_id) {
                             Ok(()) => RoomMessageEventContent::text_plain("Room published"),
-                            Err(err) => RoomMessageEventContent::text_plain(&format!(
+                            Err(err) => RoomMessageEventContent::text_plain(format!(
                                 "Unable to update room: {}",
                                 err
                             )),
@@ -980,7 +992,7 @@ impl Service {
                     RoomDirectoryCommand::Unpublish { room_id } => {
                         match services().rooms.directory.set_not_public(&room_id) {
                             Ok(()) => RoomMessageEventContent::text_plain("Room unpublished"),
-                            Err(err) => RoomMessageEventContent::text_plain(&format!(
+                            Err(err) => RoomMessageEventContent::text_plain(format!(
                                 "Unable to update room: {}",
                                 err
                             )),
@@ -1023,13 +1035,10 @@ impl Service {
                             "<table><caption>Room directory - page {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
                             rooms
                                 .iter()
-                                .map(|(id, members, name)| format!(
-                                    "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>\n",
-                                    escape_html(&id.to_string()),
-                                    members,
-                                    escape_html(name),
-                                ))
-                                .collect::<String>()
+                                .fold(String::new(), |mut output, (id, members, name)| {
+                                    writeln!(output, "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>", escape_html(id.as_ref()), members, escape_html(name.as_ref())).unwrap();
+                                    output
+                                })
                         );
                         RoomMessageEventContent::text_html(output_plain, output_html)
                     }

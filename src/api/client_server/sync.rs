@@ -24,6 +24,7 @@ use ruma::{
     uint, DeviceId, OwnedDeviceId, OwnedUserId, RoomId, UInt, UserId,
 };
 use std::{
+    cmp::Ordering,
     collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
     sync::Arc,
     time::Duration,
@@ -573,6 +574,7 @@ async fn process_room_presence_updates(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn load_joined_room(
     sender_user: &UserId,
     sender_device: &DeviceId,
@@ -609,7 +611,7 @@ async fn load_joined_room(
         || services()
             .rooms
             .user
-            .last_notification_read(&sender_user, &room_id)?
+            .last_notification_read(sender_user, room_id)?
             > since;
 
     let mut timeline_users = HashSet::new();
@@ -618,16 +620,16 @@ async fn load_joined_room(
     }
 
     services().rooms.lazy_loading.lazy_load_confirm_delivery(
-        &sender_user,
-        &sender_device,
-        &room_id,
+        sender_user,
+        sender_device,
+        room_id,
         sincecount,
     )?;
 
     // Database queries:
 
     let current_shortstatehash =
-        if let Some(s) = services().rooms.state.get_room_shortstatehash(&room_id)? {
+        if let Some(s) = services().rooms.state.get_room_shortstatehash(room_id)? {
             s
         } else {
             error!("Room {} has no state", room_id);
@@ -637,7 +639,7 @@ async fn load_joined_room(
     let since_shortstatehash = services()
         .rooms
         .user
-        .get_token_shortstatehash(&room_id, since)?;
+        .get_token_shortstatehash(room_id, since)?;
 
     let (heroes, joined_member_count, invited_member_count, joined_since_last_sync, state_events) =
         if timeline_pdus.is_empty() && since_shortstatehash == Some(current_shortstatehash) {
@@ -649,12 +651,12 @@ async fn load_joined_room(
                 let joined_member_count = services()
                     .rooms
                     .state_cache
-                    .room_joined_count(&room_id)?
+                    .room_joined_count(room_id)?
                     .unwrap_or(0);
                 let invited_member_count = services()
                     .rooms
                     .state_cache
-                    .room_invited_count(&room_id)?
+                    .room_invited_count(room_id)?
                     .unwrap_or(0);
 
                 // Recalculate heroes (first 5 members)
@@ -667,7 +669,7 @@ async fn load_joined_room(
                     for hero in services()
                         .rooms
                         .timeline
-                        .all_pdus(&sender_user, &room_id)?
+                        .all_pdus(sender_user, room_id)?
                         .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
                         .filter(|(_, pdu)| pdu.kind == TimelineEventType::RoomMember)
                         .map(|(_, pdu)| {
@@ -688,11 +690,11 @@ async fn load_joined_room(
                                 ) && (services()
                                     .rooms
                                     .state_cache
-                                    .is_joined(&user_id, &room_id)?
+                                    .is_joined(&user_id, room_id)?
                                     || services()
                                         .rooms
                                         .state_cache
-                                        .is_invited(&user_id, &room_id)?)
+                                        .is_invited(&user_id, room_id)?)
                                 {
                                     Ok::<_, Error>(Some(state_key.clone()))
                                 } else {
@@ -808,17 +810,17 @@ async fn load_joined_room(
 
                 // Reset lazy loading because this is an initial sync
                 services().rooms.lazy_loading.lazy_load_reset(
-                    &sender_user,
-                    &sender_device,
-                    &room_id,
+                    sender_user,
+                    sender_device,
+                    room_id,
                 )?;
 
                 // The state_events above should contain all timeline_users, let's mark them as lazy
                 // loaded.
                 services().rooms.lazy_loading.lazy_load_mark_sent(
-                    &sender_user,
-                    &sender_device,
-                    &room_id,
+                    sender_user,
+                    sender_device,
+                    room_id,
                     lazy_loaded,
                     next_batchcount,
                 );
@@ -885,14 +887,14 @@ async fn load_joined_room(
                     }
 
                     if !services().rooms.lazy_loading.lazy_load_was_sent_before(
-                        &sender_user,
-                        &sender_device,
-                        &room_id,
+                        sender_user,
+                        sender_device,
+                        room_id,
                         &event.sender,
                     )? || lazy_load_send_redundant
                     {
                         if let Some(member_event) = services().rooms.state_accessor.room_state_get(
-                            &room_id,
+                            room_id,
                             &StateEventType::RoomMember,
                             event.sender.as_str(),
                         )? {
@@ -903,9 +905,9 @@ async fn load_joined_room(
                 }
 
                 services().rooms.lazy_loading.lazy_load_mark_sent(
-                    &sender_user,
-                    &sender_device,
-                    &room_id,
+                    sender_user,
+                    sender_device,
+                    room_id,
                     lazy_loaded,
                     next_batchcount,
                 );
@@ -953,7 +955,7 @@ async fn load_joined_room(
                             match new_membership {
                                 MembershipState::Join => {
                                     // A new user joined an encrypted room
-                                    if !share_encrypted_room(&sender_user, &user_id, &room_id)? {
+                                    if !share_encrypted_room(sender_user, &user_id, room_id)? {
                                         device_list_updates.insert(user_id);
                                     }
                                 }
@@ -973,15 +975,15 @@ async fn load_joined_room(
                         services()
                             .rooms
                             .state_cache
-                            .room_members(&room_id)
+                            .room_members(room_id)
                             .flatten()
                             .filter(|user_id| {
                                 // Don't send key updates from the sender to the sender
-                                &sender_user != user_id
+                                sender_user != user_id
                             })
                             .filter(|user_id| {
                                 // Only send keys if the sender doesn't share an encrypted room with the target already
-                                !share_encrypted_room(&sender_user, user_id, &room_id)
+                                !share_encrypted_room(sender_user, user_id, room_id)
                                     .unwrap_or(false)
                             }),
                     );
@@ -1016,7 +1018,7 @@ async fn load_joined_room(
             services()
                 .rooms
                 .user
-                .notification_count(&sender_user, &room_id)?
+                .notification_count(sender_user, room_id)?
                 .try_into()
                 .expect("notification count can't go that high"),
         )
@@ -1029,7 +1031,7 @@ async fn load_joined_room(
             services()
                 .rooms
                 .user
-                .highlight_count(&sender_user, &room_id)?
+                .highlight_count(sender_user, room_id)?
                 .try_into()
                 .expect("highlight count can't go that high"),
         )
@@ -1058,15 +1060,15 @@ async fn load_joined_room(
         .rooms
         .edus
         .read_receipt
-        .readreceipts_since(&room_id, since)
+        .readreceipts_since(room_id, since)
         .filter_map(|r| r.ok()) // Filter out buggy events
         .map(|(_, _, v)| v)
         .collect();
 
-    if services().rooms.edus.typing.last_typing_update(&room_id)? > since {
+    if services().rooms.edus.typing.last_typing_update(room_id)? > since {
         edus.push(
             serde_json::from_str(
-                &serde_json::to_string(&services().rooms.edus.typing.typings_all(&room_id)?)
+                &serde_json::to_string(&services().rooms.edus.typing.typings_all(room_id)?)
                     .expect("event is valid, we just created it"),
             )
             .expect("event is valid, we just created it"),
@@ -1075,7 +1077,7 @@ async fn load_joined_room(
 
     // Save the state after this sync so we can send the correct state diff next sync
     services().rooms.user.associate_token_shortstatehash(
-        &room_id,
+        room_id,
         next_batch,
         current_shortstatehash,
     )?;
@@ -1084,7 +1086,7 @@ async fn load_joined_room(
         account_data: RoomAccountData {
             events: services()
                 .account_data
-                .changes_since(Some(&room_id), &sender_user, since)?
+                .changes_since(Some(room_id), sender_user, since)?
                 .into_iter()
                 .filter_map(|(_, v)| {
                     serde_json::from_str(v.json().get())
@@ -1129,13 +1131,13 @@ fn load_timeline(
     if services()
         .rooms
         .timeline
-        .last_timeline_count(&sender_user, &room_id)?
+        .last_timeline_count(sender_user, room_id)?
         > roomsincecount
     {
         let mut non_timeline_pdus = services()
             .rooms
             .timeline
-            .pdus_until(&sender_user, &room_id, PduCount::max())?
+            .pdus_until(sender_user, room_id, PduCount::max())?
             .filter_map(|r| {
                 // Filter out buggy events
                 if r.is_err() {
@@ -1250,7 +1252,7 @@ pub async fn sync_events_v4_route(
 
         for room_id in &all_joined_rooms {
             let current_shortstatehash =
-                if let Some(s) = services().rooms.state.get_room_shortstatehash(&room_id)? {
+                if let Some(s) = services().rooms.state.get_room_shortstatehash(room_id)? {
                     s
                 } else {
                     error!("Room {} has no state", room_id);
@@ -1260,7 +1262,7 @@ pub async fn sync_events_v4_route(
             let since_shortstatehash = services()
                 .rooms
                 .user
-                .get_token_shortstatehash(&room_id, globalsince)?;
+                .get_token_shortstatehash(room_id, globalsince)?;
 
             let since_sender_member: Option<RoomMemberEventContent> = since_shortstatehash
                 .and_then(|shortstatehash| {
@@ -1349,7 +1351,7 @@ pub async fn sync_events_v4_route(
                                             if !share_encrypted_room(
                                                 &sender_user,
                                                 &user_id,
-                                                &room_id,
+                                                room_id,
                                             )? {
                                                 device_list_changes.insert(user_id);
                                             }
@@ -1370,7 +1372,7 @@ pub async fn sync_events_v4_route(
                             services()
                                 .rooms
                                 .state_cache
-                                .room_members(&room_id)
+                                .room_members(room_id)
                                 .flatten()
                                 .filter(|user_id| {
                                     // Don't send key updates from the sender to the sender
@@ -1378,7 +1380,7 @@ pub async fn sync_events_v4_route(
                                 })
                                 .filter(|user_id| {
                                     // Only send keys if the sender doesn't share an encrypted room with the target already
-                                    !share_encrypted_room(&sender_user, user_id, &room_id)
+                                    !share_encrypted_room(&sender_user, user_id, room_id)
                                         .unwrap_or(false)
                                 }),
                         );
@@ -1469,7 +1471,7 @@ pub async fn sync_events_v4_route(
                         }
                         sync_events::v4::SyncOp {
                             op: SlidingOp::Sync,
-                            range: Some(r.clone()),
+                            range: Some(r),
                             index: None,
                             room_ids,
                             room_id: None,
@@ -1541,7 +1543,7 @@ pub async fn sync_events_v4_route(
         let roomsincecount = PduCount::Normal(*roomsince);
 
         let (timeline_pdus, limited) =
-            load_timeline(&sender_user, &room_id, roomsincecount, *timeline_limit)?;
+            load_timeline(&sender_user, room_id, roomsincecount, *timeline_limit)?;
 
         if roomsince != &0 && timeline_pdus.is_empty() {
             continue;
@@ -1577,10 +1579,10 @@ pub async fn sync_events_v4_route(
                 services()
                     .rooms
                     .state_accessor
-                    .room_state_get(&room_id, &state.0, &state.1)
+                    .room_state_get(room_id, &state.0, &state.1)
             })
             .filter_map(|r| r.ok())
-            .filter_map(|o| o)
+            .flatten()
             .map(|state| state.to_sync_state_event())
             .collect();
 
@@ -1588,7 +1590,7 @@ pub async fn sync_events_v4_route(
         let heroes = services()
             .rooms
             .state_cache
-            .room_members(&room_id)
+            .room_members(room_id)
             .filter_map(|r| r.ok())
             .filter(|member| member != &sender_user)
             .map(|member| {
@@ -1596,7 +1598,7 @@ pub async fn sync_events_v4_route(
                     services()
                         .rooms
                         .state_accessor
-                        .get_member(&room_id, &member)?
+                        .get_member(room_id, &member)?
                         .map(|memberevent| {
                             (
                                 memberevent
@@ -1608,24 +1610,24 @@ pub async fn sync_events_v4_route(
                 )
             })
             .filter_map(|r| r.ok())
-            .filter_map(|o| o)
+            .flatten()
             .take(5)
             .collect::<Vec<_>>();
-        let name = if heroes.len() > 1 {
-            let last = heroes[0].0.clone();
-            Some(
-                heroes[1..]
-                    .iter()
-                    .map(|h| h.0.clone())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-                    + " and "
-                    + &last,
-            )
-        } else if heroes.len() == 1 {
-            Some(heroes[0].0.clone())
-        } else {
-            None
+        let name = match heroes.len().cmp(&(1_usize)) {
+            Ordering::Greater => {
+                let last = heroes[0].0.clone();
+                Some(
+                    heroes[1..]
+                        .iter()
+                        .map(|h| h.0.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                        + " and "
+                        + &last,
+                )
+            }
+            Ordering::Equal => Some(heroes[0].0.clone()),
+            Ordering::Less => None,
         };
 
         let avatar = if heroes.len() == 1 {
@@ -1637,15 +1639,11 @@ pub async fn sync_events_v4_route(
         rooms.insert(
             room_id.clone(),
             sync_events::v4::SlidingSyncRoom {
-                name: services()
-                    .rooms
-                    .state_accessor
-                    .get_name(&room_id)?
-                    .or_else(|| name),
+                name: services().rooms.state_accessor.get_name(room_id)?.or(name),
                 avatar: services()
                     .rooms
                     .state_accessor
-                    .get_avatar(&room_id)?
+                    .get_avatar(room_id)?
                     .map_or(avatar, |a| a.url),
                 initial: Some(roomsince == &0),
                 is_dm: None,
@@ -1655,7 +1653,7 @@ pub async fn sync_events_v4_route(
                         services()
                             .rooms
                             .user
-                            .highlight_count(&sender_user, &room_id)?
+                            .highlight_count(&sender_user, room_id)?
                             .try_into()
                             .expect("notification count can't go that high"),
                     ),
@@ -1663,7 +1661,7 @@ pub async fn sync_events_v4_route(
                         services()
                             .rooms
                             .user
-                            .notification_count(&sender_user, &room_id)?
+                            .notification_count(&sender_user, room_id)?
                             .try_into()
                             .expect("notification count can't go that high"),
                     ),
@@ -1676,7 +1674,7 @@ pub async fn sync_events_v4_route(
                     (services()
                         .rooms
                         .state_cache
-                        .room_joined_count(&room_id)?
+                        .room_joined_count(room_id)?
                         .unwrap_or(0) as u32)
                         .into(),
                 ),
@@ -1684,7 +1682,7 @@ pub async fn sync_events_v4_route(
                     (services()
                         .rooms
                         .state_cache
-                        .room_invited_count(&room_id)?
+                        .room_invited_count(room_id)?
                         .unwrap_or(0) as u32)
                         .into(),
                 ),

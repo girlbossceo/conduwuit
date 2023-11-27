@@ -1,4 +1,5 @@
 #![allow(deprecated)]
+// Conduit implements the older APIs
 
 use crate::{
     api::client_server::{self, claim_keys_helper, get_keys_helper},
@@ -520,7 +521,7 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
         services()
             .globals
             .dns_resolver()
-            .srv_lookup(format!("{}", hostname))
+            .srv_lookup(hostname.to_owned())
             .await
     }
 
@@ -724,7 +725,7 @@ pub fn parse_incoming_pdu(
 
     let room_version_id = services().rooms.state.get_room_version(&room_id)?;
 
-    let (event_id, value) = match gen_event_id_canonical_json(&pdu, &room_version_id) {
+    let (event_id, value) = match gen_event_id_canonical_json(pdu, &room_version_id) {
         Ok(t) => t,
         Err(_) => {
             // Event could not be converted to canonical json
@@ -783,7 +784,7 @@ pub async fn send_transaction_message_route(
             continue;
         }
 
-        let r = parse_incoming_pdu(&pdu);
+        let r = parse_incoming_pdu(pdu);
         let (event_id, value, room_id) = match r {
             Ok(t) => t,
             Err(e) => {
@@ -1088,7 +1089,7 @@ pub async fn get_event_route(
 
     if !services().rooms.state_accessor.server_can_see_event(
         sender_servername,
-        &room_id,
+        room_id,
         &body.event_id,
     )? {
         return Err(Error::BadRequest(
@@ -1154,7 +1155,7 @@ pub async fn get_backfill_route(
     let all_events = services()
         .rooms
         .timeline
-        .pdus_until(&user_id!("@doesntmatter:conduit.rs"), &body.room_id, until)?
+        .pdus_until(user_id!("@doesntmatter:conduit.rs"), &body.room_id, until)?
         .take(limit.try_into().unwrap());
 
     let events = all_events
@@ -1171,7 +1172,7 @@ pub async fn get_backfill_route(
         })
         .map(|(_, pdu)| services().rooms.timeline.get_pdu_json(&pdu.event_id))
         .filter_map(|r| r.ok().flatten())
-        .map(|pdu| PduEvent::convert_to_outgoing_federation_event(pdu))
+        .map(PduEvent::convert_to_outgoing_federation_event)
         .collect();
 
     Ok(get_backfill::v1::Response {
@@ -1917,7 +1918,7 @@ pub async fn get_devices_route(
             .all_devices_metadata(&body.user_id)
             .filter_map(|r| r.ok())
             .filter_map(|metadata| {
-                let device_id_string = metadata.device_id.as_str().to_string();
+                let device_id_string = metadata.device_id.as_str().to_owned();
                 let device_display_name = match services().globals.allow_device_name_federation() {
                     true => metadata.display_name,
                     false => Some(device_id_string.to_string()),
@@ -1928,7 +1929,7 @@ pub async fn get_devices_route(
                         .get_device_keys(&body.user_id, &metadata.device_id)
                         .ok()??,
                     device_id: metadata.device_id,
-                    device_display_name: device_display_name,
+                    device_display_name,
                 })
             })
             .collect(),

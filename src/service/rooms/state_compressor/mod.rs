@@ -164,7 +164,7 @@ impl Service {
             for removed in statediffremoved.iter() {
                 if !parent_new.remove(removed) {
                     // It was not added in the parent and we removed it
-                    parent_removed.insert(removed.clone());
+                    parent_removed.insert(*removed);
                 }
                 // Else it was added in the parent and we removed it again. We can forget this change
             }
@@ -172,7 +172,7 @@ impl Service {
             for new in statediffnew.iter() {
                 if !parent_removed.remove(new) {
                     // It was not touched in the parent and we added it
-                    parent_new.insert(new.clone());
+                    parent_new.insert(*new);
                 }
                 // Else it was removed in the parent and we added it again. We can forget this change
             }
@@ -217,7 +217,7 @@ impl Service {
             for removed in statediffremoved.iter() {
                 if !parent_new.remove(removed) {
                     // It was not added in the parent and we removed it
-                    parent_removed.insert(removed.clone());
+                    parent_removed.insert(*removed);
                 }
                 // Else it was added in the parent and we removed it again. We can forget this change
             }
@@ -225,7 +225,7 @@ impl Service {
             for new in statediffnew.iter() {
                 if !parent_removed.remove(new) {
                     // It was not touched in the parent and we added it
-                    parent_new.insert(new.clone());
+                    parent_new.insert(*new);
                 }
                 // Else it was removed in the parent and we added it again. We can forget this change
             }

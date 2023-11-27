@@ -139,10 +139,10 @@ impl Service {
 
         cached
             .subscriptions
-            .extend(request.room_subscriptions.clone().into_iter());
+            .extend(request.room_subscriptions.clone());
         request
             .room_subscriptions
-            .extend(cached.subscriptions.clone().into_iter());
+            .extend(cached.subscriptions.clone());
 
         request.extensions.e2ee.enabled = request
             .extensions

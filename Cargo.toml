@@ -117,7 +117,7 @@ js_option = "0.1"
 nix = { version = "0.26.2", features = ["resource"] }
 
 [features]
-default = ["conduit_bin", "backend_sqlite", "backend_rocksdb", "systemd", "zstd_compression"]
+default = ["conduit_bin", "backend_rocksdb", "systemd", "zstd_compression"]
 #backend_sled = ["sled"]
 backend_persy = ["persy", "parking_lot"]
 backend_sqlite = ["sqlite"]
@@ -132,6 +132,7 @@ zstd_compression = []
 #brotli_compression = ["tower-http/compression-br"]
 #compression = ["tower-http/compression-full"]
 sha256_media = []
+io_uring = ["rocksdb/io-uring"]
 
 [[bin]]
 name = "conduit"

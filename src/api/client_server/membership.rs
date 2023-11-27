@@ -412,7 +412,7 @@ pub async fn get_member_events_route(
     if !services()
         .rooms
         .state_accessor
-        .user_can_see_state_events(&sender_user, &body.room_id)?
+        .user_can_see_state_events(sender_user, &body.room_id)?
     {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
@@ -447,7 +447,7 @@ pub async fn joined_members_route(
     if !services()
         .rooms
         .state_accessor
-        .user_can_see_state_events(&sender_user, &body.room_id)?
+        .user_can_see_state_events(sender_user, &body.room_id)?
     {
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
