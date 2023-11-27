@@ -944,8 +944,8 @@ impl Service {
                                         |mut output, (alias, id)| {
                                             writeln!(
                                                 output,
-                                                "- #{}:{} -> {}",
-                                                alias, server_name, id
+                                                "- `#{}` -> #{}:{}",
+                                                alias, id, server_name
                                             )
                                             .unwrap();
                                             output
@@ -957,10 +957,10 @@ impl Service {
                                         |mut output, (alias, id)| {
                                             writeln!(
                                                 output,
-                                                "<li>#{}:{} -> {}</li>",
+                                                "<li><code>#{}</code> -> #{}:{}</li>",
                                                 escape_html(alias.as_ref()),
-                                                server_name,
-                                                escape_html(id.as_ref())
+                                                escape_html(id.as_ref()),
+                                                server_name
                                             )
                                             .unwrap();
                                             output
@@ -972,7 +972,7 @@ impl Service {
                                     RoomMessageEventContent::text_html(plain, html)
                                 }
                                 Err(err) => RoomMessageEventContent::text_plain(format!(
-                                    "Unable to list aliases: {}",
+                                    "Unable to list room aliases: {}",
                                     err
                                 )),
                             }
