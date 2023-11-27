@@ -85,6 +85,7 @@ impl Service {
         }
 
         if services().rooms.metadata.is_disabled(room_id)? {
+            info!("Federaton of room {room_id} is currently disabled on this server. Request by origin {origin} and event ID {event_id}");
             return Err(Error::BadRequest(
                 ErrorKind::Forbidden,
                 "Federation of this room is currently disabled on this server.",
@@ -157,6 +158,7 @@ impl Service {
         for prev_id in sorted_prev_events {
             // Check for disabled again because it might have changed
             if services().rooms.metadata.is_disabled(room_id)? {
+                info!("Federaton of room {room_id} is currently disabled on this server. Request by origin {origin} and event ID {event_id}");
                 return Err(Error::BadRequest(
                     ErrorKind::Forbidden,
                     "Federation of this room is currently disabled on this server.",

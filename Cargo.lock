@@ -1362,7 +1362,6 @@ dependencies = [
  "libc",
  "libz-sys",
  "lz4-sys",
- "pkg-config",
  "zstd-sys",
 ]
 

@@ -383,6 +383,7 @@ impl PartialEq for PduEvent {
         self.event_id == other.event_id
     }
 }
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl PartialOrd for PduEvent {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.event_id.partial_cmp(&other.event_id)
