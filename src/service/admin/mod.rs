@@ -944,7 +944,7 @@ impl Service {
                                         |mut output, (alias, id)| {
                                             writeln!(
                                                 output,
-                                                "- `#{}` -> #{}:{}",
+                                                "- `{}` -> #{}:{}",
                                                 alias, id, server_name
                                             )
                                             .unwrap();
@@ -957,7 +957,7 @@ impl Service {
                                         |mut output, (alias, id)| {
                                             writeln!(
                                                 output,
-                                                "<li><code>#{}</code> -> #{}:{}</li>",
+                                                "<li><code>{}</code> -> #{}:{}</li>",
                                                 escape_html(alias.as_ref()),
                                                 escape_html(id.as_ref()),
                                                 server_name
