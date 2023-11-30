@@ -1,14 +1,14 @@
 cargo-features = ["profile-rustflags"]
 
 [package]
-name = "cowonduit"
-description = "A Matrix homeserver written in Rust"
+name = "conduwuit"
+description = "a cool fork of Conduit, a Matrix homeserver written in Rust"
 license = "Apache-2.0"
-authors = ["timokoesters <timo@koesters.xyz>"]
-homepage = "https://conduit.rs"
-repository = "https://gitlab.com/famedly/conduit"
+authors = ["strawberry <strawberry@puppygock.gay>", "timokoesters <timo@koesters.xyz>"]
+homepage = "https://puppygock.gay/conduwuit"
+repository = "https://gitlab.com/girlbossceo/conduwuit"
 readme = "README.md"
-version = "4.2.0-6.9-barkbarkbark"
+version = "0.7.0-alpha+conduwuit-0.1.0"
 edition = "2021"
 
 # When changing this, make sure to update the `flake.lock` file by running
