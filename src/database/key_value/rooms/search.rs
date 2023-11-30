@@ -2,6 +2,8 @@ use ruma::RoomId;
 
 use crate::{database::KeyValueDatabase, service, services, utils, Result};
 
+type SearchPdusResult<'a> = Result<Option<(Box<dyn Iterator<Item = Vec<u8>> + 'a>, Vec<String>)>>;
+
 impl service::rooms::search::Data for KeyValueDatabase {
     fn index_pdu<'a>(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
         let mut batch = message_body
@@ -20,11 +22,7 @@ impl service::rooms::search::Data for KeyValueDatabase {
         self.tokenids.insert_batch(&mut batch)
     }
 
-    fn search_pdus<'a>(
-        &'a self,
-        room_id: &RoomId,
-        search_string: &str,
-    ) -> Result<Option<(Box<dyn Iterator<Item = Vec<u8>> + 'a>, Vec<String>)>> {
+    fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a> {
         let prefix = services()
             .rooms
             .short

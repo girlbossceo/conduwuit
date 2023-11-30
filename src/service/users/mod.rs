@@ -32,10 +32,12 @@ pub struct SlidingSyncCache {
     extensions: ExtensionsConfig,
 }
 
+type DbConnections =
+    Mutex<BTreeMap<(OwnedUserId, OwnedDeviceId, String), Arc<Mutex<SlidingSyncCache>>>>;
+
 pub struct Service {
     pub db: &'static dyn Data,
-    pub connections:
-        Mutex<BTreeMap<(OwnedUserId, OwnedDeviceId, String), Arc<Mutex<SlidingSyncCache>>>>,
+    pub connections: DbConnections,
 }
 
 impl Service {

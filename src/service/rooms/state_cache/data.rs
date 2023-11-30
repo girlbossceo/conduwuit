@@ -7,6 +7,12 @@ use ruma::{
     OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 
+type StrippedStateEventIter<'a> =
+    Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
+
+type AnySyncStateEventIter<'a> =
+    Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
+
 pub trait Data: Send + Sync {
     fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
     fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
@@ -78,10 +84,7 @@ pub trait Data: Send + Sync {
     ) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>;
 
     /// Returns an iterator over all rooms a user was invited to.
-    fn rooms_invited<'a>(
-        &'a self,
-        user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
+    fn rooms_invited<'a>(&'a self, user_id: &UserId) -> StrippedStateEventIter<'a>;
 
     fn invite_state(
         &self,
@@ -96,10 +99,7 @@ pub trait Data: Send + Sync {
     ) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>>;
 
     /// Returns an iterator over all rooms a user left.
-    fn rooms_left<'a>(
-        &'a self,
-        user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
+    fn rooms_left<'a>(&'a self, user_id: &UserId) -> AnySyncStateEventIter<'a>;
 
     fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool>;
 

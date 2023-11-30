@@ -4,14 +4,13 @@ use crate::Result;
 
 use super::{OutgoingKind, SendingEventType};
 
+type OutgoingSendingIter<'a> =
+    Box<dyn Iterator<Item = Result<(Vec<u8>, OutgoingKind, SendingEventType)>> + 'a>;
+type SendingEventTypeIter<'a> = Box<dyn Iterator<Item = Result<(Vec<u8>, SendingEventType)>> + 'a>;
+
 pub trait Data: Send + Sync {
-    fn active_requests<'a>(
-        &'a self,
-    ) -> Box<dyn Iterator<Item = Result<(Vec<u8>, OutgoingKind, SendingEventType)>> + 'a>;
-    fn active_requests_for<'a>(
-        &'a self,
-        outgoing_kind: &OutgoingKind,
-    ) -> Box<dyn Iterator<Item = Result<(Vec<u8>, SendingEventType)>> + 'a>;
+    fn active_requests(&self) -> OutgoingSendingIter<'_>;
+    fn active_requests_for(&self, outgoing_kind: &OutgoingKind) -> SendingEventTypeIter<'_>;
     fn delete_active_request(&self, key: Vec<u8>) -> Result<()>;
     fn delete_all_active_requests_for(&self, outgoing_kind: &OutgoingKind) -> Result<()>;
     fn delete_all_requests_for(&self, outgoing_kind: &OutgoingKind) -> Result<()>;

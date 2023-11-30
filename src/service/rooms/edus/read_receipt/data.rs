@@ -1,5 +1,12 @@
 use crate::Result;
-use ruma::{events::receipt::ReceiptEvent, serde::Raw, OwnedUserId, RoomId, UserId};
+use ruma::{
+    events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
+    serde::Raw,
+    OwnedUserId, RoomId, UserId,
+};
+
+type AnySyncEphemeralRoomEventIter<'a> =
+    Box<dyn Iterator<Item = Result<(OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>> + 'a>;
 
 pub trait Data: Send + Sync {
     /// Replaces the previous read receipt.
@@ -11,19 +18,8 @@ pub trait Data: Send + Sync {
     ) -> Result<()>;
 
     /// Returns an iterator over the most recent read_receipts in a room that happened after the event with id `since`.
-    fn readreceipts_since<'a>(
-        &'a self,
-        room_id: &RoomId,
-        since: u64,
-    ) -> Box<
-        dyn Iterator<
-                Item = Result<(
-                    OwnedUserId,
-                    u64,
-                    Raw<ruma::events::AnySyncEphemeralRoomEvent>,
-                )>,
-            > + 'a,
-    >;
+    fn readreceipts_since(&self, room_id: &RoomId, since: u64)
+        -> AnySyncEphemeralRoomEventIter<'_>;
 
     /// Sets a private read marker at `count`.
     fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -> Result<()>;

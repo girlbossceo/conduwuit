@@ -9,6 +9,12 @@ use ruma::{
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
+type StrippedStateEventIter<'a> =
+    Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
+
+type AnySyncStateEventIter<'a> =
+    Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
+
 impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
         let mut userroom_id = user_id.as_bytes().to_vec();
@@ -472,10 +478,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 
     /// Returns an iterator over all rooms a user was invited to.
     #[tracing::instrument(skip(self))]
-    fn rooms_invited<'a>(
-        &'a self,
-        user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a> {
+    fn rooms_invited<'a>(&'a self, user_id: &UserId) -> StrippedStateEventIter<'a> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 
@@ -550,10 +553,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 
     /// Returns an iterator over all rooms a user left.
     #[tracing::instrument(skip(self))]
-    fn rooms_left<'a>(
-        &'a self,
-        user_id: &UserId,
-    ) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a> {
+    fn rooms_left<'a>(&'a self, user_id: &UserId) -> AnySyncStateEventIter<'a> {
         let mut prefix = user_id.as_bytes().to_vec();
         prefix.push(0xff);
 

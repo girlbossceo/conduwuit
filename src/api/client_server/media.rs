@@ -50,8 +50,10 @@ pub async fn create_content_route(
         )
         .await?;
 
+    let content_uri = mxc.into();
+
     Ok(create_content::v3::Response {
-        content_uri: mxc.try_into()?,
+        content_uri,
         blurhash: None,
     })
 }

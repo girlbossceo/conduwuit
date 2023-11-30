@@ -40,6 +40,11 @@ use crate::{service::*, services, Error, PduEvent, Result};
 
 use super::state_compressor::CompressedStateEvent;
 
+type AsyncRecursiveCanonicalJsonVec<'a> =
+    AsyncRecursiveType<'a, Vec<(Arc<PduEvent>, Option<BTreeMap<String, CanonicalJsonValue>>)>>;
+type AsyncRecursiveCanonicalJsonResult<'a> =
+    AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>>;
+
 pub struct Service;
 
 impl Service {
@@ -287,7 +292,7 @@ impl Service {
         mut value: BTreeMap<String, CanonicalJsonValue>,
         auth_events_known: bool,
         pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
-    ) -> AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>> {
+    ) -> AsyncRecursiveCanonicalJsonResult<'a> {
         Box::pin(async move {
             // 1. Remove unsigned field
             value.remove("unsigned");
@@ -1022,8 +1027,7 @@ impl Service {
         room_id: &'a RoomId,
         room_version_id: &'a RoomVersionId,
         pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
-    ) -> AsyncRecursiveType<'a, Vec<(Arc<PduEvent>, Option<BTreeMap<String, CanonicalJsonValue>>)>>
-    {
+    ) -> AsyncRecursiveCanonicalJsonVec<'a> {
         Box::pin(async move {
             let back_off = |id| match services()
                 .globals

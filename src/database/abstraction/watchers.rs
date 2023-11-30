@@ -6,9 +6,11 @@ use std::{
 };
 use tokio::sync::watch;
 
+type Watcher = RwLock<HashMap<Vec<u8>, (watch::Sender<()>, watch::Receiver<()>)>>;
+
 #[derive(Default)]
 pub(super) struct Watchers {
-    watchers: RwLock<HashMap<Vec<u8>, (watch::Sender<()>, watch::Receiver<()>)>>,
+    watchers: Watcher,
 }
 
 impl Watchers {

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use ruma::{events::StateEventType, EventId, RoomId};
+use tracing::warn;
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -157,10 +158,10 @@ impl service::rooms::short::Data for KeyValueDatabase {
             .ok_or_else(|| Error::bad_database("Invalid statekey in shortstatekey_statekey."))?;
 
         let event_type =
-            StateEventType::try_from(utils::string_from_bytes(eventtype_bytes).map_err(|_| {
-                Error::bad_database("Event type in shortstatekey_statekey is invalid unicode.")
-            })?)
-            .map_err(|_| Error::bad_database("Event type in shortstatekey_statekey is invalid."))?;
+            StateEventType::from(utils::string_from_bytes(eventtype_bytes).map_err(|e| {
+                warn!("Event type in shortstatekey_statekey is invalid: {}", e);
+                Error::bad_database("Event type in shortstatekey_statekey is invalid.")
+            })?);
 
         let state_key = utils::string_from_bytes(statekey_bytes).map_err(|_| {
             Error::bad_database("Statekey in shortstatekey_statekey is invalid unicode.")

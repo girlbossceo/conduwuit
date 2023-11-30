@@ -6,6 +6,8 @@ use crate::{PduEvent, Result};
 
 use super::PduCount;
 
+pub type PduData<'a> = Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>>;
+
 pub trait Data: Send + Sync {
     fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount>;
 
@@ -66,21 +68,12 @@ pub trait Data: Send + Sync {
 
     /// Returns an iterator over all events and their tokens in a room that happened before the
     /// event with id `until` in reverse-chronological order.
-    fn pdus_until<'a>(
-        &'a self,
-        user_id: &UserId,
-        room_id: &RoomId,
-        until: PduCount,
-    ) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>>;
+    fn pdus_until<'a>(&'a self, user_id: &UserId, room_id: &RoomId, until: PduCount)
+        -> PduData<'a>;
 
     /// Returns an iterator over all events in a room that happened after the event with id `from`
     /// in chronological order.
-    fn pdus_after<'a>(
-        &'a self,
-        user_id: &UserId,
-        room_id: &RoomId,
-        from: PduCount,
-    ) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>>;
+    fn pdus_after<'a>(&'a self, user_id: &UserId, room_id: &RoomId, from: PduCount) -> PduData<'a>;
 
     fn increment_notification_counts(
         &self,

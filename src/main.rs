@@ -145,7 +145,7 @@ async fn main() {
     maximize_fd_limit().expect("should be able to increase the soft limit to the hard limit");
 
     config.warn_deprecated();
-    if config.error_dual_listening(raw_config).is_err() {
+    if config.is_dual_listening(raw_config) {
         return;
     };
 
@@ -542,7 +542,7 @@ async fn initial_sync(_uri: Uri) -> impl IntoResponse {
 }
 
 async fn it_works() -> &'static str {
-    "hewwo from cowonduit woof!"
+    "hewwo from conduwuit woof!"
 }
 
 /*

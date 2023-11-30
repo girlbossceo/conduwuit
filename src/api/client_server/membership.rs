@@ -722,7 +722,8 @@ async fn join_room_by_id_helper(
         }
 
         info!("Running send_join auth check");
-        if !state_res::event_auth::auth_check(
+
+        let auth_check = state_res::event_auth::auth_check(
             &state_res::RoomVersion::new(&room_version_id).expect("room version is supported"),
             &parsed_join_pdu,
             None::<PduEvent>, // TODO: third party invite
@@ -745,7 +746,9 @@ async fn join_room_by_id_helper(
         .map_err(|e| {
             warn!("Auth check failed: {e}");
             Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed")
-        })? {
+        })?;
+
+        if !auth_check {
             return Err(Error::BadRequest(
                 ErrorKind::InvalidParam,
                 "Auth check failed",

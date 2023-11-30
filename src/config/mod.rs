@@ -122,6 +122,7 @@ pub struct TlsConfig {
 const DEPRECATED_KEYS: &[&str] = &["cache_capacity"];
 
 impl Config {
+    /// Iterates over all the keys in the config file and warns if there is a deprecated key specified
     pub fn warn_deprecated(&self) {
         let mut was_deprecated = false;
         for key in self
@@ -139,16 +140,17 @@ impl Config {
     }
 
     /// Checks the presence of the `address` and `unix_socket_path` keys in the raw_config, exiting the process if both keys were detected.
-    pub fn error_dual_listening(&self, raw_config: Figment) -> Result<(), ()> {
+    pub fn is_dual_listening(&self, raw_config: Figment) -> bool {
         let check_address = raw_config.find_value("address");
         let check_unix_socket = raw_config.find_value("unix_socket_path");
 
+        // are the check_address and check_unix_socket keys both Ok (specified) at the same time?
         if check_address.is_ok() && check_unix_socket.is_ok() {
             error!("TOML keys \"address\" and \"unix_socket_path\" were both defined. Please specify only one option.");
-            return Err(());
+            return true;
         }
 
-        Ok(())
+        false
     }
 }
 

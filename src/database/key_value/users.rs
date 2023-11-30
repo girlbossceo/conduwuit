@@ -146,10 +146,12 @@ impl service::users::Data for KeyValueDatabase {
         self.userid_avatarurl
             .get(user_id.as_bytes())?
             .map(|bytes| {
-                let s = utils::string_from_bytes(&bytes)
-                    .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))?;
-                s.try_into()
-                    .map_err(|_| Error::bad_database("Avatar URL in db is invalid."))
+                let s_bytes = utils::string_from_bytes(&bytes).map_err(|e| {
+                    warn!("Avatar URL in db is invalid: {}", e);
+                    Error::bad_database("Avatar URL in db is invalid.")
+                })?;
+                let mxc_uri: OwnedMxcUri = s_bytes.into();
+                Ok(mxc_uri)
             })
             .transpose()
     }

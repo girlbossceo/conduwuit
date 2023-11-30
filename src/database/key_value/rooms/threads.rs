@@ -4,6 +4,8 @@ use ruma::{api::client::threads::get_threads::v1::IncludeThreads, OwnedUserId, R
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, PduEvent, Result};
 
+type PduEventIterResult<'a> = Result<Box<dyn Iterator<Item = Result<(u64, PduEvent)>> + 'a>>;
+
 impl service::rooms::threads::Data for KeyValueDatabase {
     fn threads_until<'a>(
         &'a self,
@@ -11,7 +13,7 @@ impl service::rooms::threads::Data for KeyValueDatabase {
         room_id: &'a RoomId,
         until: u64,
         _include: &'a IncludeThreads,
-    ) -> Result<Box<dyn Iterator<Item = Result<(u64, PduEvent)>> + 'a>> {
+    ) -> PduEventIterResult<'a> {
         let prefix = services()
             .rooms
             .short

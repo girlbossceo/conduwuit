@@ -11,11 +11,13 @@ use crate::Result;
 
 use super::timeline::PduCount;
 
+type LazyLoadWaitingMutex =
+    Mutex<HashMap<(OwnedUserId, OwnedDeviceId, OwnedRoomId, PduCount), HashSet<OwnedUserId>>>;
+
 pub struct Service {
     pub db: &'static dyn Data,
 
-    pub lazy_load_waiting:
-        Mutex<HashMap<(OwnedUserId, OwnedDeviceId, OwnedRoomId, PduCount), HashSet<OwnedUserId>>>,
+    pub lazy_load_waiting: LazyLoadWaitingMutex,
 }
 
 impl Service {

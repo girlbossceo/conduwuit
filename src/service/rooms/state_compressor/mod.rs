@@ -13,20 +13,44 @@ use crate::{services, utils, Result};
 
 use self::data::StateDiff;
 
+type StateInfoLruCache = Mutex<
+    LruCache<
+        u64,
+        Vec<(
+            u64,                                // sstatehash
+            Arc<HashSet<CompressedStateEvent>>, // full state
+            Arc<HashSet<CompressedStateEvent>>, // added
+            Arc<HashSet<CompressedStateEvent>>, // removed
+        )>,
+    >,
+>;
+
+type ShortStateInfoResult = Result<
+    Vec<(
+        u64,                                // sstatehash
+        Arc<HashSet<CompressedStateEvent>>, // full state
+        Arc<HashSet<CompressedStateEvent>>, // added
+        Arc<HashSet<CompressedStateEvent>>, // removed
+    )>,
+>;
+
+type ParentStatesVec = Vec<(
+    u64,                                // sstatehash
+    Arc<HashSet<CompressedStateEvent>>, // full state
+    Arc<HashSet<CompressedStateEvent>>, // added
+    Arc<HashSet<CompressedStateEvent>>, // removed
+)>;
+
+type HashSetCompressStateEvent = Result<(
+    u64,
+    Arc<HashSet<CompressedStateEvent>>,
+    Arc<HashSet<CompressedStateEvent>>,
+)>;
+
 pub struct Service {
     pub db: &'static dyn Data,
 
-    pub stateinfo_cache: Mutex<
-        LruCache<
-            u64,
-            Vec<(
-                u64,                                // sstatehash
-                Arc<HashSet<CompressedStateEvent>>, // full state
-                Arc<HashSet<CompressedStateEvent>>, // added
-                Arc<HashSet<CompressedStateEvent>>, // removed
-            )>,
-        >,
-    >,
+    pub stateinfo_cache: StateInfoLruCache,
 }
 
 pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
@@ -34,17 +58,7 @@ pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 impl Service {
     /// Returns a stack with info on shortstatehash, full state, added diff and removed diff for the selected shortstatehash and each parent layer.
     #[tracing::instrument(skip(self))]
-    pub fn load_shortstatehash_info(
-        &self,
-        shortstatehash: u64,
-    ) -> Result<
-        Vec<(
-            u64,                                // sstatehash
-            Arc<HashSet<CompressedStateEvent>>, // full state
-            Arc<HashSet<CompressedStateEvent>>, // added
-            Arc<HashSet<CompressedStateEvent>>, // removed
-        )>,
-    > {
+    pub fn load_shortstatehash_info(&self, shortstatehash: u64) -> ShortStateInfoResult {
         if let Some(r) = self
             .stateinfo_cache
             .lock()
@@ -144,12 +158,7 @@ impl Service {
         statediffnew: Arc<HashSet<CompressedStateEvent>>,
         statediffremoved: Arc<HashSet<CompressedStateEvent>>,
         diff_to_sibling: usize,
-        mut parent_states: Vec<(
-            u64,                                // sstatehash
-            Arc<HashSet<CompressedStateEvent>>, // full state
-            Arc<HashSet<CompressedStateEvent>>, // added
-            Arc<HashSet<CompressedStateEvent>>, // removed
-        )>,
+        mut parent_states: ParentStatesVec,
     ) -> Result<()> {
         let diffsum = statediffnew.len() + statediffremoved.len();
 
@@ -257,11 +266,7 @@ impl Service {
         &self,
         room_id: &RoomId,
         new_state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
-    ) -> Result<(
-        u64,
-        Arc<HashSet<CompressedStateEvent>>,
-        Arc<HashSet<CompressedStateEvent>>,
-    )> {
+    ) -> HashSetCompressStateEvent {
         let previous_shortstatehash = services().rooms.state.get_room_shortstatehash(room_id)?;
 
         let state_hash = utils::calculate_hash(

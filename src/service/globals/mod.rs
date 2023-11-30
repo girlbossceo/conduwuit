@@ -109,13 +109,15 @@ impl Default for RotationHandler {
     }
 }
 
+type DnsOverrides = Box<dyn Fn(&str) -> Option<SocketAddr> + Send + Sync>;
+
 pub struct Resolver {
     inner: GaiResolver,
-    overrides: Box<dyn Fn(&str) -> Option<SocketAddr> + Send + Sync>,
+    overrides: DnsOverrides,
 }
 
 impl Resolver {
-    pub fn new(overrides: Box<dyn Fn(&str) -> Option<SocketAddr> + Send + Sync>) -> Resolver {
+    pub fn new(overrides: DnsOverrides) -> Resolver {
         Resolver {
             inner: GaiResolver::new(),
             overrides,
