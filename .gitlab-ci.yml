@@ -145,7 +145,6 @@ test:cargo:
 
 test:clippy:
   extends: .test-shared-settings
-  allow_failure: true
   before_script:
     - rustup component add clippy
     - apt-get update && apt-get -y --no-install-recommends install libclang-dev # dependency for rocksdb
@@ -166,7 +165,6 @@ test:format:
 
 test:audit:
   extends: .test-shared-settings
-  allow_failure: true
   script:
     - cargo audit --color always || true
     - cargo audit --stale --json | gitlab-report -p audit > gl-sast-report.json
