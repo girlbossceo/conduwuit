@@ -1,5 +1,3 @@
-cargo-features = ["profile-rustflags"]
-
 [package]
 name = "conduwuit"
 description = "a cool fork of Conduit, a Matrix homeserver written in Rust"

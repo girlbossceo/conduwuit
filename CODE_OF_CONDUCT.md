@@ -61,7 +61,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement over email at
-coc@koesters.xyz or over Matrix at @timo:conduit.rs.
+strawberry@puppygock.gay or over Matrix at @strawberry:puppygock.gay.
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

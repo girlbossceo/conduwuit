@@ -69,7 +69,7 @@ target.
 git clone https://gitlab.com/famedly/conduit.git
 cd conduit
 export RUSTFLAGS='-C link-arg=-lgcc -Clink-arg=-latomic -Clink-arg=-static-libgcc'
-cross build --release --no-default-features --features conduit_bin,backend_rocksdb,jemalloc --target=arm-unknown-linux-gnueabihf
+cross build --release --no-default-features --features conduit_bin,backend_rocksdb --target=arm-unknown-linux-gnueabihf
 ```
 </details>
 
