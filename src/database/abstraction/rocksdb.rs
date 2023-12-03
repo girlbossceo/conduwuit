@@ -1,5 +1,5 @@
 use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
-use crate::{services, utils, Result};
+use crate::{utils, Result};
 use std::{
     future::Future,
     pin::Pin,
@@ -10,9 +10,9 @@ use rocksdb::LogLevel::{Debug, Error, Fatal, Info, Warn};
 
 pub struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
-    max_open_files: i32,
     cache: rocksdb::Cache,
     old_cfs: Vec<String>,
+    config: Config,
 }
 
 pub struct RocksDbEngineTree<'a> {
@@ -22,7 +22,7 @@ pub struct RocksDbEngineTree<'a> {
     write_lock: RwLock<()>,
 }
 
-fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::Options {
+fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Options {
     // block-based options: https://docs.rs/rocksdb/latest/rocksdb/struct.BlockBasedOptions.html#
     let mut block_based_options = rocksdb::BlockBasedOptions::default();
 
@@ -36,7 +36,7 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
     // database options: https://docs.rs/rocksdb/latest/rocksdb/struct.Options.html#
     let mut db_opts = rocksdb::Options::default();
 
-    let rocksdb_log_level = match services().globals.rocksdb_log_level().as_str() {
+    let rocksdb_log_level = match config.rocksdb_log_level.as_ref() {
         "debug" => Debug,
         "info" => Info,
         "warn" => Warn,
@@ -46,10 +46,10 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
     };
 
     db_opts.set_log_level(rocksdb_log_level);
-    db_opts.set_max_log_file_size(services().globals.rocksdb_max_log_file_size());
-    db_opts.set_log_file_time_to_roll(services().globals.rocksdb_log_time_to_roll());
+    db_opts.set_max_log_file_size(config.rocksdb_max_log_file_size);
+    db_opts.set_log_file_time_to_roll(config.rocksdb_log_time_to_roll);
 
-    if services().globals.rocksdb_optimize_for_spinning_disks() {
+    if config.rocksdb_optimize_for_spinning_disks {
         // useful for hard drives but on literally any half-decent SSD this is not useful
         // and the benefits of improved compaction based on up to date stats are good.
         // current conduwut users have NVMe/SSDs.
@@ -69,7 +69,7 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
     db_opts.set_level_compaction_dynamic_level_bytes(true);
     db_opts.create_if_missing(true);
     db_opts.increase_parallelism(num_cpus::get() as i32);
-    db_opts.set_max_open_files(max_open_files);
+    db_opts.set_max_open_files(config.rocksdb_max_open_files);
     db_opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
     db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
     db_opts.optimize_level_style_compaction(10 * 1024 * 1024);
@@ -96,7 +96,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
         let cache_capacity_bytes = (config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize;
         let rocksdb_cache = rocksdb::Cache::new_lru_cache(cache_capacity_bytes);
 
-        let db_opts = db_options(config.rocksdb_max_open_files, &rocksdb_cache);
+        let db_opts = db_options(&rocksdb_cache, config);
 
         let cfs = rocksdb::DBWithThreadMode::<rocksdb::MultiThreaded>::list_cf(
             &db_opts,
@@ -108,18 +108,15 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
             &db_opts,
             &config.database_path,
             cfs.iter().map(|name| {
-                rocksdb::ColumnFamilyDescriptor::new(
-                    name,
-                    db_options(config.rocksdb_max_open_files, &rocksdb_cache),
-                )
+                rocksdb::ColumnFamilyDescriptor::new(name, db_options(&rocksdb_cache, config))
             }),
         )?;
 
         Ok(Arc::new(Engine {
             rocks: db,
-            max_open_files: config.rocksdb_max_open_files,
             cache: rocksdb_cache,
             old_cfs: cfs,
+            config: config.clone(),
         }))
     }
 
@@ -128,7 +125,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
             // Create if it didn't exist
             let _ = self
                 .rocks
-                .create_cf(name, &db_options(self.max_open_files, &self.cache));
+                .create_cf(name, &db_options(&self.cache, &self.config));
         }
 
         Ok(Arc::new(RocksDbEngineTree {

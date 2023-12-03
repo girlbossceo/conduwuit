@@ -88,7 +88,7 @@ heed = { git = "https://github.com/timokoesters/heed.git", rev = "f6f825da7fb2c7
 # Used for ruma wrapper
 serde_html_form = "0.2.2"
 
-rocksdb = { git = "https://github.com/girlbossceo/rust-rocksdb", rev = "eaa2beedb1f36466a52ca01ffbf3a2118b2cb41b", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
+rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "30ffe0ad78a037694eb3e834ac0afc436eea4ebf", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
 
 thread_local = "1.1.7"
 # used for TURN server authentication
@@ -164,6 +164,7 @@ maintainer-scripts = "debian/"
 systemd-units = { unit-name = "matrix-conduit" }
 
 [profile.dev]
+debug = 0
 lto = 'off'
 incremental = true
 
@@ -175,13 +176,16 @@ opt-level = 3
 overflow-checks = true
 strip = "symbols"
 panic = "abort"
+debug = 0
 # If you want to make flamegraphs, enable debug info:
 # debug = true
 
 # For releases also try to max optimizations for dependencies:
 [profile.release.build-override]
+debug = 0
 opt-level = 3
 codegen-units=1
 [profile.release.package."*"]
+debug = 0
 opt-level = 3
 codegen-units=1
