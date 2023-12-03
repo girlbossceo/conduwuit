@@ -1057,7 +1057,7 @@ impl KeyValueDatabase {
         let response = services()
             .globals
             .default_client()
-            .get("https://conduit.rs/check-for-updates/stable")
+            .get("https://pupbrain.dev/check-for-updates/stable")
             .send()
             .await?;
 
@@ -1073,17 +1073,20 @@ impl KeyValueDatabase {
         }
 
         let response = serde_json::from_str::<CheckForUpdatesResponse>(&response.text().await?)
-            .map_err(|_| Error::BadServerResponse("Bad version check response"))?;
+            .map_err(|e| {
+                error!("Bad check for updates response: {e}");
+                Error::BadServerResponse("Bad version check response")
+            })?;
 
         let mut last_update_id = services().globals.last_check_for_updates_id()?;
         for update in response.updates {
             last_update_id = last_update_id.max(update.id);
             if update.id > services().globals.last_check_for_updates_id()? {
-                println!("{}", update.message);
+                error!("{}", update.message);
                 services()
                     .admin
                     .send_message(RoomMessageEventContent::text_plain(format!(
-                    "@room: The following is a message from the Conduit developers. It was sent on '{}':\n\n{}",
+                    "@room: the following is a message from the conduwuit puppy. it was sent on '{}':\n\n{}",
                     update.date, update.message
                 )))
             }
