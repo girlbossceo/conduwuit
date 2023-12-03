@@ -6,7 +6,7 @@ authors = ["strawberry <strawberry@puppygock.gay>", "timokoesters <timo@koesters
 homepage = "https://puppygock.gay/conduwuit"
 repository = "https://gitlab.com/girlbossceo/conduwuit"
 readme = "README.md"
-version = "0.7.0-alpha+conduwuit-0.1.0"
+version = "0.7.0-alpha+conduwuit-0.1.1"
 edition = "2021"
 
 # When changing this, make sure to update the `flake.lock` file by running
