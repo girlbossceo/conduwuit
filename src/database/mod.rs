@@ -240,7 +240,9 @@ impl KeyValueDatabase {
 
         if !Path::new(&config.database_path).exists() {
             std::fs::create_dir_all(&config.database_path)
-                .map_err(|_| Error::BadConfig("Database folder doesn't exists and couldn't be created (e.g. due to missing permissions). Please create the database folder yourself."))?;
+                .map_err(|e| {
+                    error!("Failed to create database path: {e}");
+                    Error::BadConfig("Database folder doesn't exists and couldn't be created (e.g. due to missing permissions). Please create the database folder yourself.")})?;
         }
 
         let builder: Arc<dyn KeyValueDatabaseEngine> = match &*config.database_backend {

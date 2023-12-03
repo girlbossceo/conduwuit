@@ -28,7 +28,7 @@ use ruma::{
     state_res,
     state_res::{Event, RoomVersion},
     uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
-    OwnedServerName, RoomAliasId, RoomId, ServerName, UserId,
+    OwnedServerName, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
@@ -138,6 +138,27 @@ impl Service {
             .map(|op| op.unwrap_or_default())
     }
     */
+
+    /// Returns the version of a room, if known
+    pub fn get_room_version(&self, room_id: &RoomId) -> Result<Option<RoomVersionId>> {
+        let create_event = services().rooms.state_accessor.room_state_get(
+            room_id,
+            &StateEventType::RoomCreate,
+            "",
+        )?;
+
+        let create_event_content: Option<RoomCreateEventContent> = create_event
+            .as_ref()
+            .map(|create_event| {
+                serde_json::from_str(create_event.content.get()).map_err(|e| {
+                    warn!("Invalid create event: {}", e);
+                    Error::bad_database("Invalid create event in db.")
+                })
+            })
+            .transpose()?;
+
+        Ok(create_event_content.map(|content| content.room_version))
+    }
 
     /// Returns the json of a pdu.
     pub fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
@@ -340,8 +361,10 @@ impl Service {
                     GlobalAccountDataEventType::PushRules.to_string().into(),
                 )?
                 .map(|event| {
-                    serde_json::from_str::<PushRulesEvent>(event.get())
-                        .map_err(|_| Error::bad_database("Invalid push rules event in db."))
+                    serde_json::from_str::<PushRulesEvent>(event.get()).map_err(|e| {
+                        warn!("Invalid push rules event in db for user ID {user}: {e}");
+                        Error::bad_database("Invalid push rules event in db.")
+                    })
                 })
                 .transpose()?
                 .map(|ev: PushRulesEvent| ev.content.global)
@@ -384,9 +407,39 @@ impl Service {
 
         match pdu.kind {
             TimelineEventType::RoomRedaction => {
-                if let Some(redact_id) = &pdu.redacts {
-                    self.redact_pdu(redact_id, pdu)?;
-                }
+                let room_version_id = self
+                    .get_room_version(&pdu.room_id)?
+                    .expect("Got RoomRedaction in a room of unknown version");
+                match room_version_id {
+                    RoomVersionId::V1
+                    | RoomVersionId::V2
+                    | RoomVersionId::V3
+                    | RoomVersionId::V4
+                    | RoomVersionId::V5
+                    | RoomVersionId::V6
+                    | RoomVersionId::V7
+                    | RoomVersionId::V8
+                    | RoomVersionId::V9
+                    | RoomVersionId::V10 => {
+                        if let Some(redact_id) = &pdu.redacts {
+                            self.redact_pdu(redact_id, pdu)?;
+                        }
+                    }
+                    _ => {
+                        #[derive(Deserialize)]
+                        struct Redaction {
+                            redacts: Option<OwnedEventId>,
+                        }
+                        let content = serde_json::from_str::<Redaction>(pdu.content.get())
+                            .map_err(|e| {
+                                warn!("Invalid content in redaction pdu: {e}");
+                                Error::bad_database("Invalid content in redaction pdu.")
+                            })?;
+                        if let Some(redact_id) = &content.redacts {
+                            self.redact_pdu(redact_id, pdu)?;
+                        }
+                    }
+                };
             }
             TimelineEventType::SpaceChild => {
                 if let Some(_state_key) = &pdu.state_key {
@@ -650,28 +703,28 @@ impl Service {
             .take(20)
             .collect();
 
-        let create_event = services().rooms.state_accessor.room_state_get(
-            room_id,
-            &StateEventType::RoomCreate,
-            "",
-        )?;
-
-        let create_event_content: Option<RoomCreateEventContent> = create_event
-            .as_ref()
-            .map(|create_event| {
-                serde_json::from_str(create_event.content.get()).map_err(|e| {
-                    warn!("Invalid database create event: {}", e);
-                    Error::bad_database("Invalid create event in db.")
-                })
+        let room_version_id = self
+            .get_room_version(room_id)?
+            .or_else(|| {
+                if event_type == TimelineEventType::RoomCreate {
+                    #[derive(Deserialize)]
+                    struct RoomCreate {
+                        room_version: RoomVersionId,
+                    }
+                    let content = serde_json::from_str::<RoomCreate>(content.get())
+                        .expect("Invalid content in RoomCreate pdu.");
+                    Some(content.room_version)
+                } else {
+                    None
+                }
             })
-            .transpose()?;
+            .ok_or_else(|| {
+                Error::InconsistentRoomState(
+                    "non-create event for room of unknown version",
+                    room_id.to_owned(),
+                )
+            })?;
 
-        // If there was no create event yet, assume we are creating a room with the default
-        // version right now
-        let room_version_id = create_event_content
-            .map_or(services().globals.default_room_version(), |create_event| {
-                create_event.room_version
-            });
         let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
 
         let auth_events = services().rooms.state.get_auth_events(
@@ -1041,7 +1094,11 @@ impl Service {
             let mut pdu = self
                 .get_pdu_from_id(&pdu_id)?
                 .ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
-            pdu.redact(reason)?;
+
+            let room_version_id = self.get_room_version(&pdu.room_id)?.ok_or_else(|| {
+                Error::bad_database("Trying to redact PDU in in room of unknown version")
+            })?;
+            pdu.redact(room_version_id, reason)?;
             self.replace_pdu(
                 &pdu_id,
                 &utils::to_canonical_object(&pdu).expect("PDU is an object"),

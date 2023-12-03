@@ -292,6 +292,8 @@ enum DebugCommand {
         /// An event ID (a $ followed by the base64 reference hash)
         event_id: Box<EventId>,
     },
+
+    ForceDeviceListUpdates,
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -1263,6 +1265,15 @@ impl Service {
                         None => RoomMessageEventContent::text_plain("PDU not found."),
                     }
                 }
+                DebugCommand::ForceDeviceListUpdates => {
+                    // Force E2EE device list updates for all users
+                    for user_id in services().users.iter().filter_map(|r| r.ok()) {
+                        services().users.mark_device_key_update(&user_id)?;
+                    }
+                    RoomMessageEventContent::text_plain(
+                        "Marked all devices for all users as having new keys to update",
+                    )
+                }
             },
         };
 
@@ -1394,10 +1405,24 @@ impl Service {
 
         services().users.create(&conduit_user, None)?;
 
-        let mut content = RoomCreateEventContent::new_v1(conduit_user.clone());
+        let room_version = services().globals.default_room_version();
+        let mut content = match room_version {
+            RoomVersionId::V1
+            | RoomVersionId::V2
+            | RoomVersionId::V3
+            | RoomVersionId::V4
+            | RoomVersionId::V5
+            | RoomVersionId::V6
+            | RoomVersionId::V7
+            | RoomVersionId::V8
+            | RoomVersionId::V9
+            | RoomVersionId::V10 => RoomCreateEventContent::new_v1(conduit_user.clone()),
+            _ => RoomCreateEventContent::new_v11(),
+        };
+
         content.federate = true;
         content.predecessor = None;
-        content.room_version = services().globals.default_room_version();
+        content.room_version = room_version;
 
         // 1. The room create event
         services()

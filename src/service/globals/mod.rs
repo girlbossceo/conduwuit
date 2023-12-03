@@ -395,6 +395,22 @@ impl Service {
         self.config.presence_offline_timeout_s
     }
 
+    pub fn rocksdb_log_level(&self) -> &String {
+        &self.config.rocksdb_log_level
+    }
+
+    pub fn rocksdb_max_log_file_size(&self) -> usize {
+        self.config.rocksdb_max_log_file_size
+    }
+
+    pub fn rocksdb_log_time_to_roll(&self) -> usize {
+        self.config.rocksdb_log_time_to_roll
+    }
+
+    pub fn rocksdb_optimize_for_spinning_disks(&self) -> bool {
+        self.config.rocksdb_optimize_for_spinning_disks
+    }
+
     pub fn supported_room_versions(&self) -> Vec<RoomVersionId> {
         let mut room_versions: Vec<RoomVersionId> = vec![];
         room_versions.extend(self.stable_room_versions.clone());

@@ -1,5 +1,6 @@
 use crate::Error;
 use ruma::{
+    canonical_json::redact_content_in_place,
     events::{
         room::member::RoomMemberEventContent, space::child::HierarchySpaceChildEvent,
         AnyEphemeralRoomEvent, AnyMessageLikeEvent, AnyStateEvent, AnyStrippedStateEvent,
@@ -49,44 +50,23 @@ pub struct PduEvent {
 
 impl PduEvent {
     #[tracing::instrument(skip(self))]
-    pub fn redact(&mut self, reason: &PduEvent) -> crate::Result<()> {
+    pub fn redact(
+        &mut self,
+        room_version_id: RoomVersionId,
+        reason: &PduEvent,
+    ) -> crate::Result<()> {
         self.unsigned = None;
 
-        let allowed: &[&str] = match self.kind {
-            TimelineEventType::RoomMember => &["join_authorised_via_users_server", "membership"],
-            TimelineEventType::RoomCreate => &["creator"],
-            TimelineEventType::RoomJoinRules => &["join_rule"],
-            TimelineEventType::RoomPowerLevels => &[
-                "ban",
-                "events",
-                "events_default",
-                "kick",
-                "redact",
-                "state_default",
-                "users",
-                "users_default",
-            ],
-            TimelineEventType::RoomHistoryVisibility => &["history_visibility"],
-            _ => &[],
-        };
-
-        let mut old_content: BTreeMap<String, serde_json::Value> =
-            serde_json::from_str(self.content.get())
-                .map_err(|_| Error::bad_database("PDU in db has invalid content."))?;
-
-        let mut new_content = serde_json::Map::new();
-
-        for key in allowed {
-            if let Some(value) = old_content.remove(*key) {
-                new_content.insert((*key).to_owned(), value);
-            }
-        }
+        let mut content = serde_json::from_str(self.content.get())
+            .map_err(|_| Error::bad_database("PDU in db has invalid content."))?;
+        redact_content_in_place(&mut content, &room_version_id, self.kind.to_string())
+            .map_err(|e| Error::RedactionError(self.sender.server_name().to_owned(), e))?;
 
         self.unsigned = Some(to_raw_value(&json!({
             "redacted_because": serde_json::to_value(reason).expect("to_value(PduEvent) always works")
         })).expect("to string always works"));
 
-        self.content = to_raw_value(&new_content).expect("to string always works");
+        self.content = to_raw_value(&content).expect("to string always works");
 
         Ok(())
     }

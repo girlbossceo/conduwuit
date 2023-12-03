@@ -799,6 +799,7 @@ impl Service {
         // applied. We start with the previous extremities (aka leaves)
         debug!("Calculating extremities");
         let mut extremities = services().rooms.state.get_forward_extremities(room_id)?;
+        debug!("Amount of forward extremities in room {room_id}: {extremities:?}");
 
         // Remove any forward extremities that are referenced by this incoming event's prev_events
         for prev_event in &incoming_pdu.prev_events {
@@ -1142,8 +1143,8 @@ impl Service {
                             events_in_reverse_order.push((next_id.clone(), value));
                             events_all.insert(next_id);
                         }
-                        Err(_) => {
-                            warn!("Failed to fetch event: {}", next_id);
+                        Err(e) => {
+                            warn!("Failed to fetch event {} | {e}", next_id);
                             back_off((*next_id).to_owned());
                         }
                     }
@@ -1268,7 +1269,10 @@ impl Service {
 
                 if amount > services().globals.max_fetch_prev_events() {
                     // Max limit reached
-                    info!("Max prev event limit reached!");
+                    info!(
+                        "Max prev event limit reached! Limit: {}",
+                        services().globals.max_fetch_prev_events()
+                    );
                     graph.insert(prev_event_id.clone(), HashSet::new());
                     continue;
                 }
@@ -1322,7 +1326,10 @@ impl Service {
                 ),
             ))
         })
-        .map_err(|_| Error::bad_database("Error sorting prev events"))?;
+        .map_err(|e| {
+            error!("Error sorting prev events: {e}");
+            Error::bad_database("Error sorting prev events")
+        })?;
 
         Ok((sorted, eventid_info))
     }
@@ -1339,6 +1346,7 @@ impl Service {
         let mut server_key_ids = HashMap::new();
 
         for event in events.into_iter() {
+            debug!("Fetching keys for event: {event:?}");
             for (signature_server, signature) in event
                 .get("signatures")
                 .ok_or(Error::BadServerResponse(
@@ -1364,6 +1372,7 @@ impl Service {
 
         if server_key_ids.is_empty() {
             // Nothing to do, can exit early
+            debug!("server_key_ids is empty, not fetching any keys");
             return Ok(());
         }
 
@@ -1382,7 +1391,8 @@ impl Service {
                 let signature_server2 = signature_server.clone();
                 let fetch_res = self
                     .fetch_signing_keys_for_server(
-                        signature_server2.as_str().try_into().map_err(|_| {
+                        signature_server2.as_str().try_into().map_err(|e| {
+                            info!("Invalid servername in signatures of server response pdu: {e}");
                             (
                                 signature_server.clone(),
                                 Error::BadServerResponse(
@@ -1397,7 +1407,7 @@ impl Service {
                 match fetch_res {
                     Ok(keys) => Ok((signature_server, keys)),
                     Err(e) => {
-                        warn!("Signature verification failed: Could not fetch signing key.",);
+                        warn!("Signature verification failed: Could not fetch signing key for {signature_server}: {e}",);
                         Err((signature_server, e))
                     }
                 }
@@ -1483,7 +1493,8 @@ impl Service {
                 signature_ids.iter().all(|id| keys.contains_key(id))
             };
 
-            let origin = <&ServerName>::try_from(signature_server.as_str()).map_err(|_| {
+            let origin = <&ServerName>::try_from(signature_server.as_str()).map_err(|e| {
+                info!("Invalid servername in signatures of server response pdu: {e}");
                 Error::BadServerResponse("Invalid servername in signatures of server response pdu.")
             })?;
 
@@ -1491,7 +1502,7 @@ impl Service {
                 continue;
             }
 
-            trace!("Loading signing keys for {}", origin);
+            debug!("Loading signing keys for {}", origin);
 
             let result: BTreeMap<_, _> = services()
                 .globals
@@ -1501,7 +1512,7 @@ impl Service {
                 .collect();
 
             if !contains_all_ids(&result) {
-                trace!("Signing key not loaded for {}", origin);
+                debug!("Signing key not loaded for {}", origin);
                 servers.insert(origin.to_owned(), BTreeMap::new());
             }
 
@@ -1540,7 +1551,7 @@ impl Service {
         }
 
         if servers.is_empty() {
-            info!("We had all keys locally");
+            info!("server is empty, we had all keys locally, not fetching any keys");
             return Ok(());
         }
 
@@ -1556,7 +1567,7 @@ impl Service {
                 )
                 .await
             {
-                trace!("Got signing keys: {:?}", keys);
+                debug!("Got signing keys: {:?}", keys);
                 let mut pkm = pub_key_map
                     .write()
                     .map_err(|_| Error::bad_database("RwLock is poisoned."))?;
@@ -1588,7 +1599,7 @@ impl Service {
             }
 
             if servers.is_empty() {
-                info!("Trusted server supplied all signing keys");
+                info!("Trusted server supplied all signing keys, no more keys to fetch");
                 return Ok(());
             }
         }
@@ -1639,25 +1650,36 @@ impl Service {
             &StateEventType::RoomServerAcl,
             "",
         )? {
-            Some(acl) => acl,
-            None => return Ok(()),
+            Some(acl) => {
+                debug!("ACL event found: {acl:?}");
+                acl
+            }
+            None => {
+                info!("No ACL event found");
+                return Ok(());
+            }
         };
 
         let acl_event_content: RoomServerAclEventContent =
             match serde_json::from_str(acl_event.content.get()) {
-                Ok(content) => content,
-                Err(_) => {
-                    warn!("Invalid ACL event");
+                Ok(content) => {
+                    debug!("Found ACL event contents: {content:?}");
+                    content
+                }
+                Err(e) => {
+                    warn!("Invalid ACL event: {e}");
                     return Ok(());
                 }
             };
 
         if acl_event_content.allow.is_empty() {
+            warn!("Ignoring broken ACL event (allow key is empty)");
             // Ignore broken acl events
             return Ok(());
         }
 
         if acl_event_content.is_allowed(server_name) {
+            debug!("server {server_name} is allowed by ACL");
             Ok(())
         } else {
             info!(
@@ -1737,7 +1759,7 @@ impl Service {
             }
         }
 
-        trace!("Loading signing keys for {}", origin);
+        debug!("Loading signing keys for {}", origin);
 
         let mut result: BTreeMap<_, _> = services()
             .globals
@@ -1792,7 +1814,7 @@ impl Service {
                         MilliSecondsSinceUnixEpoch::from_system_time(
                             SystemTime::now()
                                 .checked_add(Duration::from_secs(3600))
-                                .expect("SystemTime to large"),
+                                .expect("SystemTime too large"),
                         )
                         .expect("time is valid"),
                     ),
@@ -1806,7 +1828,7 @@ impl Service {
                         .collect::<Vec<_>>()
                 })
             {
-                trace!("Got signing keys: {:?}", server_keys);
+                debug!("Got signing keys: {:?}", server_keys);
                 for k in server_keys {
                     services().globals.add_signing_key(origin, k.clone())?;
                     result.extend(

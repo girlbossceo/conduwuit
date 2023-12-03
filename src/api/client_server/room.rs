@@ -23,7 +23,7 @@ use ruma::{
     },
     int,
     serde::JsonObject,
-    CanonicalJsonObject, OwnedRoomAliasId, RoomAliasId, RoomId,
+    CanonicalJsonObject, OwnedRoomAliasId, RoomAliasId, RoomId, RoomVersionId,
 };
 use serde_json::{json, value::to_raw_value};
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
@@ -127,12 +127,28 @@ pub async fn create_room_route(
             let mut content = content
                 .deserialize_as::<CanonicalJsonObject>()
                 .expect("Invalid creation content");
-            content.insert(
-                "creator".into(),
-                json!(&sender_user).try_into().map_err(|_| {
-                    Error::BadRequest(ErrorKind::BadJson, "Invalid creation content")
-                })?,
-            );
+            match room_version {
+                RoomVersionId::V1
+                | RoomVersionId::V2
+                | RoomVersionId::V3
+                | RoomVersionId::V4
+                | RoomVersionId::V5
+                | RoomVersionId::V6
+                | RoomVersionId::V7
+                | RoomVersionId::V8
+                | RoomVersionId::V9
+                | RoomVersionId::V10 => {
+                    content.insert(
+                        "creator".into(),
+                        json!(&sender_user).try_into().map_err(|e| {
+                            info!("Invalid creation content: {e}");
+                            Error::BadRequest(ErrorKind::BadJson, "Invalid creation content")
+                        })?,
+                    );
+                }
+                _ => {} // V11 removed the "creator" key
+            }
+
             content.insert(
                 "room_version".into(),
                 json!(room_version.as_str()).try_into().map_err(|_| {
@@ -143,8 +159,21 @@ pub async fn create_room_route(
         }
         None => {
             // TODO: Add correct value for v11
+            let content = match room_version {
+                RoomVersionId::V1
+                | RoomVersionId::V2
+                | RoomVersionId::V3
+                | RoomVersionId::V4
+                | RoomVersionId::V5
+                | RoomVersionId::V6
+                | RoomVersionId::V7
+                | RoomVersionId::V8
+                | RoomVersionId::V9
+                | RoomVersionId::V10 => RoomCreateEventContent::new_v1(sender_user.clone()),
+                _ => RoomCreateEventContent::new_v11(),
+            };
             let mut content = serde_json::from_str::<CanonicalJsonObject>(
-                to_raw_value(&RoomCreateEventContent::new_v1(sender_user.clone()))
+                to_raw_value(&content)
                     .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid creation content"))?
                     .get(),
             )
@@ -619,12 +648,31 @@ pub async fn upgrade_room_route(
     ));
 
     // Send a m.room.create event containing a predecessor field and the applicable room_version
-    create_event_content.insert(
-        "creator".into(),
-        json!(&sender_user)
-            .try_into()
-            .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"))?,
-    );
+    match body.new_version {
+        RoomVersionId::V1
+        | RoomVersionId::V2
+        | RoomVersionId::V3
+        | RoomVersionId::V4
+        | RoomVersionId::V5
+        | RoomVersionId::V6
+        | RoomVersionId::V7
+        | RoomVersionId::V8
+        | RoomVersionId::V9
+        | RoomVersionId::V10 => {
+            create_event_content.insert(
+                "creator".into(),
+                json!(&sender_user).try_into().map_err(|e| {
+                    info!("Error forming creation event: {e}");
+                    Error::BadRequest(ErrorKind::BadJson, "Error forming creation event")
+                })?,
+            );
+        }
+        _ => {
+            // "creator" key no longer exists in V11 rooms
+            create_event_content.remove("creator");
+        }
+    }
+
     create_event_content.insert(
         "room_version".into(),
         json!(&body.new_version)

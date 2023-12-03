@@ -90,6 +90,16 @@ pub struct Config {
     #[serde(default = "default_turn_ttl")]
     pub turn_ttl: u64,
 
+    pub rocksdb_log_path: Option<PathBuf>,
+    #[serde(default = "default_rocksdb_log_level")]
+    pub rocksdb_log_level: String,
+    #[serde(default = "default_rocksdb_max_log_file_size")]
+    pub rocksdb_max_log_file_size: usize,
+    #[serde(default = "default_rocksdb_log_time_to_roll")]
+    pub rocksdb_log_time_to_roll: usize,
+    #[serde(default = "false_fn")]
+    pub rocksdb_optimize_for_spinning_disks: bool,
+
     pub emergency_password: Option<String>,
 
     #[serde(default = "default_notification_push_path")]
@@ -257,6 +267,22 @@ impl fmt::Display for Config {
                 "zstd Response Body Compression",
                 &self.zstd_compression.to_string(),
             ),
+            (
+                "RocksDB database log level",
+                &self.rocksdb_log_level.to_string(),
+            ),
+            (
+                "RocksDB database log time-to-roll",
+                &self.rocksdb_log_time_to_roll.to_string(),
+            ),
+            (
+                "RocksDB database max log file size",
+                &self.rocksdb_max_log_file_size.to_string(),
+            ),
+            (
+                "RocksDB database optimize for spinning disks",
+                &self.rocksdb_optimize_for_spinning_disks.to_string(),
+            ),
         ];
 
         let mut msg: String = "Active config values:\n\n".to_owned();
@@ -290,7 +316,7 @@ fn default_unix_socket_perms() -> u32 {
 }
 
 fn default_database_backend() -> String {
-    "sqlite".to_owned()
+    "rocksdb".to_owned()
 }
 
 fn default_db_cache_capacity_mb() -> f64 {
@@ -330,7 +356,7 @@ fn default_trusted_servers() -> Vec<OwnedServerName> {
 }
 
 fn default_log() -> String {
-    "warn,state_res=warn,_=off,sled=off".to_owned()
+    "warn,state_res=warn".to_owned()
 }
 
 fn default_notification_push_path() -> String {
@@ -349,7 +375,20 @@ fn default_presence_offline_timeout_s() -> u64 {
     15 * 60
 }
 
+fn default_rocksdb_log_level() -> String {
+    "info".to_owned()
+}
+
+fn default_rocksdb_log_time_to_roll() -> usize {
+    0
+}
+
 // I know, it's a great name
 pub fn default_default_room_version() -> RoomVersionId {
     RoomVersionId::V10
+}
+
+pub fn default_rocksdb_max_log_file_size() -> usize {
+    // 4 megabytes
+    4 * 1024 * 1024
 }

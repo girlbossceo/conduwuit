@@ -1,10 +1,12 @@
 use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
-use crate::{utils, Result};
+use crate::{services, utils, Result};
 use std::{
     future::Future,
     pin::Pin,
     sync::{Arc, RwLock},
 };
+
+use rocksdb::LogLevel::{Debug, Error, Fatal, Info, Warn};
 
 pub struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
@@ -21,7 +23,9 @@ pub struct RocksDbEngineTree<'a> {
 }
 
 fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::Options {
+    // block-based options: https://docs.rs/rocksdb/latest/rocksdb/struct.BlockBasedOptions.html#
     let mut block_based_options = rocksdb::BlockBasedOptions::default();
+
     block_based_options.set_block_cache(rocksdb_cache);
 
     // "Difference of spinning disk"
@@ -29,18 +33,40 @@ fn db_options(max_open_files: i32, rocksdb_cache: &rocksdb::Cache) -> rocksdb::O
     block_based_options.set_block_size(64 * 1024);
     block_based_options.set_cache_index_and_filter_blocks(true);
 
+    // database options: https://docs.rs/rocksdb/latest/rocksdb/struct.Options.html#
     let mut db_opts = rocksdb::Options::default();
+
+    let rocksdb_log_level = match services().globals.rocksdb_log_level().as_str() {
+        "debug" => Debug,
+        "info" => Info,
+        "warn" => Warn,
+        "error" => Error,
+        "fatal" => Fatal,
+        _ => Info,
+    };
+
+    db_opts.set_log_level(rocksdb_log_level);
+    db_opts.set_max_log_file_size(services().globals.rocksdb_max_log_file_size());
+    db_opts.set_log_file_time_to_roll(services().globals.rocksdb_log_time_to_roll());
+
+    if services().globals.rocksdb_optimize_for_spinning_disks() {
+        // useful for hard drives but on literally any half-decent SSD this is not useful
+        // and the benefits of improved compaction based on up to date stats are good.
+        // current conduwut users have NVMe/SSDs.
+        db_opts.set_skip_stats_update_on_db_open(true);
+
+        db_opts.set_compaction_readahead_size(2 * 1024 * 1024); // default compaction_readahead_size is 0 which is good for SSDs
+        db_opts.set_target_file_size_base(256 * 1024 * 1024); // default target_file_size is 64MB which is good for SSDs
+        db_opts.set_optimize_filters_for_hits(true); // doesn't really seem useful for fast storage
+    } else {
+        db_opts.set_skip_stats_update_on_db_open(false);
+        db_opts.set_max_bytes_for_level_base(512 * 1024 * 1024);
+        db_opts.set_use_direct_reads(true);
+        db_opts.set_use_direct_io_for_flush_and_compaction(true);
+    }
+
     db_opts.set_block_based_table_factory(&block_based_options);
-    db_opts.set_optimize_filters_for_hits(true);
-    db_opts.set_skip_stats_update_on_db_open(true);
     db_opts.set_level_compaction_dynamic_level_bytes(true);
-    db_opts.set_target_file_size_base(256 * 1024 * 1024);
-    // defaults to 1MB
-    //db_opts.set_writable_file_max_buffer_size(1024 * 1024);
-    // defaults to 2MB now
-    //db_opts.set_compaction_readahead_size(2 * 1024 * 1024);
-    db_opts.set_use_direct_reads(true);
-    db_opts.set_use_direct_io_for_flush_and_compaction(true);
     db_opts.create_if_missing(true);
     db_opts.increase_parallelism(num_cpus::get() as i32);
     db_opts.set_max_open_files(max_open_files);
