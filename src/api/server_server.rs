@@ -1921,7 +1921,7 @@ pub async fn get_devices_route(
                 let device_id_string = metadata.device_id.as_str().to_owned();
                 let device_display_name = match services().globals.allow_device_name_federation() {
                     true => metadata.display_name,
-                    false => Some(device_id_string.to_string()),
+                    false => Some(device_id_string),
                 };
                 Some(UserDevice {
                     keys: services()
