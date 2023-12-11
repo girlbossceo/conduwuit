@@ -10,7 +10,6 @@
     crane = {
       url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
     };
   };
 
@@ -26,10 +25,11 @@
       pkgs = nixpkgs.legacyPackages.${system};
 
       # Use mold on Linux
-      stdenv = if pkgs.stdenv.isLinux then
-        pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
-      else
-        pkgs.stdenv;
+      stdenv =
+        if pkgs.stdenv.isLinux then
+          pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
+        else
+          pkgs.stdenv;
 
       # Nix-accessible `Cargo.toml`
       cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
@@ -43,9 +43,20 @@
         sha256 = "sha256-gdYqng0y9iHYzYPAdkC/ka3DRny3La/S5G8ASj0Ayyc=";
       };
 
+      rocksdb = pkgs.rocksdb.overrideAttrs
+        (oldAttrs: rec {
+          version = "8.8.1";
+          src = pkgs.fetchFromGitHub {
+            owner = "facebook";
+            repo = "rocksdb";
+            rev = "v${version}";
+            hash = "sha256-eE29iojVhR660mXTdX7yT+oqFk5oteBjZcLkmgHQWaY=";
+          };
+        });
+
       # The system's RocksDB
-      ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb}/include";
-      ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib";
+      ROCKSDB_INCLUDE_DIR = "${rocksdb}/include";
+      ROCKSDB_LIB_DIR = "${rocksdb}/lib";
 
       # Shared between the package and the devShell
       nativeBuildInputs = (with pkgs.rustPlatform; [
