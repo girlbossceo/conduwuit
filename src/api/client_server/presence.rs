@@ -86,7 +86,7 @@ pub async fn get_presence_route(
     } else {
         Err(Error::BadRequest(
             ErrorKind::NotFound,
-            "Presence state for this used was not found",
+            "Presence state for this user was not found",
         ))
     }
 }
