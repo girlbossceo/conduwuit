@@ -1,13 +1,22 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "schedule:nonOfficeHours"
+  "schedule": [
+    "at any time"
   ],
   "lockFileMaintenance": {
     "enabled": true,
-    "extends": ["schedule:daily"]
+    "schedule": [
+      "at any time"
+    ]
   },
   "nix": {
+    "schedule": [
+      "at any time"
+    ],
     "enabled": true
-  }
+  },
+  "enabledManagers": [
+    "github-actions",
+    "nix"
+  ]
 }
