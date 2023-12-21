@@ -44,7 +44,7 @@ persy = { version = "1.4.4", optional = true, features = ["background_ops"] }
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 bytes = "1.5.0"
-http = "0.2.11"
+http = "1.0.0"
 # Used to find data directory for default db path
 directories = "5.0.1"
 # Used for ruma wrapper
