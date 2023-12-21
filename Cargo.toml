@@ -59,7 +59,7 @@ rand = "0.8.5"
 rust-argon2 = { git = "https://github.com/sru-systems/rust-argon2", rev = "e6cb5bf99643e565f4f0d103960d655dac9f3097" }
 reqwest = { version = "0.11.22", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
 # Used for conduit::Error type
-thiserror = "1.0.40"
+thiserror = "1.0.51"
 # Used to generate thumbnails for images
 image = { version = "0.24.7", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 # Used to encode server public key
