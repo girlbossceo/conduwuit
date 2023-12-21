@@ -112,7 +112,9 @@
         # Development tools
         nativeBuildInputs = nativeBuildInputs ++ [
           devToolchain
-        ];
+        ] ++ (with pkgs; [
+          engage
+        ]);
       };
     });
 }
