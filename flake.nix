@@ -7,6 +7,7 @@
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
     crane = {
       url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -22,14 +23,32 @@
     , crane
     }: flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgs = nixpkgs.legacyPackages.${system};
+      pkgs = import nixpkgs {
+        inherit system;
 
-      # Use mold on Linux
-      stdenv =
-        if pkgs.stdenv.isLinux then
-          pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
-        else
-          pkgs.stdenv;
+        overlays = [
+          (final: prev: {
+            rocksdb = prev.rocksdb.overrideAttrs (old:
+              let
+                version = "8.8.1";
+              in
+              {
+                inherit version;
+                src = pkgs.fetchFromGitHub {
+                  owner = "facebook";
+                  repo = "rocksdb";
+                  rev = "v${version}";
+                  hash = "sha256-eE29iojVhR660mXTdX7yT+oqFk5oteBjZcLkmgHQWaY=";
+                };
+              });
+          })
+        ];
+      };
+
+      stdenv = if pkgs.stdenv.isLinux then
+        pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
+      else
+        pkgs.stdenv;
 
       # Nix-accessible `Cargo.toml`
       cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
@@ -43,62 +62,57 @@
         sha256 = "sha256-gdYqng0y9iHYzYPAdkC/ka3DRny3La/S5G8ASj0Ayyc=";
       };
 
-      rocksdb = pkgs.rocksdb.overrideAttrs
-        (oldAttrs: rec {
-          version = "8.8.1";
-          src = pkgs.fetchFromGitHub {
-            owner = "facebook";
-            repo = "rocksdb";
-            rev = "v${version}";
-            hash = "sha256-eE29iojVhR660mXTdX7yT+oqFk5oteBjZcLkmgHQWaY=";
-          };
-        });
+      mkToolchain = fenix.packages.${system}.combine;
 
-      # The system's RocksDB
-      ROCKSDB_INCLUDE_DIR = "${rocksdb}/include";
-      ROCKSDB_LIB_DIR = "${rocksdb}/lib";
+      buildToolchain = mkToolchain (with toolchain; [
+        cargo
+        rustc
+      ]);
 
-      # Shared between the package and the devShell
+      devToolchain = mkToolchain (with toolchain; [
+        cargo
+        clippy
+        rust-src
+        rustc
+
+        # Always use nightly rustfmt because most of its options are unstable
+        fenix.packages.${system}.latest.rustfmt
+      ]);
+
+      builder =
+        ((crane.mkLib pkgs).overrideToolchain buildToolchain).buildPackage;
+
       nativeBuildInputs = (with pkgs.rustPlatform; [
         bindgenHook
       ]);
 
-      builder =
-        ((crane.mkLib pkgs).overrideToolchain toolchain.toolchain).buildPackage;
+      env = {
+        ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb}/include";
+        ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib";
+      };
     in
     {
       packages.default = builder {
         src = ./.;
 
         inherit
-          stdenv
+          env
           nativeBuildInputs
-          ROCKSDB_INCLUDE_DIR
-          ROCKSDB_LIB_DIR;
+          stdenv;
       };
 
       devShells.default = (pkgs.mkShell.override { inherit stdenv; }) {
-        # Rust Analyzer needs to be able to find the path to default crate
-        # sources, and it can read this environment variable to do so
-        RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/library";
-
-        inherit
-          ROCKSDB_INCLUDE_DIR
-          ROCKSDB_LIB_DIR;
+        env = env // {
+          # Rust Analyzer needs to be able to find the path to default crate
+          # sources, and it can read this environment variable to do so. The
+          # `rust-src` component is required in order for this to work.
+          RUST_SRC_PATH = "${devToolchain}/lib/rustlib/src/rust/library";
+        };
 
         # Development tools
-        nativeBuildInputs = nativeBuildInputs ++ (with toolchain; [
-          cargo
-          clippy
-          rust-src
-          rustc
-          rustfmt
-        ]);
-      };
-
-      checks = {
-        packagesDefault = self.packages.${system}.default;
-        devShellsDefault = self.devShells.${system}.default;
+        nativeBuildInputs = nativeBuildInputs ++ [
+          devToolchain
+        ];
       };
     });
 }
