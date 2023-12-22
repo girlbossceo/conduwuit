@@ -89,9 +89,10 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 
     if is_guest
         && (!services().globals.allow_guest_registration()
-            || !services().globals.allow_registration())
+            || (!services().globals.allow_registration()
+                && services().globals.config.registration_token.is_some()))
     {
-        info!("Guest registration disabled / registration fully disabled, rejecting guest registration, initial device name: {:?}", body.initial_device_display_name);
+        info!("Guest registration disabled / registration disabled with token configured, rejecting guest registration, initial device name: {:?}", body.initial_device_display_name);
         return Err(Error::BadRequest(
             ErrorKind::GuestAccessForbidden,
             "Guest registration is disabled.",
