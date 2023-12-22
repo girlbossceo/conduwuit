@@ -30,7 +30,7 @@
           (final: prev: {
             rocksdb = prev.rocksdb.overrideAttrs (old:
               let
-                version = "8.8.1";
+                version = "8.9.1";
               in
               {
                 inherit version;
@@ -38,7 +38,7 @@
                   owner = "facebook";
                   repo = "rocksdb";
                   rev = "v${version}";
-                  hash = "sha256-eE29iojVhR660mXTdX7yT+oqFk5oteBjZcLkmgHQWaY=";
+                  hash = "sha256-Pl7t4FVOvnORWFS+gjy2EEUQlPxjLukWW5I5gzCQwkI=";
                 };
               });
           })

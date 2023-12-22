@@ -89,7 +89,7 @@ heed = { git = "https://github.com/timokoesters/heed.git", rev = "f6f825da7fb2c7
 # Used for ruma wrapper
 serde_html_form = "0.2.2"
 
-rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "30ffe0ad78a037694eb3e834ac0afc436eea4ebf", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
+rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "66f04df013b6e6bd42b5a8c353406e09a7c7da2a", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
 
 thread_local = "1.1.7"
 # used for TURN server authentication
