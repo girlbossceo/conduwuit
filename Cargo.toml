@@ -74,7 +74,7 @@ regex = "1.10.2"
 jsonwebtoken = "9.2.0"
 # Performance measurements
 tracing = { version = "0.1.37", features = [] }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-flame = "0.2.0"
 opentelemetry = "0.21.0"
 opentelemetry_sdk = { version = "0.21.1", features = ["rt-tokio"] }
