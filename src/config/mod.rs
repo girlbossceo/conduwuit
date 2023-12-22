@@ -119,6 +119,9 @@ pub struct Config {
     #[serde(default = "false_fn")]
     pub zstd_compression: bool,
 
+    #[serde(default = "false_fn")]
+    pub allow_guest_registration: bool,
+
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
 }
@@ -195,6 +198,10 @@ impl fmt::Display for Config {
                 &self.max_concurrent_requests.to_string(),
             ),
             ("Allow registration", &self.allow_registration.to_string()),
+            (
+                "Allow guest registration",
+                &self.allow_guest_registration.to_string(),
+            ),
             (
                 "Enabled lightning bolt",
                 &self.enable_lightning_bolt.to_string(),

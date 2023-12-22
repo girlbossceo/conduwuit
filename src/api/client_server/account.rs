@@ -86,6 +86,17 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 
     let is_guest = body.kind == RegistrationKind::Guest;
 
+    if is_guest
+        && (!services().globals.allow_guest_registration()
+            || !services().globals.allow_registration())
+    {
+        info!("Guest registration disabled / registration fully disabled, rejecting guest registration, initial device name: {:?}", body.initial_device_display_name);
+        return Err(Error::BadRequest(
+            ErrorKind::GuestAccessForbidden,
+            "Guest registration is disabled.",
+        ));
+    }
+
     let user_id = match (&body.username, is_guest) {
         (Some(username), false) => {
             let proposed_user_id = UserId::parse_with_server_name(
