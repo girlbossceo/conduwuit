@@ -114,7 +114,7 @@ sd-notify = { version = "0.4.1", optional = true }
 js_option = "0.1"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.26.2", features = ["resource"] }
+nix = { version = "0.27.1", features = ["resource"] }
 
 [features]
 default = ["conduit_bin", "backend_rocksdb", "systemd", "zstd_compression"]
