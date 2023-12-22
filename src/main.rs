@@ -91,7 +91,7 @@ async fn main() {
         let tracer = opentelemetry_jaeger::new_agent_pipeline()
             .with_auto_split_batch(true)
             .with_service_name("conduit")
-            .install_batch(opentelemetry::runtime::Tokio)
+            .install_batch(opentelemetry_sdk::runtime::Tokio)
             .unwrap();
         let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
