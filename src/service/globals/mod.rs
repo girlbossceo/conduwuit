@@ -295,6 +295,10 @@ impl Service {
         self.config.allow_registration
     }
 
+    pub fn allow_guest_registration(&self) -> bool {
+        self.config.allow_guest_registration
+    }
+
     pub fn allow_encryption(&self) -> bool {
         self.config.allow_encryption
     }
