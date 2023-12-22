@@ -78,6 +78,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
         && !body.from_appservice
         && services().globals.config.registration_token.is_none()
     {
+        info!("Registration disabled, no reg token configured, rejecting registration attempt for username {:?}", body.username);
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "Registration has been disabled.",
@@ -239,18 +240,30 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
         body.initial_device_display_name.clone(),
     )?;
 
-    info!("New user {} registered on this server.", user_id);
+    info!("New user \"{}\" registered on this server.", user_id);
+
+    // log in conduit admin channel if a non-guest user registered
     if !body.from_appservice && !is_guest {
         services()
             .admin
             .send_message(RoomMessageEventContent::notice_plain(format!(
-                "New user {user_id} registered on this server."
+                "New user \"{user_id}\" registered on this server."
             )));
     }
 
-    // If this is the first real user, grant them admin privileges
+    // log in conduit admin channel if a guest registered
+    if !body.from_appservice && is_guest {
+        services()
+            .admin
+            .send_message(RoomMessageEventContent::notice_plain(format!(
+            "Guest user \"{user_id}\" with device display name `{:?}` registered on this server.",
+            body.initial_device_display_name
+        )));
+    }
+
+    // If this is the first real user, grant them admin privileges except for guest users
     // Note: the server user, @conduit:servername, is generated first
-    if services().users.count()? == 2 {
+    if services().users.count()? == 2 && !is_guest {
         services()
             .admin
             .make_user_admin(&user_id, displayname)
