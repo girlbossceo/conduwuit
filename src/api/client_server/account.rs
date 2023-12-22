@@ -98,6 +98,15 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
         ));
     }
 
+    // forbid guests from registering if there is not a real admin user yet. give generic user error.
+    if is_guest && services().users.count()? < 2 {
+        warn!("Guest account attempted to register before a real admin user has been registered, rejecting registration. Guest's initial device name: {:?}", body.initial_device_display_name);
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Registration temporarily disabled.",
+        ));
+    }
+
     let user_id = match (&body.username, is_guest) {
         (Some(username), false) => {
             let proposed_user_id = UserId::parse_with_server_name(
