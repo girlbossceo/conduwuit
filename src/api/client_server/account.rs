@@ -13,7 +13,7 @@ use ruma::{
     events::{room::message::RoomMessageEventContent, GlobalAccountDataEventType},
     push, UserId,
 };
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use register::RegistrationKind;
 
@@ -270,6 +270,9 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
             .await?;
 
         warn!("Granting {} admin privileges as the first user", user_id);
+    } else {
+        error!("First registered user \"{user_id}\" is a guest account, not granting admin privileges.\n
+        Recommend disabling public and guest registrations, and using emergency password to get access back, or reset your database with disabled registration.");
     }
 
     Ok(register::v3::Response {
