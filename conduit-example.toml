@@ -81,3 +81,6 @@ allow_device_name_federation = false
 # Most users should not need to enable this.
 # See https://breachattack.com/ and https://wikipedia.org/wiki/BREACH before deciding to enable this.
 zstd_compression = false
+
+# Set to true to allow user type "guest" registrations
+allow_guest_registration = false
