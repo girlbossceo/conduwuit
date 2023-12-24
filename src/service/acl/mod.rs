@@ -1,6 +1,6 @@
 
 
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashSet};
 
 use ruma::ServerName;
 use tracing::{warn, debug, error};
@@ -16,6 +16,20 @@ pub struct Service {
 }
 
 impl Service {
+        pub fn list_acls(&self, filter: Option<AclMode>) -> Vec<AclDatabaseEntry> {
+            let set = self.db.get_all_acls();
+            match filter {
+                Some(filter) => set.into_iter().filter(|it| it.mode == filter).collect(), 
+                None => set.into_iter().collect(),
+            }
+        }
+        pub fn remove_acl(&self, host: Host) -> crate::Result<()> {
+            self.db.remove_acl(host)
+        }
+
+        pub fn add_acl(&self, host: Host, mode: AclMode) -> crate::Result<()> {
+            self.db.add_acl(AclDatabaseEntry { mode: mode, hostname: host })
+        }
         /// same as federation_with_allowed however it can work with the fedi_dest type
         pub fn is_federation_with_allowed_fedi_dest(&self,fedi_dest: &FedDest) -> bool {
             let hostname = if let Ok(name) = Host::parse(&fedi_dest.hostname()) {
