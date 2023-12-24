@@ -48,20 +48,20 @@ pub struct Config {
     pub max_concurrent_requests: u16,
     #[serde(default = "default_max_fetch_prev_events")]
     pub max_fetch_prev_events: u16,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_registration: bool,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse: bool,
     pub registration_token: Option<String>,
     #[serde(default = "true_fn")]
     pub allow_encryption: bool,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_federation: bool,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_public_room_directory_over_federation: bool,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_public_room_directory_without_auth: bool,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_device_name_federation: bool,
     #[serde(default = "true_fn")]
     pub allow_room_creation: bool,
@@ -70,9 +70,9 @@ pub struct Config {
     #[serde(default = "default_default_room_version")]
     pub default_room_version: RoomVersionId,
     pub well_known_client: Option<String>,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_jaeger: bool,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub tracing_flame: bool,
     #[serde(default)]
     pub proxy: ProxyConfig,
@@ -99,7 +99,7 @@ pub struct Config {
     pub rocksdb_max_log_file_size: usize,
     #[serde(default = "default_rocksdb_log_time_to_roll")]
     pub rocksdb_log_time_to_roll: usize,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub rocksdb_optimize_for_spinning_disks: bool,
 
     pub emergency_password: Option<String>,
@@ -107,21 +107,21 @@ pub struct Config {
     #[serde(default = "default_notification_push_path")]
     pub notification_push_path: String,
 
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_local_presence: bool,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_incoming_presence: bool,
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_outgoing_presence: bool,
     #[serde(default = "default_presence_idle_timeout_s")]
     pub presence_idle_timeout_s: u64,
     #[serde(default = "default_presence_offline_timeout_s")]
     pub presence_offline_timeout_s: u64,
 
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub zstd_compression: bool,
 
-    #[serde(default = "false_fn")]
+    #[serde(default)]
     pub allow_guest_registration: bool,
 
     #[serde(flatten)]
@@ -305,10 +305,6 @@ impl fmt::Display for Config {
 
         write!(f, "{msg}")
     }
-}
-
-fn false_fn() -> bool {
-    false
 }
 
 fn true_fn() -> bool {
