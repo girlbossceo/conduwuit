@@ -176,6 +176,8 @@ async fn main() {
     info!("Starting server");
     run_server().await.unwrap();
 
+    // if server runs into critical error and shuts down, shut down the tracer provider if jaegar is used.
+    // awaiting run_server() is a blocking call so putting this after is fine, but not the other options above.
     if config.allow_jaeger {
         opentelemetry::global::shutdown_tracer_provider();
     }
