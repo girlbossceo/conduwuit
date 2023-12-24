@@ -1312,21 +1312,48 @@ impl Service {
             }
             AdminCommand::Acl(AclCommand::List { filter }) => {
                 let results = services().acl.list_acls(filter);
+                let mut results_plain = String::new();
                 let mut results_html = String::new();
                 results.iter().for_each(|it| {
-                    results_html.push_str(&format!("* {} | {}\n", it.hostname, it.mode.to_emoji()));
+                    results_html.push_str(&format!(
+                        "<li>{} | {}</li>",
+                        it.hostname,
+                        it.mode.to_emoji()
+                    ));
+                    results_plain.push_str(&format!(
+                        "- {} | {}\n",
+                        it.hostname,
+                        it.mode.to_emoji()
+                    ));
                 });
-                RoomMessageEventContent::text_plain(format!(
-                    "
-                List of services: \n
+                RoomMessageEventContent::text_html(
+                    format!(
+                        "
+                ## List of services: \n
                 {} = blocked\n
                 {} = allowed\n
                 {}
                 ",
-                    AclMode::Block.to_emoji(),
-                    AclMode::Allow.to_emoji(),
-                    results_html
-                ))
+                        AclMode::Block.to_emoji(),
+                        AclMode::Allow.to_emoji(),
+                        results_plain
+                    ),
+                    format!(
+                        "
+                <h2>List of services: </h2>
+                <p>
+                {} = blocked<br/>
+                {} = allowed
+                </p>
+                <ul>
+                {}
+                </ul>
+                ",
+                        AclMode::Block.to_emoji(),
+                        AclMode::Allow.to_emoji(),
+                        results_html
+                    ),
+                )
             }
         };
 
