@@ -174,7 +174,9 @@ async fn main() {
     }
 
     info!("Starting server");
-    run_server().await.unwrap();
+    if let Err(e) = run_server().await {
+        error!("Critical error running server: {}", e);
+    };
 
     // if server runs into critical error and shuts down, shut down the tracer provider if jaegar is used.
     // awaiting run_server() is a blocking call so putting this after is fine, but not the other options above.
