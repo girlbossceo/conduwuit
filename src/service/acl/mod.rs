@@ -59,7 +59,8 @@ impl Service {
                     error!("database failed with {}",error);
                      false
                 }
-                Ok(None) => false,
+                Ok(None) if allow_list_enabled => false,
+                Ok(None) => true,
                 Ok(Some(data::AclMode::Block)) =>  false, 
                 Ok(Some(data::AclMode::Allow))  if allow_list_enabled => true,
                 Ok(Some(data::AclMode::Allow)) => {
