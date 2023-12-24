@@ -20,9 +20,9 @@ pub use database::KeyValueDatabase;
 pub use service::{pdu::PduEvent, Services};
 pub use utils::error::{Error, Result};
 
-pub static SERVICES: RwLock<Option<&'static Services>> = RwLock::new(None);
+pub static SERVICES: RwLock<Option<&'static Services<'static>>> = RwLock::new(None);
 
-pub fn services() -> &'static Services {
+pub fn services() -> &'static Services<'static> {
     SERVICES
         .read()
         .unwrap()

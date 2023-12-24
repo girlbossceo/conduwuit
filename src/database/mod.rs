@@ -6,8 +6,11 @@ use crate::{
     services, utils, Config, Error, PduEvent, Result, Services, SERVICES,
 };
 use abstraction::{KeyValueDatabaseEngine, KvTree};
+use argon2::PasswordVerifier;
+use argon2::{password_hash::SaltString, PasswordHasher};
 use directories::ProjectDirs;
 use lru_cache::LruCache;
+use rand::thread_rng;
 use ruma::{
     events::{
         push_rules::{PushRulesEvent, PushRulesEventContent},
@@ -464,11 +467,17 @@ impl KeyValueDatabase {
             if services().globals.database_version()? < 2 {
                 // We accidentally inserted hashed versions of "" into the db instead of just ""
                 for (userid, password) in db.userid_password.iter() {
-                    let password = utils::string_from_bytes(&password);
-
-                    let empty_hashed_password = password.map_or(false, |password| {
-                        argon2::verify_encoded(&password, b"").unwrap_or(false)
-                    });
+                    let salt = SaltString::generate(thread_rng());
+                    let empty_pass = services()
+                        .globals
+                        .argon
+                        .hash_password(b"", &salt)
+                        .expect("our own password to be properly hashed");
+                    let empty_hashed_password = services()
+                        .globals
+                        .argon
+                        .verify_password(&password, &empty_pass)
+                        .is_ok();
 
                     if empty_hashed_password {
                         db.userid_password.insert(&userid, b"")?;

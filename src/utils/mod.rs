@@ -1,7 +1,7 @@
 pub mod error;
 
-use crate::{Error, Result};
-use argon2::{Config, Variant};
+use crate::{services, Error, Result};
+use argon2::{password_hash::SaltString, PasswordHasher};
 use rand::prelude::*;
 use ring::digest;
 use ruma::{
@@ -72,14 +72,13 @@ pub fn random_string(length: usize) -> String {
 }
 
 /// Calculate a new hash for the given password
-pub fn calculate_password_hash(password: &str) -> Result<String, argon2::Error> {
-    let hashing_config = Config {
-        variant: Variant::Argon2id,
-        ..Config::owasp2() // m=19456 (19 MiB), t=2, p=1 from https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
-    };
-
-    let salt = random_string(32);
-    argon2::hash_encoded(password.as_bytes(), salt.as_bytes(), &hashing_config)
+pub fn calculate_password_hash(password: &str) -> Result<String, argon2::password_hash::Error> {
+    let salt = SaltString::generate(thread_rng());
+    services()
+        .globals
+        .argon
+        .hash_password(password.as_bytes(), &salt)
+        .map(|it| it.to_string())
 }
 
 #[tracing::instrument(skip(keys))]

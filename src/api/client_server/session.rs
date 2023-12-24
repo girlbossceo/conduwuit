@@ -1,5 +1,6 @@
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::{services, utils, Error, Result, Ruma};
+use argon2::{PasswordHash, PasswordVerifier};
 use ruma::{
     api::client::{
         error::ErrorKind,
@@ -9,7 +10,7 @@ use ruma::{
     UserId,
 };
 use serde::Deserialize;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 #[derive(Debug, Deserialize)]
 struct Claims {
@@ -74,9 +75,15 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
                     "The user has been deactivated",
                 ));
             }
-
-            let hash_matches = argon2::verify_encoded(&hash, password.as_bytes()).unwrap_or(false);
-
+            let Ok(parsed_hash) = PasswordHash::new(&hash) else {
+                error!("error while hashing");
+                return Err(Error::BadServerResponse("could not hash"));
+            };
+            let hash_matches = services()
+                .globals
+                .argon
+                .verify_password(password.as_bytes(), &parsed_hash)
+                .is_ok();
             if !hash_matches {
                 return Err(Error::BadRequest(
                     ErrorKind::Forbidden,
