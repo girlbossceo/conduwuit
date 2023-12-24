@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use clap::ValueEnum;
-use serde::{Deserialize, Serialize};
 use url::Host;
 
 pub trait Data: Send + Sync {
@@ -17,7 +16,7 @@ pub trait Data: Send + Sync {
     fn get_all_acls(&self) -> HashSet<AclDatabaseEntry>;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, ValueEnum)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, ValueEnum)]
 pub enum AclMode {
     Block,
     Allow,
@@ -31,7 +30,7 @@ impl AclMode {
         }
     }
 }
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq)]
 
 pub struct AclDatabaseEntry {
     pub(crate) mode: AclMode,
