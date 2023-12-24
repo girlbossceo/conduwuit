@@ -30,7 +30,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{warn, error};
+use tracing::error;
 use url::Host;
 
 use crate::{
