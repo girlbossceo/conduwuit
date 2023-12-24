@@ -1300,14 +1300,18 @@ impl Service {
                     }
                 };
 
-                if let Err(error) = services().acl.remove_acl(host.clone()) {
-                    error!(
-                        "encountered {} while trying to remove acl with host {}",
-                        error, host
-                    );
-                    RoomMessageEventContent::text_plain("error, couldn't remove acl")
-                } else {
-                    RoomMessageEventContent::text_plain("successfully removed ACL")
+                match services().acl.remove_acl(host.clone()) {
+                    Err(error) => {
+                        error!(
+                            "encountered {} while trying to remove acl with host {}",
+                            error, host
+                        );
+                        RoomMessageEventContent::text_plain("error, couldn't remove acl")
+                    }
+                    Ok(Some(_)) => RoomMessageEventContent::text_plain("successfully removed ACL"),
+                    Ok(None) => RoomMessageEventContent::text_plain(
+                        "couldn't remove acl as it doesn't exist",
+                    ),
                 }
             }
             AdminCommand::Acl(AclCommand::List { filter }) => {

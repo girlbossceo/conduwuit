@@ -39,8 +39,12 @@ impl Data for KeyValueDatabase {
         )
     }
 
-    fn remove_acl(&self, host: Host<String>) -> crate::Result<()> {
-        self.acl_list.remove(host.to_string().as_bytes())
+    fn remove_acl(&self, host: Host<String>) -> crate::Result<Option<()>> {
+        if self.acl_list.get(host.to_string().as_bytes())?.is_none() {
+            return Ok(None);
+        }
+        self.acl_list.remove(host.to_string().as_bytes())?;
+        Ok(Some(()))
     }
 
     fn get_all_acls(&self) -> HashSet<AclDatabaseEntry> {

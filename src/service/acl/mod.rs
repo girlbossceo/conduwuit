@@ -38,7 +38,7 @@ impl Service {
             None => set.into_iter().collect(),
         }
     }
-    pub fn remove_acl(&self, host: Host) -> crate::Result<()> {
+    pub fn remove_acl(&self, host: Host) -> crate::Result<Option<()>> {
         self.db.remove_acl(host)
     }
 

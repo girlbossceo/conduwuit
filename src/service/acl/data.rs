@@ -10,7 +10,7 @@ pub trait Data: Send + Sync {
     /// add a given Acl entry to the database
     fn add_acl(&self, acl: AclDatabaseEntry) -> crate::Result<()>;
     /// remove a given Acl entry from the database
-    fn remove_acl(&self, host: Host<String>) -> crate::Result<()>;
+    fn remove_acl(&self, host: Host<String>) -> crate::Result<Option<()>>;
 
     /// list all acls
     fn get_all_acls(&self) -> HashSet<AclDatabaseEntry>;
