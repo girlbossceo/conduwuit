@@ -7,6 +7,8 @@ use ring::digest;
 use ruma::{
     canonical_json::try_from_json_map, CanonicalJsonError, CanonicalJsonObject, OwnedUserId,
 };
+use tracing::warn;
+
 use std::{
     cmp::Ordering,
     fmt,
