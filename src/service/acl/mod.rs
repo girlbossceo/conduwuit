@@ -44,7 +44,7 @@ impl Service {
 
     pub fn add_acl(&self, host: Host, mode: AclMode) -> crate::Result<()> {
         self.db.add_acl(AclDatabaseEntry {
-            mode: mode,
+            mode,
             hostname: host,
         })
     }
@@ -59,7 +59,7 @@ impl Service {
             );
             return false;
         };
-        return self.is_federation_with_allowed(hostname);
+        self.is_federation_with_allowed(hostname)
     }
 
     /// same as federation_with_allowed however it can work with the fedi_dest type
@@ -70,7 +70,7 @@ impl Service {
             warn!("cannot deserialise hostname for server with name {:?}", srv);
             return false;
         };
-        return self.is_federation_with_allowed(hostname);
+        self.is_federation_with_allowed(hostname)
     }
     /// is federation allowed with this particular server?
     pub fn is_federation_with_allowed(&self, server_host_name: Host<String>) -> bool {

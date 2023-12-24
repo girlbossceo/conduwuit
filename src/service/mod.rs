@@ -122,7 +122,7 @@ impl Services {
 
             globals: globals::Service::load(db, config)?,
             acl: acl::Service {
-                db: db,
+                db,
                 acl_config: acl_conf,
             },
         })

@@ -24,7 +24,7 @@ pub enum AclMode {
 }
 
 impl AclMode {
-    pub fn to_emoji(&self) -> char {
+    pub fn to_emoji(self) -> char {
         match self {
             AclMode::Block => '❎',
             AclMode::Allow => '✅',

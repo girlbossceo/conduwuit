@@ -67,7 +67,7 @@ impl Data for KeyValueDatabase {
                 None => return,
             };
             set.insert(AclDatabaseEntry {
-                mode: mode,
+                mode,
                 hostname: parsed_host,
             });
         });
