@@ -423,7 +423,7 @@ impl Service {
                             self.redact_pdu(redact_id, pdu)?;
                         }
                     }
-                    _ => {
+                    RoomVersionId::V11 => {
                         #[derive(Deserialize)]
                         struct Redaction {
                             redacts: Option<OwnedEventId>,
@@ -437,6 +437,7 @@ impl Service {
                             self.redact_pdu(redact_id, pdu)?;
                         }
                     }
+                    _ => panic!("Unexpected room version {}", room_version_id)
                 };
             }
             TimelineEventType::SpaceChild => {
