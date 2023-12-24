@@ -173,7 +173,7 @@ pub struct KeyValueDatabase {
     pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
     pub(super) presence_timer_sender: Arc<mpsc::UnboundedSender<(OwnedUserId, Duration)>>,
 
-    pub(super) acl_list: Arc<dyn KvTree>
+    pub(super) acl_list: Arc<dyn KvTree>,
 }
 
 impl KeyValueDatabase {

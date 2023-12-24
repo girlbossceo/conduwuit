@@ -40,7 +40,7 @@ use crate::{
     Error, PduEvent, Result,
 };
 
-use super::{pdu::PduBuilder, acl::AclMode};
+use super::{acl::AclMode, pdu::PduBuilder};
 
 const PAGE_SIZE: usize = 100;
 
@@ -81,16 +81,9 @@ enum AdminCommand {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum AclCommand {
-    Add {
-        mode: AclMode,
-        hostname: String
-    },
-    Remove {
-        hostname: String
-    },
-    List{
-        filter: Option<AclMode>
-    }
+    Add { mode: AclMode, hostname: String },
+    Remove { hostname: String },
+    List { filter: Option<AclMode> },
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -1279,42 +1272,60 @@ impl Service {
             AdminCommand::Acl(AclCommand::Add { mode, hostname }) => {
                 let host = match Host::parse(&hostname) {
                     Ok(host) => host,
-                    Err(error) => return Ok(RoomMessageEventContent::text_plain(format!("failed to parse hostname with error {}",error))),
+                    Err(error) => {
+                        return Ok(RoomMessageEventContent::text_plain(format!(
+                            "failed to parse hostname with error {}",
+                            error
+                        )))
+                    }
                 };
                 if let Err(error) = services().acl.add_acl(host.clone(), mode) {
-                    error!("encountered {} while trying to add acl with host {} and mode {:?}",error,host,mode);
+                    error!(
+                        "encountered {} while trying to add acl with host {} and mode {:?}",
+                        error, host, mode
+                    );
                     RoomMessageEventContent::text_plain("error, couldn't add acl")
                 } else {
                     RoomMessageEventContent::text_plain("successfully added ACL")
                 }
-
-            },
-            AdminCommand::Acl(AclCommand::Remove {  hostname }) => { 
+            }
+            AdminCommand::Acl(AclCommand::Remove { hostname }) => {
                 let host = match Host::parse(&hostname) {
                     Ok(host) => host,
-                    Err(error) => return Ok(RoomMessageEventContent::text_plain(format!("failed to parse hostname with error {}",error))),
+                    Err(error) => {
+                        return Ok(RoomMessageEventContent::text_plain(format!(
+                            "failed to parse hostname with error {}",
+                            error
+                        )))
+                    }
                 };
 
                 if let Err(error) = services().acl.remove_acl(host.clone()) {
-                    error!("encountered {} while trying to remove acl with host {}",error,host);
+                    error!(
+                        "encountered {} while trying to remove acl with host {}",
+                        error, host
+                    );
                     RoomMessageEventContent::text_plain("error, couldn't remove acl")
                 } else {
                     RoomMessageEventContent::text_plain("successfully removed ACL")
                 }
-            },
-            AdminCommand::Acl(AclCommand::List { filter}) => {
+            }
+            AdminCommand::Acl(AclCommand::List { filter }) => {
                 let results = services().acl.list_acls(filter);
                 let mut results_html = String::new();
                 results.iter().for_each(|it| {
-                    results_html.push_str(&format!("* {} | {}\n",it.hostname,it.mode.to_emoji()));
+                    results_html.push_str(&format!("* {} | {}\n", it.hostname, it.mode.to_emoji()));
                 });
-                RoomMessageEventContent::text_plain(format!("
+                RoomMessageEventContent::text_plain(format!(
+                    "
                 List of services: \n
                 ❎ = blocked\n
                 ✅ = allowed\n
                 {}
-                ",results_html))
-            },
+                ",
+                    results_html
+                ))
+            }
         };
 
         Ok(reply_message_content)

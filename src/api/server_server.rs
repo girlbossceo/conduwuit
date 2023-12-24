@@ -156,9 +156,12 @@ where
 
     debug!("Checking acl allowance for {}", destination);
 
-    if !services().acl.is_federation_with_allowed_fedi_dest(&actual_destination) {
+    if !services()
+        .acl
+        .is_federation_with_allowed_fedi_dest(&actual_destination)
+    {
         debug!("blocked sending federation to {:?}", actual_destination);
-        
+
         return Err(Error::ACLBlock(destination.to_owned()));
     }
 

@@ -2,7 +2,8 @@ use std::{
     collections::BTreeMap,
     fmt,
     net::{IpAddr, Ipv4Addr},
-    path::PathBuf, sync::Arc,
+    path::PathBuf,
+    sync::Arc,
 };
 
 use figment::Figment;
@@ -13,7 +14,7 @@ use tracing::{error, warn};
 pub(crate) mod acl;
 mod proxy;
 
-use self::{proxy::ProxyConfig, acl::AccessControlListConfig};
+use self::{acl::AccessControlListConfig, proxy::ProxyConfig};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {

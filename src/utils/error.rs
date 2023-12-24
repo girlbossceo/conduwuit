@@ -85,7 +85,7 @@ pub enum Error {
     #[error("{0} in {1}")]
     InconsistentRoomState(&'static str, ruma::OwnedRoomId),
     #[error("blocked {0}")]
-    ACLBlock(OwnedServerName)
+    ACLBlock(OwnedServerName),
 }
 
 impl Error {
