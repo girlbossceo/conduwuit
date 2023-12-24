@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use clap::ValueEnum;
 use serde::{Serialize, Deserialize};
 use url::Host;
 
@@ -17,10 +18,19 @@ pub trait Data: Send + Sync {
     fn get_all_acls(&self) -> HashSet<AclDatabaseEntry>;
 }
 
-#[derive(Serialize,Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Serialize,Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, ValueEnum)]
 pub enum AclMode{
     Block,
     Allow
+}
+
+impl AclMode {
+    pub fn to_emoji(&self)-> char {
+        match self {
+            AclMode::Block => '❎',
+            AclMode::Allow => '✅',
+        }
+    }
 }
 #[derive(Serialize,Deserialize, Debug, Clone, Hash, Eq,PartialEq)]
 

@@ -1,6 +1,6 @@
 
 
-use std::{sync::Arc, collections::HashSet};
+use std::sync::Arc;
 
 use ruma::ServerName;
 use tracing::{warn, debug, error};
