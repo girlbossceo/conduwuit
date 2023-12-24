@@ -172,6 +172,8 @@ pub struct KeyValueDatabase {
     pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
     pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
     pub(super) presence_timer_sender: Arc<mpsc::UnboundedSender<(OwnedUserId, Duration)>>,
+
+    pub(super) acl_list: Arc<dyn KvTree>
 }
 
 impl KeyValueDatabase {
@@ -281,6 +283,7 @@ impl KeyValueDatabase {
 
         let db_raw = Box::new(Self {
             _db: builder.clone(),
+            acl_list: builder.open_tree("acl")?,
             userid_password: builder.open_tree("userid_password")?,
             userid_displayname: builder.open_tree("userid_displayname")?,
             userid_avatarurl: builder.open_tree("userid_avatarurl")?,

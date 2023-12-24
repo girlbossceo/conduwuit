@@ -99,7 +99,7 @@ impl FedDest {
         }
     }
 
-    fn hostname(&self) -> String {
+    pub(crate) fn hostname(&self) -> String {
         match &self {
             Self::Literal(addr) => addr.ip().to_string(),
             Self::Named(host, _) => host.clone(),
@@ -153,6 +153,14 @@ where
 
         (result.0, result.1.into_uri_string())
     };
+
+    debug!("Checking acl allowance for {}", destination);
+
+    if !services().acl.is_federation_with_allowed_fedi_dest(&actual_destination) {
+        debug!("blocked sending federation to {:?}", actual_destination);
+        
+        return Err(Error::ACLBlock(destination.to_owned()));
+    }
 
     let actual_destination_str = actual_destination.clone().into_https_string();
 

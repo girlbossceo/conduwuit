@@ -1645,6 +1645,17 @@ impl Service {
 
     /// Returns Ok if the acl allows the server
     pub fn acl_check(&self, server_name: &ServerName, room_id: &RoomId) -> Result<()> {
+        if !services().acl.is_federation_with_allowed_server_name(server_name) {
+            info!(
+                "Server {} was denied by server ACL in {}",
+                server_name, room_id
+            );
+            return Err(Error::BadRequest(
+                ErrorKind::Forbidden,
+                "Server was denied by Server ACL",
+            ));
+        }
+
         let acl_event = match services().rooms.state_accessor.room_state_get(
             room_id,
             &StateEventType::RoomServerAcl,

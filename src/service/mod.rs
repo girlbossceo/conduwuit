@@ -6,7 +6,7 @@ use std::{
 use lru_cache::LruCache;
 
 use crate::{Config, Result};
-
+pub mod acl;
 pub mod account_data;
 pub mod admin;
 pub mod appservice;
@@ -34,6 +34,7 @@ pub struct Services {
     pub key_backups: key_backups::Service,
     pub media: media::Service,
     pub sending: Arc<sending::Service>,
+    pub acl: acl::Service
 }
 
 impl Services {
@@ -49,11 +50,13 @@ impl Services {
             + key_backups::Data
             + media::Data
             + sending::Data
+            + acl::Data
             + 'static,
     >(
         db: &'static D,
         config: Config,
     ) -> Result<Self> {
+        let acl_conf = config.acl.clone();
         Ok(Self {
             appservice: appservice::Service { db },
             pusher: pusher::Service { db },
@@ -118,6 +121,7 @@ impl Services {
             sending: sending::Service::build(db, &config),
 
             globals: globals::Service::load(db, config)?,
+            acl: acl::Service { db: db, acl_config: acl_conf },
         })
     }
     fn memory_usage(&self) -> String {

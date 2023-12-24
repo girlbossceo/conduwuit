@@ -84,6 +84,8 @@ pub enum Error {
     RedactionError(OwnedServerName, ruma::canonical_json::RedactionError),
     #[error("{0} in {1}")]
     InconsistentRoomState(&'static str, ruma::OwnedRoomId),
+    #[error("blocked {0}")]
+    ACLBlock(OwnedServerName)
 }
 
 impl Error {

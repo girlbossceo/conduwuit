@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     fmt,
     net::{IpAddr, Ipv4Addr},
-    path::PathBuf,
+    path::PathBuf, sync::Arc,
 };
 
 use figment::Figment;
@@ -10,9 +10,10 @@ use ruma::{OwnedServerName, RoomVersionId};
 use serde::{de::IgnoredAny, Deserialize};
 use tracing::{error, warn};
 
+pub(crate) mod acl;
 mod proxy;
 
-use self::proxy::ProxyConfig;
+use self::{proxy::ProxyConfig, acl::AccessControlListConfig};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
@@ -121,6 +122,9 @@ pub struct Config {
 
     #[serde(default = "false_fn")]
     pub allow_guest_registration: bool,
+
+    #[serde(default)]
+    pub acl: Arc<AccessControlListConfig>,
 
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
