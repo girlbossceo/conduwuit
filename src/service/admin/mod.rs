@@ -1319,10 +1319,12 @@ impl Service {
                 RoomMessageEventContent::text_plain(format!(
                     "
                 List of services: \n
-                ❎ = blocked\n
-                ✅ = allowed\n
+                {} = blocked\n
+                {} = allowed\n
                 {}
                 ",
+                    AclMode::Block.to_emoji(),
+                    AclMode::Allow.to_emoji(),
                     results_html
                 ))
             }
