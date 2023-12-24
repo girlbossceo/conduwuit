@@ -99,8 +99,8 @@ impl Service {
             Ok(Some(data::AclMode::Block)) => false,
             Ok(Some(data::AclMode::Allow)) if allow_list_enabled => true,
             Ok(Some(data::AclMode::Allow)) => {
-                warn!("allowlist value found in database for {} but allow list is not enabled, denied request", server_host_name);
-                false
+                warn!("allowlist value found in database for {} but allow list is not enabled, allowed request", server_host_name);
+                true
             }
         }
     }
