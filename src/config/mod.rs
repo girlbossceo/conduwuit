@@ -50,6 +50,8 @@ pub struct Config {
     pub max_fetch_prev_events: u16,
     #[serde(default = "false_fn")]
     pub allow_registration: bool,
+    #[serde(default = "false_fn")]
+    pub yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse: bool,
     pub registration_token: Option<String>,
     #[serde(default = "true_fn")]
     pub allow_encryption: bool,
@@ -197,7 +199,10 @@ impl fmt::Display for Config {
                 "Maximum concurrent requests",
                 &self.max_concurrent_requests.to_string(),
             ),
-            ("Allow registration", &self.allow_registration.to_string()),
+            (
+                "Allow registration (open registration)",
+                &self.allow_registration.to_string(),
+            ),
             (
                 "Allow guest registration",
                 &self.allow_guest_registration.to_string(),

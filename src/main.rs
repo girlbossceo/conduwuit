@@ -156,6 +156,23 @@ async fn main() {
     };
     let config = &services().globals.config;
 
+    if config.allow_registration
+        && !config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
+    {
+        error!("!! WARNING: You have `allow_registration` enabled in your config which means you are allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token).\n
+        If this is not the intended behaviour, please disable `allow_registration` and set a registration token.\n
+        For security and safety reasons, conduwuit will shut down. If you are extra sure this is the desired behaviour you want, please set the following config option to true:
+        `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`");
+        return;
+    }
+
+    if config.allow_registration
+        && config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
+    {
+        error!("Open registration is enabled via setting `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` and `allow_registration` to true. You are expected to be aware of the risks now.\n
+        If this is not the desired behaviour, please disable `allow_registration` and set a registration token.");
+    }
+
     info!("Starting server");
     run_server().await.unwrap();
 
