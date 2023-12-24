@@ -307,6 +307,13 @@ impl Service<'_> {
         self.config.allow_guest_registration
     }
 
+    pub fn yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse(
+        &self,
+    ) -> bool {
+        self.config
+            .yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
+    }
+
     pub fn allow_encryption(&self) -> bool {
         self.config.allow_encryption
     }
