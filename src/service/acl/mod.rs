@@ -17,7 +17,13 @@ pub struct Service {
 
 impl Service {
         pub fn list_acls(&self, filter: Option<AclMode>) -> Vec<AclDatabaseEntry> {
-            let set = self.db.get_all_acls();
+            let mut set = self.db.get_all_acls();
+            self.acl_config.allow_list.clone().unwrap_or_default().iter().for_each(|it| {
+                set.insert(AclDatabaseEntry { mode: AclMode::Allow, hostname: it.to_owned() });
+            });
+            self.acl_config.block_list.clone().iter().for_each(|it| {
+                set.insert(AclDatabaseEntry { mode: AclMode::Block, hostname: it.to_owned() });
+            });
             match filter {
                 Some(filter) => set.into_iter().filter(|it| it.mode == filter).collect(), 
                 None => set.into_iter().collect(),
