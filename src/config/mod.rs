@@ -383,7 +383,7 @@ fn default_presence_offline_timeout_s() -> u64 {
 }
 
 fn default_rocksdb_log_level() -> String {
-    "info".to_owned()
+    "warn".to_owned()
 }
 
 fn default_rocksdb_log_time_to_roll() -> usize {

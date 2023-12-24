@@ -42,7 +42,7 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
         "warn" => Warn,
         "error" => Error,
         "fatal" => Fatal,
-        _ => Info,
+        _ => Warn,
     };
 
     db_opts.set_log_level(rocksdb_log_level);
