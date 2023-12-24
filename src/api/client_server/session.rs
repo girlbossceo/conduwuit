@@ -161,16 +161,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 
     info!("{} logged in", user_id);
 
-    #[allow(deprecated)]
-    Ok(login::v3::Response {
-        user_id,
-        access_token: token,
-        home_server: Some(services().globals.server_name().to_owned()),
-        device_id,
-        well_known: None,
-        refresh_token: None,
-        expires_in: None,
-    })
+    Ok(login::v3::Response::new(user_id, token, device_id))
 }
 
 /// # `POST /_matrix/client/r0/logout`
