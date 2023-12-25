@@ -614,7 +614,7 @@ fn method_to_filter(method: Method) -> MethodFilter {
         m => panic!("Unsupported HTTP method: {m:?}"),
     }
 }
-fn server_routes() -> Router {
+fn server_server_routes() -> Router {
     Router::default()
         .ruma_route(server_server::get_server_version_route)
         .route(
