@@ -648,7 +648,7 @@ fn server_routes() -> Router {
 
 pub async fn deny_if_not_allowed_by_acl<T>(
     host: Option<Host>,
-    request: http::Request<T>,
+    request: axum::http::Request<T>,
     next: Next<T>,
 ) -> Response {
     let Some(host) = host else {
