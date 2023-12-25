@@ -654,7 +654,7 @@ fn server_server_routes() -> Router {
         .ruma_route(server_server::claim_keys_route)
         .route_layer(axum::middleware::from_fn(deny_if_not_allowed_by_acl))
 }
-
+#[allow(clippy::future_not_send)]
 pub async fn deny_if_not_allowed_by_acl<T>(
     host: Option<Host>,
     request: axum::http::Request<T>,
