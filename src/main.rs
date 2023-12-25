@@ -90,6 +90,15 @@ async fn main() {
         }
     };
 
+    if !config.allow_federation && config.acl.allow_only_federation_from_allow_list {
+        warn!(
+            r#"
+Federation is disabled however acl.allow_only_federation_from_allow_list is enabled, this means that servers on the allow list won't be able to federate.
+Unlike in synapse an ACL is always applied first before checking if federation is enabled.
+        "#
+        );
+    }
+
     if config.allow_jaeger {
         opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
         let tracer = opentelemetry_jaeger::new_agent_pipeline()

@@ -16,17 +16,12 @@ pub struct Service {
 impl Service {
     pub fn list_acls(&self, filter: Option<AclMode>) -> Vec<AclDatabaseEntry> {
         let mut set = self.db.get_all_acls();
-        self.acl_config
-            .allow_list
-            .clone()
-            .unwrap_or_default()
-            .iter()
-            .for_each(|it| {
-                set.insert(AclDatabaseEntry {
-                    mode: AclMode::Allow,
-                    hostname: it.to_owned(),
-                });
+        self.acl_config.allow_list.clone().iter().for_each(|it| {
+            set.insert(AclDatabaseEntry {
+                mode: AclMode::Allow,
+                hostname: it.to_owned(),
             });
+        });
         self.acl_config.block_list.clone().iter().for_each(|it| {
             set.insert(AclDatabaseEntry {
                 mode: AclMode::Block,
@@ -79,13 +74,10 @@ impl Service {
         if self.acl_config.block_list.contains(&server_host_name) {
             return false;
         }
-        let mut allow_list_enabled = false;
+        let allow_list_enabled = self.acl_config.allow_only_federation_from_allow_list;
         // check allowlist
-        if let Some(list) = &self.acl_config.allow_list {
-            if list.contains(&server_host_name) {
-                return true;
-            }
-            allow_list_enabled = true;
+        if allow_list_enabled && self.acl_config.allow_list.contains(&server_host_name) {
+            return true;
         }
 
         //check database
