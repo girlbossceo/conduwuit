@@ -437,7 +437,7 @@ impl Service {
                             self.redact_pdu(redact_id, pdu)?;
                         }
                     }
-                    _ => panic!("Unexpected room version {}", room_version_id)
+                    _ => panic!("Unexpected room version {}", room_version_id),
                 };
             }
             TimelineEventType::SpaceChild => {

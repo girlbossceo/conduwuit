@@ -673,7 +673,7 @@ pub async fn upgrade_room_route(
             // "creator" key no longer exists in V11 rooms
             create_event_content.remove("creator");
         }
-        _ => panic!("Unexpected room version {}", body.new_version)
+        _ => panic!("Unexpected room version {}", body.new_version),
     }
 
     create_event_content.insert(
