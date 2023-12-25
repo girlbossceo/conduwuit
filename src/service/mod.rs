@@ -21,7 +21,7 @@ pub mod transaction_ids;
 pub mod uiaa;
 pub mod users;
 
-pub struct Services {
+pub struct Services<'a> {
     pub appservice: appservice::Service,
     pub pusher: pusher::Service,
     pub rooms: rooms::Service,
@@ -30,13 +30,13 @@ pub struct Services {
     pub users: users::Service,
     pub account_data: account_data::Service,
     pub admin: Arc<admin::Service>,
-    pub globals: globals::Service,
+    pub globals: globals::Service<'a>,
     pub key_backups: key_backups::Service,
     pub media: media::Service,
     pub sending: Arc<sending::Service>,
 }
 
-impl Services {
+impl Services<'_> {
     pub fn build<
         D: appservice::Data
             + pusher::Data

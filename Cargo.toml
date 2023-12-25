@@ -56,7 +56,7 @@ serde = { version = "1.0.193", features = ["rc"] }
 # Used for secure identifiers
 rand = "0.8.5"
 # Used to hash passwords
-rust-argon2 = { git = "https://github.com/sru-systems/rust-argon2", rev = "e6cb5bf99643e565f4f0d103960d655dac9f3097" }
+argon2 = "0.5"
 reqwest = { version = "0.11.22", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
 # Used for conduit::Error type
 thiserror = "1.0.51"

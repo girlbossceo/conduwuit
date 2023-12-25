@@ -1,4 +1,5 @@
 mod data;
+use argon2::Argon2;
 pub use data::Data;
 use ruma::{
     serde::Base64, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName,
@@ -51,7 +52,7 @@ type SyncHandle = (
     Receiver<Option<Result<sync_events::v3::Response>>>, // rx
 );
 
-pub struct Service {
+pub struct Service<'a> {
     pub db: &'static dyn Data,
 
     pub actual_destination_cache: Arc<RwLock<WellKnownMap>>, // actual_destination, host
@@ -77,6 +78,7 @@ pub struct Service {
     pub rotate: RotationHandler,
 
     pub shutdown: AtomicBool,
+    pub argon: Argon2<'a>,
 }
 
 /// Handles "rotation" of long-polling requests. "Rotation" in this context is similar to "rotation" of log files and the like.
@@ -140,7 +142,7 @@ impl Resolve for Resolver {
     }
 }
 
-impl Service {
+impl Service<'_> {
     pub fn load(db: &'static dyn Data, config: Config) -> Result<Self> {
         let keypair = db.load_keypair();
 
@@ -188,7 +190,12 @@ impl Service {
             RoomVersionId::V5,
             RoomVersionId::V11,
         ];
-
+        // 19456 Kib blocks, iterations = 2, parallelism = 1 for more info https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
+        let argon = Argon2::new(
+            argon2::Algorithm::Argon2id,
+            argon2::Version::default(),
+            argon2::Params::new(19456, 2, 1, None).expect("valid parameters"),
+        );
         let mut s = Self {
             db,
             config,
@@ -219,6 +226,7 @@ impl Service {
             sync_receivers: RwLock::new(HashMap::new()),
             rotate: RotationHandler::new(),
             shutdown: AtomicBool::new(false),
+            argon,
         };
 
         fs::create_dir_all(s.get_media_folder())?;

@@ -1,5 +1,6 @@
 mod data;
 
+use argon2::{PasswordHash, PasswordVerifier};
 pub use data::Data;
 
 use ruma::{
@@ -81,8 +82,14 @@ impl Service {
 
                 // Check if password is correct
                 if let Some(hash) = services().users.password_hash(&user_id)? {
-                    let hash_matches =
-                        argon2::verify_encoded(&hash, password.as_bytes()).unwrap_or(false);
+                    let hash_matches = services()
+                        .globals
+                        .argon
+                        .verify_password(
+                            password.as_bytes(),
+                            &PasswordHash::new(&hash).expect("valid hash in database"),
+                        )
+                        .is_ok();
 
                     if !hash_matches {
                         uiaainfo.auth_error = Some(ruma::api::client::error::StandardErrorBody {
