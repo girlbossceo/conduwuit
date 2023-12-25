@@ -73,7 +73,7 @@ regex = "1.10.2"
 # jwt jsonwebtokens
 jsonwebtoken = "9.2.0"
 # Performance measurements
-tracing = { version = "0.1.37", features = [] }
+tracing = { version = "0.1.40", features = [] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-flame = "0.2.0"
 opentelemetry = "0.21.0"
