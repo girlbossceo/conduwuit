@@ -6,8 +6,7 @@ use crate::{
     services, utils, Config, Error, PduEvent, Result, Services, SERVICES,
 };
 use abstraction::{KeyValueDatabaseEngine, KvTree};
-use argon2::PasswordVerifier;
-use argon2::{password_hash::SaltString, PasswordHasher};
+use argon2::{password_hash::SaltString, PasswordHasher, PasswordVerifier};
 use directories::ProjectDirs;
 use lru_cache::LruCache;
 use rand::thread_rng;
