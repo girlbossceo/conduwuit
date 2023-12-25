@@ -190,6 +190,7 @@ impl Service<'_> {
             RoomVersionId::V5,
             RoomVersionId::V11,
         ];
+        // 2432 Kib blocks, iterations = 2, parallelism = 1 for more info https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
         let argon = Argon2::new(
             argon2::Algorithm::Argon2id,
             argon2::Version::default(),
