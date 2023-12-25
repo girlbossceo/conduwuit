@@ -76,7 +76,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
                 ));
             }
             let Ok(parsed_hash) = PasswordHash::new(&hash) else {
-                error!("error while hashing");
+                error!("error while hashing user {}", user_id);
                 return Err(Error::BadServerResponse("could not hash"));
             };
             let hash_matches = services()
