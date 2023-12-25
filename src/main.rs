@@ -456,7 +456,7 @@ fn routes() -> Router {
         .ruma_route(client_server::get_relating_events_with_rel_type_route)
         .ruma_route(client_server::get_relating_events_route)
         .ruma_route(client_server::get_hierarchy_route)
-        .nest("/", server_routes())
+        .nest("/", server_server_routes())
         .route(
             "/_matrix/client/r0/rooms/:room_id/initialSync",
             get(initial_sync),
