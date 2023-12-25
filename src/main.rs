@@ -268,6 +268,8 @@ async fn run_server() -> io::Result<()> {
 
         #[cfg(feature = "systemd")]
         let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
+        info!("Listening at {:?}", path);
         let server = Server::builder(socket).serve(app);
         let graceful = server.with_graceful_shutdown(async {
             rx.await.ok();
@@ -284,6 +286,8 @@ async fn run_server() -> io::Result<()> {
 
                 #[cfg(feature = "systemd")]
                 let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
+                info!("Listening on {}", addr);
                 server.await?
             }
             None => {
@@ -291,6 +295,8 @@ async fn run_server() -> io::Result<()> {
 
                 #[cfg(feature = "systemd")]
                 let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
+                info!("Listening on {}", addr);
                 server.await?
             }
         }
