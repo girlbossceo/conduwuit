@@ -45,7 +45,7 @@ use ruma::{
     to_device::DeviceIdOrAllDevices,
     uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch,
     OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId,
-    ServerName,
+    ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
@@ -746,7 +746,22 @@ pub fn parse_incoming_pdu(
             ));
         }
     };
-    Ok((event_id, value, room_id))
+
+    let sender = value
+        .get("sender")
+        .and_then(|sender_id| UserId::parse(sender_id.as_str()?).ok())
+        .ok_or(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Invalid sender id in pdu",
+        ))?;
+    if !services()
+        .acl
+        .is_federation_with_allowed_server_name(sender.server_name())
+    {
+        Err(Error::ACLBlock(sender.server_name().to_owned()))
+    } else {
+        Ok((event_id, value, room_id))
+    }
 }
 
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
@@ -798,6 +813,11 @@ pub async fn send_transaction_message_route(
         let r = parse_incoming_pdu(pdu);
         let (event_id, value, room_id) = match r {
             Ok(t) => t,
+            Err(Error::ACLBlock(name)) => {
+                info!("blocked pdu from server {}", name);
+                debug!("blocked pdu content: {:#?}", &pdu);
+                continue;
+            }
             Err(e) => {
                 warn!("Could not parse PDU: {e}");
                 warn!("Full PDU: {:?}", &pdu);
