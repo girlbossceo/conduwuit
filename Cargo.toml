@@ -40,7 +40,7 @@ loole = "0.1"
 # Used for storing data permanently
 #sled = { version = "0.34.7", features = ["compression", "no_metrics"], optional = true }
 #sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
-persy = { version = "1.4.4", optional = true, features = ["background_ops"] }
+persy = { version = "1.4.7", optional = true, features = ["background_ops"] }
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 bytes = "1.5.0"
