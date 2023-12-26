@@ -31,10 +31,10 @@ pub async fn report_event_route(
         ));
     };
 
-    if let Some(true) = body.reason.clone().map(|s| s.chars().count() > 250) {
+    if let Some(true) = body.reason.clone().map(|s| s.chars().count() > 500) {
         return Err(Error::BadRequest(
             ErrorKind::InvalidParam,
-            "Reason too long, should be 250 characters or fewer",
+            "Reason too long, should be 500 characters or fewer",
         ));
     };
 
