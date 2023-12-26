@@ -50,7 +50,7 @@ directories = "5.0.1"
 # Used for ruma wrapper
 serde_json = { version = "1.0.108", features = ["raw_value"] }
 # Used for appservice registration files
-serde_yaml = "0.9.27"
+serde_yaml = "0.9.29"
 # Used for pdu definition
 serde = { version = "1.0.193", features = ["rc"] }
 # Used for secure identifiers
