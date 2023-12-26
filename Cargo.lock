@@ -449,6 +449,7 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "trust-dns-resolver",
+ "url",
 ]
 
 [[package]]
@@ -3255,6 +3256,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

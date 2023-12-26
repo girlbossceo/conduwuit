@@ -45,7 +45,7 @@ use ruma::{
     to_device::DeviceIdOrAllDevices,
     uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch,
     OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId,
-    ServerName,
+    ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use std::{
@@ -99,7 +99,7 @@ impl FedDest {
         }
     }
 
-    fn hostname(&self) -> String {
+    pub(crate) fn hostname(&self) -> String {
         match &self {
             Self::Literal(addr) => addr.ip().to_string(),
             Self::Named(host, _) => host.clone(),
@@ -153,6 +153,17 @@ where
 
         (result.0, result.1.into_uri_string())
     };
+
+    debug!("Checking acl allowance for {}", destination);
+
+    if !services()
+        .acl
+        .is_federation_with_allowed_fedi_dest(&actual_destination)
+    {
+        debug!("blocked sending federation to {:?}", actual_destination);
+
+        return Err(Error::ACLBlock(destination.to_owned()));
+    }
 
     let actual_destination_str = actual_destination.clone().into_https_string();
 
@@ -735,7 +746,22 @@ pub fn parse_incoming_pdu(
             ));
         }
     };
-    Ok((event_id, value, room_id))
+
+    let sender = value
+        .get("sender")
+        .and_then(|sender_id| UserId::parse(sender_id.as_str()?).ok())
+        .ok_or(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Invalid sender id in pdu",
+        ))?;
+    if !services()
+        .acl
+        .is_federation_with_allowed_server_name(sender.server_name())
+    {
+        Err(Error::ACLBlock(sender.server_name().to_owned()))
+    } else {
+        Ok((event_id, value, room_id))
+    }
 }
 
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
@@ -787,6 +813,11 @@ pub async fn send_transaction_message_route(
         let r = parse_incoming_pdu(pdu);
         let (event_id, value, room_id) = match r {
             Ok(t) => t,
+            Err(Error::ACLBlock(name)) => {
+                info!("blocked pdu from server {}", name);
+                debug!("blocked pdu content: {:#?}", &pdu);
+                continue;
+            }
             Err(e) => {
                 warn!("Could not parse PDU: {e}");
                 warn!("Full PDU: {:?}", &pdu);
@@ -873,6 +904,16 @@ pub async fn send_transaction_message_route(
                 }
 
                 for update in presence.push {
+                    if !services()
+                        .acl
+                        .is_federation_with_allowed_server_name(update.user_id.server_name())
+                    {
+                        info!(
+                            "blocked Presence EDU from {} due to server ACL",
+                            update.user_id
+                        );
+                        continue;
+                    }
                     for room_id in services().rooms.state_cache.rooms_joined(&update.user_id) {
                         services().rooms.edus.presence.set_presence(
                             &room_id?,
@@ -888,6 +929,13 @@ pub async fn send_transaction_message_route(
             Edu::Receipt(receipt) => {
                 for (room_id, room_updates) in receipt.receipts {
                     for (user_id, user_updates) in room_updates.read {
+                        if !services()
+                            .acl
+                            .is_federation_with_allowed_server_name(user_id.server_name())
+                        {
+                            info!("blocked Receipt EDU from {} due to server ACL", user_id);
+                            continue;
+                        }
                         if let Some((event_id, _)) = user_updates
                             .event_ids
                             .iter()
@@ -933,6 +981,16 @@ pub async fn send_transaction_message_route(
                     .state_cache
                     .is_joined(&typing.user_id, &typing.room_id)?
                 {
+                    if !services()
+                        .acl
+                        .is_federation_with_allowed_server_name(typing.user_id.server_name())
+                    {
+                        info!(
+                            "blocked Typing EDU from {} due to server ACL",
+                            typing.user_id
+                        );
+                        continue;
+                    }
                     if typing.typing {
                         services().rooms.edus.typing.typing_add(
                             &typing.user_id,
@@ -949,6 +1007,16 @@ pub async fn send_transaction_message_route(
                 }
             }
             Edu::DeviceListUpdate(DeviceListUpdateContent { user_id, .. }) => {
+                if !services()
+                    .acl
+                    .is_federation_with_allowed_server_name(user_id.server_name())
+                {
+                    info!(
+                        "blocked DeviceListUpdate EDU from {} due to server ACL",
+                        user_id
+                    );
+                    continue;
+                }
                 services().users.mark_device_key_update(&user_id)?;
             }
             Edu::DirectToDevice(DirectDeviceContent {
@@ -957,6 +1025,16 @@ pub async fn send_transaction_message_route(
                 message_id,
                 messages,
             }) => {
+                if !services()
+                    .acl
+                    .is_federation_with_allowed_server_name(sender.server_name())
+                {
+                    info!(
+                        "blocked DirectToDevice EDU from {} due to server ACL",
+                        sender
+                    );
+                    continue;
+                }
                 // Check if this is a new transaction id
                 if services()
                     .transaction_ids
@@ -1018,6 +1096,16 @@ pub async fn send_transaction_message_route(
                 self_signing_key,
             }) => {
                 if user_id.server_name() != sender_servername {
+                    continue;
+                }
+                if !services()
+                    .acl
+                    .is_federation_with_allowed_server_name(user_id.server_name())
+                {
+                    info!(
+                        "blocked SigningKeyUpdate EDU from {} due to server ACL",
+                        user_id.server_name()
+                    );
                     continue;
                 }
                 if let Some(master_key) = master_key {
