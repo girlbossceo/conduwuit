@@ -36,7 +36,7 @@ hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d1496
 ] }
 hyper = { version = "0.14", features = ["server", "http1", "http2"] }
 tokio = { version = "1.34.0", features = ["fs", "macros", "signal", "sync"] }
-loole = "0.1"
+loole = "0.2"
 # Used for storing data permanently
 #sled = { version = "0.34.7", features = ["compression", "no_metrics"], optional = true }
 #sled = { git = "https://github.com/spacejam/sled.git", rev = "e4640e0773595229f398438886f19bca6f7326a2", features = ["compression"] }
