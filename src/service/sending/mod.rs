@@ -219,7 +219,8 @@ impl Service {
                 }
                 TransactionStatus::Failed(tries, time) => {
                     // Fail if a request has failed recently (exponential backoff)
-                    let mut min_elapsed_duration = Duration::from_secs(30) * (*tries) * (*tries);
+                    let mut min_elapsed_duration =
+                        Duration::from_secs(5 * 60) * (*tries) * (*tries);
                     if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
                         min_elapsed_duration = Duration::from_secs(60 * 60 * 24);
                     }
@@ -719,13 +720,13 @@ impl Service {
         let permit = self.maximum_requests.acquire().await;
         debug!("Got permit");
         let response = tokio::time::timeout(
-            Duration::from_secs(2 * 60),
+            Duration::from_secs(5 * 60),
             server_server::send_request(destination, request),
         )
         .await
         .map_err(|_| {
-            warn!("Timeout waiting for server response of {destination}");
-            Error::BadServerResponse("Timeout waiting for server response")
+            warn!("Timeout after 300 seconds waiting for server response of {destination}");
+            Error::BadServerResponse("Timeout after 300 seconds waiting for server response")
         })?;
         drop(permit);
 
