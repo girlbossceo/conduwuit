@@ -978,8 +978,6 @@ impl KeyValueDatabase {
                 services().globals.bump_database_version(14)?;
 
                 warn!("Migration: 13 -> 14 finished");
-            } else {
-                warn!("Skipping migration from version 13 to 14 for converting legacy base64 key file names to sha256 hashes of the base64 keys");
             }
 
             assert_eq!(
