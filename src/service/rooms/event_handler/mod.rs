@@ -1461,7 +1461,7 @@ impl Service {
             .get(event_id)
         {
             // Exponential backoff
-            let mut min_elapsed_duration = Duration::from_secs(30) * (*tries) * (*tries);
+            let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
             if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
                 min_elapsed_duration = Duration::from_secs(60 * 60 * 24);
             }
@@ -1748,7 +1748,7 @@ impl Service {
             .get(&signature_ids)
         {
             // Exponential backoff
-            let mut min_elapsed_duration = Duration::from_secs(30) * (*tries) * (*tries);
+            let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
             if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
                 min_elapsed_duration = Duration::from_secs(60 * 60 * 24);
             }

@@ -44,7 +44,7 @@ where
 
     let mut reqwest_request = reqwest::Request::try_from(http_request)?;
 
-    *reqwest_request.timeout_mut() = Some(Duration::from_secs(30));
+    *reqwest_request.timeout_mut() = Some(Duration::from_secs(120));
 
     let url = reqwest_request.url().clone();
     let mut response = match services()

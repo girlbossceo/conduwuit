@@ -545,7 +545,7 @@ async fn shutdown_signal(handle: ServerHandle, tx: Sender<()>) -> Result<()> {
     }
 
     warn!("Received {}, shutting down...", sig);
-    handle.graceful_shutdown(Some(Duration::from_secs(30)));
+    handle.graceful_shutdown(Some(Duration::from_secs(60)));
 
     services().globals.shutdown();
 

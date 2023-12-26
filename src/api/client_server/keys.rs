@@ -370,7 +370,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
                 .get(server)
             {
                 // Exponential backoff
-                let mut min_elapsed_duration = Duration::from_secs(30) * (*tries) * (*tries);
+                let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
                 if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
                     min_elapsed_duration = Duration::from_secs(60 * 60 * 24);
                 }
@@ -391,7 +391,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
             (
                 server,
                 tokio::time::timeout(
-                    Duration::from_secs(25),
+                    Duration::from_secs(50),
                     services().sending.send_federation_request(
                         server,
                         federation::keys::get_keys::v1::Request {
