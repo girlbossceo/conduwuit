@@ -20,7 +20,7 @@ rust-version = "1.70.0"
 [dependencies]
 # Web framework
 axum = { version = "0.6.20", default-features = false, features = ["form", "headers", "http1", "http2", "json", "matched-path"], optional = true }
-axum-server = { version = "0.5.1", features = ["tls-rustls"] }
+axum-server = { version = "0.6.0", features = ["tls-rustls"] }
 tower = { version = "0.4.13", features = ["util"] }
 tower-http = { version = "0.4.4", features = ["add-extension", "cors", "sensitive-headers", "trace", "util", "compression-zstd"] }
 
