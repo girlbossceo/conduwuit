@@ -48,7 +48,7 @@ http = "0.2.11"
 # Used to find data directory for default db path
 directories = "5.0.1"
 # Used for ruma wrapper
-serde_json = { version = "1.0.108", features = ["raw_value"] }
+serde_json = { version = "1.0.109", features = ["raw_value"] }
 # Used for appservice registration files
 serde_yaml = "0.9.29"
 # Used for pdu definition
