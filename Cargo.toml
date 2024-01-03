@@ -59,7 +59,7 @@ rand = "0.8.5"
 argon2 = "0.5"
 reqwest = { version = "0.11.23", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
 # Used for conduit::Error type
-thiserror = "1.0.52"
+thiserror = "1.0.56"
 # Used to generate thumbnails for images
 image = { version = "0.24.7", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 # Used to encode server public key
