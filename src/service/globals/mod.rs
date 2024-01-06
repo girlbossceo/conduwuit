@@ -538,7 +538,7 @@ fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
     let mut reqwest_client_builder = reqwest::Client::builder()
         .pool_max_idle_per_host(0)
         .connect_timeout(Duration::from_secs(60))
-        .timeout(Duration::from_secs(60 * 4));
+        .timeout(Duration::from_secs(60 * 5));
 
     if let Some(proxy) = config.proxy.to_proxy()? {
         reqwest_client_builder = reqwest_client_builder.proxy(proxy);
