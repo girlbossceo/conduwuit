@@ -514,7 +514,18 @@ fn routes() -> Router {
             "/_matrix/client/v3/rooms/:room_id/initialSync",
             get(initial_sync),
         )
-        //.route("/client/server.json", get(syncv3_client_server_json))
+        .route(
+            "/client/server.json",
+            get(client_server::syncv3_client_server_json),
+        )
+        .route(
+            "/.well-known/matrix/client",
+            get(client_server::well_known_client_route),
+        )
+        .route(
+            "/.well-known/matrix/server",
+            get(server_server::well_known_server_route),
+        )
         .route("/", get(it_works))
         .fallback(not_found)
 }
@@ -571,19 +582,6 @@ async fn initial_sync(_uri: Uri) -> impl IntoResponse {
 async fn it_works() -> &'static str {
     "hewwo from conduwuit woof!"
 }
-
-/*
-// TODO: add /client/server.json support by querying our client well-known for the true matrix homeserver URL
-async fn syncv3_client_server_json(uri: Uri) -> impl IntoResponse {
-    let server_name = services().globals.server_name().to_string();
-    let response = services().globals.default_client().get(&format!("https://{server_name"))
-    let server = uri.scheme_str().unwrap_or("https").to_owned() + "://" + uri.host().unwrap();
-    let version = format!("cowonduit {}", env!("CARGO_PKG_VERSION").to_owned());
-    let body = format!("{{\"server\":\"{server}\",\"version\":\"{version}\"}}");
-
-    Json(body)
-}
-*/
 
 trait RouterExt {
     fn ruma_route<H, T>(self, handler: H) -> Self

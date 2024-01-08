@@ -70,6 +70,7 @@ pub struct Config {
     #[serde(default = "default_default_room_version")]
     pub default_room_version: RoomVersionId,
     pub well_known_client: Option<String>,
+    pub well_known_server: Option<String>,
     #[serde(default)]
     pub allow_jaeger: bool,
     #[serde(default)]
