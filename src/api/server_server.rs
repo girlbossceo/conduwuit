@@ -2060,6 +2060,18 @@ pub async fn claim_keys_route(
     })
 }
 
+/// # `GET /.well-known/matrix/server`
+pub async fn well_known_server_route() -> Result<impl IntoResponse> {
+    let server_url = match services().globals.well_known_server() {
+        Some(url) => url.clone(),
+        None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
+    };
+
+    Ok(Json(serde_json::json!({
+        "m.server": server_url
+    })))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{add_port_to_hostname, get_ip_with_port, FedDest};

@@ -509,6 +509,10 @@ impl Service<'_> {
         &self.config.well_known_client
     }
 
+    pub fn well_known_server(&self) -> &Option<String> {
+        &self.config.well_known_server
+    }
+
     pub fn unix_socket_path(&self) -> &Option<PathBuf> {
         &self.config.unix_socket_path
     }

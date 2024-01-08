@@ -45,9 +45,7 @@ pub async fn get_supported_versions_route(
 }
 
 /// # `GET /.well-known/matrix/client`
-pub async fn well_known_client_route(
-    _body: Ruma<get_supported_versions::Request>,
-) -> Result<impl IntoResponse> {
+pub async fn well_known_client_route() -> Result<impl IntoResponse> {
     let client_url = match services().globals.well_known_client() {
         Some(url) => url.clone(),
         None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
@@ -56,5 +54,24 @@ pub async fn well_known_client_route(
     Ok(Json(serde_json::json!({
         "m.homeserver": {"base_url": client_url},
         "org.matrix.msc3575.proxy": {"url": client_url}
+    })))
+}
+
+/// # `GET /client/server.json`
+///
+/// Endpoint provided by sliding sync proxy used by some clients such as Element Web
+/// as a non-standard health check.
+pub async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
+    let server_url = match services().globals.well_known_client() {
+        Some(url) => url.clone(),
+        None => match services().globals.well_known_server() {
+            Some(url) => url.clone(),
+            None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
+        },
+    };
+
+    Ok(Json(serde_json::json!({
+        "server": server_url,
+        "version": format!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
     })))
 }
