@@ -142,7 +142,7 @@ async fn main() {
     // * https://www.freedesktop.org/software/systemd/man/systemd.exec.html#id-1.12.2.1.17.6
     // * https://github.com/systemd/systemd/commit/0abf94923b4a95a7d89bc526efc84e7ca2b71741
     #[cfg(unix)]
-    maximize_fd_limit().expect("should be able to increase the soft limit to the hard limit");
+    maximize_fd_limit().expect("Unable to increase maximum soft and hard file descriptor limit");
 
     config.warn_deprecated();
     if config.is_dual_listening(raw_config) {
