@@ -1626,7 +1626,7 @@ pub async fn sync_events_v4_route(
             Ordering::Less => None,
         };
 
-        let avatar = if heroes.len() == 1 {
+        let heroes_avatar = if heroes.len() == 1 {
             heroes[0].1.clone()
         } else {
             None
@@ -1636,11 +1636,17 @@ pub async fn sync_events_v4_route(
             room_id.clone(),
             sync_events::v4::SlidingSyncRoom {
                 name: services().rooms.state_accessor.get_name(room_id)?.or(name),
-                avatar: services()
-                    .rooms
-                    .state_accessor
-                    .get_avatar(room_id)?
-                    .map_or(avatar, |a| a.url),
+                avatar: if let Some(heroes_avatar) = heroes_avatar {
+                    ruma::JsOption::Some(heroes_avatar)
+                } else {
+                    match services().rooms.state_accessor.get_avatar(room_id)? {
+                        ruma::JsOption::Some(avatar) => {
+                            js_option::JsOption::Some(avatar.url.unwrap())
+                        }
+                        ruma::JsOption::Null => ruma::JsOption::Null,
+                        ruma::JsOption::Undefined => ruma::JsOption::Undefined,
+                    }
+                },
                 initial: Some(roomsince == &0),
                 is_dm: None,
                 invite_state: None,
