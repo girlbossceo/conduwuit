@@ -12,12 +12,12 @@
 - Configurable RocksDB logging (`LOG` files) with proper defaults (rotate, max size, verbosity, etc) to stop LOG files from accumulating so much
 - Federated presence support and configurable local presence (via upstream MR)
 - Concurrency support for key fetching for faster remote room joins and room joins that will error less frequently (via upstream MR)
-- Experimental room version 11 suppor (via upstream MR)
+- Experimental room version 11 support (via upstream MR)
 - Enabled all non-officially-supported room versions as experimental so we can at least attempt to join them
 - Configurable guest registration including forbidding guest registrations if no admin user is created yet, respects allow registration setting, and an optional override setting with a default of no guest registrations allowed.
 - Explicit startup error/warning if your configuration allows open registration without a token or such like Synapse
 - Improved RocksDB defaults to use new features that help with performance significantly, uses settings tailored to SSDs, and a conduwuit setting to tell RocksDB to use settings that are tailored to HDDs or slow spinning rust storage.
-- Updated Ruma to almost latest version possible, and add some unstable MSCs (some still require an implementation though)
+- Updated Ruma to latest commit where possible, and add some unstable MSCs (some still require an implementation though)
 - conduwuit allows MXIDs with `+` in them (thanks to Ruma update)
 - Revamped admin room infrastructure and commands (via upstream MR)
 - Make spaces/hierarchy cache use cache_capacity_modifier instead of hardcoded small value
@@ -27,10 +27,14 @@
 - Add *optional* feature flag to enable zstd HTTP body compression
 - Add support for querying both Matrix SRV records, the deprecated `_matrix` record and `_matrix-fed` record if necessary
 - Add config option for device name federation with a privacy-friendly default (disabled)
-- Add config option for requiring authentication to the `/publicRooms` endpoint (room directory) with a default disabled for privacy
+- Add config option for requiring authentication to the `/publicRooms` endpoint (room directory) with a default enabled for privacy
 - Add config option for federating `/publicRooms` endpoint (room directory) to other servers with a default disabled for privacy
 - Add support for listening on a UNIX socket for performance and host security with proper default permissions (660)
 - Add missing `destination` key to all `X-Matrix` `Authorization` requests (spec compliance issue)
 - Fix spec compliance issue with servers being able to fetch remote user profiles over federation for users who don't belong to our server (`/_matrix/federation/v1/query/profile`)
 - Use aggressive build-time performance optimisations for release builds (1 codegen unit, no debug, fat LTO, etc, and optimise all crates with same)
 - Raise various hardcoded timeouts in codebase that were way too short, making some things like room joins and client bugs error less or none at all than they should
+- Add debug admin command to force update user device lists (could potentially resolve some E2EE flukes) (`ForceDeviceListUpdates`)
+- Declare various missing Matrix versions and features at `/_matrix/client/versions`
+- Add support for serving server and client well-known files from conduwuit using `well_known_client` and `well_known_server` options
+- Add non-standard sliding sync proxy health check (?) endpoint at `/client/server.json` that some clients such as Element Web query using the `well_known_client` or `well_known_server` config options
