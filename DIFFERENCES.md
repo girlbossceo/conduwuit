@@ -39,3 +39,4 @@
 - Add support for serving server and client well-known files from conduwuit using `well_known_client` and `well_known_server` options
 - Add non-standard sliding sync proxy health check (?) endpoint at `/client/server.json` that some clients such as Element Web query using the `well_known_client` or `well_known_server` config options
 - Send a User-Agent on all of our requests (`conduwuit/0.7.0-alpha+conduwuit-0.1.1`) which strangely was not done upstream since forever. Some providers consider no User-Agent suspicious and block said requests.
+- Safer and cleaner shutdowns on both database side as we run cleanup on shutdown and exits database loop better (no potential hanging issues in database loop), overall cleaner shutdown logic
