@@ -211,6 +211,7 @@ async fn run_server() -> io::Result<()> {
                 .allow_origin(cors::Any)
                 .allow_methods([
                     Method::GET,
+                    Method::HEAD,
                     Method::POST,
                     Method::PUT,
                     Method::DELETE,
