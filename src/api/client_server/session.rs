@@ -185,6 +185,9 @@ pub async fn logout_route(body: Ruma<logout::v3::Request>) -> Result<logout::v3:
 
     services().users.remove_device(sender_user, sender_device)?;
 
+    // send device list update for user after logout
+    services().users.mark_device_key_update(sender_user)?;
+
     Ok(logout::v3::Response::new())
 }
 
@@ -207,6 +210,9 @@ pub async fn logout_all_route(
     for device_id in services().users.all_device_ids(sender_user).flatten() {
         services().users.remove_device(sender_user, &device_id)?;
     }
+
+    // send device list update for user after logout
+    services().users.mark_device_key_update(sender_user)?;
 
     Ok(logout_all::v3::Response::new())
 }
