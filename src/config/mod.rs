@@ -381,7 +381,7 @@ fn default_presence_idle_timeout_s() -> u64 {
 }
 
 fn default_presence_offline_timeout_s() -> u64 {
-    15 * 60
+    30 * 60
 }
 
 fn default_rocksdb_log_level() -> String {
