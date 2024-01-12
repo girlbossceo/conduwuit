@@ -18,7 +18,9 @@ use ruma::{
     events::{
         push_rules::PushRulesEvent,
         room::{
-            create::RoomCreateEventContent, encrypted::Relation, member::MembershipState,
+            create::RoomCreateEventContent,
+            encrypted::Relation,
+            member::{MembershipState, RoomMemberEventContent},
             power_levels::RoomPowerLevelsEventContent,
         },
         GlobalAccountDataEventType, StateEventType, TimelineEventType,
@@ -453,17 +455,15 @@ impl Service {
             }
             TimelineEventType::RoomMember => {
                 if let Some(state_key) = &pdu.state_key {
-                    #[derive(Deserialize)]
-                    struct ExtractMembership {
-                        membership: MembershipState,
-                    }
-
                     // if the state_key fails
                     let target_user_id = UserId::parse(state_key.clone())
                         .expect("This state_key was previously validated");
 
-                    let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
-                        .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
+                    let content = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
+                        .map_err(|e| {
+                            error!("Invalid room member event content in pdu: {e}");
+                            Error::bad_database("Invalid room member event content in pdu.")
+                        })?;
 
                     let invite_state = match content.membership {
                         MembershipState::Invite => {
@@ -481,7 +481,7 @@ impl Service {
                         .update_membership(
                             &pdu.room_id,
                             &target_user_id,
-                            content.membership,
+                            content,
                             &pdu.sender,
                             invite_state,
                             true,

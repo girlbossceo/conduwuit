@@ -1426,7 +1426,7 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
             .update_membership(
                 room_id,
                 user_id,
-                MembershipState::Leave,
+                RoomMemberEventContent::new(MembershipState::Leave),
                 user_id,
                 last_state,
                 true,
@@ -1461,7 +1461,7 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
                     .update_membership(
                         room_id,
                         user_id,
-                        MembershipState::Leave,
+                        RoomMemberEventContent::new(MembershipState::Leave),
                         user_id,
                         None,
                         true,
