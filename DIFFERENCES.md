@@ -45,3 +45,4 @@
 - Allow HEAD HTTP requests in CORS for clients (despite not being explicity mentioned in Matrix spec, HTTP spec says all HEAD requests need to behave the same as GET requests, Synapse supports HEAD requests)
 - Bump MSRV to 1.74.1
 - Purge unmaintained/irrelevant/broken database backends (heed, sled, persy)
+- webp support for images
