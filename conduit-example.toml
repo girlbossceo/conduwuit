@@ -61,8 +61,8 @@ enable_lightning_bolt = true
 # servers.)
 trusted_servers = ["matrix.org"]
 
-#max_concurrent_requests = 100 # How many requests Conduit sends to other servers at the same time
-#log = "warn,state_res=warn,rocket=off,_=off,sled=off"
+#max_concurrent_requests = 400 # How many requests Conduit sends to other servers at the same time
+#log = "warn,state_res=warn"
 
 address = "127.0.0.1" # This makes sure Conduit can only be reached using the reverse proxy
 #address = "0.0.0.0" # If Conduit is running in a container, make sure the reverse proxy (ie. Traefik) can reach it.

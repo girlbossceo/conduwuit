@@ -33,7 +33,7 @@ RUN echo "allow_federation = true" >> conduit.toml
 RUN echo "allow_check_for_updates = true" >> conduit.toml
 RUN echo "allow_encryption = true" >> conduit.toml
 RUN echo "allow_registration = true" >> conduit.toml
-RUN echo "log = \"warn,_=off,sled=off\"" >> conduit.toml
+RUN echo "log = \"warn,_=off\"" >> conduit.toml
 RUN sed -i "s/address = \"127.0.0.1\"/address = \"0.0.0.0\"/g" conduit.toml
 
 COPY --from=builder /workdir/target/release/conduit /workdir/conduit

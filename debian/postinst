@@ -77,8 +77,8 @@ allow_check_for_updates = true
 
 trusted_servers = ["matrix.org"]
 
-#max_concurrent_requests = 100 # How many requests Conduit sends to other servers at the same time
-#log = "warn,state_res=warn,rocket=off,_=off,sled=off"
+#max_concurrent_requests = 400 # How many requests Conduit sends to other servers at the same time
+#log = "warn,state_res=warn"
 EOF
     fi
     ;;
