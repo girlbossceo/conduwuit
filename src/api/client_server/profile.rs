@@ -103,15 +103,18 @@ pub async fn set_displayname_route(
     Ok(set_display_name::v3::Response {})
 }
 
-/// # `GET /_matrix/client/r0/profile/{userId}/displayname`
+/// # `GET /_matrix/client/v3/profile/{userId}/displayname`
 ///
 /// Returns the displayname of the user.
 ///
-/// - If user is on another server: Fetches displayname over federation
+/// - If user is on another server and we do not have a local copy already
+/// fetch displayname over federation
 pub async fn get_displayname_route(
     body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
-    if body.user_id.server_name() != services().globals.server_name() {
+    if (services().users.exists(&body.user_id)?)
+        && (body.user_id.server_name() != services().globals.server_name())
+    {
         let response = services()
             .sending
             .send_federation_request(
@@ -122,6 +125,18 @@ pub async fn get_displayname_route(
                 },
             )
             .await?;
+
+        // Create and update our local copy of the user
+        services().users.create(&body.user_id, None)?;
+        services()
+            .users
+            .set_displayname(&body.user_id, response.displayname.clone())?;
+        services()
+            .users
+            .set_avatar_url(&body.user_id, response.avatar_url)?;
+        services()
+            .users
+            .set_blurhash(&body.user_id, response.blurhash)?;
 
         return Ok(get_display_name::v3::Response {
             displayname: response.displayname,
@@ -225,15 +240,18 @@ pub async fn set_avatar_url_route(
     Ok(set_avatar_url::v3::Response {})
 }
 
-/// # `GET /_matrix/client/r0/profile/{userId}/avatar_url`
+/// # `GET /_matrix/client/v3/profile/{userId}/avatar_url`
 ///
 /// Returns the avatar_url and blurhash of the user.
 ///
-/// - If user is on another server: Fetches avatar_url and blurhash over federation
+/// - If user is on another server and we do not have a local copy already
+/// fetch avatar_url and blurhash over federation
 pub async fn get_avatar_url_route(
     body: Ruma<get_avatar_url::v3::Request>,
 ) -> Result<get_avatar_url::v3::Response> {
-    if body.user_id.server_name() != services().globals.server_name() {
+    if (services().users.exists(&body.user_id)?)
+        && (body.user_id.server_name() != services().globals.server_name())
+    {
         let response = services()
             .sending
             .send_federation_request(
@@ -244,6 +262,18 @@ pub async fn get_avatar_url_route(
                 },
             )
             .await?;
+
+        // Create and update our local copy of the user
+        services().users.create(&body.user_id, None)?;
+        services()
+            .users
+            .set_displayname(&body.user_id, response.displayname)?;
+        services()
+            .users
+            .set_avatar_url(&body.user_id, response.avatar_url.clone())?;
+        services()
+            .users
+            .set_blurhash(&body.user_id, response.blurhash.clone())?;
 
         return Ok(get_avatar_url::v3::Response {
             avatar_url: response.avatar_url,
@@ -257,15 +287,18 @@ pub async fn get_avatar_url_route(
     })
 }
 
-/// # `GET /_matrix/client/r0/profile/{userId}`
+/// # `GET /_matrix/client/v3/profile/{userId}`
 ///
 /// Returns the displayname, avatar_url and blurhash of the user.
 ///
-/// - If user is on another server: Fetches profile over federation
+/// - If user is on another server and we do not have a local copy already,
+/// fetch profile over federation.
 pub async fn get_profile_route(
     body: Ruma<get_profile::v3::Request>,
 ) -> Result<get_profile::v3::Response> {
-    if body.user_id.server_name() != services().globals.server_name() {
+    if (services().users.exists(&body.user_id)?)
+        && (body.user_id.server_name() != services().globals.server_name())
+    {
         let response = services()
             .sending
             .send_federation_request(
@@ -277,6 +310,18 @@ pub async fn get_profile_route(
             )
             .await?;
 
+        // Create and update our local copy of the user
+        services().users.create(&body.user_id, None)?;
+        services()
+            .users
+            .set_displayname(&body.user_id, response.displayname.clone())?;
+        services()
+            .users
+            .set_avatar_url(&body.user_id, response.avatar_url.clone())?;
+        services()
+            .users
+            .set_blurhash(&body.user_id, response.blurhash.clone())?;
+
         return Ok(get_profile::v3::Response {
             displayname: response.displayname,
             avatar_url: response.avatar_url,
@@ -285,7 +330,7 @@ pub async fn get_profile_route(
     }
 
     if !services().users.exists(&body.user_id)? {
-        // Return 404 if this user doesn't exist
+        // Return 404 if this user doesn't exist and we couldn't fetch it over federation
         return Err(Error::BadRequest(
             ErrorKind::NotFound,
             "Profile was not found.",

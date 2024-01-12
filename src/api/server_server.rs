@@ -1883,7 +1883,7 @@ pub async fn create_invite_route(
             .update_membership(
                 &body.room_id,
                 &invited_user,
-                MembershipState::Invite,
+                RoomMemberEventContent::new(MembershipState::Invite),
                 &sender,
                 Some(invite_state),
                 true,

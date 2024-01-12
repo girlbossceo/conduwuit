@@ -8,14 +8,13 @@ pub use data::Data;
 use ruma::{
     api::client::error::ErrorKind,
     events::{
-        room::{create::RoomCreateEventContent, member::MembershipState},
+        room::{create::RoomCreateEventContent, member::RoomMemberEventContent},
         AnyStrippedStateEvent, StateEventType, TimelineEventType,
     },
     serde::Raw,
     state_res::{self, StateMap},
     EventId, OwnedEventId, RoomId, RoomVersionId, UserId,
 };
-use serde::Deserialize;
 use tokio::sync::MutexGuard;
 use tracing::warn;
 
@@ -59,14 +58,9 @@ impl Service {
 
             match pdu.kind {
                 TimelineEventType::RoomMember => {
-                    #[derive(Deserialize)]
-                    struct ExtractMembership {
-                        membership: MembershipState,
-                    }
-
-                    let membership =
-                        match serde_json::from_str::<ExtractMembership>(pdu.content.get()) {
-                            Ok(e) => e.membership,
+                    let membership_event =
+                        match serde_json::from_str::<RoomMemberEventContent>(pdu.content.get()) {
+                            Ok(e) => e,
                             Err(_) => continue,
                         };
 
@@ -83,7 +77,14 @@ impl Service {
                     services()
                         .rooms
                         .state_cache
-                        .update_membership(room_id, &user_id, membership, &pdu.sender, None, false)
+                        .update_membership(
+                            room_id,
+                            &user_id,
+                            membership_event,
+                            &pdu.sender,
+                            None,
+                            false,
+                        )
                         .await?;
                 }
                 TimelineEventType::SpaceChild => {
