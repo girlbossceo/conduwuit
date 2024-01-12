@@ -192,15 +192,10 @@ impl KeyValueDatabase {
     fn check_db_setup(config: &Config) -> Result<()> {
         let path = Path::new(&config.database_path);
 
-        let sled_exists = path.join("db").exists();
         let sqlite_exists = path.join("conduit.db").exists();
         let rocksdb_exists = path.join("IDENTITY").exists();
 
         let mut count = 0;
-
-        if sled_exists {
-            count += 1;
-        }
 
         if sqlite_exists {
             count += 1;
@@ -213,12 +208,6 @@ impl KeyValueDatabase {
         if count > 1 {
             warn!("Multiple databases at database_path detected");
             return Ok(());
-        }
-
-        if sled_exists && config.database_backend != "sled" {
-            return Err(Error::bad_config(
-                "Found sled at database_path, but is not specified in config.",
-            ));
         }
 
         if sqlite_exists && config.database_backend != "sqlite" {
@@ -260,14 +249,8 @@ impl KeyValueDatabase {
                 #[cfg(feature = "rocksdb")]
                 Arc::new(Arc::<abstraction::rocksdb::Engine>::open(&config)?)
             }
-            "persy" => {
-                #[cfg(not(feature = "persy"))]
-                return Err(Error::BadConfig("Database backend not found."));
-                #[cfg(feature = "persy")]
-                Arc::new(Arc::<abstraction::persy::Engine>::open(&config)?)
-            }
             _ => {
-                return Err(Error::BadConfig("Database backend not found."));
+                return Err(Error::BadConfig("Database backend not found. sqlite (not recommended) and rocksdb are the only supported backends."));
             }
         };
 
