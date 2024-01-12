@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM docker.io/rust:1.70-bullseye AS base
+FROM docker.io/rust:1.74.1-bullseye AS base
 
 FROM base AS builder
 WORKDIR /usr/src/conduit
