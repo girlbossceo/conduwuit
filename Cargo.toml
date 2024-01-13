@@ -85,7 +85,7 @@ threadpool = "1.8.1"
 # Used for ruma wrapper
 serde_html_form = "0.2.3"
 
-rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "66f04df013b6e6bd42b5a8c353406e09a7c7da2a", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
+rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "8fccdf5473e3e75a5ce0f42e5ff5e89c2012305b", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
 
 thread_local = "1.1.7"
 # used for TURN server authentication
@@ -200,8 +200,8 @@ unused_qualifications = "warn"
 # unused_tuple_struct_fields = "warn"
 
 [workspace.lints.clippy]
-suspicious = "deny"
-perf = "deny"
+suspicious = "warn" # assume deny in practice
+perf = "warn" # assume deny in practice
 # redundant_clone = "warn"
 # cloned_instead_of_copied = "warn"
 expl_impl_clone_on_copy = "warn"
