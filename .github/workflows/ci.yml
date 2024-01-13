@@ -24,7 +24,7 @@ jobs:
         run: rm -rf "$HOME/.rustup" "$HOME/.cargo"
 
       - name: Install Nix (with flakes and nix-command enabled)
-        uses: cachix/install-nix-action@v24
+        uses: cachix/install-nix-action@v25
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
