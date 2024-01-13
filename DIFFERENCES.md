@@ -46,3 +46,4 @@
 - Bump MSRV to 1.74.1
 - Purge unmaintained/irrelevant/broken database backends (heed, sled, persy)
 - webp support for images
+- Support for suggesting servers to join at `/_matrix/client/v3/directory/room/{roomAlias}`
