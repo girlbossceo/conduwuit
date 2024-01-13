@@ -550,12 +550,14 @@ async fn request_well_known(destination: &str) -> Option<String> {
         .send()
         .await;
     debug!("Got well known response");
+    debug!("Well known response: {:?}", response);
     if let Err(e) = &response {
         debug!("Well known error: {e:?}");
         return None;
     }
     let text = response.ok()?.text().await;
     debug!("Got well known response text");
+    debug!("Well known response text: {:?}", text);
     let body: serde_json::Value = serde_json::from_str(&text.ok()?).ok()?;
     Some(body.get("m.server")?.as_str()?.to_owned())
 }
