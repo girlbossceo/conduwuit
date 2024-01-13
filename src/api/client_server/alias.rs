@@ -10,7 +10,7 @@ use ruma::{
         },
         federation,
     },
-    OwnedRoomAliasId,
+    OwnedRoomAliasId, OwnedServerName,
 };
 
 /// # `PUT /_matrix/client/r0/directory/room/{roomAlias}`
@@ -66,11 +66,9 @@ pub async fn delete_alias_route(
     Ok(delete_alias::v3::Response::new())
 }
 
-/// # `GET /_matrix/client/r0/directory/room/{roomAlias}`
+/// # `GET /_matrix/client/v3/directory/room/{roomAlias}`
 ///
 /// Resolve an alias locally or over federation.
-///
-/// - TODO: Suggest more servers to join via
 pub async fn get_alias_route(
     body: Ruma<get_alias::v3::Request>,
 ) -> Result<get_alias::v3::Response> {
@@ -91,10 +89,34 @@ pub(crate) async fn get_alias_helper(
             )
             .await?;
 
+        let room_id = response.room_id;
+
         let mut servers = response.servers;
+
+        // find active servers in room state cache to suggest
+        for extra_servers in services()
+            .rooms
+            .state_cache
+            .room_servers(&room_id)
+            .filter_map(|r| r.ok())
+        {
+            servers.push(extra_servers);
+        }
+
+        // shuffle list of servers randomly
         servers.shuffle(&mut rand::thread_rng());
 
-        return Ok(get_alias::v3::Response::new(response.room_id, servers));
+        // insert our server as the very first choice if in list
+        if let Some(server_index) = servers
+            .clone()
+            .into_iter()
+            .position(|server| server == services().globals.server_name())
+        {
+            servers.remove(server_index);
+            servers.insert(0, services().globals.server_name().to_owned());
+        }
+
+        return Ok(get_alias::v3::Response::new(room_id, servers));
     }
 
     let mut room_id = None;
@@ -152,8 +174,30 @@ pub(crate) async fn get_alias_helper(
         }
     };
 
-    Ok(get_alias::v3::Response::new(
-        room_id,
-        vec![services().globals.server_name().to_owned()],
-    ))
+    let mut servers: Vec<OwnedServerName> = Vec::new();
+
+    // find active servers in room state cache to suggest
+    for extra_servers in services()
+        .rooms
+        .state_cache
+        .room_servers(&room_id)
+        .filter_map(|r| r.ok())
+    {
+        servers.push(extra_servers);
+    }
+
+    // shuffle list of servers randomly
+    servers.shuffle(&mut rand::thread_rng());
+
+    // insert our server as the very first choice if in list
+    if let Some(server_index) = servers
+        .clone()
+        .into_iter()
+        .position(|server| server == services().globals.server_name())
+    {
+        servers.remove(server_index);
+        servers.insert(0, services().globals.server_name().to_owned());
+    }
+
+    Ok(get_alias::v3::Response::new(room_id, servers))
 }
