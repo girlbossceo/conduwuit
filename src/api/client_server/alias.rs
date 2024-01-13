@@ -116,6 +116,8 @@ pub(crate) async fn get_alias_helper(
             servers.insert(0, services().globals.server_name().to_owned());
         }
 
+        servers.dedup();
+
         return Ok(get_alias::v3::Response::new(room_id, servers));
     }
 
@@ -198,6 +200,8 @@ pub(crate) async fn get_alias_helper(
         servers.remove(server_index);
         servers.insert(0, services().globals.server_name().to_owned());
     }
+
+    servers.dedup();
 
     Ok(get_alias::v3::Response::new(room_id, servers))
 }
