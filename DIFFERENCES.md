@@ -40,7 +40,7 @@
 - Add non-standard sliding sync proxy health check (?) endpoint at `/client/server.json` that some clients such as Element Web query using the `well_known_client` or `well_known_server` config options
 - Send a User-Agent on all of our requests (`conduwuit/0.7.0-alpha+conduwuit-0.1.1`) which strangely was not done upstream since forever. Some providers consider no User-Agent suspicious and block said requests.
 - Safer and cleaner shutdowns on both database side as we run cleanup on shutdown and exits database loop better (no potential hanging issues in database loop), overall cleaner shutdown logic
-- Basic binary commands like `conduwuit ---version` work (interested in expanding it more)
+- Basic binary commands like `conduwuit --version` work (interested in expanding it more)
 - Keep track of remote user profiles for profile directory (user profile searching) and local requests for remote profiles (via upstream MR with changes)
 - Allow HEAD HTTP requests in CORS for clients (despite not being explicity mentioned in Matrix spec, HTTP spec says all HEAD requests need to behave the same as GET requests, Synapse supports HEAD requests)
 - Bump MSRV to 1.74.1
