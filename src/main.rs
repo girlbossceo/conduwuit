@@ -1,12 +1,3 @@
-#![warn(
-    rust_2018_idioms,
-    unused_qualifications,
-    clippy::cloned_instead_of_copied,
-    clippy::str_to_string,
-    clippy::future_not_send
-)]
-#![deny(clippy::dbg_macro)]
-
 use std::{
     fs::Permissions, future::Future, io, net::SocketAddr, os::unix::fs::PermissionsExt,
     sync::atomic, time::Duration,
