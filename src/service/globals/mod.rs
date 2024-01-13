@@ -539,10 +539,19 @@ impl Service<'_> {
 }
 
 fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
+    let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() > 6 {
+            attempt.error("Too many redirects (max is 6)")
+        } else {
+            attempt.follow()
+        }
+    });
+
     let mut reqwest_client_builder = reqwest::Client::builder()
         .pool_max_idle_per_host(0)
         .connect_timeout(Duration::from_secs(60))
         .timeout(Duration::from_secs(60 * 5))
+        .redirect(redirect_policy)
         .user_agent(concat!(
             env!("CARGO_PKG_NAME"),
             "/",
