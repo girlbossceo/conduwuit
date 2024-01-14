@@ -4,7 +4,6 @@ use std::{collections::HashSet, sync::Arc};
 pub use data::Data;
 
 use ruma::{
-    api::federation::{self, query::get_profile_information::v1::ProfileField},
     events::{
         direct::DirectEvent,
         ignored_user_list::IgnoredUserListEvent,
@@ -42,7 +41,9 @@ impl Service {
         // Keep track what remote users exist by adding them as "deactivated" users
         if user_id.server_name() != services().globals.server_name() {
             services().users.create(user_id, None)?;
+            /*
             // Try to update our local copy of the user if ours does not match
+            // TODO: ignore errors properly?
             if ((services().users.displayname(user_id)? != membership_event.displayname)
                 || (services().users.avatar_url(user_id)? != membership_event.avatar_url)
                 || (services().users.blurhash(user_id)? != membership_event.blurhash))
@@ -71,6 +72,7 @@ impl Service {
                     .set_blurhash(user_id, response.blurhash)
                     .await;
             };
+            */
         }
 
         match &membership {
