@@ -622,7 +622,7 @@ impl Service {
 
                     // Inhibit login does not work for guests
                     RoomMessageEventContent::text_plain(format!(
-                        "Created user with user_id: {user_id} and password: {password}"
+                        "Created user with user_id: {user_id} and password: `{password}`"
                     ))
                 }
                 UserCommand::Deactivate {
@@ -699,7 +699,7 @@ impl Service {
                         .set_password(&user_id, Some(new_password.as_str()))
                     {
                         Ok(()) => RoomMessageEventContent::text_plain(format!(
-                            "Successfully reset the password for user {user_id}: {new_password}"
+                            "Successfully reset the password for user {user_id}: `{new_password}`"
                         )),
                         Err(e) => RoomMessageEventContent::text_plain(format!(
                             "Couldn't reset the password for user {user_id}: {e}"
