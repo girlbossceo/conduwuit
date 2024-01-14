@@ -205,7 +205,8 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 
     services()
         .users
-        .set_displayname(&user_id, Some(displayname.clone()))?;
+        .set_displayname(&user_id, Some(displayname.clone()))
+        .await?;
 
     // Initial account data
     services().account_data.update(
