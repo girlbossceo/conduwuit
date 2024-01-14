@@ -308,6 +308,18 @@ where
                 })
             } else {
                 debug!("Returning error from {destination}");
+
+                // remove potentially dead destinations from our cache that may be from modified well-knowns
+                if !write_destination_to_cache {
+                    info!("Evicting {destination} from our true destination cache due to failed request.");
+                    services()
+                        .globals
+                        .actual_destination_cache
+                        .write()
+                        .unwrap()
+                        .remove(destination);
+                }
+
                 Err(Error::FederationError(
                     destination.to_owned(),
                     RumaError::from_http_response(http_response),
