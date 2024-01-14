@@ -314,7 +314,11 @@ impl Service {
     }
 
     /// Sets a new displayname or removes it if displayname is None. You still need to nofify all rooms of this change.
-    pub fn set_displayname(&self, user_id: &UserId, displayname: Option<String>) -> Result<()> {
+    pub async fn set_displayname(
+        &self,
+        user_id: &UserId,
+        displayname: Option<String>,
+    ) -> Result<()> {
         self.db.set_displayname(user_id, displayname)
     }
 
@@ -324,7 +328,11 @@ impl Service {
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
-    pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<OwnedMxcUri>) -> Result<()> {
+    pub async fn set_avatar_url(
+        &self,
+        user_id: &UserId,
+        avatar_url: Option<OwnedMxcUri>,
+    ) -> Result<()> {
         self.db.set_avatar_url(user_id, avatar_url)
     }
 
@@ -334,7 +342,7 @@ impl Service {
     }
 
     /// Sets a new avatar_url or removes it if avatar_url is None.
-    pub fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) -> Result<()> {
+    pub async fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) -> Result<()> {
         self.db.set_blurhash(user_id, blurhash)
     }
 

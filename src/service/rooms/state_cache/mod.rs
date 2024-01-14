@@ -58,13 +58,18 @@ impl Service {
                         },
                     )
                     .await?;
-                services()
+                let _ = services()
                     .users
-                    .set_displayname(user_id, response.displayname.clone())?;
-                services()
+                    .set_displayname(user_id, response.displayname.clone())
+                    .await;
+                let _ = services()
                     .users
-                    .set_avatar_url(user_id, response.avatar_url)?;
-                services().users.set_blurhash(user_id, response.blurhash)?;
+                    .set_avatar_url(user_id, response.avatar_url)
+                    .await;
+                let _ = services()
+                    .users
+                    .set_blurhash(user_id, response.blurhash)
+                    .await;
             };
         }
 

@@ -27,7 +27,8 @@ pub async fn set_displayname_route(
 
     services()
         .users
-        .set_displayname(sender_user, body.displayname.clone())?;
+        .set_displayname(sender_user, body.displayname.clone())
+        .await?;
 
     // Send a new membership event and presence update into all joined rooms
     let all_rooms_joined: Vec<_> = services()
@@ -132,13 +133,16 @@ pub async fn get_displayname_route(
         let _ = services().users.create(&body.user_id, None);
         let _ = services()
             .users
-            .set_displayname(&body.user_id, response.displayname.clone());
+            .set_displayname(&body.user_id, response.displayname.clone())
+            .await;
         let _ = services()
             .users
-            .set_avatar_url(&body.user_id, response.avatar_url);
+            .set_avatar_url(&body.user_id, response.avatar_url)
+            .await;
         let _ = services()
             .users
-            .set_blurhash(&body.user_id, response.blurhash);
+            .set_blurhash(&body.user_id, response.blurhash)
+            .await;
 
         return Ok(get_display_name::v3::Response {
             displayname: response.displayname,
@@ -162,11 +166,13 @@ pub async fn set_avatar_url_route(
 
     services()
         .users
-        .set_avatar_url(sender_user, body.avatar_url.clone())?;
+        .set_avatar_url(sender_user, body.avatar_url.clone())
+        .await?;
 
     services()
         .users
-        .set_blurhash(sender_user, body.blurhash.clone())?;
+        .set_blurhash(sender_user, body.blurhash.clone())
+        .await?;
 
     // Send a new membership event and presence update into all joined rooms
     let all_joined_rooms: Vec<_> = services()
@@ -271,13 +277,16 @@ pub async fn get_avatar_url_route(
         let _ = services().users.create(&body.user_id, None);
         let _ = services()
             .users
-            .set_displayname(&body.user_id, response.displayname);
+            .set_displayname(&body.user_id, response.displayname)
+            .await;
         let _ = services()
             .users
-            .set_avatar_url(&body.user_id, response.avatar_url.clone());
+            .set_avatar_url(&body.user_id, response.avatar_url.clone())
+            .await;
         let _ = services()
             .users
-            .set_blurhash(&body.user_id, response.blurhash.clone());
+            .set_blurhash(&body.user_id, response.blurhash.clone())
+            .await;
 
         return Ok(get_avatar_url::v3::Response {
             avatar_url: response.avatar_url,
@@ -320,13 +329,16 @@ pub async fn get_profile_route(
         let _ = services().users.create(&body.user_id, None);
         let _ = services()
             .users
-            .set_displayname(&body.user_id, response.displayname.clone());
+            .set_displayname(&body.user_id, response.displayname.clone())
+            .await;
         let _ = services()
             .users
-            .set_avatar_url(&body.user_id, response.avatar_url.clone());
+            .set_avatar_url(&body.user_id, response.avatar_url.clone())
+            .await;
         let _ = services()
             .users
-            .set_blurhash(&body.user_id, response.blurhash.clone());
+            .set_blurhash(&body.user_id, response.blurhash.clone())
+            .await;
 
         return Ok(get_profile::v3::Response {
             displayname: response.displayname,

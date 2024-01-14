@@ -600,7 +600,8 @@ impl Service {
 
                     services()
                         .users
-                        .set_displayname(&user_id, Some(displayname))?;
+                        .set_displayname(&user_id, Some(displayname))
+                        .await?;
 
                     // Initial account data
                     services().account_data.update(
