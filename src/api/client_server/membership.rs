@@ -559,7 +559,7 @@ async fn join_room_by_id_helper(
                 third_party_invite: None,
                 blurhash: services().users.blurhash(sender_user)?,
                 reason,
-                join_authorized_via_users_server,
+                join_authorized_via_users_server: join_authorized_via_users_server.clone(),
             })
             .expect("event is valid, we just created it"),
         );
@@ -594,7 +594,7 @@ async fn join_room_by_id_helper(
         // It has enough fields to be called a proper event now
         let mut join_event = join_event_stub;
 
-        info!("Asking {remote_server} for send_join");
+        info!("Asking {remote_server} for send_join in room {room_id}");
         let send_join_response = services()
             .sending
             .send_federation_request(
@@ -610,51 +610,77 @@ async fn join_room_by_id_helper(
 
         info!("send_join finished");
 
-        if let Some(signed_raw) = &send_join_response.room_state.event {
-            info!("There is a signed event. This room is probably using restricted joins. Adding signature to our event");
-            let (signed_event_id, signed_value) =
-                match gen_event_id_canonical_json(signed_raw, &room_version_id) {
-                    Ok(t) => t,
-                    Err(_) => {
-                        // Event could not be converted to canonical json
-                        return Err(Error::BadRequest(
-                            ErrorKind::InvalidParam,
-                            "Could not convert event to canonical json.",
-                        ));
-                    }
-                };
-
-            if signed_event_id != event_id {
-                return Err(Error::BadRequest(
-                    ErrorKind::InvalidParam,
-                    "Server sent event with wrong event id",
-                ));
-            }
-
-            match signed_value["signatures"]
-                .as_object()
-                .ok_or(Error::BadRequest(
-                    ErrorKind::InvalidParam,
-                    "Server sent invalid signatures type",
-                ))
-                .and_then(|e| {
-                    e.get(remote_server.as_str()).ok_or(Error::BadRequest(
-                        ErrorKind::InvalidParam,
-                        "Server did not send its signature",
-                    ))
-                }) {
-                Ok(signature) => {
-                    join_event
-                        .get_mut("signatures")
-                        .expect("we created a valid pdu")
-                        .as_object_mut()
-                        .expect("we created a valid pdu")
-                        .insert(remote_server.to_string(), signature.clone());
+        if join_authorized_via_users_server.is_some() {
+            match &room_version_id {
+                RoomVersionId::V1
+                | RoomVersionId::V2
+                | RoomVersionId::V3
+                | RoomVersionId::V4
+                | RoomVersionId::V5
+                | RoomVersionId::V6
+                | RoomVersionId::V7 => {
+                    warn!("Found `join_authorised_via_users_server` but room {} is version {}. Ignoring.", room_id, &room_version_id);
                 }
-                Err(e) => {
+                // only room versions 8 and above using `join_authorized_via_users_server` (restricted joins) need to validate and send signatures
+                RoomVersionId::V8 | RoomVersionId::V9 | RoomVersionId::V10 | RoomVersionId::V11 => {
+                    if let Some(signed_raw) = &send_join_response.room_state.event {
+                        info!("There is a signed event. This room is probably using restricted joins. Adding signature to our event");
+                        let (signed_event_id, signed_value) =
+                            match gen_event_id_canonical_json(signed_raw, &room_version_id) {
+                                Ok(t) => t,
+                                Err(_) => {
+                                    // Event could not be converted to canonical json
+                                    return Err(Error::BadRequest(
+                                        ErrorKind::InvalidParam,
+                                        "Could not convert event to canonical json.",
+                                    ));
+                                }
+                            };
+
+                        if signed_event_id != event_id {
+                            return Err(Error::BadRequest(
+                                ErrorKind::InvalidParam,
+                                "Server sent event with wrong event id",
+                            ));
+                        }
+
+                        match signed_value["signatures"]
+                            .as_object()
+                            .ok_or(Error::BadRequest(
+                                ErrorKind::InvalidParam,
+                                "Server sent invalid signatures type",
+                            ))
+                            .and_then(|e| {
+                                e.get(remote_server.as_str()).ok_or(Error::BadRequest(
+                                    ErrorKind::InvalidParam,
+                                    "Server did not send its signature",
+                                ))
+                            }) {
+                            Ok(signature) => {
+                                join_event
+                                    .get_mut("signatures")
+                                    .expect("we created a valid pdu")
+                                    .as_object_mut()
+                                    .expect("we created a valid pdu")
+                                    .insert(remote_server.to_string(), signature.clone());
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "Server {remote_server} sent invalid signature in sendjoin signatures for event {signed_value:?}: {e:?}",
+                                );
+                            }
+                        }
+                    }
+                }
+                _ => {
                     warn!(
-                            "Server {remote_server} sent invalid signature in sendjoin signatures for event {signed_value:?}: {e:?}",
-                        );
+                        "Unexpected or unsupported room version {} for room {}",
+                        &room_version_id, room_id
+                    );
+                    return Err(Error::BadRequest(
+                        ErrorKind::BadJson,
+                        "Unexpected or unsupported room version found",
+                    ));
                 }
             }
         }
