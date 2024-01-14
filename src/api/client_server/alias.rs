@@ -103,9 +103,6 @@ pub(crate) async fn get_alias_helper(
             servers.push(extra_servers);
         }
 
-        // shuffle list of servers randomly
-        servers.shuffle(&mut rand::thread_rng());
-
         // insert our server as the very first choice if in list
         if let Some(server_index) = servers
             .clone()
@@ -116,7 +113,11 @@ pub(crate) async fn get_alias_helper(
             servers.insert(0, services().globals.server_name().to_owned());
         }
 
+        servers.sort_unstable();
         servers.dedup();
+
+        // shuffle list of servers randomly after sort and dedupe
+        servers.shuffle(&mut rand::thread_rng());
 
         return Ok(get_alias::v3::Response::new(room_id, servers));
     }
@@ -188,9 +189,6 @@ pub(crate) async fn get_alias_helper(
         servers.push(extra_servers);
     }
 
-    // shuffle list of servers randomly
-    servers.shuffle(&mut rand::thread_rng());
-
     // insert our server as the very first choice if in list
     if let Some(server_index) = servers
         .clone()
@@ -201,7 +199,11 @@ pub(crate) async fn get_alias_helper(
         servers.insert(0, services().globals.server_name().to_owned());
     }
 
+    servers.sort_unstable();
     servers.dedup();
+
+    // shuffle list of servers randomly after sort and dedupe
+    servers.shuffle(&mut rand::thread_rng());
 
     Ok(get_alias::v3::Response::new(room_id, servers))
 }
