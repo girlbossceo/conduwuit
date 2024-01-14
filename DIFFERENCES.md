@@ -51,3 +51,4 @@
 - Add basic cache eviction for true destinations when requests fail if we use a cached destination (e.g. a server has modified their well-known and we're still connecting to the old destination)
 - Only follow 6 redirects total in our default reqwest ClientBuilder
 - Generate passwords with 25 characters instead of 15
+- Add missing `reason` field to user ban events (`/ban`)
