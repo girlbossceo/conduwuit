@@ -627,6 +627,14 @@ impl Service {
                     user_id,
                 } => {
                     let user_id = Arc::<UserId>::from(user_id);
+
+                    // check if user belongs to our server
+                    if user_id.server_name() != services().globals.server_name() {
+                        return Ok(RoomMessageEventContent::text_plain(format!(
+                            "User {user_id} does not belong to our server."
+                        )));
+                    }
+
                     if services().users.exists(&user_id)? {
                         RoomMessageEventContent::text_plain(format!(
                             "Making {user_id} leave all rooms before deactivation..."
@@ -659,6 +667,13 @@ impl Service {
                             )))
                         }
                     };
+
+                    // check if user belongs to our server
+                    if user_id.server_name() != services().globals.server_name() {
+                        return Ok(RoomMessageEventContent::text_plain(format!(
+                            "User {user_id} does not belong to our server."
+                        )));
+                    }
 
                     // Check if the specified user is valid
                     if !services().users.exists(&user_id)?
@@ -725,6 +740,11 @@ impl Service {
                         }
 
                         for &user_id in &user_ids {
+                            // check if user belongs to our server and skips over non-local users
+                            if user_id.server_name() != services().globals.server_name() {
+                                continue;
+                            }
+
                             if services().users.deactivate_account(user_id).is_ok() {
                                 deactivation_count += 1
                             }
