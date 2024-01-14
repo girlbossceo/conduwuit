@@ -47,3 +47,7 @@
 - Purge unmaintained/irrelevant/broken database backends (heed, sled, persy)
 - webp support for images
 - Support for suggesting servers to join at `/_matrix/client/v3/directory/room/{roomAlias}`
+- Prevent admin credential commands like reset password and deactivate user from modifying non-local users (https://gitlab.com/famedly/conduit/-/issues/377)
+- Fixed spec compliance issue with room version 8 - 11 joins (https://github.com/matrix-org/synapse/issues/16717 / https://github.com/matrix-org/matrix-spec/issues/1708)
+- Add basic cache eviction for true destinations when requests fail if we use a cached destination (e.g. a server has modified their well-known and we're still connecting to the old destination)
+- Only follow 6 redirects total in our default reqwest ClientBuilder
