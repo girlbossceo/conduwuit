@@ -439,7 +439,13 @@ impl Service {
                             self.redact_pdu(redact_id, pdu)?;
                         }
                     }
-                    _ => panic!("Unexpected room version {}", room_version_id),
+                    _ => {
+                        warn!("Unexpected or unsupported room version {}", room_version_id);
+                        return Err(Error::BadRequest(
+                            ErrorKind::BadJson,
+                            "Unexpected or unsupported room version found",
+                        ));
+                    }
                 };
             }
             TimelineEventType::SpaceChild => {

@@ -147,7 +147,13 @@ pub async fn create_room_route(
                     );
                 }
                 RoomVersionId::V11 => {} // V11 removed the "creator" key
-                _ => panic!("Unexpected room version {}", room_version),
+                _ => {
+                    warn!("Unexpected or unsupported room version {}", room_version);
+                    return Err(Error::BadRequest(
+                        ErrorKind::BadJson,
+                        "Unexpected or unsupported room version found",
+                    ));
+                }
             }
 
             content.insert(
@@ -172,7 +178,13 @@ pub async fn create_room_route(
                 | RoomVersionId::V9
                 | RoomVersionId::V10 => RoomCreateEventContent::new_v1(sender_user.clone()),
                 RoomVersionId::V11 => RoomCreateEventContent::new_v11(),
-                _ => panic!("Unexpected room version {}", room_version),
+                _ => {
+                    warn!("Unexpected or unsupported room version {}", room_version);
+                    return Err(Error::BadRequest(
+                        ErrorKind::BadJson,
+                        "Unexpected or unsupported room version found",
+                    ));
+                }
             };
             let mut content = serde_json::from_str::<CanonicalJsonObject>(
                 to_raw_value(&content)
@@ -673,7 +685,16 @@ pub async fn upgrade_room_route(
             // "creator" key no longer exists in V11 rooms
             create_event_content.remove("creator");
         }
-        _ => panic!("Unexpected room version {}", body.new_version),
+        _ => {
+            warn!(
+                "Unexpected or unsupported room version {}",
+                body.new_version
+            );
+            return Err(Error::BadRequest(
+                ErrorKind::BadJson,
+                "Unexpected or unsupported room version found",
+            ));
+        }
     }
 
     create_event_content.insert(
