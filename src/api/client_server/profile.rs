@@ -127,6 +127,8 @@ pub async fn get_displayname_route(
             )
             .await?;
 
+        /*
+            TODO: ignore errors properly?
         // Create and update our local copy of the user
         // these are `let _` because it's fine if we can't find these for the user.
         // also these requests are sent on room join so dead servers will make room joins annoying again
@@ -143,6 +145,7 @@ pub async fn get_displayname_route(
             .users
             .set_blurhash(&body.user_id, response.blurhash)
             .await;
+        */
 
         return Ok(get_display_name::v3::Response {
             displayname: response.displayname,
@@ -271,6 +274,8 @@ pub async fn get_avatar_url_route(
             )
             .await?;
 
+        /*
+            TODO: ignore errors properly?
         // Create and update our local copy of the user
         // these are `let _` because it's fine if we can't find these for the user.
         // also these requests are sent on room join so dead servers will make room joins annoying again
@@ -287,6 +292,7 @@ pub async fn get_avatar_url_route(
             .users
             .set_blurhash(&body.user_id, response.blurhash.clone())
             .await;
+        */
 
         return Ok(get_avatar_url::v3::Response {
             avatar_url: response.avatar_url,
@@ -323,6 +329,8 @@ pub async fn get_profile_route(
             )
             .await?;
 
+        /*
+            TODO: ignore errors properly?
         // Create and update our local copy of the user
         // these are `let _` because it's fine if we can't find these for the user.
         // also these requests are sent on room join so dead servers will make room joins annoying again
@@ -339,6 +347,7 @@ pub async fn get_profile_route(
             .users
             .set_blurhash(&body.user_id, response.blurhash.clone())
             .await;
+        */
 
         return Ok(get_profile::v3::Response {
             displayname: response.displayname,
