@@ -71,4 +71,4 @@ pub use voip::*;
 pub const DEVICE_ID_LENGTH: usize = 10;
 pub const TOKEN_LENGTH: usize = 32;
 pub const SESSION_ID_LENGTH: usize = 32;
-pub const AUTO_GEN_PASSWORD_LENGTH: usize = 15;
+pub const AUTO_GEN_PASSWORD_LENGTH: usize = 25;
