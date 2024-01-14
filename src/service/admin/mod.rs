@@ -10,6 +10,7 @@ use std::fmt::Write;
 use clap::{Parser, Subcommand};
 use regex::Regex;
 use ruma::{
+    api::client::error::ErrorKind,
     events::{
         relation::InReplyTo,
         room::{
@@ -30,6 +31,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex};
+use tracing::warn;
 
 use crate::{
     api::client_server::{leave_all_rooms, AUTO_GEN_PASSWORD_LENGTH},
@@ -1420,7 +1422,13 @@ impl Service {
             | RoomVersionId::V9
             | RoomVersionId::V10 => RoomCreateEventContent::new_v1(conduit_user.clone()),
             RoomVersionId::V11 => RoomCreateEventContent::new_v11(),
-            _ => panic!("Unexpected room version {}", room_version),
+            _ => {
+                warn!("Unexpected or unsupported room version {}", room_version);
+                return Err(Error::BadRequest(
+                    ErrorKind::BadJson,
+                    "Unexpected or unsupported room version found",
+                ));
+            }
         };
 
         content.federate = true;
