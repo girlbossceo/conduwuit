@@ -95,20 +95,20 @@ impl PartialProxyConfig {
 
 /// A domain name, that optionally allows a * as its first subdomain.
 #[derive(Clone, Debug)]
-pub enum WildCardedDomain {
+enum WildCardedDomain {
     WildCard,
     WildCarded(String),
     Exact(String),
 }
 impl WildCardedDomain {
-    pub fn matches(&self, domain: &str) -> bool {
+    fn matches(&self, domain: &str) -> bool {
         match self {
             WildCardedDomain::WildCard => true,
             WildCardedDomain::WildCarded(d) => domain.ends_with(d),
             WildCardedDomain::Exact(d) => domain == d,
         }
     }
-    pub fn more_specific_than(&self, other: &Self) -> bool {
+    fn more_specific_than(&self, other: &Self) -> bool {
         match (self, other) {
             (WildCardedDomain::WildCard, WildCardedDomain::WildCard) => false,
             (_, WildCardedDomain::WildCard) => true,

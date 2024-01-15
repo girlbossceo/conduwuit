@@ -41,7 +41,7 @@ pub async fn report_event_route(
     services().admin
         .send_message(message::RoomMessageEventContent::text_html(
             format!(
-                "Report received from: {}\n\n\
+                "@room Report received from: {}\n\n\
                 Event ID: {:?}\n\
                 Room ID: {:?}\n\
                 Sent By: {:?}\n\n\

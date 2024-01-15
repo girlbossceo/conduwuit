@@ -218,10 +218,7 @@ impl fmt::Display for Config {
                 "Allow device name federation",
                 &self.allow_device_name_federation.to_string(),
             ),
-            (
-                "Notification push path",
-                &self.notification_push_path.to_string(),
-            ),
+            ("Notification push path", &self.notification_push_path),
             ("Allow room creation", &self.allow_room_creation.to_string()),
             (
                 "Allow public room directory over federation",
@@ -280,10 +277,7 @@ impl fmt::Display for Config {
                 "zstd Response Body Compression",
                 &self.zstd_compression.to_string(),
             ),
-            (
-                "RocksDB database log level",
-                &self.rocksdb_log_level.to_string(),
-            ),
+            ("RocksDB database log level", &self.rocksdb_log_level),
             (
                 "RocksDB database log time-to-roll",
                 &self.rocksdb_log_time_to_roll.to_string(),
@@ -393,11 +387,11 @@ fn default_rocksdb_log_time_to_roll() -> usize {
 }
 
 // I know, it's a great name
-pub fn default_default_room_version() -> RoomVersionId {
+pub(crate) fn default_default_room_version() -> RoomVersionId {
     RoomVersionId::V10
 }
 
-pub fn default_rocksdb_max_log_file_size() -> usize {
+fn default_rocksdb_max_log_file_size() -> usize {
     // 4 megabytes
     4 * 1024 * 1024
 }

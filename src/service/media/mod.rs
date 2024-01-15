@@ -1,7 +1,7 @@
 mod data;
 use std::io::Cursor;
 
-pub use data::Data;
+pub(crate) use data::Data;
 
 use crate::{services, Result};
 use image::imageops::FilterType;

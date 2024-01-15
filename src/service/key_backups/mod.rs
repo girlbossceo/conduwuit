@@ -1,5 +1,5 @@
 mod data;
-pub use data::Data;
+pub(crate) use data::Data;
 
 use crate::Result;
 use ruma::{

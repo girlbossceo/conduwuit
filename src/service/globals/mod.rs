@@ -75,7 +75,7 @@ pub struct Service<'a> {
     pub roomid_mutex_federation: RwLock<HashMap<OwnedRoomId, Arc<TokioMutex<()>>>>, // this lock will be held longer
     pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
     pub stateres_mutex: Arc<Mutex<()>>,
-    pub rotate: RotationHandler,
+    pub(crate) rotate: RotationHandler,
 
     pub shutdown: AtomicBool,
     pub argon: Argon2<'a>,
@@ -84,12 +84,12 @@ pub struct Service<'a> {
 /// Handles "rotation" of long-polling requests. "Rotation" in this context is similar to "rotation" of log files and the like.
 ///
 /// This is utilized to have sync workers return early and release read locks on the database.
-pub struct RotationHandler(broadcast::Sender<()>, broadcast::Receiver<()>);
+pub(crate) struct RotationHandler(broadcast::Sender<()>, ());
 
 impl RotationHandler {
     pub fn new() -> Self {
-        let (s, r) = broadcast::channel(1);
-        Self(s, r)
+        let (s, _r) = broadcast::channel(1);
+        Self(s, ())
     }
 
     pub fn watch(&self) -> impl Future<Output = ()> {
@@ -113,13 +113,13 @@ impl Default for RotationHandler {
 
 type DnsOverrides = Box<dyn Fn(&str) -> Option<SocketAddr> + Send + Sync>;
 
-pub struct Resolver {
+struct Resolver {
     inner: GaiResolver,
     overrides: DnsOverrides,
 }
 
 impl Resolver {
-    pub fn new(overrides: DnsOverrides) -> Resolver {
+    fn new(overrides: DnsOverrides) -> Resolver {
         Resolver {
             inner: GaiResolver::new(),
             overrides,
