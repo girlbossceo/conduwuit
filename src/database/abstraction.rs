@@ -7,12 +7,12 @@ use std::{future::Future, pin::Pin, sync::Arc};
 pub mod sqlite;
 
 #[cfg(feature = "rocksdb")]
-pub mod rocksdb;
+pub(crate) mod rocksdb;
 
 #[cfg(any(feature = "sqlite", feature = "rocksdb"))]
-pub mod watchers;
+pub(crate) mod watchers;
 
-pub trait KeyValueDatabaseEngine: Send + Sync {
+pub(crate) trait KeyValueDatabaseEngine: Send + Sync {
     fn open(config: &Config) -> Result<Self>
     where
         Self: Sized;
@@ -27,7 +27,7 @@ pub trait KeyValueDatabaseEngine: Send + Sync {
     fn clear_caches(&self) {}
 }
 
-pub trait KvTree: Send + Sync {
+pub(crate) trait KvTree: Send + Sync {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
 
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<()>;

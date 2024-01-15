@@ -53,7 +53,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 #[derive(Parser)]
 #[clap(version, about, long_about = None)]
-struct Args {}
+struct Args;
 
 #[tokio::main]
 async fn main() {

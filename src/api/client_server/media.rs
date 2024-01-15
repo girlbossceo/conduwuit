@@ -132,9 +132,7 @@ pub async fn get_content_as_filename_route(
     let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
     if let Some(FileMeta {
-        content_disposition: _,
-        content_type,
-        file,
+        content_type, file, ..
     }) = services().media.get(mxc.clone()).await?
     {
         Ok(get_content_as_filename::v3::Response {

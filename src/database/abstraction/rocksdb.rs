@@ -8,14 +8,14 @@ use std::{
 
 use rocksdb::LogLevel::{Debug, Error, Fatal, Info, Warn};
 
-pub struct Engine {
+pub(crate) struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
     cache: rocksdb::Cache,
     old_cfs: Vec<String>,
     config: Config,
 }
 
-pub struct RocksDbEngineTree<'a> {
+struct RocksDbEngineTree<'a> {
     db: Arc<Engine>,
     name: &'a str,
     watchers: Watchers,

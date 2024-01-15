@@ -1,4 +1,4 @@
-pub mod error;
+pub(crate) mod error;
 
 use crate::{services, Error, Result};
 use argon2::{password_hash::SaltString, PasswordHasher};
@@ -14,14 +14,14 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub fn millis_since_unix_epoch() -> u64 {
+pub(crate) fn millis_since_unix_epoch() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("time is valid")
         .as_millis() as u64
 }
 
-pub fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
+pub(crate) fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
     let number = match old.map(|bytes| bytes.try_into()) {
         Some(Ok(bytes)) => {
             let number = u64::from_be_bytes(bytes);
@@ -89,7 +89,7 @@ pub fn calculate_hash(keys: &[&[u8]]) -> Vec<u8> {
     hash.as_ref().to_owned()
 }
 
-pub fn common_elements(
+pub(crate) fn common_elements(
     mut iterators: impl Iterator<Item = impl Iterator<Item = Vec<u8>>>,
     check_order: impl Fn(&[u8], &[u8]) -> Ordering,
 ) -> Option<impl Iterator<Item = Vec<u8>>> {
@@ -116,7 +116,7 @@ pub fn common_elements(
 /// Fallible conversion from any value that implements `Serialize` to a `CanonicalJsonObject`.
 ///
 /// `value` must serialize to an `serde_json::Value::Object`.
-pub fn to_canonical_object<T: serde::Serialize>(
+pub(crate) fn to_canonical_object<T: serde::Serialize>(
     value: T,
 ) -> Result<CanonicalJsonObject, CanonicalJsonError> {
     use serde::ser::Error;
@@ -129,7 +129,7 @@ pub fn to_canonical_object<T: serde::Serialize>(
     }
 }
 
-pub fn deserialize_from_str<
+pub(crate) fn deserialize_from_str<
     'de,
     D: serde::de::Deserializer<'de>,
     T: FromStr<Err = E>,
@@ -160,7 +160,7 @@ pub fn deserialize_from_str<
 
 /// Wrapper struct which will emit the HTML-escaped version of the contained
 /// string when passed to a format string.
-pub struct HtmlEscape<'a>(pub &'a str);
+pub(crate) struct HtmlEscape<'a>(pub(crate) &'a str);
 
 impl<'a> fmt::Display for HtmlEscape<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -7,19 +7,19 @@ use lru_cache::LruCache;
 
 use crate::{Config, Result};
 
-pub mod account_data;
-pub mod admin;
-pub mod appservice;
-pub mod globals;
-pub mod key_backups;
-pub mod media;
-pub mod pdu;
-pub mod pusher;
-pub mod rooms;
-pub mod sending;
-pub mod transaction_ids;
-pub mod uiaa;
-pub mod users;
+pub(crate) mod account_data;
+pub(crate) mod admin;
+pub(crate) mod appservice;
+pub(crate) mod globals;
+pub(crate) mod key_backups;
+pub(crate) mod media;
+pub(crate) mod pdu;
+pub(crate) mod pusher;
+pub(crate) mod rooms;
+pub(crate) mod sending;
+pub(crate) mod transaction_ids;
+pub(crate) mod uiaa;
+pub(crate) mod users;
 
 pub struct Services<'a> {
     pub appservice: appservice::Service,

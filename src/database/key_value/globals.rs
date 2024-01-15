@@ -11,8 +11,8 @@ use ruma::{
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
-pub const COUNTER: &[u8] = b"c";
-pub const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
+const COUNTER: &[u8] = b"c";
+const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
 
 #[async_trait]
 impl service::globals::Data for KeyValueDatabase {

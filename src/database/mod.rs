@@ -1,5 +1,5 @@
-pub mod abstraction;
-pub mod key_value;
+pub(crate) mod abstraction;
+pub(crate) mod key_value;
 
 use crate::{
     service::rooms::{edus::presence::presence_handler, timeline::PduCount},
@@ -1094,7 +1094,7 @@ impl KeyValueDatabase {
         use tokio::time::Instant;
 
         let timer_interval =
-            Duration::from_secs(services().globals.config.cleanup_second_interval as u64);
+            Duration::from_secs(u64::from(services().globals.config.cleanup_second_interval));
 
         fn perform_cleanup() {
             let start = Instant::now();

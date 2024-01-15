@@ -1221,7 +1221,7 @@ fn validate_and_add_event_id(
     Ok((event_id, value))
 }
 
-pub(crate) async fn invite_helper<'a>(
+pub(crate) async fn invite_helper(
     sender_user: &UserId,
     user_id: &UserId,
     room_id: &RoomId,
