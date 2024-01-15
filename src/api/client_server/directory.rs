@@ -246,7 +246,8 @@ pub(crate) async fn get_public_rooms_filtered_helper(
                                 error!("Invalid room topic event in database for room {}", room_id);
                                 Error::bad_database("Invalid room topic event in database.")
                             })
-                    })?,
+                    })
+                    .unwrap_or_default(),
                 world_readable: services()
                     .rooms
                     .state_accessor
