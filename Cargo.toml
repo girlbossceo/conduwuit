@@ -36,7 +36,6 @@ hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d1496
 ] }
 hyper = { version = "0.14", features = ["server", "http1", "http2"] }
 tokio = { version = "1.35.1", features = ["fs", "macros", "signal", "sync"] }
-loole = "0.3"
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 bytes = "1.5.0"
@@ -79,7 +78,6 @@ tracing-opentelemetry = "0.22.0"
 lru-cache = "0.1.2"
 rusqlite = { version = "0.30.0", optional = true, features = ["bundled"] }
 parking_lot = { version = "0.12.1", optional = true }
-crossbeam = { version = "0.8.4", optional = true }
 num_cpus = "1.16.0"
 threadpool = "1.8.1"
 # Used for ruma wrapper
