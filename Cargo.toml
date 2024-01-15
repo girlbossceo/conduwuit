@@ -57,7 +57,7 @@ reqwest = { version = "0.11.23", default-features = false, features = ["rustls-t
 # Used for conduit::Error type
 thiserror = "1.0.56"
 # Used to generate thumbnails for images
-image = { version = "0.24.7", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+image = { version = "0.24.8", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 # Used to encode server public key
 base64 = "0.21.7"
 # Used when hashing the state
@@ -79,7 +79,7 @@ tracing-opentelemetry = "0.22.0"
 lru-cache = "0.1.2"
 rusqlite = { version = "0.30.0", optional = true, features = ["bundled"] }
 parking_lot = { version = "0.12.1", optional = true }
-crossbeam = { version = "0.8.3", optional = true }
+crossbeam = { version = "0.8.4", optional = true }
 num_cpus = "1.16.0"
 threadpool = "1.8.1"
 # Used for ruma wrapper
@@ -213,7 +213,7 @@ ref_to_mut = "warn"
 char_lit_as_u8 = "warn"
 dbg_macro = "warn"
 empty_structs_with_brackets = "warn"
-# get_unwrap = "warn"
+get_unwrap = "warn"
 # if_then_some_else_none = "warn"
 # let_underscore_must_use = "warn"
 # map_err_ignore = "warn"
@@ -229,7 +229,7 @@ rest_pat_in_fully_bound_structs = "warn"
 str_to_string = "warn"
 # string_add = "warn"
 # string_slice = "warn"
-# string_to_string = "warn"
+string_to_string = "warn"
 tests_outside_test_module = "warn"
 undocumented_unsafe_blocks = "warn"
 unneeded_field_pattern = "warn"
@@ -237,3 +237,5 @@ unseparated_literal_suffix = "warn"
 # unwrap_used = "warn"
 # expect_used = "warn"
 wildcard_dependencies = "warn"
+# or_fun_call = "warn"
+unnecessary_lazy_evaluations = "warn"
