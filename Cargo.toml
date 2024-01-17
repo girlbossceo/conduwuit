@@ -200,7 +200,7 @@ unused_extern_crates = "warn"
 unused_import_braces = "warn"
 # unused_lifetimes = "warn"
 unused_qualifications = "warn"
-unused_tuple_struct_fields = "warn"
+dead_code = "warn"
 
 [workspace.lints.clippy]
 suspicious = "warn" # assume deny in practice
@@ -212,7 +212,7 @@ expl_impl_clone_on_copy = "warn"
 unnecessary_cast = "warn"
 cast_lossless = "warn"
 ptr_as_ptr = "warn"
-ref_to_mut = "warn"
+mut_mut = "warn"
 char_lit_as_u8 = "warn"
 dbg_macro = "warn"
 empty_structs_with_brackets = "warn"
