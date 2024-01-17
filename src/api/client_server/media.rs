@@ -9,9 +9,10 @@ use ruma::api::client::{
     },
 };
 
+/// generated MXC ID (`media-id`) length
 const MXC_LENGTH: usize = 32;
 
-/// # `GET /_matrix/media/r0/config`
+/// # `GET /_matrix/media/v3/config`
 ///
 /// Returns max upload size.
 pub async fn get_media_config_route(
@@ -22,7 +23,7 @@ pub async fn get_media_config_route(
     })
 }
 
-/// # `POST /_matrix/media/r0/upload`
+/// # `POST /_matrix/media/v3/upload`
 ///
 /// Permanently save media in the server.
 ///
@@ -58,6 +59,7 @@ pub async fn create_content_route(
     })
 }
 
+/// helper method to fetch remote media from other servers over federation
 pub async fn get_remote_content(
     mxc: &str,
     server_name: &ruma::ServerName,

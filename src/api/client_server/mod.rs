@@ -68,7 +68,14 @@ pub use unversioned::*;
 pub use user_directory::*;
 pub use voip::*;
 
+/// generated device ID length
 pub const DEVICE_ID_LENGTH: usize = 10;
+
+/// generated user access token length
 pub const TOKEN_LENGTH: usize = 32;
+
+/// generated user session ID length
 pub const SESSION_ID_LENGTH: usize = 32;
+
+/// auto-generated password length
 pub const AUTO_GEN_PASSWORD_LENGTH: usize = 25;

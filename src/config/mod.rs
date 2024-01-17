@@ -14,10 +14,13 @@ mod proxy;
 
 use self::proxy::ProxyConfig;
 
+/// all the config options for conduwuit
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
+    /// [`IpAddr`] conduwuit will listen on (can be IPv4 or IPv6)
     #[serde(default = "default_address")]
     pub address: IpAddr,
+    /// default TCP port conduwuit will listen on
     #[serde(default = "default_port")]
     pub port: u16,
     pub tls: Option<TlsConfig>,
