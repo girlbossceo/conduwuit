@@ -347,7 +347,7 @@ impl Service {
                             Error::bad_database("Invalid room topic event in database.")
                         })
                 })
-                .unwrap_or_default(),
+                .unwrap_or(None),
             world_readable: services()
                 .rooms
                 .state_accessor
