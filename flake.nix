@@ -59,7 +59,7 @@
         channel = cargoToml.package.rust-version;
 
         # THE rust-version HASH
-        sha256 = "sha256-PjvuouwTsYfNKW5Vi5Ye7y+lL7SsWGBxCtBOOm2z14c=";
+        sha256 = "sha256-SXRtAuO4IqNOQq+nLbrsDFbVk+3aVA8NNpSZsKlVH/8=";
       };
 
       mkToolchain = fenix.packages.${system}.combine;
