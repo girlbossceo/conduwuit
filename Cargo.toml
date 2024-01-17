@@ -160,27 +160,32 @@ debug = 0
 lto = 'off'
 incremental = true
 
+# default release profile
 [profile.release]
-lto = 'fat'
+lto = 'thin'
 incremental = false
-codegen-units=1
 opt-level = 3
 overflow-checks = true
 strip = "symbols"
 panic = "abort"
 debug = 0
-# If you want to make flamegraphs, enable debug info:
-# debug = true
+
+# high performance release profile which uses fat LTO across all crates, 1 codegen unit, max opt-level, and optimises across all crates
+[profile.release-high-perf]
+inherits = "release"
+lto = 'fat'
+codegen-units = 1
 
 # For releases also try to max optimizations for dependencies:
-[profile.release.build-override]
+[profile.release-high-perf.build-override]
 debug = 0
 opt-level = 3
-codegen-units=1
-[profile.release.package."*"]
+codegen-units = 1
+
+[profile.release-high-perf.package."*"]
 debug = 0
 opt-level = 3
-codegen-units=1
+codegen-units = 1
 
 [lints]
 workspace = true
