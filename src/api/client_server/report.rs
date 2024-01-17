@@ -5,7 +5,7 @@ use ruma::{
     int,
 };
 
-/// # `POST /_matrix/client/r0/rooms/{roomId}/report/{eventId}`
+/// # `POST /_matrix/client/v3/rooms/{roomId}/report/{eventId}`
 ///
 /// Reports an inappropriate event to homeserver admins
 ///
@@ -23,6 +23,20 @@ pub async fn report_event_route(
             ))
         }
     };
+
+    // check if reporting user is in the reporting room
+    if !services()
+        .rooms
+        .state_cache
+        .room_members(&pdu.room_id)
+        .filter_map(|r| r.ok())
+        .any(|user_id| user_id == *sender_user)
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "You are not in the room you are reporting.",
+        ));
+    }
 
     if let Some(true) = body.score.map(|s| s > int!(0) || s < int!(-100)) {
         return Err(Error::BadRequest(

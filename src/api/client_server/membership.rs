@@ -361,7 +361,7 @@ pub async fn unban_user_route(
     Ok(unban_user::v3::Response::new())
 }
 
-/// # `POST /_matrix/client/r0/rooms/{roomId}/forget`
+/// # `POST /_matrix/client/v3/rooms/{roomId}/forget`
 ///
 /// Forgets about a room.
 ///
