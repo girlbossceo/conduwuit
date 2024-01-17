@@ -19,7 +19,7 @@ use register::RegistrationKind;
 
 const RANDOM_USER_ID_LENGTH: usize = 10;
 
-/// # `GET /_matrix/client/r0/register/available`
+/// # `GET /_matrix/client/v3/register/available`
 ///
 /// Checks if a username is valid and available on this server.
 ///
