@@ -75,21 +75,21 @@ pub async fn report_event_route(
     services()
         .admin
         .send_message(message::RoomMessageEventContent::text_html(
-        format!(
-            "@room Report received from: {}\n\n\
+            format!(
+                "@room Report received from: {}\n\n\
                 Event ID: {}\n\
                 Room ID: {}\n\
                 Sent By: {}\n\n\
                 Report Score: {}\n\
                 Report Reason: {}",
-            sender_user.to_owned(),
-            pdu.event_id,
-            pdu.room_id,
-            pdu.sender.to_owned(),
-            body.score.unwrap_or(ruma::Int::from(0)),
-            body.reason.as_deref().unwrap_or("")
-        ),
-        format!(
+                sender_user.to_owned(),
+                pdu.event_id,
+                pdu.room_id,
+                pdu.sender.to_owned(),
+                body.score.unwrap_or(ruma::Int::from(0)),
+                body.reason.as_deref().unwrap_or("")
+            ),
+            format!(
             "<details><summary>@room Report received from: <a href=\"https://matrix.to/#/{0}\">{0}\
                 </a></summary><ul><li>Event Info<ul><li>Event ID: <code>{1}</code>\
                 <a href=\"https://matrix.to/#/{2}/{1}\">🔗</a></li><li>Room ID: <code>{2}</code>\
@@ -103,7 +103,7 @@ pub async fn report_event_route(
             body.score.unwrap_or(ruma::Int::from(0)),
             HtmlEscape(body.reason.as_deref().unwrap_or(""))
         ),
-    ));
+        ));
 
     // even though this is kinda security by obscurity, let's still make a small random delay sending a successful response
     // per spec suggestion regarding enumerating for potential events existing in our server.
