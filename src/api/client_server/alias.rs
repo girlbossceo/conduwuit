@@ -13,7 +13,7 @@ use ruma::{
     OwnedRoomAliasId, OwnedServerName,
 };
 
-/// # `PUT /_matrix/client/r0/directory/room/{roomAlias}`
+/// # `PUT /_matrix/client/v3/directory/room/{roomAlias}`
 ///
 /// Creates a new room alias on this server.
 pub async fn create_alias_route(
@@ -35,15 +35,22 @@ pub async fn create_alias_route(
         return Err(Error::Conflict("Alias already exists."));
     }
 
-    services()
+    if services()
         .rooms
         .alias
-        .set_alias(&body.room_alias, &body.room_id)?;
+        .set_alias(&body.room_alias, &body.room_id)
+        .is_err()
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Invalid room alias. Alias must be in the form of '#localpart:server_name'",
+        ));
+    };
 
     Ok(create_alias::v3::Response::new())
 }
 
-/// # `DELETE /_matrix/client/r0/directory/room/{roomAlias}`
+/// # `DELETE /_matrix/client/v3/directory/room/{roomAlias}`
 ///
 /// Deletes a room alias from this server.
 ///
@@ -59,7 +66,29 @@ pub async fn delete_alias_route(
         ));
     }
 
-    services().rooms.alias.remove_alias(&body.room_alias)?;
+    if services()
+        .rooms
+        .alias
+        .resolve_local_alias(&body.room_alias)?
+        .is_none()
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Alias does not exist.",
+        ));
+    }
+
+    if services()
+        .rooms
+        .alias
+        .remove_alias(&body.room_alias)
+        .is_err()
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Invalid room alias. Alias must be in the form of '#localpart:server_name'",
+        ));
+    };
 
     // TODO: update alt_aliases?
 
