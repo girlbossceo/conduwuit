@@ -116,7 +116,7 @@ docker build debugging:
 
 cargo check:
   stage: test
-  image: docker.io/rust:1.74.1-bullseye
+  image: docker.io/rust:1.75.0-bullseye
   needs: []
   interruptible: true
   before_script:
