@@ -631,7 +631,7 @@ impl Service {
                     state_res::resolve(room_version_id, &fork_states, auth_chain_sets, |id| {
                         let res = services().rooms.timeline.get_pdu(id);
                         if let Err(e) = &res {
-                            error!("LOOK AT ME Failed to fetch event: {}", e);
+                            error!("Failed to fetch event: {}", e);
                         }
                         res.ok().flatten()
                     });
@@ -975,13 +975,16 @@ impl Service {
         debug!("Resolving state");
 
         let lock = services().globals.stateres_mutex.lock();
-        let state = match state_res::resolve(room_version_id, &fork_states, auth_chain_sets, |id| {
-            let res = services().rooms.timeline.get_pdu(id);
-            if let Err(e) = &res {
-                error!("LOOK AT ME Failed to fetch event: {}", e);
-            }
-            res.ok().flatten()
-        }) {
+        let state_resolve =
+            state_res::resolve(room_version_id, &fork_states, auth_chain_sets, |id| {
+                let res = services().rooms.timeline.get_pdu(id);
+                if let Err(e) = &res {
+                    error!("Failed to fetch event: {}", e);
+                }
+                res.ok().flatten()
+            });
+
+        let state = match state_resolve {
             Ok(new_state) => new_state,
             Err(e) => {
                 error!("State resolution failed: {}", e);
