@@ -215,6 +215,18 @@ impl fmt::Display for Config {
             ("Allow encryption", &self.allow_encryption.to_string()),
             ("Allow federation", &self.allow_federation.to_string()),
             (
+                "Allow incoming federated presence requests (updates)",
+                &self.allow_incoming_presence.to_string(),
+            ),
+            (
+                "Allow outgoing federated presence requests (updates)",
+                &self.allow_outgoing_presence.to_string(),
+            ),
+            (
+                "Allow local presence requests (updates)",
+                &self.allow_local_presence.to_string(),
+            ),
+            (
                 "Allow device name federation",
                 &self.allow_device_name_federation.to_string(),
             ),
