@@ -802,7 +802,7 @@ impl Service {
             |k, s| auth_events.get(&(k.clone(), s.to_owned())),
         )
         .map_err(|e| {
-            error!("{:?}", e);
+            error!("Auth check for PDU {:?} failed: {:?}", &pdu, e);
             Error::bad_database("Auth check failed.")
         })?;
 
