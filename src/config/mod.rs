@@ -39,8 +39,6 @@ pub struct Config {
     pub allow_check_for_updates: bool,
     #[serde(default = "default_conduit_cache_capacity_modifier")]
     pub conduit_cache_capacity_modifier: f64,
-    #[serde(default = "default_rocksdb_max_open_files")]
-    pub rocksdb_max_open_files: i32,
     #[serde(default = "default_pdu_cache_capacity")]
     pub pdu_cache_capacity: u32,
     #[serde(default = "default_cleanup_second_interval")]
@@ -96,7 +94,6 @@ pub struct Config {
     #[serde(default = "default_turn_ttl")]
     pub turn_ttl: u64,
 
-    pub rocksdb_log_path: Option<PathBuf>,
     #[serde(default = "default_rocksdb_log_level")]
     pub rocksdb_log_level: String,
     #[serde(default = "default_rocksdb_max_log_file_size")]
@@ -190,11 +187,6 @@ impl fmt::Display for Config {
             (
                 "Cache capacity modifier",
                 &self.conduit_cache_capacity_modifier.to_string(),
-            ),
-            #[cfg(feature = "rocksdb")]
-            (
-                "Maximum open files for RocksDB",
-                &self.rocksdb_max_open_files.to_string(),
             ),
             ("PDU cache capacity", &self.pdu_cache_capacity.to_string()),
             (
@@ -353,10 +345,6 @@ fn default_db_cache_capacity_mb() -> f64 {
 
 fn default_conduit_cache_capacity_modifier() -> f64 {
     1.0
-}
-
-fn default_rocksdb_max_open_files() -> i32 {
-    1000
 }
 
 fn default_pdu_cache_capacity() -> u32 {
