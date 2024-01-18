@@ -1,45 +1,18 @@
 # Deploying Conduit
 
+### Please note that this documentation is not fully representative of conduwuit at the moment. Assume majority of it is outdated.
+
 > ## Getting help
 >
-> If you run into any problems while setting up Conduit, write an email to `conduit@koesters.xyz`, ask us
-> in `#conduit:fachschaften.org` or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
+> If you run into any problems while setting up conduwuit, ask us
+> in `#conduwuit:puppygock.gay` or [open an issue on GitHub](https://github.com/girlbossceo/conduwuit/issues/new).
 
-## Installing Conduit
+## Installing conduwuit
 
-Although you might be able to compile Conduit for Windows, we do recommend running it on a Linux server. We therefore
+Although you might be able to compile conduwuit for Windows, we only support running it on a Linux server. We therefore
 only offer Linux binaries.
 
-You may simply download the binary that fits your machine. Run `uname -m` to see what you need. Now copy the appropriate url:
-
-| CPU Architecture                            | Download stable version                                         | Download development version                                |
-| ------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
-| x84_64 / amd64 (Most servers and computers) | [Binary][x84_64-glibc-master] / [.deb][x84_64-glibc-master-deb] | [Binary][x84_64-glibc-next] / [.deb][x84_64-glibc-next-deb] |
-| armv7 (e.g. Raspberry Pi by default)        | [Binary][armv7-glibc-master] / [.deb][armv7-glibc-master-deb]   | [Binary][armv7-glibc-next] / [.deb][armv7-glibc-next-deb]   |
-| armv8 / aarch64                             | [Binary][armv8-glibc-master] / [.deb][armv8-glibc-master-deb]   | [Binary][armv8-glibc-next] / [.deb][armv8-glibc-next-deb]   |
-
-These builds were created on and linked against the glibc version shipped with Debian bullseye.
-If you use a system with an older glibc version (e.g. RHEL8), you might need to compile Conduit yourself.
-
-[x84_64-glibc-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_amd64/conduit?job=docker:master
-[armv7-glibc-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_arm_v7/conduit?job=docker:master
-[armv8-glibc-master]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_arm64/conduit?job=docker:master
-[x84_64-glibc-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_amd64/conduit?job=docker:next
-[armv7-glibc-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_arm_v7/conduit?job=docker:next
-[armv8-glibc-next]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_arm64/conduit?job=docker:next
-[x84_64-glibc-master-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_amd64/conduit.deb?job=docker:master
-[armv7-glibc-master-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_arm_v7/conduit.deb?job=docker:master
-[armv8-glibc-master-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/master/raw/build-output/linux_arm64/conduit.deb?job=docker:master
-[x84_64-glibc-next-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_amd64/conduit.deb?job=docker:next
-[armv7-glibc-next-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_arm_v7/conduit.deb?job=docker:next
-[armv8-glibc-next-deb]: https://gitlab.com/famedly/conduit/-/jobs/artifacts/next/raw/build-output/linux_arm64/conduit.deb?job=docker:next
-
-```bash
-$ sudo wget -O /usr/local/bin/matrix-conduit <url>
-$ sudo chmod +x /usr/local/bin/matrix-conduit
-```
-
-Alternatively, you may compile the binary yourself. First, install any dependencies:
+conduwuit does not offer prebuilt binaries for now. Building it yourself is the only supported method.
 
 ```bash
 # Debian
@@ -135,56 +108,11 @@ $ sudo systemctl daemon-reload
 
 ## Creating the Conduit configuration file
 
-Now we need to create the Conduit's config file in `/etc/matrix-conduit/conduit.toml`. Paste this in **and take a moment
+Now we need to create the Conduit's config file in `/etc/conduwuit/conduwuit.toml`. Paste this in **and take a moment
 to read it. You need to change at least the server name.**  
 You can also choose to use a different database backend, but right now only `rocksdb` and `sqlite` are recommended.
 
-```toml
-[global]
-# The server_name is the pretty name of this server. It is used as a suffix for user
-# and room ids. Examples: matrix.org, conduit.rs
-
-# The Conduit server needs all /_matrix/ requests to be reachable at
-# https://your.server.name/ on port 443 (client-server) and 8448 (federation).
-
-# If that's not possible for you, you can create /.well-known files to redirect
-# requests. See
-# https://matrix.org/docs/spec/client_server/latest#get-well-known-matrix-client
-# and
-# https://matrix.org/docs/spec/server_server/r0.1.4#get-well-known-matrix-server
-# for more information
-
-# YOU NEED TO EDIT THIS
-#server_name = "your.server.name"
-
-# This is the only directory where Conduit will save its data
-database_path = "/var/lib/matrix-conduit/"
-database_backend = "rocksdb"
-
-# The port Conduit will be running on. You need to set up a reverse proxy in
-# your web server (e.g. apache or nginx), so all requests to /_matrix on port
-# 443 and 8448 will be forwarded to the Conduit instance running on this port
-# Docker users: Don't change this, you'll need to map an external port to this.
-port = 6167
-
-# Max size for uploads
-max_request_size = 20_000_000 # in bytes
-
-# Enables registration. If set to false, no users can register on this server.
-allow_registration = true
-
-allow_federation = true
-allow_check_for_updates = true
-
-# Server to get public keys from. You probably shouldn't change this
-trusted_servers = ["matrix.org"]
-
-#max_concurrent_requests = 100 # How many requests Conduit sends to other servers at the same time
-#log = "warn,state_res=warn,rocket=off,_=off"
-
-address = "127.0.0.1" # This makes sure Conduit can only be reached using the reverse proxy
-#address = "0.0.0.0" # If Conduit is running in a container, make sure the reverse proxy (ie. Traefik) can reach it.
-```
+See the following example config at [conduwuit-example.toml](conduwuit-example.toml)
 
 ## Setting the correct file permissions
 
