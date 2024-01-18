@@ -14,107 +14,113 @@
     };
   };
 
-  outputs =
-    { self
-    , nixpkgs
-    , flake-utils
+  outputs = { self, nixpkgs, flake-utils
 
-    , fenix
-    , crane
-    }: flake-utils.lib.eachDefaultSystem (system:
-    let
-      pkgs = import nixpkgs {
-        inherit system;
+    , fenix, crane }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
 
-        overlays = [
-          (final: prev: {
-            rocksdb = prev.rocksdb.overrideAttrs (old:
-              let
-                version = "8.10.0";
-              in
-              {
-                inherit version;
-                src = pkgs.fetchFromGitHub {
-                  owner = "facebook";
-                  repo = "rocksdb";
-                  rev = "v${version}";
-                  hash = "sha256-KGsYDBc1fz/90YYNGwlZ0LUKXYsP1zyhP29TnRQwgjQ=";
-                };
-              });
-          })
-        ];
-      };
-
-      stdenv = if pkgs.stdenv.isLinux then
-        pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
-      else
-        pkgs.stdenv;
-
-      # Nix-accessible `Cargo.toml`
-      cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-
-      # The Rust toolchain to use
-      toolchain = fenix.packages.${system}.toolchainOf {
-        # Use the Rust version defined in `Cargo.toml`
-        channel = cargoToml.package.rust-version;
-
-        # THE rust-version HASH
-        sha256 = "sha256-SXRtAuO4IqNOQq+nLbrsDFbVk+3aVA8NNpSZsKlVH/8=";
-      };
-
-      mkToolchain = fenix.packages.${system}.combine;
-
-      buildToolchain = mkToolchain (with toolchain; [
-        cargo
-        rustc
-      ]);
-
-      devToolchain = mkToolchain (with toolchain; [
-        cargo
-        clippy
-        rust-src
-        rustc
-
-        # Always use nightly rustfmt because most of its options are unstable
-        fenix.packages.${system}.latest.rustfmt
-      ]);
-
-      builder =
-        ((crane.mkLib pkgs).overrideToolchain buildToolchain).buildPackage;
-
-      nativeBuildInputs = (with pkgs.rustPlatform; [
-        bindgenHook
-      ]);
-
-      env = {
-        ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb}/include";
-        ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib";
-      };
-    in
-    {
-      packages.default = builder {
-        src = ./.;
-
-        inherit
-          env
-          nativeBuildInputs
-          stdenv;
-      };
-
-      devShells.default = (pkgs.mkShell.override { inherit stdenv; }) {
-        env = env // {
-          # Rust Analyzer needs to be able to find the path to default crate
-          # sources, and it can read this environment variable to do so. The
-          # `rust-src` component is required in order for this to work.
-          RUST_SRC_PATH = "${devToolchain}/lib/rustlib/src/rust/library";
+          overlays = [
+            (final: prev: {
+              rocksdb = prev.rocksdb.overrideAttrs (old:
+                let version = "8.10.0";
+                in {
+                  inherit version;
+                  src = pkgs.fetchFromGitHub {
+                    owner = "facebook";
+                    repo = "rocksdb";
+                    rev = "v${version}";
+                    hash =
+                      "sha256-KGsYDBc1fz/90YYNGwlZ0LUKXYsP1zyhP29TnRQwgjQ=";
+                  };
+                });
+            })
+          ];
         };
 
-        # Development tools
-        nativeBuildInputs = nativeBuildInputs ++ [
-          devToolchain
-        ] ++ (with pkgs; [
-          engage
+        stdenv = if pkgs.stdenv.isLinux then
+          pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
+        else
+          pkgs.stdenv;
+
+        # Nix-accessible `Cargo.toml`
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
+        # The Rust toolchain to use
+        toolchain = fenix.packages.${system}.toolchainOf {
+          # Use the Rust version defined in `Cargo.toml`
+          channel = cargoToml.package.rust-version;
+
+          # THE rust-version HASH
+          sha256 = "sha256-SXRtAuO4IqNOQq+nLbrsDFbVk+3aVA8NNpSZsKlVH/8=";
+        };
+
+        mkToolchain = fenix.packages.${system}.combine;
+
+        buildToolchain = mkToolchain (with toolchain; [ cargo rustc ]);
+
+        devToolchain = mkToolchain (with toolchain; [
+          cargo
+          clippy
+          rust-src
+          rustc
+
+          # Always use nightly rustfmt because most of its options are unstable
+          fenix.packages.${system}.latest.rustfmt
         ]);
-      };
-    });
+
+        builder =
+          ((crane.mkLib pkgs).overrideToolchain buildToolchain).buildPackage;
+
+        nativeBuildInputs = (with pkgs.rustPlatform; [ bindgenHook ]);
+
+        env = {
+          ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb}/include";
+          ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib";
+        };
+      in {
+        packages = {
+          default = builder {
+            src = ./.;
+
+            meta.mainProgram = "conduit";
+
+            inherit env nativeBuildInputs stdenv;
+          };
+
+          oci-image = pkgs.dockerTools.buildLayeredImage {
+            name = cargoToml.package.name;
+            tag = "latest";
+            config = {
+              Cmd = [ "${pkgs.lib.getExe self.packages."${system}".default}" ];
+              Env = [
+                "CONDUIT_PORT=6167"
+                ''CONDUIT_ADDRESS="0.0.0.0"''
+                "CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit"
+                "CONDUIT_CONFIG=''"
+                "RUST_BACKTRACE=1"
+              ];
+              ExposedPorts = { "6167/tcp" = { }; };
+            };
+          };
+        };
+
+        devShells.default = (pkgs.mkShell.override { inherit stdenv; }) {
+          env = env // {
+            # Rust Analyzer needs to be able to find the path to default crate
+            # sources, and it can read this environment variable to do so. The
+            # `rust-src` component is required in order for this to work.
+            RUST_SRC_PATH = "${devToolchain}/lib/rustlib/src/rust/library";
+          };
+
+          # Development tools
+          nativeBuildInputs = nativeBuildInputs ++ [ devToolchain ]
+            ++ (with pkgs; [ engage ]);
+        };
+
+        formatter = pkgs.nixfmt;
+
+      });
 }
