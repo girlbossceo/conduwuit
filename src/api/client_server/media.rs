@@ -8,6 +8,7 @@ use ruma::api::client::{
         get_media_config,
     },
 };
+use tracing::info;
 
 /// generated MXC ID (`media-id`) length
 const MXC_LENGTH: usize = 32;
@@ -65,6 +66,17 @@ pub async fn get_remote_content(
     server_name: &ruma::ServerName,
     media_id: String,
 ) -> Result<get_content::v3::Response, Error> {
+    // we'll lie to the client and say the blocked server's media was not found and log.
+    // the client has no way of telling anyways so this is a security bonus.
+    if services()
+        .globals
+        .prevent_media_downloads_from()
+        .contains(&server_name.to_owned())
+    {
+        info!("Received request for remote media `{}` but server is in our media server blocklist. Returning 404.", mxc);
+        return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
+    }
+
     let content_response = services()
         .sending
         .send_federation_request(
@@ -189,6 +201,17 @@ pub async fn get_content_thumbnail_route(
             cross_origin_resource_policy: Some("cross-origin".to_owned()),
         })
     } else if &*body.server_name != services().globals.server_name() && body.allow_remote {
+        // we'll lie to the client and say the blocked server's media was not found and log.
+        // the client has no way of telling anyways so this is a security bonus.
+        if services()
+            .globals
+            .prevent_media_downloads_from()
+            .contains(&body.server_name.to_owned())
+        {
+            info!("Received request for remote media `{}` but server is in our media server blocklist. Returning 404.", mxc);
+            return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
+        }
+
         let get_thumbnail_response = services()
             .sending
             .send_federation_request(

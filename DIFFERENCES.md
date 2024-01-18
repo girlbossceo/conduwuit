@@ -53,3 +53,4 @@
 - Generate passwords with 25 characters instead of 15
 - Add missing `reason` field to user ban events (`/ban`)
 - For all [`/report`](https://spec.matrix.org/v1.9/client-server-api/#post_matrixclientv3roomsroomidreporteventid) requests: check if the reported event ID belongs to the reported room ID, raise report reasoning character limit to 750, fix broken formatting, make a small delayed random response per spec suggestion on privacy, and check if the sender user is in the reported room.
+- Support blocking servers from downloading remote media from
