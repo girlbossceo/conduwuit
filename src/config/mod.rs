@@ -128,6 +128,9 @@ pub struct Config {
     #[serde(default)]
     pub allow_guest_registration: bool,
 
+    #[serde(default = "Vec::new")]
+    pub prevent_media_downloads_from: Vec<OwnedServerName>,
+
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
 }
@@ -305,6 +308,13 @@ impl fmt::Display for Config {
                 "RocksDB database optimize for spinning disks",
                 &self.rocksdb_optimize_for_spinning_disks.to_string(),
             ),
+            ("Prevent Media Downloads From", {
+                let mut lst = vec![];
+                for domain in &self.prevent_media_downloads_from {
+                    lst.push(domain.host());
+                }
+                &lst.join(", ")
+            }),
         ];
 
         let mut msg: String = "Active config values:\n\n".to_owned();

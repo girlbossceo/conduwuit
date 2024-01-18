@@ -423,6 +423,10 @@ impl Service<'_> {
         self.config.rocksdb_optimize_for_spinning_disks
     }
 
+    pub fn prevent_media_downloads_from(&self) -> &[OwnedServerName] {
+        &self.config.prevent_media_downloads_from
+    }
+
     pub fn supported_room_versions(&self) -> Vec<RoomVersionId> {
         let mut room_versions: Vec<RoomVersionId> = vec![];
         room_versions.extend(self.stable_room_versions.clone());
