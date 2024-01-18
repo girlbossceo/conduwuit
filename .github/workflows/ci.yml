@@ -83,6 +83,7 @@ jobs:
       
       - name: Push docker image to DockerHub
         run: |
+          export REPO_LOWER_CASE = echo "$REPOSITORY" | tr '[:upper:]' '[:lower:]'
           docker load < result
-          docker tag conduwuit:latest ${{ env.REPOSITORY }}:${{ env.TAG }}
-          docker push ${{ env.REPOSITORY }}:${{ env.TAG }}
+          docker tag conduwuit:latest $REPO_LOWER_CASE:${{ env.TAG }}
+          docker push $REPO_LOWER_CASE:${{ env.TAG }}
