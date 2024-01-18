@@ -260,8 +260,17 @@ impl Service {
                         unsigned.insert(
                             "prev_content".to_owned(),
                             CanonicalJsonValue::Object(
-                                utils::to_canonical_object(prev_state.content.clone())
-                                    .expect("event is valid, we just created it"),
+                                utils::to_canonical_object(prev_state.content.clone()).map_err(
+                                    |e| {
+                                        error!(
+                                            "Failed to convert prev_state to canonical JSON: {}",
+                                            e
+                                        );
+                                        Error::bad_database(
+                                            "Failed to convert prev_state to canonical JSON.",
+                                        )
+                                    },
+                                )?,
                             ),
                         );
                     }
@@ -802,7 +811,7 @@ impl Service {
             |k, s| auth_events.get(&(k.clone(), s.to_owned())),
         )
         .map_err(|e| {
-            error!("Auth check for PDU {:?} failed: {:?}", &pdu, e);
+            error!("Auth check failed: {:?}", e);
             Error::bad_database("Auth check failed.")
         })?;
 
@@ -815,7 +824,7 @@ impl Service {
 
         // Hash and sign
         let mut pdu_json = utils::to_canonical_object(&pdu).map_err(|e| {
-            error!("Failed to convert PDU {:?} to canonical JSON: {}", &pdu, e);
+            error!("Failed to convert PDU to canonical JSON: {}", e);
             Error::bad_database("Failed to convert PDU to canonical JSON.")
         })?;
 
@@ -1105,7 +1114,10 @@ impl Service {
             pdu.redact(room_version_id, reason)?;
             self.replace_pdu(
                 &pdu_id,
-                &utils::to_canonical_object(&pdu).expect("PDU is an object"),
+                &utils::to_canonical_object(&pdu).map_err(|e| {
+                    error!("Failed to convert PDU to canonical JSON: {}", e);
+                    Error::bad_database("Failed to convert PDU to canonical JSON.")
+                })?,
                 &pdu,
             )?;
         }

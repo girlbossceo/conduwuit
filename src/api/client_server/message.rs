@@ -9,6 +9,7 @@ use ruma::{
     },
     events::{StateEventType, TimelineEventType},
 };
+use serde_json::from_str;
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
@@ -48,6 +49,52 @@ pub async fn send_message_event_route(
         ));
     }
 
+    // certain event types require certain fields to be valid in request bodies.
+    // this helps prevent attempting to handle events that we can't deserialise later so don't waste resources on it.
+    //
+    // see https://spec.matrix.org/v1.9/client-server-api/#events-2 for what's required per event type.
+    match body.event_type.to_string().into() {
+        TimelineEventType::RoomMessage => {
+            let body_field = body.body.body.get_field::<String>("body");
+            let msgtype_field = body.body.body.get_field::<String>("msgtype");
+
+            if body_field.is_err() {
+                return Err(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "'body' field in JSON request is invalid",
+                ));
+            }
+
+            if msgtype_field.is_err() {
+                return Err(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "'msgtype' field in JSON request is invalid",
+                ));
+            }
+        }
+        TimelineEventType::RoomName => {
+            let name_field = body.body.body.get_field::<String>("name");
+
+            if name_field.is_err() {
+                return Err(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "'name' field in JSON request is invalid",
+                ));
+            }
+        }
+        TimelineEventType::RoomTopic => {
+            let topic_field = body.body.body.get_field::<String>("topic");
+
+            if topic_field.is_err() {
+                return Err(Error::BadRequest(
+                    ErrorKind::InvalidParam,
+                    "'topic' field in JSON request is invalid",
+                ));
+            }
+        }
+        _ => {} // event may be custom/experimental or can be empty don't do anything with it
+    };
+
     // Check if this is a new transaction id
     if let Some(response) =
         services()
@@ -79,7 +126,7 @@ pub async fn send_message_event_route(
         .build_and_append_pdu(
             PduBuilder {
                 event_type: body.event_type.to_string().into(),
-                content: serde_json::from_str(body.body.body.json().get())
+                content: from_str(body.body.body.json().get())
                     .map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?,
                 unsigned: Some(unsigned),
                 state_key: None,

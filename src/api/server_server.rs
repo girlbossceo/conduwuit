@@ -1822,8 +1822,10 @@ pub async fn create_invite_route(
         ));
     }
 
-    let mut signed_event = utils::to_canonical_object(&body.event)
-        .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invite event is invalid."))?;
+    let mut signed_event = utils::to_canonical_object(&body.event).map_err(|e| {
+        error!("Failed to convert invite event to canonical JSON: {}", e);
+        Error::BadRequest(ErrorKind::InvalidParam, "Invite event is invalid.")
+    })?;
 
     ruma::signatures::hash_and_sign_event(
         services().globals.server_name().as_str(),
