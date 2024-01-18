@@ -14,7 +14,7 @@ use std::{
     sync::Arc,
 };
 
-/// # `PUT /_matrix/client/r0/rooms/{roomId}/send/{eventType}/{txnId}`
+/// # `PUT /_matrix/client/v3/rooms/{roomId}/send/{eventType}/{txnId}`
 ///
 /// Send a message event into the room.
 ///

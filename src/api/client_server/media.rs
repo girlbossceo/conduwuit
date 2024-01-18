@@ -92,7 +92,7 @@ pub async fn get_remote_content(
     Ok(content_response)
 }
 
-/// # `GET /_matrix/media/r0/download/{serverName}/{mediaId}`
+/// # `GET /_matrix/media/v3/download/{serverName}/{mediaId}`
 ///
 /// Load media from our server or over federation.
 ///
@@ -123,7 +123,7 @@ pub async fn get_content_route(
     }
 }
 
-/// # `GET /_matrix/media/r0/download/{serverName}/{mediaId}/{fileName}`
+/// # `GET /_matrix/media/v3/download/{serverName}/{mediaId}/{fileName}`
 ///
 /// Load media from our server or over federation, permitting desired filename.
 ///
@@ -158,7 +158,7 @@ pub async fn get_content_as_filename_route(
     }
 }
 
-/// # `GET /_matrix/media/r0/thumbnail/{serverName}/{mediaId}`
+/// # `GET /_matrix/media/v3/thumbnail/{serverName}/{mediaId}`
 ///
 /// Load media thumbnail from our server or over federation.
 ///
