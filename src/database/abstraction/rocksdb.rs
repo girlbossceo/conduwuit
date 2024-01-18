@@ -69,7 +69,7 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
     db_opts.set_level_compaction_dynamic_level_bytes(true);
     db_opts.create_if_missing(true);
     db_opts.increase_parallelism(num_cpus::get() as i32);
-    db_opts.set_max_open_files(config.rocksdb_max_open_files);
+    //db_opts.set_max_open_files(config.rocksdb_max_open_files);
     db_opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
     db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
     db_opts.optimize_level_style_compaction(10 * 1024 * 1024);
