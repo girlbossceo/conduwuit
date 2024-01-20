@@ -28,7 +28,7 @@ use ruma::{
 };
 use tracing::{error, info, warn};
 
-/// # `POST /_matrix/client/r0/publicRooms`
+/// # `POST /_matrix/client/v3/publicRooms`
 ///
 /// Lists the public rooms on this server.
 ///
@@ -57,7 +57,7 @@ pub async fn get_public_rooms_filtered_route(
     .await
 }
 
-/// # `GET /_matrix/client/r0/publicRooms`
+/// # `GET /_matrix/client/v3/publicRooms`
 ///
 /// Lists the public rooms on this server.
 ///

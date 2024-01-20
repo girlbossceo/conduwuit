@@ -29,7 +29,7 @@ use serde_json::{json, value::to_raw_value};
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
 use tracing::{info, warn};
 
-/// # `POST /_matrix/client/r0/createRoom`
+/// # `POST /_matrix/client/v3/createRoom`
 ///
 /// Creates a new room.
 ///

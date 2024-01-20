@@ -130,7 +130,7 @@ pub async fn join_room_by_id_or_alias_route(
     })
 }
 
-/// # `POST /_matrix/client/r0/rooms/{roomId}/leave`
+/// # `POST /_matrix/client/v3/rooms/{roomId}/leave`
 ///
 /// Tries to leave the sender user from a room.
 ///
@@ -1242,7 +1242,7 @@ pub(crate) async fn invite_helper(
             let state_lock = mutex_state.lock().await;
 
             let content = to_raw_value(&RoomMemberEventContent {
-                avatar_url: None,
+                avatar_url: services().users.avatar_url(user_id)?,
                 displayname: None,
                 is_direct: Some(is_direct),
                 membership: MembershipState::Invite,
