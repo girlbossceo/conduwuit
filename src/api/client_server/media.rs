@@ -191,7 +191,7 @@ pub async fn get_content_thumbnail_route(
                 .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
             body.height
                 .try_into()
-                .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
+                .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Height is invalid."))?,
         )
         .await?
     {
