@@ -196,6 +196,10 @@ enable_lightning_bolt = false
 # Config option to control outgoing presence updates/requests. Defaults to false.
 # This option sends presence updates to other servers, but does not receive any unless `allow_incoming_presence` is true.
 # Note that presence on conduwuit is very fast unlike Synapse's.
+#
+# Warning: Outgoing federated presence is not spec compliant due to relying on PDUs and EDUs combined.
+# Outgoing presence will not be very reliable due to this and any issues with federated outgoing presence are very likely attributed to this issue.
+# Incoming presence and local presence are unaffected.
 #allow_outgoing_presence = false
 
 # Config option to control how many seconds before presence updates that you are idle. Defaults to 5 minutes.

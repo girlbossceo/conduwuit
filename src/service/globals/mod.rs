@@ -395,7 +395,7 @@ impl Service<'_> {
         self.config.allow_incoming_presence
     }
 
-    pub fn allow_outcoming_presence(&self) -> bool {
+    pub fn allow_outgoing_presence(&self) -> bool {
         self.config.allow_outgoing_presence
     }
 

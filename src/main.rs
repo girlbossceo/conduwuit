@@ -164,6 +164,10 @@ async fn main() {
         If this is not the desired behaviour, please disable `allow_registration` and set a registration token.");
     }
 
+    if config.allow_outgoing_presence {
+        warn!("! Outgoing federated presence is not spec compliant due to relying on PDUs and EDUs combined.\nOutgoing presence will not be very reliable due to this and any issues with federated outgoing presence are very likely attributed to this issue.\nIncoming presence and local presence are unaffected.");
+    }
+
     info!("Starting server");
     if let Err(e) = run_server().await {
         error!("Critical error running server: {}", e);
