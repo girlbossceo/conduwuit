@@ -287,7 +287,7 @@ impl Service {
                     .filter(|user_id| user_id.server_name() == services().globals.server_name()),
             );
 
-            if services().globals.allow_outcoming_presence() {
+            if services().globals.allow_outgoing_presence() {
                 // Look for presence updates in this room
                 let mut presence_updates = Vec::new();
 
