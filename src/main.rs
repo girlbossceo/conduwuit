@@ -32,10 +32,10 @@ use tokio::{net::UnixListener, signal, sync::oneshot};
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{self, CorsLayer},
-    trace::TraceLayer,
+    trace::{DefaultOnFailure, TraceLayer},
     ServiceBuilderExt as _,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Level};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 use tokio::sync::oneshot::Sender;
@@ -186,15 +186,17 @@ async fn run_server() -> io::Result<()> {
         .sensitive_headers([header::AUTHORIZATION])
         .layer(axum::middleware::from_fn(spawn_task))
         .layer(
-            TraceLayer::new_for_http().make_span_with(|request: &http::Request<_>| {
-                let path = if let Some(path) = request.extensions().get::<MatchedPath>() {
-                    path.as_str()
-                } else {
-                    request.uri().path()
-                };
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &http::Request<_>| {
+                    let path = if let Some(path) = request.extensions().get::<MatchedPath>() {
+                        path.as_str()
+                    } else {
+                        request.uri().path()
+                    };
 
-                tracing::info_span!("http_request", %path)
-            }),
+                    tracing::info_span!("http_request", %path)
+                })
+                .on_failure(DefaultOnFailure::new().level(Level::INFO)),
         )
         .layer(axum::middleware::from_fn(unrecognized_method))
         .layer(
