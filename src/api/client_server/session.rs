@@ -4,7 +4,14 @@ use argon2::{PasswordHash, PasswordVerifier};
 use ruma::{
     api::client::{
         error::ErrorKind,
-        session::{get_login_types, login, logout, logout_all},
+        session::{
+            get_login_types,
+            login::{
+                self,
+                v3::{DiscoveryInfo, HomeserverInfo},
+            },
+            logout, logout_all,
+        },
         uiaa::UserIdentifier,
     },
     UserId,
@@ -18,7 +25,7 @@ struct Claims {
     //exp: usize,
 }
 
-/// # `GET /_matrix/client/r0/login`
+/// # `GET /_matrix/client/v3/login`
 ///
 /// Get the supported login types of this server. One of these should be used as the `type` field
 /// when logging in.
@@ -31,7 +38,7 @@ pub async fn get_login_types_route(
     ]))
 }
 
-/// # `POST /_matrix/client/r0/login`
+/// # `POST /_matrix/client/v3/login`
 ///
 /// Authenticates the user and returns an access token it can use in subsequent requests.
 ///
@@ -166,12 +173,38 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
         )?;
     }
 
+    // send client well-known if specified so the client knows to reconfigure itself
+    let client_discovery_info = DiscoveryInfo::new(HomeserverInfo::new(
+        services()
+            .globals
+            .well_known_client()
+            .to_owned()
+            .unwrap_or("".to_owned()),
+    ));
+
     info!("{} logged in", user_id);
 
-    Ok(login::v3::Response::new(user_id, token, device_id))
+    // home_server is deprecated but ruma skips serialising if None, so this is fine
+    // initially i thought this macro was unnecessary, but ruma uses this same macro for the same reason so...
+    #[allow(deprecated)]
+    Ok(login::v3::Response {
+        user_id,
+        access_token: token,
+        device_id,
+        well_known: {
+            if client_discovery_info.homeserver.base_url.as_str() == "" {
+                None
+            } else {
+                Some(client_discovery_info)
+            }
+        },
+        expires_in: None,
+        home_server: None,
+        refresh_token: None,
+    })
 }
 
-/// # `POST /_matrix/client/r0/logout`
+/// # `POST /_matrix/client/v3/logout`
 ///
 /// Log out the current device.
 ///
