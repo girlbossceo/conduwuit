@@ -54,3 +54,7 @@
 - Add missing `reason` field to user ban events (`/ban`)
 - For all [`/report`](https://spec.matrix.org/v1.9/client-server-api/#post_matrixclientv3roomsroomidreporteventid) requests: check if the reported event ID belongs to the reported room ID, raise report reasoning character limit to 750, fix broken formatting, make a small delayed random response per spec suggestion on privacy, and check if the sender user is in the reported room.
 - Support blocking servers from downloading remote media from
+- Support sending `well_known` response to client logins if using config option `well_known_client`
+- Send `avatar_url` on invite room membership events/changes
+- Revamp example config, adding a lot of config options available (still some missing)
+- Return joined member count of rooms for push rules/conditions instead of a hardcoded value of 10
