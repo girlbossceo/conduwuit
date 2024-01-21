@@ -71,3 +71,6 @@ cached_target
 
 test-conduit/
 test-conduit.toml
+
+# Gitlab CI cache
+/.gitlab-ci.d
