@@ -200,7 +200,13 @@ impl Service {
 
         let ctx = PushConditionRoomCtx {
             room_id: room_id.to_owned(),
-            member_count: 10_u32.into(), // TODO: get member count efficiently
+            member_count: UInt::from(
+                services()
+                    .rooms
+                    .state_cache
+                    .room_joined_count(room_id)?
+                    .unwrap_or(1) as u32,
+            ),
             user_id: user.to_owned(),
             user_display_name: services()
                 .users
