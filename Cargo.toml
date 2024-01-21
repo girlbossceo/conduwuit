@@ -26,7 +26,7 @@ tower-http = { version = "0.4.4", features = ["add-extension", "cors", "sensitiv
 
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
-ruma = { git = "https://github.com/ruma/ruma", rev = "aa3acd88d21dfbb7595f54e619f52761bcb0259e", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-extensible-events"] }
+ruma = { git = "https://github.com/ruma/ruma", rev = "684ffc789877355bd25269451b2356817c17cc3f", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-extensible-events"] }
 #ruma = { git = "https://github.com/timokoesters/ruma", rev = "4ec9c69bb7e09391add2382b3ebac97b6e8f4c64", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 
@@ -76,14 +76,14 @@ opentelemetry_sdk = { version = "0.21.2", features = ["rt-tokio"] }
 opentelemetry-jaeger = { version = "0.20.0", features = ["rt-tokio"] }
 tracing-opentelemetry = "0.22.0"
 lru-cache = "0.1.2"
-rusqlite = { version = "0.30.0", optional = true, features = ["bundled"] }
+rusqlite = { git = "https://github.com/rusqlite/rusqlite", rev = "ccfbc28ae1edc3090fb1b331fdc145f052ec73b9", optional = true, features = ["bundled"] }
 parking_lot = { version = "0.12.1", optional = true }
 num_cpus = "1.16.0"
 threadpool = "1.8.1"
 # Used for ruma wrapper
 serde_html_form = "0.2.3"
 
-rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "8fccdf5473e3e75a5ce0f42e5ff5e89c2012305b", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
+rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1fb26dd5dc363c9fded526bac45366a436fc50a9", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
 
 thread_local = "1.1.7"
 # used for TURN server authentication
