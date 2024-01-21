@@ -2,6 +2,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    nix-filter.url = "github:numtide/nix-filter";
 
     fenix = {
       url = "github:nix-community/fenix";
@@ -18,6 +19,7 @@
     { self
     , nixpkgs
     , flake-utils
+    , nix-filter
 
     , fenix
     , crane
