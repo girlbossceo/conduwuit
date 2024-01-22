@@ -6,6 +6,7 @@ use std::{
 };
 
 use figment::Figment;
+
 use ruma::{OwnedServerName, RoomVersionId};
 use serde::{de::IgnoredAny, Deserialize};
 use tracing::{error, warn};
@@ -127,6 +128,9 @@ pub struct Config {
 
     #[serde(default = "Vec::new")]
     pub prevent_media_downloads_from: Vec<OwnedServerName>,
+
+    #[serde(default = "default_ip_range_denylist")]
+    pub ip_range_denylist: Vec<String>,
 
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
@@ -307,6 +311,14 @@ impl fmt::Display for Config {
                 }
                 &lst.join(", ")
             }),
+            ("Outbound Request IP Range Denylist", {
+                let mut lst = vec![];
+                for item in self.ip_range_denylist.iter().cloned().enumerate() {
+                    let (_, ip): (usize, String) = item;
+                    lst.push(ip);
+                }
+                &lst.join(", ")
+            }),
         ];
 
         let mut msg: String = "Active config values:\n\n".to_owned();
@@ -407,4 +419,28 @@ pub(crate) fn default_default_room_version() -> RoomVersionId {
 fn default_rocksdb_max_log_file_size() -> usize {
     // 4 megabytes
     4 * 1024 * 1024
+}
+
+fn default_ip_range_denylist() -> Vec<String> {
+    vec![
+        "127.0.0.0/8".to_owned(),
+        "10.0.0.0/8".to_owned(),
+        "172.16.0.0/12".to_owned(),
+        "192.168.0.0/16".to_owned(),
+        "100.64.0.0/10".to_owned(),
+        "192.0.0.0/24".to_owned(),
+        "169.254.0.0/16".to_owned(),
+        "192.88.99.0/24".to_owned(),
+        "198.18.0.0/15".to_owned(),
+        "192.0.2.0/24".to_owned(),
+        "198.51.100.0/24".to_owned(),
+        "203.0.113.0/24".to_owned(),
+        "224.0.0.0/4".to_owned(),
+        "::1/128".to_owned(),
+        "fe80::/10".to_owned(),
+        "fc00::/7".to_owned(),
+        "2001:db8::/32".to_owned(),
+        "ff00::/8".to_owned(),
+        "fec0::/10".to_owned(),
+    ]
 }

@@ -1,6 +1,7 @@
 mod data;
 
 pub use data::Data;
+use ipaddress::IPAddress;
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -43,7 +44,7 @@ use tokio::{
     select,
     sync::{mpsc, Mutex, Semaphore},
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum OutgoingKind {
@@ -716,6 +717,29 @@ impl Service {
     where
         T: Debug,
     {
+        if destination.is_ip_literal() {
+            info!("Destination is an IP literal, checking against IP range denylist.");
+            let ip = IPAddress::parse(destination.host()).map_err(|e| {
+                warn!("Failed to parse IP literal from string: {}", e);
+                Error::BadServerResponse("Invalid IP address")
+            })?;
+
+            let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
+            let mut cidr_ranges: Vec<IPAddress> = Vec::new();
+
+            for cidr in cidr_ranges_s {
+                cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
+            }
+
+            for cidr in cidr_ranges {
+                if ip.includes(&cidr) {
+                    return Err(Error::BadServerResponse(
+                        "Not allowed to send requests to this IP",
+                    ));
+                }
+            }
+        }
+
         debug!("Waiting for permit");
         let permit = self.maximum_requests.acquire().await;
         debug!("Got permit");
