@@ -65,6 +65,8 @@ pub async fn get_remote_content(
     mxc: &str,
     server_name: &ruma::ServerName,
     media_id: String,
+    allow_redirect: bool,
+    timeout_ms: Duration,
 ) -> Result<get_content::v3::Response, Error> {
     // we'll lie to the client and say the blocked server's media was not found and log.
     // the client has no way of telling anyways so this is a security bonus.
@@ -82,11 +84,11 @@ pub async fn get_remote_content(
         .send_federation_request(
             server_name,
             get_content::v3::Request {
-                allow_remote: false,
+                allow_remote: true,
                 server_name: server_name.to_owned(),
                 media_id,
-                timeout_ms: Duration::from_secs(20),
-                allow_redirect: false,
+                timeout_ms,
+                allow_redirect,
             },
         )
         .await?;
@@ -109,6 +111,8 @@ pub async fn get_remote_content(
 /// Load media from our server or over federation.
 ///
 /// - Only allows federation if `allow_remote` is true
+/// - Only redirects if `allow_redirect` is true
+/// - Uses client-provided `timeout_ms` if available, else defaults to 20 seconds
 pub async fn get_content_route(
     body: Ruma<get_content::v3::Request>,
 ) -> Result<get_content::v3::Response> {
@@ -127,8 +131,14 @@ pub async fn get_content_route(
             cross_origin_resource_policy: Some("cross-origin".to_owned()),
         })
     } else if &*body.server_name != services().globals.server_name() && body.allow_remote {
-        let remote_content_response =
-            get_remote_content(&mxc, &body.server_name, body.media_id.clone()).await?;
+        let remote_content_response = get_remote_content(
+            &mxc,
+            &body.server_name,
+            body.media_id.clone(),
+            body.allow_redirect,
+            body.timeout_ms,
+        )
+        .await?;
         Ok(remote_content_response)
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
@@ -140,6 +150,8 @@ pub async fn get_content_route(
 /// Load media from our server or over federation, permitting desired filename.
 ///
 /// - Only allows federation if `allow_remote` is true
+/// - Only redirects if `allow_redirect` is true
+/// - Uses client-provided `timeout_ms` if available, else defaults to 20 seconds
 pub async fn get_content_as_filename_route(
     body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<get_content_as_filename::v3::Response> {
@@ -156,8 +168,14 @@ pub async fn get_content_as_filename_route(
             cross_origin_resource_policy: Some("cross-origin".to_owned()),
         })
     } else if &*body.server_name != services().globals.server_name() && body.allow_remote {
-        let remote_content_response =
-            get_remote_content(&mxc, &body.server_name, body.media_id.clone()).await?;
+        let remote_content_response = get_remote_content(
+            &mxc,
+            &body.server_name,
+            body.media_id.clone(),
+            body.allow_redirect,
+            body.timeout_ms,
+        )
+        .await?;
 
         Ok(get_content_as_filename::v3::Response {
             content_disposition: Some(format!("inline: filename={}", body.filename)),
@@ -175,6 +193,8 @@ pub async fn get_content_as_filename_route(
 /// Load media thumbnail from our server or over federation.
 ///
 /// - Only allows federation if `allow_remote` is true
+/// - Only redirects if `allow_redirect` is true
+/// - Uses client-provided `timeout_ms` if available, else defaults to 20 seconds
 pub async fn get_content_thumbnail_route(
     body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<get_content_thumbnail::v3::Response> {
@@ -217,14 +237,14 @@ pub async fn get_content_thumbnail_route(
             .send_federation_request(
                 &body.server_name,
                 get_content_thumbnail::v3::Request {
-                    allow_remote: false,
+                    allow_remote: body.allow_remote,
                     height: body.height,
                     width: body.width,
                     method: body.method.clone(),
                     server_name: body.server_name.clone(),
                     media_id: body.media_id.clone(),
-                    timeout_ms: Duration::from_secs(20),
-                    allow_redirect: false,
+                    timeout_ms: body.timeout_ms,
+                    allow_redirect: body.allow_redirect,
                 },
             )
             .await?;
