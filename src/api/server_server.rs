@@ -11,6 +11,7 @@ use futures_util::future::TryFutureExt;
 use get_profile_information::v1::ProfileField;
 use http::header::{HeaderValue, AUTHORIZATION};
 
+use ipaddress::IPAddress;
 use ruma::{
     api::{
         client::error::{Error as RumaError, ErrorKind},
@@ -114,7 +115,6 @@ impl FedDest {
     }
 }
 
-#[tracing::instrument(skip(request))]
 pub(crate) async fn send_request<T: OutgoingRequest>(
     destination: &ServerName,
     request: T,
@@ -130,6 +130,29 @@ where
         return Err(Error::bad_config(
             "Won't send federation request to ourselves",
         ));
+    }
+
+    if destination.is_ip_literal() {
+        info!("Destination is an IP literal, checking against IP range denylist.");
+        let ip = IPAddress::parse(destination.host()).map_err(|e| {
+            warn!("Failed to parse IP literal from string: {}", e);
+            Error::BadServerResponse("Invalid IP address")
+        })?;
+
+        let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
+        let mut cidr_ranges: Vec<IPAddress> = Vec::new();
+
+        for cidr in cidr_ranges_s {
+            cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
+        }
+
+        for cidr in cidr_ranges {
+            if ip.includes(&cidr) {
+                return Err(Error::BadServerResponse(
+                    "Not allowed to send requests to this IP",
+                ));
+            }
+        }
     }
 
     debug!("Preparing to send request to {destination}");

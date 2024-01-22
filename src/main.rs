@@ -147,6 +147,12 @@ async fn main() {
     };
     let config = &services().globals.config;
 
+    // check if user specified valid IP CIDR ranges on startup
+    for cidr in services().globals.ip_range_denylist() {
+        let _ = ipaddress::IPAddress::parse(cidr)
+            .map_err(|e| error!("Error parsing specified IP CIDR range: {e}"));
+    }
+
     if config.allow_registration
         && !config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
     {
