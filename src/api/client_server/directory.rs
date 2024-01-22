@@ -70,10 +70,7 @@ pub async fn get_public_rooms_route(
         .config
         .allow_public_room_directory_without_auth
     {
-        let _sender_user = body
-            .sender_user
-            .as_ref()
-            .ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
+        let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
     }
 
     let response = get_public_rooms_filtered_helper(
