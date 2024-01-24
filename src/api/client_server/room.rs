@@ -52,7 +52,16 @@ pub async fn create_room_route(
 
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-    let room_id = RoomId::new(services().globals.server_name());
+    if !services().globals.allow_room_creation()
+        && !&body.from_appservice
+        && !services().users.is_admin(sender_user)?
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Room creation has been disabled.",
+        ));
+    }
+
 
     services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
@@ -66,16 +75,6 @@ pub async fn create_room_route(
             .or_default(),
     );
     let state_lock = mutex_state.lock().await;
-
-    if !services().globals.allow_room_creation()
-        && !body.from_appservice
-        && !services().users.is_admin(sender_user)?
-    {
-        return Err(Error::BadRequest(
-            ErrorKind::Forbidden,
-            "Room creation has been disabled.",
-        ));
-    }
 
     let alias: Option<OwnedRoomAliasId> =
         body.room_alias_name
