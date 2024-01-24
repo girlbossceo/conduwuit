@@ -149,7 +149,10 @@ pub async fn create_room_route(
         Some(content) => {
             let mut content = content
                 .deserialize_as::<CanonicalJsonObject>()
-                .expect("Invalid creation content");
+                .map_err(|e| {
+                    error!("Failed to deserialise content as canonical JSON: {}", e);
+                    Error::bad_database("Failed to deserialise content as canonical JSON.")
+                })?;
             match room_version {
                 RoomVersionId::V1
                 | RoomVersionId::V2
