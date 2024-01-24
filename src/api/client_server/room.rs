@@ -92,6 +92,14 @@ pub async fn create_room_route(
         room_id = RoomId::new(services().globals.server_name())
     }
 
+    // check if room ID doesn't already exist instead of erroring on auth check
+    if services().rooms.short.get_shortroomid(&room_id)?.is_some() {
+        return Err(Error::BadRequest(
+            ErrorKind::RoomInUse,
+            "Room with that custom room ID already exists",
+        ));
+    }
+
     services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
     let mutex_state = Arc::clone(
