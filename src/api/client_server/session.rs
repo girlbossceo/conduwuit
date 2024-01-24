@@ -184,7 +184,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 
     info!("{} logged in", user_id);
 
-    // home_server is deprecated but ruma skips serialising if None, so this is fine
+    // home_server is deprecated but apparently must still be sent despite it being deprecated over 6 years ago.
     // initially i thought this macro was unnecessary, but ruma uses this same macro for the same reason so...
     #[allow(deprecated)]
     Ok(login::v3::Response {
@@ -199,7 +199,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
             }
         },
         expires_in: None,
-        home_server: None,
+        home_server: Some(services().globals.server_name().to_owned()),
         refresh_token: None,
     })
 }
