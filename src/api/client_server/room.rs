@@ -81,13 +81,36 @@ pub async fn create_room_route(
         body.room_alias_name
             .as_ref()
             .map_or(Ok(None), |localpart| {
-                // TODO: Check for invalid characters and maximum length
+                if localpart.contains(':') {
+                    return Err(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Room alias contained `:` which is not allowed.
+                    Please note that this expects a localpart, not the full room alias.",
+                    ));
+                } else if localpart.contains(char::is_whitespace) {
+                    return Err(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Room alias contained spaces which is not a valid room alias.",
+                    ));
+                } else if localpart.len() > 255 {
+                    // there is nothing spec-wise saying to check the limit of this,
+                    // however absurdly long room aliases are guaranteed to be unreadable or done maliciously.
+                    // there is no reason a room alias should even exceed 100 characters as is. 
+                    // generally in spec, 255 is matrix's fav number 
+                    return Err(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Room alias is excessively long, clients may not be able to handle this. Please shorten it.",
+                    ));
+                }
                 let alias = RoomAliasId::parse(format!(
                     "#{}:{}",
                     localpart,
                     services().globals.server_name()
                 ))
-                .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
+                .map_err(|e| {
+                    warn!("Failed to parse room alias for room ID {}: {e}", room_id);
+                    Error::BadRequest(ErrorKind::InvalidParam, "Invalid room alias specified.")
+                })?;
 
                 if services()
                     .rooms
