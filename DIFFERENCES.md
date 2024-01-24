@@ -1,9 +1,7 @@
 ### list of features, bug fixes, etc that conduwuit does that upstream does not:
 
-- Has a working CI/CD for tests, codebase warnings (rustc and clippy), caching, and build (still need to output artifacts with build variants)
 - Fixed every single clippy (default lints) and rustc warnings, including some that were performance related or potential safety issues / unsoundness
 - Has dependabot and significantly updates all dependencies possible
-- Uses upstream reqwest instead of super old fork (via upstream MR)
 - Uses proper argon2 crate instead of questionable rust-argon2 crate
 - Improved and cleaned up logging (less noisy dead server logging, registration attempts, more useful troubleshooting logging, etc)
 - Attempts and interest in removing extreme and unnecessary panics/unwraps/expects that can lead to denial of service or such (upstream and upstream contributors want this unusual behaviour for some reason)
@@ -21,7 +19,6 @@
 - conduwuit allows MXIDs with `+` in them (thanks to Ruma update)
 - Revamped admin room infrastructure and commands (via upstream MR)
 - Make spaces/hierarchy cache use cache_capacity_modifier instead of hardcoded small value
-- Send missing push notifications on invitations (via upstream MR)
 - Make PDU appending, building, etc asynchronous
 - Add *optional* feature flag to use SHA256 key names for media instead of base64 to overcome filesystem file name length limitations (OS error file name too long) (via upstream MR) 
 - Add *optional* feature flag to enable zstd HTTP body compression
@@ -58,3 +55,6 @@
 - Send `avatar_url` on invite room membership events/changes
 - Revamp example config, adding a lot of config options available (still some missing)
 - Return joined member count of rooms for push rules/conditions instead of a hardcoded value of 10
+- Respect *most* client parameters for `/media/` requests (`allow_redirect` still needs work)
+- Config option `ip_range_denylist` to support refusing to send requests (typically federation) to specific IP ranges, typically RFC 1918, non-routable, testnet, etc addresses like Synapse for security.
+- Support for creating rooms with custom room IDs like Maunium Synapse (`room_id` request body field to `/createRoom`)
