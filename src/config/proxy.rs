@@ -32,7 +32,6 @@ use crate::Result;
 pub enum ProxyConfig {
     #[default]
     None,
-
     Global {
         #[serde(deserialize_with = "crate::utils::deserialize_from_str")]
         url: Url,
