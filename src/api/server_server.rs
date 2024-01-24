@@ -133,7 +133,10 @@ where
     }
 
     if destination.is_ip_literal() {
-        info!("Destination is an IP literal, checking against IP range denylist.");
+        info!(
+            "Destination {} is an IP literal, checking against IP range denylist.",
+            destination
+        );
         let ip = IPAddress::parse(destination.host()).map_err(|e| {
             warn!("Failed to parse IP literal from string: {}", e);
             Error::BadServerResponse("Invalid IP address")
@@ -146,13 +149,17 @@ where
             cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
         }
 
+        debug!("List of pushed CIDR ranges: {:?}", cidr_ranges);
+
         for cidr in cidr_ranges {
-            if ip.includes(&cidr) {
+            if cidr.includes(&ip) {
                 return Err(Error::BadServerResponse(
                     "Not allowed to send requests to this IP",
                 ));
             }
         }
+
+        info!("IP literal {} is allowed.", destination);
     }
 
     debug!("Preparing to send request to {destination}");
