@@ -92,17 +92,10 @@ pub async fn create_room_route(
                 }
 
                 let full_room_id = "!".to_owned()
-                    + custom_room_id_s.as_str()
+                    + &custom_room_id_s.replace('"', "")
                     + ":"
                     + services().globals.server_name().as_ref();
                 debug!("Full room ID: {}", full_room_id);
-
-                if full_room_id.contains('"') {
-                    return Err(Error::BadRequest(
-                        ErrorKind::InvalidParam,
-                        "Custom room ID contained `\"` which is not allowed.",
-                    ));
-                }
 
                 room_id = RoomId::parse(full_room_id).map_err(|e| {
                     info!(
