@@ -23,11 +23,12 @@ use ruma::{
     },
     int,
     serde::JsonObject,
-    CanonicalJsonObject, OwnedRoomAliasId, RoomAliasId, RoomId, RoomVersionId,
+    CanonicalJsonObject, CanonicalJsonValue, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId,
+    RoomVersionId,
 };
 use serde_json::{json, value::to_raw_value};
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 /// # `POST /_matrix/client/v3/createRoom`
 ///
@@ -62,6 +63,34 @@ pub async fn create_room_route(
         ));
     }
 
+    let room_id: OwnedRoomId;
+
+    // checks if the user specified an explicit (custom) room_id to be created with in request body.
+    // falls back to normal generated room ID if not specified.
+    if let Some(CanonicalJsonValue::Object(json_body)) = &body.json_body {
+        match json_body.get("room_id") {
+            Some(custom_room_id) => {
+                room_id = RoomId::parse(format!(
+                    "!{}:{}",
+                    custom_room_id,
+                    services().globals.server_name()
+                ))
+                .map_err(|e| {
+                    info!(
+                        "User attempted to create room with custom room ID but failed parsing: {}",
+                        e
+                    );
+                    Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Custom room ID could not be parsed",
+                    )
+                })?;
+            }
+            None => room_id = RoomId::new(services().globals.server_name()),
+        }
+    } else {
+        room_id = RoomId::new(services().globals.server_name())
+    }
 
     services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
