@@ -109,6 +109,8 @@ pub async fn create_room_route(
         body.room_alias_name
             .as_ref()
             .map_or(Ok(None), |localpart| {
+
+                // Basic checks on the room alias validity
                 if localpart.contains(':') {
                     return Err(Error::BadRequest(
                         ErrorKind::InvalidParam,
@@ -129,7 +131,13 @@ pub async fn create_room_route(
                         ErrorKind::InvalidParam,
                         "Room alias is excessively long, clients may not be able to handle this. Please shorten it.",
                     ));
+                } else if localpart.contains('"') {
+                    return Err(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Room alias contained `\"` which is not allowed.",
+                    ));
                 }
+
                 let alias = RoomAliasId::parse(format!(
                     "#{}:{}",
                     localpart,
