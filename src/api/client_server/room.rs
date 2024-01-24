@@ -28,7 +28,7 @@ use ruma::{
 };
 use serde_json::{json, value::to_raw_value};
 use std::{cmp::max, collections::BTreeMap, sync::Arc};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// # `POST /_matrix/client/v3/createRoom`
 ///
@@ -70,12 +70,41 @@ pub async fn create_room_route(
     if let Some(CanonicalJsonValue::Object(json_body)) = &body.json_body {
         match json_body.get("room_id") {
             Some(custom_room_id) => {
-                room_id = RoomId::parse(format!(
-                    "!{}:{}",
-                    custom_room_id,
-                    services().globals.server_name()
-                ))
-                .map_err(|e| {
+                let custom_room_id_s = custom_room_id.to_string();
+
+                // do some checks on the custom room ID similar to room aliases
+                if custom_room_id_s.contains(':') {
+                    return Err(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Custom room ID contained `:` which is not allowed.
+                    Please note that this expects a localpart, not the full room ID.",
+                    ));
+                } else if custom_room_id_s.contains(char::is_whitespace) {
+                    return Err(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Custom room ID contained spaces which is not valid.",
+                    ));
+                } else if custom_room_id_s.len() > 255 {
+                    return Err(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Custom room ID is too long.",
+                    ));
+                }
+
+                let full_room_id = "!".to_owned()
+                    + custom_room_id_s.as_str()
+                    + ":"
+                    + services().globals.server_name().as_ref();
+                debug!("Full room ID: {}", full_room_id);
+
+                if full_room_id.contains('"') {
+                    return Err(Error::BadRequest(
+                        ErrorKind::InvalidParam,
+                        "Custom room ID contained `\"` which is not allowed.",
+                    ));
+                }
+
+                room_id = RoomId::parse(full_room_id).map_err(|e| {
                     info!(
                         "User attempted to create room with custom room ID but failed parsing: {}",
                         e
