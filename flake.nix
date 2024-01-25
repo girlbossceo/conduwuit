@@ -47,6 +47,7 @@
         ];
       };
 
+      # Use mold on Linux
       stdenv = if pkgs.stdenv.isLinux then
         pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv
       else
@@ -95,12 +96,44 @@
     in
     {
       packages.default = builder {
-        src = ./.;
+        src = nix-filter {
+          root = ./.;
+          include = [
+            "src"
+            "Cargo.toml"
+            "Cargo.lock"
+          ];
+        };
+
+        # This is redundant with CI
+        doCheck = false;
 
         inherit
           env
           nativeBuildInputs
           stdenv;
+
+        meta.mainProgram = cargoToml.package.name;
+      };
+
+      packages.oci-image =
+      let
+        package = self.packages.${system}.default;
+      in
+      pkgs.dockerTools.buildImage {
+        name = package.pname;
+        tag = "latest";
+        config = {
+          # Use the `tini` init system so that signals (e.g. ctrl+c/SIGINT) are
+          # handled as expected
+          Entrypoint = [
+            "${pkgs.lib.getExe' pkgs.tini "tini"}"
+            "--"
+          ];
+          Cmd = [
+            "${pkgs.lib.getExe package}"
+          ];
+        };
       };
 
       devShells.default = (pkgs.mkShell.override { inherit stdenv; }) {
