@@ -58,3 +58,5 @@
 - Respect *most* client parameters for `/media/` requests (`allow_redirect` still needs work)
 - Config option `ip_range_denylist` to support refusing to send requests (typically federation) to specific IP ranges, typically RFC 1918, non-routable, testnet, etc addresses like Synapse for security.
 - Support for creating rooms with custom room IDs like Maunium Synapse (`room_id` request body field to `/createRoom`)
+- Assume well-knowns are broken if they exceed past 15000 characters.
+- Basic validation/checks on user-specified room aliases and custom room ID creations
