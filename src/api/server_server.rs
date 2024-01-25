@@ -132,8 +132,6 @@ where
         ));
     }
 
-    // rust's built in <Ipv4Addr> parsing does not consider things like octal addresses valid
-    // so we should check both just to be safe.
     if destination.is_ip_literal() || IPAddress::is_valid(destination.host()) {
         info!(
             "Destination {} is an IP literal, checking against IP range denylist.",

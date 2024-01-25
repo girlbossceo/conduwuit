@@ -76,8 +76,7 @@ pub async fn create_room_route(
                 if custom_room_id_s.contains(':') {
                     return Err(Error::BadRequest(
                         ErrorKind::InvalidParam,
-                        "Custom room ID contained `:` which is not allowed.
-                    Please note that this expects a localpart, not the full room ID.",
+                        "Custom room ID contained `:` which is not allowed. Please note that this expects a localpart, not the full room ID.",
                     ));
                 } else if custom_room_id_s.contains(char::is_whitespace) {
                     return Err(Error::BadRequest(
@@ -144,8 +143,7 @@ pub async fn create_room_route(
                 if localpart.contains(':') {
                     return Err(Error::BadRequest(
                         ErrorKind::InvalidParam,
-                        "Room alias contained `:` which is not allowed.
-                    Please note that this expects a localpart, not the full room alias.",
+                        "Room alias contained `:` which is not allowed. Please note that this expects a localpart, not the full room alias.",
                     ));
                 } else if localpart.contains(char::is_whitespace) {
                     return Err(Error::BadRequest(
