@@ -155,9 +155,10 @@ async fn main() {
 
     if config.allow_registration
         && !config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
+        && config.registration_token.is_none()
     {
-        error!("!! You have `allow_registration` enabled in your config which means you are allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token).\n
-        If this is not the intended behaviour, please disable `allow_registration` and set a registration token.\n
+        error!("!! You have `allow_registration` enabled without a token configured in your config which means you are allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token).\n
+        If this is not the intended behaviour, please set a registration token with the `registration_token` config option.\n
         For security and safety reasons, conduwuit will shut down. If you are extra sure this is the desired behaviour you want, please set the following config option to true:
         `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`");
         return;
@@ -165,9 +166,10 @@ async fn main() {
 
     if config.allow_registration
         && config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
+        && config.registration_token.is_none()
     {
-        warn!("Open registration is enabled via setting `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` and `allow_registration` to true. You are expected to be aware of the risks now.\n
-        If this is not the desired behaviour, please disable `allow_registration` and set a registration token.");
+        warn!("Open registration is enabled via setting `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` and `allow_registration` to true without a registration token configured. You are expected to be aware of the risks now.\n
+        If this is not the desired behaviour, please set a registration token.");
     }
 
     if config.allow_outgoing_presence {
