@@ -74,11 +74,8 @@ pub async fn get_register_available_route(
 /// - Creates a new account and populates it with default account data
 /// - If `inhibit_login` is false: Creates a device and returns device id and access_token
 pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<register::v3::Response> {
-    if !services().globals.allow_registration()
-        && !body.from_appservice
-        && services().globals.config.registration_token.is_none()
-    {
-        info!("Registration disabled, no reg token configured, rejecting registration attempt for username {:?}", body.username);
+    if !services().globals.allow_registration() && !body.from_appservice {
+        info!("Registration disabled and request not from known appservice, rejecting registration attempt for username {:?}", body.username);
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "Registration has been disabled.",
@@ -89,10 +86,10 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 
     if is_guest
         && (!services().globals.allow_guest_registration()
-            || (!services().globals.allow_registration()
+            || (services().globals.allow_registration()
                 && services().globals.config.registration_token.is_some()))
     {
-        info!("Guest registration disabled / registration disabled with token configured, rejecting guest registration, initial device name: {:?}", body.initial_device_display_name);
+        info!("Guest registration disabled / registration enabled with token configured, rejecting guest registration, initial device name: {:?}", body.initial_device_display_name);
         return Err(Error::BadRequest(
             ErrorKind::GuestAccessForbidden,
             "Guest registration is disabled.",
@@ -144,21 +141,35 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
     };
 
     // UIAA
-    let mut uiaainfo = UiaaInfo {
-        flows: vec![AuthFlow {
-            stages: if services().globals.config.registration_token.is_some() {
-                vec![AuthType::RegistrationToken]
-            } else {
-                vec![AuthType::Dummy]
-            },
-        }],
-        completed: Vec::new(),
-        params: Default::default(),
-        session: None,
-        auth_error: None,
-    };
+    let mut uiaainfo;
+    let skip_auth;
+    if services().globals.config.registration_token.is_some() {
+        // Registration token required
+        uiaainfo = UiaaInfo {
+            flows: vec![AuthFlow {
+                stages: vec![AuthType::RegistrationToken],
+            }],
+            completed: Vec::new(),
+            params: Default::default(),
+            session: None,
+            auth_error: None,
+        };
+        skip_auth = body.from_appservice;
+    } else {
+        // No registration token necessary, but clients must still go through the flow
+        uiaainfo = UiaaInfo {
+            flows: vec![AuthFlow {
+                stages: vec![AuthType::Dummy],
+            }],
+            completed: Vec::new(),
+            params: Default::default(),
+            session: None,
+            auth_error: None,
+        };
+        skip_auth = body.from_appservice || is_guest;
+    }
 
-    if !body.from_appservice && !is_guest {
+    if !skip_auth {
         if let Some(auth) = &body.auth {
             let (worked, uiaainfo) = services().uiaa.try_auth(
                 &UserId::parse_with_server_name("", services().globals.server_name())

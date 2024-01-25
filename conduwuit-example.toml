@@ -26,7 +26,7 @@
 # Generally, copying this exactly should be enough. (Currently, conduwuit doesn't
 # support batched key requests, so this list should only contain Synapse
 # servers.) Defaults to `matrix.org`
-#trusted_servers = ["matrix.org"]
+# trusted_servers = ["matrix.org"]
 
 
 
@@ -111,16 +111,17 @@ ip_range_denylist = [
 # For private homeservers, this is best at false.
 allow_guest_registration = false
 
-# Vector list of servers that conduwuit will refuse to download remote media from
-#prevent_media_downloads_from = ["example.com", "example.local"]
+# Vector list of servers that conduwuit will refuse to download remote media from.
+# No default.
+# prevent_media_downloads_from = ["example.com", "example.local"]
 
 # Enables open registration. If set to false, no users can register on this
-# server (unless a token is configured).
-# If set to true, users can register with no form of 2nd step only if you set
+# server.
+# If set to true without a token configured, users can register with no form of 2nd-
+# step only if you set
 # `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` to
-# in your config. If you would like
-# registration only via token reg, please set this to *false* and configure the
-# `registration_token` key.
+# true in your config. If you would like
+# registration only via token reg, please configure the `registration_token` key.
 allow_registration = false
 # Please note that an open registration homeserver with no second-step verification
 # is highly prone to abuse and potential defederation by homeservers, including
@@ -132,7 +133,13 @@ allow_registration = false
 registration_token = "change this token for something specific to your server"
 
 # controls whether federation is allowed or not
+# defaults to false
 allow_federation = true
+
+# controls whether users are allowed to create rooms.
+# appservices and admins are always allowed to create rooms
+# defaults to true
+# allow_room_creation = true
 
 # Set this to true to allow your server's public room directory to be federated.
 # Set this to false to protect against /publicRooms spiders, but will forbid external users
