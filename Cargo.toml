@@ -9,10 +9,7 @@ readme = "README.md"
 version = "0.7.0-alpha+conduwuit-0.1.2"
 edition = "2021"
 
-# When changing this, make sure to update the `flake.lock` file by running
-# `nix flake update`. If you don't have Nix installed or otherwise don't know
-# how to do this, ping `@charles:computer.surgery` or `@dusk:gaze.systems` in
-# the matrix room.
+# See also `rust-toolchain.toml`
 rust-version = "1.75.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
