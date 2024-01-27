@@ -63,8 +63,8 @@
       ];
 
       env = pkgs: {
-        ROCKSDB_INCLUDE_DIR = "${rocksdb'}/include";
-        ROCKSDB_LIB_DIR = "${rocksdb'}/lib";
+        ROCKSDB_INCLUDE_DIR = "${rocksdb' pkgs}/include";
+        ROCKSDB_LIB_DIR = "${rocksdb' pkgs}/lib";
       }
       // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isStatic {
         ROCKSDB_STATIC = "";
