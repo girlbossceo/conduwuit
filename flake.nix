@@ -177,6 +177,9 @@
         pkgs.dockerTools.buildImage {
           name = package.pname;
           tag = "main";
+          copyToRoot = [
+            pkgs.dockerTools.caCertificates
+          ];
           config = {
             # Use the `tini` init system so that signals (e.g. ctrl+c/SIGINT)
             # are handled as expected
