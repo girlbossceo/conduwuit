@@ -57,7 +57,7 @@ pub struct Config {
     pub registration_token: Option<String>,
     #[serde(default = "true_fn")]
     pub allow_encryption: bool,
-    #[serde(default)]
+    #[serde(default = "true_fn")]
     pub allow_federation: bool,
     #[serde(default)]
     pub allow_public_room_directory_over_federation: bool,

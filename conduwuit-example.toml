@@ -133,8 +133,8 @@ allow_registration = false
 registration_token = "change this token for something specific to your server"
 
 # controls whether federation is allowed or not
-# defaults to false
-allow_federation = true
+# defaults to true
+# allow_federation = true
 
 # controls whether users are allowed to create rooms.
 # appservices and admins are always allowed to create rooms
