@@ -8,7 +8,6 @@
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
     crane = {
       # TODO: Switch back to upstream after [this issue][0] is fixed
       #
@@ -30,27 +29,15 @@
     , ...
     }: flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgs = import nixpkgs {
-        inherit system;
-
-        overlays = [
-          (final: prev: {
-            rocksdb = prev.rocksdb.overrideAttrs (old:
-              let
-                version = "8.10.0";
-              in
+      rocksdb' = pkgs: pkgs.rocksdb.overrideAttrs (old:
               {
-                inherit version;
                 src = pkgs.fetchFromGitHub {
                   owner = "facebook";
                   repo = "rocksdb";
-                  rev = "v${version}";
+                  rev = "v8.10.0";
                   hash = "sha256-KGsYDBc1fz/90YYNGwlZ0LUKXYsP1zyhP29TnRQwgjQ=";
                 };
               });
-          })
-        ];
-      };
 
       pkgsHost = nixpkgs.legacyPackages.${system};
 
@@ -76,8 +63,8 @@
       ];
 
       env = pkgs: {
-        ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb}/include";
-        ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib";
+        ROCKSDB_INCLUDE_DIR = "${rocksdb'}/include";
+        ROCKSDB_LIB_DIR = "${rocksdb'}/lib";
       }
       // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isStatic {
         ROCKSDB_STATIC = "";
@@ -93,7 +80,7 @@
               stdenv.hostPlatform.isStatic
               ["-C" "relocation-model=static"]
             ++ lib.optionals
-              (stdenv.buildPlatform.config != pkgs.stdenv.hostPlatform.config)
+              (stdenv.buildPlatform.config != stdenv.hostPlatform.config)
               ["-l" "c"]
             ++ lib.optionals
               # This check has to match the one [here][0]. We only need to set
@@ -102,10 +89,13 @@
               #
               # [0]: https://github.com/NixOS/nixpkgs/blob/612f97239e2cc474c13c9dafa0df378058c5ad8d/pkgs/build-support/rust/lib/default.nix#L36-L39
               (
-                pkgs.stdenv.hostPlatform.isAarch64
-                  && pkgs.stdenv.hostPlatform.isStatic
-                  && !pkgs.stdenv.isDarwin
-                  && !pkgs.stdenv.cc.bintools.isLLVM
+                # Nixpkgs doesn't check for x86_64 here but we do, because I
+                # observed a failure building statically for x86_64 without
+                # including it here. Linkers are weird.
+                (stdenv.hostPlatform.isAarch64 || stdenv.hostPlatform.isx86_64)
+                  && stdenv.hostPlatform.isStatic
+                  && !stdenv.isDarwin
+                  && !stdenv.cc.bintools.isLLVM
               )
               [
                 "-l"
