@@ -12,7 +12,7 @@ if [ ! -z ${ATTIC_TOKEN+x} ]; then
 
 nix run --inputs-from . attic -- login \
     conduit \
-        https://nix.computer.surgery/conduit \
+        https://attic.kennel.girlcock.ceo/conduit \
         "$ATTIC_TOKEN"
 
     push_args=(

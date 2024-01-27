@@ -1,5 +1,5 @@
 [package]
-name = "conduwuit"
+name = "conduit"
 description = "a cool fork of Conduit, a Matrix homeserver written in Rust"
 license = "Apache-2.0"
 authors = ["strawberry <strawberry@puppygock.gay>", "timokoesters <timo@koesters.xyz>"]
