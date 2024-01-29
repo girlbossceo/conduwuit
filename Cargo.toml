@@ -78,7 +78,7 @@ parking_lot = { version = "0.12.1", optional = true }
 num_cpus = "1.16.0"
 threadpool = "1.8.1"
 # Used for ruma wrapper
-serde_html_form = "0.2.3"
+serde_html_form = "0.2.4"
 
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1fb26dd5dc363c9fded526bac45366a436fc50a9", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
 
