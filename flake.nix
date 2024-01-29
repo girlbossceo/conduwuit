@@ -26,16 +26,6 @@
     , ...
     }: flake-utils.lib.eachDefaultSystem (system:
     let
-      rocksdb' = pkgs: pkgs.rocksdb.overrideAttrs (old:
-              {
-                src = pkgs.fetchFromGitHub {
-                  owner = "facebook";
-                  repo = "rocksdb";
-                  rev = "v8.10.0";
-                  hash = "sha256-KGsYDBc1fz/90YYNGwlZ0LUKXYsP1zyhP29TnRQwgjQ=";
-                };
-              });
-
       pkgsHost = nixpkgs.legacyPackages.${system};
 
       # Nix-accessible `Cargo.toml`
@@ -60,8 +50,8 @@
       ];
 
       env = pkgs: {
-        ROCKSDB_INCLUDE_DIR = "${rocksdb' pkgs}/include";
-        ROCKSDB_LIB_DIR = "${rocksdb' pkgs}/lib";
+        ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb}/include";
+        ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib";
       }
       // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isStatic {
         ROCKSDB_STATIC = "";
