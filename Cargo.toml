@@ -80,7 +80,7 @@ threadpool = "1.8.1"
 # Used for ruma wrapper
 serde_html_form = "0.2.3"
 
-rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1fb26dd5dc363c9fded526bac45366a436fc50a9", default-features = false, features = ["multi-threaded-cf", "snappy", "lz4", "zstd"], optional = true }
+rocksdb = { version = "0.21.0", default-features = true, features = ["multi-threaded-cf", "zstd"], optional = true }
 
 thread_local = "1.1.7"
 # used for TURN server authentication
