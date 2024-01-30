@@ -104,11 +104,11 @@ oci-image:aarch64-unknown-linux-musl:
     - cp result oci-image.tar.gz
   artifacts:
     paths:
-      - docker-image.tar.gz
+      - oci-image.tar.gz
 
 debian:x86_64-unknown-linux-gnu:
   stage: artifacts
-    # See also `rust-toolchain.toml`
+  # See also `rust-toolchain.toml`
   image: rust:1.75.0
   script:
     - apt-get update && apt-get install -y --no-install-recommends libclang-dev
