@@ -132,13 +132,12 @@ path = "src/lib.rs"
 
 [package.metadata.deb]
 name = "matrix-conduit"
-maintainer = "Paul van Tilburg <paul@luon.net>"
-copyright = "2020, Timo Kösters <timo@koesters.xyz>"
+maintainer = "strawberry <strawberry@puppygock.gay>"
+copyright = "2024, Timo Kösters <timo@koesters.xyz>"
 license-file = ["LICENSE", "3"]
 depends = "$auto, ca-certificates"
 extended-description = """\
-A fast Matrix homeserver that is optimized for smaller, personal servers, \
-instead of a server that has high scalability."""
+a cool fork of Conduit, a Matrix homeserver written in Rust"""
 section = "net"
 priority = "optional"
 assets = [
