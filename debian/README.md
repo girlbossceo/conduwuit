@@ -1,4 +1,4 @@
-Conduit for Debian
+conduwuit for Debian
 ==================
 
 Installation
