@@ -131,3 +131,14 @@ jobs:
           name: deb-x86_64-unknown-linux-gnu
           path: target/debian/*.deb
           if-no-files-found: error
+
+      - name: Build deb-aarch64-unknown-linux-gnu
+        run: |
+          cargo deb --target=aarch64-unknown-linux-gnu
+
+      - name: Upload artifact deb-aarch64-unknown-linux-gnu
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-aarch64-unknown-linux-gnu
+          path: target/debian/*.deb
+          if-no-files-found: error
