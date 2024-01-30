@@ -95,21 +95,26 @@ jobs:
       - name: Build oci-image-x86_64-unknown-linux-gnu
         run: |
           ./bin/nix-build-and-cache .#oci-image
+          cp result oci-image.tar.gz
 
       - name: Upload artifact oci-image-x86_64-unknown-linux-gnu
         uses: actions/upload-artifact@v4
         with:
           name: oci-image-x86_64-unknown-linux-gnu
-          path: result
-          if-no-files-found: error
+          path: oci-image.tar.gz
+          # don't compress again
+          compression-level: 0
 
       - name: Build oci-image-aarch64-unknown-linux-musl
         run: |
           ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl
+          cp result oci-image.tar.gz
 
       - name: Upload artifact oci-image-aarch64-unknown-linux-musl
         uses: actions/upload-artifact@v4
         with:
           name: oci-image-aarch64-unknown-linux-musl
-          path: result
+          path: oci-image.tar.gz
           if-no-files-found: error
+          # don't compress again
+          compression-level: 0
