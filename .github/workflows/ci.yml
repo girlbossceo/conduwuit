@@ -47,7 +47,7 @@ jobs:
           echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
 
       - name: Install `direnv` and `nix-direnv`
-        run: nix-env -f "<nixpkgs>" -i direnv -i nix-direnv
+        run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
 
       - name: Pop/push downloaded crate cache
         uses: actions/cache@v4
@@ -73,23 +73,21 @@ jobs:
       - name: Build static-x86_64-unknown-linux-musl
         run: |
           ./bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl
-          cp result/bin/conduit conduit
 
       - name: Upload artifact static-x86_64-unknown-linux-musl
         uses: actions/upload-artifact@v4
         with:
           name: static-x86_64-unknown-linux-musl
-          path: conduit
+          path: result/bin/conduit
           if-no-files-found: error
 
       - name: Build static-aarch64-unknown-linux-musl
         run: |
           ./bin/nix-build-and-cache .#static-aarch64-unknown-linux-musl
-          cp result/bin/conduit conduit
 
       - name: Upload artifact static-aarch64-unknown-linux-musl
         uses: actions/upload-artifact@v4
         with:
           name: static-aarch64-unknown-linux-musl
-          path: conduit
+          path: result/bin/conduit
           if-no-files-found: error
