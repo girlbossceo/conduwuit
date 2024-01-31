@@ -127,3 +127,96 @@ jobs:
           name: deb-x86_64-unknown-linux-gnu
           path: target/debian/*.deb
           if-no-files-found: error
+
+      - name: Extract metadata for Docker
+        env:
+          REGISTRY: registry.hub.docker.com
+          IMAGE_NAME: ${{ github.repository }}
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Extract metadata for GitHub Container Registry
+        env:
+          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ github.repository }}
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Login to Dockerhub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        env:
+          REGISTRY: ghcr.io
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to Dockerhub
+        env:
+          REGISTRY: registry.hub.docker.com
+          IMAGE_NAME: ${{ env.REGISTRY }}/${{ github.repository }}
+          IMAGE_SUFFIX_AMD64: amd64
+          IMAGE_SUFFIX_ARM64V8: arm64v8
+        run: |
+          docker load -i oci-image-amd64.tar.gz
+          IMAGE_ID_AMD64=$(docker images -q conduit:next)
+          docker load -i oci-image-arm64v8.tar.gz
+          IMAGE_ID_ARM64V8=$(docker images -q conduit:next)
+
+          # Tag and push the architecture specific images
+          docker tag $IMAGE_ID_AMD64 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          docker tag $IMAGE_ID_ARM64V8 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          # Tag the multi-arch image
+          docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker manifest push $IMAGE_NAME:$GITHUB_SHA
+          # Tag and push the git ref
+          docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          # Tag git tags as 'latest'
+          if [[ -n "$GITHUB_REF_NAME" ]]; then
+            docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+            docker manifest push $IMAGE_NAME:latest
+          fi
+
+      - name: Publish to GitHub Container Registry
+        env:
+          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ env.REGISTRY }}/${{ github.repository }}
+          IMAGE_SUFFIX_AMD64: amd64
+          IMAGE_SUFFIX_ARM64V8: arm64v8
+        run: |
+          docker load -i oci-image-amd64.tar.gz
+          IMAGE_ID_AMD64=$(docker images -q conduit:next)
+          docker load -i oci-image-arm64v8.tar.gz
+          IMAGE_ID_ARM64V8=$(docker images -q conduit:next)
+
+          # Tag and push the architecture specific images
+          docker tag $IMAGE_ID_AMD64 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          docker tag $IMAGE_ID_ARM64V8 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          # Tag the multi-arch image
+          docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker manifest push $IMAGE_NAME:$GITHUB_SHA
+          # Tag and push the git ref
+          docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          # Tag git tags as 'latest'
+          if [[ -n "$GITHUB_REF_NAME" ]]; then
+            docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+            docker manifest push $IMAGE_NAME:latest
+          fi
