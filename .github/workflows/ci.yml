@@ -151,7 +151,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: girlbossceo
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
@@ -161,7 +161,7 @@ jobs:
           REGISTRY: ghcr.io
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: girlbossceo
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to Dockerhub
@@ -172,9 +172,9 @@ jobs:
           IMAGE_SUFFIX_ARM64V8: arm64v8
         run: |
           docker load -i oci-image-amd64.tar.gz
-          IMAGE_ID_AMD64=$(docker images -q conduit:next)
+          IMAGE_ID_AMD64=$(docker images -q conduwuit:main)
           docker load -i oci-image-arm64v8.tar.gz
-          IMAGE_ID_ARM64V8=$(docker images -q conduit:next)
+          IMAGE_ID_ARM64V8=$(docker images -q conduwuit:main)
 
           # Tag and push the architecture specific images
           docker tag $IMAGE_ID_AMD64 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
@@ -201,9 +201,9 @@ jobs:
           IMAGE_SUFFIX_ARM64V8: arm64v8
         run: |
           docker load -i oci-image-amd64.tar.gz
-          IMAGE_ID_AMD64=$(docker images -q conduit:next)
+          IMAGE_ID_AMD64=$(docker images -q conduwuit:main)
           docker load -i oci-image-arm64v8.tar.gz
-          IMAGE_ID_ARM64V8=$(docker images -q conduit:next)
+          IMAGE_ID_ARM64V8=$(docker images -q conduwuit:main)
 
           # Tag and push the architecture specific images
           docker tag $IMAGE_ID_AMD64 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
