@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - registry-pushes
 
 env:
   # Required to make some things output color
@@ -128,11 +129,11 @@ jobs:
           path: target/debian/*.deb
           if-no-files-found: error
 
-      - name: Extract metadata for Docker
+      - name: Extract metadata for Dockerhub
         env:
           REGISTRY: registry.hub.docker.com
           IMAGE_NAME: ${{ github.repository }}
-        id: meta
+        id: meta-dockerhub
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -141,7 +142,7 @@ jobs:
         env:
           REGISTRY: ghcr.io
           IMAGE_NAME: ${{ github.repository }}
-        id: meta
+        id: meta-ghcr
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
