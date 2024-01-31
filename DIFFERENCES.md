@@ -1,12 +1,12 @@
 ### list of features, bug fixes, etc that conduwuit does that upstream does not:
 
+- GitLab CI ported to GitHub Actions
 - Fixed every single clippy (default lints) and rustc warnings, including some that were performance related or potential safety issues / unsoundness
 - Has dependabot and significantly updates all dependencies possible
 - Uses proper argon2 crate instead of questionable rust-argon2 crate
 - Improved and cleaned up logging (less noisy dead server logging, registration attempts, more useful troubleshooting logging, etc)
 - Attempts and interest in removing extreme and unnecessary panics/unwraps/expects that can lead to denial of service or such (upstream and upstream contributors want this unusual behaviour for some reason)
 - Merged and cleaned up upstream MRs that have been sitting for 6-12 months
-- Using latest rust-rocksdb git for the latest RocksDB release which has various fixes, features, improvements, etc, including some regarding database corruption.
 - Configurable RocksDB logging (`LOG` files) with proper defaults (rotate, max size, verbosity, etc) to stop LOG files from accumulating so much
 - Federated presence support and configurable local presence (via upstream MR)
 - Concurrency support for key fetching for faster remote room joins and room joins that will error less frequently (via upstream MR)
