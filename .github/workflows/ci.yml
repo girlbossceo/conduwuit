@@ -166,15 +166,14 @@ jobs:
 
       - name: Publish to Dockerhub
         env:
-          REGISTRY: registry.hub.docker.com
-          IMAGE_NAME: ${{ env.REGISTRY }}/${{ github.repository }}
+          IMAGE_NAME: registry.hub.docker.com/${{ github.repository }}
           IMAGE_SUFFIX_AMD64: amd64
           IMAGE_SUFFIX_ARM64V8: arm64v8
         run: |
           docker load -i oci-image-amd64.tar.gz
-          IMAGE_ID_AMD64=$(docker images -q conduwuit:main)
+          IMAGE_ID_AMD64=$(docker images -q conduit:main)
           docker load -i oci-image-arm64v8.tar.gz
-          IMAGE_ID_ARM64V8=$(docker images -q conduwuit:main)
+          IMAGE_ID_ARM64V8=$(docker images -q conduit:main)
 
           # Tag and push the architecture specific images
           docker tag $IMAGE_ID_AMD64 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
@@ -195,15 +194,14 @@ jobs:
 
       - name: Publish to GitHub Container Registry
         env:
-          REGISTRY: ghcr.io
-          IMAGE_NAME: ${{ env.REGISTRY }}/${{ github.repository }}
+          IMAGE_NAME: ghcr.io/${{ github.repository }}
           IMAGE_SUFFIX_AMD64: amd64
           IMAGE_SUFFIX_ARM64V8: arm64v8
         run: |
           docker load -i oci-image-amd64.tar.gz
-          IMAGE_ID_AMD64=$(docker images -q conduwuit:main)
+          IMAGE_ID_AMD64=$(docker images -q conduit:main)
           docker load -i oci-image-arm64v8.tar.gz
-          IMAGE_ID_ARM64V8=$(docker images -q conduwuit:main)
+          IMAGE_ID_ARM64V8=$(docker images -q conduit:main)
 
           # Tag and push the architecture specific images
           docker tag $IMAGE_ID_AMD64 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
