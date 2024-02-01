@@ -39,7 +39,6 @@
 - Safer and cleaner shutdowns on both database side as we run cleanup on shutdown and exits database loop better (no potential hanging issues in database loop), overall cleaner shutdown logic
 - Basic binary commands like `conduwuit --version` work (interested in expanding it more)
 - Allow HEAD HTTP requests in CORS for clients (despite not being explicity mentioned in Matrix spec, HTTP spec says all HEAD requests need to behave the same as GET requests, Synapse supports HEAD requests)
-- Bump MSRV to 1.75.0 for Cargo.toml workspace lints and latest ruma using 1.75.0
 - Purge unmaintained/irrelevant/broken database backends (heed, sled, persy)
 - webp support for images
 - Support for suggesting servers to join at `/_matrix/client/v3/directory/room/{roomAlias}`
