@@ -166,7 +166,7 @@ jobs:
 
       - name: Publish to Dockerhub
         env:
-          IMAGE_NAME: registry.hub.docker.com/${{ github.repository }}
+          IMAGE_NAME: docker.io/${{ github.repository }}
           IMAGE_SUFFIX_AMD64: amd64
           IMAGE_SUFFIX_ARM64V8: arm64v8
         run: |
