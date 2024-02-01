@@ -1963,6 +1963,13 @@ pub async fn get_devices_route(
         return Err(Error::bad_config("Federation is disabled."));
     }
 
+    if body.user_id.server_name() != services().globals.server_name() {
+        return Err(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Tried to access user from other server.",
+        ));
+    }
+
     let sender_servername = body
         .sender_servername
         .as_ref()
@@ -2044,7 +2051,7 @@ pub async fn get_profile_information_route(
 
     if body.user_id.server_name() != services().globals.server_name() {
         return Err(Error::BadRequest(
-            ErrorKind::NotFound,
+            ErrorKind::InvalidParam,
             "User does not belong to this server",
         ));
     }
@@ -2085,6 +2092,17 @@ pub async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_key
         return Err(Error::bad_config("Federation is disabled."));
     }
 
+    if body
+        .device_keys
+        .iter()
+        .any(|(u, _)| u.server_name() != services().globals.server_name())
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "User does not belong to this server.",
+        ));
+    }
+
     let result = get_keys_helper(
         None,
         &body.device_keys,
@@ -2108,6 +2126,17 @@ pub async fn claim_keys_route(
 ) -> Result<claim_keys::v1::Response> {
     if !services().globals.allow_federation() {
         return Err(Error::bad_config("Federation is disabled."));
+    }
+
+    if body
+        .one_time_keys
+        .iter()
+        .any(|(u, _)| u.server_name() != services().globals.server_name())
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::InvalidParam,
+            "Tried to access user from other server.",
+        ));
     }
 
     let result = claim_keys_helper(&body.one_time_keys).await?;
