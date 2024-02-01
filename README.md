@@ -39,7 +39,6 @@ I have tried, but:
 - unnecessary Matrix / developer politics
 - bikeshedding unnecessary or irrelevant things in MRs
 - disagreement with how the upstream project is maintained including the codebase
-- infinitely broken CI/CD and no interest in fixing it or improving it
 - upstream maintainer inactivity
 - questionable community members
 - lack of MR reviews or issue triaging and no upstream maintainer interest in receiving help
@@ -78,7 +77,14 @@ Liberapay: <https://liberapay.com/girlbossceo>\
 Ko-fi: <https://ko-fi.com/puppygock>\
 GitHub Sponsors: <https://github.com/sponsors/girlbossceo>
 
-
 #### Logo
 
 No official conduwuit logo exists. Repo and Matrix room picture is from bran (<3).
+
+#### Mirrors of conduwuit
+
+GitHub: https://github.com/girlbossceo/conduwuit
+GitLab: https://gitlab.com/girlbossceo/conduwuit
+git.gay: https://git.gay/june/conduwuit
+Codeberg: https://codeberg.org/girlbossceo/conduwuit
+sourcehut: https://git.sr.ht/~girlbossceo/conduwuit
