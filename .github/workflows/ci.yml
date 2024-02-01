@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - registry-pushes
 
 env:
   # Required to make some things output color
@@ -165,6 +164,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to Dockerhub
+        if: github.event_name != 'pull_request'
         env:
           IMAGE_NAME: docker.io/${{ github.repository }}
           IMAGE_SUFFIX_AMD64: amd64
@@ -193,6 +193,7 @@ jobs:
           fi
 
       - name: Publish to GitHub Container Registry
+        if: github.event_name != 'pull_request'
         env:
           IMAGE_NAME: ghcr.io/${{ github.repository }}
           IMAGE_SUFFIX_AMD64: amd64
