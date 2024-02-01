@@ -4,25 +4,25 @@
 
 ## Docker
 
-To run Conduit with Docker you can either build the image yourself or pull it from a registry.
+To run conduwuit with Docker you can either build the image yourself or pull it from a registry.
 
 
 ### Use a registry
 
-OCI images for Conduit are available in the registries listed below. We recommend using the image tagged as `latest` from GitLab's own registry.
+OCI images for conduwuit are available in the registries listed below. We recommend using the image tagged as `latest` from GitLab's own registry.
 
 | Registry        | Image                                                           | Size                          | Notes                  |
 | --------------- | --------------------------------------------------------------- | ----------------------------- | ---------------------- |
-| GitLab Registry | [registry.gitlab.com/famedly/conduit/matrix-conduit:latest][gl] | ![Image Size][shield-latest]  | Stable image.          |
-| Docker Hub      | [docker.io/matrixconduit/matrix-conduit:latest][dh]             | ![Image Size][shield-latest]  | Stable image.          |
-| GitLab Registry | [registry.gitlab.com/famedly/conduit/matrix-conduit:next][gl]   | ![Image Size][shield-next]    | Development version.   |
-| Docker Hub      | [docker.io/matrixconduit/matrix-conduit:next][dh]               | ![Image Size][shield-next]    | Development version.   |
+| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:latest][gh] | ![Image Size][shield-latest]  | Stable image.          |
+| Docker Hub      | [docker.io/girlbossceo/conduwuit:latest][dh]             | ![Image Size][shield-latest]  | Stable image.          |
+| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:main][gh]   | ![Image Size][shield-main]    | Development version.   |
+| Docker Hub      | [docker.io/girlbossceo/conduwuit:main][dh]               | ![Image Size][shield-main]    | Development version.   |
 
 
-[dh]: https://hub.docker.com/r/matrixconduit/matrix-conduit
-[gl]: https://gitlab.com/famedly/conduit/container_registry/2497937
-[shield-latest]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/latest
-[shield-next]: https://img.shields.io/docker/image-size/matrixconduit/matrix-conduit/next
+[dh]: https://hub.docker.com/repository/docker/girlbossceo/conduwuit
+[gh]: https://github.com/girlbossceo/conduwuit/pkgs/container/conduwuit
+[shield-latest]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/latest
+[shield-main]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/main
 
 
 Use 
@@ -43,10 +43,10 @@ The Dockerfile provided by Conduit has two stages, each of which creates an imag
 To build the image you can use the following command
 
 ```bash
-docker build --tag matrixconduit/matrix-conduit:latest .
+docker build --tag girlbossceo/conduwuit:main .
 ```
 
-which also will tag the resulting image as `matrixconduit/matrix-conduit:latest`.
+which also will tag the resulting image as `girlbossceo/conduwuit:main`.
 
 
 
@@ -61,10 +61,10 @@ docker run -d -p 8448:6167 \
   -e CONDUIT_DATABASE_BACKEND="rocksdb" \
   -e CONDUIT_ALLOW_REGISTRATION=true \
   -e CONDUIT_ALLOW_FEDERATION=true \
-  -e CONDUIT_MAX_REQUEST_SIZE="20_000_000" \
+  -e CONDUIT_MAX_REQUEST_SIZE="20000000" \
   -e CONDUIT_TRUSTED_SERVERS="[\"matrix.org\"]" \
-  -e CONDUIT_MAX_CONCURRENT_REQUESTS="100" \
-  -e CONDUIT_LOG="warn,state_res=warn" \
+  -e CONDUIT_MAX_CONCURRENT_REQUESTS="500" \
+  -e CONDUIT_LOG="warn,ruma_state_res=warn" \
   --name conduit <link>
 ```
 
