@@ -49,7 +49,7 @@ serde = { version = "1.0.195", features = ["rc"] }
 rand = "0.8.5"
 # Used to hash passwords
 argon2 = "0.5.3"
-reqwest = { version = "0.11.23", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
+reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
 # Used for conduit::Error type
 thiserror = "1.0.56"
 # Used to generate thumbnails for images
