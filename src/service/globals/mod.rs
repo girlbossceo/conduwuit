@@ -442,7 +442,8 @@ impl Service<'_> {
         room_versions
     }
 
-    /// TODO: the key valid until timestamp is only honored in room version > 4
+    /// TODO: the key valid until timestamp (`valid_until_ts`) is only honored in room version > 4
+    ///
     /// Remove the outdated keys and insert the new ones.
     ///
     /// This doesn't actually check that the keys provided are newer than the old set.
