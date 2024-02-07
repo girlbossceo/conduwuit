@@ -157,20 +157,16 @@ pub(crate) async fn get_alias_helper(
         None => {
             for (_id, registration) in services().appservice.all()? {
                 let aliases = registration
-                    .get("namespaces")
-                    .and_then(|ns| ns.get("aliases"))
-                    .and_then(|aliases| aliases.as_sequence())
-                    .map_or_else(Vec::new, |aliases| {
-                        aliases
-                            .iter()
-                            .filter_map(|aliases| Regex::new(aliases.get("regex")?.as_str()?).ok())
-                            .collect::<Vec<_>>()
-                    });
+                    .namespaces
+                    .aliases
+                    .iter()
+                    .filter_map(|alias| Regex::new(alias.regex.as_str()).ok())
+                    .collect::<Vec<_>>();
 
                 if aliases
                     .iter()
                     .any(|aliases| aliases.is_match(room_alias.as_str()))
-                    && services()
+                    && if let Some(opt_result) = services()
                         .sending
                         .send_appservice_request(
                             registration,
@@ -179,7 +175,11 @@ pub(crate) async fn get_alias_helper(
                             },
                         )
                         .await
-                        .is_ok()
+                    {
+                        opt_result.is_ok()
+                    } else {
+                        false
+                    }
                 {
                     room_id = Some(
                         services()

@@ -4,6 +4,7 @@ use std::{collections::HashSet, sync::Arc};
 pub use data::Data;
 
 use ruma::{
+    api::appservice::Registration,
     events::{
         direct::DirectEvent,
         ignored_user_list::IgnoredUserListEvent,
@@ -240,7 +241,7 @@ impl Service {
     pub fn appservice_in_room(
         &self,
         room_id: &RoomId,
-        appservice: &(String, serde_yaml::Value),
+        appservice: &(String, Registration),
     ) -> Result<bool> {
         self.db.appservice_in_room(room_id, appservice)
     }
