@@ -2,6 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use crate::Result;
 use ruma::{
+    api::appservice::Registration,
     events::{AnyStrippedStateEvent, AnySyncStateEvent},
     serde::Raw,
     OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
@@ -31,7 +32,7 @@ pub trait Data: Send + Sync {
     fn appservice_in_room(
         &self,
         room_id: &RoomId,
-        appservice: &(String, serde_yaml::Value),
+        appservice: &(String, Registration),
     ) -> Result<bool>;
 
     /// Makes a user forget a room.

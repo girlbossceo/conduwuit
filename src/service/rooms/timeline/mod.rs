@@ -621,73 +621,61 @@ impl Service {
                     .as_ref()
                     .and_then(|state_key| UserId::parse(state_key.as_str()).ok())
                 {
-                    if let Some(appservice_uid) = appservice
-                        .1
-                        .get("sender_localpart")
-                        .and_then(|string| string.as_str())
-                        .and_then(|string| {
-                            UserId::parse_with_server_name(string, services().globals.server_name())
-                                .ok()
-                        })
-                    {
-                        if state_key_uid == &appservice_uid {
-                            services()
-                                .sending
-                                .send_pdu_appservice(appservice.0, pdu_id.clone())?;
-                            continue;
-                        }
+                    let appservice_uid = appservice.1.sender_localpart.as_str();
+                    if state_key_uid == appservice_uid {
+                        services()
+                            .sending
+                            .send_pdu_appservice(appservice.0, pdu_id.clone())?;
+                        continue;
                     }
                 }
             }
 
-            if let Some(namespaces) = appservice.1.get("namespaces") {
-                let users = namespaces
-                    .get("users")
-                    .and_then(|users| users.as_sequence())
-                    .map_or_else(Vec::new, |users| {
-                        users
-                            .iter()
-                            .filter_map(|users| Regex::new(users.get("regex")?.as_str()?).ok())
-                            .collect::<Vec<_>>()
-                    });
-                let aliases = namespaces
-                    .get("aliases")
-                    .and_then(|aliases| aliases.as_sequence())
-                    .map_or_else(Vec::new, |aliases| {
-                        aliases
-                            .iter()
-                            .filter_map(|aliases| Regex::new(aliases.get("regex")?.as_str()?).ok())
-                            .collect::<Vec<_>>()
-                    });
-                let rooms = namespaces
-                    .get("rooms")
-                    .and_then(|rooms| rooms.as_sequence());
+            let namespaces = appservice.1.namespaces;
 
-                let matching_users = |users: &Regex| {
-                    users.is_match(pdu.sender.as_str())
-                        || pdu.kind == TimelineEventType::RoomMember
-                            && pdu
-                                .state_key
-                                .as_ref()
-                                .map_or(false, |state_key| users.is_match(state_key))
-                };
-                let matching_aliases = |aliases: &Regex| {
-                    services()
-                        .rooms
-                        .alias
-                        .local_aliases_for_room(&pdu.room_id)
-                        .filter_map(|r| r.ok())
-                        .any(|room_alias| aliases.is_match(room_alias.as_str()))
-                };
+            // TODO: create some helper function to change from Strings to Regexes
+            let users = namespaces
+                .users
+                .iter()
+                .filter_map(|user| Regex::new(user.regex.as_str()).ok())
+                .collect::<Vec<_>>();
+            let aliases = namespaces
+                .aliases
+                .iter()
+                .filter_map(|alias| Regex::new(alias.regex.as_str()).ok())
+                .collect::<Vec<_>>();
+            let rooms = namespaces
+                .rooms
+                .iter()
+                .filter_map(|room| Regex::new(room.regex.as_str()).ok())
+                .collect::<Vec<_>>();
 
-                if aliases.iter().any(matching_aliases)
-                    || rooms.map_or(false, |rooms| rooms.contains(&pdu.room_id.as_str().into()))
-                    || users.iter().any(matching_users)
-                {
-                    services()
-                        .sending
-                        .send_pdu_appservice(appservice.0, pdu_id.clone())?;
-                }
+            let matching_users = |users: &Regex| {
+                users.is_match(pdu.sender.as_str())
+                    || pdu.kind == TimelineEventType::RoomMember
+                        && pdu
+                            .state_key
+                            .as_ref()
+                            .map_or(false, |state_key| users.is_match(state_key))
+            };
+            let matching_aliases = |aliases: &Regex| {
+                services()
+                    .rooms
+                    .alias
+                    .local_aliases_for_room(&pdu.room_id)
+                    .filter_map(|r| r.ok())
+                    .any(|room_alias| aliases.is_match(room_alias.as_str()))
+            };
+
+            if aliases.iter().any(matching_aliases)
+                || rooms
+                    .iter()
+                    .any(|namespace| namespace.is_match(pdu.room_id.as_str()))
+                || users.iter().any(matching_users)
+            {
+                services()
+                    .sending
+                    .send_pdu_appservice(appservice.0, pdu_id.clone())?;
             }
         }
 

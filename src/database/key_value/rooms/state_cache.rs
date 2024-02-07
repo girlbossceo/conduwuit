@@ -2,6 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use regex::Regex;
 use ruma::{
+    api::appservice::Registration,
     events::{AnyStrippedStateEvent, AnySyncStateEvent},
     serde::Raw,
     OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
@@ -193,7 +194,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     fn appservice_in_room(
         &self,
         room_id: &RoomId,
-        appservice: &(String, serde_yaml::Value),
+        appservice: &(String, Registration),
     ) -> Result<bool> {
         let maybe = self
             .appservice_in_room_cache
@@ -205,24 +206,19 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 
         if let Some(b) = maybe {
             Ok(b)
-        } else if let Some(namespaces) = appservice.1.get("namespaces") {
+        } else {
+            let namespaces = &appservice.1.namespaces;
             let users = namespaces
-                .get("users")
-                .and_then(|users| users.as_sequence())
-                .map_or_else(Vec::new, |users| {
-                    users
-                        .iter()
-                        .filter_map(|users| Regex::new(users.get("regex")?.as_str()?).ok())
-                        .collect::<Vec<_>>()
-                });
+                .users
+                .iter()
+                .filter_map(|users| Regex::new(users.regex.as_str()).ok())
+                .collect::<Vec<_>>();
 
-            let bridge_user_id = appservice
-                .1
-                .get("sender_localpart")
-                .and_then(|string| string.as_str())
-                .and_then(|string| {
-                    UserId::parse_with_server_name(string, services().globals.server_name()).ok()
-                });
+            let bridge_user_id = UserId::parse_with_server_name(
+                appservice.1.sender_localpart.as_str(),
+                services().globals.server_name(),
+            )
+            .ok();
 
             let in_room = bridge_user_id
                 .map_or(false, |id| self.is_joined(&id, room_id).unwrap_or(false))
@@ -240,8 +236,6 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
                 .insert(appservice.0.clone(), in_room);
 
             Ok(in_room)
-        } else {
-            Ok(false)
         }
     }
 

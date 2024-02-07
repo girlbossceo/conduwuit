@@ -1,6 +1,7 @@
 mod data;
 
 pub(crate) use data::Data;
+use ruma::api::appservice::Registration;
 
 use crate::Result;
 
@@ -10,7 +11,7 @@ pub struct Service {
 
 impl Service {
     /// Registers an appservice and returns the ID to the caller
-    pub fn register_appservice(&self, yaml: serde_yaml::Value) -> Result<String> {
+    pub fn register_appservice(&self, yaml: Registration) -> Result<String> {
         self.db.register_appservice(yaml)
     }
 
@@ -23,7 +24,7 @@ impl Service {
         self.db.unregister_appservice(service_name)
     }
 
-    pub fn get_registration(&self, id: &str) -> Result<Option<serde_yaml::Value>> {
+    pub fn get_registration(&self, id: &str) -> Result<Option<Registration>> {
         self.db.get_registration(id)
     }
 
@@ -31,7 +32,7 @@ impl Service {
         self.db.iter_ids()
     }
 
-    pub fn all(&self) -> Result<Vec<(String, serde_yaml::Value)>> {
+    pub fn all(&self) -> Result<Vec<(String, Registration)>> {
         self.db.all()
     }
 }

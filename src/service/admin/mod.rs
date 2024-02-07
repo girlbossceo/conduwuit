@@ -10,7 +10,7 @@ use std::fmt::Write;
 use clap::{Parser, Subcommand};
 use regex::Regex;
 use ruma::{
-    api::client::error::ErrorKind,
+    api::{appservice::Registration, client::error::ErrorKind},
     events::{
         relation::InReplyTo,
         room::{
@@ -472,7 +472,7 @@ impl Service {
                     {
                         let appservice_config = body[1..body.len() - 1].join("\n");
                         let parsed_config =
-                            serde_yaml::from_str::<serde_yaml::Value>(&appservice_config);
+                            serde_yaml::from_str::<Registration>(&appservice_config);
                         match parsed_config {
                             Ok(yaml) => match services().appservice.register_appservice(yaml) {
                                 Ok(id) => RoomMessageEventContent::text_plain(format!(
