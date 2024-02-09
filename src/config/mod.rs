@@ -11,7 +11,7 @@ use itertools::Itertools;
 use regex::RegexSet;
 use ruma::{OwnedServerName, RoomVersionId};
 use serde::{de::IgnoredAny, Deserialize};
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 mod proxy;
 
@@ -157,6 +157,7 @@ const DEPRECATED_KEYS: &[&str] = &["cache_capacity"];
 impl Config {
     /// Iterates over all the keys in the config file and warns if there is a deprecated key specified
     pub fn warn_deprecated(&self) {
+        debug!("Checking for deprecated config keys");
         let mut was_deprecated = false;
         for key in self
             .catchall
@@ -169,6 +170,14 @@ impl Config {
 
         if was_deprecated {
             warn!("Read conduit documentation and check your configuration if any new configuration parameters should be adjusted");
+        }
+    }
+
+    /// iterates over all the catchall keys (unknown config options) and warns if there are any.
+    pub fn warn_unknown_key(&self) {
+        debug!("Checking for unknown config keys");
+        for key in self.catchall.keys() {
+            warn!("Config parameter \"{}\" is unknown to conduwuit.", key);
         }
     }
 
