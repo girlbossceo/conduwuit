@@ -164,7 +164,7 @@ impl Config {
             .keys()
             .filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key))
         {
-            warn!("Config parameter \"{}\" is deprecated.", key);
+            warn!("Config parameter \"{}\" is deprecated, ignoring.", key);
             was_deprecated = true;
         }
 
@@ -179,7 +179,10 @@ impl Config {
         for key in self.catchall.keys().filter(
             |key| "config".to_owned().ne(key.to_owned()), /* "config" is expected */
         ) {
-            warn!("Config parameter \"{}\" is unknown to conduwuit.", key);
+            warn!(
+                "Config parameter \"{}\" is unknown to conduwuit, ignoring.",
+                key
+            );
         }
     }
 
