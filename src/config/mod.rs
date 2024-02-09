@@ -176,7 +176,9 @@ impl Config {
     /// iterates over all the catchall keys (unknown config options) and warns if there are any.
     pub fn warn_unknown_key(&self) {
         debug!("Checking for unknown config keys");
-        for key in self.catchall.keys() {
+        for key in self.catchall.keys().filter(
+            |key| "config".to_owned().ne(key.to_owned()), /* "config" is expected */
+        ) {
             warn!("Config parameter \"{}\" is unknown to conduwuit.", key);
         }
     }
