@@ -8,6 +8,7 @@ use crate::{
 use abstraction::{KeyValueDatabaseEngine, KvTree};
 use argon2::{password_hash::SaltString, PasswordHasher, PasswordVerifier};
 use directories::ProjectDirs;
+use itertools::Itertools;
 use lru_cache::LruCache;
 use rand::thread_rng;
 use ruma::{
@@ -970,6 +971,51 @@ impl KeyValueDatabase {
                 services().globals.database_version().unwrap(),
                 latest_database_version
             );
+
+            {
+                let patterns = &services().globals.config.forbidden_usernames;
+                if !patterns.is_empty() {
+                    for user in services().users.iter() {
+                        let user_id = user?;
+                        let matches = patterns.matches(user_id.localpart());
+                        if matches.matched_any() {
+                            warn!(
+                                "User {} matches the following forbidden username patterns: {}",
+                                user_id.to_string(),
+                                matches
+                                    .into_iter()
+                                    .map(|x| &patterns.patterns()[x])
+                                    .join(", ")
+                            )
+                        }
+                    }
+                }
+            }
+
+            {
+                let patterns = &services().globals.config.forbidden_room_names;
+                if !patterns.is_empty() {
+                    for address in services().rooms.metadata.iter_ids() {
+                        let room_id = address?;
+                        let room_aliases = services().rooms.alias.local_aliases_for_room(&room_id);
+                        for room_alias_result in room_aliases {
+                            let room_alias = room_alias_result?;
+                            let matches = patterns.matches(room_alias.alias());
+                            if matches.matched_any() {
+                                warn!(
+                                "Room with alias {} ({}) matches the following forbidden room name patterns: {}",
+                                    room_alias,
+                                    &room_id,
+                                    matches
+                                        .into_iter()
+                                        .map(|x| &patterns.patterns()[x])
+                                        .join(", ")
+                            )
+                            }
+                        }
+                    }
+                }
+            }
 
             info!(
                 "Loaded {} database with version {}",

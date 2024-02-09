@@ -54,6 +54,17 @@ pub async fn get_register_available_route(
         ));
     }
 
+    if services()
+        .globals
+        .forbidden_usernames()
+        .is_match(user_id.localpart())
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::Unknown,
+            "Username is forbidden.",
+        ));
+    }
+
     // TODO add check for appservice namespaces
 
     // If no if check is true we have an username that's available to be used.
@@ -120,12 +131,25 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
                 ErrorKind::InvalidUsername,
                 "Username is invalid.",
             ))?;
+
             if services().users.exists(&proposed_user_id)? {
                 return Err(Error::BadRequest(
                     ErrorKind::UserInUse,
                     "Desired user ID is already taken.",
                 ));
             }
+
+            if services()
+                .globals
+                .forbidden_usernames()
+                .is_match(proposed_user_id.localpart())
+            {
+                return Err(Error::BadRequest(
+                    ErrorKind::Unknown,
+                    "Username is forbidden.",
+                ));
+            }
+
             proposed_user_id
         }
         _ => loop {
