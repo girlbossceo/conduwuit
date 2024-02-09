@@ -90,6 +90,18 @@ pub async fn create_room_route(
                     ));
                 }
 
+                // apply forbidden room alias checks to custom room IDs too
+                if services()
+                    .globals
+                    .forbidden_room_names()
+                    .is_match(&custom_room_id_s)
+                {
+                    return Err(Error::BadRequest(
+                        ErrorKind::Unknown,
+                        "Custom room ID is forbidden.",
+                    ));
+                }
+
                 let full_room_id = "!".to_owned()
                     + &custom_room_id_s.replace('"', "")
                     + ":"
