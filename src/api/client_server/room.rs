@@ -166,6 +166,18 @@ pub async fn create_room_route(
                     ));
                 }
 
+                // check if room alias is forbidden
+                if services()
+                    .globals
+                    .forbidden_room_names()
+                    .is_match(localpart)
+                {
+                    return Err(Error::BadRequest(
+                        ErrorKind::Unknown,
+                        "Room alias name is forbidden.",
+                    ));
+                }
+
                 let alias = RoomAliasId::parse(format!(
                     "#{}:{}",
                     localpart,

@@ -7,6 +7,8 @@ use std::{
 
 use figment::Figment;
 
+use itertools::Itertools;
+use regex::RegexSet;
 use ruma::{OwnedServerName, RoomVersionId};
 use serde::{de::IgnoredAny, Deserialize};
 use tracing::{error, warn};
@@ -131,6 +133,14 @@ pub struct Config {
 
     #[serde(default = "default_ip_range_denylist")]
     pub ip_range_denylist: Vec<String>,
+
+    #[serde(default = "RegexSet::empty")]
+    #[serde(with = "serde_regex")]
+    pub forbidden_room_names: RegexSet,
+
+    #[serde(default = "RegexSet::empty")]
+    #[serde(with = "serde_regex")]
+    pub forbidden_usernames: RegexSet,
 
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
@@ -318,6 +328,12 @@ impl fmt::Display for Config {
                     lst.push(ip);
                 }
                 &lst.join(", ")
+            }),
+            ("Forbidden usernames", {
+                &self.forbidden_usernames.patterns().iter().join(", ")
+            }),
+            ("Forbidden room names", {
+                &self.forbidden_room_names.patterns().iter().join(", ")
             }),
         ];
 

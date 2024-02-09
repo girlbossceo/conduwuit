@@ -27,6 +27,17 @@ pub async fn create_alias_route(
     }
 
     if services()
+        .globals
+        .forbidden_room_names()
+        .is_match(body.room_alias.alias())
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::Unknown,
+            "Room alias is forbidden.",
+        ));
+    }
+
+    if services()
         .rooms
         .alias
         .resolve_local_alias(&body.room_alias)?

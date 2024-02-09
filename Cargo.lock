@@ -402,6 +402,7 @@ dependencies = [
  "hyperlocal",
  "image",
  "ipaddress",
+ "itertools 0.12.1",
  "jsonwebtoken",
  "lazy_static",
  "lru-cache",
@@ -422,6 +423,7 @@ dependencies = [
  "serde",
  "serde_html_form",
  "serde_json",
+ "serde_regex",
  "serde_yaml",
  "sha-1",
  "sha2",
@@ -1119,6 +1121,15 @@ name = "itertools"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
 dependencies = [
  "either",
 ]
@@ -2191,7 +2202,7 @@ name = "ruma-state-res"
 version = "0.10.0"
 source = "git+https://github.com/ruma/ruma?rev=68c9bb0930f2195fa8672fbef9633ef62737df5d#68c9bb0930f2195fa8672fbef9633ef62737df5d"
 dependencies = [
- "itertools",
+ "itertools 0.11.0",
  "js_int",
  "ruma-common",
  "ruma-events",
@@ -2401,6 +2412,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebd154a240de39fdebcf5775d2675c204d7c13cf39a4c697be6493c8e734337c"
 dependencies = [
  "itoa",
+ "serde",
+]
+
+[[package]]
+name = "serde_regex"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8136f1a4ea815d7eac4101cfd0b16dc0cb5e1fe1b8609dfd728058656b7badf"
+dependencies = [
+ "regex",
  "serde",
 ]
 

@@ -1,6 +1,7 @@
 mod data;
 use argon2::Argon2;
 pub use data::Data;
+use regex::RegexSet;
 use ruma::{
     serde::Base64, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName,
     OwnedServerSigningKeyId, OwnedUserId,
@@ -387,6 +388,14 @@ impl Service<'_> {
 
     pub fn emergency_password(&self) -> &Option<String> {
         &self.config.emergency_password
+    }
+
+    pub fn forbidden_room_names(&self) -> &RegexSet {
+        &self.config.forbidden_room_names
+    }
+
+    pub fn forbidden_usernames(&self) -> &RegexSet {
+        &self.config.forbidden_usernames
     }
 
     pub fn allow_local_presence(&self) -> bool {
