@@ -59,3 +59,6 @@
 - Support for creating rooms with custom room IDs like Maunium Synapse (`room_id` request body field to `/createRoom`)
 - Assume well-knowns are broken if they exceed past 10000 characters.
 - Basic validation/checks on user-specified room aliases and custom room ID creations
+- Warn on unknown config options specified
+- Add support for preventing certain room alias names and usernames using regex (via upstream MR) and extended to custom room IDs
+- Revamp appservice registration to ruma's `Registration` type which fixes various appservice registration issues, including fixing crashing upon no URL specified (via upstream MR)
