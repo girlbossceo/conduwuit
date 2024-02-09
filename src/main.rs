@@ -136,6 +136,9 @@ async fn main() {
     maximize_fd_limit().expect("Unable to increase maximum soft and hard file descriptor limit");
 
     config.warn_deprecated();
+    config.warn_unknown_key();
+
+    // don't start if we're listening on both UNIX sockets and TCP at same time
     if config.is_dual_listening(raw_config) {
         return;
     };
