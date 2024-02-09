@@ -1,6 +1,6 @@
 use ruma::api::client::error::ErrorKind;
 
-use crate::{database::KeyValueDatabase, service, utils, Error, Result};
+use crate::{database::KeyValueDatabase, service::{self, media::UrlPreviewData}, utils, Error, Result};
 
 impl service::media::Data for KeyValueDatabase {
     fn create_file_metadata(
@@ -78,5 +78,108 @@ impl service::media::Data for KeyValueDatabase {
             )
         };
         Ok((content_disposition, content_type, key))
+    }
+
+    fn remove_url_preview(&self, url: &str) -> Result<()> {
+        self.url_previews.remove(url.as_bytes())
+    }
+
+    fn set_url_preview(&self, url: &str, data: &UrlPreviewData, timestamp: std::time::Duration) -> Result<()> {
+        let mut value = Vec::<u8>::new();
+        value.extend_from_slice(&timestamp.as_secs().to_be_bytes());
+        value.push(0xff);
+        value.extend_from_slice(
+            data.title
+                .as_ref()
+                .map(|t| t.as_bytes())
+                .unwrap_or_default(),
+        );
+        value.push(0xff);
+        value.extend_from_slice(
+            data.description
+                .as_ref()
+                .map(|d| d.as_bytes())
+                .unwrap_or_default(),
+        );
+        value.push(0xff);
+        value.extend_from_slice(
+            data.image
+                .as_ref()
+                .map(|i| i.as_bytes())
+                .unwrap_or_default(),
+        );
+        value.push(0xff);
+        value.extend_from_slice(&data.image_size.unwrap_or(0).to_be_bytes());
+        value.push(0xff);
+        value.extend_from_slice(&data.image_width.unwrap_or(0).to_be_bytes());
+        value.push(0xff);
+        value.extend_from_slice(&data.image_height.unwrap_or(0).to_be_bytes());
+
+        self.url_previews.insert(url.as_bytes(), &value)
+    }
+
+    fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> {
+        let values = self.url_previews.get(url.as_bytes()).ok()??;
+
+        let mut values = values.split(|&b| b == 0xff);
+
+        let _ts = match values
+            .next()
+            .map(|b| u64::from_be_bytes(b.try_into().expect("valid BE array")))
+        {
+            Some(0) => None,
+            x => x,
+        };
+        let title = match values
+            .next()
+            .and_then(|b| String::from_utf8(b.to_vec()).ok())
+        {
+            Some(s) if s.is_empty() => None,
+            x => x,
+        };
+        let description = match values
+            .next()
+            .and_then(|b| String::from_utf8(b.to_vec()).ok())
+        {
+            Some(s) if s.is_empty() => None,
+            x => x,
+        };
+        let image = match values
+            .next()
+            .and_then(|b| String::from_utf8(b.to_vec()).ok())
+        {
+            Some(s) if s.is_empty() => None,
+            x => x,
+        };
+        let image_size = match values
+            .next()
+            .map(|b| usize::from_be_bytes(b.try_into().expect("valid BE array")))
+        {
+            Some(0) => None,
+            x => x,
+        };
+        let image_width = match values
+            .next()
+            .map(|b| u32::from_be_bytes(b.try_into().expect("valid BE array")))
+        {
+            Some(0) => None,
+            x => x,
+        };
+        let image_height = match values
+            .next()
+            .map(|b| u32::from_be_bytes(b.try_into().expect("valid BE array")))
+        {
+            Some(0) => None,
+            x => x,
+        };
+
+        Some(UrlPreviewData {
+            title,
+            description,
+            image,
+            image_size,
+            image_width,
+            image_height,
+        })
     }
 }

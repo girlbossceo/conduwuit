@@ -155,7 +155,7 @@ allow_public_room_directory_without_auth = false
 # If federation is disabled entirely (`allow_federation`), this is inherently false. For privacy, this is best disabled.
 allow_device_name_federation = false
 
-
+url_preview_allowlist = []
 
 ### Misc
 

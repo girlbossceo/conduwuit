@@ -17,4 +17,21 @@ pub trait Data: Send + Sync {
         width: u32,
         height: u32,
     ) -> Result<(Option<String>, Option<String>, Vec<u8>)>;
+
+    fn remove_url_preview(
+        &self,
+        url: &str
+    ) -> Result<()>;
+
+    fn set_url_preview(
+        &self,
+        url: &str,
+        data: &super::UrlPreviewData,
+        timestamp: std::time::Duration,
+    ) -> Result<()>;
+
+    fn get_url_preview(
+        &self,
+        url: &str
+    ) -> Option<super::UrlPreviewData>;
 }

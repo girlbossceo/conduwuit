@@ -103,6 +103,8 @@ ipaddress = "0.1.3"
 
 sd-notify = { version = "0.4.1", optional = true }
 
+webpage = { version = "1.6", default-features = false }
+
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.27.1", features = ["resource"] }
 

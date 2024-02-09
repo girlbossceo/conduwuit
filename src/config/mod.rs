@@ -132,6 +132,9 @@ pub struct Config {
     #[serde(default = "default_ip_range_denylist")]
     pub ip_range_denylist: Vec<String>,
 
+    #[serde(default = "Vec::new")]
+    pub url_preview_allowlist: Vec<String>,
+
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
 }
@@ -319,6 +322,7 @@ impl fmt::Display for Config {
                 }
                 &lst.join(", ")
             }),
+            ("URL preview allowlist", &self.url_preview_allowlist.join(", ")),
         ];
 
         let mut msg: String = "Active config values:\n\n".to_owned();

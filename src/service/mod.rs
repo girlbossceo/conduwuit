@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use lru_cache::LruCache;
@@ -114,7 +114,10 @@ impl Services<'_> {
             account_data: account_data::Service { db },
             admin: admin::Service::build(),
             key_backups: key_backups::Service { db },
-            media: media::Service { db },
+            media: media::Service {
+                db,
+                url_preview_mutex: RwLock::new(HashMap::new()),
+            },
             sending: sending::Service::build(db, &config),
 
             globals: globals::Service::load(db, config)?,

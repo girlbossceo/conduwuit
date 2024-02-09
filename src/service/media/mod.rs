@@ -1,5 +1,10 @@
 mod data;
-use std::io::Cursor;
+use std::{
+    io::Cursor,
+    collections::HashMap,
+    sync::{Arc, RwLock},
+    time::SystemTime,
+};
 
 pub(crate) use data::Data;
 
@@ -9,7 +14,9 @@ use image::imageops::FilterType;
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
+    sync::Mutex,
 };
+use serde::Serialize;
 
 pub struct FileMeta {
     pub content_disposition: Option<String>,
@@ -17,8 +24,43 @@ pub struct FileMeta {
     pub file: Vec<u8>,
 }
 
+#[derive(Serialize, Default)]
+pub struct UrlPreviewData {
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename(serialize = "og:title")
+    )]
+    pub title: Option<String>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename(serialize = "og:description")
+    )]
+    pub description: Option<String>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename(serialize = "og:image")
+    )]
+    pub image: Option<String>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename(serialize = "matrix:image:size")
+    )]
+    pub image_size: Option<usize>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename(serialize = "og:image:width")
+    )]
+    pub image_width: Option<u32>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename(serialize = "og:image:height")
+    )]
+    pub image_height: Option<u32>,
+}
+
 pub struct Service {
     pub db: &'static dyn Data,
+    pub url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl Service {
@@ -259,6 +301,22 @@ impl Service {
         } else {
             Ok(None)
         }
+    }
+
+    pub async fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> {
+        self.db.get_url_preview(url)
+    }
+
+    pub async fn remove_url_preview(&self, url: &str) -> Result<()> {
+        // TODO: also remove the downloaded image
+        self.db.remove_url_preview(url)
+    }
+
+    pub async fn set_url_preview(&self, url: &str, data: &UrlPreviewData) -> Result<()> {
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("valid system time");
+        self.db.set_url_preview(url, data, now)
     }
 }
 

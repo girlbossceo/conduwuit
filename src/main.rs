@@ -461,6 +461,7 @@ fn routes() -> Router {
         .ruma_route(client_server::turn_server_route)
         .ruma_route(client_server::send_event_to_device_route)
         .ruma_route(client_server::get_media_config_route)
+        .ruma_route(client_server::get_media_preview_route)
         .ruma_route(client_server::create_content_route)
         .ruma_route(client_server::get_content_route)
         .ruma_route(client_server::get_content_as_filename_route)

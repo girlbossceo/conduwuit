@@ -329,6 +329,10 @@ impl Service<'_> {
         self.config.allow_device_name_federation
     }
 
+    pub fn url_preview_allowlist(&self) -> &Vec<String> {
+        &self.config.url_preview_allowlist
+    }
+
     pub fn allow_room_creation(&self) -> bool {
         self.config.allow_room_creation
     }
