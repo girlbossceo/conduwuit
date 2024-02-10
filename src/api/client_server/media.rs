@@ -342,14 +342,13 @@ async fn download_image(client: &reqwest::Client, url: &str) -> Result<UrlPrevie
 }
 
 async fn download_html(client: &reqwest::Client, url: &str) -> Result<UrlPreviewData> {
-    let max_download_size = 300_000; // TODO: is this bytes? kilobytes? megabytes?
-
     let mut response = client.get(url).send().await?;
 
     let mut bytes: Vec<u8> = Vec::new();
     while let Some(chunk) = response.chunk().await? {
         bytes.extend_from_slice(&chunk);
-        if bytes.len() > max_download_size {
+        if bytes.len() > services().globals.url_preview_max_spider_size() {
+            debug!("Response body from URL {} exceeds url_preview_max_spider_size ({}), not processing the rest of the response body and assuming our necessary data is in this range.", url, services().globals.url_preview_max_spider_size());
             break;
         }
     }

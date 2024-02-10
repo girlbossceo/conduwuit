@@ -412,6 +412,10 @@ impl Service<'_> {
         &self.config.url_preview_url_contains_allowlist
     }
 
+    pub fn url_preview_max_spider_size(&self) -> usize {
+        self.config.url_preview_max_spider_size
+    }
+
     pub fn forbidden_room_names(&self) -> &RegexSet {
         &self.config.forbidden_room_names
     }

@@ -136,12 +136,12 @@ pub struct Config {
 
     #[serde(default = "Vec::new")]
     pub url_preview_domain_contains_allowlist: Vec<String>,
-
     #[serde(default = "Vec::new")]
     pub url_preview_domain_explicit_allowlist: Vec<String>,
-
     #[serde(default = "Vec::new")]
     pub url_preview_url_contains_allowlist: Vec<String>,
+    #[serde(default = "default_url_preview_max_spider_size")]
+    pub url_preview_max_spider_size: usize,
 
     #[serde(default = "RegexSet::empty")]
     #[serde(with = "serde_regex")]
@@ -370,6 +370,10 @@ impl fmt::Display for Config {
                 "URL preview URL contains allowlist",
                 &self.url_preview_url_contains_allowlist.join(", "),
             ),
+            (
+                "URL preview maximum spider size",
+                &self.url_preview_max_spider_size.to_string(),
+            ),
         ];
 
         let mut msg: String = "Active config values:\n\n".to_owned();
@@ -494,4 +498,8 @@ fn default_ip_range_denylist() -> Vec<String> {
         "ff00::/8".to_owned(),
         "fec0::/10".to_owned(),
     ]
+}
+
+fn default_url_preview_max_spider_size() -> usize {
+    1_000_000 // 1MB
 }
