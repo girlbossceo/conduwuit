@@ -14,7 +14,7 @@ use ruma::api::client::{
         get_media_config, get_media_preview,
     },
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use webpage::HTML;
 
 /// generated MXC ID (`media-id`) length
@@ -500,7 +500,10 @@ async fn get_url_preview(url: &str) -> Result<UrlPreviewData> {
 fn url_preview_allowed(url_str: &str) -> bool {
     let url: Url = match Url::parse(url_str) {
         Ok(u) => u,
-        Err(_) => return false,
+        Err(e) => {
+            warn!("Failed to parse URL from a str: {}", e);
+            return false;
+        }
     };
 
     if ["http", "https"]
@@ -559,7 +562,7 @@ fn url_preview_allowed(url_str: &str) -> bool {
 
         if allowlist_url_contains
             .iter()
-            .any(|url_s| url_s.contains(&url.to_string()))
+            .any(|url_s| url.to_string().contains(&url_s.to_string()))
         {
             return true;
         }

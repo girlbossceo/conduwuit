@@ -176,7 +176,7 @@ url_preview_domain_contains_allowlist = []
 url_preview_domain_explicit_allowlist = []
 
 # Vector list of URLs allowed to send requests to for URL previews. Defaults to none.
-# Note that this is a *contains* match, not an explicit match. Putting "https://google.com" will match "https://google.com/" and "https://google.com/url?q=https://mymaliciousdomainexample.com"
+# Note that this is a *contains* match, not an explicit match. Putting "google.com" will match "https://google.com/", "https://google.com/url?q=https://mymaliciousdomainexample.com", and "https://mymaliciousdomainexample.com/hi/google.com"
 # Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
 url_preview_url_contains_allowlist = []
 
