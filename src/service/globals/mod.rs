@@ -390,6 +390,18 @@ impl Service<'_> {
         &self.config.emergency_password
     }
 
+    pub fn url_preview_domain_contains_allowlist(&self) -> &Vec<String> {
+        &self.config.url_preview_domain_contains_allowlist
+    }
+
+    pub fn url_preview_domain_explicit_allowlist(&self) -> &Vec<String> {
+        &self.config.url_preview_domain_explicit_allowlist
+    }
+
+    pub fn url_preview_url_contains_allowlist(&self) -> &Vec<String> {
+        &self.config.url_preview_url_contains_allowlist
+    }
+
     pub fn forbidden_room_names(&self) -> &RegexSet {
         &self.config.forbidden_room_names
     }
