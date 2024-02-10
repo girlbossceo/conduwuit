@@ -1,18 +1,21 @@
 [Unit]
 Description=Conduit Matrix homeserver
-After=network.target
+After=network-online.target
 
 [Service]
 DynamicUser=yes
 User=_matrix-conduit
 Group=_matrix-conduit
-Type=simple
+Type=notify
 
 AmbientCapabilities=
 CapabilityBoundingSet=
+
+DevicePolicy=closed
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 NoNewPrivileges=yes
+ProcSubset=pid
 ProtectClock=yes
 ProtectControlGroups=yes
 ProtectHome=yes
@@ -20,26 +23,33 @@ ProtectHostname=yes
 ProtectKernelLogs=yes
 ProtectKernelModules=yes
 ProtectKernelTunables=yes
+ProtectProc=invisible
 ProtectSystem=strict
 PrivateDevices=yes
 PrivateMounts=yes
 PrivateTmp=yes
 PrivateUsers=yes
+PrivateIPC=yes
 RemoveIPC=yes
-RestrictAddressFamilies=AF_INET AF_INET6
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 RestrictNamespaces=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
+SystemCallFilter=~@clock @debug @module @mount @reboot @swap @cpu-emulation @obsolete @timer @chown @setuid @resources @privileged @keyring @ipc
 SystemCallErrorNumber=EPERM
 StateDirectory=matrix-conduit
+
+RuntimeDirectory=conduit
+RuntimeDirectoryMode=0750
 
 Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
 
 ExecStart=/usr/sbin/matrix-conduit
 Restart=on-failure
-RestartSec=10
+RestartSec=5
+
 StartLimitInterval=1m
 StartLimitBurst=5
 
