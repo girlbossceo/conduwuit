@@ -260,8 +260,8 @@ impl KeyValueDatabase {
             return Err(Error::bad_config("Registration token is empty"));
         }
 
-        if config.max_request_size < 1024 {
-            error!(?config.max_request_size, "Max request size is less than 1KB. Please increase it.");
+        if config.max_request_size < 4096 {
+            error!(?config.max_request_size, "Max request size is less than 4KB. Please increase it.");
         }
 
         let (presence_sender, presence_receiver) = mpsc::unbounded_channel();
