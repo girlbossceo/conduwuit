@@ -92,12 +92,20 @@ port = ${CONDUIT_PORT}
 # likely need this to be 0.0.0.0. 
 address = "${CONDUIT_ADDRESS}"
 
-# How many requests conduwuit sends to other servers at the same time. Default is 100
-# Note that because conduwuit is very fast unlike other homeserver implementations,
-# setting this too high could inadvertently result in ratelimits kicking in, or
-# overloading lower-end homeservers out there. Recommended to leave this alone unless you
-# have a valid reason to. No this will not speed up room joins.
-#max_concurrent_requests = 100
+# How many requests conduwuit sends to other servers at the same time concurrently. Default is 500
+# Note that because conduwuit is very fast unlike other homeserver implementations, setting this too
+# high could inadvertently result in ratelimits kicking in, or overloading lower-end homeservers out there.
+#
+# A valid use-case for enabling this is if you have a significant amount of overall federation activity
+# such as many rooms joined/tracked, and many servers in the true destination cache caused by that. Upon
+# rebooting conduwuit, depending on how fast your resources are, client and incoming federation requests
+# may timeout or be "stalled" for a period of time due to hitting the max concurrent requests limit from
+# refreshing federation/destination caches and such.
+#
+# If you have a lot of active users on your homeserver, you will definitely need to raise this.
+#
+# No this will not speed up room joins.
+#max_concurrent_requests = 500
 
 # Max request size for file uploads
 max_request_size = 20_000_000 # in bytes
@@ -141,6 +149,8 @@ ip_range_denylist = [
     "ff00::/8",
     "fec0::/10",
 ]
+
+
 
 ### Moderation / Privacy / Security
 
@@ -191,6 +201,18 @@ allow_public_room_directory_without_auth = false
 # Set this to true to allow federating device display names / allow external users to see your device display name.
 # If federation is disabled entirely (`allow_federation`), this is inherently false. For privacy, this is best disabled.
 allow_device_name_federation = false
+
+# Vector list of domains allowed to send requests to for URL previews. Defaults to none.
+# Note: this is a *contains* match, not an explicit match. Putting "google.com" will match "https://google.com" and "http://mymaliciousdomainexamplegoogle.com"
+url_preview_domain_contains_allowlist = []
+
+# Vector list of explicit domains allowed to send requests to for URL previews. Defaults to none.
+# Note: This is an *explicit* match, not a ccontains match. Putting "google.com" will match "https://google.com", "http://google.com", but not "https://mymaliciousdomainexamplegoogle.com"
+url_preview_domain_explicit_allowlist = []
+
+# Vector list of URLs allowed to send requests to for URL previews. Defaults to none.
+# Note that this is a *contains* match, not an explicit match. Putting "https://google.com" will match "https://google.com/" and "https://google.com/url?q=https://mymaliciousdomainexample.com"
+url_preview_url_contains_allowlist = []
 
 
 

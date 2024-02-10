@@ -147,6 +147,7 @@ pub struct KeyValueDatabase {
 
     //pub media: media::Media,
     pub(super) mediaid_file: Arc<dyn KvTree>, // MediaId = MXC + WidthHeight + ContentDisposition + ContentType
+    pub(super) url_previews: Arc<dyn KvTree>,
     //pub key_backups: key_backups::KeyBackups,
     pub(super) backupid_algorithm: Arc<dyn KvTree>, // BackupId = UserId + Version(Count)
     pub(super) backupid_etag: Arc<dyn KvTree>,      // BackupId = UserId + Version(Count)
@@ -350,6 +351,7 @@ impl KeyValueDatabase {
             roomuserdataid_accountdata: builder.open_tree("roomuserdataid_accountdata")?,
             roomusertype_roomuserdataid: builder.open_tree("roomusertype_roomuserdataid")?,
             mediaid_file: builder.open_tree("mediaid_file")?,
+            url_previews: builder.open_tree("url_previews")?,
             backupid_algorithm: builder.open_tree("backupid_algorithm")?,
             backupid_etag: builder.open_tree("backupid_etag")?,
             backupkeyid_backup: builder.open_tree("backupkeyid_backup")?,

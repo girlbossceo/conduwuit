@@ -148,7 +148,10 @@ async fn main() {
         error!(?error, "The database couldn't be loaded or created");
         return;
     };
+
     let config = &services().globals.config;
+
+    /* ad-hoc config validation/checks */
 
     // check if user specified valid IP CIDR ranges on startup
     for cidr in services().globals.ip_range_denylist() {
@@ -178,6 +181,27 @@ async fn main() {
     if config.allow_outgoing_presence {
         warn!("! Outgoing federated presence is not spec compliant due to relying on PDUs and EDUs combined.\nOutgoing presence will not be very reliable due to this and any issues with federated outgoing presence are very likely attributed to this issue.\nIncoming presence and local presence are unaffected.");
     }
+
+    if config
+        .url_preview_domain_contains_allowlist
+        .contains(&"*".to_owned())
+    {
+        warn!("All URLs are allowed for URL previews via setting \"url_preview_domain_contains_allowlist\" to \"*\". This opens up significant attack surface to your server. You are expected to be aware of the risks by doing this.");
+    }
+    if config
+        .url_preview_domain_explicit_allowlist
+        .contains(&"*".to_owned())
+    {
+        warn!("All URLs are allowed for URL previews via setting \"url_preview_domain_explicit_allowlist\" to \"*\". This opens up significant attack surface to your server. You are expected to be aware of the risks by doing this.");
+    }
+    if config
+        .url_preview_url_contains_allowlist
+        .contains(&"*".to_owned())
+    {
+        warn!("All URLs are allowed for URL previews via setting \"url_preview_url_contains_allowlist\" to \"*\". This opens up significant attack surface to your server. You are expected to be aware of the risks by doing this.");
+    }
+
+    /* end ad-hoc config validation/checks */
 
     info!("Starting server");
     if let Err(e) = run_server().await {
@@ -464,6 +488,7 @@ fn routes() -> Router {
         .ruma_route(client_server::turn_server_route)
         .ruma_route(client_server::send_event_to_device_route)
         .ruma_route(client_server::get_media_config_route)
+        .ruma_route(client_server::get_media_preview_route)
         .ruma_route(client_server::create_content_route)
         .ruma_route(client_server::get_content_route)
         .ruma_route(client_server::get_content_as_filename_route)

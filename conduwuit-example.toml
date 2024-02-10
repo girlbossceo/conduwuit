@@ -113,6 +113,8 @@ ip_range_denylist = [
     "fec0::/10",
 ]
 
+
+
 ### Moderation / Privacy / Security
 
 # Set to true to allow user type "guest" registrations. Element attempts to register guest users automatically.
@@ -162,6 +164,21 @@ allow_public_room_directory_without_auth = false
 # Set this to true to allow federating device display names / allow external users to see your device display name.
 # If federation is disabled entirely (`allow_federation`), this is inherently false. For privacy, this is best disabled.
 allow_device_name_federation = false
+
+# Vector list of domains allowed to send requests to for URL previews. Defaults to none.
+# Note: this is a *contains* match, not an explicit match. Putting "google.com" will match "https://google.com" and "http://mymaliciousdomainexamplegoogle.com"
+# Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
+url_preview_domain_contains_allowlist = []
+
+# Vector list of explicit domains allowed to send requests to for URL previews. Defaults to none.
+# Note: This is an *explicit* match, not a ccontains match. Putting "google.com" will match "https://google.com", "http://google.com", but not "https://mymaliciousdomainexamplegoogle.com"
+# Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
+url_preview_domain_explicit_allowlist = []
+
+# Vector list of URLs allowed to send requests to for URL previews. Defaults to none.
+# Note that this is a *contains* match, not an explicit match. Putting "https://google.com" will match "https://google.com/" and "https://google.com/url?q=https://mymaliciousdomainexample.com"
+# Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
+url_preview_url_contains_allowlist = []
 
 
 

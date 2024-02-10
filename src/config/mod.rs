@@ -134,6 +134,15 @@ pub struct Config {
     #[serde(default = "default_ip_range_denylist")]
     pub ip_range_denylist: Vec<String>,
 
+    #[serde(default = "Vec::new")]
+    pub url_preview_domain_contains_allowlist: Vec<String>,
+
+    #[serde(default = "Vec::new")]
+    pub url_preview_domain_explicit_allowlist: Vec<String>,
+
+    #[serde(default = "Vec::new")]
+    pub url_preview_url_contains_allowlist: Vec<String>,
+
     #[serde(default = "RegexSet::empty")]
     #[serde(with = "serde_regex")]
     pub forbidden_room_names: RegexSet,
@@ -349,6 +358,18 @@ impl fmt::Display for Config {
             ("Forbidden room names", {
                 &self.forbidden_room_names.patterns().iter().join(", ")
             }),
+            (
+                "URL preview domain contains allowlist",
+                &self.url_preview_domain_contains_allowlist.join(", "),
+            ),
+            (
+                "URL preview domain explicit allowlist",
+                &self.url_preview_domain_explicit_allowlist.join(", "),
+            ),
+            (
+                "URL preview URL contains allowlist",
+                &self.url_preview_url_contains_allowlist.join(", "),
+            ),
         ];
 
         let mut msg: String = "Active config values:\n\n".to_owned();

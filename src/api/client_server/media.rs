@@ -1,14 +1,21 @@
-use std::time::Duration;
+use std::{io::Cursor, net::IpAddr, sync::Arc, time::Duration};
 
-use crate::{service::media::FileMeta, services, utils, Error, Result, Ruma};
+use crate::{
+    service::media::{FileMeta, UrlPreviewData},
+    services, utils, Error, Result, Ruma,
+};
+use image::io::Reader as ImgReader;
+
+use reqwest::Url;
 use ruma::api::client::{
     error::ErrorKind,
     media::{
         create_content, get_content, get_content_as_filename, get_content_thumbnail,
-        get_media_config,
+        get_media_config, get_media_preview,
     },
 };
-use tracing::info;
+use tracing::{debug, error, info};
+use webpage::HTML;
 
 /// generated MXC ID (`media-id`) length
 const MXC_LENGTH: usize = 32;
@@ -22,6 +29,43 @@ pub async fn get_media_config_route(
     Ok(get_media_config::v3::Response {
         upload_size: services().globals.max_request_size().into(),
     })
+}
+
+/// # `GET /_matrix/media/v3/preview_url`
+///
+/// Returns URL preview.
+pub async fn get_media_preview_route(
+    body: Ruma<get_media_preview::v3::Request>,
+) -> Result<get_media_preview::v3::Response> {
+    let url = &body.url;
+    if !url_preview_allowed(url) {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "URL is not allowed to be previewed",
+        ));
+    }
+
+    if let Ok(preview) = get_url_preview(url).await {
+        let res = serde_json::value::to_raw_value(&preview).map_err(|e| {
+            error!(
+                "Failed to convert UrlPreviewData into a serde json value: {}",
+                e
+            );
+            Error::BadRequest(
+                ErrorKind::Unknown,
+                "Unknown error occurred parsing URL preview",
+            )
+        })?;
+
+        return Ok(get_media_preview::v3::Response::from_raw_value(res));
+    }
+
+    Err(Error::BadRequest(
+        ErrorKind::LimitExceeded {
+            retry_after_ms: Some(Duration::from_secs(5)),
+        },
+        "Retry later",
+    ))
 }
 
 /// # `POST /_matrix/media/v3/upload`
@@ -265,4 +309,265 @@ pub async fn get_content_thumbnail_route(
     } else {
         Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
     }
+}
+
+async fn download_image(client: &reqwest::Client, url: &str) -> Result<UrlPreviewData> {
+    let image = client.get(url).send().await?.bytes().await?;
+    let mxc = format!(
+        "mxc://{}/{}",
+        services().globals.server_name(),
+        utils::random_string(MXC_LENGTH)
+    );
+
+    services()
+        .media
+        .create(mxc.clone(), None, None, &image)
+        .await?;
+
+    let (width, height) = match ImgReader::new(Cursor::new(&image)).with_guessed_format() {
+        Err(_) => (None, None),
+        Ok(reader) => match reader.into_dimensions() {
+            Err(_) => (None, None),
+            Ok((width, height)) => (Some(width), Some(height)),
+        },
+    };
+
+    Ok(UrlPreviewData {
+        image: Some(mxc),
+        image_size: Some(image.len()),
+        image_width: width,
+        image_height: height,
+        ..Default::default()
+    })
+}
+
+async fn download_html(client: &reqwest::Client, url: &str) -> Result<UrlPreviewData> {
+    let max_download_size = 300_000; // TODO: is this bytes? kilobytes? megabytes?
+
+    let mut response = client.get(url).send().await?;
+
+    let mut bytes: Vec<u8> = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        bytes.extend_from_slice(&chunk);
+        if bytes.len() > max_download_size {
+            break;
+        }
+    }
+    let body = String::from_utf8_lossy(&bytes);
+    let html = match HTML::from_string(body.to_string(), Some(url.to_owned())) {
+        Ok(html) => html,
+        Err(_) => {
+            return Err(Error::BadRequest(
+                ErrorKind::Unknown,
+                "Failed to parse HTML",
+            ))
+        }
+    };
+
+    let mut data = match html.opengraph.images.first() {
+        None => UrlPreviewData::default(),
+        Some(obj) => download_image(client, &obj.url).await?,
+    };
+
+    let props = html.opengraph.properties;
+
+    /* use OpenGraph title/description, but fall back to HTML if not available */
+    data.title = props.get("title").cloned().or(html.title);
+    data.description = props.get("description").cloned().or(html.description);
+
+    Ok(data)
+}
+
+fn url_request_allowed(addr: &IpAddr) -> bool {
+    // TODO: make this check ip_range_denylist
+
+    // could be implemented with reqwest when it supports IP filtering:
+    // https://github.com/seanmonstar/reqwest/issues/1515
+
+    // These checks have been taken from the Rust core/net/ipaddr.rs crate,
+    // IpAddr::V4.is_global() and IpAddr::V6.is_global(), as .is_global is not
+    // yet stabilized. TODO: Once this is stable, this match can be simplified.
+    match addr {
+        IpAddr::V4(ip4) => {
+            !(ip4.octets()[0] == 0 // "This network"
+                || ip4.is_private()
+                || (ip4.octets()[0] == 100 && (ip4.octets()[1] & 0b1100_0000 == 0b0100_0000)) // is_shared()
+                || ip4.is_loopback()
+                || ip4.is_link_local()
+                // addresses reserved for future protocols (`192.0.0.0/24`)
+                || (ip4.octets()[0] == 192 && ip4.octets()[1] == 0 && ip4.octets()[2] == 0)
+                || ip4.is_documentation()
+                || (ip4.octets()[0] == 198 && (ip4.octets()[1] & 0xfe) == 18) // is_benchmarking()
+                || (ip4.octets()[0] & 240 == 240 && !ip4.is_broadcast()) // is_reserved()
+                || ip4.is_broadcast())
+        }
+        IpAddr::V6(ip6) => {
+            !(ip6.is_unspecified()
+                || ip6.is_loopback()
+                // IPv4-mapped Address (`::ffff:0:0/96`)
+                || matches!(ip6.segments(), [0, 0, 0, 0, 0, 0xffff, _, _])
+                // IPv4-IPv6 Translat. (`64:ff9b:1::/48`)
+                || matches!(ip6.segments(), [0x64, 0xff9b, 1, _, _, _, _, _])
+                // Discard-Only Address Block (`100::/64`)
+                || matches!(ip6.segments(), [0x100, 0, 0, 0, _, _, _, _])
+                // IETF Protocol Assignments (`2001::/23`)
+                || (matches!(ip6.segments(), [0x2001, b, _, _, _, _, _, _] if b < 0x200)
+                    && !(
+                        // Port Control Protocol Anycast (`2001:1::1`)
+                        u128::from_be_bytes(ip6.octets()) == 0x2001_0001_0000_0000_0000_0000_0000_0001
+                        // Traversal Using Relays around NAT Anycast (`2001:1::2`)
+                        || u128::from_be_bytes(ip6.octets()) == 0x2001_0001_0000_0000_0000_0000_0000_0002
+                        // AMT (`2001:3::/32`)
+                        || matches!(ip6.segments(), [0x2001, 3, _, _, _, _, _, _])
+                        // AS112-v6 (`2001:4:112::/48`)
+                        || matches!(ip6.segments(), [0x2001, 4, 0x112, _, _, _, _, _])
+                        // ORCHIDv2 (`2001:20::/28`)
+                        || matches!(ip6.segments(), [0x2001, b, _, _, _, _, _, _] if (0x20..=0x2F).contains(&b))
+                    ))
+                || ((ip6.segments()[0] == 0x2001) && (ip6.segments()[1] == 0xdb8)) // is_documentation()
+                || ((ip6.segments()[0] & 0xfe00) == 0xfc00) // is_unique_local()
+                || ((ip6.segments()[0] & 0xffc0) == 0xfe80)) // is_unicast_link_local
+        }
+    }
+}
+
+async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
+    let client = services().globals.default_client();
+    let response = client.head(url).send().await?;
+
+    if !response
+        .remote_addr()
+        .map_or(false, |a| url_request_allowed(&a.ip()))
+    {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Requesting from this address is forbidden",
+        ));
+    }
+
+    let content_type = match response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|x| x.to_str().ok())
+    {
+        Some(ct) => ct,
+        None => {
+            return Err(Error::BadRequest(
+                ErrorKind::Unknown,
+                "Unknown Content-Type",
+            ))
+        }
+    };
+    let data = match content_type {
+        html if html.starts_with("text/html") => download_html(&client, url).await?,
+        img if img.starts_with("image/") => download_image(&client, url).await?,
+        _ => {
+            return Err(Error::BadRequest(
+                ErrorKind::Unknown,
+                "Unsupported Content-Type",
+            ))
+        }
+    };
+
+    services().media.set_url_preview(url, &data).await?;
+
+    Ok(data)
+}
+
+async fn get_url_preview(url: &str) -> Result<UrlPreviewData> {
+    if let Some(preview) = services().media.get_url_preview(url).await {
+        return Ok(preview);
+    }
+
+    // ensure that only one request is made per URL
+    let mutex_request = Arc::clone(
+        services()
+            .media
+            .url_preview_mutex
+            .write()
+            .unwrap()
+            .entry(url.to_owned())
+            .or_default(),
+    );
+    let _request_lock = mutex_request.lock().await;
+
+    match services().media.get_url_preview(url).await {
+        Some(preview) => Ok(preview),
+        None => request_url_preview(url).await,
+    }
+}
+
+fn url_preview_allowed(url_str: &str) -> bool {
+    let url: Url = match Url::parse(url_str) {
+        Ok(u) => u,
+        Err(_) => return false,
+    };
+
+    if ["http", "https"]
+        .iter()
+        .all(|&scheme| scheme != url.scheme().to_lowercase())
+    {
+        debug!("Ignoring non-HTTP/HTTPS URL to preview: {}", url);
+        return false;
+    }
+
+    let host = match url.host_str() {
+        None => {
+            debug!(
+                "Ignoring URL preview for a URL that does not have a host (?): {}",
+                url
+            );
+            return false;
+        }
+        Some(h) => h.to_owned(),
+    };
+
+    let allowlist_domain_contains = services().globals.url_preview_domain_contains_allowlist();
+    let allowlist_domain_explicit = services().globals.url_preview_domain_explicit_allowlist();
+    let allowlist_url_contains = services().globals.url_preview_url_contains_allowlist();
+
+    if allowlist_domain_contains.contains(&"*".to_owned())
+        || allowlist_domain_explicit.contains(&"*".to_owned())
+        || allowlist_url_contains.contains(&"*".to_owned())
+    {
+        debug!(
+            "Config key contains * which is allowing all URL previews. Allowing URL {}",
+            url
+        );
+        return true;
+    }
+
+    if !host.is_empty() {
+        if allowlist_domain_explicit.contains(&host) {
+            return true;
+        }
+        debug!(
+            "Host {} is allowed by url_preview_domain_explicit_allowlist (check 1/3)",
+            &host
+        );
+
+        if allowlist_domain_contains
+            .iter()
+            .any(|domain_s| domain_s.contains(&host.clone()))
+        {
+            return true;
+        }
+        debug!(
+            "Host {} is allowed by url_preview_domain_contains_allowlist (check 2/3)",
+            &host
+        );
+
+        if allowlist_url_contains
+            .iter()
+            .any(|url_s| url_s.contains(&url.to_string()))
+        {
+            return true;
+        }
+        debug!(
+            "URL {} is allowed by url_preview_url_contains_allowlist (check 3/3)",
+            &host
+        );
+    }
+
+    false
 }
