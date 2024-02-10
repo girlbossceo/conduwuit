@@ -3,6 +3,7 @@ use std::time::Duration;
 use ruma::{
     events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, RoomId, UInt, UserId,
 };
+use tracing::error;
 
 use crate::{
     database::KeyValueDatabase,
@@ -83,7 +84,10 @@ impl service::rooms::edus::presence::Data for KeyValueDatabase {
 
         self.presence_timer_sender
             .send((user_id.to_owned(), Duration::from_secs(timeout)))
-            .map_err(|_| Error::bad_database("Failed to add presence timer"))
+            .map_err(|e| {
+                error!("Failed to add presence timer: {}", e);
+                Error::bad_database("Failed to add presence timer")
+            })
     }
 
     fn set_presence(
@@ -118,7 +122,10 @@ impl service::rooms::edus::presence::Data for KeyValueDatabase {
 
         self.presence_timer_sender
             .send((user_id.to_owned(), Duration::from_secs(timeout)))
-            .map_err(|_| Error::bad_database("Failed to add presence timer"))?;
+            .map_err(|e| {
+                error!("Failed to add presence timer: {}", e);
+                Error::bad_database("Failed to add presence timer")
+            })?;
 
         self.roomuserid_presence
             .insert(&key, &presence.to_json_bytes()?)?;
