@@ -372,12 +372,32 @@ mod tests {
         ) -> Result<(Option<String>, Option<String>, Vec<u8>)> {
             todo!()
         }
+
+        fn remove_url_preview(&self, _url: &str) -> Result<()> {
+            todo!()
+        }
+
+        fn set_url_preview(
+            &self,
+            _url: &str,
+            _data: &UrlPreviewData,
+            _timestamp: std::time::Duration,
+        ) -> Result<()> {
+            todo!()
+        }
+
+        fn get_url_preview(&self, _url: &str) -> Option<UrlPreviewData> {
+            todo!()
+        }
     }
 
     #[tokio::test]
     async fn long_file_names_works() {
         static DB: MockedKVDatabase = MockedKVDatabase;
-        let media = Service { db: &DB };
+        let media = Service {
+            db: &DB,
+            url_preview_mutex: RwLock::new(HashMap::new()),
+        };
 
         let mxc = "mxc://example.com/ascERGshawAWawugaAcauga".to_owned();
         let width = 100;
