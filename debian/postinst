@@ -204,15 +204,21 @@ allow_device_name_federation = false
 
 # Vector list of domains allowed to send requests to for URL previews. Defaults to none.
 # Note: this is a *contains* match, not an explicit match. Putting "google.com" will match "https://google.com" and "http://mymaliciousdomainexamplegoogle.com"
+# Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
 url_preview_domain_contains_allowlist = []
 
 # Vector list of explicit domains allowed to send requests to for URL previews. Defaults to none.
 # Note: This is an *explicit* match, not a ccontains match. Putting "google.com" will match "https://google.com", "http://google.com", but not "https://mymaliciousdomainexamplegoogle.com"
+# Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
 url_preview_domain_explicit_allowlist = []
 
 # Vector list of URLs allowed to send requests to for URL previews. Defaults to none.
-# Note that this is a *contains* match, not an explicit match. Putting "https://google.com" will match "https://google.com/" and "https://google.com/url?q=https://mymaliciousdomainexample.com"
+# Note that this is a *contains* match, not an explicit match. Putting "google.com" will match "https://google.com/", "https://google.com/url?q=https://mymaliciousdomainexample.com", and "https://mymaliciousdomainexample.com/hi/google.com"
+# Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
 url_preview_url_contains_allowlist = []
+
+# Maximum amount of bytes allowed in a URL preview body size when spidering. Defaults to 1MB (1_000_000 bytes)
+url_preview_max_spider_size = 1_000_000
 
 
 
@@ -278,6 +284,7 @@ enable_lightning_bolt = false
 
 # Config option to control local (your server only) presence updates/requests. Defaults to false.
 # Note that presence on conduwuit is very fast unlike Synapse's.
+# If using outgoing presence, this MUST be enabled.
 #allow_local_presence = false
 
 # Config option to control incoming federated presence updates/requests. Defaults to false.
@@ -288,6 +295,7 @@ enable_lightning_bolt = false
 # Config option to control outgoing presence updates/requests. Defaults to false.
 # This option sends presence updates to other servers, but does not receive any unless `allow_incoming_presence` is true.
 # Note that presence on conduwuit is very fast unlike Synapse's.
+# If using outgoing presence, you MUST enable `allow_local_presence` as well.
 #
 # Warning: Outgoing federated presence is not spec compliant due to relying on PDUs and EDUs combined.
 # Outgoing presence will not be very reliable due to this and any issues with federated outgoing presence are very likely attributed to this issue.
