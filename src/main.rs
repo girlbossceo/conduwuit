@@ -178,6 +178,11 @@ async fn main() {
         If this is not the desired behaviour, please set a registration token.");
     }
 
+    if config.allow_outgoing_presence && !config.allow_local_presence {
+        error!("Outgoing presence requires allowing local presence. Please enable \"allow_outgoing_presence\".");
+        return;
+    }
+
     if config.allow_outgoing_presence {
         warn!("! Outgoing federated presence is not spec compliant due to relying on PDUs and EDUs combined.\nOutgoing presence will not be very reliable due to this and any issues with federated outgoing presence are very likely attributed to this issue.\nIncoming presence and local presence are unaffected.");
     }
