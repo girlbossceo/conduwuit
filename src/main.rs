@@ -565,13 +565,27 @@ async fn shutdown_signal(handle: ServerHandle, tx: Sender<()>) -> Result<()> {
     }
 
     warn!("Received {}, shutting down...", sig);
-    handle.graceful_shutdown(Some(Duration::from_secs(60)));
+    let shutdown_time_elapsed = tokio::time::Instant::now();
+    handle.graceful_shutdown(Some(Duration::from_secs(180)));
 
     services().globals.shutdown();
 
     #[cfg(feature = "systemd")]
     let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
+
     tx.send(()).unwrap();
+
+    if shutdown_time_elapsed.elapsed() >= Duration::from_secs(60) && cfg!(feature = "systemd") {
+        warn!("Still shutting down after 60 seconds since receiving shutdown signal, asking systemd for more time (+120 seconds). Remaining connections: {}", handle.connection_count());
+
+        #[cfg(feature = "systemd")]
+        let _ = sd_notify::notify(true, &[sd_notify::NotifyState::ExtendTimeoutUsec(120)]);
+    }
+
+    warn!(
+        "Time took to shutdown: {:?} seconds",
+        shutdown_time_elapsed.elapsed()
+    );
 
     Ok(())
 }
