@@ -62,6 +62,7 @@ pub struct Service<'a> {
     keypair: Arc<ruma::signatures::Ed25519KeyPair>,
     dns_resolver: TokioAsyncResolver,
     jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
+    url_preview_client: reqwest::Client,
     federation_client: reqwest::Client,
     default_client: reqwest::Client,
     pub stable_room_versions: Vec<RoomVersionId>,
@@ -171,6 +172,7 @@ impl Service<'_> {
             .as_ref()
             .map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
 
+        let url_preview_client = url_preview_reqwest_client_builder(&config)?.build()?;
         let default_client = reqwest_client_builder(&config)?.build()?;
         let federation_client = reqwest_client_builder(&config)?
             .dns_resolver(Arc::new(Resolver::new(tls_name_override.clone())))
@@ -212,6 +214,7 @@ impl Service<'_> {
             })?,
             actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
             tls_name_override,
+            url_preview_client,
             federation_client,
             default_client,
             jwt_decoding_key,
@@ -248,6 +251,13 @@ impl Service<'_> {
     /// Returns this server's keypair.
     pub fn keypair(&self) -> &ruma::signatures::Ed25519KeyPair {
         &self.keypair
+    }
+
+    /// Returns a reqwest client which can be used to send requests for URL previews
+    /// This is the same as `default_client()` except a redirect policy of max 2 is set
+    pub fn url_preview_client(&self) -> reqwest::Client {
+        // Client is cheap to clone (Arc wrapper) and avoids lifetime issues
+        self.url_preview_client.clone()
     }
 
     /// Returns a reqwest client which can be used to send requests
@@ -574,6 +584,35 @@ fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
     let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
         if attempt.previous().len() > 6 {
             attempt.error("Too many redirects (max is 6)")
+        } else {
+            attempt.follow()
+        }
+    });
+
+    let mut reqwest_client_builder = reqwest::Client::builder()
+        .pool_max_idle_per_host(0)
+        .connect_timeout(Duration::from_secs(60))
+        .timeout(Duration::from_secs(60 * 5))
+        .redirect(redirect_policy)
+        .user_agent(concat!(
+            env!("CARGO_PKG_NAME"),
+            "/",
+            env!("CARGO_PKG_VERSION")
+        ));
+
+    if let Some(proxy) = config.proxy.to_proxy()? {
+        reqwest_client_builder = reqwest_client_builder.proxy(proxy);
+    }
+
+    Ok(reqwest_client_builder)
+}
+
+fn url_preview_reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
+    // for security reasons (e.g. malicious open redirect), we do not want to follow too many redirects when generating URL previews.
+    // let's keep it at least 2 to account for HTTP -> HTTPS upgrades, if it becomes an issue we can consider raising it to 3.
+    let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() > 2 {
+            attempt.error("Too many redirects (max is 2)")
         } else {
             attempt.follow()
         }

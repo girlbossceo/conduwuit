@@ -432,7 +432,7 @@ fn url_request_allowed(addr: &IpAddr) -> bool {
 }
 
 async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
-    let client = services().globals.default_client();
+    let client = services().globals.url_preview_client();
     let response = client.head(url).send().await?;
 
     if !response
