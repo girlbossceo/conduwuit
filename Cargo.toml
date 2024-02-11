@@ -108,7 +108,7 @@ webpage = { version = "2.0", default-features = false }
 
 [dependencies.rust-rocksdb]
 git = "https://github.com/zaidoon1/rust-rocksdb"
-rev = "8fdd559b590bd12cb506f9818bef484d51cac5e1"
+rev = "8f65a73f0962edc4cc028f4012692043dc657a76"
 default-features = false
 features = ["multi-threaded-cf", "zstd", "snappy", "lz4"]
 optional = true
