@@ -603,7 +603,7 @@ async fn shutdown_signal(handle: ServerHandle, tx: Sender<()>) -> Result<()> {
     #[cfg(feature = "systemd")]
     let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
 
-    tx.send(()).unwrap();
+    tx.send(()).expect("failed sending shutdown transaction to oneshot channel (this is unlikely a conduwuit bug and more so your system may not be in an okay/ideal state.)");
 
     if shutdown_time_elapsed.elapsed() >= Duration::from_secs(60) && cfg!(feature = "systemd") {
         warn!("Still shutting down after 60 seconds since receiving shutdown signal, asking systemd for more time (+120 seconds). Remaining connections: {}", handle.connection_count());
