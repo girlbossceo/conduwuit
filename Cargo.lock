@@ -415,9 +415,9 @@ dependencies = [
  "regex",
  "reqwest",
  "ring",
+ "rocksdb",
  "ruma",
  "rusqlite",
- "rust-rocksdb",
  "sd-notify",
  "serde",
  "serde_html_form",
@@ -1281,6 +1281,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "librocksdb-sys"
+version = "0.16.0+8.10.0"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=8526d0c8c4045fb68d5eb48c1db93f6adcfd1ff8#8526d0c8c4045fb68d5eb48c1db93f6adcfd1ff8"
+dependencies = [
+ "bindgen",
+ "bzip2-sys",
+ "cc",
+ "glob",
+ "libc",
+ "libz-sys",
+ "lz4-sys",
+ "pkg-config",
+ "zstd-sys",
+]
+
+[[package]]
 name = "libsqlite3-sys"
 version = "0.27.0"
 source = "git+https://github.com/rusqlite/rusqlite?rev=ccfbc28ae1edc3090fb1b331fdc145f052ec73b9#ccfbc28ae1edc3090fb1b331fdc145f052ec73b9"
@@ -2087,6 +2103,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rocksdb"
+version = "0.21.0"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=8526d0c8c4045fb68d5eb48c1db93f6adcfd1ff8#8526d0c8c4045fb68d5eb48c1db93f6adcfd1ff8"
+dependencies = [
+ "libc",
+ "librocksdb-sys",
+]
+
+[[package]]
 name = "ruma"
 version = "0.9.4"
 source = "git+https://github.com/ruma/ruma?rev=68c9bb0930f2195fa8672fbef9633ef62737df5d#68c9bb0930f2195fa8672fbef9633ef62737df5d"
@@ -2286,31 +2311,6 @@ dependencies = [
  "hashlink",
  "libsqlite3-sys",
  "smallvec",
-]
-
-[[package]]
-name = "rust-librocksdb-sys"
-version = "0.16.0+8.10.0"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=8f65a73f0962edc4cc028f4012692043dc657a76#8f65a73f0962edc4cc028f4012692043dc657a76"
-dependencies = [
- "bindgen",
- "bzip2-sys",
- "cc",
- "glob",
- "libc",
- "libz-sys",
- "lz4-sys",
- "pkg-config",
- "zstd-sys",
-]
-
-[[package]]
-name = "rust-rocksdb"
-version = "0.22.1"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=8f65a73f0962edc4cc028f4012692043dc657a76#8f65a73f0962edc4cc028f4012692043dc657a76"
-dependencies = [
- "libc",
- "rust-librocksdb-sys",
 ]
 
 [[package]]
