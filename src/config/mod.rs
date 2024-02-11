@@ -142,6 +142,8 @@ pub struct Config {
     pub url_preview_url_contains_allowlist: Vec<String>,
     #[serde(default = "default_url_preview_max_spider_size")]
     pub url_preview_max_spider_size: usize,
+    #[serde(default)]
+    pub url_preview_check_root_domain: bool,
 
     #[serde(default = "RegexSet::empty")]
     #[serde(with = "serde_regex")]
@@ -373,6 +375,10 @@ impl fmt::Display for Config {
             (
                 "URL preview maximum spider size",
                 &self.url_preview_max_spider_size.to_string(),
+            ),
+            (
+                "URL preview check root domain",
+                &self.url_preview_check_root_domain.to_string(),
             ),
         ];
 

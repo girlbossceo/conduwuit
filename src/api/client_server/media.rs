@@ -541,34 +541,62 @@ fn url_preview_allowed(url_str: &str) -> bool {
 
     if !host.is_empty() {
         if allowlist_domain_explicit.contains(&host) {
+            debug!(
+                "Host {} is allowed by url_preview_domain_explicit_allowlist (check 1/3)",
+                &host
+            );
             return true;
         }
-        debug!(
-            "Host {} is allowed by url_preview_domain_explicit_allowlist (check 1/3)",
-            &host
-        );
 
         if allowlist_domain_contains
             .iter()
             .any(|domain_s| domain_s.contains(&host.clone()))
         {
+            debug!(
+                "Host {} is allowed by url_preview_domain_contains_allowlist (check 2/3)",
+                &host
+            );
             return true;
         }
-        debug!(
-            "Host {} is allowed by url_preview_domain_contains_allowlist (check 2/3)",
-            &host
-        );
 
         if allowlist_url_contains
             .iter()
             .any(|url_s| url.to_string().contains(&url_s.to_string()))
         {
+            debug!(
+                "URL {} is allowed by url_preview_url_contains_allowlist (check 3/3)",
+                &host
+            );
             return true;
         }
-        debug!(
-            "URL {} is allowed by url_preview_url_contains_allowlist (check 3/3)",
-            &host
-        );
+
+        // check root domain if available and if user has root domain checks
+        if services().globals.url_preview_check_root_domain() {
+            debug!("Checking root domain");
+            match host.split_once('.') {
+                None => return false,
+                Some((_, root_domain)) => {
+                    if allowlist_domain_explicit.contains(&root_domain.to_owned()) {
+                        debug!(
+                        "Root domain {} is allowed by url_preview_domain_explicit_allowlist (check 1/3)",
+                        &root_domain
+                    );
+                        return true;
+                    }
+
+                    if allowlist_domain_contains
+                        .iter()
+                        .any(|domain_s| domain_s.contains(&root_domain.to_owned()))
+                    {
+                        debug!(
+                    "Root domain {} is allowed by url_preview_domain_contains_allowlist (check 2/3)",
+                    &root_domain
+                );
+                        return true;
+                    }
+                }
+            }
+        }
     }
 
     false

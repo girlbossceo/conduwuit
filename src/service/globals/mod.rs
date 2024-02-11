@@ -416,6 +416,10 @@ impl Service<'_> {
         self.config.url_preview_max_spider_size
     }
 
+    pub fn url_preview_check_root_domain(&self) -> bool {
+        self.config.url_preview_check_root_domain
+    }
+
     pub fn forbidden_room_names(&self) -> &RegexSet {
         &self.config.forbidden_room_names
     }
