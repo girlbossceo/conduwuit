@@ -153,6 +153,16 @@ async fn main() {
 
     /* ad-hoc config validation/checks */
 
+    // check if the user specified a registration token as `""`
+    if config.registration_token == Some(String::new()) {
+        error!("Registration token was specified but is empty (\"\")");
+        return;
+    }
+
+    if config.max_request_size < 4096 {
+        error!(?config.max_request_size, "Max request size is less than 4KB. Please increase it.");
+    }
+
     // check if user specified valid IP CIDR ranges on startup
     for cidr in services().globals.ip_range_denylist() {
         let _ = ipaddress::IPAddress::parse(cidr)
