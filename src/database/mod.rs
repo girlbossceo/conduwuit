@@ -257,14 +257,6 @@ impl KeyValueDatabase {
             }
         };
 
-        if config.registration_token == Some(String::new()) {
-            return Err(Error::bad_config("Registration token is empty"));
-        }
-
-        if config.max_request_size < 4096 {
-            error!(?config.max_request_size, "Max request size is less than 4KB. Please increase it.");
-        }
-
         let (presence_sender, presence_receiver) = mpsc::unbounded_channel();
 
         let db_raw = Box::new(Self {
