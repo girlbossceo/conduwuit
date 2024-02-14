@@ -81,7 +81,7 @@ parking_lot = { version = "0.12.1", optional = true }
 num_cpus = "1.16.0"
 threadpool = "1.8.1"
 # Used for ruma wrapper
-serde_html_form = "0.2.3"
+serde_html_form = "0.2.4"
 
 thread_local = "1.1.7"
 # used for TURN server authentication
