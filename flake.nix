@@ -32,6 +32,28 @@
     let
       pkgsHost = nixpkgs.legacyPackages.${system};
 
+      pkgs = import nixpkgs {
+        inherit system;
+
+        overlays = [
+          (final: prev: {
+            rocksdb = prev.rocksdb.overrideAttrs (old:
+              let
+                version = "8.10.0";
+              in
+              {
+                inherit version;
+                src = pkgs.fetchFromGitHub {
+                  owner = "facebook";
+                  repo = "rocksdb";
+                  rev = "v${version}";
+                  hash = "sha256-KGsYDBc1fz/90YYNGwlZ0LUKXYsP1zyhP29TnRQwgjQ=";
+                };
+              });
+          })
+        ];
+      };
+
       # Nix-accessible `Cargo.toml`
       cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 
