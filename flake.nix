@@ -32,27 +32,15 @@
     let
       pkgsHost = nixpkgs.legacyPackages.${system};
 
-      pkgs = import nixpkgs {
-        inherit system;
-
-        overlays = [
-          (final: prev: {
-            rocksdb = prev.rocksdb.overrideAttrs (old:
-              let
-                version = "8.10.0";
-              in
+      rocksdb' = pkgs: pkgs.rocksdb.overrideAttrs (old:
               {
-                inherit version;
                 src = pkgs.fetchFromGitHub {
                   owner = "facebook";
                   repo = "rocksdb";
-                  rev = "v${version}";
+                  rev = "v8.10.0";
                   hash = "sha256-KGsYDBc1fz/90YYNGwlZ0LUKXYsP1zyhP29TnRQwgjQ=";
                 };
               });
-          })
-        ];
-      };
 
       # Nix-accessible `Cargo.toml`
       cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
@@ -76,8 +64,8 @@
       ];
 
       env = pkgs: {
-        ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb}/include";
-        ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib";
+        ROCKSDB_INCLUDE_DIR = "${rocksdb' pkgs}/include";
+        ROCKSDB_LIB_DIR = "${rocksdb' pkgs}/lib";
       }
       // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isStatic {
         ROCKSDB_STATIC = "";
