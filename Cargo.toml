@@ -113,7 +113,7 @@ webpage = { version = "2.0", default-features = false }
 #features = ["multi-threaded-cf", "zstd", "snappy", "lz4"]
 #optional = true
 
-rocksdb = { version = "0.21.0", default-features = true, features = ["multi-threaded-cf", "zstd"], optional = true }
+rocksdb = { version = "0.22.0", default-features = true, features = ["multi-threaded-cf", "zstd"], optional = true }
 
 
 [target.'cfg(unix)'.dependencies]
