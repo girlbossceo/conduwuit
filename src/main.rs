@@ -153,6 +153,16 @@ async fn main() {
 
     /* ad-hoc config validation/checks */
 
+    // yeah, unless the user built a debug build hopefully for local testing only
+    if config.server_name == "your.server.name" && !cfg!(debug_assertions) {
+        error!("You must specify a valid server name for production usage of conduwuit.");
+        return;
+    }
+
+    if cfg!(debug_assertions) {
+        info!("Note: conduwuit was built without optimisations (i.e. debug build)");
+    }
+
     // check if the user specified a registration token as `""`
     if config.registration_token == Some(String::new()) {
         error!("Registration token was specified but is empty (\"\")");
