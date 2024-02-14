@@ -11,5 +11,6 @@
   },
   "nix": {
     "enabled": true
-  }
+  },
+  "ignoreDeps": ["tower-http", "axum-server", "hyper", "axum", "http"]
 }
