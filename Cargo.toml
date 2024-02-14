@@ -106,14 +106,7 @@ sd-notify = { version = "0.4.1", optional = true }
 
 webpage = { version = "2.0", default-features = false }
 
-#[dependencies.rocksdb]
-#git = "https://github.com/zaidoon1/rust-rocksdb"
-#rev = "8fdd559b590bd12cb506f9818bef484d51cac5e1"
-#default-features = false
-#features = ["multi-threaded-cf", "zstd", "snappy", "lz4"]
-#optional = true
-
-rocksdb = { version = "0.21.0", default-features = true, features = ["multi-threaded-cf", "zstd"], optional = true }
+rocksdb = { version = "0.22.0", default-features = true, features = ["multi-threaded-cf", "zstd"], optional = true }
 
 
 [target.'cfg(unix)'.dependencies]
