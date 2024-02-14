@@ -2,7 +2,7 @@
 
 - GitLab CI ported to GitHub Actions
 - Fixed every single clippy (default lints) and rustc warnings, including some that were performance related or potential safety issues / unsoundness
-- Has dependabot and significantly updates all dependencies possible
+- Has Renovate and significantly updates all dependencies possible
 - Uses proper argon2 crate instead of questionable rust-argon2 crate
 - Improved and cleaned up logging (less noisy dead server logging, registration attempts, more useful troubleshooting logging, etc)
 - Attempts and interest in removing extreme and unnecessary panics/unwraps/expects that can lead to denial of service or such (upstream and upstream contributors want this unusual behaviour for some reason)
