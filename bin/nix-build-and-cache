@@ -12,7 +12,7 @@ if [ ! -z ${ATTIC_TOKEN+x} ]; then
 
 nix run --inputs-from . attic -- login \
     conduit \
-        https://attic.kennel.girlcock.ceo/conduit \
+        https://attic.kennel.juneis.dog/conduit \
         "$ATTIC_TOKEN"
 
     push_args=(
@@ -26,6 +26,25 @@ nix run --inputs-from . attic -- login \
     )
 
     nix run --inputs-from . attic -- push conduit "${push_args[@]}"
+
+    # push to "conduwuit" too
+nix run --inputs-from . attic -- login \
+    conduwuit \
+        https://attic.kennel.juneis.dog/conduwuit \
+        "$ATTIC_TOKEN"
+
+    push_args=(
+        # Attic and its build dependencies
+        "$(nix path-info --inputs-from . attic)"
+        "$(nix path-info --inputs-from . attic --derivation)"
+
+        # The target installable and its build dependencies
+        "$(nix path-info "$INSTALLABLE" --derivation)"
+        "$(nix path-info "$INSTALLABLE")"
+    )
+
+    nix run --inputs-from . attic -- push conduwuit "${push_args[@]}"
+
 else
     echo "\$ATTIC_TOKEN is unset, skipping uploading to the binary cache"
 fi
