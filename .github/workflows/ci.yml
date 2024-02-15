@@ -9,6 +9,7 @@ on:
 env:
   # Required to make some things output color
   TERM: ansi
+  ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
 
 jobs:
   ci:
