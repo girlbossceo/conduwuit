@@ -122,9 +122,9 @@ debian:x86_64-unknown-linux-gnu:
 
 docker-publish:
   stage: publish
-  image: docker:25.0.0
+  image: docker:25.0.3
   services:
-    - docker:25.0.0-dind
+    - docker:25.0.3-dind
   variables:
     IMAGE_NAME: $CI_REGISTRY_IMAGE/conduwuit
     IMAGE_SUFFIX_AMD64: amd64
