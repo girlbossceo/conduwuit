@@ -72,3 +72,8 @@ cargo test \
     -- \
     --color=always
 """
+
+[[task]]
+name = "cargo-audit"
+group = "security"
+script = "cargo audit -D any"
