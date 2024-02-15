@@ -1,0 +1,40 @@
+name: Trivy code and vulnerability scanning
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '00 12 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  trivy-scan:
+    name: Trivy Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy code and vulnerability scanner on repo
+        uses: aquasecurity/trivy-action@0.17.0
+        with:
+          scan-type: repo
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+
+      - name: Run Trivy code and vulnerability scanner on filesystem
+        uses: aquasecurity/trivy-action@0.17.0
+        with:
+          scan-type: fs
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH,MEDIUM,LOW
