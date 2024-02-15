@@ -76,4 +76,4 @@ cargo test \
 [[task]]
 name = "cargo-audit"
 group = "security"
-script = "cargo audit -D any"
+script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked"
