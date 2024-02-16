@@ -17,7 +17,7 @@ use ruma::{
     UserId,
 };
 use serde::Deserialize;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Deserialize)]
 struct Claims {
@@ -53,21 +53,32 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
     // Validate login method
     // TODO: Other login methods
     let user_id = match &body.login_info {
+        #[allow(deprecated)]
         login::v3::LoginInfo::Password(login::v3::Password {
             identifier,
             password,
+            user,
+            ..
         }) => {
-            let username = if let UserIdentifier::UserIdOrLocalpart(user_id) = identifier {
+            debug!("Got password login type");
+            let username = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
+                debug!("Using username from identifier field");
+                user_id.to_lowercase()
+            } else if let Some(user_id) = user {
+                warn!("User \"{}\" is attempting to login with the deprecated \"user\" field at \"/_matrix/client/v3/login\". conduwuit implements this deprecated behaviour, but this is destined to be removed in a future Matrix release.", user_id);
                 user_id.to_lowercase()
             } else {
                 warn!("Bad login type: {:?}", &body.login_info);
                 return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
             };
+
             let user_id =
                 UserId::parse_with_server_name(username, services().globals.server_name())
-                    .map_err(|_| {
+                    .map_err(|e| {
+                        warn!("Failed to parse username from user logging in: {}", e);
                         Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
                     })?;
+
             let hash = services()
                 .users
                 .password_hash(&user_id)?
@@ -82,15 +93,18 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
                     "The user has been deactivated",
                 ));
             }
+
             let Ok(parsed_hash) = PasswordHash::new(&hash) else {
                 error!("error while hashing user {}", user_id);
                 return Err(Error::BadServerResponse("could not hash"));
             };
+
             let hash_matches = services()
                 .globals
                 .argon
                 .verify_password(password.as_bytes(), &parsed_hash)
                 .is_ok();
+
             if !hash_matches {
                 return Err(Error::BadRequest(
                     ErrorKind::Forbidden,
@@ -101,16 +115,25 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
             user_id
         }
         login::v3::LoginInfo::Token(login::v3::Token { token }) => {
+            debug!("Got token login type");
             if let Some(jwt_decoding_key) = services().globals.jwt_decoding_key() {
                 let token = jsonwebtoken::decode::<Claims>(
                     token,
                     jwt_decoding_key,
                     &jsonwebtoken::Validation::default(),
                 )
-                .map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Token is invalid."))?;
+                .map_err(|e| {
+                    warn!("Failed to parse JWT token from user logging in: {}", e);
+                    Error::BadRequest(ErrorKind::InvalidUsername, "Token is invalid.")
+                })?;
+
                 let username = token.claims.sub.to_lowercase();
+
                 UserId::parse_with_server_name(username, services().globals.server_name()).map_err(
-                    |_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."),
+                    |e| {
+                        warn!("Failed to parse username from user logging in: {}", e);
+                        Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
+                    },
                 )?
             } else {
                 return Err(Error::BadRequest(
@@ -119,28 +142,41 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
                 ));
             }
         }
-        login::v3::LoginInfo::ApplicationService(login::v3::ApplicationService { identifier }) => {
+        #[allow(deprecated)]
+        login::v3::LoginInfo::ApplicationService(login::v3::ApplicationService {
+            identifier,
+            user,
+        }) => {
+            debug!("Got appservice login type");
             if !body.from_appservice {
+                info!("User tried logging in as an appservice, but request body is not from a known/registered appservice");
                 return Err(Error::BadRequest(
                     ErrorKind::Forbidden,
                     "Forbidden login type.",
                 ));
             };
-            let username = if let UserIdentifier::UserIdOrLocalpart(user_id) = identifier {
+            let username = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
+                user_id.to_lowercase()
+            } else if let Some(user_id) = user {
+                warn!("Appservice \"{}\" is attempting to login with the deprecated \"user\" field at \"/_matrix/client/v3/login\". conduwuit implements this deprecated behaviour, but this is destined to be removed in a future Matrix release.", user_id);
                 user_id.to_lowercase()
             } else {
                 return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
             };
 
             UserId::parse_with_server_name(username, services().globals.server_name()).map_err(
-                |_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."),
+                |e| {
+                    warn!("Failed to parse username from appservice logging in: {}", e);
+                    Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
+                },
             )?
         }
         _ => {
             warn!("Unsupported or unknown login type: {:?}", &body.login_info);
+            debug!("JSON body: {:?}", &body.json_body);
             return Err(Error::BadRequest(
                 ErrorKind::Unknown,
-                "Unsupported login type.",
+                "Unsupported or unknown login type.",
             ));
         }
     };
