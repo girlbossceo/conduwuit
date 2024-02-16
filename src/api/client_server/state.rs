@@ -12,7 +12,7 @@ use ruma::{
     serde::Raw,
     EventId, RoomId, UserId,
 };
-use tracing::log::warn;
+use tracing::{error, log::warn};
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/state/{eventType}/{stateKey}`
 ///
@@ -105,7 +105,7 @@ pub async fn get_state_events_route(
     })
 }
 
-/// # `GET /_matrix/client/r0/rooms/{roomid}/state/{eventType}/{stateKey}`
+/// # `GET /_matrix/client/v3/rooms/{roomid}/state/{eventType}/{stateKey}`
 ///
 /// Get single state event of a room.
 ///
@@ -139,12 +139,14 @@ pub async fn get_state_events_for_key_route(
         })?;
 
     Ok(get_state_events_for_key::v3::Response {
-        content: serde_json::from_str(event.content.get())
-            .map_err(|_| Error::bad_database("Invalid event content in database"))?,
+        content: serde_json::from_str(event.content.get()).map_err(|e| {
+            error!("Invalid event content in database: {}", e);
+            Error::bad_database("Invalid event content in database")
+        })?,
     })
 }
 
-/// # `GET /_matrix/client/r0/rooms/{roomid}/state/{eventType}`
+/// # `GET /_matrix/client/v3/rooms/{roomid}/state/{eventType}`
 ///
 /// Get single state event of a room.
 ///
@@ -178,8 +180,10 @@ pub async fn get_state_events_for_empty_key_route(
         })?;
 
     Ok(get_state_events_for_key::v3::Response {
-        content: serde_json::from_str(event.content.get())
-            .map_err(|_| Error::bad_database("Invalid event content in database"))?,
+        content: serde_json::from_str(event.content.get()).map_err(|e| {
+            error!("Invalid event content in database: {}", e);
+            Error::bad_database("Invalid event content in database")
+        })?,
     }
     .into())
 }

@@ -71,11 +71,11 @@ pub async fn get_register_available_route(
     Ok(get_username_availability::v3::Response { available: true })
 }
 
-/// # `POST /_matrix/client/r0/register`
+/// # `POST /_matrix/client/v3/register`
 ///
 /// Register an account on this homeserver.
 ///
-/// You can use [`GET /_matrix/client/r0/register/available`](fn.get_register_available_route.html)
+/// You can use [`GET /_matrix/client/v3/register/available`](fn.get_register_available_route.html)
 /// to check if the user id is valid and available.
 ///
 /// - Only works if registration is enabled

@@ -318,7 +318,7 @@ async fn run_server() -> io::Result<()> {
         let socket_perms = config.unix_socket_perms.to_string();
         let octal_perms = u32::from_str_radix(&socket_perms, 8).unwrap();
 
-        let listener = UnixListener::bind(path.clone()).unwrap();
+        let listener = UnixListener::bind(path.clone())?;
         tokio::fs::set_permissions(path, Permissions::from_mode(octal_perms))
             .await
             .unwrap();
