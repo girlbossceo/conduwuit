@@ -27,4 +27,16 @@ impl Service {
     pub fn disable_room(&self, room_id: &RoomId, disabled: bool) -> Result<()> {
         self.db.disable_room(room_id, disabled)
     }
+
+    pub fn is_banned(&self, room_id: &RoomId) -> Result<bool> {
+        self.db.is_banned(room_id)
+    }
+
+    pub fn ban_room(&self, room_id: &RoomId, banned: bool) -> Result<()> {
+        self.db.ban_room(room_id, banned)
+    }
+
+    pub fn list_banned_rooms<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
+        self.db.list_banned_rooms()
+    }
 }
