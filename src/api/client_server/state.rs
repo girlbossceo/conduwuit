@@ -107,7 +107,9 @@ pub async fn get_state_events_route(
 
 /// # `GET /_matrix/client/v3/rooms/{roomid}/state/{eventType}/{stateKey}`
 ///
-/// Get single state event of a room.
+/// Get single state event of a room with the specified state key.
+/// The optional query parameter `?format=event|content` allows returning the full room state event
+/// or just the state event's content (default behaviour)
 ///
 /// - If not joined: Only works if current room history visibility is world readable
 pub async fn get_state_events_for_key_route(
@@ -137,18 +139,34 @@ pub async fn get_state_events_for_key_route(
             );
             Error::BadRequest(ErrorKind::NotFound, "State event not found.")
         })?;
-
-    Ok(get_state_events_for_key::v3::Response {
-        content: serde_json::from_str(event.content.get()).map_err(|e| {
-            error!("Invalid event content in database: {}", e);
-            Error::bad_database("Invalid event content in database")
-        })?,
-    })
+    if body
+        .format
+        .as_ref()
+        .is_some_and(|f| f.to_lowercase().eq("event"))
+    {
+        Ok(get_state_events_for_key::v3::Response {
+            content: None,
+            event: serde_json::from_str(event.to_state_event().json().get()).map_err(|e| {
+                error!("Invalid room state event in database: {}", e);
+                Error::bad_database("Invalid room state event in database")
+            })?,
+        })
+    } else {
+        Ok(get_state_events_for_key::v3::Response {
+            content: Some(serde_json::from_str(event.content.get()).map_err(|e| {
+                error!("Invalid room state event content in database: {}", e);
+                Error::bad_database("Invalid room state event content in database")
+            })?),
+            event: None,
+        })
+    }
 }
 
 /// # `GET /_matrix/client/v3/rooms/{roomid}/state/{eventType}`
 ///
 /// Get single state event of a room.
+/// The optional query parameter `?format=event|content` allows returning the full room state event
+/// or just the state event's content (default behaviour)
 ///
 /// - If not joined: Only works if current room history visibility is world readable
 pub async fn get_state_events_for_empty_key_route(
@@ -179,13 +197,29 @@ pub async fn get_state_events_for_empty_key_route(
             Error::BadRequest(ErrorKind::NotFound, "State event not found.")
         })?;
 
-    Ok(get_state_events_for_key::v3::Response {
-        content: serde_json::from_str(event.content.get()).map_err(|e| {
-            error!("Invalid event content in database: {}", e);
-            Error::bad_database("Invalid event content in database")
-        })?,
+    if body
+        .format
+        .as_ref()
+        .is_some_and(|f| f.to_lowercase().eq("event"))
+    {
+        Ok(get_state_events_for_key::v3::Response {
+            content: None,
+            event: serde_json::from_str(event.to_state_event().json().get()).map_err(|e| {
+                error!("Invalid room state event in database: {}", e);
+                Error::bad_database("Invalid room state event in database")
+            })?,
+        }
+        .into())
+    } else {
+        Ok(get_state_events_for_key::v3::Response {
+            content: Some(serde_json::from_str(event.content.get()).map_err(|e| {
+                error!("Invalid room state event content in database: {}", e);
+                Error::bad_database("Invalid room state event content in database")
+            })?),
+            event: None,
+        }
+        .into())
     }
-    .into())
 }
 
 async fn send_state_event_for_key_helper(
