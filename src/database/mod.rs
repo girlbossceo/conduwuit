@@ -105,6 +105,8 @@ pub struct KeyValueDatabase {
 
     pub(super) disabledroomids: Arc<dyn KvTree>, // Rooms where incoming federation handling is disabled
 
+    pub(super) bannedroomids: Arc<dyn KvTree>, // Rooms where local users are not allowed to join
+
     pub(super) lazyloadedids: Arc<dyn KvTree>, // LazyLoadedIds = UserId + DeviceId + RoomId + LazyLoadedUserId
 
     pub(super) userroomid_notificationcount: Arc<dyn KvTree>, // NotifyCount = u64
@@ -300,6 +302,8 @@ impl KeyValueDatabase {
             roomuserid_leftcount: builder.open_tree("roomuserid_leftcount")?,
 
             disabledroomids: builder.open_tree("disabledroomids")?,
+
+            bannedroomids: builder.open_tree("bannedroomids")?,
 
             lazyloadedids: builder.open_tree("lazyloadedids")?,
 

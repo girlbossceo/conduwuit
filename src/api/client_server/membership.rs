@@ -49,6 +49,13 @@ pub async fn join_room_by_id_route(
 ) -> Result<join_room_by_id::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    if services().rooms.metadata.is_banned(&body.room_id)? {
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "This room is banned on this homeserver.",
+        ));
+    }
+
     let mut servers = Vec::new(); // There is no body.server_name for /roomId/join
     servers.extend(
         services()
@@ -90,6 +97,13 @@ pub async fn join_room_by_id_or_alias_route(
 
     let (servers, room_id) = match OwnedRoomId::try_from(body.room_id_or_alias) {
         Ok(room_id) => {
+            if services().rooms.metadata.is_banned(&room_id)? {
+                return Err(Error::BadRequest(
+                    ErrorKind::Forbidden,
+                    "This room is banned on this homeserver.",
+                ));
+            }
+
             let mut servers = body.server_name.clone();
             servers.extend(
                 services()
@@ -111,6 +125,13 @@ pub async fn join_room_by_id_or_alias_route(
         }
         Err(room_alias) => {
             let response = get_alias_helper(room_alias).await?;
+
+            if services().rooms.metadata.is_banned(&response.room_id)? {
+                return Err(Error::BadRequest(
+                    ErrorKind::Forbidden,
+                    "This room is banned on this homeserver.",
+                ));
+            }
 
             (response.servers, response.room_id)
         }
