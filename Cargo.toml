@@ -37,8 +37,6 @@ tokio = { version = "1.36.0", features = ["fs", "macros", "signal", "sync"] }
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 bytes = "1.5.0"
 http = "0.2.11"
-# Used to find data directory for default db path
-directories = "5.0.1"
 # Used for ruma wrapper
 serde_json = { version = "1.0.113", features = ["raw_value"] }
 # Used for appservice registration files
