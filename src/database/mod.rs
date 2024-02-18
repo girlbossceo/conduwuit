@@ -7,7 +7,6 @@ use crate::{
 };
 use abstraction::{KeyValueDatabaseEngine, KvTree};
 use argon2::{password_hash::SaltString, PasswordHasher, PasswordVerifier};
-use directories::ProjectDirs;
 use itertools::Itertools;
 use lru_cache::LruCache;
 use rand::thread_rng;
@@ -25,7 +24,7 @@ use ruma::{
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fs::{self, remove_dir_all},
+    fs::{self},
     io::Write,
     mem::size_of,
     path::Path,
@@ -180,18 +179,6 @@ pub struct KeyValueDatabase {
 }
 
 impl KeyValueDatabase {
-    /// Tries to remove the old database but ignores all errors.
-    pub fn try_remove(server_name: &str) -> Result<()> {
-        let mut path = ProjectDirs::from("xyz", "koesters", "conduit")
-            .ok_or_else(|| Error::bad_config("The OS didn't return a valid home directory path."))?
-            .data_dir()
-            .to_path_buf();
-        path.push(server_name);
-        let _ = remove_dir_all(path);
-
-        Ok(())
-    }
-
     fn check_db_setup(config: &Config) -> Result<()> {
         let path = Path::new(&config.database_path);
 
