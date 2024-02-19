@@ -32,7 +32,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     api::client_server::{leave_all_rooms, leave_room, AUTO_GEN_PASSWORD_LENGTH},
@@ -191,6 +191,12 @@ enum RoomModeration {
         force: bool,
 
         room_id: Box<RoomId>,
+    },
+
+    /// - Bans a list of rooms from a newline delimited codeblock similar to user deactivate-all
+    BanListOfRoomIds {
+        #[arg(short, long)]
+        force: bool,
     },
 
     /// - Unbans a room ID to allow local users to join again
@@ -745,9 +751,9 @@ impl Service {
                         for &username in &usernames {
                             match <&UserId>::try_from(username) {
                                 Ok(user_id) => user_ids.push(user_id),
-                                Err(_) => {
+                                Err(e) => {
                                     return Ok(RoomMessageEventContent::text_plain(format!(
-                                        "{username} is not a valid username"
+                                        "{username} is not a valid username: {e}"
                                     )))
                                 }
                             }
@@ -885,6 +891,121 @@ impl Service {
                         }
 
                         RoomMessageEventContent::text_plain("Room banned and removed all our local users, use disable-room to stop receiving new inbound federation events as well if needed.")
+                    }
+                    RoomModeration::BanListOfRoomIds { force } => {
+                        if body.len() > 2
+                            && body[0].trim().starts_with("```")
+                            && body.last().unwrap().trim() == "```"
+                        {
+                            let rooms_s = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+
+                            let mut room_ban_count = 0;
+                            let mut room_ids: Vec<&RoomId> = Vec::new();
+
+                            let admin_room_alias: Box<RoomAliasId> =
+                                format!("#admins:{}", services().globals.server_name())
+                                    .try_into()
+                                    .expect("#admins:server_name is a valid alias name");
+                            let admin_room_id = services()
+                                .rooms
+                                .alias
+                                .resolve_local_alias(&admin_room_alias)?
+                                .expect("Admin room must exist");
+
+                            for &room_id in &rooms_s {
+                                match <&RoomId>::try_from(room_id) {
+                                    Ok(owned_room_id) => {
+                                        // silently ignore deleting admin room
+                                        if owned_room_id.eq(&admin_room_id) {
+                                            info!("User specified admin room in bulk ban list, ignoring");
+                                            continue;
+                                        }
+
+                                        room_ids.push(owned_room_id)
+                                    }
+                                    Err(e) => {
+                                        if force {
+                                            // ignore rooms we failed to parse if we're force deleting
+                                            error!("Error parsing room ID {room_id} during bulk room banning, ignoring error and logging here: {e}");
+                                            continue;
+                                        } else {
+                                            return Ok(RoomMessageEventContent::text_plain(format!("{room_id} is not a valid room ID, please fix the list and try again: {e}")));
+                                        }
+                                    }
+                                }
+                            }
+
+                            for room_id in room_ids {
+                                if services().rooms.metadata.ban_room(room_id, true).is_ok() {
+                                    debug!("Banned {room_id} successfully");
+                                    room_ban_count += 1;
+                                }
+
+                                debug!("Making all users leave the room {}", &room_id);
+                                if force {
+                                    for local_user in services()
+                                        .rooms
+                                        .state_cache
+                                        .room_members(room_id)
+                                        .filter_map(|user| {
+                                            user.ok().filter(|local_user| {
+                                                local_user.server_name() == services().globals.server_name()
+                                                    // additional wrapped check here is to avoid adding remote users
+                                                    // who are in the admin room to the list of local users (would fail auth check)
+                                                    && (local_user.server_name()
+                                                        == services().globals.server_name()
+                                                        && services()
+                                                            .users
+                                                            .is_admin(local_user)
+                                                            .unwrap_or(true)) // since this is a force operation, assume user is an admin if somehow this fails
+                                            })
+                                        })
+                                        .collect::<Vec<OwnedUserId>>()
+                                    {
+                                        debug!(
+                                        "Attempting leave for user {} in room {} (forced, ignoring all errors, evicting admins too)",
+                                        &local_user, room_id
+                                    );
+                                        let _ = leave_room(&local_user, room_id, None).await;
+                                    }
+                                } else {
+                                    for local_user in services()
+                                        .rooms
+                                        .state_cache
+                                        .room_members(room_id)
+                                        .filter_map(|user| {
+                                            user.ok().filter(|local_user| {
+                                                local_user.server_name() == services().globals.server_name()
+                                                    // additional wrapped check here is to avoid adding remote users
+                                                    // who are in the admin room to the list of local users (would fail auth check)
+                                                    && (local_user.server_name()
+                                                        == services().globals.server_name()
+                                                        && !services()
+                                                            .users
+                                                            .is_admin(local_user)
+                                                            .unwrap_or(false))
+                                            })
+                                        })
+                                        .collect::<Vec<OwnedUserId>>()
+                                    {
+                                        debug!(
+                                            "Attempting leave for user {} in room {}",
+                                            &local_user, &room_id
+                                        );
+                                        if let Err(e) = leave_room(&local_user, room_id, None).await {
+                                            error!("Error attempting to make local user {} leave room {} during room banning: {}", &local_user, &room_id, e);
+                                            return Ok(RoomMessageEventContent::text_plain(format!("Error attempting to make local user {} leave room {} during room banning (room is still banned but not removing any more users): {}\nIf you would like to ignore errors, use --force", &local_user, &room_id, e)));
+                                        }
+                                    }
+                                }
+                            }
+
+                            return Ok(RoomMessageEventContent::text_plain(format!("Finished bulk room ban, banned {} total rooms and evicted all users.", room_ban_count)));
+                        } else {
+                            return Ok(RoomMessageEventContent::text_plain(
+                                "Expected code block in command body. Add --help for details.",
+                            ));
+                        }
                     }
                     RoomModeration::UnbanRoomId { room_id } => {
                         services().rooms.metadata.ban_room(&room_id, false)?;
