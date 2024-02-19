@@ -993,8 +993,8 @@ impl Service {
                                             &local_user, &room_id
                                         );
                                         if let Err(e) = leave_room(&local_user, room_id, None).await {
-                                            error!("Error attempting to make local user {} leave room {} during room banning: {}", &local_user, &room_id, e);
-                                            return Ok(RoomMessageEventContent::text_plain(format!("Error attempting to make local user {} leave room {} during room banning (room is still banned but not removing any more users): {}\nIf you would like to ignore errors, use --force", &local_user, &room_id, e)));
+                                            error!("Error attempting to make local user {} leave room {} during bulk room banning: {}", &local_user, &room_id, e);
+                                            return Ok(RoomMessageEventContent::text_plain(format!("Error attempting to make local user {} leave room {} during room banning (room is still banned but not removing any more users and not banning any more rooms): {}\nIf you would like to ignore errors, use --force", &local_user, &room_id, e)));
                                         }
                                     }
                                 }
