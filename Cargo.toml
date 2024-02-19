@@ -40,7 +40,7 @@ http = "0.2.11"
 # Used for ruma wrapper
 serde_json = { version = "1.0.113", features = ["raw_value"] }
 # Used for appservice registration files
-serde_yaml = "0.9.31"
+serde_yaml = "0.9.32"
 # Used for pdu definition
 serde = { version = "1.0.196", features = ["rc"] }
 # Used for secure identifiers
