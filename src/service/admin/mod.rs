@@ -166,7 +166,10 @@ enum RoomCommand {
     /// - List all rooms the server knows about
     List { page: Option<usize> },
 
-    /// - Bans a room ID from local users joining and evicts all our local users from the room
+    /// - Bans a room ID from local users joining and evicts all our local users from the room.
+    ///
+    /// Server admins (users in the conduwuit admin room) will not be evicted and server admins can still join the room.
+    /// To evict admins too, use --force (also ignores errors)
     BanRoomId {
         #[arg(short, long)]
         force: bool,
@@ -791,11 +794,24 @@ impl Service {
             AdminCommand::Rooms(command) => match command {
                 RoomCommand::BanRoomId { force, room_id } => {
                     // basic syntax checks on room ID
-                    if !&room_id.to_string().starts_with('!')
-                        || !&room_id.to_string().contains(':')
-                        || room_id.to_string().contains(char::is_whitespace)
-                    {
+                    if !room_id.to_string().contains(':') {
                         return Ok(RoomMessageEventContent::text_plain("Invalid room ID specified. Please note that this requires a full room ID e.g. `!awIh6gGInaS5wLQJwa:example.com`"));
+                    }
+
+                    let admin_room_alias: Box<RoomAliasId> =
+                        format!("#admins:{}", services().globals.server_name())
+                            .try_into()
+                            .expect("#admins:server_name is a valid alias name");
+                    let admin_room_id = services()
+                        .rooms
+                        .alias
+                        .resolve_local_alias(&admin_room_alias)?
+                        .expect("Admin room must exist");
+
+                    if room_id.eq(&admin_room_id) {
+                        return Ok(RoomMessageEventContent::text_plain(
+                            "Not allowed to ban the admin room.",
+                        ));
                     }
 
                     services().rooms.metadata.ban_room(&room_id, true)?;
@@ -809,12 +825,20 @@ impl Service {
                             .filter_map(|user| {
                                 user.ok().filter(|local_user| {
                                     local_user.server_name() == services().globals.server_name()
+                                        // additional wrapped check here is to avoid adding remote users
+                                        // who are in the admin room to the list of local users (would fail auth check)
+                                        && (local_user.server_name()
+                                            == services().globals.server_name()
+                                            && services()
+                                                .users
+                                                .is_admin(local_user)
+                                                .unwrap_or(true)) // since this is a force operation, assume user is an admin if somehow this fails
                                 })
                             })
                             .collect::<Vec<OwnedUserId>>()
                         {
                             debug!(
-                            "Attempting leave for user {} in room {} (forced, ignoring all errors)",
+                            "Attempting leave for user {} in room {} (forced, ignoring all errors, evicting admins too)",
                             &local_user, &room_id
                         );
                             let _ = leave_room(&local_user, &room_id, None).await;
@@ -827,6 +851,14 @@ impl Service {
                             .filter_map(|user| {
                                 user.ok().filter(|local_user| {
                                     local_user.server_name() == services().globals.server_name()
+                                        // additional wrapped check here is to avoid adding remote users
+                                        // who are in the admin room to the list of local users (would fail auth check)
+                                        && (local_user.server_name()
+                                            == services().globals.server_name()
+                                            && !services()
+                                                .users
+                                                .is_admin(local_user)
+                                                .unwrap_or(false))
                                 })
                             })
                             .collect::<Vec<OwnedUserId>>()
