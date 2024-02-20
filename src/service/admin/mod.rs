@@ -27,15 +27,15 @@ use ruma::{
         },
         TimelineEventType,
     },
-    EventId, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomVersionId,
-    ServerName, UserId,
+    EventId, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId,
+    RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    api::client_server::{leave_all_rooms, leave_room, AUTO_GEN_PASSWORD_LENGTH},
+    api::client_server::{get_alias_helper, leave_all_rooms, leave_room, AUTO_GEN_PASSWORD_LENGTH},
     services,
     utils::{self, HtmlEscape},
     Error, PduEvent, Result,
@@ -182,25 +182,46 @@ enum RoomCommand {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum RoomModeration {
-    /// - Bans a room ID from local users joining and evicts all our local users from the room.
+    /// - Bans a room from local users joining and evicts all our local users from the room.
     ///
     /// Server admins (users in the conduwuit admin room) will not be evicted and server admins can still join the room.
     /// To evict admins too, use --force (also ignores errors)
-    BanRoomId {
+    /// To disable incoming federation of the room, use --disable-federation
+    BanRoom {
         #[arg(short, long)]
+        /// Evicts admins out of the room and ignores any potential errors when making our local users leave the room
         force: bool,
 
-        room_id: Box<RoomId>,
+        #[arg(long)]
+        /// Disables incoming federation of the room after banning and evicting users
+        disable_federation: bool,
+
+        /// The room in the format of `!roomid:example.com` or a room alias in the format of `#roomalias:example.com`
+        room: Box<RoomOrAliasId>,
     },
 
-    /// - Bans a list of rooms from a newline delimited codeblock similar to user deactivate-all
-    BanListOfRoomIds {
+    /// - Bans a list of rooms from a newline delimited codeblock similar to `user deactivate-all`
+    BanListOfRooms {
         #[arg(short, long)]
+        /// Evicts admins out of the room and ignores any potential errors when making our local users leave the room
         force: bool,
+
+        #[arg(long)]
+        /// Disables incoming federation of the room after banning and evicting users
+        disable_federation: bool,
     },
 
-    /// - Unbans a room ID to allow local users to join again
-    UnbanRoomId { room_id: Box<RoomId> },
+    /// - Unbans a room to allow local users to join again
+    ///
+    /// To re-enable incoming federation of the room, use --enable-federation
+    UnbanRoom {
+        #[arg(long)]
+        /// Enables incoming federation of the room after unbanning
+        enable_federation: bool,
+
+        /// The room in the format of `!roomid:example.com` or a room alias in the format of `#roomalias:example.com`
+        room: Box<RoomOrAliasId>,
+    },
 
     /// - List of all rooms we have banned
     ListBannedRooms,
@@ -808,11 +829,12 @@ impl Service {
             },
             AdminCommand::Rooms(command) => match command {
                 RoomCommand::Moderation(command) => match command {
-                    RoomModeration::BanRoomId { force, room_id } => {
-                        // basic syntax checks on room ID
-                        if !room_id.to_string().contains(':') {
-                            return Ok(RoomMessageEventContent::text_plain("Invalid room ID specified. Please note that this requires a full room ID e.g. `!awIh6gGInaS5wLQJwa:example.com`"));
-                        }
+                    RoomModeration::BanRoom {
+                        force,
+                        room,
+                        disable_federation,
+                    } => {
+                        debug!("Got room alias or ID: {}", room);
 
                         let admin_room_alias: Box<RoomAliasId> =
                             format!("#admins:{}", services().globals.server_name())
@@ -824,15 +846,62 @@ impl Service {
                             .resolve_local_alias(&admin_room_alias)?
                             .expect("Admin room must exist");
 
-                        if room_id.eq(&admin_room_id) {
+                        if room.to_string().eq(&admin_room_id)
+                            || room.to_string().eq(&admin_room_alias)
+                        {
                             return Ok(RoomMessageEventContent::text_plain(
                                 "Not allowed to ban the admin room.",
                             ));
                         }
 
-                        services().rooms.metadata.ban_room(&room_id, true)?;
+                        let room_id = if room.is_room_id() {
+                            let room_id = match RoomId::parse(&room) {
+                                Ok(room_id) => room_id,
+                                Err(e) => return Ok(RoomMessageEventContent::text_plain(format!("Failed to parse room ID {room}. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"))),
+                            };
 
-                        debug!("Making all users leave the room {}", &room_id);
+                            debug!("Room specified is a room ID, banning room ID");
+
+                            services().rooms.metadata.ban_room(&room_id, true)?;
+
+                            room_id
+                        } else if room.is_room_alias_id() {
+                            let room_alias = match RoomAliasId::parse(&room) {
+                                Ok(room_alias) => room_alias,
+                                Err(e) => return Ok(RoomMessageEventContent::text_plain(format!("Failed to parse room ID {room}. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"))),
+                            };
+
+                            debug!("Room specified is not a room ID, attempting to resolve room alias to a room ID locally, if not using get_alias_helper to fetch room ID remotely");
+
+                            let room_id = match services()
+                                .rooms
+                                .alias
+                                .resolve_local_alias(&room_alias)?
+                            {
+                                Some(room_id) => room_id,
+                                None => {
+                                    debug!("We don't have this room alias to a room ID locally, attempting to fetch room ID over federation");
+
+                                    match get_alias_helper(room_alias).await {
+                                        Ok(response) => {
+                                            debug!("Got federation response fetching room ID for room {room}: {:?}", response);
+                                            response.room_id
+                                        }
+                                        Err(e) => {
+                                            return Ok(RoomMessageEventContent::text_plain(format!("Failed to resolve room alias {room} to a room ID: {e}")));
+                                        }
+                                    }
+                                }
+                            };
+
+                            services().rooms.metadata.ban_room(&room_id, true)?;
+
+                            room_id
+                        } else {
+                            return Ok(RoomMessageEventContent::text_plain("Room specified is not a room ID or room alias. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`)"));
+                        };
+
+                        debug!("Making all users leave the room {}", &room);
                         if force {
                             for local_user in services()
                                 .rooms
@@ -890,9 +959,17 @@ impl Service {
                             }
                         }
 
+                        if disable_federation {
+                            services().rooms.metadata.disable_room(&room_id, true)?;
+                            return Ok(RoomMessageEventContent::text_plain("Room banned, removed all our local users, and disabled incoming federation with room."));
+                        }
+
                         RoomMessageEventContent::text_plain("Room banned and removed all our local users, use disable-room to stop receiving new inbound federation events as well if needed.")
                     }
-                    RoomModeration::BanListOfRoomIds { force } => {
+                    RoomModeration::BanListOfRooms {
+                        force,
+                        disable_federation,
+                    } => {
                         if body.len() > 2
                             && body[0].trim().starts_with("```")
                             && body.last().unwrap().trim() == "```"
@@ -998,17 +1075,79 @@ impl Service {
                                         }
                                     }
                                 }
+
+                                if disable_federation {
+                                    services().rooms.metadata.disable_room(room_id, true)?;
+                                }
                             }
 
-                            return Ok(RoomMessageEventContent::text_plain(format!("Finished bulk room ban, banned {} total rooms and evicted all users.", room_ban_count)));
+                            if disable_federation {
+                                return Ok(RoomMessageEventContent::text_plain(format!("Finished bulk room ban, banned {} total rooms, evicted all users, and disabled incoming federation with the room.", room_ban_count)));
+                            } else {
+                                return Ok(RoomMessageEventContent::text_plain(format!("Finished bulk room ban, banned {} total rooms and evicted all users.", room_ban_count)));
+                            }
                         } else {
                             return Ok(RoomMessageEventContent::text_plain(
                                 "Expected code block in command body. Add --help for details.",
                             ));
                         }
                     }
-                    RoomModeration::UnbanRoomId { room_id } => {
-                        services().rooms.metadata.ban_room(&room_id, false)?;
+                    RoomModeration::UnbanRoom {
+                        room,
+                        enable_federation,
+                    } => {
+                        let room_id = if room.is_room_id() {
+                            let room_id = match RoomId::parse(&room) {
+                                Ok(room_id) => room_id,
+                                Err(e) => return Ok(RoomMessageEventContent::text_plain(format!("Failed to parse room ID {room}. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"))),
+                            };
+
+                            debug!("Room specified is a room ID, unbanning room ID");
+
+                            services().rooms.metadata.ban_room(&room_id, false)?;
+
+                            room_id
+                        } else if room.is_room_alias_id() {
+                            let room_alias = match RoomAliasId::parse(&room) {
+                                Ok(room_alias) => room_alias,
+                                Err(e) => return Ok(RoomMessageEventContent::text_plain(format!("Failed to parse room ID {room}. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"))),
+                            };
+
+                            debug!("Room specified is not a room ID, attempting to resolve room alias to a room ID locally, if not using get_alias_helper to fetch room ID remotely");
+
+                            let room_id = match services()
+                                .rooms
+                                .alias
+                                .resolve_local_alias(&room_alias)?
+                            {
+                                Some(room_id) => room_id,
+                                None => {
+                                    debug!("We don't have this room alias to a room ID locally, attempting to fetch room ID over federation");
+
+                                    match get_alias_helper(room_alias).await {
+                                        Ok(response) => {
+                                            debug!("Got federation response fetching room ID for room {room}: {:?}", response);
+                                            response.room_id
+                                        }
+                                        Err(e) => {
+                                            return Ok(RoomMessageEventContent::text_plain(format!("Failed to resolve room alias {room} to a room ID: {e}")));
+                                        }
+                                    }
+                                }
+                            };
+
+                            services().rooms.metadata.ban_room(&room_id, false)?;
+
+                            room_id
+                        } else {
+                            return Ok(RoomMessageEventContent::text_plain("Room specified is not a room ID or room alias. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`)"));
+                        };
+
+                        if enable_federation {
+                            services().rooms.metadata.disable_room(&room_id, false)?;
+                            return Ok(RoomMessageEventContent::text_plain("Room unbanned."));
+                        }
+
                         RoomMessageEventContent::text_plain("Room unbanned, you may need to re-enable federation with the room using enable-room if this is a remote room to make it fully functional.")
                     }
                     RoomModeration::ListBannedRooms => {
