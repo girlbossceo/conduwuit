@@ -42,7 +42,7 @@ serde_json = { version = "1.0.114", features = ["raw_value"] }
 # Used for appservice registration files
 serde_yaml = "0.9.32"
 # Used for pdu definition
-serde = { version = "1.0.196", features = ["rc"] }
+serde = { version = "1.0.197", features = ["rc"] }
 # Used for secure identifiers
 rand = "0.8.5"
 # Used to hash passwords
