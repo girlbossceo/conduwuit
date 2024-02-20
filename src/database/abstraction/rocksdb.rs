@@ -7,7 +7,7 @@ use std::{
 };
 
 use rocksdb::LogLevel::{Debug, Error, Fatal, Info, Warn};
-use tracing::debug;
+use tracing::{debug, info};
 
 pub(crate) struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
