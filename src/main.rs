@@ -144,10 +144,12 @@ async fn main() {
     };
 
     info!("Loading database");
+    let db_load_time = std::time::Instant::now();
     if let Err(error) = KeyValueDatabase::load_or_create(config).await {
         error!(?error, "The database couldn't be loaded or created");
         return;
     };
+    info!("Database took {:?} to load", db_load_time.elapsed());
 
     let config = &services().globals.config;
 

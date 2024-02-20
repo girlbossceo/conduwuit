@@ -7,6 +7,7 @@ use std::{
 };
 
 use rocksdb::LogLevel::{Debug, Error, Fatal, Info, Warn};
+use tracing::debug;
 
 pub(crate) struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
@@ -98,12 +99,15 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
         let db_opts = db_options(&rocksdb_cache, config);
 
+        debug!("Listing column families in database");
         let cfs = rocksdb::DBWithThreadMode::<rocksdb::MultiThreaded>::list_cf(
             &db_opts,
             &config.database_path,
         )
         .unwrap_or_default();
 
+        debug!("Opening column family descriptors in database");
+        info!("RocksDB database compaction will take place now, a delay in startup is expected");
         let db = rocksdb::DBWithThreadMode::<rocksdb::MultiThreaded>::open_cf_descriptors(
             &db_opts,
             &config.database_path,
@@ -123,6 +127,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
     fn open_tree(&self, name: &'static str) -> Result<Arc<dyn KvTree>> {
         if !self.old_cfs.contains(&name.to_owned()) {
             // Create if it didn't exist
+            debug!("Creating new column family in database: {}", name);
             let _ = self
                 .rocks
                 .create_cf(name, &db_options(&self.cache, &self.config));
