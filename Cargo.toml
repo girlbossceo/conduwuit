@@ -38,7 +38,7 @@ tokio = { version = "1.36.0", features = ["fs", "macros", "signal", "sync"] }
 bytes = "1.5.0"
 http = "0.2.11"
 # Used for ruma wrapper
-serde_json = { version = "1.0.113", features = ["raw_value"] }
+serde_json = { version = "1.0.114", features = ["raw_value"] }
 # Used for appservice registration files
 serde_yaml = "0.9.32"
 # Used for pdu definition
