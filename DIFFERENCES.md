@@ -18,6 +18,7 @@
 - Updated Ruma to latest commit where possible, and add some unstable MSCs (some still require an implementation though)
 - conduwuit allows MXIDs with `+` in them (thanks to Ruma update)
 - Revamped admin room infrastructure and commands (via upstream MR)
+- Admin room commands to delete room aliases and unpublish rooms from our room directory (via upstream MR)
 - Make spaces/hierarchy cache use cache_capacity_modifier instead of hardcoded small value
 - Make PDU appending, building, etc asynchronous
 - Add *optional* feature flag to use SHA256 key names for media instead of base64 to overcome filesystem file name length limitations (OS error file name too long) (via upstream MR) 
