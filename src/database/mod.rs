@@ -222,20 +222,23 @@ impl KeyValueDatabase {
         Self::check_db_setup(&config)?;
 
         if !Path::new(&config.database_path).exists() {
+            debug!("Database path does not exist, assuming this is a new setup and creating it");
             std::fs::create_dir_all(&config.database_path)
                 .map_err(|e| {
                     error!("Failed to create database path: {e}");
-                    Error::BadConfig("Database folder doesn't exists and couldn't be created (e.g. due to missing permissions). Please create the database folder yourself.")})?;
+                    Error::BadConfig("Database folder doesn't exists and couldn't be created (e.g. due to missing permissions). Please create the database folder yourself or allow conduwuit the permissions to create directories and files.")})?;
         }
 
         let builder: Arc<dyn KeyValueDatabaseEngine> = match &*config.database_backend {
             "sqlite" => {
+                debug!("Got sqlite database backend");
                 #[cfg(not(feature = "sqlite"))]
                 return Err(Error::BadConfig("Database backend not found."));
                 #[cfg(feature = "sqlite")]
                 Arc::new(Arc::<abstraction::sqlite::Engine>::open(&config)?)
             }
             "rocksdb" => {
+                debug!("Got rocksdb database backend");
                 #[cfg(not(feature = "rocksdb"))]
                 return Err(Error::BadConfig("Database backend not found."));
                 #[cfg(feature = "rocksdb")]
@@ -1053,7 +1056,6 @@ impl KeyValueDatabase {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn flush(&self) -> Result<()> {
         let start = std::time::Instant::now();
 
