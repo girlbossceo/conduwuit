@@ -36,8 +36,8 @@ pub struct Config {
     pub database_path: String,
     #[serde(default = "default_db_cache_capacity_mb")]
     pub db_cache_capacity_mb: f64,
-    #[serde(default = "true_fn")]
-    pub enable_lightning_bolt: bool,
+    #[serde(default = "default_new_user_displayname_suffix")]
+    pub new_user_displayname_suffix: String,
     #[serde(default = "true_fn")]
     pub allow_check_for_updates: bool,
     #[serde(default = "default_conduit_cache_capacity_modifier")]
@@ -246,8 +246,8 @@ impl fmt::Display for Config {
                 &self.allow_guest_registration.to_string(),
             ),
             (
-                "Enabled lightning bolt",
-                &self.enable_lightning_bolt.to_string(),
+                "New user display name suffix",
+                &self.new_user_displayname_suffix,
             ),
             ("Allow encryption", &self.allow_encryption.to_string()),
             ("Allow federation", &self.allow_federation.to_string()),
@@ -508,4 +508,8 @@ fn default_ip_range_denylist() -> Vec<String> {
 
 fn default_url_preview_max_spider_size() -> usize {
     1_000_000 // 1MB
+}
+
+fn default_new_user_displayname_suffix() -> String {
+    "🏳️‍⚧️".to_owned()
 }
