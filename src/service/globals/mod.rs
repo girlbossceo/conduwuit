@@ -352,8 +352,8 @@ impl Service<'_> {
         self.config.default_room_version.clone()
     }
 
-    pub fn enable_lightning_bolt(&self) -> bool {
-        self.config.enable_lightning_bolt
+    pub fn new_user_displayname_suffix(&self) -> &String {
+        &self.config.new_user_displayname_suffix
     }
 
     pub fn allow_check_for_updates(&self) -> bool {

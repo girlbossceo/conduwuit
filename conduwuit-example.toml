@@ -204,10 +204,6 @@ url_preview_check_root_domain = false
 # this so feel free to disable it.
 allow_check_for_updates = true
 
-# Enables adding the lightning bolt emoji (⚡️) to all newly registered users'
-# initial display names. 
-enable_lightning_bolt = false
-
 # If you are using delegation via well-known files and you cannot serve them from your reverse proxy, you can
 # uncomment these to serve them directly from conduwuit. This requires proxying all requests to conduwuit, not just `/_matrix` to work.
 #well_known_server = "matrix.example.com:443"
@@ -218,6 +214,12 @@ enable_lightning_bolt = false
 # conduwuit officially supports room versions 6 - 10. conduwuit has experimental/unstable support for 1 - 5, and 11.
 # Defaults to true.
 #allow_unstable_room_versions = true
+
+# Option to control adding arbitrary text to the end of the user's displayname upon registration with a space before the text.
+# This was the lightning bolt emoji option, just replaced with support for adding your own custom text or emojis.
+# To disable, set this to "" (an empty string)
+# Defaults to "🏳️‍⚧️" (trans pride flag)
+#new_user_displayname_suffix = "🏳️‍⚧️"
 
 # Set this to any float value to multiply conduwuit's in-memory LRU caches with.
 # May be useful if you have significant memory to spare to increase performance.

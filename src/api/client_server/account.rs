@@ -233,9 +233,9 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
     // Default to pretty displayname
     let mut displayname = user_id.localpart().to_owned();
 
-    // If enabled append lightning bolt to display name (default true)
-    if services().globals.enable_lightning_bolt() {
-        displayname.push_str(" ⚡️");
+    // If `new_user_displayname_suffix` is set, registration will push whatever content is set to the user's display name with a space before it
+    if !services().globals.new_user_displayname_suffix().is_empty() {
+        displayname.push_str(&(" ".to_owned() + services().globals.new_user_displayname_suffix()));
     }
 
     services()
