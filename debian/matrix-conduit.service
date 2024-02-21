@@ -1,5 +1,5 @@
 [Unit]
-Description=Conduit Matrix homeserver
+Description=conduwuit Matrix homeserver
 After=network-online.target
 
 [Service]
@@ -49,6 +49,9 @@ Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
 ExecStart=/usr/sbin/matrix-conduit
 Restart=on-failure
 RestartSec=5
+
+TimeoutStopSec=4m
+TimeoutStartSec=4m
 
 StartLimitInterval=1m
 StartLimitBurst=5
