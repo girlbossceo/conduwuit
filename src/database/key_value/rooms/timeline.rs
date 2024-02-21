@@ -3,7 +3,7 @@ use std::{collections::hash_map, mem::size_of, sync::Arc};
 use ruma::{
     api::client::error::ErrorKind, CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId,
 };
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
     database::KeyValueDatabase,
@@ -301,6 +301,18 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
             .increment_batch(&mut notifies_batch.into_iter())?;
         self.userroomid_highlightcount
             .increment_batch(&mut highlights_batch.into_iter())?;
+        Ok(())
+    }
+
+    fn delete_all_pdus_for_room(&self, room_id: &RoomId) -> Result<()> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        for (key, _) in self.pduid_pdu.scan_prefix(prefix) {
+            debug!("Removing key: {:?}", key);
+            self.pduid_pdu.remove(&key)?;
+        }
+
         Ok(())
     }
 }

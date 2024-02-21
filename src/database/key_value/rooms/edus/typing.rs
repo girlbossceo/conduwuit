@@ -1,6 +1,7 @@
 use std::{collections::HashSet, mem};
 
 use ruma::{OwnedUserId, RoomId, UserId};
+use tracing::debug;
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -105,6 +106,18 @@ impl service::rooms::edus::typing::Data for KeyValueDatabase {
             })
             .transpose()?
             .unwrap_or(0))
+    }
+
+    fn delete_all_typing_updates(&self, room_id: &RoomId) -> Result<()> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        for (key, _) in self.roomid_lasttypingupdate.scan_prefix(prefix) {
+            debug!("Removing key {:?}", key);
+            self.roomid_lasttypingupdate.remove(&key)?;
+        }
+
+        Ok(())
     }
 
     fn typings_all(&self, room_id: &RoomId) -> Result<HashSet<OwnedUserId>> {

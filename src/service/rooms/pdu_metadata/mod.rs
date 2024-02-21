@@ -173,6 +173,10 @@ impl Service {
         self.db.mark_as_referenced(room_id, event_ids)
     }
 
+    pub fn delete_all_referenced_for_room(&self, room_id: &RoomId) -> Result<()> {
+        self.db.delete_all_referenced_for_room(room_id)
+    }
+
     #[tracing::instrument(skip(self))]
     pub fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
         self.db.is_event_referenced(room_id, event_id)

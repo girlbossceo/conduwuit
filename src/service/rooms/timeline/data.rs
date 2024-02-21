@@ -81,4 +81,6 @@ pub trait Data: Send + Sync {
         notifies: Vec<OwnedUserId>,
         highlights: Vec<OwnedUserId>,
     ) -> Result<()>;
+
+    fn delete_all_pdus_for_room(&self, room_id: &RoomId) -> Result<()>;
 }

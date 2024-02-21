@@ -1,6 +1,7 @@
 use std::{mem, sync::Arc};
 
 use ruma::{EventId, RoomId, UserId};
+use tracing::debug;
 
 use crate::{
     database::KeyValueDatabase,
@@ -67,6 +68,18 @@ impl service::rooms::pdu_metadata::Data for KeyValueDatabase {
             let mut key = room_id.as_bytes().to_vec();
             key.extend_from_slice(prev.as_bytes());
             self.referencedevents.insert(&key, &[])?;
+        }
+
+        Ok(())
+    }
+
+    fn delete_all_referenced_for_room(&self, room_id: &RoomId) -> Result<()> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        for (key, _) in self.referencedevents.scan_prefix(prefix) {
+            debug!("Removing key: {:?}", key);
+            self.referencedevents.remove(&key)?;
         }
 
         Ok(())

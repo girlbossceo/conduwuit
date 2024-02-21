@@ -1,6 +1,7 @@
 use std::mem;
 
 use ruma::{api::client::threads::get_threads::v1::IncludeThreads, OwnedUserId, RoomId, UserId};
+use tracing::debug;
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, PduEvent, Result};
 
@@ -45,6 +46,18 @@ impl service::rooms::threads::Data for KeyValueDatabase {
                     Ok((count, pdu))
                 }),
         ))
+    }
+
+    fn delete_all_rooms_threads(&self, room_id: &RoomId) -> Result<()> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        for (key, _) in self.threadid_userids.scan_prefix(prefix) {
+            debug!("Removing key: {:?}", key);
+            self.threadid_userids.remove(&key)?;
+        }
+
+        Ok(())
     }
 
     fn update_participants(&self, root_id: &[u8], participants: &[OwnedUserId]) -> Result<()> {

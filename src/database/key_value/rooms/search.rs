@@ -1,4 +1,5 @@
 use ruma::RoomId;
+use tracing::debug;
 
 use crate::{database::KeyValueDatabase, service, services, utils, Result};
 
@@ -20,6 +21,18 @@ impl service::rooms::search::Data for KeyValueDatabase {
             });
 
         self.tokenids.insert_batch(&mut batch)
+    }
+
+    fn delete_all_search_tokenids_for_room(&self, room_id: &RoomId) -> Result<()> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        for (key, _) in self.tokenids.scan_prefix(prefix) {
+            debug!("Removing key: {:?}", key);
+            self.tokenids.remove(&key)?;
+        }
+
+        Ok(())
     }
 
     fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a> {

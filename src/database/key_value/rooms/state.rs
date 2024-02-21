@@ -1,5 +1,6 @@
 use ruma::{EventId, OwnedEventId, RoomId};
 use std::collections::HashSet;
+use tracing::debug;
 
 use std::sync::Arc;
 use tokio::sync::MutexGuard;
@@ -25,6 +26,15 @@ impl service::rooms::state::Data for KeyValueDatabase {
     ) -> Result<()> {
         self.roomid_shortstatehash
             .insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes())?;
+        Ok(())
+    }
+
+    fn delete_room_shortstatehash(
+        &self,
+        room_id: &RoomId,
+        _mutex_lock: &MutexGuard<'_, ()>,
+    ) -> Result<()> {
+        self.roomid_shortstatehash.remove(room_id.as_bytes())?;
         Ok(())
     }
 
@@ -66,6 +76,18 @@ impl service::rooms::state::Data for KeyValueDatabase {
             let mut key = prefix.to_owned();
             key.extend_from_slice(event_id.as_bytes());
             self.roomid_pduleaves.insert(&key, event_id.as_bytes())?;
+        }
+
+        Ok(())
+    }
+
+    fn delete_all_rooms_forward_extremities(&self, room_id: &RoomId) -> Result<()> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        for (key, _) in self.roomid_pduleaves.scan_prefix(prefix) {
+            debug!("Removing key: {:?}", key);
+            self.roomid_pduleaves.remove(&key)?;
         }
 
         Ok(())

@@ -29,4 +29,6 @@ pub trait Data: Send + Sync {
 
     /// Returns the count of the last typing update in this room.
     fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64>;
+
+    fn delete_all_private_read_receipts(&self, room_id: &RoomId) -> Result<()>;
 }

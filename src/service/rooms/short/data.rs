@@ -28,4 +28,6 @@ pub trait Data: Send + Sync {
     fn get_shortroomid(&self, room_id: &RoomId) -> Result<Option<u64>>;
 
     fn get_or_create_shortroomid(&self, room_id: &RoomId) -> Result<u64>;
+
+    fn delete_shortroomid(&self, room_id: &RoomId) -> Result<()>;
 }

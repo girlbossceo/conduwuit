@@ -26,6 +26,10 @@ impl Service {
         self.db.threads_until(user_id, room_id, until, include)
     }
 
+    pub fn delete_all_rooms_threads(&self, room_id: &RoomId) -> Result<()> {
+        self.db.delete_all_rooms_threads(room_id)
+    }
+
     pub fn add_to_thread(&self, root_event_id: &EventId, pdu: &PduEvent) -> Result<()> {
         let root_id = &services()
             .rooms

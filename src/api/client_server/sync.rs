@@ -319,7 +319,7 @@ async fn sync_helper(
         )? {
             Some(e) => e,
             None => {
-                error!("Left room but no left state event");
+                error!("Left room {room_id} but no left state event");
                 continue;
             }
         };
@@ -331,7 +331,7 @@ async fn sync_helper(
         {
             Some(s) => s,
             None => {
-                error!("Leave event has no state");
+                error!("Leave event {left_event_id} has no state");
                 continue;
             }
         };

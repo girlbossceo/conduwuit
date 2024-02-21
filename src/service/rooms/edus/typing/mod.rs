@@ -33,6 +33,10 @@ impl Service {
         self.db.last_typing_update(room_id)
     }
 
+    pub fn delete_all_typing_updates(&self, room_id: &RoomId) -> Result<()> {
+        self.db.delete_all_typing_updates(room_id)
+    }
+
     /// Returns a new typing EDU.
     pub fn typings_all(
         &self,

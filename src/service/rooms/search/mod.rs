@@ -23,4 +23,8 @@ impl Service {
     ) -> Result<Option<(impl Iterator<Item = Vec<u8>> + 'a, Vec<String>)>> {
         self.db.search_pdus(room_id, search_string)
     }
+
+    pub fn delete_all_search_tokenids_for_room(&self, room_id: &RoomId) -> Result<()> {
+        self.db.delete_all_search_tokenids_for_room(room_id)
+    }
 }

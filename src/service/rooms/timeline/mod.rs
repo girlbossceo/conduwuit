@@ -100,6 +100,10 @@ pub struct Service {
 }
 
 impl Service {
+    pub fn delete_all_pdus_for_room(&self, room_id: &RoomId) -> Result<()> {
+        self.db.delete_all_pdus_for_room(room_id)
+    }
+
     #[tracing::instrument(skip(self))]
     pub fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
         self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?

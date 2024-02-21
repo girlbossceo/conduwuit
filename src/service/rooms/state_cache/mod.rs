@@ -232,6 +232,10 @@ impl Service {
         self.db.update_joined_count(room_id)
     }
 
+    pub fn delete_room_join_counts(&self, room_id: &RoomId) -> Result<()> {
+        self.db.delete_room_join_counts(room_id)
+    }
+
     #[tracing::instrument(skip(self, room_id))]
     pub fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<OwnedUserId>>> {
         self.db.get_our_real_users(room_id)

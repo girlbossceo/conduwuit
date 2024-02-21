@@ -321,6 +321,14 @@ impl Service {
         self.db.set_room_state(room_id, shortstatehash, mutex_lock)
     }
 
+    pub fn delete_room_shortstatehash(
+        &self,
+        room_id: &RoomId,
+        mutex_lock: &MutexGuard<'_, ()>,
+    ) -> Result<()> {
+        self.db.delete_room_shortstatehash(room_id, mutex_lock)
+    }
+
     /// Returns the room's version.
     #[tracing::instrument(skip(self))]
     pub fn get_room_version(&self, room_id: &RoomId) -> Result<RoomVersionId> {
@@ -360,6 +368,10 @@ impl Service {
     ) -> Result<()> {
         self.db
             .set_forward_extremities(room_id, event_ids, state_lock)
+    }
+
+    pub fn delete_all_rooms_forward_extremities(&self, room_id: &RoomId) -> Result<()> {
+        self.db.delete_all_rooms_forward_extremities(room_id)
     }
 
     /// This fetches auth events from the current state.

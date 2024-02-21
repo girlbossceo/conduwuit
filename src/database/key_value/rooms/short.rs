@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use ruma::{events::StateEventType, EventId, RoomId};
-use tracing::warn;
+use tracing::{error, warn};
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -215,5 +215,24 @@ impl service::rooms::short::Data for KeyValueDatabase {
                 short
             }
         })
+    }
+
+    /// Attempts to delete a shortroomid from the kv database
+    fn delete_shortroomid(&self, room_id: &RoomId) -> Result<()> {
+        match self.roomid_shortroomid.get(room_id.as_bytes())? {
+            Some(short) => {
+                self.roomid_shortroomid.remove(&short).map_err(|e| {
+                    error!("Failed to remove shortroomid in database: {e}");
+                    Error::bad_database("Failed to remove shortroomid in database")
+                })?;
+            }
+            None => {
+                return Err(Error::bad_database(
+                    "Invalid or non-existent shortroomid in db.",
+                ))?
+            }
+        }
+
+        Ok(())
     }
 }

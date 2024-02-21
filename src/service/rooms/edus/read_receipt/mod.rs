@@ -52,4 +52,8 @@ impl Service {
     pub fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
         self.db.last_privateread_update(user_id, room_id)
     }
+
+    pub fn delete_all_private_read_receipts(&self, room_id: &RoomId) -> Result<()> {
+        self.db.delete_all_private_read_receipts(room_id)
+    }
 }

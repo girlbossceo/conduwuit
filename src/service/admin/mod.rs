@@ -166,6 +166,9 @@ enum RoomCommand {
     /// - List all rooms the server knows about
     List { page: Option<usize> },
 
+    /// - Attempts to delete a room from our database using room ID
+    Delete { room_id: Box<RoomId> },
+
     #[command(subcommand)]
     /// - Manage moderation of remote or local rooms
     Moderation(RoomModeration),
@@ -828,6 +831,180 @@ impl Service {
                 }
             },
             AdminCommand::Rooms(command) => match command {
+                RoomCommand::Delete { room_id } => {
+                    RoomMessageEventContent::text_plain("Deleting room, this may take a while.");
+
+                    // 1. check if we know about this room in the first place
+                    debug!("Checking if we have room {} in our database", &room_id);
+                    if !services().rooms.metadata.exists(&room_id)? {
+                        return Ok(RoomMessageEventContent::text_plain(
+                            "Cannot delete a room we do not know about (would not exist in our database).",
+                        ));
+                    }
+
+                    let owned_room_id = RoomId::parse(&room_id).ok().unwrap();
+
+                    // 2. disable incoming federation
+                    debug!("Disabling incoming federation on room {}", &room_id);
+                    services().rooms.metadata.disable_room(&room_id, true)?;
+
+                    // ??. deleting all our room aliases from the room
+                    debug!("Deleting all our room aliases for the room");
+                    for alias in services()
+                        .rooms
+                        .alias
+                        .local_aliases_for_room(&room_id)
+                        .filter_map(|r| r.ok())
+                    {
+                        services().rooms.alias.remove_alias(&alias)?;
+                    }
+
+                    // ??. removing the room from our room directory
+                    debug!("Removing/unpublishing room from our room directory");
+                    services().rooms.directory.set_not_public(&room_id)?;
+
+                    // 3. ban the room locally so new users cannot join while we're in the process of deleting it
+                    debug!("Banning room {}", &room_id);
+                    services().rooms.metadata.ban_room(&room_id, true)?;
+
+                    // 3. attempt to make all our local users in that room leave
+                    // TODO: add a "force" option to ignore errors making users leave
+                    debug!("Making all users leave the room {}", &room_id);
+                    for local_user in services()
+                        .rooms
+                        .state_cache
+                        .room_members(&room_id)
+                        .filter_map(|user| {
+                            user.ok().filter(|local_user| {
+                                local_user.server_name() == services().globals.server_name()
+                            })
+                        })
+                        .collect::<Vec<OwnedUserId>>()
+                    {
+                        debug!(
+                            "Attempting leave for user {} in room {}",
+                            &local_user, &room_id
+                        );
+                        if let Err(e) = leave_room(&local_user, &room_id, None).await {
+                            error!("Error attempting to delete room {} during local user leave step, re-enabling the room: {}", &room_id, e);
+                            // undo our changes to the room to be safe
+                            services().rooms.metadata.disable_room(&room_id, false)?;
+                            services().rooms.metadata.ban_room(&room_id, false)?;
+                            return Ok(RoomMessageEventContent::text_plain(format!("Error occurred while attempting to make user {} leave the room, re-enabling it. If you would like to ignore errors (potentially dangerous!), use --force", &local_user)));
+                        }
+                    }
+
+                    // 4. make all our local users forget the room so they stop receiving new information about it (e.g. notifications)
+                    for local_user in services()
+                        .rooms
+                        .state_cache
+                        .room_members(&room_id)
+                        .filter_map(|user| {
+                            user.ok().filter(|local_user| {
+                                local_user.server_name() == services().globals.server_name()
+                            })
+                        })
+                        .collect::<Vec<OwnedUserId>>()
+                    {
+                        debug!(
+                            "Attempting to forget room for user {} in room {}",
+                            &local_user, &room_id
+                        );
+                        services().rooms.state_cache.forget(&room_id, &local_user)?;
+                    }
+
+                    debug!("Deleting room's threads from database");
+                    services()
+                        .rooms
+                        .threads
+                        .delete_all_rooms_threads(&room_id)?;
+
+                    // ??. delete all the room's search token IDs from our database
+                    debug!("Deleting all the room's search token IDs from our database");
+                    services()
+                        .rooms
+                        .search
+                        .delete_all_search_tokenids_for_room(&room_id)?;
+
+                    // ??. delete all the room's forward extremities from our database
+                    debug!("Deleting all room's forward extremities from our database");
+                    services()
+                        .rooms
+                        .state
+                        .delete_all_rooms_forward_extremities(&room_id)?;
+
+                    // ??. delete all the room's event (PDU) references
+                    debug!("Deleting all the room's event (PDU) references");
+                    services()
+                        .rooms
+                        .pdu_metadata
+                        .delete_all_referenced_for_room(&room_id)?;
+
+                    // ??. delete all the room's member counts
+                    debug!("Deleting all the room's member counts");
+                    services()
+                        .rooms
+                        .state_cache
+                        .delete_room_join_counts(&room_id)?;
+
+                    // ??. delete all the room's private read receipts
+                    debug!("Deleting all the room's private read receipts");
+                    services()
+                        .rooms
+                        .edus
+                        .read_receipt
+                        .delete_all_private_read_receipts(&room_id)?;
+
+                    // ??. delete all the room's typing indicator updates
+                    debug!("Deleting all the room's typing indicator updates");
+                    services()
+                        .rooms
+                        .edus
+                        .typing
+                        .delete_all_typing_updates(&room_id)?;
+
+                    debug!("Final stages of deleting the room");
+
+                    // 2. obtain a mutex state lock
+                    debug!(
+                        "Obtaining a mutex state lock for safety and future database operations"
+                    );
+                    let mutex_state = Arc::clone(
+                        services()
+                            .globals
+                            .roomid_mutex_state
+                            .write()
+                            .unwrap()
+                            .entry(owned_room_id.clone())
+                            .or_default(),
+                    );
+                    let state_lock = mutex_state.lock().await;
+
+                    // ??. delete the room state hash from our database
+                    debug!("Deleting room state hash from our database");
+                    services()
+                        .rooms
+                        .state
+                        .delete_room_shortstatehash(&room_id, &state_lock)?;
+
+                    // ??. delete the room ID from our database
+                    debug!("Deleting internal room ID from our database");
+                    services().rooms.short.delete_shortroomid(&room_id)?;
+
+                    // unbanning and allowing incoming federation with room again
+                    // TODO: add option to keep a room banned (`--block` or `--ban`)
+                    services().rooms.metadata.disable_room(&room_id, false)?;
+                    services().rooms.metadata.ban_room(&room_id, false)?;
+
+                    // drop our state lock (we are done)
+                    drop(state_lock);
+
+                    debug!("Successfully deleted room {} from our database", &room_id);
+
+                    return Ok(RoomMessageEventContent::text_plain(
+                        "Successfully deleted the room from our database.",
+                    ));
+                }
                 RoomCommand::Moderation(command) => match command {
                     RoomModeration::BanRoom {
                         force,

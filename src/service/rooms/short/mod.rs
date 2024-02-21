@@ -51,4 +51,8 @@ impl Service {
     pub fn get_or_create_shortroomid(&self, room_id: &RoomId) -> Result<u64> {
         self.db.get_or_create_shortroomid(room_id)
     }
+
+    pub fn delete_shortroomid(&self, room_id: &RoomId) -> Result<()> {
+        self.db.delete_shortroomid(room_id)
+    }
 }

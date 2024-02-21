@@ -3,6 +3,7 @@ use std::mem;
 use ruma::{
     events::receipt::ReceiptEvent, serde::Raw, CanonicalJsonObject, OwnedUserId, RoomId, UserId,
 };
+use tracing::debug;
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -115,6 +116,23 @@ impl service::rooms::edus::read_receipt::Data for KeyValueDatabase {
 
         self.roomuserid_lastprivatereadupdate
             .insert(&key, &services().globals.next_count()?.to_be_bytes())
+    }
+
+    fn delete_all_private_read_receipts(&self, room_id: &RoomId) -> Result<()> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        for (key, _) in self.roomuserid_privateread.scan_prefix(prefix.clone()) {
+            debug!("Removing key {:?}", key);
+            self.roomuserid_privateread.remove(&key)?;
+        }
+
+        for (key, _) in self.roomuserid_lastprivatereadupdate.scan_prefix(prefix) {
+            debug!("Removing key {:?}", key);
+            self.roomuserid_lastprivatereadupdate.remove(&key)?;
+        }
+
+        Ok(())
     }
 
     fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {

@@ -15,6 +15,12 @@ pub trait Data: Send + Sync {
         _mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<()>;
 
+    fn delete_room_shortstatehash(
+        &self,
+        room_id: &RoomId,
+        _mutex_lock: &MutexGuard<'_, ()>,
+    ) -> Result<()>;
+
     /// Associates a state with an event.
     fn set_event_state(&self, shorteventid: u64, shortstatehash: u64) -> Result<()>;
 
@@ -28,4 +34,6 @@ pub trait Data: Send + Sync {
         event_ids: Vec<OwnedEventId>,
         _mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
     ) -> Result<()>;
+
+    fn delete_all_rooms_forward_extremities(&self, room_id: &RoomId) -> Result<()>;
 }

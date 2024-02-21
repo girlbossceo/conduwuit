@@ -13,5 +13,8 @@ pub trait Data: Send + Sync {
     ) -> PduEventIterResult<'a>;
 
     fn update_participants(&self, root_id: &[u8], participants: &[OwnedUserId]) -> Result<()>;
+
     fn get_participants(&self, root_id: &[u8]) -> Result<Option<Vec<OwnedUserId>>>;
+
+    fn delete_all_rooms_threads(&self, room_id: &RoomId) -> Result<()>;
 }

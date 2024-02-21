@@ -27,6 +27,8 @@ pub trait Data: Send + Sync {
 
     fn update_joined_count(&self, room_id: &RoomId) -> Result<()>;
 
+    fn delete_room_join_counts(&self, room_id: &RoomId) -> Result<()>;
+
     fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<OwnedUserId>>>;
 
     fn appservice_in_room(

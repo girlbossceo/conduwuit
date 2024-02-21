@@ -7,6 +7,7 @@ use ruma::{
     serde::Raw,
     OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
+use tracing::debug;
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -95,6 +96,28 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
         self.roomuserid_joined.remove(&roomuser_id)?;
         self.userroomid_invitestate.remove(&userroom_id)?;
         self.roomuserid_invitecount.remove(&roomuser_id)?;
+
+        Ok(())
+    }
+
+    fn delete_room_join_counts(&self, room_id: &RoomId) -> Result<()> {
+        let mut prefix = room_id.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        for (key, _) in self.roomid_joinedcount.scan_prefix(prefix.clone()) {
+            debug!("Removing key: {:?}", key);
+            self.roomid_joinedcount.remove(&key)?;
+        }
+
+        for (key, _) in self.roomid_invitedcount.scan_prefix(prefix.clone()) {
+            debug!("Removing key: {:?}", key);
+            self.roomid_invitedcount.remove(&key)?;
+        }
+
+        for (key, _) in self.roomserverids.scan_prefix(prefix.clone()) {
+            debug!("Removing key: {:?}", key);
+            self.roomserverids.remove(&key)?;
+        }
 
         Ok(())
     }
@@ -190,7 +213,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
         }
     }
 
-    #[tracing::instrument(skip(self, room_id, appservice))]
+    /// Check our room state cache if an appservice is in the room ID
     fn appservice_in_room(
         &self,
         room_id: &RoomId,
@@ -280,8 +303,8 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
         }))
     }
 
-    #[tracing::instrument(skip(self))]
-    fn server_in_room<'a>(&'a self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
+    /// Check our room state cache if a server is in the room ID
+    fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(room_id.as_bytes());

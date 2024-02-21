@@ -16,6 +16,7 @@ pub trait Data: Send + Sync {
         until: PduCount,
     ) -> PduData<'a>;
     fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()>;
+    fn delete_all_referenced_for_room(&self, room_id: &RoomId) -> Result<()>;
     fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool>;
     fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()>;
     fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool>;

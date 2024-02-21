@@ -16,6 +16,8 @@ pub trait Data: Send + Sync {
     /// Returns the count of the last typing update in this room.
     fn last_typing_update(&self, room_id: &RoomId) -> Result<u64>;
 
+    fn delete_all_typing_updates(&self, room_id: &RoomId) -> Result<()>;
+
     /// Returns all user ids currently typing.
     fn typings_all(&self, room_id: &RoomId) -> Result<HashSet<OwnedUserId>>;
 }
