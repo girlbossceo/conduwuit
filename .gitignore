@@ -74,3 +74,6 @@ test-conduit.toml
 
 # Gitlab CI cache
 /.gitlab-ci.d
+
+# macOS
+.DS_Store
