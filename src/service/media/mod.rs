@@ -8,7 +8,7 @@ use std::{
 
 pub(crate) use data::Data;
 use serde::Serialize;
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 use crate::{services, Error, Result};
 use image::imageops::FilterType;
@@ -93,45 +93,30 @@ impl Service {
 
     /// Deletes a file in the database and from the media directory via an MXC
     pub async fn delete(&self, mxc: String) -> Result<()> {
-        if let Ok(filemeta) = self.get(mxc.clone()).await {
-            match filemeta {
-                Some(filemeta) => {
-                    debug!("Got file metadata: {:?}", filemeta);
-                    let file_key = filemeta.file;
-                    debug!("File key from file metadata: {:?}", file_key);
+        if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc.clone()) {
+            for key in keys {
+                let file_path = if cfg!(feature = "sha256_media") {
+                    services().globals.get_media_file_new(&key)
+                } else {
+                    #[allow(deprecated)]
+                    services().globals.get_media_file(&key)
+                };
+                debug!("Got local file path: {:?}", file_path);
 
-                    let file_path = if cfg!(feature = "sha256_media") {
-                        services().globals.get_media_file_new(&file_key)
-                    } else {
-                        #[allow(deprecated)]
-                        services().globals.get_media_file(&file_key)
-                    };
-                    debug!("Got local file path: {:?}", file_path);
+                debug!(
+                    "Deleting local file {:?} from filesystem, original MXC: {}",
+                    file_path, mxc
+                );
+                tokio::fs::remove_file(file_path).await?;
 
-                    debug!(
-                        "Deleting local file {:?} from filesystem, original MXC: {mxc}",
-                        file_path
-                    );
-                    tokio::fs::remove_file(file_path).await?;
-
-                    debug!("Deleting MXC {mxc} from database");
-                    self.db.delete_file_mxc(mxc)?;
-
-                    Ok(())
-                }
-                None => {
-                    warn!(
-                        "MXC {mxc} does not exist in our database or file in MXC does not exist."
-                    );
-                    Err(Error::bad_database(
-                        "MXC does not exist in our database or file in MXC does not exist.",
-                    ))
-                }
+                debug!("Deleting MXC {mxc} from database");
+                self.db.delete_file_mxc(mxc.clone())?;
             }
+
+            Ok(())
         } else {
-            // we shouldn't get to this point as this is failing to actually attempt to get the file metadata (Result)
-            error!("Failed getting file metadata for MXC \"{mxc}\" in database (does not exist or database issue?)");
-            Err(Error::bad_database("Failed getting file metadata via MXC in database (does not exist or database issue?)"))
+            error!("Failed to find any media keys for MXC \"{mxc}\" in our database (MXC does not exist)");
+            Err(Error::bad_database("Failed to find any media keys for the provided MXC in our database (MXC does not exist)"))
         }
     }
 

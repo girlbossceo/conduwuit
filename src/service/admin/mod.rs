@@ -27,8 +27,8 @@ use ruma::{
         },
         TimelineEventType,
     },
-    EventId, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId,
-    RoomVersionId, ServerName, UserId,
+    EventId, MxcUri, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId,
+    RoomOrAliasId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex};
@@ -70,11 +70,25 @@ enum AdminCommand {
     Server(ServerCommand),
 
     #[command(subcommand)]
+    /// - Commands for managing media
+    Media(MediaCommand),
+
+    #[command(subcommand)]
     // TODO: should i split out debug commands to a separate thing? the
     // debug commands seem like they could fit in the other categories fine
     // this is more like a "miscellaneous" category than a debug one
     /// - Commands for debugging things
     Debug(DebugCommand),
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+enum MediaCommand {
+    /// - Deletes a single media file from our database and on the filesystem via a single MXC URI
+    Delete {
+        /// The MXC URI to delete
+        mxc: Box<MxcUri>,
+    },
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -604,6 +618,16 @@ impl Service {
                     } else {
                         RoomMessageEventContent::text_plain("Failed to get appservices.")
                     }
+                }
+            },
+            AdminCommand::Media(command) => match command {
+                MediaCommand::Delete { mxc } => {
+                    debug!("Got MXC URI: {}", mxc);
+                    services().media.delete(mxc.to_string()).await?;
+
+                    return Ok(RoomMessageEventContent::text_plain(
+                        "Deleted the MXC from our database and on our filesystem.",
+                    ));
                 }
             },
             AdminCommand::Users(command) => match command {

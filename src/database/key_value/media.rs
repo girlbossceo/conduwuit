@@ -1,4 +1,5 @@
 use ruma::api::client::error::ErrorKind;
+use tracing::debug;
 
 use crate::{
     database::KeyValueDatabase,
@@ -40,12 +41,44 @@ impl service::media::Data for KeyValueDatabase {
     }
 
     fn delete_file_mxc(&self, mxc: String) -> Result<()> {
-        let mut key = mxc.as_bytes().to_vec();
-        key.push(0xff);
+        debug!("MXC URI: {:?}", mxc);
 
-        self.mediaid_file.remove(&key)?;
+        let mut prefix = mxc.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        debug!("MXC db prefix: {:?}", prefix);
+
+        for (key, _) in self.mediaid_file.scan_prefix(prefix) {
+            debug!("Deleting key: {:?}", key);
+            self.mediaid_file.remove(&key)?;
+        }
+        //return Err(Error::bad_database("Media not found."));
 
         Ok(())
+    }
+
+    /// Searches for all files with the given MXC (e.g. thumbnail and original image)
+    fn search_mxc_metadata_prefix(&self, mxc: String) -> Result<Vec<Vec<u8>>> {
+        debug!("MXC URI: {:?}", mxc);
+
+        let mut prefix = mxc.as_bytes().to_vec();
+        prefix.push(0xff);
+
+        let mut keys: Vec<Vec<u8>> = vec![];
+
+        for (key, _) in self.mediaid_file.scan_prefix(prefix) {
+            keys.push(key);
+        }
+
+        if keys.is_empty() {
+            return Err(Error::bad_database(
+                "Failed to find any keys in database with the provided MXC.",
+            ));
+        }
+
+        debug!("Got the following keys: {:?}", keys);
+
+        Ok(keys)
     }
 
     fn search_file_metadata(
