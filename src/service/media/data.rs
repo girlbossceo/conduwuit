@@ -20,6 +20,8 @@ pub trait Data: Send + Sync {
         height: u32,
     ) -> Result<(Option<String>, Option<String>, Vec<u8>)>;
 
+    fn search_mxc_metadata_prefix(&self, mxc: String) -> Result<Vec<Vec<u8>>>;
+
     fn remove_url_preview(&self, url: &str) -> Result<()>;
 
     fn set_url_preview(
