@@ -39,6 +39,15 @@ impl service::media::Data for KeyValueDatabase {
         Ok(key)
     }
 
+    fn delete_file_mxc(&self, mxc: String) -> Result<()> {
+        let mut key = mxc.as_bytes().to_vec();
+        key.push(0xff);
+
+        self.mediaid_file.remove(&key)?;
+
+        Ok(())
+    }
+
     fn search_file_metadata(
         &self,
         mxc: String,

@@ -10,6 +10,8 @@ pub trait Data: Send + Sync {
         content_type: Option<&str>,
     ) -> Result<Vec<u8>>;
 
+    fn delete_file_mxc(&self, mxc: String) -> Result<()>;
+
     /// Returns content_disposition, content_type and the metadata key.
     fn search_file_metadata(
         &self,
