@@ -277,3 +277,14 @@ allow_check_for_updates = true
 
 # Config option to control how many seconds before presence updates that you are offline. Defaults to 30 minutes.
 #presence_offline_timeout_s = 1800
+
+
+
+# Other options not in [global]:
+#
+#
+# Enables running conduwuit with direct TLS support
+# It is strongly recommended you use a reverse proxy instead. This is primarily relevant for test suites like complement that require a private CA setup.
+# [global.tls]
+# certs = "/path/to/my/certificate.crt"
+# key = "/path/to/my/private_key.key"

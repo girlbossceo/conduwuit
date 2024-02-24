@@ -233,7 +233,7 @@ async fn main() {
 
     info!("Starting server");
     if let Err(e) = run_server().await {
-        error!("Critical error running server: {}", e);
+        error!("Critical error starting server: {}", e);
     };
 
     // if server runs into critical error and shuts down, shut down the tracer provider if jaegar is used.
@@ -359,7 +359,13 @@ async fn run_server() -> io::Result<()> {
     } else {
         match &config.tls {
             Some(tls) => {
+                debug!(
+                    "Using direct TLS. Certificate path {} and certificate private key path {}",
+                    &tls.certs, &tls.key
+                );
+                info!("Note: It is strongly recommended that you use a reverse proxy instead of running conduwuit directly with TLS.");
                 let conf = RustlsConfig::from_pem_file(&tls.certs, &tls.key).await?;
+                debug!("Rustlsconfig: {:?}", conf);
 
                 let mut join_set = JoinSet::new();
                 for addr in &addrs {
@@ -373,7 +379,10 @@ async fn run_server() -> io::Result<()> {
                 #[cfg(feature = "systemd")]
                 let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
-                info!("Listening on {:?}", addrs);
+                info!(
+                    "Listening on {:?} with TLS certificates {}",
+                    addrs, &tls.certs
+                );
                 join_set.join_next().await;
             }
             None => {
