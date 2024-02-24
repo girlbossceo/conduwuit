@@ -170,6 +170,10 @@ pub struct Config {
 pub struct TlsConfig {
     pub certs: String,
     pub key: String,
+    #[serde(default)]
+    /// Whether to listen and allow for HTTP and HTTPS connections (insecure!)
+    /// Only works / does something if the `axum_dual_protocol` feature flag was built
+    pub dual_protocol: bool,
 }
 
 const DEPRECATED_KEYS: &[&str] = &["cache_capacity"];
