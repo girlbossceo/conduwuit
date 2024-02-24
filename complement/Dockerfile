@@ -48,6 +48,9 @@ RUN echo 'allow_outgoing_presence = true' >> conduit.toml
 RUN echo 'allow_incoming_presence = true' >> conduit.toml
 RUN echo 'allow_local_presence = true' >> conduit.toml
 RUN sed -i "s/address = \"127.0.0.1\"/address = \"0.0.0.0\"/g" conduit.toml
+RUN echo '[global.tls]' >> conduit.toml
+RUN echo 'certs = "/complement/ca/ca.crt"' >> conduit.toml
+RUN echo 'key = "/complement/ca/ca.key"' >> conduit.toml
 
 EXPOSE 8008 8448
 
