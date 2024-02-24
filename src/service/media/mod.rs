@@ -395,6 +395,14 @@ mod tests {
             Ok(key)
         }
 
+        fn delete_file_mxc(&self, _mxc: String) -> Result<()> {
+            todo!()
+        }
+
+        fn search_mxc_metadata_prefix(&self, _mxc: String) -> Result<Vec<Vec<u8>>> {
+            todo!()
+        }
+
         fn search_file_metadata(
             &self,
             _mxc: String,
