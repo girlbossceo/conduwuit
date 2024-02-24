@@ -5,6 +5,8 @@ use std::{
     path::PathBuf,
 };
 
+use either::Either;
+
 use figment::Figment;
 
 use itertools::Itertools;
@@ -17,15 +19,22 @@ mod proxy;
 
 use self::proxy::ProxyConfig;
 
+#[derive(Deserialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct ListeningPort {
+    #[serde(with = "either::serde_untagged")]
+    pub ports: Either<u16, Vec<u16>>,
+}
+
 /// all the config options for conduwuit
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
     /// [`IpAddr`] conduwuit will listen on (can be IPv4 or IPv6)
     #[serde(default = "default_address")]
     pub address: IpAddr,
-    /// default TCP port conduwuit will listen on
+    /// default TCP port(s) conduwuit will listen on
     #[serde(default = "default_port")]
-    pub port: u16,
+    pub port: ListeningPort,
     pub tls: Option<TlsConfig>,
     pub unix_socket_path: Option<PathBuf>,
     #[serde(default = "default_unix_socket_perms")]
@@ -400,8 +409,10 @@ fn default_address() -> IpAddr {
     Ipv4Addr::LOCALHOST.into()
 }
 
-fn default_port() -> u16 {
-    8000
+fn default_port() -> ListeningPort {
+    ListeningPort {
+        ports: Either::Left(8008),
+    }
 }
 
 fn default_unix_socket_perms() -> u32 {

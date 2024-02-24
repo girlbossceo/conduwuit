@@ -11,6 +11,7 @@ use axum::{
 };
 use axum_server::{bind, bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
 use conduit::api::{client_server, server_server};
+use either::Either::{Left, Right};
 use figment::{
     providers::{Env, Format, Toml},
     Figment,
@@ -28,7 +29,7 @@ use ruma::api::{
     },
     IncomingRequest,
 };
-use tokio::{net::UnixListener, signal, sync::oneshot};
+use tokio::{net::UnixListener, signal, sync::oneshot, task::JoinSet};
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{self, CorsLayer},
@@ -244,7 +245,24 @@ async fn main() {
 
 async fn run_server() -> io::Result<()> {
     let config = &services().globals.config;
-    let addr = SocketAddr::from((config.address, config.port));
+
+    let addrs = match &config.port.ports {
+        Left(port) => {
+            // Left is only 1 value, so make a vec with 1 value only
+            let port_vec = [port];
+
+            port_vec
+                .iter()
+                .copied()
+                .map(|port| SocketAddr::from((config.address, *port)))
+                .collect::<Vec<_>>()
+        }
+        Right(ports) => ports
+            .iter()
+            .copied()
+            .map(|port| SocketAddr::from((config.address, port)))
+            .collect::<Vec<_>>(),
+    };
 
     let x_requested_with = HeaderName::from_static("x-requested-with");
 
@@ -342,22 +360,33 @@ async fn run_server() -> io::Result<()> {
         match &config.tls {
             Some(tls) => {
                 let conf = RustlsConfig::from_pem_file(&tls.certs, &tls.key).await?;
-                let server = bind_rustls(addr, conf).handle(handle).serve(app);
+
+                let mut join_set = JoinSet::new();
+                for addr in &addrs {
+                    join_set.spawn(
+                        bind_rustls(*addr, conf.clone())
+                            .handle(handle.clone())
+                            .serve(app.clone()),
+                    );
+                }
 
                 #[cfg(feature = "systemd")]
                 let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
-                info!("Listening on {}", addr);
-                server.await?
+                info!("Listening on {:?}", addrs);
+                join_set.join_next().await;
             }
             None => {
-                let server = bind(addr).handle(handle).serve(app);
+                let mut join_set = JoinSet::new();
+                for addr in &addrs {
+                    join_set.spawn(bind(*addr).handle(handle.clone()).serve(app.clone()));
+                }
 
                 #[cfg(feature = "systemd")]
                 let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
-                info!("Listening on {}", addr);
-                server.await?
+                info!("Listening on {:?}", addrs);
+                join_set.join_next().await;
             }
         }
     }
