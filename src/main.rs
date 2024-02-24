@@ -43,6 +43,9 @@ use tokio::sync::oneshot::Sender;
 
 use clap::Parser;
 
+#[cfg(feature = "axum_dual_protocol")]
+use axum_server_dual_protocol::ServerExt;
+
 pub use conduit::*; // Re-export everything from the library crate
 
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
@@ -265,9 +268,11 @@ async fn run_server() -> io::Result<()> {
     };
 
     let x_requested_with = HeaderName::from_static("x-requested-with");
+    let x_forwarded_for = HeaderName::from_static("x-forwarded-for");
 
     let middlewares = ServiceBuilder::new()
         .sensitive_headers([header::AUTHORIZATION])
+        .sensitive_request_headers([x_forwarded_for].into())
         .layer(axum::middleware::from_fn(spawn_task))
         .layer(
             TraceLayer::new_for_http()
@@ -365,24 +370,50 @@ async fn run_server() -> io::Result<()> {
                 );
                 info!("Note: It is strongly recommended that you use a reverse proxy instead of running conduwuit directly with TLS.");
                 let conf = RustlsConfig::from_pem_file(&tls.certs, &tls.key).await?;
-                debug!("Rustlsconfig: {:?}", conf);
+
+                if cfg!(feature = "axum_dual_protocol") {
+                    info!(
+                        "conduwuit was built with axum_dual_protocol feature to listen on both HTTP and HTTPS. This will only take affect if `dual_protocol` is enabled in `[global.tls]`"
+                    );
+                }
 
                 let mut join_set = JoinSet::new();
-                for addr in &addrs {
-                    join_set.spawn(
-                        bind_rustls(*addr, conf.clone())
-                            .handle(handle.clone())
-                            .serve(app.clone()),
-                    );
+
+                if cfg!(feature = "axum_dual_protocol") && tls.dual_protocol {
+                    #[cfg(feature = "axum_dual_protocol")]
+                    for addr in &addrs {
+                        join_set.spawn(
+                            axum_server_dual_protocol::bind_dual_protocol(*addr, conf.clone())
+                                .set_upgrade(false)
+                                .handle(handle.clone())
+                                .serve(app.clone()),
+                        );
+                    }
+                } else {
+                    for addr in &addrs {
+                        join_set.spawn(
+                            bind_rustls(*addr, conf.clone())
+                                .handle(handle.clone())
+                                .serve(app.clone()),
+                        );
+                    }
                 }
 
                 #[cfg(feature = "systemd")]
                 let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
-                info!(
-                    "Listening on {:?} with TLS certificates {}",
+                if cfg!(feature = "axum_dual_protocol") && tls.dual_protocol {
+                    warn!(
+                    "Listening on {:?} with TLS certificate {} and supporting plain text (HTTP) connections too (insecure!)",
                     addrs, &tls.certs
                 );
+                } else {
+                    info!(
+                        "Listening on {:?} with TLS certificate {}",
+                        addrs, &tls.certs
+                    );
+                }
+
                 join_set.join_next().await;
             }
             None => {

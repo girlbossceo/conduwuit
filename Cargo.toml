@@ -108,6 +108,12 @@ rocksdb = { version = "0.22.0", default-features = true, features = ["multi-thre
 
 either = { version = "1.10.0", features = ["serde"] }
 
+# to listen on both HTTP and HTTPS
+axum-server-dual-protocol = { version = "0.5.2", optional = true }
+
+# to encode/decode percent URIs when conduwuit is running without a reverse proxy
+urlencoding = "2.1.3"
+
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.28.0", features = ["resource"] }
@@ -126,6 +132,7 @@ zstd_compression = []
 #compression = ["tower-http/compression-full"]
 sha256_media = []
 io_uring = ["rocksdb/io-uring"]
+axum_dual_protocol = ["axum-server-dual-protocol"]
 
 [[bin]]
 name = "conduit"

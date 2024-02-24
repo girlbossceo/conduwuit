@@ -190,6 +190,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-server-dual-protocol"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d1a8f5076b5dbfeb706bcce30fe73caf20971e6e5ca80b83a7f1d990e73e185"
+dependencies = [
+ "axum-server",
+ "bytes",
+ "http",
+ "hyper",
+ "pin-project",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tower-layer",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -394,6 +411,7 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-server",
+ "axum-server-dual-protocol",
  "base64",
  "bytes",
  "clap",
@@ -444,6 +462,7 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "trust-dns-resolver",
+ "urlencoding",
  "webpage",
 ]
 
