@@ -73,7 +73,12 @@ pub async fn join_room_by_id_route(
             .map(|user| user.server_name().to_owned()),
     );
 
-    servers.push(body.room_id.server_name().unwrap().into());
+    // server names being permanently attached to room IDs may be potentally removed in the future (see MSC4051).
+    // for future compatibility with this, and just because it makes sense, we shouldn't fail if the room ID
+    // doesn't have a server name with it and just use at least the server name from the initial invite above
+    if let Some(server) = body.room_id.server_name() {
+        servers.push(server.into());
+    }
 
     join_room_by_id_helper(
         body.sender_user.as_deref(),
@@ -123,7 +128,12 @@ pub async fn join_room_by_id_or_alias_route(
                     .map(|user| user.server_name().to_owned()),
             );
 
-            servers.push(room_id.server_name().unwrap().into());
+            // server names being permanently attached to room IDs may be potentally removed in the future (see MSC4051).
+            // for future compatibility with this, and just because it makes sense, we shouldn't fail if the room ID
+            // doesn't have a server name with it and just use at least the server name from the initial invite above
+            if let Some(server) = room_id.server_name() {
+                servers.push(server.into());
+            }
 
             (servers, room_id)
         }
