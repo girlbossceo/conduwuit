@@ -108,7 +108,7 @@ rocksdb = { version = "0.22.0", default-features = true, features = ["multi-thre
 
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.27.1", features = ["resource"] }
+nix = { version = "0.28.0", features = ["resource"] }
 
 [features]
 default = ["conduit_bin", "backend_rocksdb", "systemd", "zstd_compression"]
