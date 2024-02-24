@@ -186,15 +186,16 @@ impl Service {
                 if rooms_in_path.len() < max_depth {
                     stack.push(children_ids);
                 }
-            } else {
-                let server = current_room.server_name().unwrap();
+            } else if let Some(server) = current_room.server_name() {
                 if server == services().globals.server_name() {
                     continue;
                 }
+
                 if !results.is_empty() {
                     // Early return so the client can see some data already
                     break;
                 }
+
                 debug!("Asking {server} for /hierarchy");
                 if let Ok(response) = services()
                     .sending
