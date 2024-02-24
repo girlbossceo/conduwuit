@@ -69,3 +69,5 @@
 - Add support for the deprecated `user` identifier field for all `/login` requests
 - Query parameter `?format=event|content` for returning either the room state event's content (default) for the full room state event on ` /_matrix/client/v3/rooms/{roomId}/state/{eventType}[/{stateKey}]` requests (see https://github.com/matrix-org/matrix-spec/issues/1047)
 - Add admin commands for banning (blocking) room IDs from our local users joining (admins are always allowed) and evicts all our local users from that room, in addition to bulk room banning support, as a moderation feature
+- Add admin command to delete media via a specific MXC (currently only deletes that MXC only, not the thumbnail with it as they are entirely different MXC URLs). This deletes the MXC from our database, and the file locally.
+- Replace the lightning bolt emoji option with support for setting any arbitrary text (e.g. another emoji) to suffix to all new user registrations
