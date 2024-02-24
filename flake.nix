@@ -34,10 +34,8 @@
 
       rocksdb' = pkgs: pkgs.rocksdb.overrideAttrs (old:
               {
-                src = pkgs.fetchFromGitHub {
-                  owner = "facebook";
-                  repo = "rocksdb";
-                  rev = "v8.10.0";
+                version = "8.10.0";
+                src = old.src.override {
                   hash = "sha256-KGsYDBc1fz/90YYNGwlZ0LUKXYsP1zyhP29TnRQwgjQ=";
                 };
               });
