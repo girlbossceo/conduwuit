@@ -957,7 +957,7 @@ impl KeyValueDatabase {
 
             assert_eq!(
                 services().globals.database_version().unwrap(),
-                latest_database_version
+                latest_database_version, "Failed asserting local database version {} is equal to known latest conduwuit database version {}", services().globals.database_version().unwrap(), latest_database_version
             );
 
             {
