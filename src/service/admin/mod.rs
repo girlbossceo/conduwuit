@@ -89,6 +89,9 @@ enum MediaCommand {
         /// The MXC URI to delete
         mxc: Box<MxcUri>,
     },
+
+    /// - Deletes a codeblock list of MXC URLs from our database and on the filesystem
+    DeleteList,
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -628,6 +631,28 @@ impl Service {
                     return Ok(RoomMessageEventContent::text_plain(
                         "Deleted the MXC from our database and on our filesystem.",
                     ));
+                }
+                MediaCommand::DeleteList => {
+                    if body.len() > 2
+                        && body[0].trim().starts_with("```")
+                        && body.last().unwrap().trim() == "```"
+                    {
+                        let mxc_list = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+
+                        let mut mxc_deletion_count = 0;
+
+                        for mxc in mxc_list {
+                            debug!("Deleting MXC {} in bulk", mxc);
+                            services().media.delete(mxc.to_owned()).await?;
+                            mxc_deletion_count += 1;
+                        }
+
+                        return Ok(RoomMessageEventContent::text_plain(format!("Finished bulk MXC deletion, deleted {} total MXCs from our database and the filesystem.", mxc_deletion_count)));
+                    } else {
+                        return Ok(RoomMessageEventContent::text_plain(
+                            "Expected code block in command body. Add --help for details.",
+                        ));
+                    }
                 }
             },
             AdminCommand::Users(command) => match command {
