@@ -529,6 +529,7 @@ impl Service {
 
                     let to_conduit = body.starts_with(&format!("{server_user}: "))
                         || body.starts_with(&format!("{server_user} "))
+                        || body.starts_with("!admin")
                         || body == format!("{server_user}:")
                         || body == server_user;
 
