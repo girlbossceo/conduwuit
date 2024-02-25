@@ -16,7 +16,6 @@
 - Explicit startup error/warning if your configuration allows open registration without a token or such like Synapse
 - Improved RocksDB defaults to use new features that help with performance significantly, uses settings tailored to SSDs, and a conduwuit setting to tell RocksDB to use settings that are tailored to HDDs or slow spinning rust storage.
 - Updated Ruma to latest commit where possible, and add some unstable MSCs (some still require an implementation though)
-- conduwuit allows MXIDs with `+` in them (thanks to Ruma update)
 - Revamped admin room infrastructure and commands (via upstream MR)
 - Admin room commands to delete room aliases and unpublish rooms from our room directory (via upstream MR)
 - Make spaces/hierarchy cache use cache_capacity_modifier instead of hardcoded small value
@@ -66,7 +65,6 @@
 - URL preview support (via upstream MR) with various improvements
 - Increased graceful shutdown timeout from a low 60 seconds to 180 seconds to avoid killing connections and let the remaining ones finish processing, and ask systemd for more time to shutdown if needed to prevent systemd's default [`TimeoutStopSec=`](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html#TimeoutStopSec=) of 90 seconds from killing conduwuit
 - Bumped default max_concurrent_requests to 500
-- Add support for the deprecated `user` identifier field for all `/login` requests
 - Query parameter `?format=event|content` for returning either the room state event's content (default) for the full room state event on ` /_matrix/client/v3/rooms/{roomId}/state/{eventType}[/{stateKey}]` requests (see https://github.com/matrix-org/matrix-spec/issues/1047)
 - Add admin commands for banning (blocking) room IDs from our local users joining (admins are always allowed) and evicts all our local users from that room, in addition to bulk room banning support, as a moderation feature
 - Add admin command to delete media via a specific MXC (currently only deletes that MXC only, not the thumbnail with it as they are entirely different MXC URLs). This deletes the MXC from our database, and the file locally.
