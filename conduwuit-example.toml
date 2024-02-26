@@ -44,10 +44,11 @@ database_backend = "rocksdb"
 
 ### Network
 
-# The port conduwuit will be running on. You need to set up a reverse proxy such as
+# The port(s) conduwuit will be running on. You need to set up a reverse proxy such as
 # Caddy or Nginx so all requests to /_matrix on port 443 and 8448 will be
 # forwarded to the conduwuit instance running on this port
 # Docker users: Don't change this, you'll need to map an external port to this.
+# To listen on multiple ports, specify a vector e.g. [8080, 8448]
 port = 6167
 
 # default address (IPv4 or IPv6) conduwuit will listen on. Generally you want this to be

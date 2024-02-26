@@ -67,5 +67,9 @@
 - Bumped default max_concurrent_requests to 500
 - Query parameter `?format=event|content` for returning either the room state event's content (default) for the full room state event on ` /_matrix/client/v3/rooms/{roomId}/state/{eventType}[/{stateKey}]` requests (see https://github.com/matrix-org/matrix-spec/issues/1047)
 - Add admin commands for banning (blocking) room IDs from our local users joining (admins are always allowed) and evicts all our local users from that room, in addition to bulk room banning support, as a moderation feature
-- Add admin command to delete media via a specific MXC (currently only deletes that MXC only, not the thumbnail with it as they are entirely different MXC URLs). This deletes the MXC from our database, and the file locally.
+- Add admin command to delete media via a specific MXC. This deletes the MXC from our database, and the file locally.
 - Replace the lightning bolt emoji option with support for setting any arbitrary text (e.g. another emoji) to suffix to all new user registrations
+- Add admin command to bulk delete media via a codeblock list of MXC URLs.
+- Add admin command to delete both the thumbnail and media MXC URLs from an event ID (e.g. from an abuse report)
+- Add `!admin` as a way to call the Conduit admin bot
+- Add support for listening on multiple TCP ports
