@@ -426,7 +426,6 @@ dependencies = [
  "ipaddress",
  "itertools 0.12.1",
  "jsonwebtoken",
- "lazy_static",
  "lru-cache",
  "nix",
  "num_cpus",
@@ -451,7 +450,6 @@ dependencies = [
  "sha2",
  "thiserror",
  "thread_local",
- "threadpool",
  "tikv-jemalloc-ctl",
  "tikv-jemallocator",
  "tokio",
@@ -462,7 +460,6 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "trust-dns-resolver",
- "urlencoding",
  "webpage",
 ]
 
