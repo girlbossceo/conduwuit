@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, iter::FromIterator};
+use std::collections::BTreeMap;
 
 use axum::{response::IntoResponse, Json};
 use ruma::api::client::{discovery::get_supported_versions, error::ErrorKind};

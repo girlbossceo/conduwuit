@@ -164,6 +164,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
         ))
     }
 
+    // TODO: figure out if this is needed for rocksdb
+    #[allow(dead_code)]
     fn clear_caches(&self) {}
 }
 
