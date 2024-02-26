@@ -170,9 +170,6 @@ debug = 0
 lto = 'off'
 incremental = true
 
-[target.'cfg(macos)'.profile.dev]
-split-debuginfo = "unpacked"
-
 # default release profile
 [profile.release]
 lto = 'thin'
