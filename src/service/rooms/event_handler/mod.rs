@@ -7,9 +7,9 @@ use ruma::{
     RoomVersionId,
 };
 use std::{
-    collections::{hash_map, BTreeMap, HashMap, HashSet},
+    collections::{hash_map, HashSet},
     pin::Pin,
-    sync::{Arc, RwLock, RwLockWriteGuard},
+    sync::RwLockWriteGuard,
     time::{Duration, Instant, SystemTime},
 };
 use tokio::sync::Semaphore;
@@ -36,7 +36,7 @@ use ruma::{
 use serde_json::value::RawValue as RawJsonValue;
 use tracing::{debug, error, info, trace, warn};
 
-use crate::{service::*, services, Error, PduEvent, Result};
+use crate::{service::*, services, Error, PduEvent};
 
 use super::state_compressor::CompressedStateEvent;
 
