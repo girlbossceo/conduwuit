@@ -5,6 +5,16 @@ This guide assumes you have a recent version of Nix (^2.4) installed.
 Since Conduit ships as a Nix flake, you'll first need to [enable
 flakes][enable_flakes].
 
+A binary cache for conduwuit that the CI/CD publishes to is available at the
+following places (both are the same just different names):
+```
+https://attic.kennel.juneis.dog/conduit
+conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
+
+https://attic.kennel.juneis.dog/conduwuit
+conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+```
+
 You can now use the usual Nix commands to interact with Conduit's flake. For
 example, `nix run gitlab:famedly/conduit` will run Conduit (though you'll need
 to provide configuration and such manually as usual).
