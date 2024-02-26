@@ -188,7 +188,6 @@ impl Service<'_> {
         ];
         // Experimental, partially supported room versions
         let unstable_room_versions = vec![
-            RoomVersionId::V1,
             RoomVersionId::V2,
             RoomVersionId::V3,
             RoomVersionId::V4,
