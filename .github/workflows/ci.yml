@@ -10,6 +10,7 @@ env:
   # Required to make some things output color
   TERM: ansi
   ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+  CARGO_INCREMENTAL: 0
 
 jobs:
   ci:
