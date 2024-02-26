@@ -15,7 +15,7 @@ friends or company.
 
 #### Can I try it out?
 
-There are no public conduwuit homeservers available, however conduwuit is incredibly simple to install. It's just a binary, a config file, and a database path.
+An official conduwuit server ran by me is available at transfem.dev ([element.transfem.dev](https://element.transfem.dev) / [cinny.transfem.dev](https://cinny.transfem.dev))
 
 #### What is the current status?
 
@@ -51,7 +51,7 @@ willing to start contributing again. As is, I think if folks want a more polishe
 #### How can I deploy my own?
 
 - Simple install (this was tested the most): [DEPLOY.md](DEPLOY.md)
-- Nix/NixOS: [nix/README.md](nix/README.md)
+- Nix/NixOS (and binary cache): [nix/README.md](nix/README.md)
 
 If you want to connect an Appservice to Conduit, take a look at [APPSERVICES.md](APPSERVICES.md).
 
@@ -83,8 +83,8 @@ No official conduwuit logo exists. Repo and Matrix room picture is from bran (<3
 
 #### Mirrors of conduwuit
 
-GitHub: https://github.com/girlbossceo/conduwuit
-GitLab: https://gitlab.com/girlbossceo/conduwuit
-git.gay: https://git.gay/june/conduwuit
-Codeberg: https://codeberg.org/girlbossceo/conduwuit
-sourcehut: https://git.sr.ht/~girlbossceo/conduwuit
+GitHub: <https://github.com/girlbossceo/conduwuit>\
+GitLab: <https://gitlab.com/girlbossceo/conduwuit>\
+git.gay: <https://git.gay/june/conduwuit>\
+Codeberg: <https://codeberg.org/girlbossceo/conduwuit>\
+sourcehut: <https://git.sr.ht/~girlbossceo/conduwuit>
