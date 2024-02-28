@@ -209,7 +209,7 @@ explicit_outlives_requirements = "warn"
 # unreachable_pub = "warn"
 unused_extern_crates = "warn"
 unused_import_braces = "warn"
-# unused_lifetimes = "warn"
+unused_lifetimes = "warn"
 unused_qualifications = "warn"
 dead_code = "warn"
 

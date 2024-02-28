@@ -5,7 +5,7 @@ use crate::{database::KeyValueDatabase, service, services, utils, Result};
 type SearchPdusResult<'a> = Result<Option<(Box<dyn Iterator<Item = Vec<u8>> + 'a>, Vec<String>)>>;
 
 impl service::rooms::search::Data for KeyValueDatabase {
-    fn index_pdu<'a>(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
+    fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
         let mut batch = message_body
             .split_terminator(|c: char| !c.is_alphanumeric())
             .filter(|s| !s.is_empty())
