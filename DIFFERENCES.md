@@ -73,3 +73,4 @@
 - Add admin command to delete both the thumbnail and media MXC URLs from an event ID (e.g. from an abuse report)
 - Add `!admin` as a way to call the Conduit admin bot
 - Add support for listening on multiple TCP ports
+- Add admin command to list all the rooms a local user is joined in
