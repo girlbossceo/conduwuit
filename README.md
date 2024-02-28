@@ -1,6 +1,8 @@
 # conduwuit
 ### a well maintained fork of [Conduit](https://conduit.rs/)
 
+that also shows up as conduwuit on `/_matrix/federation/v1/version`
+
 #### What is Matrix?
 [Matrix](https://matrix.org) is an open network for secure and decentralized
 communication. Users from every Matrix homeserver can chat with users from all
