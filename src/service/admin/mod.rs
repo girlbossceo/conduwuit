@@ -179,6 +179,9 @@ enum UserCommand {
 
     /// - List local users in the database
     List,
+
+    /// - Lists all the rooms (local and remote) that the specified user is joined in
+    ListJoinedRooms { user_id: Box<UserId> },
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -1004,6 +1007,46 @@ impl Service {
                             "Expected code block in command body. Add --help for details.",
                         )
                     }
+                }
+                UserCommand::ListJoinedRooms { user_id } => {
+                    let mut rooms: Vec<(OwnedRoomId, u64, String)> = vec![]; // room ID, members joined, room name
+
+                    for room_id in services().rooms.state_cache.rooms_joined(&user_id) {
+                        let room_id = room_id?;
+                        rooms.push(Self::get_room_info(room_id));
+                    }
+
+                    if rooms.is_empty() {
+                        return Ok(RoomMessageEventContent::text_plain(
+                            "User is not in any rooms.",
+                        ));
+                    }
+
+                    rooms.sort_by_key(|r| r.1);
+                    rooms.reverse();
+
+                    let output_plain = format!(
+                        "Rooms {user_id} Joined:\n{}",
+                        rooms
+                            .iter()
+                            .map(|(id, members, name)| format!(
+                                "{id}\tMembers: {members}\tName: {name}"
+                            ))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    );
+                    let output_html = format!(
+                        "<table><caption>Rooms {user_id} Joined</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
+                        rooms
+                            .iter()
+                            .fold(String::new(), |mut output, (id, members, name)| {
+                                writeln!(output, "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>", escape_html(id.as_ref()),
+                                members,
+                                escape_html(name)).unwrap();
+                                output
+                            })
+                    );
+                    RoomMessageEventContent::text_html(output_plain, output_html)
                 }
             },
             AdminCommand::Rooms(command) => match command {
