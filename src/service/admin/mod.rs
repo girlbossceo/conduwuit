@@ -1009,6 +1009,12 @@ impl Service {
                     }
                 }
                 UserCommand::ListJoinedRooms { user_id } => {
+                    if user_id.server_name() != services().globals.server_name() {
+                        return Ok(RoomMessageEventContent::text_plain(
+                            "User does not belong to our server.",
+                        ));
+                    }
+
                     let mut rooms: Vec<(OwnedRoomId, u64, String)> = vec![]; // room ID, members joined, room name
 
                     for room_id in services().rooms.state_cache.rooms_joined(&user_id) {
