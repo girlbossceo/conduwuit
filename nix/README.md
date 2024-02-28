@@ -15,8 +15,8 @@ https://attic.kennel.juneis.dog/conduwuit
 conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
 ```
 
-You can now use the usual Nix commands to interact with Conduit's flake. For
-example, `nix run gitlab:famedly/conduit` will run Conduit (though you'll need
+You can now use the usual Nix commands to interact with conduwuit's flake. For
+example, `nix run github:girlbossceo/conduwuit` will run conduwuit (though you'll need
 to provide configuration and such manually as usual).
 
 If your NixOS configuration is defined as a flake, you can depend on this flake
@@ -25,7 +25,7 @@ add the following to your `inputs`:
 
 ```nix
 conduit = {
-    url = "gitlab:famedly/conduit";
+    url = "github:girlbossceo/conduwuit";
 
     # Assuming you have an input for nixpkgs called `nixpkgs`. If you experience
     # build failures while using this, try commenting/deleting this line. This
@@ -38,7 +38,7 @@ Next, make sure you're passing your flake inputs to the `specialArgs` argument
 of `nixpkgs.lib.nixosSystem` [as explained here][specialargs]. This guide will
 assume you've named the group `flake-inputs`.
 
-Now you can configure Conduit and a reverse proxy for it. Add the following to
+Now you can configure conduwuit and a reverse proxy for it. Add the following to
 a new Nix file and include it in your configuration:
 
 ```nix
@@ -144,7 +144,7 @@ in
         ];
 
         locations."/_matrix/" = {
-          proxyPass = "http://backend_conduit$request_uri";
+          proxyPass = "http://backend_conduit";
           proxyWebsockets = true;
           extraConfig = ''
             proxy_set_header Host $host;
