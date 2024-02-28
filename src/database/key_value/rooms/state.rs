@@ -49,7 +49,7 @@ impl service::rooms::state::Data for KeyValueDatabase {
             .collect()
     }
 
-    fn set_forward_extremities<'a>(
+    fn set_forward_extremities(
         &self,
         room_id: &RoomId,
         event_ids: Vec<OwnedEventId>,

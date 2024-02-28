@@ -224,7 +224,7 @@ impl Service {
     ///
     /// Returns pdu id
     #[tracing::instrument(skip(self, pdu, pdu_json, leaves))]
-    pub async fn append_pdu<'a>(
+    pub async fn append_pdu(
         &self,
         pdu: &PduEvent,
         mut pdu_json: CanonicalJsonObject,
@@ -1041,7 +1041,7 @@ impl Service {
     /// Append the incoming event setting the state snapshot to the state from the
     /// server that sent the event.
     #[tracing::instrument(skip_all)]
-    pub async fn append_incoming_pdu<'a>(
+    pub async fn append_incoming_pdu(
         &self,
         pdu: &PduEvent,
         pdu_json: CanonicalJsonObject,

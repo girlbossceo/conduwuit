@@ -190,7 +190,7 @@ impl KvTree for RocksDbEngineTree<'_> {
         Ok(())
     }
 
-    fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
+    fn insert_batch(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
         for (key, value) in iter {
             self.db.rocks.put_cf(&self.cf(), key, value)?;
         }
@@ -247,7 +247,7 @@ impl KvTree for RocksDbEngineTree<'_> {
         Ok(new)
     }
 
-    fn increment_batch<'a>(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
+    fn increment_batch(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
         let lock = self.write_lock.write().unwrap();
 
         for key in iter {
