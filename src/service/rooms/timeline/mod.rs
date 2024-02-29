@@ -224,7 +224,7 @@ impl Service {
     ///
     /// Returns pdu id
     #[tracing::instrument(skip(self, pdu, pdu_json, leaves))]
-    pub async fn append_pdu<'a>(
+    pub async fn append_pdu(
         &self,
         pdu: &PduEvent,
         mut pdu_json: CanonicalJsonObject,
@@ -317,6 +317,28 @@ impl Service {
         let count2 = services().globals.next_count()?;
         let mut pdu_id = shortroomid.to_be_bytes().to_vec();
         pdu_id.extend_from_slice(&count2.to_be_bytes());
+
+        // https://spec.matrix.org/v1.9/rooms/v11/#moving-the-redacts-property-of-mroomredaction-events-to-a-content-property
+        // For backwards-compatibility with older clients,
+        // servers should add a redacts property to the top level of m.room.redaction events in when serving such events over the Client-Server API.
+        if pdu.kind == TimelineEventType::RoomRedaction
+            && services().rooms.state.get_room_version(&pdu.room_id)? == RoomVersionId::V11
+        {
+            #[derive(Deserialize)]
+            struct Redaction {
+                redacts: Option<OwnedEventId>,
+            }
+
+            let content = serde_json::from_str::<Redaction>(pdu.content.get())
+                .map_err(|_| Error::bad_database("Invalid content in redaction pdu."))?;
+
+            if let Some(redact_id) = &content.redacts {
+                pdu_json.insert(
+                    "redacts".to_owned(),
+                    CanonicalJsonValue::String(redact_id.to_string()),
+                );
+            }
+        }
 
         // Insert pdu
         self.db.append_pdu(&pdu_id, pdu, &pdu_json, count2)?;
@@ -1019,7 +1041,7 @@ impl Service {
     /// Append the incoming event setting the state snapshot to the state from the
     /// server that sent the event.
     #[tracing::instrument(skip_all)]
-    pub async fn append_incoming_pdu<'a>(
+    pub async fn append_incoming_pdu(
         &self,
         pdu: &PduEvent,
         pdu_json: CanonicalJsonObject,
