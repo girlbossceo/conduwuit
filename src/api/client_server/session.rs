@@ -215,7 +215,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
             .globals
             .well_known_client()
             .to_owned()
-            .unwrap_or("".to_owned()),
+            .unwrap_or_else(|| "".to_owned()),
     ));
 
     info!("{} logged in", user_id);

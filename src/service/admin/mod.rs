@@ -1961,7 +1961,7 @@ impl Service {
                 .get_name(&id)
                 .ok()
                 .flatten()
-                .unwrap_or(id.to_string()),
+                .unwrap_or_else(|| id.to_string()),
         )
     }
 

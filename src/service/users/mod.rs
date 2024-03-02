@@ -100,7 +100,7 @@ impl Service {
                 list.include_old_rooms = list
                     .include_old_rooms
                     .clone()
-                    .or(cached_list.include_old_rooms.clone());
+                    .or_else(|| cached_list.include_old_rooms.clone());
                 match (&mut list.filters, cached_list.filters.clone()) {
                     (Some(list_filters), Some(cached_filters)) => {
                         list_filters.is_dm = list_filters.is_dm.or(cached_filters.is_dm);
@@ -168,13 +168,13 @@ impl Service {
             .account_data
             .lists
             .clone()
-            .or(cached.extensions.account_data.lists.clone());
+            .or_else(|| cached.extensions.account_data.lists.clone());
         request.extensions.account_data.rooms = request
             .extensions
             .account_data
             .rooms
             .clone()
-            .or(cached.extensions.account_data.rooms.clone());
+            .or_else(|| cached.extensions.account_data.rooms.clone());
 
         cached.extensions = request.extensions.clone();
 

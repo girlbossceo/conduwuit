@@ -86,7 +86,7 @@ pub async fn report_event_route(
                 pdu.event_id,
                 pdu.room_id,
                 pdu.sender.to_owned(),
-                body.score.unwrap_or(ruma::Int::from(0)),
+                body.score.unwrap_or_else(|| ruma::Int::from(0)),
                 body.reason.as_deref().unwrap_or("")
             ),
             format!(
@@ -100,7 +100,7 @@ pub async fn report_event_route(
             pdu.event_id.to_owned(),
             pdu.room_id.to_owned(),
             pdu.sender.to_owned(),
-            body.score.unwrap_or(ruma::Int::from(0)),
+            body.score.unwrap_or_else(|| ruma::Int::from(0)),
             HtmlEscape(body.reason.as_deref().unwrap_or(""))
         ),
         ));
