@@ -55,7 +55,7 @@
 - Revamp example config, adding a lot of config options available (still some missing)
 - Return joined member count of rooms for push rules/conditions instead of a hardcoded value of 10
 - Respect *most* client parameters for `/media/` requests (`allow_redirect` still needs work)
-- Config option `ip_range_denylist` to support refusing to send requests (typically federation) to specific IP ranges, typically RFC 1918, non-routable, testnet, etc addresses like Synapse for security.
+- Config option `ip_range_denylist` to support refusing to send requests (typically federation) to specific IP ranges, typically RFC 1918, non-routable, testnet, etc addresses like Synapse for security (note: this is not a guaranteed protection, and you should be using a firewall with zones if you want guaranteed protection as doing this on the application level is prone to bypasses).
 - Support for creating rooms with custom room IDs like Maunium Synapse (`room_id` request body field to `/createRoom`)
 - Assume well-knowns are broken if they exceed past 10000 characters.
 - Basic validation/checks on user-specified room aliases and custom room ID creations
@@ -74,3 +74,4 @@
 - Add `!admin` as a way to call the Conduit admin bot
 - Add support for listening on multiple TCP ports
 - Add admin command to list all the rooms a local user is joined in
+- Add admin command to delete all remote media in the past X minutes as a form of deleting media that you don't want on your server that a remote user posted in a room
