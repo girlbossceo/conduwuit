@@ -1066,6 +1066,7 @@ impl KeyValueDatabase {
         res
     }
 
+    #[allow(clippy::infinite_loop)]
     #[tracing::instrument]
     pub fn start_check_for_updates_task() {
         tokio::spawn(async move {

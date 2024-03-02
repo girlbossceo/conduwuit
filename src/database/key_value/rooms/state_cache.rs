@@ -281,7 +281,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
     }
 
     #[tracing::instrument(skip(self))]
-    fn server_in_room<'a>(&'a self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
+    fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
         let mut key = server.as_bytes().to_vec();
         key.push(0xff);
         key.extend_from_slice(room_id.as_bytes());
