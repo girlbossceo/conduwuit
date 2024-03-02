@@ -59,11 +59,13 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
         db_opts.set_compaction_readahead_size(2 * 1024 * 1024); // default compaction_readahead_size is 0 which is good for SSDs
         db_opts.set_target_file_size_base(256 * 1024 * 1024); // default target_file_size is 64MB which is good for SSDs
         db_opts.set_optimize_filters_for_hits(true); // doesn't really seem useful for fast storage
+        db_opts.set_keep_log_file_num(3); // keep as few LOG files as possible for spinning hard drives. these are not really important
     } else {
         db_opts.set_skip_stats_update_on_db_open(false);
         db_opts.set_max_bytes_for_level_base(512 * 1024 * 1024);
         db_opts.set_use_direct_reads(true);
         db_opts.set_use_direct_io_for_flush_and_compaction(true);
+        db_opts.set_keep_log_file_num(20);
     }
 
     db_opts.set_block_based_table_factory(&block_based_options);
