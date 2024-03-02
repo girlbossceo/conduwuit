@@ -12,6 +12,9 @@ env:
   ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
   CARGO_INCREMENTAL: 0
 
+permissions:
+  packages: write
+
 jobs:
   ci:
     name: CI and Artifacts
@@ -104,6 +107,7 @@ jobs:
         with:
           name: oci-image-x86_64-unknown-linux-gnu
           path: oci-image-amd64.tar.gz
+          if-no-files-found: error
           # don't compress again
           compression-level: 0
 
