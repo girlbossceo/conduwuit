@@ -53,7 +53,7 @@ thiserror = "1.0.57"
 # Used to generate thumbnails for images
 image = { version = "0.24.9", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 # Used to encode server public key
-base64 = "0.21.7"
+base64 = "0.22.0"
 # Used when hashing the state
 ring = "0.17.8"
 # Used when querying the SRV record of other servers
