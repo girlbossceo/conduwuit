@@ -115,6 +115,8 @@ axum-server-dual-protocol = { version = "0.5.2", optional = true }
 # to get the client IP address of requests
 #axum-client-ip = "0.4.2"
 
+# to parse user-friendly time durations in admin commands
+cyborgtime = "2.1.1"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.28.0", features = ["resource"] }

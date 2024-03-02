@@ -228,6 +228,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
+name = "base64"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9475866fec1451be56a3c2400fd081ff546538961565ccb5b7142cbd22bc7a51"
+
+[[package]]
 name = "base64ct"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -412,9 +418,10 @@ dependencies = [
  "axum",
  "axum-server",
  "axum-server-dual-protocol",
- "base64",
+ "base64 0.22.0",
  "bytes",
  "clap",
+ "cyborgtime",
  "either",
  "figment",
  "futures-util",
@@ -561,6 +568,12 @@ dependencies = [
  "quote",
  "syn 2.0.50",
 ]
+
+[[package]]
+name = "cyborgtime"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "817fa642fb0ee7fe42e95783e00e0969927b96091bdd4b9b1af082acd943913b"
 
 [[package]]
 name = "data-encoding"
@@ -894,7 +907,7 @@ version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06683b93020a07e3dbcf5f8c0f6d40080d725bea7936fc01ad345c01b97dc270"
 dependencies = [
- "base64",
+ "base64 0.21.7",
  "bytes",
  "headers-core",
  "http",
@@ -1206,7 +1219,7 @@ version = "9.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c7ea04a7c5c055c175f189b6dc6ba036fd62306b58c66c9f6389036c503a3f4"
 dependencies = [
- "base64",
+ "base64 0.21.7",
  "js-sys",
  "pem",
  "ring",
@@ -1746,7 +1759,7 @@ version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b8fcc794035347fb64beda2d3b462595dd2753e3f268d89c5aae77e8cf2c310"
 dependencies = [
- "base64",
+ "base64 0.21.7",
  "serde",
 ]
 
@@ -2015,7 +2028,7 @@ version = "0.11.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6920094eb85afde5e4a138be3f2de8bbdf28000f0029e72c45025a56b042251"
 dependencies = [
- "base64",
+ "base64 0.21.7",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -2089,7 +2102,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.9.4"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "assign",
  "js_int",
@@ -2108,7 +2121,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2120,7 +2133,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.17.4"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "as_variant",
  "assign",
@@ -2139,10 +2152,10 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.12.1"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "as_variant",
- "base64",
+ "base64 0.21.7",
  "bytes",
  "form_urlencoded",
  "http",
@@ -2167,7 +2180,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.27.11"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "as_variant",
  "indexmap",
@@ -2189,7 +2202,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2201,7 +2214,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.9.3"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "js_int",
  "thiserror",
@@ -2210,7 +2223,7 @@ dependencies = [
 [[package]]
 name = "ruma-identity-service-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2220,7 +2233,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.12.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "once_cell",
  "proc-macro-crate",
@@ -2235,7 +2248,7 @@ dependencies = [
 [[package]]
 name = "ruma-push-gateway-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2247,9 +2260,9 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.14.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
- "base64",
+ "base64 0.21.7",
  "ed25519-dalek",
  "pkcs8",
  "rand",
@@ -2263,7 +2276,7 @@ dependencies = [
 [[package]]
 name = "ruma-state-res"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=9f243f1e89bd2ef52dde521c34a791fee7b36d5a#9f243f1e89bd2ef52dde521c34a791fee7b36d5a"
+source = "git+https://github.com/girlbossceo/ruma?rev=1623fffe150356ad6a7388a9df2cfed80aae1a9e#1623fffe150356ad6a7388a9df2cfed80aae1a9e"
 dependencies = [
  "itertools 0.11.0",
  "js_int",
@@ -2339,7 +2352,7 @@ version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c74cae0a4cf6ccbbf5f359f08efdf8ee7e1dc532573bf0db71968cb56b1448c"
 dependencies = [
- "base64",
+ "base64 0.21.7",
 ]
 
 [[package]]

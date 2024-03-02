@@ -22,6 +22,8 @@ pub trait Data: Send + Sync {
 
     fn search_mxc_metadata_prefix(&self, mxc: String) -> Result<Vec<Vec<u8>>>;
 
+    fn get_all_media_keys(&self) -> Result<Vec<Vec<u8>>>;
+
     fn remove_url_preview(&self, url: &str) -> Result<()>;
 
     fn set_url_preview(
