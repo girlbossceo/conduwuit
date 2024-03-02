@@ -7,14 +7,15 @@ use std::{
 };
 
 pub(crate) use data::Data;
+use ruma::OwnedMxcUri;
 use serde::Serialize;
 use tracing::{debug, error};
 
-use crate::{services, Error, Result};
+use crate::{services, utils, Error, Result};
 use image::imageops::FilterType;
 
 use tokio::{
-    fs::File,
+    fs::{self, File},
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
     sync::Mutex,
 };
@@ -171,6 +172,112 @@ impl Service {
             }))
         } else {
             Ok(None)
+        }
+    }
+
+    /// Deletes all remote only media files in the given at or after time/duration. Returns a u32
+    /// with the amount of media files deleted.
+    pub async fn delete_all_remote_media_at_after_time(&self, time: String) -> Result<u32> {
+        if let Ok(all_keys) = self.db.get_all_media_keys() {
+            let user_duration: SystemTime = match cyborgtime::parse_duration(&time) {
+                Ok(duration) => {
+                    debug!("Parsed duration: {:?}", duration);
+                    debug!("System time now: {:?}", SystemTime::now());
+                    SystemTime::now() - duration
+                }
+                Err(e) => {
+                    error!("Failed to parse user-specified time duration: {}", e);
+                    return Err(Error::bad_database(
+                        "Failed to parse user-specified time duration.",
+                    ));
+                }
+            };
+
+            let mut remote_mxcs: Vec<String> = vec![];
+
+            for key in all_keys {
+                debug!("Full MXC key from database: {:?}", key);
+
+                // we need to get the MXC URL from the first part of the key (the first 0xff / 255 push)
+                // this code does look kinda crazy but blame conduit for using magic keys
+                let mut parts = key.split(|&b| b == 0xff);
+                let mxc = parts
+                    .next()
+                    .map(|bytes| {
+                        utils::string_from_bytes(bytes).map_err(|e| {
+                            error!("Failed to parse MXC unicode bytes from our database: {}", e);
+                            Error::bad_database(
+                                "Failed to parse MXC unicode bytes from our database",
+                            )
+                        })
+                    })
+                    .transpose()?;
+
+                let mxc_s = match mxc {
+                    Some(mxc) => mxc,
+                    None => {
+                        return Err(Error::bad_database(
+                            "Parsed MXC URL unicode bytes from database but still is None",
+                        ));
+                    }
+                };
+
+                debug!("Parsed MXC key to URL: {}", mxc_s);
+
+                let mxc = OwnedMxcUri::from(mxc_s);
+                if mxc.server_name() == Ok(services().globals.server_name()) {
+                    debug!("Ignoring local media MXC: {}", mxc);
+                    // ignore our own MXC URLs as this would be local media.
+                    continue;
+                }
+
+                let path = if cfg!(feature = "sha256_media") {
+                    services().globals.get_media_file_new(&key)
+                } else {
+                    #[allow(deprecated)]
+                    services().globals.get_media_file(&key)
+                };
+
+                debug!("MXC path: {:?}", path);
+
+                let file_metadata = fs::metadata(path.clone()).await?;
+                debug!("File metadata: {:?}", file_metadata);
+
+                let file_created_at = file_metadata.created()?;
+                debug!("File created at: {:?}", file_created_at);
+
+                if file_created_at >= user_duration {
+                    debug!("File is within user duration, pushing to list of file paths and keys to delete.");
+                    remote_mxcs.push(mxc.to_string());
+                } else {
+                    // don't need to log this even in debug as it would be noisy
+                    continue;
+                }
+            }
+
+            debug!("Finished going through all our media in database for eligible keys to delete, checking if these are empty");
+
+            if remote_mxcs.is_empty() {
+                return Err(Error::bad_database(
+                    "Did not found any eligible MXCs to delete.",
+                ));
+            }
+
+            debug!("Deleting media now in the past \"{:?}\".", user_duration);
+
+            let mut deletion_count = 0;
+
+            for mxc in remote_mxcs {
+                debug!("Deleting MXC {mxc} from database and filesystem");
+                self.delete(mxc).await?;
+                deletion_count += 1;
+            }
+
+            Ok(deletion_count)
+        } else {
+            Err(Error::bad_database(
+                "Failed to get all our media keys (filesystem or database issue?).",
+            ))
         }
     }
 

@@ -96,6 +96,12 @@ enum MediaCommand {
 
     /// - Deletes a codeblock list of MXC URLs from our database and on the filesystem
     DeleteList,
+
+    // - Deletes all remote media in the last <x> amount of time using filesystem metadata first created at date.
+    DeletePastRemoteMedia {
+        /// - The duration (at or after), e.g. "5m" to delete all media in the past 5 minutes
+        duration: String,
+    },
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -784,6 +790,17 @@ impl Service {
                             "Expected code block in command body. Add --help for details.",
                         ));
                     }
+                }
+                MediaCommand::DeletePastRemoteMedia { duration } => {
+                    let deleted_count = services()
+                        .media
+                        .delete_all_remote_media_at_after_time(duration)
+                        .await?;
+
+                    return Ok(RoomMessageEventContent::text_plain(format!(
+                        "Deleted {} total files.",
+                        deleted_count
+                    )));
                 }
             },
             AdminCommand::Users(command) => match command {

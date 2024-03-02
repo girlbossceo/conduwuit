@@ -52,12 +52,11 @@ impl service::media::Data for KeyValueDatabase {
             debug!("Deleting key: {:?}", key);
             self.mediaid_file.remove(&key)?;
         }
-        //return Err(Error::bad_database("Media not found."));
 
         Ok(())
     }
 
-    /// Searches for all files with the given MXC (e.g. thumbnail and original image)
+    /// Searches for all files with the given MXC
     fn search_mxc_metadata_prefix(&self, mxc: String) -> Result<Vec<Vec<u8>>> {
         debug!("MXC URI: {:?}", mxc);
 
@@ -124,6 +123,17 @@ impl service::media::Data for KeyValueDatabase {
             )
         };
         Ok((content_disposition, content_type, key))
+    }
+
+    /// Gets all the media keys in our database (this includes all the metadata associated with it such as width, height, content-type, etc)
+    fn get_all_media_keys(&self) -> Result<Vec<Vec<u8>>> {
+        let mut keys: Vec<Vec<u8>> = vec![];
+
+        for (key, _) in self.mediaid_file.iter() {
+            keys.push(key);
+        }
+
+        Ok(keys)
     }
 
     fn remove_url_preview(&self, url: &str) -> Result<()> {
