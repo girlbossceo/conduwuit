@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use std::fmt::Write;
+use std::fmt::Write as _;
 
 use clap::{Parser, Subcommand};
 use regex::Regex;
@@ -1730,8 +1730,9 @@ impl Service {
 
                     for (r, (e, i)) in map.iter() {
                         let elapsed = i.elapsed();
-                        msg += &format!(
-                            "{} {}: {}m{}s\n",
+                        let _ = writeln!(
+                            msg,
+                            "{} {}: {}m{}s",
                             r,
                             e,
                             elapsed.as_secs() / 60,
