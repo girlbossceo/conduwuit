@@ -31,7 +31,7 @@ before_script:
 
 ci:
   stage: ci
-  image: nixos/nix:2.20.3
+  image: nixos/nix:2.20.4
   script:
     - direnv exec . engage
   cache:
@@ -42,7 +42,7 @@ ci:
 
 static:x86_64-unknown-linux-musl:
   stage: artifacts
-  image: nixos/nix:2.20.3
+  image: nixos/nix:2.20.4
   script:
     # Push artifacts and build requirements to binary cache
     - ./bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl
@@ -55,7 +55,7 @@ static:x86_64-unknown-linux-musl:
 
 static:aarch64-unknown-linux-musl:
   stage: artifacts
-  image: nixos/nix:2.20.3
+  image: nixos/nix:2.20.4
   script:
     # Push artifacts and build requirements to binary cache
     - ./bin/nix-build-and-cache .#static-aarch64-unknown-linux-musl
@@ -71,7 +71,7 @@ static:aarch64-unknown-linux-musl:
 # all containerized anyway.
 oci-image:x86_64-unknown-linux-gnu:
   stage: artifacts
-  image: nixos/nix:2.20.3
+  image: nixos/nix:2.20.4
   script:
     # Push artifacts and build requirements to binary cache
     #
@@ -93,7 +93,7 @@ oci-image:aarch64-unknown-linux-musl:
     # Wait for the static binary job to finish before starting so we don't have
     # to build that twice for no reason
     - static:aarch64-unknown-linux-musl
-  image: nixos/nix:2.20.3
+  image: nixos/nix:2.20.4
   script:
     # Push artifacts and build requirements to binary cache
     - ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl
