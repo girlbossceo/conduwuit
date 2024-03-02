@@ -201,8 +201,17 @@ impl service::users::Data for KeyValueDatabase {
         token: &str,
         initial_device_display_name: Option<String>,
     ) -> Result<()> {
-        // This method should never be called for nonexistent users.
-        assert!(self.exists(user_id)?);
+        // This method should never be called for nonexistent users. We shouldn't assert though...
+        if !self.exists(user_id)? {
+            warn!(
+                "Called create_device for non-existent user {} in database",
+                user_id
+            );
+            return Err(Error::BadRequest(
+                ErrorKind::InvalidParam,
+                "User does not exist.",
+            ));
+        }
 
         let mut userdeviceid = user_id.as_bytes().to_vec();
         userdeviceid.push(0xff);
@@ -288,8 +297,13 @@ impl service::users::Data for KeyValueDatabase {
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
-        // All devices have metadata
-        assert!(self.userdeviceid_metadata.get(&userdeviceid)?.is_some());
+        // should not be None, but we shouldn't assert either lol...
+        if self.userdeviceid_metadata.get(&userdeviceid)?.is_none() {
+            warn!("Called set_token for a non-existent user \"{}\" and/or device ID \"{}\" with no metadata in database", user_id, device_id);
+            return Err(Error::bad_database(
+                "User does not exist or device ID has no metadata in database.",
+            ));
+        }
 
         // Remove old token
         if let Some(old_token) = self.userdeviceid_token.get(&userdeviceid)? {
@@ -318,8 +332,13 @@ impl service::users::Data for KeyValueDatabase {
         key.extend_from_slice(device_id.as_bytes());
 
         // All devices have metadata
-        // Only existing devices should be able to call this.
-        assert!(self.userdeviceid_metadata.get(&key)?.is_some());
+        // Only existing devices should be able to call this, but we shouldn't assert either...
+        if self.userdeviceid_metadata.get(&key)?.is_none() {
+            warn!("Called add_one_time_key for a non-existent user \"{}\" and/or device ID \"{}\" with no metadata in database", user_id, device_id);
+            return Err(Error::bad_database(
+                "User does not exist or device ID has no metadata in database.",
+            ));
+        }
 
         key.push(0xff);
         // TODO: Use DeviceKeyId::to_string when it's available (and update everything,
@@ -855,8 +874,13 @@ impl service::users::Data for KeyValueDatabase {
         userdeviceid.push(0xff);
         userdeviceid.extend_from_slice(device_id.as_bytes());
 
-        // Only existing devices should be able to call this.
-        assert!(self.userdeviceid_metadata.get(&userdeviceid)?.is_some());
+        // Only existing devices should be able to call this, but we shouldn't assert either...
+        if self.userdeviceid_metadata.get(&userdeviceid)?.is_none() {
+            warn!("Called update_device_metadata for a non-existent user \"{}\" and/or device ID \"{}\" with no metadata in database", user_id, device_id);
+            return Err(Error::bad_database(
+                "User does not exist or device ID has no metadata in database.",
+            ));
+        }
 
         self.userid_devicelistversion
             .increment(user_id.as_bytes())?;
