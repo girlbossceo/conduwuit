@@ -713,13 +713,13 @@ impl Service {
     }
 
     #[tracing::instrument(skip(self, destination, request))]
-    pub async fn send_federation_request<T: OutgoingRequest>(
+    pub async fn send_federation_request<T>(
         &self,
         destination: &ServerName,
         request: T,
     ) -> Result<T::IncomingResponse>
     where
-        T: Debug,
+        T: OutgoingRequest + Debug,
     {
         if destination.is_ip_literal() || IPAddress::is_valid(destination.host()) {
             info!(
@@ -771,13 +771,13 @@ impl Service {
     /// Sends a request to an appservice
     ///
     /// Only returns None if there is no url specified in the appservice registration file
-    pub async fn send_appservice_request<T: OutgoingRequest>(
+    pub async fn send_appservice_request<T>(
         &self,
         registration: Registration,
         request: T,
     ) -> Option<Result<T::IncomingResponse>>
     where
-        T: Debug,
+        T: OutgoingRequest + Debug,
     {
         let permit = self.maximum_requests.acquire().await;
         let response = appservice_server::send_request(registration, request).await;
