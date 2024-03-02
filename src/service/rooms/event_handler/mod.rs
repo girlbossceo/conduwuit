@@ -1406,10 +1406,9 @@ impl Service {
         let mut server_keys: FuturesUnordered<_> = server_key_ids
             .into_iter()
             .map(|(signature_server, signature_ids)| async {
-                let signature_server2 = signature_server.clone();
                 let fetch_res = self
                     .fetch_signing_keys_for_server(
-                        signature_server2.as_str().try_into().map_err(|e| {
+                        signature_server.as_str().try_into().map_err(|e| {
                             info!("Invalid servername in signatures of server response pdu: {e}");
                             (
                                 signature_server.clone(),
