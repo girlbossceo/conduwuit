@@ -97,7 +97,7 @@ enum MediaCommand {
     /// - Deletes a codeblock list of MXC URLs from our database and on the filesystem
     DeleteList,
 
-    /// - Deletes all remote media in the last <x> amount of time using filesystem metadata first created at date.
+    /// - Deletes all remote media in the last X amount of time using filesystem metadata first created at date.
     DeletePastRemoteMedia {
         /// - The duration (at or after), e.g. "5m" to delete all media in the past 5 minutes
         duration: String,
