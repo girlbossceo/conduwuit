@@ -8,7 +8,7 @@ INSTALLABLE="$1"
 # Build the installable and forward any other arguments too
 nix build -L "$@"
 
-if [ ! -z ${ATTIC_TOKEN+x} ]; then
+if [ ! -z "$ATTIC_TOKEN" ]; then
 
 nix run --inputs-from . attic -- login \
     conduit \
