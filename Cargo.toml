@@ -222,9 +222,12 @@ dead_code = "warn"
 elided_lifetimes_in_paths = "warn"
 macro_use_extern_crate = "warn"
 single_use_lifetimes = "warn"
-unit_bindings = "warn"
 unsafe_op_in_unsafe_fn = "warn"
 unused_tuple_struct_fields = "warn"
+
+# not in rust 1.75.0 (doesn't break CI but won't check for it)
+unit_bindings = "warn"
+
 
 [workspace.lints.clippy]
 # pedantic = "warn"
@@ -279,11 +282,10 @@ filetype_is_file = "warn"
 float_cmp_const = "warn"
 format_push_string = "warn"
 impl_trait_in_params = "warn"
-infinite_loop = "warn"
 # let_underscore_untyped = "warn"
 lossy_float_literal = "warn"
 mem_forget = "warn"
-# missing_assert_message = "warn"
+missing_assert_message = "warn"
 # mod_module_files = "warn"
 # multiple_inherent_impl = "warn"
 mutex_atomic = "warn"
@@ -296,3 +298,6 @@ unnecessary_safety_comment = "warn"
 unnecessary_safety_doc = "warn"
 unnecessary_self_imports = "warn"
 verbose_file_reads = "warn"
+
+# not in rust 1.75.0 (breaks CI)
+# infinite_loop = "warn"
