@@ -24,7 +24,7 @@ tower-http = { version = "0.4.4", features = ["add-extension", "cors", "sensitiv
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { git = "https://github.com/ruma/ruma", rev = "4d9f754657a099df8e61533787b8eebd12946435", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
-ruma = { git = "https://github.com/girlbossceo/ruma", rev = "9f243f1e89bd2ef52dde521c34a791fee7b36d5a", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
+ruma = { git = "https://github.com/girlbossceo/ruma", rev = "1623fffe150356ad6a7388a9df2cfed80aae1a9e", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 
 # Async runtime and utilities
@@ -53,7 +53,7 @@ thiserror = "1.0.57"
 # Used to generate thumbnails for images
 image = { version = "0.24.9", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 # Used to encode server public key
-base64 = "0.21.7"
+base64 = "0.22.0"
 # Used when hashing the state
 ring = "0.17.8"
 # Used when querying the SRV record of other servers
