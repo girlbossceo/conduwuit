@@ -510,6 +510,10 @@ mod tests {
             todo!()
         }
 
+        fn get_all_media_keys(&self) -> Result<Vec<Vec<u8>>> {
+            todo!()
+        }
+
         fn search_file_metadata(
             &self,
             _mxc: String,
