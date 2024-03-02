@@ -44,13 +44,13 @@ impl Service {
     }
 
     #[tracing::instrument(skip(self, destination, request))]
-    pub async fn send_request<T: OutgoingRequest>(
+    pub async fn send_request<T>(
         &self,
         destination: &str,
         request: T,
     ) -> Result<T::IncomingResponse>
     where
-        T: Debug,
+        T: OutgoingRequest + Debug,
     {
         let destination = destination.replace(services().globals.notification_push_path(), "");
 

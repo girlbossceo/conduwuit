@@ -9,12 +9,12 @@ use tracing::warn;
 /// Sends a request to an appservice
 ///
 /// Only returns None if there is no url specified in the appservice registration file
-pub(crate) async fn send_request<T: OutgoingRequest>(
+pub(crate) async fn send_request<T>(
     registration: Registration,
     request: T,
 ) -> Option<Result<T::IncomingResponse>>
 where
-    T: Debug,
+    T: OutgoingRequest + Debug,
 {
     if let Some(destination) = registration.url {
         let hs_token = registration.hs_token.as_str();
