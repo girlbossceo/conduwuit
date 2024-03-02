@@ -46,7 +46,7 @@ serde = { version = "1.0.197", features = ["rc"] }
 # Used for secure identifiers
 rand = "0.8.5"
 # Used to hash passwords
-argon2 = "0.5.3"
+argon2 = { version = "0.5.3", features = ["alloc", "rand"], default-features = false }
 reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
 # Used for conduit::Error type
 thiserror = "1.0.57"
@@ -171,6 +171,10 @@ systemd-units = { unit-name = "matrix-conduit" }
 debug = 0
 lto = 'off'
 incremental = true
+# seems to speed up continuous debug compilations
+opt-level = 1
+[profile.dev.package."*"]
+opt-level = 3
 
 # default release profile
 [profile.release]
