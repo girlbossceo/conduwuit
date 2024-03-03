@@ -212,7 +212,7 @@ enum RoomCommand {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum RoomModeration {
-    /// - Bans a room from local users joining and evicts all our local users from the room.
+    /// - Bans a room from local users joining and evicts all our local users from the room. Also blocks any invites (local and remote) for the banned room.
     ///
     /// Server admins (users in the conduwuit admin room) will not be evicted and server admins can still join the room.
     /// To evict admins too, use --force (also ignores errors)
