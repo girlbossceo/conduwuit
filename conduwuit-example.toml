@@ -90,6 +90,7 @@ zstd_compression = false
 # Defaults to RFC1918, unroutable, loopback, multicast, and testnet addresses for security.
 #
 # To disable, set this to be an empty vector (`[]`).
+# Please be aware that this is *not* a guarantee. You should be using a firewall with zones as doing this on the application layer may have bypasses.
 #
 # Currently this does not account for proxies in use like Synapse does.
 ip_range_denylist = [
@@ -217,7 +218,7 @@ allow_check_for_updates = true
 # Note that whatever you put will show up in the well-known JSON values.
 
 # Set to false to disable users from joining or creating room versions that aren't 100% officially supported by conduwuit.
-# conduwuit officially supports room versions 6 - 10. conduwuit has experimental/unstable support for 1 - 5, and 11.
+# conduwuit officially supports room versions 6 - 10. conduwuit has experimental/unstable support for 3 - 5, and 11.
 # Defaults to true.
 #allow_unstable_room_versions = true
 
@@ -242,6 +243,7 @@ allow_check_for_updates = true
 ### RocksDB options
 
 # Set this to true to use RocksDB config options that are tailored to HDDs (slower device storage)
+# Defaults to false
 #rocksdb_optimize_for_spinning_disks = false
 
 # RocksDB log level. This is not the same as conduwuit's log level. This is the log level for RocksDB itself
