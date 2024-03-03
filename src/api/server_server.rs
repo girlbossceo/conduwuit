@@ -1845,14 +1845,6 @@ pub async fn create_invite_route(
         .as_ref()
         .expect("server is authenticated");
 
-    if services().globals.block_non_admin_invites() {
-        info!("Received remote invite from server {} for room {}, but \"block_non_admin_invites\" is enabled, rejecting.", &sender_servername, &body.room_id);
-        return Err(Error::BadRequest(
-            ErrorKind::Forbidden,
-            "This server does not allow room invites.",
-        ));
-    }
-
     services()
         .rooms
         .event_handler
@@ -1922,7 +1914,9 @@ pub async fn create_invite_route(
     )
     .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user id."))?;
 
-    if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(&invited_user)? {
+    if services().rooms.metadata.is_banned(&body.room_id)?
+        && !services().users.is_admin(&invited_user)?
+    {
         info!(
             "Received remote invite from server {} for room {} and for user {invited_user}, but room is banned by us.",
             &sender_servername, &body.room_id
@@ -1930,6 +1924,14 @@ pub async fn create_invite_route(
         return Err(Error::BadRequest(
             ErrorKind::Forbidden,
             "This room is banned on this homeserver.",
+        ));
+    }
+
+    if services().globals.block_non_admin_invites() && !services().users.is_admin(&invited_user)? {
+        info!("Received remote invite from server {} for room {} and for user {invited_user} who is not an admin, but \"block_non_admin_invites\" is enabled, rejecting.", &sender_servername, &body.room_id);
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "This server does not allow room invites.",
         ));
     }
 

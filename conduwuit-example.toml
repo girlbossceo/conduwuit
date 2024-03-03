@@ -153,7 +153,7 @@ registration_token = "change this token for something specific to your server"
 # allow_room_creation = true
 
 # controls whether non-admin local users are forbidden from sending room invites (local and remote),
-# AND rejects all incoming remote/federation room invites for all users (including admins).
+# and if non-admin users can receive remote room invites. admins are always allowed to send and receive all room invites.
 # defaults to false
 # block_non_admin_invites = falsse
 

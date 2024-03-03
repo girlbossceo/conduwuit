@@ -281,7 +281,7 @@ impl fmt::Display for Config {
                 &self.allow_local_presence.to_string(),
             ),
             (
-                "Block non-admin room invites (local and remote) and block all incoming remote invites",
+                "Block non-admin room invites (local and remote, admins can still send and receive invites)",
                 &self.block_non_admin_invites.to_string(),
             ),
             (
