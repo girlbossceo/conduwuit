@@ -126,7 +126,7 @@ allow_guest_registration = false
 # No default.
 # prevent_media_downloads_from = ["example.com", "example.local"]
 
-# Enables open registration. If set to false, no users can register on this
+# Enables registration. If set to false, no users can register on this
 # server.
 # If set to true without a token configured, users can register with no form of 2nd-
 # step only if you set

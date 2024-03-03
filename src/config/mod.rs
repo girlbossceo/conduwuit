@@ -249,17 +249,24 @@ impl fmt::Display for Config {
                 "Cleanup interval in seconds",
                 &self.cleanup_second_interval.to_string(),
             ),
-            ("Maximum request size", &self.max_request_size.to_string()),
+            ("Maximum request size (bytes)", &self.max_request_size.to_string()),
             (
                 "Maximum concurrent requests",
                 &self.max_concurrent_requests.to_string(),
             ),
             (
-                "Allow registration (open registration)",
+                "Allow registration",
                 &self.allow_registration.to_string(),
             ),
             (
-                "Allow guest registration",
+                "Registration token",
+                match self.registration_token {
+                    Some(_) => "set",
+                    None => "not set (open registration!)",
+                },
+            ),
+            (
+                "Allow guest registration (inherently false if allow registration is false)",
                 &self.allow_guest_registration.to_string(),
             ),
             (
