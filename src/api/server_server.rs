@@ -1852,6 +1852,7 @@ pub async fn create_invite_route(
             "This server does not allow room invites.",
         ));
     }
+
     services()
         .rooms
         .event_handler
@@ -1920,6 +1921,17 @@ pub async fn create_invite_route(
             .into(),
     )
     .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user id."))?;
+
+    if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(&invited_user)? {
+        info!(
+            "Received remote invite from server {} for room {} and for user {invited_user}, but room is banned by us.",
+            &sender_servername, &body.room_id
+        );
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "This room is banned on this homeserver.",
+        ));
+    }
 
     let mut invite_state = body.invite_room_state.clone();
 

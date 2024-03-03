@@ -201,6 +201,17 @@ pub async fn invite_user_route(
         ));
     }
 
+    if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(sender_user)? {
+        info!(
+            "Local user {} who is not an admin attempted to send an invite for banned room {}.",
+            &sender_user, &body.room_id
+        );
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "This room is banned on this homeserver.",
+        ));
+    }
+
     if let invite_user::v3::InvitationRecipient::UserId { user_id } = &body.recipient {
         invite_helper(
             sender_user,
@@ -1285,6 +1296,16 @@ pub(crate) async fn invite_helper(
     reason: Option<String>,
     is_direct: bool,
 ) -> Result<()> {
+    if !services().users.is_admin(user_id)? && services().globals.block_non_admin_invites() {
+        info!(
+            "User {sender_user} is not an admin and attempted to send an invite to room {room_id}"
+        );
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Invites are not allowed on this server.",
+        ));
+    }
+
     if user_id.server_name() != services().globals.server_name() {
         let (pdu, pdu_json, invite_room_state) = {
             let mutex_state = Arc::clone(
