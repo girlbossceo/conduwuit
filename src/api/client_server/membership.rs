@@ -201,7 +201,9 @@ pub async fn invite_user_route(
         ));
     }
 
-    if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(sender_user)? {
+    if services().rooms.metadata.is_banned(&body.room_id)?
+        && !services().users.is_admin(sender_user)?
+    {
         info!(
             "Local user {} who is not an admin attempted to send an invite for banned room {}.",
             &sender_user, &body.room_id
