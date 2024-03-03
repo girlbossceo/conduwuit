@@ -66,7 +66,7 @@
 - Increased graceful shutdown timeout from a low 60 seconds to 180 seconds to avoid killing connections and let the remaining ones finish processing, and ask systemd for more time to shutdown if needed to prevent systemd's default [`TimeoutStopSec=`](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html#TimeoutStopSec=) of 90 seconds from killing conduwuit
 - Bumped default max_concurrent_requests to 500
 - Query parameter `?format=event|content` for returning either the room state event's content (default) for the full room state event on ` /_matrix/client/v3/rooms/{roomId}/state/{eventType}[/{stateKey}]` requests (see https://github.com/matrix-org/matrix-spec/issues/1047)
-- Add admin commands for banning (blocking) room IDs from our local users joining (admins are always allowed) and evicts all our local users from that room, in addition to bulk room banning support, as a moderation feature
+- Add admin commands for banning (blocking) room IDs from our local users joining (admins are always allowed) and evicts all our local users from that room, in addition to bulk room banning support, and blocks room invites (remote and local) to the banned room, as a moderation feature
 - Add admin command to delete media via a specific MXC. This deletes the MXC from our database, and the file locally.
 - Replace the lightning bolt emoji option with support for setting any arbitrary text (e.g. another emoji) to suffix to all new user registrations
 - Add admin command to bulk delete media via a codeblock list of MXC URLs.
@@ -75,3 +75,4 @@
 - Add support for listening on multiple TCP ports
 - Add admin command to list all the rooms a local user is joined in
 - Add admin command to delete all remote media in the past X minutes as a form of deleting media that you don't want on your server that a remote user posted in a room
+- Config option to block non-admin users from sending room invites or receiving remote room invites. Admin users are still allowed.
