@@ -190,6 +190,17 @@ pub async fn invite_user_route(
 ) -> Result<invite_user::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+    if !services().users.is_admin(sender_user)? && services().globals.block_non_admin_invites() {
+        info!(
+            "User {sender_user} is not an admin and attempted to send an invite to room {}",
+            &body.room_id
+        );
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "Invites are not allowed on this server.",
+        ));
+    }
+
     if let invite_user::v3::InvitationRecipient::UserId { user_id } = &body.recipient {
         invite_helper(
             sender_user,
