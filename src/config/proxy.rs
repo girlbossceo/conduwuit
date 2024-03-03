@@ -66,7 +66,7 @@ impl PartialProxyConfig {
         let mut excluded_because = None; // most specific reason it was excluded
         if self.include.is_empty() {
             // treat empty include list as `*`
-            included_because = Some(&WildCardedDomain::WildCard)
+            included_because = Some(&WildCardedDomain::WildCard);
         }
         for wc_domain in &self.include {
             if wc_domain.matches(domain) {

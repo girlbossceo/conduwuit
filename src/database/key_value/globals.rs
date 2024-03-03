@@ -74,7 +74,7 @@ impl service::globals::Data for KeyValueDatabase {
             .rooms
             .state_cache
             .rooms_joined(user_id)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
         {
             let short_roomid = services()
                 .rooms
@@ -134,7 +134,7 @@ impl service::globals::Data for KeyValueDatabase {
     }
 
     fn cleanup(&self) -> Result<()> {
-        self._db.cleanup()
+        self.db.cleanup()
     }
 
     fn memory_usage(&self) -> String {
@@ -158,7 +158,7 @@ our_real_users_cache: {our_real_users_cache}
 appservice_in_room_cache: {appservice_in_room_cache}
 lasttimelinecount_cache: {lasttimelinecount_cache}\n"
         );
-        if let Ok(db_stats) = self._db.memory_usage() {
+        if let Ok(db_stats) = self.db.memory_usage() {
             response += &db_stats;
         }
 
@@ -207,7 +207,7 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
                 self.global.insert(b"keypair", &keypair)?;
                 Ok::<_, Error>(keypair)
             },
-            |s| Ok(s.to_vec()),
+            Ok,
         )?;
 
         let mut parts = keypair_bytes.splitn(2, |&b| b == 0xff);

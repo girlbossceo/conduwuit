@@ -22,7 +22,7 @@ pub(crate) fn millis_since_unix_epoch() -> u64 {
 }
 
 pub(crate) fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
-    let number = match old.map(|bytes| bytes.try_into()) {
+    let number = match old.map(std::convert::TryInto::try_into) {
         Some(Ok(bytes)) => {
             let number = u64::from_be_bytes(bytes);
             number + 1
@@ -94,7 +94,9 @@ pub(crate) fn common_elements(
     check_order: impl Fn(&[u8], &[u8]) -> Ordering,
 ) -> Option<impl Iterator<Item = Vec<u8>>> {
     let first_iterator = iterators.next()?;
-    let mut other_iterators = iterators.map(|i| i.peekable()).collect::<Vec<_>>();
+    let mut other_iterators = iterators
+        .map(std::iter::Iterator::peekable)
+        .collect::<Vec<_>>();
 
     Some(first_iterator.filter(move |target| {
         other_iterators.iter_mut().all(|it| {

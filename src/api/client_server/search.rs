@@ -27,7 +27,7 @@ pub async fn search_events_route(
             .rooms
             .state_cache
             .rooms_joined(sender_user)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .collect()
     });
 
@@ -110,7 +110,7 @@ pub async fn search_events_route(
                 result: Some(result),
             })
         })
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .skip(skip)
         .take(limit)
         .collect();

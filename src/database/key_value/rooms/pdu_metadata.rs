@@ -4,11 +4,8 @@ use ruma::{EventId, RoomId, UserId};
 
 use crate::{
     database::KeyValueDatabase,
-    service::{
-        self,
-        rooms::timeline::{data::PduData, PduCount},
-    },
-    services, utils, Error, Result,
+    service::{self, rooms::timeline::PduCount},
+    services, utils, Error, PduEvent, Result,
 };
 
 impl service::rooms::pdu_metadata::Data for KeyValueDatabase {
@@ -25,7 +22,7 @@ impl service::rooms::pdu_metadata::Data for KeyValueDatabase {
         shortroomid: u64,
         target: u64,
         until: PduCount,
-    ) -> PduData<'a> {
+    ) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>> {
         let prefix = target.to_be_bytes().to_vec();
         let mut current = prefix.clone();
 

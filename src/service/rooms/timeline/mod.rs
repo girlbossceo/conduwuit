@@ -243,7 +243,7 @@ impl Service {
         if let Some(state_key) = &pdu.state_key {
             if let CanonicalJsonValue::Object(unsigned) = pdu_json
                 .entry("unsigned".to_owned())
-                .or_insert_with(|| CanonicalJsonValue::Object(Default::default()))
+                .or_insert_with(|| CanonicalJsonValue::Object(BTreeMap::default()))
             {
                 if let Some(shortstatehash) = services()
                     .rooms
@@ -400,8 +400,10 @@ impl Service {
                     })
                 })
                 .transpose()?
-                .map(|ev: PushRulesEvent| ev.content.global)
-                .unwrap_or_else(|| Ruleset::server_default(user));
+                .map_or_else(
+                    || Ruleset::server_default(user),
+                    |ev: PushRulesEvent| ev.content.global,
+                );
 
             let mut highlight = false;
             let mut notify = false;
@@ -686,7 +688,7 @@ impl Service {
                     .rooms
                     .alias
                     .local_aliases_for_room(&pdu.room_id)
-                    .filter_map(|r| r.ok())
+                    .filter_map(std::result::Result::ok)
                     .any(|room_alias| aliases.is_match(room_alias.as_str()))
             };
 
@@ -930,7 +932,7 @@ impl Service {
                         .filter(|v| v.starts_with('@'))
                         .unwrap_or(sender.as_str());
                     let server_name = services().globals.server_name();
-                    let server_user = format!("@conduit:{}", server_name);
+                    let server_user = format!("@conduit:{server_name}");
                     let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
                         .map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
@@ -947,7 +949,7 @@ impl Service {
                             .rooms
                             .state_cache
                             .room_members(room_id)
-                            .filter_map(|m| m.ok())
+                            .filter_map(std::result::Result::ok)
                             .filter(|m| m.server_name() == server_name)
                             .filter(|m| m != target)
                             .count();
@@ -973,7 +975,7 @@ impl Service {
                             .rooms
                             .state_cache
                             .room_members(room_id)
-                            .filter_map(|m| m.ok())
+                            .filter_map(std::result::Result::ok)
                             .filter(|m| m.server_name() == server_name)
                             .filter(|m| m != target)
                             .count();
@@ -1016,7 +1018,7 @@ impl Service {
             .rooms
             .state_cache
             .room_servers(room_id)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .collect();
 
         // In case we are kicking or banning a user, we need to inform their server of the change
@@ -1217,7 +1219,7 @@ impl Service {
                 .roomid_mutex_federation
                 .write()
                 .unwrap()
-                .entry(room_id.to_owned())
+                .entry(room_id.clone())
                 .or_default(),
         );
         let mutex_lock = mutex.lock().await;

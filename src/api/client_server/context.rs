@@ -22,7 +22,7 @@ pub async fn get_context_route(
         LazyLoadOptions::Enabled {
             include_redundant_members,
         } => (true, *include_redundant_members),
-        _ => (false, false),
+        LazyLoadOptions::Disabled => (false, false),
     };
 
     let mut lazy_loaded = HashSet::new();
@@ -79,7 +79,7 @@ pub async fn get_context_route(
         .timeline
         .pdus_until(sender_user, &room_id, base_token)?
         .take(limit / 2)
-        .filter_map(|r| r.ok()) // Remove buggy events
+        .filter_map(std::result::Result::ok) // Remove buggy events
         .filter(|(_, pdu)| {
             services()
                 .rooms
@@ -116,7 +116,7 @@ pub async fn get_context_route(
         .timeline
         .pdus_after(sender_user, &room_id, base_token)?
         .take(limit / 2)
-        .filter_map(|r| r.ok()) // Remove buggy events
+        .filter_map(std::result::Result::ok) // Remove buggy events
         .filter(|(_, pdu)| {
             services()
                 .rooms

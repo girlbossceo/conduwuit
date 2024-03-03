@@ -40,7 +40,6 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
     let rocksdb_log_level = match config.rocksdb_log_level.as_ref() {
         "debug" => Debug,
         "info" => Info,
-        "warn" => Warn,
         "error" => Error,
         "fatal" => Fatal,
         _ => Warn,
@@ -71,7 +70,7 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
     db_opts.set_block_based_table_factory(&block_based_options);
     db_opts.set_level_compaction_dynamic_level_bytes(true);
     db_opts.create_if_missing(true);
-    db_opts.increase_parallelism(num_cpus::get() as i32);
+    db_opts.increase_parallelism(num_cpus::get().try_into().unwrap_or_default());
     //db_opts.set_max_open_files(config.rocksdb_max_open_files);
     db_opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
     db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
@@ -79,7 +78,7 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
 
     // https://github.com/facebook/rocksdb/wiki/Setup-Options-and-Basic-Tuning
     db_opts.set_max_background_jobs(6);
-    db_opts.set_bytes_per_sync(1048576);
+    db_opts.set_bytes_per_sync(1_048_576);
 
     // https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes#ktoleratecorruptedtailrecords
     //

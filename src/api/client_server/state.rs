@@ -31,7 +31,7 @@ pub async fn send_state_event_for_key_route(
         &body.room_id,
         &body.event_type,
         &body.body.body, // Yes, I hate it too
-        body.state_key.to_owned(),
+        body.state_key.clone(),
     )
     .await?;
 
@@ -64,7 +64,7 @@ pub async fn send_state_event_for_empty_key_route(
         &body.room_id,
         &body.event_type.to_string().into(),
         &body.body.body,
-        body.state_key.to_owned(),
+        body.state_key.clone(),
     )
     .await?;
 

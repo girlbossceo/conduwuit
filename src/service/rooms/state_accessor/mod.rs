@@ -81,16 +81,15 @@ impl Service {
     /// The user was a joined member at this state (potentially in the past)
     fn user_was_joined(&self, shortstatehash: u64, user_id: &UserId) -> bool {
         self.user_membership(shortstatehash, user_id)
-            .map(|s| s == MembershipState::Join)
-            .unwrap_or_default() // Return sensible default, i.e. false
+            .is_ok_and(|s| s == MembershipState::Join) // Return sensible default, i.e. false
     }
 
     /// The user was an invited or joined room member at this state (potentially
     /// in the past)
     fn user_was_invited(&self, shortstatehash: u64, user_id: &UserId) -> bool {
         self.user_membership(shortstatehash, user_id)
-            .map(|s| s == MembershipState::Join || s == MembershipState::Invite)
-            .unwrap_or_default() // Return sensible default, i.e. false
+            .is_ok_and(|s| s == MembershipState::Join || s == MembershipState::Invite)
+        // Return sensible default, i.e. false
     }
 
     /// Whether a server is allowed to see an event through federation, based on
@@ -102,9 +101,8 @@ impl Service {
         room_id: &RoomId,
         event_id: &EventId,
     ) -> Result<bool> {
-        let shortstatehash = match self.pdu_shortstatehash(event_id)? {
-            Some(shortstatehash) => shortstatehash,
-            None => return Ok(true),
+        let Some(shortstatehash) = self.pdu_shortstatehash(event_id)? else {
+            return Ok(true);
         };
 
         if let Some(visibility) = self
@@ -130,7 +128,7 @@ impl Service {
             .rooms
             .state_cache
             .room_members(room_id)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|member| member.server_name() == origin);
 
         let visibility = match history_visibility {

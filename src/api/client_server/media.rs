@@ -270,7 +270,7 @@ pub async fn get_content_thumbnail_route(
         if services()
             .globals
             .prevent_media_downloads_from()
-            .contains(&body.server_name.to_owned())
+            .contains(&body.server_name.clone())
         {
             info!("Received request for remote media `{}` but server is in our media server blocklist. Returning 404.", mxc);
             return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));

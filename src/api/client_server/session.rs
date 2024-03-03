@@ -5,7 +5,10 @@ use ruma::{
     api::client::{
         error::ErrorKind,
         session::{
-            get_login_types,
+            get_login_types::{
+                self,
+                v3::{ApplicationServiceLoginType, PasswordLoginType},
+            },
             login::{
                 self,
                 v3::{DiscoveryInfo, HomeserverInfo},
@@ -33,8 +36,8 @@ pub async fn get_login_types_route(
     _body: Ruma<get_login_types::v3::Request>,
 ) -> Result<get_login_types::v3::Response> {
     Ok(get_login_types::v3::Response::new(vec![
-        get_login_types::v3::LoginType::Password(Default::default()),
-        get_login_types::v3::LoginType::ApplicationService(Default::default()),
+        get_login_types::v3::LoginType::Password(PasswordLoginType::default()),
+        get_login_types::v3::LoginType::ApplicationService(ApplicationServiceLoginType::default()),
     ]))
 }
 

@@ -174,7 +174,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
                 stages: vec![AuthType::RegistrationToken],
             }],
             completed: Vec::new(),
-            params: Default::default(),
+            params: Box::default(),
             session: None,
             auth_error: None,
         };
@@ -186,7 +186,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
                 stages: vec![AuthType::Dummy],
             }],
             completed: Vec::new(),
-            params: Default::default(),
+            params: Box::default(),
             session: None,
             auth_error: None,
         };
@@ -352,7 +352,7 @@ pub async fn change_password_route(
             stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
-        params: Default::default(),
+        params: Box::default(),
         session: None,
         auth_error: None,
     };
@@ -385,7 +385,7 @@ pub async fn change_password_route(
         for id in services()
             .users
             .all_device_ids(sender_user)
-            .filter_map(|id| id.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|id| id != sender_device)
         {
             services().users.remove_device(sender_user, &id)?;
@@ -409,7 +409,7 @@ pub async fn change_password_route(
 /// Note: Also works for Application Services
 pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3::Response> {
     let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-    let device_id = body.sender_device.as_ref().cloned();
+    let device_id = body.sender_device.clone();
 
     Ok(whoami::v3::Response {
         user_id: sender_user.clone(),
@@ -439,7 +439,7 @@ pub async fn deactivate_route(
             stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
-        params: Default::default(),
+        params: Box::default(),
         session: None,
         auth_error: None,
     };

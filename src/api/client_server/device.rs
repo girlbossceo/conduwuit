@@ -18,7 +18,7 @@ pub async fn get_devices_route(
     let devices: Vec<device::Device> = services()
         .users
         .all_devices_metadata(sender_user)
-        .filter_map(|r| r.ok()) // Filter out buggy devices
+        .filter_map(std::result::Result::ok) // Filter out buggy devices
         .collect();
 
     Ok(get_devices::v3::Response { devices })
@@ -83,7 +83,7 @@ pub async fn delete_device_route(
             stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
-        params: Default::default(),
+        params: Box::default(),
         session: None,
         auth_error: None,
     };
@@ -137,7 +137,7 @@ pub async fn delete_devices_route(
             stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
-        params: Default::default(),
+        params: Box::default(),
         session: None,
         auth_error: None,
     };
@@ -162,7 +162,7 @@ pub async fn delete_devices_route(
     }
 
     for device_id in &body.devices {
-        services().users.remove_device(sender_user, device_id)?
+        services().users.remove_device(sender_user, device_id)?;
     }
 
     Ok(delete_devices::v3::Response {})

@@ -36,7 +36,10 @@ use ruma::{
 use serde_json::value::RawValue as RawJsonValue;
 use tracing::{debug, error, info, trace, warn};
 
-use crate::{service::*, services, Error, PduEvent};
+use crate::{
+    service::{pdu, Arc, BTreeMap, HashMap, Result, RwLock},
+    services, Error, PduEvent,
+};
 
 use super::state_compressor::CompressedStateEvent;
 
@@ -63,7 +66,7 @@ impl Service {
     /// 8. If not timeline event: stop
     /// 9. Fetch any missing prev events doing all checks listed here starting at 1. These are timeline
     ///    events
-    /// 10. Fetch missing state and auth chain events by calling /state_ids at backwards extremities
+    /// 10. Fetch missing state and auth chain events by calling `/state_ids` at backwards extremities
     ///     doing all the checks in this list starting at 1. These are not timeline events
     /// 11. Check the auth of the event passes based on the state of the event
     /// 12. Ensure that the state is derived from the previous current state (i.e. we calculated by
@@ -101,7 +104,7 @@ impl Service {
 
         // 1. Skip the PDU if we already have it as a timeline event
         if let Some(pdu_id) = services().rooms.timeline.get_pdu_id(event_id)? {
-            return Ok(Some(pdu_id.to_vec()));
+            return Ok(Some(pdu_id));
         }
 
         let create_event = services()
@@ -202,7 +205,7 @@ impl Service {
                         e.insert((Instant::now(), 1));
                     }
                     hash_map::Entry::Occupied(mut e) => {
-                        *e.get_mut() = (Instant::now(), e.get().1 + 1)
+                        *e.get_mut() = (Instant::now(), e.get().1 + 1);
                     }
                 }
                 continue;
@@ -246,7 +249,7 @@ impl Service {
                             e.insert((Instant::now(), 1));
                         }
                         hash_map::Entry::Occupied(mut e) => {
-                            *e.get_mut() = (Instant::now(), e.get().1 + 1)
+                            *e.get_mut() = (Instant::now(), e.get().1 + 1);
                         }
                     }
                 }
@@ -440,7 +443,7 @@ impl Service {
             if !matches!(
                 auth_events
                     .get(&(StateEventType::RoomCreate, "".to_owned()))
-                    .map(|a| a.as_ref()),
+                    .map(std::convert::AsRef::as_ref),
                 Some(_) | None
             ) {
                 return Err(Error::BadRequest(
@@ -733,7 +736,9 @@ impl Service {
                         .get_shortstatekey(&StateEventType::RoomCreate, "")?
                         .expect("Room exists");
 
-                    if state.get(&create_shortstatekey).map(|id| id.as_ref())
+                    if state
+                        .get(&create_shortstatekey)
+                        .map(std::convert::AsRef::as_ref)
                         != Some(&create_event.event_id)
                     {
                         return Err(Error::bad_database(
@@ -1167,7 +1172,7 @@ impl Service {
                         }
                     }
                 }
-                events_with_auth_events.push((id, None, events_in_reverse_order))
+                events_with_auth_events.push((id, None, events_in_reverse_order));
             }
 
             // We go through all the signatures we see on the PDUs and their unresolved
@@ -1185,7 +1190,7 @@ impl Service {
                 warn!(
                     "Could not fetch all signatures for PDUs from {}: {:?}",
                     origin, e
-                )
+                );
             });
 
             let mut pdus = vec![];
@@ -1565,7 +1570,7 @@ impl Service {
             }
 
             drop(pkm);
-        }
+        };
 
         if servers.is_empty() {
             info!("server is empty, we had all keys locally, not fetching any keys");

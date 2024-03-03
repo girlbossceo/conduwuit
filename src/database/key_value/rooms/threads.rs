@@ -70,7 +70,7 @@ impl service::rooms::threads::Data for KeyValueDatabase {
                         })?)
                         .map_err(|_| Error::bad_database("Invalid UserId in threadid_userids."))
                     })
-                    .filter_map(|r| r.ok())
+                    .filter_map(std::result::Result::ok)
                     .collect(),
             ))
         } else {

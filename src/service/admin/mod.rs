@@ -442,14 +442,14 @@ impl Service {
                             .roomid_mutex_state
                             .write()
                             .unwrap()
-                            .entry(conduit_room.to_owned())
+                            .entry(conduit_room.clone())
                             .or_default(),
                     );
 
                     let state_lock = mutex_state.lock().await;
 
                     if let Some(reply) = reply {
-                        message_content.relates_to = Some(Reply { in_reply_to: InReplyTo { event_id: reply.into() } })
+                        message_content.relates_to = Some(Reply { in_reply_to: InReplyTo { event_id: reply.into() } });
                     }
 
                 services().rooms.timeline.build_and_append_pdu(
@@ -618,7 +618,7 @@ impl Service {
                     if let Ok(appservices) = services()
                         .appservice
                         .iter_ids()
-                        .map(|ids| ids.collect::<Vec<_>>())
+                        .map(std::iter::Iterator::collect::<Vec<_>>)
                     {
                         let count = appservices.len();
                         let output = format!(
@@ -626,7 +626,7 @@ impl Service {
                             count,
                             appservices
                                 .into_iter()
-                                .filter_map(|r| r.ok())
+                                .filter_map(std::result::Result::ok)
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         );
@@ -992,7 +992,7 @@ impl Service {
                                     false => true,
                                 },
                                 Err(_) => false,
-                            })
+                            });
                         }
 
                         for &user_id in &user_ids {
@@ -1002,7 +1002,7 @@ impl Service {
                             }
 
                             if services().users.deactivate_account(user_id).is_ok() {
-                                deactivation_count += 1
+                                deactivation_count += 1;
                             }
                         }
 
@@ -1243,7 +1243,7 @@ impl Service {
                                             continue;
                                         }
 
-                                        room_ids.push(owned_room_id)
+                                        room_ids.push(owned_room_id);
                                     }
                                     Err(e) => {
                                         if force {
@@ -1441,7 +1441,7 @@ impl Service {
                         .rooms
                         .metadata
                         .iter_ids()
-                        .filter_map(|r| r.ok())
+                        .filter_map(std::result::Result::ok)
                         .map(Self::get_room_info)
                         .collect::<Vec<_>>();
                     rooms.sort_by_key(|r| r.1);
@@ -1672,7 +1672,7 @@ impl Service {
                             .rooms
                             .directory
                             .public_rooms()
-                            .filter_map(|r| r.ok())
+                            .filter_map(std::result::Result::ok)
                             .map(Self::get_room_info)
                             .collect::<Vec<_>>();
                         rooms.sort_by_key(|r| r.1);
@@ -1933,7 +1933,7 @@ impl Service {
                 }
                 DebugCommand::ForceDeviceListUpdates => {
                     // Force E2EE device list updates for all users
-                    for user_id in services().users.iter().filter_map(|r| r.ok()) {
+                    for user_id in services().users.iter().filter_map(std::result::Result::ok) {
                         services().users.mark_device_key_update(&user_id)?;
                     }
                     RoomMessageEventContent::text_plain(
@@ -2390,7 +2390,7 @@ impl Service {
 
         // Set power level
         let mut users = BTreeMap::new();
-        users.insert(conduit_user.to_owned(), 100.into());
+        users.insert(conduit_user.clone(), 100.into());
         users.insert(user_id.to_owned(), 100.into());
 
         services()

@@ -152,21 +152,21 @@ impl service::media::Data for KeyValueDatabase {
         value.extend_from_slice(
             data.title
                 .as_ref()
-                .map(|t| t.as_bytes())
+                .map(std::string::String::as_bytes)
                 .unwrap_or_default(),
         );
         value.push(0xff);
         value.extend_from_slice(
             data.description
                 .as_ref()
-                .map(|d| d.as_bytes())
+                .map(std::string::String::as_bytes)
                 .unwrap_or_default(),
         );
         value.push(0xff);
         value.extend_from_slice(
             data.image
                 .as_ref()
-                .map(|i| i.as_bytes())
+                .map(std::string::String::as_bytes)
                 .unwrap_or_default(),
         );
         value.push(0xff);

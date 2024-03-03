@@ -83,7 +83,7 @@ pub async fn sync_events_route(
         Entry::Vacant(v) => {
             let (tx, rx) = tokio::sync::watch::channel(None);
 
-            v.insert((body.since.to_owned(), rx.clone()));
+            v.insert((body.since.clone(), rx.clone()));
 
             tokio::spawn(sync_helper_wrapper(
                 sender_user.clone(),
@@ -202,7 +202,7 @@ async fn sync_helper(
         LazyLoadOptions::Enabled {
             include_redundant_members: redundant,
         } => (true, redundant),
-        _ => (false, false),
+        LazyLoadOptions::Disabled => (false, false),
     };
 
     let full_state = body.full_state;
@@ -225,7 +225,7 @@ async fn sync_helper(
         services()
             .users
             .keys_changed(sender_user.as_ref(), since, None)
-            .filter_map(|r| r.ok()),
+            .filter_map(std::result::Result::ok),
     );
 
     let all_joined_rooms = services()
@@ -285,7 +285,7 @@ async fn sync_helper(
             );
             let insert_lock = mutex_insert.lock().await;
             drop(insert_lock);
-        }
+        };
 
         let left_count = services()
             .rooms
@@ -417,7 +417,7 @@ async fn sync_helper(
             );
             let insert_lock = mutex_insert.lock().await;
             drop(insert_lock);
-        }
+        };
 
         let invite_count = services()
             .rooms
@@ -444,7 +444,7 @@ async fn sync_helper(
             .rooms
             .user
             .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])?
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .filter_map(|other_room_id| {
                 Some(
                     services()
@@ -604,7 +604,7 @@ async fn load_joined_room(
         );
         let insert_lock = mutex_insert.lock().await;
         drop(insert_lock);
-    }
+    };
 
     let (timeline_pdus, limited) = load_timeline(sender_user, room_id, sincecount, 10)?;
 
@@ -671,7 +671,7 @@ async fn load_joined_room(
                         .rooms
                         .timeline
                         .all_pdus(sender_user, room_id)?
-                        .filter_map(|pdu| pdu.ok()) // Ignore all broken pdus
+                        .filter_map(std::result::Result::ok) // Ignore all broken pdus
                         .filter(|(_, pdu)| pdu.kind == TimelineEventType::RoomMember)
                         .map(|(_, pdu)| {
                             let content: RoomMemberEventContent =
@@ -706,7 +706,7 @@ async fn load_joined_room(
                             }
                         })
                         // Filter out buggy users
-                        .filter_map(|u| u.ok())
+                        .filter_map(std::result::Result::ok)
                         // Filter for possible heroes
                         .flatten()
                     {
@@ -1011,7 +1011,7 @@ async fn load_joined_room(
         services()
             .users
             .keys_changed(room_id.as_ref(), since, None)
-            .filter_map(|r| r.ok()),
+            .filter_map(std::result::Result::ok),
     );
 
     let notification_count = if send_notification_counts {
@@ -1062,7 +1062,7 @@ async fn load_joined_room(
         .edus
         .read_receipt
         .readreceipts_since(room_id, since)
-        .filter_map(|r| r.ok()) // Filter out buggy events
+        .filter_map(std::result::Result::ok) // Filter out buggy events
         .map(|(_, _, v)| v)
         .collect();
 
@@ -1176,7 +1176,7 @@ fn share_encrypted_room(
         .rooms
         .user
         .get_shared_rooms(vec![sender_user.to_owned(), user_id.to_owned()])?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|room_id| room_id != ignore_room)
         .filter_map(|other_room_id| {
             Some(
@@ -1214,7 +1214,7 @@ pub async fn sync_events_v4_route(
                 sender_user.clone(),
                 sender_device.clone(),
                 conn_id.clone(),
-            )
+            );
         }
     }
 
@@ -1229,7 +1229,7 @@ pub async fn sync_events_v4_route(
         .rooms
         .state_cache
         .rooms_joined(&sender_user)
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect::<Vec<_>>();
 
     if body.extensions.to_device.enabled.unwrap_or(false) {
@@ -1248,7 +1248,7 @@ pub async fn sync_events_v4_route(
             services()
                 .users
                 .keys_changed(sender_user.as_ref(), globalsince, None)
-                .filter_map(|r| r.ok()),
+                .filter_map(std::result::Result::ok),
         );
 
         for room_id in &all_joined_rooms {
@@ -1393,7 +1393,7 @@ pub async fn sync_events_v4_route(
                 services()
                     .users
                     .keys_changed(room_id.as_ref(), globalsince, None)
-                    .filter_map(|r| r.ok()),
+                    .filter_map(std::result::Result::ok),
             );
         }
         for user_id in left_encrypted_users {
@@ -1401,7 +1401,7 @@ pub async fn sync_events_v4_route(
                 .rooms
                 .user
                 .get_shared_rooms(vec![sender_user.clone(), user_id.clone()])?
-                .filter_map(|r| r.ok())
+                .filter_map(std::result::Result::ok)
                 .filter_map(|other_room_id| {
                     Some(
                         services()
@@ -1585,7 +1585,7 @@ pub async fn sync_events_v4_route(
                     .state_accessor
                     .room_state_get(room_id, &state.0, &state.1)
             })
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .flatten()
             .map(|state| state.to_sync_state_event())
             .collect();
@@ -1595,7 +1595,7 @@ pub async fn sync_events_v4_route(
             .rooms
             .state_cache
             .room_members(room_id)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|member| member != &sender_user)
             .map(|member| {
                 Ok::<_, Error>(
@@ -1613,7 +1613,7 @@ pub async fn sync_events_v4_route(
                         }),
                 )
             })
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .flatten()
             .take(5)
             .collect::<Vec<_>>();

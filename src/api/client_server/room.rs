@@ -122,7 +122,7 @@ pub async fn create_room_route(
             None => room_id = RoomId::new(services().globals.server_name()),
         }
     } else {
-        room_id = RoomId::new(services().globals.server_name())
+        room_id = RoomId::new(services().globals.server_name());
     }
 
     // check if room ID doesn't already exist instead of erroring on auth check
@@ -380,7 +380,6 @@ pub async fn create_room_route(
 
     // Figure out preset. We need it for preset specific events
     let preset = body.preset.clone().unwrap_or(match &body.visibility {
-        room::Visibility::Private => RoomPreset::PrivateChat,
         room::Visibility::Public => RoomPreset::PublicChat,
         _ => RoomPreset::PrivateChat, // Room visibility should not be custom
     });
@@ -672,7 +671,7 @@ pub async fn get_room_aliases_route(
             .rooms
             .alias
             .local_aliases_for_room(&body.room_id)
-            .filter_map(|a| a.ok())
+            .filter_map(std::result::Result::ok)
             .collect(),
     })
 }
@@ -932,7 +931,7 @@ pub async fn upgrade_room_route(
         .rooms
         .alias
         .local_aliases_for_room(&body.room_id)
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
     {
         services()
             .rooms

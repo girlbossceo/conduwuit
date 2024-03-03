@@ -82,6 +82,7 @@ impl OutgoingKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[allow(clippy::module_name_repetitions)]
 pub enum SendingEventType {
     Pdu(Vec<u8>), // pduid
     Edu(Vec<u8>), // pdu json
@@ -130,7 +131,11 @@ impl Service {
         // Retry requests we could not finish yet
         let mut initial_transactions = HashMap::<OutgoingKind, Vec<SendingEventType>>::new();
 
-        for (key, outgoing_kind, event) in self.db.active_requests().filter_map(|r| r.ok()) {
+        for (key, outgoing_kind, event) in self
+            .db
+            .active_requests()
+            .filter_map(std::result::Result::ok)
+        {
             let entry = initial_transactions
                 .entry(outgoing_kind.clone())
                 .or_default();
@@ -160,7 +165,7 @@ impl Service {
                             self.db.delete_all_active_requests_for(&outgoing_kind)?;
 
                             // Find events that have been added since starting the last request
-                            let new_events = self.db.queued_requests(&outgoing_kind).filter_map(|r| r.ok()).take(30).collect::<Vec<_>>();
+                            let new_events = self.db.queued_requests(&outgoing_kind).filter_map(std::result::Result::ok).take(30).collect::<Vec<_>>();
 
                             if !new_events.is_empty() {
                                 // Insert pdus we found
@@ -247,7 +252,7 @@ impl Service {
             for (_, e) in self
                 .db
                 .active_requests_for(outgoing_kind)
-                .filter_map(|r| r.ok())
+                .filter_map(std::result::Result::ok)
             {
                 events.push(e);
             }
@@ -284,7 +289,7 @@ impl Service {
                 services()
                     .users
                     .keys_changed(room_id.as_ref(), since, None)
-                    .filter_map(|r| r.ok())
+                    .filter_map(std::result::Result::ok)
                     .filter(|user_id| user_id.server_name() == services().globals.server_name()),
             );
 
@@ -443,7 +448,7 @@ impl Service {
         )?;
         for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
             self.sender
-                .send((outgoing_kind.to_owned(), event, key))
+                .send((outgoing_kind.clone(), event, key))
                 .unwrap();
         }
 
@@ -513,7 +518,7 @@ impl Service {
                                         ),
                                     )
                                 })?
-                                .to_room_event())
+                                .to_room_event());
                         }
                         SendingEventType::Edu(_) => {
                             // Appservices don't need EDUs (?)
@@ -600,13 +605,12 @@ impl Service {
                         }
                     }
 
-                    let pusher = match services()
+                    let Some(pusher) = services()
                         .pusher
                         .get_pusher(userid, pushkey)
                         .map_err(|e| (OutgoingKind::Push(userid.clone(), pushkey.clone()), e))?
-                    {
-                        Some(pusher) => pusher,
-                        None => continue,
+                    else {
+                        continue;
                     };
 
                     let rules_for_user = services()
@@ -618,8 +622,10 @@ impl Service {
                         )
                         .unwrap_or_default()
                         .and_then(|event| serde_json::from_str::<PushRulesEvent>(event.get()).ok())
-                        .map(|ev: PushRulesEvent| ev.content.global)
-                        .unwrap_or_else(|| push::Ruleset::server_default(userid));
+                        .map_or_else(
+                            || push::Ruleset::server_default(userid),
+                            |ev: PushRulesEvent| ev.content.global,
+                        );
 
                     let unread: UInt = services()
                         .rooms

@@ -249,9 +249,6 @@ impl Service {
                 if file_created_at >= user_duration {
                     debug!("File is within user duration, pushing to list of file paths and keys to delete.");
                     remote_mxcs.push(mxc.to_string());
-                } else {
-                    // don't need to log this even in debug as it would be noisy
-                    continue;
                 }
             }
 
@@ -331,7 +328,7 @@ impl Service {
             Ok(Some(FileMeta {
                 content_disposition,
                 content_type,
-                file: file.to_vec(),
+                file: file.clone(),
             }))
         } else if let Ok((content_disposition, content_type, key)) =
             self.db.search_file_metadata(mxc.clone(), 0, 0)
@@ -354,7 +351,7 @@ impl Service {
                     return Ok(Some(FileMeta {
                         content_disposition,
                         content_type,
-                        file: file.to_vec(),
+                        file: file.clone(),
                     }));
                 }
 
@@ -426,14 +423,14 @@ impl Service {
                 Ok(Some(FileMeta {
                     content_disposition,
                     content_type,
-                    file: thumbnail_bytes.to_vec(),
+                    file: thumbnail_bytes.clone(),
                 }))
             } else {
                 // Couldn't parse file to generate thumbnail, send original
                 Ok(Some(FileMeta {
                     content_disposition,
                     content_type,
-                    file: file.to_vec(),
+                    file: file.clone(),
                 }))
             }
         } else {
