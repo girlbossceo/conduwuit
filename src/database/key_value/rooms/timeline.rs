@@ -5,11 +5,7 @@ use ruma::{
 };
 use tracing::error;
 
-use crate::{
-    database::KeyValueDatabase,
-    service::{self, rooms::timeline::data::PduData},
-    services, utils, Error, PduEvent, Result,
-};
+use crate::{database::KeyValueDatabase, service, services, utils, Error, PduEvent, Result};
 
 use service::rooms::timeline::PduCount;
 
@@ -232,7 +228,7 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
         user_id: &UserId,
         room_id: &RoomId,
         until: PduCount,
-    ) -> PduData<'a> {
+    ) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>> {
         let (prefix, current) = count_to_id(room_id, until, 1, true)?;
 
         let user_id = user_id.to_owned();
@@ -254,7 +250,12 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
         ))
     }
 
-    fn pdus_after<'a>(&'a self, user_id: &UserId, room_id: &RoomId, from: PduCount) -> PduData<'a> {
+    fn pdus_after<'a>(
+        &'a self,
+        user_id: &UserId,
+        room_id: &RoomId,
+        from: PduCount,
+    ) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>> {
         let (prefix, current) = count_to_id(room_id, from, 1, false)?;
 
         let user_id = user_id.to_owned();

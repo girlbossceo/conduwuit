@@ -46,13 +46,13 @@ impl service::rooms::short::Data for KeyValueDatabase {
             return Ok(Some(*short));
         }
 
-        let mut statekey = event_type.to_string().as_bytes().to_vec();
-        statekey.push(0xff);
-        statekey.extend_from_slice(state_key.as_bytes());
+        let mut statekey_vec = event_type.to_string().as_bytes().to_vec();
+        statekey_vec.push(0xff);
+        statekey_vec.extend_from_slice(state_key.as_bytes());
 
         let short = self
             .statekey_shortstatekey
-            .get(&statekey)?
+            .get(&statekey_vec)?
             .map(|shortstatekey| {
                 utils::u64_from_bytes(&shortstatekey)
                     .map_err(|_| Error::bad_database("Invalid shortstatekey in db."))
@@ -83,19 +83,19 @@ impl service::rooms::short::Data for KeyValueDatabase {
             return Ok(*short);
         }
 
-        let mut statekey = event_type.to_string().as_bytes().to_vec();
-        statekey.push(0xff);
-        statekey.extend_from_slice(state_key.as_bytes());
+        let mut statekey_vec = event_type.to_string().as_bytes().to_vec();
+        statekey_vec.push(0xff);
+        statekey_vec.extend_from_slice(state_key.as_bytes());
 
-        let short = match self.statekey_shortstatekey.get(&statekey)? {
+        let short = match self.statekey_shortstatekey.get(&statekey_vec)? {
             Some(shortstatekey) => utils::u64_from_bytes(&shortstatekey)
                 .map_err(|_| Error::bad_database("Invalid shortstatekey in db."))?,
             None => {
                 let shortstatekey = services().globals.next_count()?;
                 self.statekey_shortstatekey
-                    .insert(&statekey, &shortstatekey.to_be_bytes())?;
+                    .insert(&statekey_vec, &shortstatekey.to_be_bytes())?;
                 self.shortstatekey_statekey
-                    .insert(&shortstatekey.to_be_bytes(), &statekey)?;
+                    .insert(&shortstatekey.to_be_bytes(), &statekey_vec)?;
                 shortstatekey
             }
         };

@@ -76,7 +76,7 @@ impl service::rooms::edus::typing::Data for KeyValueDatabase {
                     .map_err(|_| Error::bad_database("RoomTyping has invalid timestamp bytes."))?,
                 ))
             })
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .take_while(|&(_, timestamp)| timestamp < current_timestamp)
         {
             // This is an outdated edu (time > timestamp)

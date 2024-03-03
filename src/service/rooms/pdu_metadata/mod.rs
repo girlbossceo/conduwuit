@@ -78,7 +78,7 @@ impl Service {
                         })
                     })
                     .take(limit)
-                    .filter_map(|r| r.ok()) // Filter out buggy events
+                    .filter_map(std::result::Result::ok) // Filter out buggy events
                     .filter(|(_, pdu)| {
                         services()
                             .rooms
@@ -125,7 +125,7 @@ impl Service {
                         })
                     })
                     .take(limit)
-                    .filter_map(|r| r.ok()) // Filter out buggy events
+                    .filter_map(std::result::Result::ok) // Filter out buggy events
                     .filter(|(_, pdu)| {
                         services()
                             .rooms

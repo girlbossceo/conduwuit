@@ -68,7 +68,7 @@ pub async fn join_room_by_id_route(
             .iter()
             .filter_map(|event| serde_json::from_str(event.json().get()).ok())
             .filter_map(|event: serde_json::Value| event.get("sender").cloned())
-            .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
+            .filter_map(|sender| sender.as_str().map(std::borrow::ToOwned::to_owned))
             .filter_map(|sender| UserId::parse(sender).ok())
             .map(|user| user.server_name().to_owned()),
     );
@@ -123,7 +123,7 @@ pub async fn join_room_by_id_or_alias_route(
                     .iter()
                     .filter_map(|event| serde_json::from_str(event.json().get()).ok())
                     .filter_map(|event: serde_json::Value| event.get("sender").cloned())
-                    .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
+                    .filter_map(|sender| sender.as_str().map(std::borrow::ToOwned::to_owned))
                     .filter_map(|sender| UserId::parse(sender).ok())
                     .map(|user| user.server_name().to_owned()),
             );
@@ -441,7 +441,7 @@ pub async fn joined_rooms_route(
             .rooms
             .state_cache
             .rooms_joined(sender_user)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .collect(),
     })
 }
@@ -507,7 +507,7 @@ pub async fn joined_members_route(
         .rooms
         .state_cache
         .room_members(&body.room_id)
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
     {
         let display_name = services().users.displayname(&user_id)?;
         let avatar_url = services().users.avatar_url(&user_id)?;
@@ -963,7 +963,7 @@ async fn join_room_by_id_helper(
                             .rooms
                             .state_cache
                             .room_members(restriction_room_id)
-                            .filter_map(|r| r.ok())
+                            .filter_map(std::result::Result::ok)
                             .find(|uid| uid.server_name() == services().globals.server_name())
                     });
                 Some(authorized_user)
@@ -1384,7 +1384,7 @@ pub(crate) async fn invite_helper(
             .rooms
             .state_cache
             .room_servers(room_id)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|server| &**server != services().globals.server_name());
 
         services().sending.send_pdu(servers, &pdu_id)?;
@@ -1593,7 +1593,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
         .iter()
         .filter_map(|event| serde_json::from_str(event.json().get()).ok())
         .filter_map(|event: serde_json::Value| event.get("sender").cloned())
-        .filter_map(|sender| sender.as_str().map(|s| s.to_owned()))
+        .filter_map(|sender| sender.as_str().map(std::borrow::ToOwned::to_owned))
         .filter_map(|sender| UserId::parse(sender).ok())
         .map(|user| user.server_name().to_owned())
         .collect();

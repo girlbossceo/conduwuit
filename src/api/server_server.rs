@@ -866,7 +866,7 @@ pub async fn send_transaction_message_route(
             warn!(
                 "Could not fetch all signatures for PDUs from {}: {:?}",
                 sender_servername, e
-            )
+            );
         });
 
     for (event_id, value, room_id) in parsed_pdus {
@@ -876,7 +876,7 @@ pub async fn send_transaction_message_route(
                 .roomid_mutex_federation
                 .write()
                 .unwrap()
-                .entry(room_id.to_owned())
+                .entry(room_id.clone())
                 .or_default(),
         );
         let mutex_lock = mutex.lock().await;
@@ -1037,7 +1037,7 @@ pub async fn send_transaction_message_route(
                                             "Event is invalid",
                                         )
                                     })?,
-                                )?
+                                )?;
                             }
 
                             DeviceIdOrAllDevices::AllDevices => {
@@ -1214,7 +1214,7 @@ pub async fn get_backfill_route(
         .take(limit.try_into().unwrap());
 
     let events = all_events
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|(_, e)| {
             matches!(
                 services().rooms.state_accessor.server_can_see_event(
@@ -1562,7 +1562,7 @@ pub async fn create_join_event_template_route(
             .roomid_mutex_state
             .write()
             .unwrap()
-            .entry(body.room_id.to_owned())
+            .entry(body.room_id.clone())
             .or_default(),
     );
     let state_lock = mutex_state.lock().await;
@@ -1768,7 +1768,7 @@ async fn create_join_event(
         .rooms
         .state_cache
         .room_servers(room_id)
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|server| &**server != services().globals.server_name());
 
     services().sending.send_pdu(servers, &pdu_id)?;
@@ -1986,7 +1986,7 @@ pub async fn get_devices_route(
         devices: services()
             .users
             .all_devices_metadata(&body.user_id)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .filter_map(|metadata| {
                 let device_id_string = metadata.device_id.as_str().to_owned();
                 let device_display_name = match services().globals.allow_device_name_federation() {
@@ -2062,11 +2062,11 @@ pub async fn get_profile_information_route(
 
     match &body.field {
         Some(ProfileField::DisplayName) => {
-            displayname = services().users.displayname(&body.user_id)?
+            displayname = services().users.displayname(&body.user_id)?;
         }
         Some(ProfileField::AvatarUrl) => {
             avatar_url = services().users.avatar_url(&body.user_id)?;
-            blurhash = services().users.blurhash(&body.user_id)?
+            blurhash = services().users.blurhash(&body.user_id)?;
         }
         // TODO: what to do with custom
         Some(_) => {}

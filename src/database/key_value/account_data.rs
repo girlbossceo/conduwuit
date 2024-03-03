@@ -21,7 +21,7 @@ impl service::account_data::Data for KeyValueDatabase {
         data: &serde_json::Value,
     ) -> Result<()> {
         let mut prefix = room_id
-            .map(|r| r.to_string())
+            .map(std::string::ToString::to_string)
             .unwrap_or_default()
             .as_bytes()
             .to_vec();
@@ -71,7 +71,7 @@ impl service::account_data::Data for KeyValueDatabase {
         kind: RoomAccountDataEventType,
     ) -> Result<Option<Box<serde_json::value::RawValue>>> {
         let mut key = room_id
-            .map(|r| r.to_string())
+            .map(std::string::ToString::to_string)
             .unwrap_or_default()
             .as_bytes()
             .to_vec();
@@ -106,7 +106,7 @@ impl service::account_data::Data for KeyValueDatabase {
         let mut userdata = HashMap::new();
 
         let mut prefix = room_id
-            .map(|r| r.to_string())
+            .map(std::string::ToString::to_string)
             .unwrap_or_default()
             .as_bytes()
             .to_vec();

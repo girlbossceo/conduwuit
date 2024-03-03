@@ -215,7 +215,7 @@ where
                             .event_handler
                             .fetch_signing_keys_for_server(
                                 &x_matrix.origin,
-                                vec![x_matrix.key.to_owned()],
+                                vec![x_matrix.key.clone()],
                             )
                             .await;
 

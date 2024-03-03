@@ -111,7 +111,7 @@ pub async fn upload_signing_keys_route(
             stages: vec![AuthType::Password],
         }],
         completed: Vec::new(),
-        params: Default::default(),
+        params: Box::default(),
         session: None,
         auth_error: None,
     };
@@ -230,14 +230,14 @@ pub async fn get_key_changes_route(
                         .map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?,
                 ),
             )
-            .filter_map(|r| r.ok()),
+            .filter_map(std::result::Result::ok),
     );
 
     for room_id in services()
         .rooms
         .state_cache
         .rooms_joined(sender_user)
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
     {
         device_list_updates.extend(
             services()
@@ -251,7 +251,7 @@ pub async fn get_key_changes_route(
                         Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`.")
                     })?),
                 )
-                .filter_map(|r| r.ok()),
+                .filter_map(std::result::Result::ok),
         );
     }
     Ok(get_key_changes::v3::Response {

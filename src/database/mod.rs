@@ -36,7 +36,7 @@ use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 
 pub struct KeyValueDatabase {
-    _db: Arc<dyn KeyValueDatabaseEngine>,
+    db: Arc<dyn KeyValueDatabaseEngine>,
 
     //pub globals: globals::Globals,
     pub(super) global: Arc<dyn KvTree>,
@@ -252,7 +252,7 @@ impl KeyValueDatabase {
         let (presence_sender, presence_receiver) = mpsc::unbounded_channel();
 
         let db_raw = Box::new(Self {
-            _db: builder.clone(),
+            db: builder.clone(),
             userid_password: builder.open_tree("userid_password")?,
             userid_displayname: builder.open_tree("userid_displayname")?,
             userid_avatarurl: builder.open_tree("userid_avatarurl")?,
@@ -616,7 +616,7 @@ impl KeyValueDatabase {
                         Ok::<_, Error>(())
                     };
 
-                for (k, seventid) in db._db.open_tree("stateid_shorteventid")?.iter() {
+                for (k, seventid) in db.db.open_tree("stateid_shorteventid")?.iter() {
                     let sstatehash = utils::u64_from_bytes(&k[0..size_of::<u64>()])
                         .expect("number of bytes is correct");
                     let sstatekey = k[size_of::<u64>()..].to_vec();
@@ -789,7 +789,7 @@ impl KeyValueDatabase {
                 }
 
                 // Force E2EE device list updates so we can send them over federation
-                for user_id in services().users.iter().filter_map(|r| r.ok()) {
+                for user_id in services().users.iter().filter_map(std::result::Result::ok) {
                     services().users.mark_device_key_update(&user_id)?;
                 }
 
@@ -799,7 +799,7 @@ impl KeyValueDatabase {
             }
 
             if services().globals.database_version()? < 11 {
-                db._db
+                db.db
                     .open_tree("userdevicesessionid_uiaarequest")?
                     .clear()?;
                 services().globals.bump_database_version(11)?;
@@ -974,7 +974,7 @@ impl KeyValueDatabase {
                                     .into_iter()
                                     .map(|x| &patterns.patterns()[x])
                                     .join(", ")
-                            )
+                            );
                         }
                     }
                 }
@@ -998,7 +998,7 @@ impl KeyValueDatabase {
                                         .into_iter()
                                         .map(|x| &patterns.patterns()[x])
                                         .join(", ")
-                            )
+                            );
                             }
                         }
                     }
@@ -1039,7 +1039,7 @@ impl KeyValueDatabase {
                 error!(
                     "Could not set the configured emergency password for the conduit user: {}",
                     e
-                )
+                );
             }
         };
 
@@ -1059,7 +1059,7 @@ impl KeyValueDatabase {
     pub fn flush(&self) -> Result<()> {
         let start = std::time::Instant::now();
 
-        let res = self._db.flush();
+        let res = self.db.flush();
 
         debug!("flush: took {:?}", start.elapsed());
 
@@ -1113,7 +1113,7 @@ impl KeyValueDatabase {
                     .send_message(RoomMessageEventContent::text_plain(format!(
                     "@room: the following is a message from the conduwuit puppy. it was sent on '{}':\n\n{}",
                     update.date, update.message
-                )))
+                )));
             }
         }
         services()

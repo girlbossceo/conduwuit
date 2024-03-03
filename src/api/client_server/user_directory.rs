@@ -52,7 +52,7 @@ pub async fn search_users_route(
             .rooms
             .state_cache
             .rooms_joined(&user_id)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .any(|room| {
                 services()
                     .rooms

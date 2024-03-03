@@ -64,7 +64,7 @@ impl Service {
                 warn!("Failed to find destination {}: {}", destination, e);
                 Error::BadServerResponse("Invalid destination")
             })?
-            .map(|body| body.freeze());
+            .map(bytes::BytesMut::freeze);
 
         let reqwest_request = reqwest::Request::try_from(http_request)?;
 
@@ -258,7 +258,7 @@ impl Service {
                         .iter()
                         .any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
                 {
-                    notifi.prio = NotificationPriority::High
+                    notifi.prio = NotificationPriority::High;
                 }
 
                 if event_id_only {
@@ -285,7 +285,7 @@ impl Service {
                 Ok(())
             }
             // TODO: Handle email
-            PusherKind::Email(_) => Ok(()),
+            //PusherKind::Email(_) => Ok(()),
             _ => Ok(()),
         }
     }

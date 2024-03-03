@@ -650,7 +650,7 @@ impl service::users::Data for KeyValueDatabase {
             .rooms
             .state_cache
             .rooms_joined(user_id)
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
         {
             // Don't send key updates to unencrypted rooms
             if services()
@@ -855,7 +855,7 @@ impl service::users::Data for KeyValueDatabase {
                         .map_err(|_| Error::bad_database("ToDeviceId has invalid count bytes."))?,
                 ))
             })
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .take_while(|&(_, count)| count <= until)
         {
             self.todeviceid_events.remove(&key)?;

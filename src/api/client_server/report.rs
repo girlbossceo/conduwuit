@@ -46,7 +46,7 @@ pub async fn report_event_route(
         .rooms
         .state_cache
         .room_members(&pdu.room_id)
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .any(|user_id| user_id == *sender_user)
     {
         return Err(Error::BadRequest(
@@ -85,7 +85,7 @@ pub async fn report_event_route(
                 sender_user.to_owned(),
                 pdu.event_id,
                 pdu.room_id,
-                pdu.sender.to_owned(),
+                pdu.sender.clone(),
                 body.score.unwrap_or_else(|| ruma::Int::from(0)),
                 body.reason.as_deref().unwrap_or("")
             ),
@@ -97,9 +97,9 @@ pub async fn report_event_route(
                 Report Info<ul><li>Report Score: {4}</li><li>Report Reason: {5}</li></ul></li>\
                 </ul></details>",
             sender_user.to_owned(),
-            pdu.event_id.to_owned(),
-            pdu.room_id.to_owned(),
-            pdu.sender.to_owned(),
+            pdu.event_id.clone(),
+            pdu.room_id.clone(),
+            pdu.sender.clone(),
             body.score.unwrap_or_else(|| ruma::Int::from(0)),
             HtmlEscape(body.reason.as_deref().unwrap_or(""))
         ),
