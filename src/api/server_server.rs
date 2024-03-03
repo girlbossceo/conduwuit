@@ -1845,6 +1845,13 @@ pub async fn create_invite_route(
         .as_ref()
         .expect("server is authenticated");
 
+    if services().globals.block_non_admin_invites() {
+        info!("Received remote invite from server {} for room {}, but \"block_non_admin_invites\" is enabled, rejecting.", &sender_servername, &body.room_id);
+        return Err(Error::BadRequest(
+            ErrorKind::Forbidden,
+            "This server does not allow room invites.",
+        ));
+    }
     services()
         .rooms
         .event_handler

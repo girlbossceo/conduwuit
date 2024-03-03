@@ -163,6 +163,9 @@ pub struct Config {
     #[serde(with = "serde_regex")]
     pub forbidden_usernames: RegexSet,
 
+    #[serde(default)]
+    pub block_non_admin_invites: bool,
+
     #[serde(flatten)]
     pub catchall: BTreeMap<String, IgnoredAny>,
 }
@@ -276,6 +279,10 @@ impl fmt::Display for Config {
             (
                 "Allow local presence requests (updates)",
                 &self.allow_local_presence.to_string(),
+            ),
+            (
+                "Block non-admin room invites (local and remote) and block all incoming remote invites",
+                &self.block_non_admin_invites.to_string(),
             ),
             (
                 "Allow device name federation",

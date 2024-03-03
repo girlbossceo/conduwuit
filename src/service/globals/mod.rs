@@ -471,6 +471,10 @@ impl Service<'_> {
         &self.config.ip_range_denylist
     }
 
+    pub fn block_non_admin_invites(&self) -> bool {
+        self.config.block_non_admin_invites
+    }
+
     pub fn supported_room_versions(&self) -> Vec<RoomVersionId> {
         let mut room_versions: Vec<RoomVersionId> = vec![];
         room_versions.extend(self.stable_room_versions.clone());

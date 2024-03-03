@@ -152,6 +152,11 @@ registration_token = "change this token for something specific to your server"
 # defaults to true
 # allow_room_creation = true
 
+# controls whether non-admin local users are forbidden from sending room invites (local and remote),
+# AND rejects all incoming remote/federation room invites for all users (including admins).
+# defaults to false
+# block_non_admin_invites = falsse
+
 # Set this to true to allow your server's public room directory to be federated.
 # Set this to false to protect against /publicRooms spiders, but will forbid external users
 # from viewing your server's public room directory. If federation is disabled entirely
