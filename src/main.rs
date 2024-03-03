@@ -1,5 +1,5 @@
 use std::{
-    fs::Permissions, future::Future, io, net::SocketAddr, os::unix::fs::PermissionsExt,
+    fs::Permissions, future::Future, io, net::SocketAddr, os::unix::fs::PermissionsExt, path::Path,
     sync::atomic, time::Duration,
 };
 
@@ -158,6 +158,30 @@ async fn main() {
     let config = &services().globals.config;
 
     /* ad-hoc config validation/checks */
+
+    if config.address.is_loopback() {
+        debug!(
+            "Found loopback listening address {}, running checks if we're in a container.",
+            config.address
+        );
+
+        #[cfg(unix)]
+        if Path::new("/proc/vz").exists() /* Guest */ && !Path::new("/proc/bz").exists()
+        /* Host */
+        {
+            error!("You are detected using OpenVZ with a loopback/localhost listening address of {}. If you are using OpenVZ for containers and you use NAT-based networking to communicate with the host and guest, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, you can ignore.", config.address);
+        }
+
+        #[cfg(unix)]
+        if Path::new("/.dockerenv").exists() {
+            error!("You are detected using Docker with a loopback/localhost listening address of {}. If you are using a reverse proxy on the host and require communication to conduwuit in the Docker container via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, you can ignore.", config.address);
+        }
+
+        #[cfg(unix)]
+        if Path::new("/run/.containerenv").exists() {
+            error!("You are detected using Podman with a loopback/localhost listening address of {}. If you are using a reverse proxy on the host and require communication to conduwuit in the Podman container via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, you can ignore.", config.address);
+        }
+    }
 
     // yeah, unless the user built a debug build hopefully for local testing only
     if config.server_name == "your.server.name" && !cfg!(debug_assertions) {
