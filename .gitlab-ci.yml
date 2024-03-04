@@ -107,7 +107,7 @@ oci-image:aarch64-unknown-linux-musl:
 debian:x86_64-unknown-linux-gnu:
   stage: artifacts
   # See also `rust-toolchain.toml`
-  image: rust:1.75.0
+  image: rust:1.76.0
   script:
     - cargo install cargo-deb
     - cargo deb
