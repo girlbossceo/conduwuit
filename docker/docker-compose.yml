@@ -1,5 +1,5 @@
 # Conduit
-version: '3'
+version: '2.4'
 
 services:
     homeserver:
@@ -20,10 +20,11 @@ services:
         ports:
             - 8448:6167
         volumes:
-            - db:/var/lib/matrix-conduit/
+            - db:/var/lib/matrix-conduit
+            #- ./conduwuit.toml:/etc/conduit.toml
         environment:
             CONDUIT_SERVER_NAME: your.server.name # EDIT THIS
-            CONDUIT_DATABASE_PATH: /var/lib/matrix-conduit/
+            CONDUIT_DATABASE_PATH: /var/lib/matrix-conduit
             CONDUIT_DATABASE_BACKEND: rocksdb
             CONDUIT_PORT: 6167
             CONDUIT_MAX_REQUEST_SIZE: 20_000_000 # in bytes, ~20 MB
@@ -34,7 +35,8 @@ services:
             #CONDUIT_MAX_CONCURRENT_REQUESTS: 400
             #CONDUIT_LOG: warn,state_res=warn
             CONDUIT_ADDRESS: 0.0.0.0
-            CONDUIT_CONFIG: '' # Ignore this
+            CONDUIT_CONFIG: '' # Leave blank unless you mapped config toml above
+        #cpuset: "0-4" # Uncomment to limit to specific CPU cores
     #
     ### Uncomment if you want to use your own Element-Web App.
     ### Note: You need to provide a config.json for Element and you also need a second
