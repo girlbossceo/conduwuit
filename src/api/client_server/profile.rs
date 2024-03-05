@@ -1,4 +1,5 @@
-use crate::{service::pdu::PduBuilder, services, Error, Result, Ruma};
+use std::sync::Arc;
+
 use ruma::{
     api::{
         client::{
@@ -7,13 +8,14 @@ use ruma::{
                 get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
             },
         },
-        federation::{self, query::get_profile_information::v1::ProfileField},
+        federation,
     },
     events::{room::member::RoomMemberEventContent, StateEventType, TimelineEventType},
     presence::PresenceState,
 };
 use serde_json::value::to_raw_value;
-use std::sync::Arc;
+
+use crate::{service::pdu::PduBuilder, services, Error, Result, Ruma};
 
 /// # `PUT /_matrix/client/r0/profile/{userId}/displayname`
 ///
@@ -113,39 +115,35 @@ pub async fn set_displayname_route(
 pub async fn get_displayname_route(
     body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
-    if (services().users.exists(&body.user_id)?)
-        && (body.user_id.server_name() != services().globals.server_name())
-    {
+    if body.user_id.server_name() != services().globals.server_name() {
         let response = services()
             .sending
             .send_federation_request(
                 body.user_id.server_name(),
                 federation::query::get_profile_information::v1::Request {
                     user_id: body.user_id.clone(),
-                    field: Some(ProfileField::DisplayName),
+                    field: None, // we want the full user's profile to update locally too
                 },
             )
             .await?;
 
-        /*
-            TODO: ignore errors properly?
-        // Create and update our local copy of the user
-        // these are `let _` because it's fine if we can't find these for the user.
-        // also these requests are sent on room join so dead servers will make room joins annoying again
-        let _ = services().users.create(&body.user_id, None);
-        let _ = services()
+        // Create and update our local copy of the user for only the fields we request for
+        if !services().users.exists(&body.user_id)? {
+            services().users.create(&body.user_id, None)?;
+        }
+
+        services()
             .users
             .set_displayname(&body.user_id, response.displayname.clone())
-            .await;
-        let _ = services()
+            .await?;
+        services()
             .users
-            .set_avatar_url(&body.user_id, response.avatar_url)
-            .await;
-        let _ = services()
+            .set_avatar_url(&body.user_id, response.avatar_url.clone())
+            .await?;
+        services()
             .users
-            .set_blurhash(&body.user_id, response.blurhash)
-            .await;
-        */
+            .set_blurhash(&body.user_id, response.blurhash.clone())
+            .await?;
 
         return Ok(get_display_name::v3::Response {
             displayname: response.displayname,
@@ -260,39 +258,35 @@ pub async fn set_avatar_url_route(
 pub async fn get_avatar_url_route(
     body: Ruma<get_avatar_url::v3::Request>,
 ) -> Result<get_avatar_url::v3::Response> {
-    if (services().users.exists(&body.user_id)?)
-        && (body.user_id.server_name() != services().globals.server_name())
-    {
+    if body.user_id.server_name() != services().globals.server_name() {
         let response = services()
             .sending
             .send_federation_request(
                 body.user_id.server_name(),
                 federation::query::get_profile_information::v1::Request {
                     user_id: body.user_id.clone(),
-                    field: Some(ProfileField::AvatarUrl),
+                    field: None, // we want the full user's profile to update locally as well
                 },
             )
             .await?;
 
-        /*
-            TODO: ignore errors properly?
         // Create and update our local copy of the user
-        // these are `let _` because it's fine if we can't find these for the user.
-        // also these requests are sent on room join so dead servers will make room joins annoying again
-        let _ = services().users.create(&body.user_id, None);
-        let _ = services()
+        if !services().users.exists(&body.user_id)? {
+            services().users.create(&body.user_id, None)?;
+        }
+
+        services()
             .users
-            .set_displayname(&body.user_id, response.displayname)
-            .await;
-        let _ = services()
+            .set_displayname(&body.user_id, response.displayname.clone())
+            .await?;
+        services()
             .users
             .set_avatar_url(&body.user_id, response.avatar_url.clone())
-            .await;
-        let _ = services()
+            .await?;
+        services()
             .users
             .set_blurhash(&body.user_id, response.blurhash.clone())
-            .await;
-        */
+            .await?;
 
         return Ok(get_avatar_url::v3::Response {
             avatar_url: response.avatar_url,
@@ -315,9 +309,7 @@ pub async fn get_avatar_url_route(
 pub async fn get_profile_route(
     body: Ruma<get_profile::v3::Request>,
 ) -> Result<get_profile::v3::Response> {
-    if (services().users.exists(&body.user_id)?)
-        && (body.user_id.server_name() != services().globals.server_name())
-    {
+    if body.user_id.server_name() != services().globals.server_name() {
         let response = services()
             .sending
             .send_federation_request(
@@ -329,25 +321,23 @@ pub async fn get_profile_route(
             )
             .await?;
 
-        /*
-            TODO: ignore errors properly?
         // Create and update our local copy of the user
-        // these are `let _` because it's fine if we can't find these for the user.
-        // also these requests are sent on room join so dead servers will make room joins annoying again
-        let _ = services().users.create(&body.user_id, None);
-        let _ = services()
+        if !services().users.exists(&body.user_id)? {
+            services().users.create(&body.user_id, None)?;
+        }
+
+        services()
             .users
             .set_displayname(&body.user_id, response.displayname.clone())
-            .await;
-        let _ = services()
+            .await?;
+        services()
             .users
             .set_avatar_url(&body.user_id, response.avatar_url.clone())
-            .await;
-        let _ = services()
+            .await?;
+        services()
             .users
             .set_blurhash(&body.user_id, response.blurhash.clone())
-            .await;
-        */
+            .await?;
 
         return Ok(get_profile::v3::Response {
             displayname: response.displayname,
