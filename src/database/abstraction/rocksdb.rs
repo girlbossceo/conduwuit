@@ -1,5 +1,3 @@
-use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
-use crate::{utils, Result};
 use std::{
     future::Future,
     pin::Pin,
@@ -8,6 +6,10 @@ use std::{
 
 use rocksdb::LogLevel::{Debug, Error, Fatal, Info, Warn};
 use tracing::{debug, info};
+
+use crate::{utils, Result};
+
+use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
 
 pub(crate) struct Engine {
     rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
@@ -45,16 +47,18 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
         _ => Warn,
     };
 
+    let threads = if config.rocksdb_parallelism_threads == 0 {
+        num_cpus::get() // max CPUs if user specified 0
+    } else {
+        config.rocksdb_parallelism_threads
+    };
+
     db_opts.set_log_level(rocksdb_log_level);
     db_opts.set_max_log_file_size(config.rocksdb_max_log_file_size);
     db_opts.set_log_file_time_to_roll(config.rocksdb_log_time_to_roll);
 
     if config.rocksdb_optimize_for_spinning_disks {
-        // useful for hard drives but on literally any half-decent SSD this is not useful
-        // and the benefits of improved compaction based on up to date stats are good.
-        // current conduwut users have NVMe/SSDs.
         db_opts.set_skip_stats_update_on_db_open(true);
-
         db_opts.set_compaction_readahead_size(2 * 1024 * 1024); // default compaction_readahead_size is 0 which is good for SSDs
         db_opts.set_target_file_size_base(256 * 1024 * 1024); // default target_file_size is 64MB which is good for SSDs
         db_opts.set_optimize_filters_for_hits(true); // doesn't really seem useful for fast storage
@@ -70,7 +74,11 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
     db_opts.set_block_based_table_factory(&block_based_options);
     db_opts.set_level_compaction_dynamic_level_bytes(true);
     db_opts.create_if_missing(true);
-    db_opts.increase_parallelism(num_cpus::get().try_into().unwrap_or_default());
+    db_opts.increase_parallelism(
+        threads
+            .try_into()
+            .expect("Failed to convert \"rocksdb_parallelism_threads\" usize into i32"),
+    );
     //db_opts.set_max_open_files(config.rocksdb_max_open_files);
     db_opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
     db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);

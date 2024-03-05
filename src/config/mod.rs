@@ -7,18 +7,16 @@ use std::{
 };
 
 use either::Either;
-
 use figment::Figment;
-
 use itertools::Itertools;
 use regex::RegexSet;
 use ruma::{OwnedServerName, RoomVersionId};
 use serde::{de::IgnoredAny, Deserialize};
 use tracing::{debug, error, warn};
 
-mod proxy;
-
 use self::proxy::ProxyConfig;
+
+mod proxy;
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(transparent)]
@@ -115,6 +113,8 @@ pub struct Config {
     pub rocksdb_log_time_to_roll: usize,
     #[serde(default)]
     pub rocksdb_optimize_for_spinning_disks: bool,
+    #[serde(default = "default_rocksdb_parallelism_threads")]
+    pub rocksdb_parallelism_threads: usize,
 
     pub emergency_password: Option<String>,
 
@@ -367,6 +367,10 @@ impl fmt::Display for Config {
                 "RocksDB database optimize for spinning disks",
                 &self.rocksdb_optimize_for_spinning_disks.to_string(),
             ),
+            (
+                "RocksDB Parallelism Threads",
+                &self.rocksdb_parallelism_threads.to_string(),
+            ),
             ("Prevent Media Downloads From", {
                 let mut lst = vec![];
                 for domain in &self.prevent_media_downloads_from {
@@ -500,6 +504,10 @@ fn default_rocksdb_log_level() -> String {
 
 fn default_rocksdb_log_time_to_roll() -> usize {
     0
+}
+
+fn default_rocksdb_parallelism_threads() -> usize {
+    num_cpus::get() / 2
 }
 
 // I know, it's a great name
