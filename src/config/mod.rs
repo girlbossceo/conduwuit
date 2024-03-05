@@ -507,7 +507,7 @@ fn default_rocksdb_log_time_to_roll() -> usize {
 }
 
 fn default_rocksdb_parallelism_threads() -> usize {
-    num_cpus::get() / 2
+    num_cpus::get_physical() / 2
 }
 
 // I know, it's a great name
