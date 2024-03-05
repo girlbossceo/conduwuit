@@ -257,6 +257,8 @@ allow_check_for_updates = true
 #rocksdb_log_time_to_roll = 0
 
 # Amount of threads that RocksDB will use for parallelism. Set to 0 to use all your physical cores.
+# Conduit eagerly spawns threads mainly for federation, so it may not be desirable to use all your cores / logical threads.
+#
 # Defaults to your CPU physical core count (not logical threads) count divided by 2 (half)
 #rocksdb_parallelism_threads = 0
 
