@@ -116,7 +116,8 @@ pub async fn get_displayname_route(
     body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
     if body.user_id.server_name() != services().globals.server_name() {
-        let response = services()
+        // Create and update our local copy of the user
+        if let Ok(response) = services()
             .sending
             .send_federation_request(
                 body.user_id.server_name(),
@@ -125,29 +126,37 @@ pub async fn get_displayname_route(
                     field: None, // we want the full user's profile to update locally too
                 },
             )
-            .await?;
+            .await
+        {
+            if !services().users.exists(&body.user_id)? {
+                services().users.create(&body.user_id, None)?;
+            }
 
-        // Create and update our local copy of the user for only the fields we request for
-        if !services().users.exists(&body.user_id)? {
-            services().users.create(&body.user_id, None)?;
+            services()
+                .users
+                .set_displayname(&body.user_id, response.displayname.clone())
+                .await?;
+            services()
+                .users
+                .set_avatar_url(&body.user_id, response.avatar_url.clone())
+                .await?;
+            services()
+                .users
+                .set_blurhash(&body.user_id, response.blurhash.clone())
+                .await?;
+
+            return Ok(get_display_name::v3::Response {
+                displayname: response.displayname,
+            });
         }
+    }
 
-        services()
-            .users
-            .set_displayname(&body.user_id, response.displayname.clone())
-            .await?;
-        services()
-            .users
-            .set_avatar_url(&body.user_id, response.avatar_url.clone())
-            .await?;
-        services()
-            .users
-            .set_blurhash(&body.user_id, response.blurhash.clone())
-            .await?;
-
-        return Ok(get_display_name::v3::Response {
-            displayname: response.displayname,
-        });
+    if !services().users.exists(&body.user_id)? {
+        // Return 404 if this user doesn't exist and we couldn't fetch it over federation
+        return Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Profile was not found.",
+        ));
     }
 
     Ok(get_display_name::v3::Response {
@@ -259,7 +268,8 @@ pub async fn get_avatar_url_route(
     body: Ruma<get_avatar_url::v3::Request>,
 ) -> Result<get_avatar_url::v3::Response> {
     if body.user_id.server_name() != services().globals.server_name() {
-        let response = services()
+        // Create and update our local copy of the user
+        if let Ok(response) = services()
             .sending
             .send_federation_request(
                 body.user_id.server_name(),
@@ -268,30 +278,38 @@ pub async fn get_avatar_url_route(
                     field: None, // we want the full user's profile to update locally as well
                 },
             )
-            .await?;
+            .await
+        {
+            if !services().users.exists(&body.user_id)? {
+                services().users.create(&body.user_id, None)?;
+            }
 
-        // Create and update our local copy of the user
-        if !services().users.exists(&body.user_id)? {
-            services().users.create(&body.user_id, None)?;
+            services()
+                .users
+                .set_displayname(&body.user_id, response.displayname.clone())
+                .await?;
+            services()
+                .users
+                .set_avatar_url(&body.user_id, response.avatar_url.clone())
+                .await?;
+            services()
+                .users
+                .set_blurhash(&body.user_id, response.blurhash.clone())
+                .await?;
+
+            return Ok(get_avatar_url::v3::Response {
+                avatar_url: response.avatar_url,
+                blurhash: response.blurhash,
+            });
         }
+    }
 
-        services()
-            .users
-            .set_displayname(&body.user_id, response.displayname.clone())
-            .await?;
-        services()
-            .users
-            .set_avatar_url(&body.user_id, response.avatar_url.clone())
-            .await?;
-        services()
-            .users
-            .set_blurhash(&body.user_id, response.blurhash.clone())
-            .await?;
-
-        return Ok(get_avatar_url::v3::Response {
-            avatar_url: response.avatar_url,
-            blurhash: response.blurhash,
-        });
+    if !services().users.exists(&body.user_id)? {
+        // Return 404 if this user doesn't exist and we couldn't fetch it over federation
+        return Err(Error::BadRequest(
+            ErrorKind::NotFound,
+            "Profile was not found.",
+        ));
     }
 
     Ok(get_avatar_url::v3::Response {
@@ -310,7 +328,8 @@ pub async fn get_profile_route(
     body: Ruma<get_profile::v3::Request>,
 ) -> Result<get_profile::v3::Response> {
     if body.user_id.server_name() != services().globals.server_name() {
-        let response = services()
+        // Create and update our local copy of the user
+        if let Ok(response) = services()
             .sending
             .send_federation_request(
                 body.user_id.server_name(),
@@ -319,31 +338,31 @@ pub async fn get_profile_route(
                     field: None,
                 },
             )
-            .await?;
+            .await
+        {
+            if !services().users.exists(&body.user_id)? {
+                services().users.create(&body.user_id, None)?;
+            }
 
-        // Create and update our local copy of the user
-        if !services().users.exists(&body.user_id)? {
-            services().users.create(&body.user_id, None)?;
+            services()
+                .users
+                .set_displayname(&body.user_id, response.displayname.clone())
+                .await?;
+            services()
+                .users
+                .set_avatar_url(&body.user_id, response.avatar_url.clone())
+                .await?;
+            services()
+                .users
+                .set_blurhash(&body.user_id, response.blurhash.clone())
+                .await?;
+
+            return Ok(get_profile::v3::Response {
+                displayname: response.displayname,
+                avatar_url: response.avatar_url,
+                blurhash: response.blurhash,
+            });
         }
-
-        services()
-            .users
-            .set_displayname(&body.user_id, response.displayname.clone())
-            .await?;
-        services()
-            .users
-            .set_avatar_url(&body.user_id, response.avatar_url.clone())
-            .await?;
-        services()
-            .users
-            .set_blurhash(&body.user_id, response.blurhash.clone())
-            .await?;
-
-        return Ok(get_profile::v3::Response {
-            displayname: response.displayname,
-            avatar_url: response.avatar_url,
-            blurhash: response.blurhash,
-        });
     }
 
     if !services().users.exists(&body.user_id)? {
