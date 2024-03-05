@@ -463,6 +463,10 @@ impl Service<'_> {
         self.config.rocksdb_optimize_for_spinning_disks
     }
 
+    pub fn rocksdb_parallelism_threads(&self) -> usize {
+        self.config.rocksdb_parallelism_threads
+    }
+
     pub fn prevent_media_downloads_from(&self) -> &[OwnedServerName] {
         &self.config.prevent_media_downloads_from
     }
