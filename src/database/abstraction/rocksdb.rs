@@ -48,7 +48,7 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
     };
 
     let threads = if config.rocksdb_parallelism_threads == 0 {
-        num_cpus::get() // max CPUs if user specified 0
+        num_cpus::get_physical() // max cores if user specified 0
     } else {
         config.rocksdb_parallelism_threads
     };

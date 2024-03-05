@@ -256,8 +256,8 @@ allow_check_for_updates = true
 # Time in seconds before RocksDB will forcibly rotate logs. Defaults to 0.
 #rocksdb_log_time_to_roll = 0
 
-# Amount of threads that RocksDB will use for parallelism. Set to 0 to use all your CPUs.
-# Defaults to your CPU count divided by 2 (half)
+# Amount of threads that RocksDB will use for parallelism. Set to 0 to use all your physical cores.
+# Defaults to your CPU physical core count (not logical threads) count divided by 2 (half)
 #rocksdb_parallelism_threads = 0
 
 
