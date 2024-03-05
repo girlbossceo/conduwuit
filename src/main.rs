@@ -63,15 +63,18 @@ struct Args;
 async fn main() {
     Args::parse();
     // Initialize config
-    let raw_config =
+    let raw_config = if Env::var("CONDUIT_CONFIG").is_some() {
         Figment::new()
             .merge(
                 Toml::file(Env::var("CONDUIT_CONFIG").expect(
-                    "The CONDUIT_CONFIG env var needs to be set. Example: /etc/conduit.toml",
+                    "The CONDUIT_CONFIG environment variable was set but appears to be invalid. This should be set to the path to a valid TOML file, an empty string (for compatibility), or removed/unset entirely.",
                 ))
                 .nested(),
             )
-            .merge(Env::prefixed("CONDUIT_").global());
+            .merge(Env::prefixed("CONDUIT_").global())
+    } else {
+        Figment::new().merge(Env::prefixed("CONDUIT_").global())
+    };
 
     let config = match raw_config.extract::<Config>() {
         Ok(s) => s,
