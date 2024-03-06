@@ -116,6 +116,8 @@ impl service::globals::Data for KeyValueDatabase {
 
 	fn cleanup(&self) -> Result<()> { self.db.cleanup() }
 
+	fn flush(&self) -> Result<()> { self.db.flush() }
+
 	fn memory_usage(&self) -> String {
 		let pdu_cache = self.pdu_cache.lock().unwrap().len();
 		let shorteventid_cache = self.shorteventid_cache.lock().unwrap().len();
