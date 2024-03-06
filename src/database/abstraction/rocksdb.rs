@@ -4,7 +4,10 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use rocksdb::LogLevel::{Debug, Error, Fatal, Info, Warn};
+use rocksdb::{
+	FlushOptions,
+	LogLevel::{Debug, Error, Fatal, Info, Warn},
+};
 use tracing::{debug, info};
 
 use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
@@ -143,7 +146,9 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	}
 
 	fn flush(&self) -> Result<()> {
-		// TODO?
+		debug!("Running flush_wal (no sync)");
+		rocksdb::DBCommon::flush_wal(&self.rocks, false)?;
+
 		Ok(())
 	}
 
@@ -159,6 +164,13 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			stats.cache_total as f64 / 1024.0 / 1024.0,
 			self.cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
 		))
+	}
+
+	fn cleanup(&self) -> Result<()> {
+		debug!("Running flush_opt");
+		rocksdb::DBCommon::flush_opt(&self.rocks, &FlushOptions::default())?;
+
+		Ok(())
 	}
 
 	// TODO: figure out if this is needed for rocksdb
