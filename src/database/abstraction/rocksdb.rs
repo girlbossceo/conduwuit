@@ -44,9 +44,9 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
 	let rocksdb_log_level = match config.rocksdb_log_level.as_ref() {
 		"debug" => Debug,
 		"info" => Info,
-		"error" => Error,
+		"warn" => Warn,
 		"fatal" => Fatal,
-		_ => Warn,
+		_ => Error,
 	};
 
 	let threads = if config.rocksdb_parallelism_threads == 0 {
