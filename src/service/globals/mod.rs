@@ -274,6 +274,8 @@ impl Service<'_> {
 
 	pub fn cleanup(&self) -> Result<()> { self.db.cleanup() }
 
+	pub fn flush(&self) -> Result<()> { self.db.flush() }
+
 	pub fn server_name(&self) -> &ServerName { self.config.server_name.as_ref() }
 
 	pub fn max_request_size(&self) -> u32 { self.config.max_request_size }
