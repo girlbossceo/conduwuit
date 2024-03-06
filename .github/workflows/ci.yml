@@ -11,6 +11,8 @@ env:
   TERM: ansi
   ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
   CARGO_INCREMENTAL: 0
+  ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
+  ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
 
 permissions:
   packages: write
@@ -30,7 +32,7 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-          # Add `nix-community`, Crane, upstream Conduit, conduwuit, and alternative binary caches
+          # Add `nix-community`, Crane, upstream Conduit, and conduwuit binary caches
           extra_nix_config: |
             experimental-features = nix-command flakes
             extra-substituters = https://nix-community.cachix.org
@@ -43,8 +45,12 @@ jobs:
             extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
             extra-substituters = https://attic.kennel.juneis.dog/conduwuit
             extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
-            extra-substituters = $ATTIC_ENDPOINT
-            extra-trusted-public-keys = $ATTIC_PUBLIC_KEY
+
+      - name: Add alternative Nix binary caches if specified
+        if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+        run: |
+          echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
+          echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
 
       - name: Pop/push Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@main
