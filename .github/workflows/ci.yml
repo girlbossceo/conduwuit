@@ -30,7 +30,7 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-          # Add the `nix-community` cachix to speed up things that leverage it
+          # Add `nix-community`, Crane, upstream Conduit, conduwuit, and alternative binary caches
           extra_nix_config: |
             experimental-features = nix-command flakes
             extra-substituters = https://nix-community.cachix.org
@@ -43,6 +43,8 @@ jobs:
             extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
             extra-substituters = https://attic.kennel.juneis.dog/conduwuit
             extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+            extra-substituters = $ATTIC_ENDPOINT
+            extra-trusted-public-keys = $ATTIC_PUBLIC_KEY
 
       - name: Pop/push Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@main
@@ -70,14 +72,24 @@ jobs:
       - name: Populate `/nix/store`
         run: nix develop --command true
 
-      - name: Perform continuous integration
-        run: |
-          direnv allow
-          direnv exec . engage
+      - name: Allow direnv
+        run: direnv allow
 
-      - name: Build static-x86_64-unknown-linux-musl
+      - name: Cache x86_64 inputs for devShell
+        run: |
+          ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
+
+
+      - name: Perform continuous integration
+        run: direnv exec . engage
+
+
+      - name: Build static-x86_64-unknown-linux-musl and Create static deb-x86_64-unknown-linux-musl
         run: |
           ./bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl
+          mkdir -p target/release
+          cp -v -f result/bin/conduit target/release
+          direnv exec . cargo deb --no-build
 
       - name: Upload artifact static-x86_64-unknown-linux-musl
         uses: actions/upload-artifact@v4
@@ -85,6 +97,14 @@ jobs:
           name: static-x86_64-unknown-linux-musl
           path: result/bin/conduit
           if-no-files-found: error
+
+      - name: Upload artifact deb-x86_64-unknown-linux-musl
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-unknown-linux-musl.deb
+          path: target/debian/*.deb
+          if-no-files-found: error
+
 
       - name: Build static-aarch64-unknown-linux-musl
         run: |
@@ -97,10 +117,11 @@ jobs:
           path: result/bin/conduit
           if-no-files-found: error
 
+
       - name: Build oci-image-x86_64-unknown-linux-gnu
         run: |
           ./bin/nix-build-and-cache .#oci-image
-          cp -f result oci-image-amd64.tar.gz
+          cp -v -f result oci-image-amd64.tar.gz
 
       - name: Upload artifact oci-image-x86_64-unknown-linux-gnu
         uses: actions/upload-artifact@v4
@@ -111,10 +132,11 @@ jobs:
           # don't compress again
           compression-level: 0
 
+
       - name: Build oci-image-aarch64-unknown-linux-musl
         run: |
           ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl
-          cp -f result oci-image-arm64v8.tar.gz
+          cp -v -f result oci-image-arm64v8.tar.gz
 
       - name: Upload artifact oci-image-aarch64-unknown-linux-musl
         uses: actions/upload-artifact@v4
@@ -125,18 +147,6 @@ jobs:
           # don't compress again
           compression-level: 0
 
-      - name: Build deb-x86_64-unknown-linux-gnu
-        run: |
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends libclang-dev
-          cargo install cargo-deb
-          cargo deb
-
-      - name: Upload artifact deb-x86_64-unknown-linux-gnu
-        uses: actions/upload-artifact@v4
-        with:
-          name: deb-x86_64-unknown-linux-gnu
-          path: target/debian/*.deb
-          if-no-files-found: error
 
       - name: Extract metadata for Dockerhub
         env:
@@ -156,6 +166,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
+
       - name: Login to Dockerhub
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -172,6 +183,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: girlbossceo
           password: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Publish to Dockerhub
         if: github.event_name != 'pull_request'
