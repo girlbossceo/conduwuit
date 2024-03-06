@@ -178,7 +178,7 @@ impl KvTree for SqliteTable {
 		Ok(())
 	}
 
-	fn insert_batch<'a>(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
+	fn insert_batch(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
 		let guard = self.engine.write_lock();
 
 		guard.execute("BEGIN", [])?;
@@ -192,7 +192,7 @@ impl KvTree for SqliteTable {
 		Ok(())
 	}
 
-	fn increment_batch<'a>(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
+	fn increment_batch(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
 		let guard = self.engine.write_lock();
 
 		guard.execute("BEGIN", [])?;
