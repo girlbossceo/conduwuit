@@ -24,7 +24,7 @@ tower-http = { version = "0.4.4", features = ["add-extension", "cors", "sensitiv
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { git = "https://github.com/ruma/ruma", rev = "4d9f754657a099df8e61533787b8eebd12946435", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
-ruma = { git = "https://github.com/girlbossceo/ruma", rev = "1623fffe150356ad6a7388a9df2cfed80aae1a9e", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
+ruma = { git = "https://github.com/girlbossceo/ruma", rev = "cefcb1b02faedf6f9c1c9176961ed96bb0afc4b3", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 
 # Async runtime and utilities
@@ -86,7 +86,7 @@ hmac = "0.12.1"
 sha-1 = "0.10.1"
 sha2 = { version = "0.10.8" }
 # used for conduit's CLI and admin room command parsing
-clap = { version = "4.5.1", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
+clap = { version = "4.5.2", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 futures-util = { version = "0.3.30", default-features = false }
 # Used for reading the configuration from conduit.toml & environment variables
 figment = { version = "0.10.14", features = ["env", "toml"] }
