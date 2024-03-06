@@ -1,5 +1,5 @@
 # Conduit - Traefik Reverse Proxy Labels
-version: '3'
+version: '2.4' # uses '2.4' for cpuset
 
 services:
     homeserver:
