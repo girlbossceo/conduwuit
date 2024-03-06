@@ -248,6 +248,10 @@ allow_check_for_updates = true
 # Defaults to true as this is the fastest option for federation.
 #query_trusted_key_servers_first = true
 
+
+
+### Generic database options
+
 # Set this to any float value to multiply conduwuit's in-memory LRU caches with.
 # May be useful if you have significant memory to spare to increase performance.
 # Defaults to 1.0.
@@ -257,6 +261,15 @@ allow_check_for_updates = true
 # May be useful if you have significant memory to spare to increase performance.
 # Defaults to 300.0
 #db_cache_capacity_mb = 300.0
+
+# Interval in seconds when conduwuit will run database cleanup operations.
+#
+# For SQLite: this will flush the WAL by executing `PRAGMA wal_checkpoint(RESTART)` (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint)
+# For RocksDB: this will run `flush_opt` to flush database memtables to SST files on disk (https://docs.rs/rocksdb/latest/rocksdb/struct.DBCommon.html#method.flush_opt)
+# These operations always run on shutdown.
+#
+# Defaults to 30 minutes (1800 seconds) to avoid IO amplification from too frequent cleanups
+#cleanup_second_interval = 1800
 
 
 
@@ -275,7 +288,7 @@ allow_check_for_updates = true
 
 # RocksDB log level. This is not the same as conduwuit's log level. This is the log level for RocksDB itself
 # which show up in your database folder/path as `LOG` files. Defaults to warn. conduwuit will typically log RocksDB errors. 
-#rocksdb_log_level = "warn"
+#rocksdb_log_level = "error"
 
 # Max RocksDB `LOG` file size before rotating in bytes. Defaults to 4MB.
 #rocksdb_max_log_file_size = 4194304

@@ -294,7 +294,7 @@ impl fmt::Display for Config {
 					None => "not set",
 				},
 			),
-			("Trusted servers", {
+			("Trusted key servers", {
 				let mut lst = vec![];
 				for server in &self.trusted_servers {
 					lst.push(server.host());
@@ -416,7 +416,7 @@ fn default_conduit_cache_capacity_modifier() -> f64 { 1.0 }
 fn default_pdu_cache_capacity() -> u32 { 150_000 }
 
 fn default_cleanup_second_interval() -> u32 {
-	60 // every minute
+	1800 // every 30 minutes
 }
 
 fn default_max_request_size() -> u32 {
