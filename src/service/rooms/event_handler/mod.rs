@@ -949,7 +949,7 @@ impl Service {
 								match pdu::gen_event_id_canonical_json(&res.pdu, room_version_id) {
 									Ok(t) => t,
 									Err(_) => {
-										back_off((*next_id).to_owned());
+										back_off((*next_id).to_owned()).await;
 										continue;
 									},
 								};
@@ -979,7 +979,7 @@ impl Service {
 						},
 						Err(e) => {
 							warn!("Failed to fetch event {} | {e}", next_id);
-							back_off((*next_id).to_owned());
+							back_off((*next_id).to_owned()).await;
 						},
 					}
 				}
@@ -1035,7 +1035,7 @@ impl Service {
 						},
 						Err(e) => {
 							warn!("Authentication of event {} failed: {:?}", next_id, e);
-							back_off((**next_id).to_owned());
+							back_off((**next_id).to_owned()).await;
 						},
 					}
 				}
