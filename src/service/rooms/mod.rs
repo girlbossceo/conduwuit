@@ -19,44 +19,44 @@ pub mod timeline;
 pub mod user;
 
 pub trait Data:
-    alias::Data
-    + auth_chain::Data
-    + directory::Data
-    + edus::Data
-    + lazy_loading::Data
-    + metadata::Data
-    + outlier::Data
-    + pdu_metadata::Data
-    + search::Data
-    + short::Data
-    + state::Data
-    + state_accessor::Data
-    + state_cache::Data
-    + state_compressor::Data
-    + timeline::Data
-    + threads::Data
-    + user::Data
+	alias::Data
+	+ auth_chain::Data
+	+ directory::Data
+	+ edus::Data
+	+ lazy_loading::Data
+	+ metadata::Data
+	+ outlier::Data
+	+ pdu_metadata::Data
+	+ search::Data
+	+ short::Data
+	+ state::Data
+	+ state_accessor::Data
+	+ state_cache::Data
+	+ state_compressor::Data
+	+ timeline::Data
+	+ threads::Data
+	+ user::Data
 {
 }
 
 pub struct Service {
-    pub alias: alias::Service,
-    pub auth_chain: auth_chain::Service,
-    pub directory: directory::Service,
-    pub edus: edus::Service,
-    pub event_handler: event_handler::Service,
-    pub lazy_loading: lazy_loading::Service,
-    pub metadata: metadata::Service,
-    pub outlier: outlier::Service,
-    pub pdu_metadata: pdu_metadata::Service,
-    pub search: search::Service,
-    pub short: short::Service,
-    pub state: state::Service,
-    pub state_accessor: state_accessor::Service,
-    pub state_cache: state_cache::Service,
-    pub state_compressor: state_compressor::Service,
-    pub timeline: timeline::Service,
-    pub threads: threads::Service,
-    pub spaces: spaces::Service,
-    pub user: user::Service,
+	pub alias: alias::Service,
+	pub auth_chain: auth_chain::Service,
+	pub directory: directory::Service,
+	pub edus: edus::Service,
+	pub event_handler: event_handler::Service,
+	pub lazy_loading: lazy_loading::Service,
+	pub metadata: metadata::Service,
+	pub outlier: outlier::Service,
+	pub pdu_metadata: pdu_metadata::Service,
+	pub search: search::Service,
+	pub short: short::Service,
+	pub state: state::Service,
+	pub state_accessor: state_accessor::Service,
+	pub state_cache: state_cache::Service,
+	pub state_compressor: state_compressor::Service,
+	pub timeline: timeline::Service,
+	pub threads: threads::Service,
+	pub spaces: spaces::Service,
+	pub user: user::Service,
 }

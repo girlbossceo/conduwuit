@@ -1,0 +1,27 @@
+edition = "2021"
+
+condense_wildcard_suffixes = true
+format_code_in_doc_comments = true
+format_macro_bodies = true
+format_macro_matchers = true
+format_strings = true
+hex_literal_case = "Upper"
+max_width = 120
+tab_spaces = 4
+array_width = 80
+comment_width = 80
+wrap_comments = true
+fn_params_layout = "Compressed"
+fn_call_width = 80
+fn_single_line = true
+hard_tabs = true
+match_block_trailing_comma = true
+imports_granularity = "Crate"
+normalize_comments = false
+reorder_impl_items = true
+reorder_imports = true
+group_imports = "StdExternalCrate"
+newline_style = "Unix"
+use_field_init_shorthand = true
+use_small_heuristics = "Off"
+use_try_shorthand = true

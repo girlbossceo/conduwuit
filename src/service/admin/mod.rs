@@ -1,46 +1,44 @@
 use std::{
-    collections::BTreeMap,
-    sync::{Arc, RwLock},
-    time::Instant,
+	collections::BTreeMap,
+	fmt::Write as _,
+	sync::{Arc, RwLock},
+	time::Instant,
 };
-
-use std::fmt::Write as _;
 
 use clap::{Parser, Subcommand};
 use regex::Regex;
 use ruma::{
-    api::{appservice::Registration, client::error::ErrorKind},
-    events::{
-        relation::InReplyTo,
-        room::{
-            canonical_alias::RoomCanonicalAliasEventContent,
-            create::RoomCreateEventContent,
-            guest_access::{GuestAccess, RoomGuestAccessEventContent},
-            history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
-            join_rules::{JoinRule, RoomJoinRulesEventContent},
-            member::{MembershipState, RoomMemberEventContent},
-            message::{Relation::Reply, RoomMessageEventContent},
-            name::RoomNameEventContent,
-            power_levels::RoomPowerLevelsEventContent,
-            topic::RoomTopicEventContent,
-        },
-        TimelineEventType,
-    },
-    EventId, MxcUri, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId,
-    RoomOrAliasId, RoomVersionId, ServerName, UserId,
+	api::{appservice::Registration, client::error::ErrorKind},
+	events::{
+		relation::InReplyTo,
+		room::{
+			canonical_alias::RoomCanonicalAliasEventContent,
+			create::RoomCreateEventContent,
+			guest_access::{GuestAccess, RoomGuestAccessEventContent},
+			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+			join_rules::{JoinRule, RoomJoinRulesEventContent},
+			member::{MembershipState, RoomMemberEventContent},
+			message::{Relation::Reply, RoomMessageEventContent},
+			name::RoomNameEventContent,
+			power_levels::RoomPowerLevelsEventContent,
+			topic::RoomTopicEventContent,
+		},
+		TimelineEventType,
+	},
+	EventId, MxcUri, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId, RoomVersionId,
+	ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, info, warn};
 
-use crate::{
-    api::client_server::{get_alias_helper, leave_all_rooms, leave_room, AUTO_GEN_PASSWORD_LENGTH},
-    services,
-    utils::{self, HtmlEscape},
-    Error, PduEvent, Result,
-};
-
 use super::pdu::PduBuilder;
+use crate::{
+	api::client_server::{get_alias_helper, leave_all_rooms, leave_room, AUTO_GEN_PASSWORD_LENGTH},
+	services,
+	utils::{self, HtmlEscape},
+	Error, PduEvent, Result,
+};
 
 const PAGE_SIZE: usize = 100;
 
@@ -48,1113 +46,1136 @@ const PAGE_SIZE: usize = 100;
 #[derive(Parser)]
 #[command(name = "@conduit:server.name:", version = env!("CARGO_PKG_VERSION"))]
 enum AdminCommand {
-    #[command(subcommand)]
-    /// - Commands for managing appservices
-    Appservices(AppserviceCommand),
+	#[command(subcommand)]
+	/// - Commands for managing appservices
+	Appservices(AppserviceCommand),
 
-    #[command(subcommand)]
-    /// - Commands for managing local users
-    Users(UserCommand),
+	#[command(subcommand)]
+	/// - Commands for managing local users
+	Users(UserCommand),
 
-    #[command(subcommand)]
-    /// - Commands for managing rooms
-    Rooms(RoomCommand),
+	#[command(subcommand)]
+	/// - Commands for managing rooms
+	Rooms(RoomCommand),
 
-    #[command(subcommand)]
-    /// - Commands for managing federation
-    Federation(FederationCommand),
+	#[command(subcommand)]
+	/// - Commands for managing federation
+	Federation(FederationCommand),
 
-    #[command(subcommand)]
-    /// - Commands for managing the server
-    Server(ServerCommand),
+	#[command(subcommand)]
+	/// - Commands for managing the server
+	Server(ServerCommand),
 
-    #[command(subcommand)]
-    /// - Commands for managing media
-    Media(MediaCommand),
+	#[command(subcommand)]
+	/// - Commands for managing media
+	Media(MediaCommand),
 
-    #[command(subcommand)]
-    // TODO: should i split out debug commands to a separate thing? the
-    // debug commands seem like they could fit in the other categories fine
-    // this is more like a "miscellaneous" category than a debug one
-    /// - Commands for debugging things
-    Debug(DebugCommand),
+	#[command(subcommand)]
+	// TODO: should i split out debug commands to a separate thing? the
+	// debug commands seem like they could fit in the other categories fine
+	// this is more like a "miscellaneous" category than a debug one
+	/// - Commands for debugging things
+	Debug(DebugCommand),
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum MediaCommand {
-    /// - Deletes a single media file from our database and on the filesystem via a single MXC URL
-    Delete {
-        /// The MXC URL to delete
-        #[arg(long)]
-        mxc: Option<Box<MxcUri>>,
+	/// - Deletes a single media file from our database and on the filesystem
+	///   via a single MXC URL
+	Delete {
+		/// The MXC URL to delete
+		#[arg(long)]
+		mxc: Option<Box<MxcUri>>,
 
-        /// - The message event ID which contains the media and thumbnail MXC URLs
-        #[arg(long)]
-        event_id: Option<Box<EventId>>,
-    },
+		/// - The message event ID which contains the media and thumbnail MXC
+		///   URLs
+		#[arg(long)]
+		event_id: Option<Box<EventId>>,
+	},
 
-    /// - Deletes a codeblock list of MXC URLs from our database and on the filesystem
-    DeleteList,
+	/// - Deletes a codeblock list of MXC URLs from our database and on the
+	///   filesystem
+	DeleteList,
 
-    /// - Deletes all remote media in the last X amount of time using filesystem metadata first created at date.
-    DeletePastRemoteMedia {
-        /// - The duration (at or after), e.g. "5m" to delete all media in the past 5 minutes
-        duration: String,
-    },
+	/// - Deletes all remote media in the last X amount of time using filesystem
+	///   metadata first created at date.
+	DeletePastRemoteMedia {
+		/// - The duration (at or after), e.g. "5m" to delete all media in the
+		///   past 5 minutes
+		duration: String,
+	},
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum AppserviceCommand {
-    /// - Register an appservice using its registration YAML
-    ///
-    /// This command needs a YAML generated by an appservice (such as a bridge),
-    /// which must be provided in a Markdown code block below the command.
-    ///
-    /// Registering a new bridge using the ID of an existing bridge will replace
-    /// the old one.
-    Register,
+	/// - Register an appservice using its registration YAML
+	///
+	/// This command needs a YAML generated by an appservice (such as a bridge),
+	/// which must be provided in a Markdown code block below the command.
+	///
+	/// Registering a new bridge using the ID of an existing bridge will replace
+	/// the old one.
+	Register,
 
-    /// - Unregister an appservice using its ID
-    ///
-    /// You can find the ID using the `list-appservices` command.
-    Unregister {
-        /// The appservice to unregister
-        appservice_identifier: String,
-    },
+	/// - Unregister an appservice using its ID
+	///
+	/// You can find the ID using the `list-appservices` command.
+	Unregister {
+		/// The appservice to unregister
+		appservice_identifier: String,
+	},
 
-    /// - Show an appservice's config using its ID
-    ///
-    /// You can find the ID using the `list-appservices` command.
-    Show {
-        /// The appservice to show
-        appservice_identifier: String,
-    },
+	/// - Show an appservice's config using its ID
+	///
+	/// You can find the ID using the `list-appservices` command.
+	Show {
+		/// The appservice to show
+		appservice_identifier: String,
+	},
 
-    /// - List all the currently registered appservices
-    List,
+	/// - List all the currently registered appservices
+	List,
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum UserCommand {
-    /// - Create a new user
-    Create {
-        /// Username of the new user
-        username: String,
-        /// Password of the new user, if unspecified one is generated
-        password: Option<String>,
-    },
+	/// - Create a new user
+	Create {
+		/// Username of the new user
+		username: String,
+		/// Password of the new user, if unspecified one is generated
+		password: Option<String>,
+	},
 
-    /// - Reset user password
-    ResetPassword {
-        /// Username of the user for whom the password should be reset
-        username: String,
-    },
+	/// - Reset user password
+	ResetPassword {
+		/// Username of the user for whom the password should be reset
+		username: String,
+	},
 
-    /// - Deactivate a user
-    ///
-    /// User will not be removed from all rooms by default.
-    /// Use --leave-rooms to force the user to leave all rooms
-    Deactivate {
-        #[arg(short, long)]
-        leave_rooms: bool,
-        user_id: Box<UserId>,
-    },
+	/// - Deactivate a user
+	///
+	/// User will not be removed from all rooms by default.
+	/// Use --leave-rooms to force the user to leave all rooms
+	Deactivate {
+		#[arg(short, long)]
+		leave_rooms: bool,
+		user_id: Box<UserId>,
+	},
 
-    /// - Deactivate a list of users
-    ///
-    /// Recommended to use in conjunction with list-local-users.
-    ///
-    /// Users will not be removed from joined rooms by default.
-    /// Can be overridden with --leave-rooms flag.
-    /// Removing a mass amount of users from a room may cause a significant amount of leave events.
-    /// The time to leave rooms may depend significantly on joined rooms and servers.
-    ///
-    /// This command needs a newline separated list of users provided in a
-    /// Markdown code block below the command.
-    DeactivateAll {
-        #[arg(short, long)]
-        /// Remove users from their joined rooms
-        leave_rooms: bool,
-        #[arg(short, long)]
-        /// Also deactivate admin accounts
-        force: bool,
-    },
+	/// - Deactivate a list of users
+	///
+	/// Recommended to use in conjunction with list-local-users.
+	///
+	/// Users will not be removed from joined rooms by default.
+	/// Can be overridden with --leave-rooms flag.
+	/// Removing a mass amount of users from a room may cause a significant
+	/// amount of leave events. The time to leave rooms may depend significantly
+	/// on joined rooms and servers.
+	///
+	/// This command needs a newline separated list of users provided in a
+	/// Markdown code block below the command.
+	DeactivateAll {
+		#[arg(short, long)]
+		/// Remove users from their joined rooms
+		leave_rooms: bool,
+		#[arg(short, long)]
+		/// Also deactivate admin accounts
+		force: bool,
+	},
 
-    /// - List local users in the database
-    List,
+	/// - List local users in the database
+	List,
 
-    /// - Lists all the rooms (local and remote) that the specified user is joined in
-    ListJoinedRooms { user_id: Box<UserId> },
+	/// - Lists all the rooms (local and remote) that the specified user is
+	///   joined in
+	ListJoinedRooms {
+		user_id: Box<UserId>,
+	},
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum RoomCommand {
-    /// - List all rooms the server knows about
-    List { page: Option<usize> },
+	/// - List all rooms the server knows about
+	List {
+		page: Option<usize>,
+	},
 
-    #[command(subcommand)]
-    /// - Manage moderation of remote or local rooms
-    Moderation(RoomModeration),
+	#[command(subcommand)]
+	/// - Manage moderation of remote or local rooms
+	Moderation(RoomModeration),
 
-    #[command(subcommand)]
-    /// - Manage rooms' aliases
-    Alias(RoomAliasCommand),
+	#[command(subcommand)]
+	/// - Manage rooms' aliases
+	Alias(RoomAliasCommand),
 
-    #[command(subcommand)]
-    /// - Manage the room directory
-    Directory(RoomDirectoryCommand),
+	#[command(subcommand)]
+	/// - Manage the room directory
+	Directory(RoomDirectoryCommand),
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum RoomModeration {
-    /// - Bans a room from local users joining and evicts all our local users from the room. Also blocks any invites (local and remote) for the banned room.
-    ///
-    /// Server admins (users in the conduwuit admin room) will not be evicted and server admins can still join the room.
-    /// To evict admins too, use --force (also ignores errors)
-    /// To disable incoming federation of the room, use --disable-federation
-    BanRoom {
-        #[arg(short, long)]
-        /// Evicts admins out of the room and ignores any potential errors when making our local users leave the room
-        force: bool,
+	/// - Bans a room from local users joining and evicts all our local users
+	///   from the room. Also blocks any invites (local and remote) for the
+	///   banned room.
+	///
+	/// Server admins (users in the conduwuit admin room) will not be evicted
+	/// and server admins can still join the room. To evict admins too, use
+	/// --force (also ignores errors) To disable incoming federation of the
+	/// room, use --disable-federation
+	BanRoom {
+		#[arg(short, long)]
+		/// Evicts admins out of the room and ignores any potential errors when
+		/// making our local users leave the room
+		force: bool,
 
-        #[arg(long)]
-        /// Disables incoming federation of the room after banning and evicting users
-        disable_federation: bool,
+		#[arg(long)]
+		/// Disables incoming federation of the room after banning and evicting
+		/// users
+		disable_federation: bool,
 
-        /// The room in the format of `!roomid:example.com` or a room alias in the format of `#roomalias:example.com`
-        room: Box<RoomOrAliasId>,
-    },
+		/// The room in the format of `!roomid:example.com` or a room alias in
+		/// the format of `#roomalias:example.com`
+		room: Box<RoomOrAliasId>,
+	},
 
-    /// - Bans a list of rooms from a newline delimited codeblock similar to `user deactivate-all`
-    BanListOfRooms {
-        #[arg(short, long)]
-        /// Evicts admins out of the room and ignores any potential errors when making our local users leave the room
-        force: bool,
+	/// - Bans a list of rooms from a newline delimited codeblock similar to
+	///   `user deactivate-all`
+	BanListOfRooms {
+		#[arg(short, long)]
+		/// Evicts admins out of the room and ignores any potential errors when
+		/// making our local users leave the room
+		force: bool,
 
-        #[arg(long)]
-        /// Disables incoming federation of the room after banning and evicting users
-        disable_federation: bool,
-    },
+		#[arg(long)]
+		/// Disables incoming federation of the room after banning and evicting
+		/// users
+		disable_federation: bool,
+	},
 
-    /// - Unbans a room to allow local users to join again
-    ///
-    /// To re-enable incoming federation of the room, use --enable-federation
-    UnbanRoom {
-        #[arg(long)]
-        /// Enables incoming federation of the room after unbanning
-        enable_federation: bool,
+	/// - Unbans a room to allow local users to join again
+	///
+	/// To re-enable incoming federation of the room, use --enable-federation
+	UnbanRoom {
+		#[arg(long)]
+		/// Enables incoming federation of the room after unbanning
+		enable_federation: bool,
 
-        /// The room in the format of `!roomid:example.com` or a room alias in the format of `#roomalias:example.com`
-        room: Box<RoomOrAliasId>,
-    },
+		/// The room in the format of `!roomid:example.com` or a room alias in
+		/// the format of `#roomalias:example.com`
+		room: Box<RoomOrAliasId>,
+	},
 
-    /// - List of all rooms we have banned
-    ListBannedRooms,
+	/// - List of all rooms we have banned
+	ListBannedRooms,
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum RoomAliasCommand {
-    /// - Make an alias point to a room.
-    Set {
-        #[arg(short, long)]
-        /// Set the alias even if a room is already using it
-        force: bool,
+	/// - Make an alias point to a room.
+	Set {
+		#[arg(short, long)]
+		/// Set the alias even if a room is already using it
+		force: bool,
 
-        /// The room id to set the alias on
-        room_id: Box<RoomId>,
+		/// The room id to set the alias on
+		room_id: Box<RoomId>,
 
-        /// The alias localpart to use (`alias`, not `#alias:servername.tld`)
-        room_alias_localpart: String,
-    },
+		/// The alias localpart to use (`alias`, not `#alias:servername.tld`)
+		room_alias_localpart: String,
+	},
 
-    /// - Remove an alias
-    Remove {
-        /// The alias localpart to remove (`alias`, not `#alias:servername.tld`)
-        room_alias_localpart: String,
-    },
+	/// - Remove an alias
+	Remove {
+		/// The alias localpart to remove (`alias`, not `#alias:servername.tld`)
+		room_alias_localpart: String,
+	},
 
-    /// - Show which room is using an alias
-    Which {
-        /// The alias localpart to look up (`alias`, not `#alias:servername.tld`)
-        room_alias_localpart: String,
-    },
+	/// - Show which room is using an alias
+	Which {
+		/// The alias localpart to look up (`alias`, not
+		/// `#alias:servername.tld`)
+		room_alias_localpart: String,
+	},
 
-    /// - List aliases currently being used
-    List {
-        /// If set, only list the aliases for this room
-        room_id: Option<Box<RoomId>>,
-    },
+	/// - List aliases currently being used
+	List {
+		/// If set, only list the aliases for this room
+		room_id: Option<Box<RoomId>>,
+	},
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum RoomDirectoryCommand {
-    /// - Publish a room to the room directory
-    Publish {
-        /// The room id of the room to publish
-        room_id: Box<RoomId>,
-    },
+	/// - Publish a room to the room directory
+	Publish {
+		/// The room id of the room to publish
+		room_id: Box<RoomId>,
+	},
 
-    /// - Unpublish a room to the room directory
-    Unpublish {
-        /// The room id of the room to unpublish
-        room_id: Box<RoomId>,
-    },
+	/// - Unpublish a room to the room directory
+	Unpublish {
+		/// The room id of the room to unpublish
+		room_id: Box<RoomId>,
+	},
 
-    /// - List rooms that are published
-    List { page: Option<usize> },
+	/// - List rooms that are published
+	List {
+		page: Option<usize>,
+	},
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum FederationCommand {
-    /// - List all rooms we are currently handling an incoming pdu from
-    IncomingFederation,
+	/// - List all rooms we are currently handling an incoming pdu from
+	IncomingFederation,
 
-    /// - Disables incoming federation handling for a room.
-    DisableRoom { room_id: Box<RoomId> },
+	/// - Disables incoming federation handling for a room.
+	DisableRoom {
+		room_id: Box<RoomId>,
+	},
 
-    /// - Enables incoming federation handling for a room again.
-    EnableRoom { room_id: Box<RoomId> },
+	/// - Enables incoming federation handling for a room again.
+	EnableRoom {
+		room_id: Box<RoomId>,
+	},
 
-    /// - Verify json signatures
-    ///
-    /// This command needs a JSON blob provided in a Markdown code block below
-    /// the command.
-    SignJson,
+	/// - Verify json signatures
+	///
+	/// This command needs a JSON blob provided in a Markdown code block below
+	/// the command.
+	SignJson,
 
-    /// - Verify json signatures
-    ///
-    /// This command needs a JSON blob provided in a Markdown code block below
-    /// the command.
-    VerifyJson,
+	/// - Verify json signatures
+	///
+	/// This command needs a JSON blob provided in a Markdown code block below
+	/// the command.
+	VerifyJson,
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum DebugCommand {
-    /// - Get the auth_chain of a PDU
-    GetAuthChain {
-        /// An event ID (the $ character followed by the base64 reference hash)
-        event_id: Box<EventId>,
-    },
+	/// - Get the auth_chain of a PDU
+	GetAuthChain {
+		/// An event ID (the $ character followed by the base64 reference hash)
+		event_id: Box<EventId>,
+	},
 
-    /// - Parse and print a PDU from a JSON
-    ///
-    /// The PDU event is only checked for validity and is not added to the
-    /// database.
-    ///
-    /// This command needs a JSON blob provided in a Markdown code block below
-    /// the command.
-    ParsePdu,
+	/// - Parse and print a PDU from a JSON
+	///
+	/// The PDU event is only checked for validity and is not added to the
+	/// database.
+	///
+	/// This command needs a JSON blob provided in a Markdown code block below
+	/// the command.
+	ParsePdu,
 
-    /// - Retrieve and print a PDU by ID from the Conduit database
-    GetPdu {
-        /// An event ID (a $ followed by the base64 reference hash)
-        event_id: Box<EventId>,
-    },
+	/// - Retrieve and print a PDU by ID from the Conduit database
+	GetPdu {
+		/// An event ID (a $ followed by the base64 reference hash)
+		event_id: Box<EventId>,
+	},
 
-    /// - Forces device lists for all the local users to be updated
-    ForceDeviceListUpdates,
+	/// - Forces device lists for all the local users to be updated
+	ForceDeviceListUpdates,
 }
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 enum ServerCommand {
-    /// - Show configuration values
-    ShowConfig,
+	/// - Show configuration values
+	ShowConfig,
 
-    /// - Print database memory usage statistics
-    MemoryUsage,
+	/// - Print database memory usage statistics
+	MemoryUsage,
 
-    /// - Clears all of Conduit's database caches with index smaller than the amount
-    ClearDatabaseCaches { amount: u32 },
+	/// - Clears all of Conduit's database caches with index smaller than the
+	///   amount
+	ClearDatabaseCaches {
+		amount: u32,
+	},
 
-    /// - Clears all of Conduit's service caches with index smaller than the amount
-    ClearServiceCaches { amount: u32 },
+	/// - Clears all of Conduit's service caches with index smaller than the
+	///   amount
+	ClearServiceCaches {
+		amount: u32,
+	},
 }
 
 #[derive(Debug)]
 pub enum AdminRoomEvent {
-    ProcessMessage(String, Arc<EventId>),
-    SendMessage(RoomMessageEventContent),
+	ProcessMessage(String, Arc<EventId>),
+	SendMessage(RoomMessageEventContent),
 }
 
 pub struct Service {
-    pub sender: mpsc::UnboundedSender<AdminRoomEvent>,
-    receiver: Mutex<mpsc::UnboundedReceiver<AdminRoomEvent>>,
+	pub sender: mpsc::UnboundedSender<AdminRoomEvent>,
+	receiver: Mutex<mpsc::UnboundedReceiver<AdminRoomEvent>>,
 }
 
 impl Service {
-    pub fn build() -> Arc<Self> {
-        let (sender, receiver) = mpsc::unbounded_channel();
-        Arc::new(Self {
-            sender,
-            receiver: Mutex::new(receiver),
-        })
-    }
-
-    pub fn start_handler(self: &Arc<Self>) {
-        let self2 = Arc::clone(self);
-        tokio::spawn(async move {
-            self2.handler().await;
-        });
-    }
-
-    async fn handler(&self) {
-        let mut receiver = self.receiver.lock().await;
-        // TODO: Use futures when we have long admin commands
-        //let mut futures = FuturesUnordered::new();
-
-        let conduit_user = UserId::parse(format!("@conduit:{}", services().globals.server_name()))
-            .expect("@conduit:server_name is valid");
-
-        let conduit_room = services()
-            .rooms
-            .alias
-            .resolve_local_alias(
-                format!("#admins:{}", services().globals.server_name())
-                    .as_str()
-                    .try_into()
-                    .expect("#admins:server_name is a valid room alias"),
-            )
-            .expect("Database data for admin room alias must be valid")
-            .expect("Admin room must exist");
-
-        loop {
-            tokio::select! {
-                Some(event) = receiver.recv() => {
-                    let (mut message_content, reply) = match event {
-                        AdminRoomEvent::SendMessage(content) => (content, None),
-                        AdminRoomEvent::ProcessMessage(room_message, reply_id) => {
-                            (self.process_admin_message(room_message).await, Some(reply_id))
-                        }
-                    };
-
-                    let mutex_state = Arc::clone(
-                        services().globals
-                            .roomid_mutex_state
-                            .write()
-                            .unwrap()
-                            .entry(conduit_room.clone())
-                            .or_default(),
-                    );
-
-                    let state_lock = mutex_state.lock().await;
-
-                    if let Some(reply) = reply {
-                        message_content.relates_to = Some(Reply { in_reply_to: InReplyTo { event_id: reply.into() } });
-                    }
-
-                services().rooms.timeline.build_and_append_pdu(
-                    PduBuilder {
-                      event_type: TimelineEventType::RoomMessage,
-                      content: to_raw_value(&message_content)
-                          .expect("event is valid, we just created it"),
-                      unsigned: None,
-                      state_key: None,
-                      redacts: None,
-                    },
-                    &conduit_user,
-                    &conduit_room,
-                    &state_lock)
-                  .await
-                  .unwrap();
-
-
-                    drop(state_lock);
-                }
-            }
-        }
-    }
-
-    pub fn process_message(&self, room_message: String, event_id: Arc<EventId>) {
-        self.sender
-            .send(AdminRoomEvent::ProcessMessage(room_message, event_id))
-            .unwrap();
-    }
-
-    pub fn send_message(&self, message_content: RoomMessageEventContent) {
-        self.sender
-            .send(AdminRoomEvent::SendMessage(message_content))
-            .unwrap();
-    }
-
-    // Parse and process a message from the admin room
-    async fn process_admin_message(&self, room_message: String) -> RoomMessageEventContent {
-        let mut lines = room_message.lines().filter(|l| !l.trim().is_empty());
-        let command_line = lines.next().expect("each string has at least one line");
-        let body: Vec<_> = lines.collect();
-
-        let admin_command = match self.parse_admin_command(command_line) {
-            Ok(command) => command,
-            Err(error) => {
-                let server_name = services().globals.server_name();
-                let message = error.replace("server.name", server_name.as_str());
-                let html_message = self.usage_to_html(&message, server_name);
-
-                return RoomMessageEventContent::text_html(message, html_message);
-            }
-        };
-
-        match self.process_admin_command(admin_command, body).await {
-            Ok(reply_message) => reply_message,
-            Err(error) => {
-                let markdown_message = format!(
-                    "Encountered an error while handling the command:\n\
-                    ```\n{error}\n```",
-                );
-                let html_message = format!(
-                    "Encountered an error while handling the command:\n\
-                    <pre>\n{error}\n</pre>",
-                );
-
-                RoomMessageEventContent::text_html(markdown_message, html_message)
-            }
-        }
-    }
-
-    // Parse chat messages from the admin room into an AdminCommand object
-    fn parse_admin_command(&self, command_line: &str) -> std::result::Result<AdminCommand, String> {
-        // Note: argv[0] is `@conduit:servername:`, which is treated as the main command
-        let mut argv: Vec<_> = command_line.split_whitespace().collect();
-
-        // Replace `help command` with `command --help`
-        // Clap has a help subcommand, but it omits the long help description.
-        if argv.len() > 1 && argv[1] == "help" {
-            argv.remove(1);
-            argv.push("--help");
-        }
-
-        // Backwards compatibility with `register_appservice`-style commands
-        let command_with_dashes;
-        if argv.len() > 1 && argv[1].contains('_') {
-            command_with_dashes = argv[1].replace('_', "-");
-            argv[1] = &command_with_dashes;
-        }
-
-        AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
-    }
-
-    async fn process_admin_command(
-        &self,
-        command: AdminCommand,
-        body: Vec<&str>,
-    ) -> Result<RoomMessageEventContent> {
-        let reply_message_content = match command {
-            AdminCommand::Appservices(command) => match command {
-                AppserviceCommand::Register => {
-                    if body.len() > 2
-                        && body[0].trim().starts_with("```")
-                        && body.last().unwrap().trim() == "```"
-                    {
-                        let appservice_config = body[1..body.len() - 1].join("\n");
-                        let parsed_config =
-                            serde_yaml::from_str::<Registration>(&appservice_config);
-                        match parsed_config {
-                            Ok(yaml) => match services().appservice.register_appservice(yaml) {
-                                Ok(id) => RoomMessageEventContent::text_plain(format!(
-                                    "Appservice registered with ID: {id}."
-                                )),
-                                Err(e) => RoomMessageEventContent::text_plain(format!(
-                                    "Failed to register appservice: {e}"
-                                )),
-                            },
-                            Err(e) => RoomMessageEventContent::text_plain(format!(
-                                "Could not parse appservice config: {e}"
-                            )),
-                        }
-                    } else {
-                        RoomMessageEventContent::text_plain(
-                            "Expected code block in command body. Add --help for details.",
-                        )
-                    }
-                }
-                AppserviceCommand::Unregister {
-                    appservice_identifier,
-                } => match services()
-                    .appservice
-                    .unregister_appservice(&appservice_identifier)
-                {
-                    Ok(()) => RoomMessageEventContent::text_plain("Appservice unregistered."),
-                    Err(e) => RoomMessageEventContent::text_plain(format!(
-                        "Failed to unregister appservice: {e}"
-                    )),
-                },
-                AppserviceCommand::Show {
-                    appservice_identifier,
-                } => {
-                    match services()
-                        .appservice
-                        .get_registration(&appservice_identifier)
-                    {
-                        Ok(Some(config)) => {
-                            let config_str = serde_yaml::to_string(&config)
-                                .expect("config should've been validated on register");
-                            let output = format!(
-                                "Config for {}:\n\n```yaml\n{}\n```",
-                                appservice_identifier, config_str,
-                            );
-                            let output_html = format!(
-                                "Config for {}:\n\n<pre><code class=\"language-yaml\">{}</code></pre>",
-                                escape_html(&appservice_identifier),
-                                escape_html(&config_str),
-                            );
-                            RoomMessageEventContent::text_html(output, output_html)
-                        }
-                        Ok(None) => {
-                            RoomMessageEventContent::text_plain("Appservice does not exist.")
-                        }
-                        Err(_) => RoomMessageEventContent::text_plain("Failed to get appservice."),
-                    }
-                }
-                AppserviceCommand::List => {
-                    if let Ok(appservices) = services()
-                        .appservice
-                        .iter_ids()
-                        .map(std::iter::Iterator::collect::<Vec<_>>)
-                    {
-                        let count = appservices.len();
-                        let output = format!(
-                            "Appservices ({}): {}",
-                            count,
-                            appservices
-                                .into_iter()
-                                .filter_map(std::result::Result::ok)
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        );
-                        RoomMessageEventContent::text_plain(output)
-                    } else {
-                        RoomMessageEventContent::text_plain("Failed to get appservices.")
-                    }
-                }
-            },
-            AdminCommand::Media(command) => match command {
-                MediaCommand::Delete { mxc, event_id } => {
-                    if event_id.is_some() && mxc.is_some() {
-                        return Ok(RoomMessageEventContent::text_plain(
-                            "Please specify either an MXC or an event ID, not both.",
-                        ));
-                    }
-
-                    if let Some(mxc) = mxc {
-                        if !mxc.to_string().starts_with("mxc://") {
-                            return Ok(RoomMessageEventContent::text_plain(
-                                "MXC provided is not valid.",
-                            ));
-                        }
-
-                        debug!("Got MXC URL: {}", mxc);
-                        services().media.delete(mxc.to_string()).await?;
-
-                        return Ok(RoomMessageEventContent::text_plain(
-                            "Deleted the MXC from our database and on our filesystem.",
-                        ));
-                    } else if let Some(event_id) = event_id {
-                        debug!("Got event ID to delete media from: {}", event_id);
-
-                        let mut mxc_urls: Vec<String> = vec![];
-                        let mut mxc_deletion_count = 0;
-
-                        // parsing the PDU for any MXC URLs begins here
-                        if let Some(event_json) =
-                            services().rooms.timeline.get_pdu_json(&event_id)?
-                        {
-                            if let Some(content_key) = event_json.get("content") {
-                                debug!("Event ID has \"content\".");
-                                let content_obj = content_key.as_object();
-
-                                if let Some(content) = content_obj {
-                                    // 1. attempts to parse the "url" key
-                                    debug!("Attempting to go into \"url\" key for main media file");
-                                    if let Some(url) = content.get("url") {
-                                        debug!("Got a URL in the event ID {event_id}: {url}");
-
-                                        if url.to_string().starts_with("\"mxc://") {
-                                            debug!("Pushing URL {} to list of MXCs to delete", url);
-                                            let final_url = url.to_string().replace('"', "");
-                                            mxc_urls.push(final_url);
-                                        } else {
-                                            info!("Found a URL in the event ID {event_id} but did not start with mxc://, ignoring");
-                                        }
-                                    }
-
-                                    // 2. attempts to parse the "info" key
-                                    debug!("Attempting to go into \"info\" key for thumbnails");
-                                    if let Some(info_key) = content.get("info") {
-                                        debug!("Event ID has \"info\".");
-                                        let info_obj = info_key.as_object();
-
-                                        if let Some(info) = info_obj {
-                                            if let Some(thumbnail_url) = info.get("thumbnail_url") {
-                                                debug!("Found a thumbnail_url in info key: {thumbnail_url}");
-
-                                                if thumbnail_url.to_string().starts_with("\"mxc://")
-                                                {
-                                                    debug!("Pushing thumbnail URL {} to list of MXCs to delete", thumbnail_url);
-                                                    let final_thumbnail_url =
-                                                        thumbnail_url.to_string().replace('"', "");
-                                                    mxc_urls.push(final_thumbnail_url);
-                                                } else {
-                                                    info!("Found a thumbnail URL in the event ID {event_id} but did not start with mxc://, ignoring");
-                                                }
-                                            } else {
-                                                info!("No \"thumbnail_url\" key in \"info\" key, assuming no thumbnails.");
-                                            }
-                                        }
-                                    }
-
-                                    // 3. attempts to parse the "file" key
-                                    debug!("Attempting to go into \"file\" key");
-                                    if let Some(file_key) = content.get("file") {
-                                        debug!("Event ID has \"file\".");
-                                        let file_obj = file_key.as_object();
-
-                                        if let Some(file) = file_obj {
-                                            if let Some(url) = file.get("url") {
-                                                debug!("Found url in file key: {url}");
-
-                                                if url.to_string().starts_with("\"mxc://") {
-                                                    debug!(
-                                                        "Pushing URL {} to list of MXCs to delete",
-                                                        url
-                                                    );
-                                                    let final_url =
-                                                        url.to_string().replace('"', "");
-                                                    mxc_urls.push(final_url);
-                                                } else {
-                                                    info!("Found a URL in the event ID {event_id} but did not start with mxc://, ignoring");
-                                                }
-                                            } else {
-                                                info!("No \"url\" key in \"file\" key.");
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    return Ok(RoomMessageEventContent::text_plain("Event ID does not have a \"content\" key or failed parsing the event ID JSON."));
-                                }
-                            } else {
-                                return Ok(RoomMessageEventContent::text_plain("Event ID does not have a \"content\" key, this is not a message or an event type that contains media."));
-                            }
-                        } else {
-                            return Ok(RoomMessageEventContent::text_plain(
-                                "Event ID does not exist or is not known to us.",
-                            ));
-                        }
-
-                        if mxc_urls.is_empty() {
-                            // we shouldn't get here (should have errored earlier) but just in case for whatever reason we do...
-                            info!("Parsed event ID {event_id} but did not contain any MXC URLs.");
-                            return Ok(RoomMessageEventContent::text_plain(
-                                "Parsed event ID but found no MXC URLs.",
-                            ));
-                        }
-
-                        for mxc_url in mxc_urls {
-                            services().media.delete(mxc_url).await?;
-                            mxc_deletion_count += 1;
-                        }
-
-                        return Ok(RoomMessageEventContent::text_plain(format!("Deleted {} total MXCs from our database and the filesystem from event ID {event_id}.", mxc_deletion_count)));
-                    } else {
-                        return Ok(RoomMessageEventContent::text_plain(
-                            "Please specify either an MXC using --mxc or an event ID using --event-id of the message containing an image. See --help for details.",
-                        ));
-                    }
-                }
-                MediaCommand::DeleteList => {
-                    if body.len() > 2
-                        && body[0].trim().starts_with("```")
-                        && body.last().unwrap().trim() == "```"
-                    {
-                        let mxc_list = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
-
-                        let mut mxc_deletion_count = 0;
-
-                        for mxc in mxc_list {
-                            debug!("Deleting MXC {} in bulk", mxc);
-                            services().media.delete(mxc.to_owned()).await?;
-                            mxc_deletion_count += 1;
-                        }
-
-                        return Ok(RoomMessageEventContent::text_plain(format!("Finished bulk MXC deletion, deleted {} total MXCs from our database and the filesystem.", mxc_deletion_count)));
-                    } else {
-                        return Ok(RoomMessageEventContent::text_plain(
-                            "Expected code block in command body. Add --help for details.",
-                        ));
-                    }
-                }
-                MediaCommand::DeletePastRemoteMedia { duration } => {
-                    let deleted_count = services()
-                        .media
-                        .delete_all_remote_media_at_after_time(duration)
-                        .await?;
-
-                    return Ok(RoomMessageEventContent::text_plain(format!(
-                        "Deleted {} total files.",
-                        deleted_count
-                    )));
-                }
-            },
-            AdminCommand::Users(command) => match command {
-                UserCommand::List => match services().users.list_local_users() {
-                    Ok(users) => {
-                        let mut msg: String =
-                            format!("Found {} local user account(s):\n", users.len());
-                        msg += &users.join("\n");
-                        RoomMessageEventContent::text_plain(&msg)
-                    }
-                    Err(e) => RoomMessageEventContent::text_plain(e.to_string()),
-                },
-                UserCommand::Create { username, password } => {
-                    let password =
-                        password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
-                    // Validate user id
-                    let user_id = match UserId::parse_with_server_name(
-                        username.as_str().to_lowercase(),
-                        services().globals.server_name(),
-                    ) {
-                        Ok(id) => id,
-                        Err(e) => {
-                            return Ok(RoomMessageEventContent::text_plain(format!(
-                                "The supplied username is not a valid username: {e}"
-                            )))
-                        }
-                    };
-                    if user_id.is_historical() {
-                        return Ok(RoomMessageEventContent::text_plain(format!(
-                            "Userid {user_id} is not allowed due to historical"
-                        )));
-                    }
-                    if services().users.exists(&user_id)? {
-                        return Ok(RoomMessageEventContent::text_plain(format!(
-                            "Userid {user_id} already exists"
-                        )));
-                    }
-                    // Create user
-                    services().users.create(&user_id, Some(password.as_str()))?;
-
-                    // Default to pretty displayname
-                    let mut displayname = user_id.localpart().to_owned();
-
-                    // If `new_user_displayname_suffix` is set, registration will push whatever content is set to the user's display name with a space before it
-                    if !services().globals.new_user_displayname_suffix().is_empty() {
-                        displayname.push_str(
-                            &(" ".to_owned() + services().globals.new_user_displayname_suffix()),
-                        );
-                    }
-
-                    services()
-                        .users
-                        .set_displayname(&user_id, Some(displayname))
-                        .await?;
-
-                    // Initial account data
-                    services().account_data.update(
-                        None,
-                        &user_id,
-                        ruma::events::GlobalAccountDataEventType::PushRules
-                            .to_string()
-                            .into(),
-                        &serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
-                            content: ruma::events::push_rules::PushRulesEventContent {
-                                global: ruma::push::Ruleset::server_default(&user_id),
-                            },
-                        })
-                        .expect("to json value always works"),
-                    )?;
-
-                    // we dont add a device since we're not the user, just the creator
-
-                    // Inhibit login does not work for guests
-                    RoomMessageEventContent::text_plain(format!(
-                        "Created user with user_id: {user_id} and password: `{password}`"
-                    ))
-                }
-                UserCommand::Deactivate {
-                    leave_rooms,
-                    user_id,
-                } => {
-                    let user_id = Arc::<UserId>::from(user_id);
-
-                    // check if user belongs to our server
-                    if user_id.server_name() != services().globals.server_name() {
-                        return Ok(RoomMessageEventContent::text_plain(format!(
-                            "User {user_id} does not belong to our server."
-                        )));
-                    }
-
-                    if services().users.exists(&user_id)? {
-                        RoomMessageEventContent::text_plain(format!(
-                            "Making {user_id} leave all rooms before deactivation..."
-                        ));
-
-                        services().users.deactivate_account(&user_id)?;
-
-                        if leave_rooms {
-                            leave_all_rooms(&user_id).await?;
-                        }
-
-                        RoomMessageEventContent::text_plain(format!(
-                            "User {user_id} has been deactivated"
-                        ))
-                    } else {
-                        RoomMessageEventContent::text_plain(format!(
-                            "User {user_id} doesn't exist on this server"
-                        ))
-                    }
-                }
-                UserCommand::ResetPassword { username } => {
-                    let user_id = match UserId::parse_with_server_name(
-                        username.as_str().to_lowercase(),
-                        services().globals.server_name(),
-                    ) {
-                        Ok(id) => id,
-                        Err(e) => {
-                            return Ok(RoomMessageEventContent::text_plain(format!(
-                                "The supplied username is not a valid username: {e}"
-                            )))
-                        }
-                    };
-
-                    // check if user belongs to our server
-                    if user_id.server_name() != services().globals.server_name() {
-                        return Ok(RoomMessageEventContent::text_plain(format!(
-                            "User {user_id} does not belong to our server."
-                        )));
-                    }
-
-                    // Check if the specified user is valid
-                    if !services().users.exists(&user_id)?
-                        || user_id
-                            == UserId::parse_with_server_name(
-                                "conduit",
-                                services().globals.server_name(),
-                            )
-                            .expect("conduit user exists")
-                    {
-                        return Ok(RoomMessageEventContent::text_plain(
-                            "The specified user does not exist!",
-                        ));
-                    }
-
-                    let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
-
-                    match services()
-                        .users
-                        .set_password(&user_id, Some(new_password.as_str()))
-                    {
-                        Ok(()) => RoomMessageEventContent::text_plain(format!(
-                            "Successfully reset the password for user {user_id}: `{new_password}`"
-                        )),
-                        Err(e) => RoomMessageEventContent::text_plain(format!(
-                            "Couldn't reset the password for user {user_id}: {e}"
-                        )),
-                    }
-                }
-                UserCommand::DeactivateAll { leave_rooms, force } => {
-                    if body.len() > 2
-                        && body[0].trim().starts_with("```")
-                        && body.last().unwrap().trim() == "```"
-                    {
-                        let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
-
-                        let mut user_ids: Vec<&UserId> = Vec::new();
-
-                        for &username in &usernames {
-                            match <&UserId>::try_from(username) {
-                                Ok(user_id) => user_ids.push(user_id),
-                                Err(e) => {
-                                    return Ok(RoomMessageEventContent::text_plain(format!(
-                                        "{username} is not a valid username: {e}"
-                                    )))
-                                }
-                            }
-                        }
-
-                        let mut deactivation_count = 0;
-                        let mut admins = Vec::new();
-
-                        if !force {
-                            user_ids.retain(|&user_id| match services().users.is_admin(user_id) {
-                                Ok(is_admin) => match is_admin {
-                                    true => {
-                                        admins.push(user_id.localpart());
-                                        false
-                                    }
-                                    false => true,
-                                },
-                                Err(_) => false,
-                            });
-                        }
-
-                        for &user_id in &user_ids {
-                            // check if user belongs to our server and skips over non-local users
-                            if user_id.server_name() != services().globals.server_name() {
-                                continue;
-                            }
-
-                            if services().users.deactivate_account(user_id).is_ok() {
-                                deactivation_count += 1;
-                            }
-                        }
-
-                        if leave_rooms {
-                            for &user_id in &user_ids {
-                                let _ = leave_all_rooms(user_id).await;
-                            }
-                        }
-
-                        if admins.is_empty() {
-                            RoomMessageEventContent::text_plain(format!(
-                                "Deactivated {deactivation_count} accounts."
-                            ))
-                        } else {
-                            RoomMessageEventContent::text_plain(format!("Deactivated {} accounts.\nSkipped admin accounts: {:?}. Use --force to deactivate admin accounts", deactivation_count, admins.join(", ")))
-                        }
-                    } else {
-                        RoomMessageEventContent::text_plain(
-                            "Expected code block in command body. Add --help for details.",
-                        )
-                    }
-                }
-                UserCommand::ListJoinedRooms { user_id } => {
-                    if user_id.server_name() != services().globals.server_name() {
-                        return Ok(RoomMessageEventContent::text_plain(
-                            "User does not belong to our server.",
-                        ));
-                    }
-
-                    let mut rooms: Vec<(OwnedRoomId, u64, String)> = vec![]; // room ID, members joined, room name
-
-                    for room_id in services().rooms.state_cache.rooms_joined(&user_id) {
-                        let room_id = room_id?;
-                        rooms.push(Self::get_room_info(room_id));
-                    }
-
-                    if rooms.is_empty() {
-                        return Ok(RoomMessageEventContent::text_plain(
-                            "User is not in any rooms.",
-                        ));
-                    }
-
-                    rooms.sort_by_key(|r| r.1);
-                    rooms.reverse();
-
-                    let output_plain = format!(
-                        "Rooms {user_id} Joined:\n{}",
-                        rooms
-                            .iter()
-                            .map(|(id, members, name)| format!(
-                                "{id}\tMembers: {members}\tName: {name}"
-                            ))
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    );
-                    let output_html = format!(
-                        "<table><caption>Rooms {user_id} Joined</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-                        rooms
-                            .iter()
-                            .fold(String::new(), |mut output, (id, members, name)| {
-                                writeln!(output, "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>", escape_html(id.as_ref()),
-                                members,
-                                escape_html(name)).unwrap();
-                                output
-                            })
-                    );
-                    RoomMessageEventContent::text_html(output_plain, output_html)
-                }
-            },
-            AdminCommand::Rooms(command) => match command {
-                RoomCommand::Moderation(command) => match command {
-                    RoomModeration::BanRoom {
-                        force,
-                        room,
-                        disable_federation,
-                    } => {
-                        debug!("Got room alias or ID: {}", room);
-
-                        let admin_room_alias: Box<RoomAliasId> =
-                            format!("#admins:{}", services().globals.server_name())
-                                .try_into()
-                                .expect("#admins:server_name is a valid alias name");
-                        let admin_room_id = services()
-                            .rooms
-                            .alias
-                            .resolve_local_alias(&admin_room_alias)?
-                            .expect("Admin room must exist");
-
-                        if room.to_string().eq(&admin_room_id)
-                            || room.to_string().eq(&admin_room_alias)
-                        {
-                            return Ok(RoomMessageEventContent::text_plain(
-                                "Not allowed to ban the admin room.",
-                            ));
-                        }
-
-                        let room_id = if room.is_room_id() {
-                            let room_id = match RoomId::parse(&room) {
-                                Ok(room_id) => room_id,
-                                Err(e) => return Ok(RoomMessageEventContent::text_plain(format!("Failed to parse room ID {room}. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"))),
-                            };
-
-                            debug!("Room specified is a room ID, banning room ID");
-
-                            services().rooms.metadata.ban_room(&room_id, true)?;
-
-                            room_id
-                        } else if room.is_room_alias_id() {
-                            let room_alias = match RoomAliasId::parse(&room) {
-                                Ok(room_alias) => room_alias,
-                                Err(e) => return Ok(RoomMessageEventContent::text_plain(format!("Failed to parse room ID {room}. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"))),
-                            };
-
-                            debug!("Room specified is not a room ID, attempting to resolve room alias to a room ID locally, if not using get_alias_helper to fetch room ID remotely");
-
-                            let room_id = match services()
-                                .rooms
-                                .alias
-                                .resolve_local_alias(&room_alias)?
-                            {
-                                Some(room_id) => room_id,
-                                None => {
-                                    debug!("We don't have this room alias to a room ID locally, attempting to fetch room ID over federation");
-
-                                    match get_alias_helper(room_alias).await {
-                                        Ok(response) => {
-                                            debug!("Got federation response fetching room ID for room {room}: {:?}", response);
-                                            response.room_id
-                                        }
-                                        Err(e) => {
-                                            return Ok(RoomMessageEventContent::text_plain(format!("Failed to resolve room alias {room} to a room ID: {e}")));
-                                        }
-                                    }
-                                }
-                            };
-
-                            services().rooms.metadata.ban_room(&room_id, true)?;
-
-                            room_id
-                        } else {
-                            return Ok(RoomMessageEventContent::text_plain("Room specified is not a room ID or room alias. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`)"));
-                        };
-
-                        debug!("Making all users leave the room {}", &room);
-                        if force {
-                            for local_user in services()
-                                .rooms
-                                .state_cache
-                                .room_members(&room_id)
-                                .filter_map(|user| {
-                                    user.ok().filter(|local_user| {
-                                        local_user.server_name() == services().globals.server_name()
+	pub fn build() -> Arc<Self> {
+		let (sender, receiver) = mpsc::unbounded_channel();
+		Arc::new(Self {
+			sender,
+			receiver: Mutex::new(receiver),
+		})
+	}
+
+	pub fn start_handler(self: &Arc<Self>) {
+		let self2 = Arc::clone(self);
+		tokio::spawn(async move {
+			self2.handler().await;
+		});
+	}
+
+	async fn handler(&self) {
+		let mut receiver = self.receiver.lock().await;
+		// TODO: Use futures when we have long admin commands
+		//let mut futures = FuturesUnordered::new();
+
+		let conduit_user = UserId::parse(format!("@conduit:{}", services().globals.server_name()))
+			.expect("@conduit:server_name is valid");
+
+		let conduit_room = services()
+			.rooms
+			.alias
+			.resolve_local_alias(
+				format!("#admins:{}", services().globals.server_name())
+					.as_str()
+					.try_into()
+					.expect("#admins:server_name is a valid room alias"),
+			)
+			.expect("Database data for admin room alias must be valid")
+			.expect("Admin room must exist");
+
+		loop {
+			tokio::select! {
+				Some(event) = receiver.recv() => {
+					let (mut message_content, reply) = match event {
+						AdminRoomEvent::SendMessage(content) => (content, None),
+						AdminRoomEvent::ProcessMessage(room_message, reply_id) => {
+							(self.process_admin_message(room_message).await, Some(reply_id))
+						}
+					};
+
+					let mutex_state = Arc::clone(
+						services().globals
+							.roomid_mutex_state
+							.write()
+							.unwrap()
+							.entry(conduit_room.clone())
+							.or_default(),
+					);
+
+					let state_lock = mutex_state.lock().await;
+
+					if let Some(reply) = reply {
+						message_content.relates_to = Some(Reply { in_reply_to: InReplyTo { event_id: reply.into() } });
+					}
+
+				services().rooms.timeline.build_and_append_pdu(
+					PduBuilder {
+					  event_type: TimelineEventType::RoomMessage,
+					  content: to_raw_value(&message_content)
+						  .expect("event is valid, we just created it"),
+					  unsigned: None,
+					  state_key: None,
+					  redacts: None,
+					},
+					&conduit_user,
+					&conduit_room,
+					&state_lock)
+				  .await
+				  .unwrap();
+
+
+					drop(state_lock);
+				}
+			}
+		}
+	}
+
+	pub fn process_message(&self, room_message: String, event_id: Arc<EventId>) {
+		self.sender.send(AdminRoomEvent::ProcessMessage(room_message, event_id)).unwrap();
+	}
+
+	pub fn send_message(&self, message_content: RoomMessageEventContent) {
+		self.sender.send(AdminRoomEvent::SendMessage(message_content)).unwrap();
+	}
+
+	// Parse and process a message from the admin room
+	async fn process_admin_message(&self, room_message: String) -> RoomMessageEventContent {
+		let mut lines = room_message.lines().filter(|l| !l.trim().is_empty());
+		let command_line = lines.next().expect("each string has at least one line");
+		let body: Vec<_> = lines.collect();
+
+		let admin_command = match self.parse_admin_command(command_line) {
+			Ok(command) => command,
+			Err(error) => {
+				let server_name = services().globals.server_name();
+				let message = error.replace("server.name", server_name.as_str());
+				let html_message = self.usage_to_html(&message, server_name);
+
+				return RoomMessageEventContent::text_html(message, html_message);
+			},
+		};
+
+		match self.process_admin_command(admin_command, body).await {
+			Ok(reply_message) => reply_message,
+			Err(error) => {
+				let markdown_message = format!("Encountered an error while handling the command:\n```\n{error}\n```",);
+				let html_message = format!("Encountered an error while handling the command:\n<pre>\n{error}\n</pre>",);
+
+				RoomMessageEventContent::text_html(markdown_message, html_message)
+			},
+		}
+	}
+
+	// Parse chat messages from the admin room into an AdminCommand object
+	fn parse_admin_command(&self, command_line: &str) -> std::result::Result<AdminCommand, String> {
+		// Note: argv[0] is `@conduit:servername:`, which is treated as the main command
+		let mut argv: Vec<_> = command_line.split_whitespace().collect();
+
+		// Replace `help command` with `command --help`
+		// Clap has a help subcommand, but it omits the long help description.
+		if argv.len() > 1 && argv[1] == "help" {
+			argv.remove(1);
+			argv.push("--help");
+		}
+
+		// Backwards compatibility with `register_appservice`-style commands
+		let command_with_dashes;
+		if argv.len() > 1 && argv[1].contains('_') {
+			command_with_dashes = argv[1].replace('_', "-");
+			argv[1] = &command_with_dashes;
+		}
+
+		AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
+	}
+
+	async fn process_admin_command(&self, command: AdminCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+		let reply_message_content = match command {
+			AdminCommand::Appservices(command) => match command {
+				AppserviceCommand::Register => {
+					if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
+						let appservice_config = body[1..body.len() - 1].join("\n");
+						let parsed_config = serde_yaml::from_str::<Registration>(&appservice_config);
+						match parsed_config {
+							Ok(yaml) => match services().appservice.register_appservice(yaml) {
+								Ok(id) => {
+									RoomMessageEventContent::text_plain(format!("Appservice registered with ID: {id}."))
+								},
+								Err(e) => {
+									RoomMessageEventContent::text_plain(format!("Failed to register appservice: {e}"))
+								},
+							},
+							Err(e) => {
+								RoomMessageEventContent::text_plain(format!("Could not parse appservice config: {e}"))
+							},
+						}
+					} else {
+						RoomMessageEventContent::text_plain(
+							"Expected code block in command body. Add --help for details.",
+						)
+					}
+				},
+				AppserviceCommand::Unregister {
+					appservice_identifier,
+				} => match services().appservice.unregister_appservice(&appservice_identifier) {
+					Ok(()) => RoomMessageEventContent::text_plain("Appservice unregistered."),
+					Err(e) => RoomMessageEventContent::text_plain(format!("Failed to unregister appservice: {e}")),
+				},
+				AppserviceCommand::Show {
+					appservice_identifier,
+				} => match services().appservice.get_registration(&appservice_identifier) {
+					Ok(Some(config)) => {
+						let config_str =
+							serde_yaml::to_string(&config).expect("config should've been validated on register");
+						let output = format!("Config for {}:\n\n```yaml\n{}\n```", appservice_identifier, config_str,);
+						let output_html = format!(
+							"Config for {}:\n\n<pre><code class=\"language-yaml\">{}</code></pre>",
+							escape_html(&appservice_identifier),
+							escape_html(&config_str),
+						);
+						RoomMessageEventContent::text_html(output, output_html)
+					},
+					Ok(None) => RoomMessageEventContent::text_plain("Appservice does not exist."),
+					Err(_) => RoomMessageEventContent::text_plain("Failed to get appservice."),
+				},
+				AppserviceCommand::List => {
+					if let Ok(appservices) =
+						services().appservice.iter_ids().map(std::iter::Iterator::collect::<Vec<_>>)
+					{
+						let count = appservices.len();
+						let output = format!(
+							"Appservices ({}): {}",
+							count,
+							appservices.into_iter().filter_map(std::result::Result::ok).collect::<Vec<_>>().join(", ")
+						);
+						RoomMessageEventContent::text_plain(output)
+					} else {
+						RoomMessageEventContent::text_plain("Failed to get appservices.")
+					}
+				},
+			},
+			AdminCommand::Media(command) => {
+				match command {
+					MediaCommand::Delete {
+						mxc,
+						event_id,
+					} => {
+						if event_id.is_some() && mxc.is_some() {
+							return Ok(RoomMessageEventContent::text_plain(
+								"Please specify either an MXC or an event ID, not both.",
+							));
+						}
+
+						if let Some(mxc) = mxc {
+							if !mxc.to_string().starts_with("mxc://") {
+								return Ok(RoomMessageEventContent::text_plain("MXC provided is not valid."));
+							}
+
+							debug!("Got MXC URL: {}", mxc);
+							services().media.delete(mxc.to_string()).await?;
+
+							return Ok(RoomMessageEventContent::text_plain(
+								"Deleted the MXC from our database and on our filesystem.",
+							));
+						} else if let Some(event_id) = event_id {
+							debug!("Got event ID to delete media from: {}", event_id);
+
+							let mut mxc_urls: Vec<String> = vec![];
+							let mut mxc_deletion_count = 0;
+
+							// parsing the PDU for any MXC URLs begins here
+							if let Some(event_json) = services().rooms.timeline.get_pdu_json(&event_id)? {
+								if let Some(content_key) = event_json.get("content") {
+									debug!("Event ID has \"content\".");
+									let content_obj = content_key.as_object();
+
+									if let Some(content) = content_obj {
+										// 1. attempts to parse the "url" key
+										debug!("Attempting to go into \"url\" key for main media file");
+										if let Some(url) = content.get("url") {
+											debug!("Got a URL in the event ID {event_id}: {url}");
+
+											if url.to_string().starts_with("\"mxc://") {
+												debug!("Pushing URL {} to list of MXCs to delete", url);
+												let final_url = url.to_string().replace('"', "");
+												mxc_urls.push(final_url);
+											} else {
+												info!(
+													"Found a URL in the event ID {event_id} but did not start with \
+													 mxc://, ignoring"
+												);
+											}
+										}
+
+										// 2. attempts to parse the "info" key
+										debug!("Attempting to go into \"info\" key for thumbnails");
+										if let Some(info_key) = content.get("info") {
+											debug!("Event ID has \"info\".");
+											let info_obj = info_key.as_object();
+
+											if let Some(info) = info_obj {
+												if let Some(thumbnail_url) = info.get("thumbnail_url") {
+													debug!("Found a thumbnail_url in info key: {thumbnail_url}");
+
+													if thumbnail_url.to_string().starts_with("\"mxc://") {
+														debug!(
+															"Pushing thumbnail URL {} to list of MXCs to delete",
+															thumbnail_url
+														);
+														let final_thumbnail_url =
+															thumbnail_url.to_string().replace('"', "");
+														mxc_urls.push(final_thumbnail_url);
+													} else {
+														info!(
+															"Found a thumbnail URL in the event ID {event_id} but did \
+															 not start with mxc://, ignoring"
+														);
+													}
+												} else {
+													info!(
+														"No \"thumbnail_url\" key in \"info\" key, assuming no \
+														 thumbnails."
+													);
+												}
+											}
+										}
+
+										// 3. attempts to parse the "file" key
+										debug!("Attempting to go into \"file\" key");
+										if let Some(file_key) = content.get("file") {
+											debug!("Event ID has \"file\".");
+											let file_obj = file_key.as_object();
+
+											if let Some(file) = file_obj {
+												if let Some(url) = file.get("url") {
+													debug!("Found url in file key: {url}");
+
+													if url.to_string().starts_with("\"mxc://") {
+														debug!("Pushing URL {} to list of MXCs to delete", url);
+														let final_url = url.to_string().replace('"', "");
+														mxc_urls.push(final_url);
+													} else {
+														info!(
+															"Found a URL in the event ID {event_id} but did not start \
+															 with mxc://, ignoring"
+														);
+													}
+												} else {
+													info!("No \"url\" key in \"file\" key.");
+												}
+											}
+										}
+									} else {
+										return Ok(RoomMessageEventContent::text_plain(
+											"Event ID does not have a \"content\" key or failed parsing the event ID \
+											 JSON.",
+										));
+									}
+								} else {
+									return Ok(RoomMessageEventContent::text_plain(
+										"Event ID does not have a \"content\" key, this is not a message or an event \
+										 type that contains media.",
+									));
+								}
+							} else {
+								return Ok(RoomMessageEventContent::text_plain(
+									"Event ID does not exist or is not known to us.",
+								));
+							}
+
+							if mxc_urls.is_empty() {
+								// we shouldn't get here (should have errored earlier) but just in case for
+								// whatever reason we do...
+								info!("Parsed event ID {event_id} but did not contain any MXC URLs.");
+								return Ok(RoomMessageEventContent::text_plain(
+									"Parsed event ID but found no MXC URLs.",
+								));
+							}
+
+							for mxc_url in mxc_urls {
+								services().media.delete(mxc_url).await?;
+								mxc_deletion_count += 1;
+							}
+
+							return Ok(RoomMessageEventContent::text_plain(format!(
+								"Deleted {} total MXCs from our database and the filesystem from event ID {event_id}.",
+								mxc_deletion_count
+							)));
+						} else {
+							return Ok(RoomMessageEventContent::text_plain(
+								"Please specify either an MXC using --mxc or an event ID using --event-id of the \
+								 message containing an image. See --help for details.",
+							));
+						}
+					},
+					MediaCommand::DeleteList => {
+						if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
+							let mxc_list = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+
+							let mut mxc_deletion_count = 0;
+
+							for mxc in mxc_list {
+								debug!("Deleting MXC {} in bulk", mxc);
+								services().media.delete(mxc.to_owned()).await?;
+								mxc_deletion_count += 1;
+							}
+
+							return Ok(RoomMessageEventContent::text_plain(format!(
+								"Finished bulk MXC deletion, deleted {} total MXCs from our database and the \
+								 filesystem.",
+								mxc_deletion_count
+							)));
+						} else {
+							return Ok(RoomMessageEventContent::text_plain(
+								"Expected code block in command body. Add --help for details.",
+							));
+						}
+					},
+					MediaCommand::DeletePastRemoteMedia {
+						duration,
+					} => {
+						let deleted_count = services().media.delete_all_remote_media_at_after_time(duration).await?;
+
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"Deleted {} total files.",
+							deleted_count
+						)));
+					},
+				}
+			},
+			AdminCommand::Users(command) => match command {
+				UserCommand::List => match services().users.list_local_users() {
+					Ok(users) => {
+						let mut msg: String = format!("Found {} local user account(s):\n", users.len());
+						msg += &users.join("\n");
+						RoomMessageEventContent::text_plain(&msg)
+					},
+					Err(e) => RoomMessageEventContent::text_plain(e.to_string()),
+				},
+				UserCommand::Create {
+					username,
+					password,
+				} => {
+					let password = password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
+					// Validate user id
+					let user_id = match UserId::parse_with_server_name(
+						username.as_str().to_lowercase(),
+						services().globals.server_name(),
+					) {
+						Ok(id) => id,
+						Err(e) => {
+							return Ok(RoomMessageEventContent::text_plain(format!(
+								"The supplied username is not a valid username: {e}"
+							)))
+						},
+					};
+					if user_id.is_historical() {
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"Userid {user_id} is not allowed due to historical"
+						)));
+					}
+					if services().users.exists(&user_id)? {
+						return Ok(RoomMessageEventContent::text_plain(format!("Userid {user_id} already exists")));
+					}
+					// Create user
+					services().users.create(&user_id, Some(password.as_str()))?;
+
+					// Default to pretty displayname
+					let mut displayname = user_id.localpart().to_owned();
+
+					// If `new_user_displayname_suffix` is set, registration will push whatever
+					// content is set to the user's display name with a space before it
+					if !services().globals.new_user_displayname_suffix().is_empty() {
+						displayname.push_str(&(" ".to_owned() + services().globals.new_user_displayname_suffix()));
+					}
+
+					services().users.set_displayname(&user_id, Some(displayname)).await?;
+
+					// Initial account data
+					services().account_data.update(
+						None,
+						&user_id,
+						ruma::events::GlobalAccountDataEventType::PushRules.to_string().into(),
+						&serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
+							content: ruma::events::push_rules::PushRulesEventContent {
+								global: ruma::push::Ruleset::server_default(&user_id),
+							},
+						})
+						.expect("to json value always works"),
+					)?;
+
+					// we dont add a device since we're not the user, just the creator
+
+					// Inhibit login does not work for guests
+					RoomMessageEventContent::text_plain(format!(
+						"Created user with user_id: {user_id} and password: `{password}`"
+					))
+				},
+				UserCommand::Deactivate {
+					leave_rooms,
+					user_id,
+				} => {
+					let user_id = Arc::<UserId>::from(user_id);
+
+					// check if user belongs to our server
+					if user_id.server_name() != services().globals.server_name() {
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"User {user_id} does not belong to our server."
+						)));
+					}
+
+					if services().users.exists(&user_id)? {
+						RoomMessageEventContent::text_plain(format!(
+							"Making {user_id} leave all rooms before deactivation..."
+						));
+
+						services().users.deactivate_account(&user_id)?;
+
+						if leave_rooms {
+							leave_all_rooms(&user_id).await?;
+						}
+
+						RoomMessageEventContent::text_plain(format!("User {user_id} has been deactivated"))
+					} else {
+						RoomMessageEventContent::text_plain(format!("User {user_id} doesn't exist on this server"))
+					}
+				},
+				UserCommand::ResetPassword {
+					username,
+				} => {
+					let user_id = match UserId::parse_with_server_name(
+						username.as_str().to_lowercase(),
+						services().globals.server_name(),
+					) {
+						Ok(id) => id,
+						Err(e) => {
+							return Ok(RoomMessageEventContent::text_plain(format!(
+								"The supplied username is not a valid username: {e}"
+							)))
+						},
+					};
+
+					// check if user belongs to our server
+					if user_id.server_name() != services().globals.server_name() {
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"User {user_id} does not belong to our server."
+						)));
+					}
+
+					// Check if the specified user is valid
+					if !services().users.exists(&user_id)?
+						|| user_id
+							== UserId::parse_with_server_name("conduit", services().globals.server_name())
+								.expect("conduit user exists")
+					{
+						return Ok(RoomMessageEventContent::text_plain("The specified user does not exist!"));
+					}
+
+					let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
+
+					match services().users.set_password(&user_id, Some(new_password.as_str())) {
+						Ok(()) => RoomMessageEventContent::text_plain(format!(
+							"Successfully reset the password for user {user_id}: `{new_password}`"
+						)),
+						Err(e) => RoomMessageEventContent::text_plain(format!(
+							"Couldn't reset the password for user {user_id}: {e}"
+						)),
+					}
+				},
+				UserCommand::DeactivateAll {
+					leave_rooms,
+					force,
+				} => {
+					if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
+						let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+
+						let mut user_ids: Vec<&UserId> = Vec::new();
+
+						for &username in &usernames {
+							match <&UserId>::try_from(username) {
+								Ok(user_id) => user_ids.push(user_id),
+								Err(e) => {
+									return Ok(RoomMessageEventContent::text_plain(format!(
+										"{username} is not a valid username: {e}"
+									)))
+								},
+							}
+						}
+
+						let mut deactivation_count = 0;
+						let mut admins = Vec::new();
+
+						if !force {
+							user_ids.retain(|&user_id| match services().users.is_admin(user_id) {
+								Ok(is_admin) => match is_admin {
+									true => {
+										admins.push(user_id.localpart());
+										false
+									},
+									false => true,
+								},
+								Err(_) => false,
+							});
+						}
+
+						for &user_id in &user_ids {
+							// check if user belongs to our server and skips over non-local users
+							if user_id.server_name() != services().globals.server_name() {
+								continue;
+							}
+
+							if services().users.deactivate_account(user_id).is_ok() {
+								deactivation_count += 1;
+							}
+						}
+
+						if leave_rooms {
+							for &user_id in &user_ids {
+								let _ = leave_all_rooms(user_id).await;
+							}
+						}
+
+						if admins.is_empty() {
+							RoomMessageEventContent::text_plain(format!("Deactivated {deactivation_count} accounts."))
+						} else {
+							RoomMessageEventContent::text_plain(format!(
+								"Deactivated {} accounts.\nSkipped admin accounts: {:?}. Use --force to deactivate \
+								 admin accounts",
+								deactivation_count,
+								admins.join(", ")
+							))
+						}
+					} else {
+						RoomMessageEventContent::text_plain(
+							"Expected code block in command body. Add --help for details.",
+						)
+					}
+				},
+				UserCommand::ListJoinedRooms {
+					user_id,
+				} => {
+					if user_id.server_name() != services().globals.server_name() {
+						return Ok(RoomMessageEventContent::text_plain("User does not belong to our server."));
+					}
+
+					let mut rooms: Vec<(OwnedRoomId, u64, String)> = vec![]; // room ID, members joined, room name
+
+					for room_id in services().rooms.state_cache.rooms_joined(&user_id) {
+						let room_id = room_id?;
+						rooms.push(Self::get_room_info(room_id));
+					}
+
+					if rooms.is_empty() {
+						return Ok(RoomMessageEventContent::text_plain("User is not in any rooms."));
+					}
+
+					rooms.sort_by_key(|r| r.1);
+					rooms.reverse();
+
+					let output_plain = format!(
+						"Rooms {user_id} Joined:\n{}",
+						rooms
+							.iter()
+							.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
+							.collect::<Vec<_>>()
+							.join("\n")
+					);
+					let output_html = format!(
+						"<table><caption>Rooms {user_id} \
+						 Joined</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
+						rooms.iter().fold(String::new(), |mut output, (id, members, name)| {
+							writeln!(
+								output,
+								"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
+								escape_html(id.as_ref()),
+								members,
+								escape_html(name)
+							)
+							.unwrap();
+							output
+						})
+					);
+					RoomMessageEventContent::text_html(output_plain, output_html)
+				},
+			},
+			AdminCommand::Rooms(command) => match command {
+				RoomCommand::Moderation(command) => {
+					match command {
+						RoomModeration::BanRoom {
+							force,
+							room,
+							disable_federation,
+						} => {
+							debug!("Got room alias or ID: {}", room);
+
+							let admin_room_alias: Box<RoomAliasId> =
+								format!("#admins:{}", services().globals.server_name())
+									.try_into()
+									.expect("#admins:server_name is a valid alias name");
+							let admin_room_id = services()
+								.rooms
+								.alias
+								.resolve_local_alias(&admin_room_alias)?
+								.expect("Admin room must exist");
+
+							if room.to_string().eq(&admin_room_id) || room.to_string().eq(&admin_room_alias) {
+								return Ok(RoomMessageEventContent::text_plain("Not allowed to ban the admin room."));
+							}
+
+							let room_id = if room.is_room_id() {
+								let room_id = match RoomId::parse(&room) {
+									Ok(room_id) => room_id,
+									Err(e) => {
+										return Ok(RoomMessageEventContent::text_plain(format!(
+											"Failed to parse room ID {room}. Please note that this requires a full \
+											 room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+											 (`#roomalias:example.com`): {e}"
+										)))
+									},
+								};
+
+								debug!("Room specified is a room ID, banning room ID");
+
+								services().rooms.metadata.ban_room(&room_id, true)?;
+
+								room_id
+							} else if room.is_room_alias_id() {
+								let room_alias = match RoomAliasId::parse(&room) {
+									Ok(room_alias) => room_alias,
+									Err(e) => {
+										return Ok(RoomMessageEventContent::text_plain(format!(
+											"Failed to parse room ID {room}. Please note that this requires a full \
+											 room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+											 (`#roomalias:example.com`): {e}"
+										)))
+									},
+								};
+
+								debug!(
+									"Room specified is not a room ID, attempting to resolve room alias to a room ID \
+									 locally, if not using get_alias_helper to fetch room ID remotely"
+								);
+
+								let room_id = match services().rooms.alias.resolve_local_alias(&room_alias)? {
+									Some(room_id) => room_id,
+									None => {
+										debug!(
+											"We don't have this room alias to a room ID locally, attempting to fetch \
+											 room ID over federation"
+										);
+
+										match get_alias_helper(room_alias).await {
+											Ok(response) => {
+												debug!(
+													"Got federation response fetching room ID for room {room}: {:?}",
+													response
+												);
+												response.room_id
+											},
+											Err(e) => {
+												return Ok(RoomMessageEventContent::text_plain(format!(
+													"Failed to resolve room alias {room} to a room ID: {e}"
+												)));
+											},
+										}
+									},
+								};
+
+								services().rooms.metadata.ban_room(&room_id, true)?;
+
+								room_id
+							} else {
+								return Ok(RoomMessageEventContent::text_plain(
+									"Room specified is not a room ID or room alias. Please note that this requires a \
+									 full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+									 (`#roomalias:example.com`)",
+								));
+							};
+
+							debug!("Making all users leave the room {}", &room);
+							if force {
+								for local_user in services()
+									.rooms
+									.state_cache
+									.room_members(&room_id)
+									.filter_map(|user| {
+										user.ok().filter(|local_user| {
+											local_user.server_name() == services().globals.server_name()
                                             // additional wrapped check here is to avoid adding remote users
                                             // who are in the admin room to the list of local users (would fail auth check)
                                             && (local_user.server_name()
@@ -1163,24 +1184,25 @@ impl Service {
                                                     .users
                                                     .is_admin(local_user)
                                                     .unwrap_or(true)) // since this is a force operation, assume user is an admin if somehow this fails
-                                    })
-                                })
-                                .collect::<Vec<OwnedUserId>>()
-                            {
-                                debug!(
-                                "Attempting leave for user {} in room {} (forced, ignoring all errors, evicting admins too)",
-                                &local_user, &room_id
-                            );
-                                let _ = leave_room(&local_user, &room_id, None).await;
-                            }
-                        } else {
-                            for local_user in services()
-                                .rooms
-                                .state_cache
-                                .room_members(&room_id)
-                                .filter_map(|user| {
-                                    user.ok().filter(|local_user| {
-                                        local_user.server_name() == services().globals.server_name()
+										})
+									})
+									.collect::<Vec<OwnedUserId>>()
+								{
+									debug!(
+										"Attempting leave for user {} in room {} (forced, ignoring all errors, \
+										 evicting admins too)",
+										&local_user, &room_id
+									);
+									let _ = leave_room(&local_user, &room_id, None).await;
+								}
+							} else {
+								for local_user in services()
+									.rooms
+									.state_cache
+									.room_members(&room_id)
+									.filter_map(|user| {
+										user.ok().filter(|local_user| {
+											local_user.server_name() == services().globals.server_name()
                                             // additional wrapped check here is to avoid adding remote users
                                             // who are in the admin room to the list of local users (would fail auth check)
                                             && (local_user.server_name()
@@ -1189,89 +1211,107 @@ impl Service {
                                                     .users
                                                     .is_admin(local_user)
                                                     .unwrap_or(false))
-                                    })
-                                })
-                                .collect::<Vec<OwnedUserId>>()
-                            {
-                                debug!(
-                                    "Attempting leave for user {} in room {}",
-                                    &local_user, &room_id
-                                );
-                                if let Err(e) = leave_room(&local_user, &room_id, None).await {
-                                    error!("Error attempting to make local user {} leave room {} during room banning: {}", &local_user, &room_id, e);
-                                    return Ok(RoomMessageEventContent::text_plain(format!("Error attempting to make local user {} leave room {} during room banning (room is still banned but not removing any more users): {}\nIf you would like to ignore errors, use --force", &local_user, &room_id, e)));
-                                }
-                            }
-                        }
+										})
+									})
+									.collect::<Vec<OwnedUserId>>()
+								{
+									debug!("Attempting leave for user {} in room {}", &local_user, &room_id);
+									if let Err(e) = leave_room(&local_user, &room_id, None).await {
+										error!(
+											"Error attempting to make local user {} leave room {} during room \
+											 banning: {}",
+											&local_user, &room_id, e
+										);
+										return Ok(RoomMessageEventContent::text_plain(format!(
+											"Error attempting to make local user {} leave room {} during room banning \
+											 (room is still banned but not removing any more users): {}\nIf you would \
+											 like to ignore errors, use --force",
+											&local_user, &room_id, e
+										)));
+									}
+								}
+							}
 
-                        if disable_federation {
-                            services().rooms.metadata.disable_room(&room_id, true)?;
-                            return Ok(RoomMessageEventContent::text_plain("Room banned, removed all our local users, and disabled incoming federation with room."));
-                        }
+							if disable_federation {
+								services().rooms.metadata.disable_room(&room_id, true)?;
+								return Ok(RoomMessageEventContent::text_plain(
+									"Room banned, removed all our local users, and disabled incoming federation with \
+									 room.",
+								));
+							}
 
-                        RoomMessageEventContent::text_plain("Room banned and removed all our local users, use disable-room to stop receiving new inbound federation events as well if needed.")
-                    }
-                    RoomModeration::BanListOfRooms {
-                        force,
-                        disable_federation,
-                    } => {
-                        if body.len() > 2
-                            && body[0].trim().starts_with("```")
-                            && body.last().unwrap().trim() == "```"
-                        {
-                            let rooms_s = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+							RoomMessageEventContent::text_plain(
+								"Room banned and removed all our local users, use disable-room to stop receiving new \
+								 inbound federation events as well if needed.",
+							)
+						},
+						RoomModeration::BanListOfRooms {
+							force,
+							disable_federation,
+						} => {
+							if body.len() > 2
+								&& body[0].trim().starts_with("```")
+								&& body.last().unwrap().trim() == "```"
+							{
+								let rooms_s = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
 
-                            let mut room_ban_count = 0;
-                            let mut room_ids: Vec<&RoomId> = Vec::new();
+								let mut room_ban_count = 0;
+								let mut room_ids: Vec<&RoomId> = Vec::new();
 
-                            let admin_room_alias: Box<RoomAliasId> =
-                                format!("#admins:{}", services().globals.server_name())
-                                    .try_into()
-                                    .expect("#admins:server_name is a valid alias name");
-                            let admin_room_id = services()
-                                .rooms
-                                .alias
-                                .resolve_local_alias(&admin_room_alias)?
-                                .expect("Admin room must exist");
+								let admin_room_alias: Box<RoomAliasId> =
+									format!("#admins:{}", services().globals.server_name())
+										.try_into()
+										.expect("#admins:server_name is a valid alias name");
+								let admin_room_id = services()
+									.rooms
+									.alias
+									.resolve_local_alias(&admin_room_alias)?
+									.expect("Admin room must exist");
 
-                            for &room_id in &rooms_s {
-                                match <&RoomId>::try_from(room_id) {
-                                    Ok(owned_room_id) => {
-                                        // silently ignore deleting admin room
-                                        if owned_room_id.eq(&admin_room_id) {
-                                            info!("User specified admin room in bulk ban list, ignoring");
-                                            continue;
-                                        }
+								for &room_id in &rooms_s {
+									match <&RoomId>::try_from(room_id) {
+										Ok(owned_room_id) => {
+											// silently ignore deleting admin room
+											if owned_room_id.eq(&admin_room_id) {
+												info!("User specified admin room in bulk ban list, ignoring");
+												continue;
+											}
 
-                                        room_ids.push(owned_room_id);
-                                    }
-                                    Err(e) => {
-                                        if force {
-                                            // ignore rooms we failed to parse if we're force deleting
-                                            error!("Error parsing room ID {room_id} during bulk room banning, ignoring error and logging here: {e}");
-                                            continue;
-                                        } else {
-                                            return Ok(RoomMessageEventContent::text_plain(format!("{room_id} is not a valid room ID, please fix the list and try again: {e}")));
-                                        }
-                                    }
-                                }
-                            }
+											room_ids.push(owned_room_id);
+										},
+										Err(e) => {
+											if force {
+												// ignore rooms we failed to parse if we're force deleting
+												error!(
+													"Error parsing room ID {room_id} during bulk room banning, \
+													 ignoring error and logging here: {e}"
+												);
+												continue;
+											} else {
+												return Ok(RoomMessageEventContent::text_plain(format!(
+													"{room_id} is not a valid room ID, please fix the list and try \
+													 again: {e}"
+												)));
+											}
+										},
+									}
+								}
 
-                            for room_id in room_ids {
-                                if services().rooms.metadata.ban_room(room_id, true).is_ok() {
-                                    debug!("Banned {room_id} successfully");
-                                    room_ban_count += 1;
-                                }
+								for room_id in room_ids {
+									if services().rooms.metadata.ban_room(room_id, true).is_ok() {
+										debug!("Banned {room_id} successfully");
+										room_ban_count += 1;
+									}
 
-                                debug!("Making all users leave the room {}", &room_id);
-                                if force {
-                                    for local_user in services()
-                                        .rooms
-                                        .state_cache
-                                        .room_members(room_id)
-                                        .filter_map(|user| {
-                                            user.ok().filter(|local_user| {
-                                                local_user.server_name() == services().globals.server_name()
+									debug!("Making all users leave the room {}", &room_id);
+									if force {
+										for local_user in services()
+											.rooms
+											.state_cache
+											.room_members(room_id)
+											.filter_map(|user| {
+												user.ok().filter(|local_user| {
+													local_user.server_name() == services().globals.server_name()
                                                     // additional wrapped check here is to avoid adding remote users
                                                     // who are in the admin room to the list of local users (would fail auth check)
                                                     && (local_user.server_name()
@@ -1280,24 +1320,25 @@ impl Service {
                                                             .users
                                                             .is_admin(local_user)
                                                             .unwrap_or(true)) // since this is a force operation, assume user is an admin if somehow this fails
-                                            })
-                                        })
-                                        .collect::<Vec<OwnedUserId>>()
-                                    {
-                                        debug!(
-                                        "Attempting leave for user {} in room {} (forced, ignoring all errors, evicting admins too)",
-                                        &local_user, room_id
-                                    );
-                                        let _ = leave_room(&local_user, room_id, None).await;
-                                    }
-                                } else {
-                                    for local_user in services()
-                                        .rooms
-                                        .state_cache
-                                        .room_members(room_id)
-                                        .filter_map(|user| {
-                                            user.ok().filter(|local_user| {
-                                                local_user.server_name() == services().globals.server_name()
+												})
+											})
+											.collect::<Vec<OwnedUserId>>()
+										{
+											debug!(
+												"Attempting leave for user {} in room {} (forced, ignoring all \
+												 errors, evicting admins too)",
+												&local_user, room_id
+											);
+											let _ = leave_room(&local_user, room_id, None).await;
+										}
+									} else {
+										for local_user in services()
+											.rooms
+											.state_cache
+											.room_members(room_id)
+											.filter_map(|user| {
+												user.ok().filter(|local_user| {
+													local_user.server_name() == services().globals.server_name()
                                                     // additional wrapped check here is to avoid adding remote users
                                                     // who are in the admin room to the list of local users (would fail auth check)
                                                     && (local_user.server_name()
@@ -1306,1116 +1347,1039 @@ impl Service {
                                                             .users
                                                             .is_admin(local_user)
                                                             .unwrap_or(false))
-                                            })
-                                        })
-                                        .collect::<Vec<OwnedUserId>>()
-                                    {
-                                        debug!(
-                                            "Attempting leave for user {} in room {}",
-                                            &local_user, &room_id
-                                        );
-                                        if let Err(e) = leave_room(&local_user, room_id, None).await {
-                                            error!("Error attempting to make local user {} leave room {} during bulk room banning: {}", &local_user, &room_id, e);
-                                            return Ok(RoomMessageEventContent::text_plain(format!("Error attempting to make local user {} leave room {} during room banning (room is still banned but not removing any more users and not banning any more rooms): {}\nIf you would like to ignore errors, use --force", &local_user, &room_id, e)));
-                                        }
-                                    }
-                                }
-
-                                if disable_federation {
-                                    services().rooms.metadata.disable_room(room_id, true)?;
-                                }
-                            }
-
-                            if disable_federation {
-                                return Ok(RoomMessageEventContent::text_plain(format!("Finished bulk room ban, banned {} total rooms, evicted all users, and disabled incoming federation with the room.", room_ban_count)));
-                            } else {
-                                return Ok(RoomMessageEventContent::text_plain(format!("Finished bulk room ban, banned {} total rooms and evicted all users.", room_ban_count)));
-                            }
-                        } else {
-                            return Ok(RoomMessageEventContent::text_plain(
-                                "Expected code block in command body. Add --help for details.",
-                            ));
-                        }
-                    }
-                    RoomModeration::UnbanRoom {
-                        room,
-                        enable_federation,
-                    } => {
-                        let room_id = if room.is_room_id() {
-                            let room_id = match RoomId::parse(&room) {
-                                Ok(room_id) => room_id,
-                                Err(e) => return Ok(RoomMessageEventContent::text_plain(format!("Failed to parse room ID {room}. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"))),
-                            };
-
-                            debug!("Room specified is a room ID, unbanning room ID");
-
-                            services().rooms.metadata.ban_room(&room_id, false)?;
-
-                            room_id
-                        } else if room.is_room_alias_id() {
-                            let room_alias = match RoomAliasId::parse(&room) {
-                                Ok(room_alias) => room_alias,
-                                Err(e) => return Ok(RoomMessageEventContent::text_plain(format!("Failed to parse room ID {room}. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"))),
-                            };
-
-                            debug!("Room specified is not a room ID, attempting to resolve room alias to a room ID locally, if not using get_alias_helper to fetch room ID remotely");
-
-                            let room_id = match services()
-                                .rooms
-                                .alias
-                                .resolve_local_alias(&room_alias)?
-                            {
-                                Some(room_id) => room_id,
-                                None => {
-                                    debug!("We don't have this room alias to a room ID locally, attempting to fetch room ID over federation");
-
-                                    match get_alias_helper(room_alias).await {
-                                        Ok(response) => {
-                                            debug!("Got federation response fetching room ID for room {room}: {:?}", response);
-                                            response.room_id
-                                        }
-                                        Err(e) => {
-                                            return Ok(RoomMessageEventContent::text_plain(format!("Failed to resolve room alias {room} to a room ID: {e}")));
-                                        }
-                                    }
-                                }
-                            };
-
-                            services().rooms.metadata.ban_room(&room_id, false)?;
-
-                            room_id
-                        } else {
-                            return Ok(RoomMessageEventContent::text_plain("Room specified is not a room ID or room alias. Please note that this requires a full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`)"));
-                        };
-
-                        if enable_federation {
-                            services().rooms.metadata.disable_room(&room_id, false)?;
-                            return Ok(RoomMessageEventContent::text_plain("Room unbanned."));
-                        }
-
-                        RoomMessageEventContent::text_plain("Room unbanned, you may need to re-enable federation with the room using enable-room if this is a remote room to make it fully functional.")
-                    }
-                    RoomModeration::ListBannedRooms => {
-                        let rooms: Result<Vec<_>, _> =
-                            services().rooms.metadata.list_banned_rooms().collect();
-
-                        match rooms {
-                            Ok(room_ids) => {
-                                // TODO: add room name from our state cache if available, default to the room ID as the room name if we dont have it
-                                // TODO: do same if we have a room alias for this
-                                let plain_list =
-                                    room_ids.iter().fold(String::new(), |mut output, room_id| {
-                                        writeln!(output, "- `{}`", room_id).unwrap();
-                                        output
-                                    });
-
-                                let html_list =
-                                    room_ids.iter().fold(String::new(), |mut output, room_id| {
-                                        writeln!(
-                                            output,
-                                            "<li><code>{}</code></li>",
-                                            escape_html(room_id.as_ref())
-                                        )
-                                        .unwrap();
-                                        output
-                                    });
-
-                                let plain = format!("Rooms:\n{}", plain_list);
-                                let html = format!("Rooms:\n<ul>{}</ul>", html_list);
-                                RoomMessageEventContent::text_html(plain, html)
-                            }
-                            Err(e) => {
-                                error!("Failed to list banned rooms: {}", e);
-                                RoomMessageEventContent::text_plain(format!(
-                                    "Unable to list room aliases: {}",
-                                    e
-                                ))
-                            }
-                        }
-                    }
-                },
-                RoomCommand::List { page } => {
-                    // TODO: i know there's a way to do this with clap, but i can't seem to find it
-                    let page = page.unwrap_or(1);
-                    let mut rooms = services()
-                        .rooms
-                        .metadata
-                        .iter_ids()
-                        .filter_map(std::result::Result::ok)
-                        .map(Self::get_room_info)
-                        .collect::<Vec<_>>();
-                    rooms.sort_by_key(|r| r.1);
-                    rooms.reverse();
-
-                    let rooms: Vec<_> = rooms
-                        .into_iter()
-                        .skip(page.saturating_sub(1) * PAGE_SIZE)
-                        .take(PAGE_SIZE)
-                        .collect();
-
-                    if rooms.is_empty() {
-                        return Ok(RoomMessageEventContent::text_plain("No more rooms."));
-                    };
-
-                    let output_plain = format!(
-                        "Rooms:\n{}",
-                        rooms
-                            .iter()
-                            .map(|(id, members, name)| format!(
-                                "{id}\tMembers: {members}\tName: {name}"
-                            ))
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    );
-                    let output_html = format!(
-                        "<table><caption>Room list - page {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-                        rooms
-                            .iter()
-                            .fold(String::new(), |mut output, (id, members, name)| {
-                                writeln!(output, "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>", escape_html(id.as_ref()),
-                                members,
-                                escape_html(name)).unwrap();
-                                output
-                            })
-                    );
-                    RoomMessageEventContent::text_html(output_plain, output_html)
-                }
-                RoomCommand::Alias(command) => match command {
-                    RoomAliasCommand::Set {
-                        ref room_alias_localpart,
-                        ..
-                    }
-                    | RoomAliasCommand::Remove {
-                        ref room_alias_localpart,
-                    }
-                    | RoomAliasCommand::Which {
-                        ref room_alias_localpart,
-                    } => {
-                        let room_alias_str = format!(
-                            "#{}:{}",
-                            room_alias_localpart,
-                            services().globals.server_name()
-                        );
-                        let room_alias = match RoomAliasId::parse_box(room_alias_str) {
-                            Ok(alias) => alias,
-                            Err(err) => {
-                                return Ok(RoomMessageEventContent::text_plain(format!(
-                                    "Failed to parse alias: {}",
-                                    err
-                                )))
-                            }
-                        };
-
-                        match command {
-                            RoomAliasCommand::Set { force, room_id, .. } => {
-                                match (force, services().rooms.alias.resolve_local_alias(&room_alias)) {
-                                        (true, Ok(Some(id))) => match services().rooms.alias.set_alias(&room_alias, &room_id) {
-                                            Ok(()) => RoomMessageEventContent::text_plain(format!("Successfully overwrote alias (formerly {})", id)),
-                                            Err(err) => RoomMessageEventContent::text_plain(format!("Failed to remove alias: {}", err)),
-                                        }
-                                        (false, Ok(Some(id))) => {
-                                            RoomMessageEventContent::text_plain(format!("Refusing to overwrite in use alias for {}, use -f or --force to overwrite", id))
-                                        }
-                                        (_, Ok(None)) => match services().rooms.alias.set_alias(&room_alias, &room_id) {
-                                            Ok(()) => RoomMessageEventContent::text_plain("Successfully set alias"),
-                                            Err(err) => RoomMessageEventContent::text_plain(format!("Failed to remove alias: {}", err)),
-                                        }
-                                        (_, Err(err)) => RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {}", err)),
-                                    }
-                            }
-                            RoomAliasCommand::Remove { .. } => {
-                                match services().rooms.alias.resolve_local_alias(&room_alias) {
-                                    Ok(Some(id)) => {
-                                        match services().rooms.alias.remove_alias(&room_alias) {
-                                            Ok(()) => RoomMessageEventContent::text_plain(format!(
-                                                "Removed alias from {}",
-                                                id
-                                            )),
-                                            Err(err) => RoomMessageEventContent::text_plain(
-                                                format!("Failed to remove alias: {}", err),
-                                            ),
-                                        }
-                                    }
-                                    Ok(None) => {
-                                        RoomMessageEventContent::text_plain("Alias isn't in use.")
-                                    }
-                                    Err(err) => RoomMessageEventContent::text_plain(format!(
-                                        "Unable to lookup alias: {}",
-                                        err
-                                    )),
-                                }
-                            }
-                            RoomAliasCommand::Which { .. } => {
-                                match services().rooms.alias.resolve_local_alias(&room_alias) {
-                                    Ok(Some(id)) => RoomMessageEventContent::text_plain(format!(
-                                        "Alias resolves to {}",
-                                        id
-                                    )),
-                                    Ok(None) => {
-                                        RoomMessageEventContent::text_plain("Alias isn't in use.")
-                                    }
-                                    Err(err) => RoomMessageEventContent::text_plain(format!(
-                                        "Unable to lookup alias: {}",
-                                        err
-                                    )),
-                                }
-                            }
-                            RoomAliasCommand::List { .. } => unreachable!(),
-                        }
-                    }
-                    RoomAliasCommand::List { room_id } => match room_id {
-                        Some(room_id) => {
-                            let aliases: Result<Vec<_>, _> = services()
-                                .rooms
-                                .alias
-                                .local_aliases_for_room(&room_id)
-                                .collect();
-                            match aliases {
-                                Ok(aliases) => {
-                                    let plain_list: String =
-                                        aliases.iter().fold(String::new(), |mut output, alias| {
-                                            writeln!(output, "- {}", alias).unwrap();
-                                            output
-                                        });
-
-                                    let html_list: String =
-                                        aliases.iter().fold(String::new(), |mut output, alias| {
-                                            writeln!(
-                                                output,
-                                                "<li>{}</li>",
-                                                escape_html(alias.as_ref())
-                                            )
-                                            .unwrap();
-                                            output
-                                        });
-
-                                    let plain = format!("Aliases for {}:\n{}", room_id, plain_list);
-                                    let html =
-                                        format!("Aliases for {}:\n<ul>{}</ul>", room_id, html_list);
-                                    RoomMessageEventContent::text_html(plain, html)
-                                }
-                                Err(err) => RoomMessageEventContent::text_plain(format!(
-                                    "Unable to list aliases: {}",
-                                    err
-                                )),
-                            }
-                        }
-                        None => {
-                            let aliases: Result<Vec<_>, _> =
-                                services().rooms.alias.all_local_aliases().collect();
-                            match aliases {
-                                Ok(aliases) => {
-                                    let server_name = services().globals.server_name();
-                                    let plain_list: String = aliases.iter().fold(
-                                        String::new(),
-                                        |mut output, (alias, id)| {
-                                            writeln!(
-                                                output,
-                                                "- `{}` -> #{}:{}",
-                                                alias, id, server_name
-                                            )
-                                            .unwrap();
-                                            output
-                                        },
-                                    );
-
-                                    let html_list: String = aliases.iter().fold(
-                                        String::new(),
-                                        |mut output, (alias, id)| {
-                                            writeln!(
-                                                output,
-                                                "<li><code>{}</code> -> #{}:{}</li>",
-                                                escape_html(alias.as_ref()),
-                                                escape_html(id.as_ref()),
-                                                server_name
-                                            )
-                                            .unwrap();
-                                            output
-                                        },
-                                    );
-
-                                    let plain = format!("Aliases:\n{}", plain_list);
-                                    let html = format!("Aliases:\n<ul>{}</ul>", html_list);
-                                    RoomMessageEventContent::text_html(plain, html)
-                                }
-                                Err(err) => RoomMessageEventContent::text_plain(format!(
-                                    "Unable to list room aliases: {}",
-                                    err
-                                )),
-                            }
-                        }
-                    },
-                },
-                RoomCommand::Directory(command) => match command {
-                    RoomDirectoryCommand::Publish { room_id } => {
-                        match services().rooms.directory.set_public(&room_id) {
-                            Ok(()) => RoomMessageEventContent::text_plain("Room published"),
-                            Err(err) => RoomMessageEventContent::text_plain(format!(
-                                "Unable to update room: {}",
-                                err
-                            )),
-                        }
-                    }
-                    RoomDirectoryCommand::Unpublish { room_id } => {
-                        match services().rooms.directory.set_not_public(&room_id) {
-                            Ok(()) => RoomMessageEventContent::text_plain("Room unpublished"),
-                            Err(err) => RoomMessageEventContent::text_plain(format!(
-                                "Unable to update room: {}",
-                                err
-                            )),
-                        }
-                    }
-                    RoomDirectoryCommand::List { page } => {
-                        // TODO: i know there's a way to do this with clap, but i can't seem to find it
-                        let page = page.unwrap_or(1);
-                        let mut rooms = services()
-                            .rooms
-                            .directory
-                            .public_rooms()
-                            .filter_map(std::result::Result::ok)
-                            .map(Self::get_room_info)
-                            .collect::<Vec<_>>();
-                        rooms.sort_by_key(|r| r.1);
-                        rooms.reverse();
-
-                        let rooms: Vec<_> = rooms
-                            .into_iter()
-                            .skip(page.saturating_sub(1) * PAGE_SIZE)
-                            .take(PAGE_SIZE)
-                            .collect();
-
-                        if rooms.is_empty() {
-                            return Ok(RoomMessageEventContent::text_plain("No more rooms."));
-                        };
-
-                        let output_plain = format!(
-                            "Rooms:\n{}",
-                            rooms
-                                .iter()
-                                .map(|(id, members, name)| format!(
-                                    "{id}\tMembers: {members}\tName: {name}"
-                                ))
-                                .collect::<Vec<_>>()
-                                .join("\n")
-                        );
-                        let output_html = format!(
-                            "<table><caption>Room directory - page {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-                            rooms
-                                .iter()
-                                .fold(String::new(), |mut output, (id, members, name)| {
-                                    writeln!(output, "<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>", escape_html(id.as_ref()), members, escape_html(name.as_ref())).unwrap();
-                                    output
-                                })
-                        );
-                        RoomMessageEventContent::text_html(output_plain, output_html)
-                    }
-                },
-            },
-            AdminCommand::Federation(command) => match command {
-                FederationCommand::DisableRoom { room_id } => {
-                    services().rooms.metadata.disable_room(&room_id, true)?;
-                    RoomMessageEventContent::text_plain("Room disabled.")
-                }
-                FederationCommand::EnableRoom { room_id } => {
-                    services().rooms.metadata.disable_room(&room_id, false)?;
-                    RoomMessageEventContent::text_plain("Room enabled.")
-                }
-                FederationCommand::IncomingFederation => {
-                    let map = services()
-                        .globals
-                        .roomid_federationhandletime
-                        .read()
-                        .unwrap();
-                    let mut msg: String = format!("Handling {} incoming pdus:\n", map.len());
-
-                    for (r, (e, i)) in map.iter() {
-                        let elapsed = i.elapsed();
-                        let _ = writeln!(
-                            msg,
-                            "{} {}: {}m{}s",
-                            r,
-                            e,
-                            elapsed.as_secs() / 60,
-                            elapsed.as_secs() % 60
-                        );
-                    }
-                    RoomMessageEventContent::text_plain(&msg)
-                }
-                FederationCommand::SignJson => {
-                    if body.len() > 2
-                        && body[0].trim().starts_with("```")
-                        && body.last().unwrap().trim() == "```"
-                    {
-                        let string = body[1..body.len() - 1].join("\n");
-                        match serde_json::from_str(&string) {
-                            Ok(mut value) => {
-                                ruma::signatures::sign_json(
-                                    services().globals.server_name().as_str(),
-                                    services().globals.keypair(),
-                                    &mut value,
-                                )
-                                .expect("our request json is what ruma expects");
-                                let json_text = serde_json::to_string_pretty(&value)
-                                    .expect("canonical json is valid json");
-                                RoomMessageEventContent::text_plain(json_text)
-                            }
-                            Err(e) => {
-                                RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))
-                            }
-                        }
-                    } else {
-                        RoomMessageEventContent::text_plain(
-                            "Expected code block in command body. Add --help for details.",
-                        )
-                    }
-                }
-                FederationCommand::VerifyJson => {
-                    if body.len() > 2
-                        && body[0].trim().starts_with("```")
-                        && body.last().unwrap().trim() == "```"
-                    {
-                        let string = body[1..body.len() - 1].join("\n");
-                        match serde_json::from_str(&string) {
-                            Ok(value) => {
-                                let pub_key_map = RwLock::new(BTreeMap::new());
-
-                                services()
-                                    .rooms
-                                    .event_handler
-                                    .fetch_required_signing_keys([&value], &pub_key_map)
-                                    .await?;
-
-                                let pub_key_map = pub_key_map.read().unwrap();
-                                match ruma::signatures::verify_json(&pub_key_map, &value) {
-                                    Ok(_) => {
-                                        RoomMessageEventContent::text_plain("Signature correct")
-                                    }
-                                    Err(e) => RoomMessageEventContent::text_plain(format!(
-                                        "Signature verification failed: {e}"
-                                    )),
-                                }
-                            }
-                            Err(e) => {
-                                RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))
-                            }
-                        }
-                    } else {
-                        RoomMessageEventContent::text_plain(
-                            "Expected code block in command body. Add --help for details.",
-                        )
-                    }
-                }
-            },
-            AdminCommand::Server(command) => match command {
-                ServerCommand::ShowConfig => {
-                    // Construct and send the response
-                    RoomMessageEventContent::text_plain(format!("{}", services().globals.config))
-                }
-                ServerCommand::MemoryUsage => {
-                    let response1 = services().memory_usage();
-                    let response2 = services().globals.db.memory_usage();
-
-                    RoomMessageEventContent::text_plain(format!(
-                        "Services:\n{response1}\n\nDatabase:\n{response2}"
-                    ))
-                }
-                ServerCommand::ClearDatabaseCaches { amount } => {
-                    services().globals.db.clear_caches(amount);
-
-                    RoomMessageEventContent::text_plain("Done.")
-                }
-                ServerCommand::ClearServiceCaches { amount } => {
-                    services().clear_caches(amount);
-
-                    RoomMessageEventContent::text_plain("Done.")
-                }
-            },
-            AdminCommand::Debug(command) => match command {
-                DebugCommand::GetAuthChain { event_id } => {
-                    let event_id = Arc::<EventId>::from(event_id);
-                    if let Some(event) = services().rooms.timeline.get_pdu_json(&event_id)? {
-                        let room_id_str = event
-                            .get("room_id")
-                            .and_then(|val| val.as_str())
-                            .ok_or_else(|| Error::bad_database("Invalid event in database"))?;
-
-                        let room_id = <&RoomId>::try_from(room_id_str).map_err(|_| {
-                            Error::bad_database("Invalid room id field in event in database")
-                        })?;
-                        let start = Instant::now();
-                        let count = services()
-                            .rooms
-                            .auth_chain
-                            .get_auth_chain(room_id, vec![event_id])
-                            .await?
-                            .count();
-                        let elapsed = start.elapsed();
-                        RoomMessageEventContent::text_plain(format!(
-                            "Loaded auth chain with length {count} in {elapsed:?}"
-                        ))
-                    } else {
-                        RoomMessageEventContent::text_plain("Event not found.")
-                    }
-                }
-                DebugCommand::ParsePdu => {
-                    if body.len() > 2
-                        && body[0].trim().starts_with("```")
-                        && body.last().unwrap().trim() == "```"
-                    {
-                        let string = body[1..body.len() - 1].join("\n");
-                        match serde_json::from_str(&string) {
-                            Ok(value) => {
-                                match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
-                                    Ok(hash) => {
-                                        let event_id = EventId::parse(format!("${hash}"));
-
-                                        match serde_json::from_value::<PduEvent>(
-                                            serde_json::to_value(value).expect("value is json"),
-                                        ) {
-                                            Ok(pdu) => RoomMessageEventContent::text_plain(
-                                                format!("EventId: {event_id:?}\n{pdu:#?}"),
-                                            ),
-                                            Err(e) => RoomMessageEventContent::text_plain(format!(
-                                                "EventId: {event_id:?}\nCould not parse event: {e}"
-                                            )),
-                                        }
-                                    }
-                                    Err(e) => RoomMessageEventContent::text_plain(format!(
-                                        "Could not parse PDU JSON: {e:?}"
-                                    )),
-                                }
-                            }
-                            Err(e) => RoomMessageEventContent::text_plain(format!(
-                                "Invalid json in command body: {e}"
-                            )),
-                        }
-                    } else {
-                        RoomMessageEventContent::text_plain("Expected code block in command body.")
-                    }
-                }
-                DebugCommand::GetPdu { event_id } => {
-                    let mut outlier = false;
-                    let mut pdu_json = services()
-                        .rooms
-                        .timeline
-                        .get_non_outlier_pdu_json(&event_id)?;
-                    if pdu_json.is_none() {
-                        outlier = true;
-                        pdu_json = services().rooms.timeline.get_pdu_json(&event_id)?;
-                    }
-                    match pdu_json {
-                        Some(json) => {
-                            let json_text = serde_json::to_string_pretty(&json)
-                                .expect("canonical json is valid json");
-                            RoomMessageEventContent::text_html(
-                                format!(
-                                    "{}\n```json\n{}\n```",
-                                    if outlier {
-                                        "PDU is outlier"
-                                    } else {
-                                        "PDU was accepted"
-                                    },
-                                    json_text
-                                ),
-                                format!(
-                                    "<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-                                    if outlier {
-                                        "PDU is outlier"
-                                    } else {
-                                        "PDU was accepted"
-                                    },
-                                    HtmlEscape(&json_text)
-                                ),
-                            )
-                        }
-                        None => RoomMessageEventContent::text_plain("PDU not found."),
-                    }
-                }
-                DebugCommand::ForceDeviceListUpdates => {
-                    // Force E2EE device list updates for all users
-                    for user_id in services().users.iter().filter_map(std::result::Result::ok) {
-                        services().users.mark_device_key_update(&user_id)?;
-                    }
-                    RoomMessageEventContent::text_plain(
-                        "Marked all devices for all users as having new keys to update",
-                    )
-                }
-            },
-        };
-
-        Ok(reply_message_content)
-    }
-
-    fn get_room_info(id: OwnedRoomId) -> (OwnedRoomId, u64, String) {
-        (
-            id.clone(),
-            services()
-                .rooms
-                .state_cache
-                .room_joined_count(&id)
-                .ok()
-                .flatten()
-                .unwrap_or(0),
-            services()
-                .rooms
-                .state_accessor
-                .get_name(&id)
-                .ok()
-                .flatten()
-                .unwrap_or_else(|| id.to_string()),
-        )
-    }
-
-    // Utility to turn clap's `--help` text to HTML.
-    fn usage_to_html(&self, text: &str, server_name: &ServerName) -> String {
-        // Replace `@conduit:servername:-subcmdname` with `@conduit:servername: subcmdname`
-        let text = text.replace(
-            &format!("@conduit:{server_name}:-"),
-            &format!("@conduit:{server_name}: "),
-        );
-
-        // For the conduit admin room, subcommands become main commands
-        let text = text.replace("SUBCOMMAND", "COMMAND");
-        let text = text.replace("subcommand", "command");
-
-        // Escape option names (e.g. `<element-id>`) since they look like HTML tags
-        let text = escape_html(&text);
-
-        // Italicize the first line (command name and version text)
-        let re = Regex::new("^(.*?)\n").expect("Regex compilation should not fail");
-        let text = re.replace_all(&text, "<em>$1</em>\n");
-
-        // Unmerge wrapped lines
-        let text = text.replace("\n            ", "  ");
-
-        // Wrap option names in backticks. The lines look like:
-        //     -V, --version  Prints version information
-        // And are converted to:
-        // <code>-V, --version</code>: Prints version information
-        // (?m) enables multi-line mode for ^ and $
-        let re = Regex::new("(?m)^ {4}(([a-zA-Z_&;-]+(, )?)+)  +(.*)$")
-            .expect("Regex compilation should not fail");
-        let text = re.replace_all(&text, "<code>$1</code>: $4");
-
-        // Look for a `[commandbody]` tag. If it exists, use all lines below it that
-        // start with a `#` in the USAGE section.
-        let mut text_lines: Vec<&str> = text.lines().collect();
-        let mut command_body = String::new();
-
-        if let Some(line_index) = text_lines.iter().position(|line| *line == "[commandbody]") {
-            text_lines.remove(line_index);
-
-            while text_lines
-                .get(line_index)
-                .map(|line| line.starts_with('#'))
-                .unwrap_or(false)
-            {
-                command_body += if text_lines[line_index].starts_with("# ") {
-                    &text_lines[line_index][2..]
-                } else {
-                    &text_lines[line_index][1..]
-                };
-                command_body += "[nobr]\n";
-                text_lines.remove(line_index);
-            }
-        }
-
-        let text = text_lines.join("\n");
-
-        // Improve the usage section
-        let text = if command_body.is_empty() {
-            // Wrap the usage line in code tags
-            let re = Regex::new("(?m)^USAGE:\n {4}(@conduit:.*)$")
-                .expect("Regex compilation should not fail");
-            re.replace_all(&text, "USAGE:\n<code>$1</code>").to_string()
-        } else {
-            // Wrap the usage line in a code block, and add a yaml block example
-            // This makes the usage of e.g. `register-appservice` more accurate
-            let re = Regex::new("(?m)^USAGE:\n {4}(.*?)\n\n")
-                .expect("Regex compilation should not fail");
-            re.replace_all(&text, "USAGE:\n<pre>$1[nobr]\n[commandbodyblock]</pre>")
-                .replace("[commandbodyblock]", &command_body)
-        };
-
-        // Add HTML line-breaks
-
-        text.replace("\n\n\n", "\n\n")
-            .replace('\n', "<br>\n")
-            .replace("[nobr]<br>", "")
-    }
-
-    /// Create the admin room.
-    ///
-    /// Users in this room are considered admins by conduit, and the room can be
-    /// used to issue admin commands by talking to the server user inside it.
-    pub(crate) async fn create_admin_room(&self) -> Result<()> {
-        let room_id = RoomId::new(services().globals.server_name());
-
-        services().rooms.short.get_or_create_shortroomid(&room_id)?;
-
-        let mutex_state = Arc::clone(
-            services()
-                .globals
-                .roomid_mutex_state
-                .write()
-                .unwrap()
-                .entry(room_id.clone())
-                .or_default(),
-        );
-        let state_lock = mutex_state.lock().await;
-
-        // Create a user for the server
-        let conduit_user =
-            UserId::parse_with_server_name("conduit", services().globals.server_name())
-                .expect("@conduit:server_name is valid");
-
-        services().users.create(&conduit_user, None)?;
-
-        let room_version = services().globals.default_room_version();
-        let mut content = match room_version {
-            RoomVersionId::V1
-            | RoomVersionId::V2
-            | RoomVersionId::V3
-            | RoomVersionId::V4
-            | RoomVersionId::V5
-            | RoomVersionId::V6
-            | RoomVersionId::V7
-            | RoomVersionId::V8
-            | RoomVersionId::V9
-            | RoomVersionId::V10 => RoomCreateEventContent::new_v1(conduit_user.clone()),
-            RoomVersionId::V11 => RoomCreateEventContent::new_v11(),
-            _ => {
-                warn!("Unexpected or unsupported room version {}", room_version);
-                return Err(Error::BadRequest(
-                    ErrorKind::BadJson,
-                    "Unexpected or unsupported room version found",
-                ));
-            }
-        };
-
-        content.federate = true;
-        content.predecessor = None;
-        content.room_version = room_version;
-
-        // 1. The room create event
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomCreate,
-                    content: to_raw_value(&content).expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some("".to_owned()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        // 2. Make conduit bot join
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomMember,
-                    content: to_raw_value(&RoomMemberEventContent {
-                        membership: MembershipState::Join,
-                        displayname: None,
-                        avatar_url: None,
-                        is_direct: None,
-                        third_party_invite: None,
-                        blurhash: None,
-                        reason: None,
-                        join_authorized_via_users_server: None,
-                    })
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some(conduit_user.to_string()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        // 3. Power levels
-        let mut users = BTreeMap::new();
-        users.insert(conduit_user.clone(), 100.into());
-
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomPowerLevels,
-                    content: to_raw_value(&RoomPowerLevelsEventContent {
-                        users,
-                        ..Default::default()
-                    })
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some("".to_owned()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        // 4.1 Join Rules
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomJoinRules,
-                    content: to_raw_value(&RoomJoinRulesEventContent::new(JoinRule::Invite))
-                        .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some("".to_owned()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        // 4.2 History Visibility
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomHistoryVisibility,
-                    content: to_raw_value(&RoomHistoryVisibilityEventContent::new(
-                        HistoryVisibility::Shared,
-                    ))
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some("".to_owned()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        // 4.3 Guest Access
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomGuestAccess,
-                    content: to_raw_value(&RoomGuestAccessEventContent::new(
-                        GuestAccess::Forbidden,
-                    ))
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some("".to_owned()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        // 5. Events implied by name and topic
-        let room_name = format!("{} Admin Room", services().globals.server_name());
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomName,
-                    content: to_raw_value(&RoomNameEventContent::new(room_name))
-                        .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some("".to_owned()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomTopic,
-                    content: to_raw_value(&RoomTopicEventContent {
-                        topic: format!("Manage {}", services().globals.server_name()),
-                    })
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some("".to_owned()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        // 6. Room alias
-        let alias: OwnedRoomAliasId = format!("#admins:{}", services().globals.server_name())
-            .try_into()
-            .expect("#admins:server_name is a valid alias name");
-
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomCanonicalAlias,
-                    content: to_raw_value(&RoomCanonicalAliasEventContent {
-                        alias: Some(alias.clone()),
-                        alt_aliases: Vec::new(),
-                    })
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some("".to_owned()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        services().rooms.alias.set_alias(&alias, &room_id)?;
-
-        Ok(())
-    }
-
-    /// Invite the user to the conduit admin room.
-    ///
-    /// In conduit, this is equivalent to granting admin privileges.
-    pub(crate) async fn make_user_admin(
-        &self,
-        user_id: &UserId,
-        displayname: String,
-    ) -> Result<()> {
-        let admin_room_alias: Box<RoomAliasId> =
-            format!("#admins:{}", services().globals.server_name())
-                .try_into()
-                .expect("#admins:server_name is a valid alias name");
-        let room_id = services()
-            .rooms
-            .alias
-            .resolve_local_alias(&admin_room_alias)?
-            .expect("Admin room must exist");
-
-        let mutex_state = Arc::clone(
-            services()
-                .globals
-                .roomid_mutex_state
-                .write()
-                .unwrap()
-                .entry(room_id.clone())
-                .or_default(),
-        );
-        let state_lock = mutex_state.lock().await;
-
-        // Use the server user to grant the new admin's power level
-        let conduit_user =
-            UserId::parse_with_server_name("conduit", services().globals.server_name())
-                .expect("@conduit:server_name is valid");
-
-        // Invite and join the real user
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomMember,
-                    content: to_raw_value(&RoomMemberEventContent {
-                        membership: MembershipState::Invite,
-                        displayname: None,
-                        avatar_url: None,
-                        is_direct: None,
-                        third_party_invite: None,
-                        blurhash: None,
-                        reason: None,
-                        join_authorized_via_users_server: None,
-                    })
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some(user_id.to_string()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomMember,
-                    content: to_raw_value(&RoomMemberEventContent {
-                        membership: MembershipState::Join,
-                        displayname: Some(displayname),
-                        avatar_url: None,
-                        is_direct: None,
-                        third_party_invite: None,
-                        blurhash: None,
-                        reason: None,
-                        join_authorized_via_users_server: None,
-                    })
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some(user_id.to_string()),
-                    redacts: None,
-                },
-                user_id,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        // Set power level
-        let mut users = BTreeMap::new();
-        users.insert(conduit_user.clone(), 100.into());
-        users.insert(user_id.to_owned(), 100.into());
-
-        services()
-            .rooms
-            .timeline
-            .build_and_append_pdu(
-                PduBuilder {
-                    event_type: TimelineEventType::RoomPowerLevels,
-                    content: to_raw_value(&RoomPowerLevelsEventContent {
-                        users,
-                        ..Default::default()
-                    })
-                    .expect("event is valid, we just created it"),
-                    unsigned: None,
-                    state_key: Some("".to_owned()),
-                    redacts: None,
-                },
-                &conduit_user,
-                &room_id,
-                &state_lock,
-            )
-            .await?;
-
-        // Send welcome message
-        services().rooms.timeline.build_and_append_pdu(
+												})
+											})
+											.collect::<Vec<OwnedUserId>>()
+										{
+											debug!("Attempting leave for user {} in room {}", &local_user, &room_id);
+											if let Err(e) = leave_room(&local_user, room_id, None).await {
+												error!(
+													"Error attempting to make local user {} leave room {} during bulk \
+													 room banning: {}",
+													&local_user, &room_id, e
+												);
+												return Ok(RoomMessageEventContent::text_plain(format!(
+													"Error attempting to make local user {} leave room {} during room \
+													 banning (room is still banned but not removing any more users \
+													 and not banning any more rooms): {}\nIf you would like to ignore \
+													 errors, use --force",
+													&local_user, &room_id, e
+												)));
+											}
+										}
+									}
+
+									if disable_federation {
+										services().rooms.metadata.disable_room(room_id, true)?;
+									}
+								}
+
+								if disable_federation {
+									return Ok(RoomMessageEventContent::text_plain(format!(
+										"Finished bulk room ban, banned {} total rooms, evicted all users, and \
+										 disabled incoming federation with the room.",
+										room_ban_count
+									)));
+								} else {
+									return Ok(RoomMessageEventContent::text_plain(format!(
+										"Finished bulk room ban, banned {} total rooms and evicted all users.",
+										room_ban_count
+									)));
+								}
+							} else {
+								return Ok(RoomMessageEventContent::text_plain(
+									"Expected code block in command body. Add --help for details.",
+								));
+							}
+						},
+						RoomModeration::UnbanRoom {
+							room,
+							enable_federation,
+						} => {
+							let room_id = if room.is_room_id() {
+								let room_id = match RoomId::parse(&room) {
+									Ok(room_id) => room_id,
+									Err(e) => {
+										return Ok(RoomMessageEventContent::text_plain(format!(
+											"Failed to parse room ID {room}. Please note that this requires a full \
+											 room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+											 (`#roomalias:example.com`): {e}"
+										)))
+									},
+								};
+
+								debug!("Room specified is a room ID, unbanning room ID");
+
+								services().rooms.metadata.ban_room(&room_id, false)?;
+
+								room_id
+							} else if room.is_room_alias_id() {
+								let room_alias = match RoomAliasId::parse(&room) {
+									Ok(room_alias) => room_alias,
+									Err(e) => {
+										return Ok(RoomMessageEventContent::text_plain(format!(
+											"Failed to parse room ID {room}. Please note that this requires a full \
+											 room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+											 (`#roomalias:example.com`): {e}"
+										)))
+									},
+								};
+
+								debug!(
+									"Room specified is not a room ID, attempting to resolve room alias to a room ID \
+									 locally, if not using get_alias_helper to fetch room ID remotely"
+								);
+
+								let room_id = match services().rooms.alias.resolve_local_alias(&room_alias)? {
+									Some(room_id) => room_id,
+									None => {
+										debug!(
+											"We don't have this room alias to a room ID locally, attempting to fetch \
+											 room ID over federation"
+										);
+
+										match get_alias_helper(room_alias).await {
+											Ok(response) => {
+												debug!(
+													"Got federation response fetching room ID for room {room}: {:?}",
+													response
+												);
+												response.room_id
+											},
+											Err(e) => {
+												return Ok(RoomMessageEventContent::text_plain(format!(
+													"Failed to resolve room alias {room} to a room ID: {e}"
+												)));
+											},
+										}
+									},
+								};
+
+								services().rooms.metadata.ban_room(&room_id, false)?;
+
+								room_id
+							} else {
+								return Ok(RoomMessageEventContent::text_plain(
+									"Room specified is not a room ID or room alias. Please note that this requires a \
+									 full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+									 (`#roomalias:example.com`)",
+								));
+							};
+
+							if enable_federation {
+								services().rooms.metadata.disable_room(&room_id, false)?;
+								return Ok(RoomMessageEventContent::text_plain("Room unbanned."));
+							}
+
+							RoomMessageEventContent::text_plain(
+								"Room unbanned, you may need to re-enable federation with the room using enable-room \
+								 if this is a remote room to make it fully functional.",
+							)
+						},
+						RoomModeration::ListBannedRooms => {
+							let rooms: Result<Vec<_>, _> = services().rooms.metadata.list_banned_rooms().collect();
+
+							match rooms {
+								Ok(room_ids) => {
+									// TODO: add room name from our state cache if available, default to the room ID
+									// as the room name if we dont have it TODO: do same if we have a room alias for
+									// this
+									let plain_list = room_ids.iter().fold(String::new(), |mut output, room_id| {
+										writeln!(output, "- `{}`", room_id).unwrap();
+										output
+									});
+
+									let html_list = room_ids.iter().fold(String::new(), |mut output, room_id| {
+										writeln!(output, "<li><code>{}</code></li>", escape_html(room_id.as_ref()))
+											.unwrap();
+										output
+									});
+
+									let plain = format!("Rooms:\n{}", plain_list);
+									let html = format!("Rooms:\n<ul>{}</ul>", html_list);
+									RoomMessageEventContent::text_html(plain, html)
+								},
+								Err(e) => {
+									error!("Failed to list banned rooms: {}", e);
+									RoomMessageEventContent::text_plain(format!("Unable to list room aliases: {}", e))
+								},
+							}
+						},
+					}
+				},
+				RoomCommand::List {
+					page,
+				} => {
+					// TODO: i know there's a way to do this with clap, but i can't seem to find it
+					let page = page.unwrap_or(1);
+					let mut rooms = services()
+						.rooms
+						.metadata
+						.iter_ids()
+						.filter_map(std::result::Result::ok)
+						.map(Self::get_room_info)
+						.collect::<Vec<_>>();
+					rooms.sort_by_key(|r| r.1);
+					rooms.reverse();
+
+					let rooms: Vec<_> =
+						rooms.into_iter().skip(page.saturating_sub(1) * PAGE_SIZE).take(PAGE_SIZE).collect();
+
+					if rooms.is_empty() {
+						return Ok(RoomMessageEventContent::text_plain("No more rooms."));
+					};
+
+					let output_plain = format!(
+						"Rooms:\n{}",
+						rooms
+							.iter()
+							.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
+							.collect::<Vec<_>>()
+							.join("\n")
+					);
+					let output_html = format!(
+						"<table><caption>Room list - page \
+						 {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
+						rooms.iter().fold(String::new(), |mut output, (id, members, name)| {
+							writeln!(
+								output,
+								"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
+								escape_html(id.as_ref()),
+								members,
+								escape_html(name)
+							)
+							.unwrap();
+							output
+						})
+					);
+					RoomMessageEventContent::text_html(output_plain, output_html)
+				},
+				RoomCommand::Alias(command) => match command {
+					RoomAliasCommand::Set {
+						ref room_alias_localpart,
+						..
+					}
+					| RoomAliasCommand::Remove {
+						ref room_alias_localpart,
+					}
+					| RoomAliasCommand::Which {
+						ref room_alias_localpart,
+					} => {
+						let room_alias_str = format!("#{}:{}", room_alias_localpart, services().globals.server_name());
+						let room_alias = match RoomAliasId::parse_box(room_alias_str) {
+							Ok(alias) => alias,
+							Err(err) => {
+								return Ok(RoomMessageEventContent::text_plain(format!(
+									"Failed to parse alias: {}",
+									err
+								)))
+							},
+						};
+
+						match command {
+							RoomAliasCommand::Set {
+								force,
+								room_id,
+								..
+							} => match (force, services().rooms.alias.resolve_local_alias(&room_alias)) {
+								(true, Ok(Some(id))) => match services().rooms.alias.set_alias(&room_alias, &room_id) {
+									Ok(()) => RoomMessageEventContent::text_plain(format!(
+										"Successfully overwrote alias (formerly {})",
+										id
+									)),
+									Err(err) => {
+										RoomMessageEventContent::text_plain(format!("Failed to remove alias: {}", err))
+									},
+								},
+								(false, Ok(Some(id))) => RoomMessageEventContent::text_plain(format!(
+									"Refusing to overwrite in use alias for {}, use -f or --force to overwrite",
+									id
+								)),
+								(_, Ok(None)) => match services().rooms.alias.set_alias(&room_alias, &room_id) {
+									Ok(()) => RoomMessageEventContent::text_plain("Successfully set alias"),
+									Err(err) => {
+										RoomMessageEventContent::text_plain(format!("Failed to remove alias: {}", err))
+									},
+								},
+								(_, Err(err)) => {
+									RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {}", err))
+								},
+							},
+							RoomAliasCommand::Remove {
+								..
+							} => match services().rooms.alias.resolve_local_alias(&room_alias) {
+								Ok(Some(id)) => match services().rooms.alias.remove_alias(&room_alias) {
+									Ok(()) => RoomMessageEventContent::text_plain(format!("Removed alias from {}", id)),
+									Err(err) => {
+										RoomMessageEventContent::text_plain(format!("Failed to remove alias: {}", err))
+									},
+								},
+								Ok(None) => RoomMessageEventContent::text_plain("Alias isn't in use."),
+								Err(err) => {
+									RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {}", err))
+								},
+							},
+							RoomAliasCommand::Which {
+								..
+							} => match services().rooms.alias.resolve_local_alias(&room_alias) {
+								Ok(Some(id)) => {
+									RoomMessageEventContent::text_plain(format!("Alias resolves to {}", id))
+								},
+								Ok(None) => RoomMessageEventContent::text_plain("Alias isn't in use."),
+								Err(err) => {
+									RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {}", err))
+								},
+							},
+							RoomAliasCommand::List {
+								..
+							} => unreachable!(),
+						}
+					},
+					RoomAliasCommand::List {
+						room_id,
+					} => match room_id {
+						Some(room_id) => {
+							let aliases: Result<Vec<_>, _> =
+								services().rooms.alias.local_aliases_for_room(&room_id).collect();
+							match aliases {
+								Ok(aliases) => {
+									let plain_list: String = aliases.iter().fold(String::new(), |mut output, alias| {
+										writeln!(output, "- {}", alias).unwrap();
+										output
+									});
+
+									let html_list: String = aliases.iter().fold(String::new(), |mut output, alias| {
+										writeln!(output, "<li>{}</li>", escape_html(alias.as_ref())).unwrap();
+										output
+									});
+
+									let plain = format!("Aliases for {}:\n{}", room_id, plain_list);
+									let html = format!("Aliases for {}:\n<ul>{}</ul>", room_id, html_list);
+									RoomMessageEventContent::text_html(plain, html)
+								},
+								Err(err) => {
+									RoomMessageEventContent::text_plain(format!("Unable to list aliases: {}", err))
+								},
+							}
+						},
+						None => {
+							let aliases: Result<Vec<_>, _> = services().rooms.alias.all_local_aliases().collect();
+							match aliases {
+								Ok(aliases) => {
+									let server_name = services().globals.server_name();
+									let plain_list: String =
+										aliases.iter().fold(String::new(), |mut output, (alias, id)| {
+											writeln!(output, "- `{}` -> #{}:{}", alias, id, server_name).unwrap();
+											output
+										});
+
+									let html_list: String =
+										aliases.iter().fold(String::new(), |mut output, (alias, id)| {
+											writeln!(
+												output,
+												"<li><code>{}</code> -> #{}:{}</li>",
+												escape_html(alias.as_ref()),
+												escape_html(id.as_ref()),
+												server_name
+											)
+											.unwrap();
+											output
+										});
+
+									let plain = format!("Aliases:\n{}", plain_list);
+									let html = format!("Aliases:\n<ul>{}</ul>", html_list);
+									RoomMessageEventContent::text_html(plain, html)
+								},
+								Err(err) => {
+									RoomMessageEventContent::text_plain(format!("Unable to list room aliases: {}", err))
+								},
+							}
+						},
+					},
+				},
+				RoomCommand::Directory(command) => match command {
+					RoomDirectoryCommand::Publish {
+						room_id,
+					} => match services().rooms.directory.set_public(&room_id) {
+						Ok(()) => RoomMessageEventContent::text_plain("Room published"),
+						Err(err) => RoomMessageEventContent::text_plain(format!("Unable to update room: {}", err)),
+					},
+					RoomDirectoryCommand::Unpublish {
+						room_id,
+					} => match services().rooms.directory.set_not_public(&room_id) {
+						Ok(()) => RoomMessageEventContent::text_plain("Room unpublished"),
+						Err(err) => RoomMessageEventContent::text_plain(format!("Unable to update room: {}", err)),
+					},
+					RoomDirectoryCommand::List {
+						page,
+					} => {
+						// TODO: i know there's a way to do this with clap, but i can't seem to find it
+						let page = page.unwrap_or(1);
+						let mut rooms = services()
+							.rooms
+							.directory
+							.public_rooms()
+							.filter_map(std::result::Result::ok)
+							.map(Self::get_room_info)
+							.collect::<Vec<_>>();
+						rooms.sort_by_key(|r| r.1);
+						rooms.reverse();
+
+						let rooms: Vec<_> =
+							rooms.into_iter().skip(page.saturating_sub(1) * PAGE_SIZE).take(PAGE_SIZE).collect();
+
+						if rooms.is_empty() {
+							return Ok(RoomMessageEventContent::text_plain("No more rooms."));
+						};
+
+						let output_plain = format!(
+							"Rooms:\n{}",
+							rooms
+								.iter()
+								.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
+								.collect::<Vec<_>>()
+								.join("\n")
+						);
+						let output_html = format!(
+							"<table><caption>Room directory - page \
+							 {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
+							rooms.iter().fold(String::new(), |mut output, (id, members, name)| {
+								writeln!(
+									output,
+									"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
+									escape_html(id.as_ref()),
+									members,
+									escape_html(name.as_ref())
+								)
+								.unwrap();
+								output
+							})
+						);
+						RoomMessageEventContent::text_html(output_plain, output_html)
+					},
+				},
+			},
+			AdminCommand::Federation(command) => match command {
+				FederationCommand::DisableRoom {
+					room_id,
+				} => {
+					services().rooms.metadata.disable_room(&room_id, true)?;
+					RoomMessageEventContent::text_plain("Room disabled.")
+				},
+				FederationCommand::EnableRoom {
+					room_id,
+				} => {
+					services().rooms.metadata.disable_room(&room_id, false)?;
+					RoomMessageEventContent::text_plain("Room enabled.")
+				},
+				FederationCommand::IncomingFederation => {
+					let map = services().globals.roomid_federationhandletime.read().unwrap();
+					let mut msg: String = format!("Handling {} incoming pdus:\n", map.len());
+
+					for (r, (e, i)) in map.iter() {
+						let elapsed = i.elapsed();
+						let _ = writeln!(msg, "{} {}: {}m{}s", r, e, elapsed.as_secs() / 60, elapsed.as_secs() % 60);
+					}
+					RoomMessageEventContent::text_plain(&msg)
+				},
+				FederationCommand::SignJson => {
+					if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
+						let string = body[1..body.len() - 1].join("\n");
+						match serde_json::from_str(&string) {
+							Ok(mut value) => {
+								ruma::signatures::sign_json(
+									services().globals.server_name().as_str(),
+									services().globals.keypair(),
+									&mut value,
+								)
+								.expect("our request json is what ruma expects");
+								let json_text =
+									serde_json::to_string_pretty(&value).expect("canonical json is valid json");
+								RoomMessageEventContent::text_plain(json_text)
+							},
+							Err(e) => RoomMessageEventContent::text_plain(format!("Invalid json: {e}")),
+						}
+					} else {
+						RoomMessageEventContent::text_plain(
+							"Expected code block in command body. Add --help for details.",
+						)
+					}
+				},
+				FederationCommand::VerifyJson => {
+					if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
+						let string = body[1..body.len() - 1].join("\n");
+						match serde_json::from_str(&string) {
+							Ok(value) => {
+								let pub_key_map = RwLock::new(BTreeMap::new());
+
+								services()
+									.rooms
+									.event_handler
+									.fetch_required_signing_keys([&value], &pub_key_map)
+									.await?;
+
+								let pub_key_map = pub_key_map.read().unwrap();
+								match ruma::signatures::verify_json(&pub_key_map, &value) {
+									Ok(_) => RoomMessageEventContent::text_plain("Signature correct"),
+									Err(e) => RoomMessageEventContent::text_plain(format!(
+										"Signature verification failed: {e}"
+									)),
+								}
+							},
+							Err(e) => RoomMessageEventContent::text_plain(format!("Invalid json: {e}")),
+						}
+					} else {
+						RoomMessageEventContent::text_plain(
+							"Expected code block in command body. Add --help for details.",
+						)
+					}
+				},
+			},
+			AdminCommand::Server(command) => match command {
+				ServerCommand::ShowConfig => {
+					// Construct and send the response
+					RoomMessageEventContent::text_plain(format!("{}", services().globals.config))
+				},
+				ServerCommand::MemoryUsage => {
+					let response1 = services().memory_usage();
+					let response2 = services().globals.db.memory_usage();
+
+					RoomMessageEventContent::text_plain(format!("Services:\n{response1}\n\nDatabase:\n{response2}"))
+				},
+				ServerCommand::ClearDatabaseCaches {
+					amount,
+				} => {
+					services().globals.db.clear_caches(amount);
+
+					RoomMessageEventContent::text_plain("Done.")
+				},
+				ServerCommand::ClearServiceCaches {
+					amount,
+				} => {
+					services().clear_caches(amount);
+
+					RoomMessageEventContent::text_plain("Done.")
+				},
+			},
+			AdminCommand::Debug(command) => match command {
+				DebugCommand::GetAuthChain {
+					event_id,
+				} => {
+					let event_id = Arc::<EventId>::from(event_id);
+					if let Some(event) = services().rooms.timeline.get_pdu_json(&event_id)? {
+						let room_id_str = event
+							.get("room_id")
+							.and_then(|val| val.as_str())
+							.ok_or_else(|| Error::bad_database("Invalid event in database"))?;
+
+						let room_id = <&RoomId>::try_from(room_id_str)
+							.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
+						let start = Instant::now();
+						let count = services().rooms.auth_chain.get_auth_chain(room_id, vec![event_id]).await?.count();
+						let elapsed = start.elapsed();
+						RoomMessageEventContent::text_plain(format!(
+							"Loaded auth chain with length {count} in {elapsed:?}"
+						))
+					} else {
+						RoomMessageEventContent::text_plain("Event not found.")
+					}
+				},
+				DebugCommand::ParsePdu => {
+					if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
+						let string = body[1..body.len() - 1].join("\n");
+						match serde_json::from_str(&string) {
+							Ok(value) => match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
+								Ok(hash) => {
+									let event_id = EventId::parse(format!("${hash}"));
+
+									match serde_json::from_value::<PduEvent>(
+										serde_json::to_value(value).expect("value is json"),
+									) {
+										Ok(pdu) => RoomMessageEventContent::text_plain(format!(
+											"EventId: {event_id:?}\n{pdu:#?}"
+										)),
+										Err(e) => RoomMessageEventContent::text_plain(format!(
+											"EventId: {event_id:?}\nCould not parse event: {e}"
+										)),
+									}
+								},
+								Err(e) => {
+									RoomMessageEventContent::text_plain(format!("Could not parse PDU JSON: {e:?}"))
+								},
+							},
+							Err(e) => RoomMessageEventContent::text_plain(format!("Invalid json in command body: {e}")),
+						}
+					} else {
+						RoomMessageEventContent::text_plain("Expected code block in command body.")
+					}
+				},
+				DebugCommand::GetPdu {
+					event_id,
+				} => {
+					let mut outlier = false;
+					let mut pdu_json = services().rooms.timeline.get_non_outlier_pdu_json(&event_id)?;
+					if pdu_json.is_none() {
+						outlier = true;
+						pdu_json = services().rooms.timeline.get_pdu_json(&event_id)?;
+					}
+					match pdu_json {
+						Some(json) => {
+							let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
+							RoomMessageEventContent::text_html(
+								format!(
+									"{}\n```json\n{}\n```",
+									if outlier {
+										"PDU is outlier"
+									} else {
+										"PDU was accepted"
+									},
+									json_text
+								),
+								format!(
+									"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
+									if outlier {
+										"PDU is outlier"
+									} else {
+										"PDU was accepted"
+									},
+									HtmlEscape(&json_text)
+								),
+							)
+						},
+						None => RoomMessageEventContent::text_plain("PDU not found."),
+					}
+				},
+				DebugCommand::ForceDeviceListUpdates => {
+					// Force E2EE device list updates for all users
+					for user_id in services().users.iter().filter_map(std::result::Result::ok) {
+						services().users.mark_device_key_update(&user_id)?;
+					}
+					RoomMessageEventContent::text_plain("Marked all devices for all users as having new keys to update")
+				},
+			},
+		};
+
+		Ok(reply_message_content)
+	}
+
+	fn get_room_info(id: OwnedRoomId) -> (OwnedRoomId, u64, String) {
+		(
+			id.clone(),
+			services().rooms.state_cache.room_joined_count(&id).ok().flatten().unwrap_or(0),
+			services().rooms.state_accessor.get_name(&id).ok().flatten().unwrap_or_else(|| id.to_string()),
+		)
+	}
+
+	// Utility to turn clap's `--help` text to HTML.
+	fn usage_to_html(&self, text: &str, server_name: &ServerName) -> String {
+		// Replace `@conduit:servername:-subcmdname` with `@conduit:servername:
+		// subcmdname`
+		let text = text.replace(&format!("@conduit:{server_name}:-"), &format!("@conduit:{server_name}: "));
+
+		// For the conduit admin room, subcommands become main commands
+		let text = text.replace("SUBCOMMAND", "COMMAND");
+		let text = text.replace("subcommand", "command");
+
+		// Escape option names (e.g. `<element-id>`) since they look like HTML tags
+		let text = escape_html(&text);
+
+		// Italicize the first line (command name and version text)
+		let re = Regex::new("^(.*?)\n").expect("Regex compilation should not fail");
+		let text = re.replace_all(&text, "<em>$1</em>\n");
+
+		// Unmerge wrapped lines
+		let text = text.replace("\n            ", "  ");
+
+		// Wrap option names in backticks. The lines look like:
+		//     -V, --version  Prints version information
+		// And are converted to:
+		// <code>-V, --version</code>: Prints version information
+		// (?m) enables multi-line mode for ^ and $
+		let re = Regex::new("(?m)^ {4}(([a-zA-Z_&;-]+(, )?)+)  +(.*)$").expect("Regex compilation should not fail");
+		let text = re.replace_all(&text, "<code>$1</code>: $4");
+
+		// Look for a `[commandbody]` tag. If it exists, use all lines below it that
+		// start with a `#` in the USAGE section.
+		let mut text_lines: Vec<&str> = text.lines().collect();
+		let mut command_body = String::new();
+
+		if let Some(line_index) = text_lines.iter().position(|line| *line == "[commandbody]") {
+			text_lines.remove(line_index);
+
+			while text_lines.get(line_index).map(|line| line.starts_with('#')).unwrap_or(false) {
+				command_body += if text_lines[line_index].starts_with("# ") {
+					&text_lines[line_index][2..]
+				} else {
+					&text_lines[line_index][1..]
+				};
+				command_body += "[nobr]\n";
+				text_lines.remove(line_index);
+			}
+		}
+
+		let text = text_lines.join("\n");
+
+		// Improve the usage section
+		let text = if command_body.is_empty() {
+			// Wrap the usage line in code tags
+			let re = Regex::new("(?m)^USAGE:\n {4}(@conduit:.*)$").expect("Regex compilation should not fail");
+			re.replace_all(&text, "USAGE:\n<code>$1</code>").to_string()
+		} else {
+			// Wrap the usage line in a code block, and add a yaml block example
+			// This makes the usage of e.g. `register-appservice` more accurate
+			let re = Regex::new("(?m)^USAGE:\n {4}(.*?)\n\n").expect("Regex compilation should not fail");
+			re.replace_all(&text, "USAGE:\n<pre>$1[nobr]\n[commandbodyblock]</pre>")
+				.replace("[commandbodyblock]", &command_body)
+		};
+
+		// Add HTML line-breaks
+
+		text.replace("\n\n\n", "\n\n").replace('\n', "<br>\n").replace("[nobr]<br>", "")
+	}
+
+	/// Create the admin room.
+	///
+	/// Users in this room are considered admins by conduit, and the room can be
+	/// used to issue admin commands by talking to the server user inside it.
+	pub(crate) async fn create_admin_room(&self) -> Result<()> {
+		let room_id = RoomId::new(services().globals.server_name());
+
+		services().rooms.short.get_or_create_shortroomid(&room_id)?;
+
+		let mutex_state =
+			Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(room_id.clone()).or_default());
+		let state_lock = mutex_state.lock().await;
+
+		// Create a user for the server
+		let conduit_user = UserId::parse_with_server_name("conduit", services().globals.server_name())
+			.expect("@conduit:server_name is valid");
+
+		services().users.create(&conduit_user, None)?;
+
+		let room_version = services().globals.default_room_version();
+		let mut content = match room_version {
+			RoomVersionId::V1
+			| RoomVersionId::V2
+			| RoomVersionId::V3
+			| RoomVersionId::V4
+			| RoomVersionId::V5
+			| RoomVersionId::V6
+			| RoomVersionId::V7
+			| RoomVersionId::V8
+			| RoomVersionId::V9
+			| RoomVersionId::V10 => RoomCreateEventContent::new_v1(conduit_user.clone()),
+			RoomVersionId::V11 => RoomCreateEventContent::new_v11(),
+			_ => {
+				warn!("Unexpected or unsupported room version {}", room_version);
+				return Err(Error::BadRequest(
+					ErrorKind::BadJson,
+					"Unexpected or unsupported room version found",
+				));
+			},
+		};
+
+		content.federate = true;
+		content.predecessor = None;
+		content.room_version = room_version;
+
+		// 1. The room create event
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomCreate,
+					content: to_raw_value(&content).expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some("".to_owned()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		// 2. Make conduit bot join
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomMember,
+					content: to_raw_value(&RoomMemberEventContent {
+						membership: MembershipState::Join,
+						displayname: None,
+						avatar_url: None,
+						is_direct: None,
+						third_party_invite: None,
+						blurhash: None,
+						reason: None,
+						join_authorized_via_users_server: None,
+					})
+					.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some(conduit_user.to_string()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		// 3. Power levels
+		let mut users = BTreeMap::new();
+		users.insert(conduit_user.clone(), 100.into());
+
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomPowerLevels,
+					content: to_raw_value(&RoomPowerLevelsEventContent {
+						users,
+						..Default::default()
+					})
+					.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some("".to_owned()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		// 4.1 Join Rules
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomJoinRules,
+					content: to_raw_value(&RoomJoinRulesEventContent::new(JoinRule::Invite))
+						.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some("".to_owned()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		// 4.2 History Visibility
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomHistoryVisibility,
+					content: to_raw_value(&RoomHistoryVisibilityEventContent::new(HistoryVisibility::Shared))
+						.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some("".to_owned()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		// 4.3 Guest Access
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomGuestAccess,
+					content: to_raw_value(&RoomGuestAccessEventContent::new(GuestAccess::Forbidden))
+						.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some("".to_owned()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		// 5. Events implied by name and topic
+		let room_name = format!("{} Admin Room", services().globals.server_name());
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomName,
+					content: to_raw_value(&RoomNameEventContent::new(room_name))
+						.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some("".to_owned()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomTopic,
+					content: to_raw_value(&RoomTopicEventContent {
+						topic: format!("Manage {}", services().globals.server_name()),
+					})
+					.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some("".to_owned()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		// 6. Room alias
+		let alias: OwnedRoomAliasId = format!("#admins:{}", services().globals.server_name())
+			.try_into()
+			.expect("#admins:server_name is a valid alias name");
+
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomCanonicalAlias,
+					content: to_raw_value(&RoomCanonicalAliasEventContent {
+						alias: Some(alias.clone()),
+						alt_aliases: Vec::new(),
+					})
+					.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some("".to_owned()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		services().rooms.alias.set_alias(&alias, &room_id)?;
+
+		Ok(())
+	}
+
+	/// Invite the user to the conduit admin room.
+	///
+	/// In conduit, this is equivalent to granting admin privileges.
+	pub(crate) async fn make_user_admin(&self, user_id: &UserId, displayname: String) -> Result<()> {
+		let admin_room_alias: Box<RoomAliasId> = format!("#admins:{}", services().globals.server_name())
+			.try_into()
+			.expect("#admins:server_name is a valid alias name");
+		let room_id = services().rooms.alias.resolve_local_alias(&admin_room_alias)?.expect("Admin room must exist");
+
+		let mutex_state =
+			Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(room_id.clone()).or_default());
+		let state_lock = mutex_state.lock().await;
+
+		// Use the server user to grant the new admin's power level
+		let conduit_user = UserId::parse_with_server_name("conduit", services().globals.server_name())
+			.expect("@conduit:server_name is valid");
+
+		// Invite and join the real user
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomMember,
+					content: to_raw_value(&RoomMemberEventContent {
+						membership: MembershipState::Invite,
+						displayname: None,
+						avatar_url: None,
+						is_direct: None,
+						third_party_invite: None,
+						blurhash: None,
+						reason: None,
+						join_authorized_via_users_server: None,
+					})
+					.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some(user_id.to_string()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomMember,
+					content: to_raw_value(&RoomMemberEventContent {
+						membership: MembershipState::Join,
+						displayname: Some(displayname),
+						avatar_url: None,
+						is_direct: None,
+						third_party_invite: None,
+						blurhash: None,
+						reason: None,
+						join_authorized_via_users_server: None,
+					})
+					.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some(user_id.to_string()),
+					redacts: None,
+				},
+				user_id,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		// Set power level
+		let mut users = BTreeMap::new();
+		users.insert(conduit_user.clone(), 100.into());
+		users.insert(user_id.to_owned(), 100.into());
+
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomPowerLevels,
+					content: to_raw_value(&RoomPowerLevelsEventContent {
+						users,
+						..Default::default()
+					})
+					.expect("event is valid, we just created it"),
+					unsigned: None,
+					state_key: Some("".to_owned()),
+					redacts: None,
+				},
+				&conduit_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		// Send welcome message
+		services().rooms.timeline.build_and_append_pdu(
             PduBuilder {
                 event_type: TimelineEventType::RoomMessage,
                 content: to_raw_value(&RoomMessageEventContent::text_html(
@@ -2432,43 +2396,31 @@ impl Service {
             &state_lock,
         ).await?;
 
-        Ok(())
-    }
+		Ok(())
+	}
 }
 
-fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
+fn escape_html(s: &str) -> String { s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;") }
 
 #[cfg(test)]
 mod test {
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn get_help_short() {
-        get_help_inner("-h");
-    }
+	#[test]
+	fn get_help_short() { get_help_inner("-h"); }
 
-    #[test]
-    fn get_help_long() {
-        get_help_inner("--help");
-    }
+	#[test]
+	fn get_help_long() { get_help_inner("--help"); }
 
-    #[test]
-    fn get_help_subcommand() {
-        get_help_inner("help");
-    }
+	#[test]
+	fn get_help_subcommand() { get_help_inner("help"); }
 
-    fn get_help_inner(input: &str) {
-        let error = AdminCommand::try_parse_from(["argv[0] doesn't matter", input])
-            .unwrap_err()
-            .to_string();
+	fn get_help_inner(input: &str) {
+		let error = AdminCommand::try_parse_from(["argv[0] doesn't matter", input]).unwrap_err().to_string();
 
-        // Search for a handful of keywords that suggest the help printed properly
-        assert!(error.contains("Usage:"));
-        assert!(error.contains("Commands:"));
-        assert!(error.contains("Options:"));
-    }
+		// Search for a handful of keywords that suggest the help printed properly
+		assert!(error.contains("Usage:"));
+		assert!(error.contains("Commands:"));
+		assert!(error.contains("Options:"));
+	}
 }

@@ -15,8 +15,5 @@ pub use utils::error::{Error, Result};
 pub static SERVICES: RwLock<Option<&'static Services<'static>>> = RwLock::new(None);
 
 pub fn services() -> &'static Services<'static> {
-    SERVICES
-        .read()
-        .unwrap()
-        .expect("SERVICES should be initialized when this is called")
+	SERVICES.read().unwrap().expect("SERVICES should be initialized when this is called")
 }
