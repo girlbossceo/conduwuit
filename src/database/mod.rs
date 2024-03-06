@@ -1093,19 +1093,19 @@ impl KeyValueDatabase {
 						debug!(target: "database-cleanup","Received SIGHUP");
 					}
 					_ = ctrl_c.recv() => {
-						debug!(target: "database-cleanup", "Received Ctrl+C, performing last cleanup");
-						perform_cleanup();
+						debug!(target: "database-cleanup", "Received Ctrl+C");
 					}
 					_ = terminate.recv() => {
-						debug!(target: "database-cleanup","Received SIGTERM, performing last cleanup");
-						perform_cleanup();
+						debug!(target: "database-cleanup","Received SIGTERM");
 					}
 				};
+
 				#[cfg(not(unix))]
 				{
 					i.tick().await;
 					debug!(target: "database-cleanup", "Timer ticked")
 				}
+
 				perform_cleanup();
 			}
 		});
