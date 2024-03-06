@@ -111,7 +111,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 	services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
 	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(room_id.clone()).or_default());
+		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
 	let state_lock = mutex_state.lock().await;
 
 	let alias: Option<OwnedRoomAliasId> = body.room_alias_name.as_ref().map_or(Ok(None), |localpart| {
@@ -610,7 +610,7 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 	services().rooms.short.get_or_create_shortroomid(&replacement_room)?;
 
 	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(body.room_id.clone()).or_default());
+		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
 	let state_lock = mutex_state.lock().await;
 
 	// Send a m.room.tombstone event to the old room to indicate that it is not
@@ -640,7 +640,7 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 	// Change lock to replacement room
 	drop(state_lock);
 	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(replacement_room.clone()).or_default());
+		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(replacement_room.clone()).or_default());
 	let state_lock = mutex_state.lock().await;
 
 	// Get the old room creation event

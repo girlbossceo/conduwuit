@@ -3,7 +3,7 @@ pub(crate) mod data;
 use std::{
 	cmp::Ordering,
 	collections::{BTreeMap, HashMap, HashSet},
-	sync::{Arc, Mutex, RwLock},
+	sync::Arc,
 };
 
 pub use data::Data;
@@ -30,7 +30,7 @@ use ruma::{
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use tokio::sync::MutexGuard;
+use tokio::sync::{Mutex, MutexGuard, RwLock};
 use tracing::{error, info, warn};
 
 use super::state_compressor::CompressedStateEvent;
@@ -239,7 +239,7 @@ impl Service {
 		services().rooms.state.set_forward_extremities(&pdu.room_id, leaves, state_lock)?;
 
 		let mutex_insert =
-			Arc::clone(services().globals.roomid_mutex_insert.write().unwrap().entry(pdu.room_id.clone()).or_default());
+			Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(pdu.room_id.clone()).or_default());
 		let insert_lock = mutex_insert.lock().await;
 
 		let count1 = services().globals.next_count()?;
@@ -398,7 +398,7 @@ impl Service {
 			},
 			TimelineEventType::SpaceChild => {
 				if let Some(_state_key) = &pdu.state_key {
-					services().rooms.spaces.roomid_spacechunk_cache.lock().unwrap().remove(&pdu.room_id);
+					services().rooms.spaces.roomid_spacechunk_cache.lock().await.remove(&pdu.room_id);
 				}
 			},
 			TimelineEventType::RoomMember => {
@@ -997,7 +997,7 @@ impl Service {
 
 		// Lock so we cannot backfill the same pdu twice at the same time
 		let mutex =
-			Arc::clone(services().globals.roomid_mutex_federation.write().unwrap().entry(room_id.clone()).or_default());
+			Arc::clone(services().globals.roomid_mutex_federation.write().await.entry(room_id.clone()).or_default());
 		let mutex_lock = mutex.lock().await;
 
 		// Skip the PDU if we already have it as a timeline event
@@ -1020,7 +1020,7 @@ impl Service {
 		let shortroomid = services().rooms.short.get_shortroomid(&room_id)?.expect("room exists");
 
 		let mutex_insert =
-			Arc::clone(services().globals.roomid_mutex_insert.write().unwrap().entry(room_id.clone()).or_default());
+			Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(room_id.clone()).or_default());
 		let insert_lock = mutex_insert.lock().await;
 
 		let count = services().globals.next_count()?;

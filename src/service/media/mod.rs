@@ -1,10 +1,5 @@
 mod data;
-use std::{
-	collections::HashMap,
-	io::Cursor,
-	sync::{Arc, RwLock},
-	time::SystemTime,
-};
+use std::{collections::HashMap, io::Cursor, sync::Arc, time::SystemTime};
 
 pub(crate) use data::Data;
 use image::imageops::FilterType;
@@ -13,7 +8,7 @@ use serde::Serialize;
 use tokio::{
 	fs::{self, File},
 	io::{AsyncReadExt, AsyncWriteExt, BufReader},
-	sync::Mutex,
+	sync::{Mutex, RwLock},
 };
 use tracing::{debug, error};
 

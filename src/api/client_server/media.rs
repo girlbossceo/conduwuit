@@ -440,8 +440,7 @@ async fn get_url_preview(url: &str) -> Result<UrlPreviewData> {
 	}
 
 	// ensure that only one request is made per URL
-	let mutex_request =
-		Arc::clone(services().media.url_preview_mutex.write().unwrap().entry(url.to_owned()).or_default());
+	let mutex_request = Arc::clone(services().media.url_preview_mutex.write().await.entry(url.to_owned()).or_default());
 	let _request_lock = mutex_request.lock().await;
 
 	match services().media.get_url_preview(url).await {

@@ -33,7 +33,7 @@ pub async fn send_message_event_route(
 	let sender_device = body.sender_device.as_deref();
 
 	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(body.room_id.clone()).or_default());
+		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
 	let state_lock = mutex_state.lock().await;
 
 	// Forbid m.room.encrypted if encryption is disabled
@@ -160,7 +160,7 @@ pub async fn get_message_events_route(
 
 	let to = body.to.as_ref().and_then(|t| PduCount::try_from_string(t).ok());
 
-	services().rooms.lazy_loading.lazy_load_confirm_delivery(sender_user, sender_device, &body.room_id, from)?;
+	services().rooms.lazy_loading.lazy_load_confirm_delivery(sender_user, sender_device, &body.room_id, from).await?;
 
 	let limit = u64::from(body.limit).min(100) as usize;
 
@@ -276,7 +276,7 @@ pub async fn get_message_events_route(
 			&body.room_id,
 			lazy_loaded,
 			next_token,
-		);
+		).await;
 	}
 	*/
 
