@@ -82,7 +82,7 @@ pub async fn sync_events_route(
 	let body = body.body;
 
 	let mut rx =
-		match services().globals.sync_receivers.write().unwrap().entry((sender_user.clone(), sender_device.clone())) {
+		match services().globals.sync_receivers.write().await.entry((sender_user.clone(), sender_device.clone())) {
 			Entry::Vacant(v) => {
 				let (tx, rx) = tokio::sync::watch::channel(None);
 
@@ -132,7 +132,7 @@ async fn sync_helper_wrapper(
 
 	if let Ok((_, caching_allowed)) = r {
 		if !caching_allowed {
-			match services().globals.sync_receivers.write().unwrap().entry((sender_user, sender_device)) {
+			match services().globals.sync_receivers.write().await.entry((sender_user, sender_device)) {
 				Entry::Occupied(o) => {
 					// Only remove if the device didn't start a different /sync already
 					if o.get().0 == since {
@@ -233,7 +233,7 @@ async fn sync_helper(
 		{
 			// Get and drop the lock to wait for remaining operations to finish
 			let mutex_insert =
-				Arc::clone(services().globals.roomid_mutex_insert.write().unwrap().entry(room_id.clone()).or_default());
+				Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(room_id.clone()).or_default());
 			let insert_lock = mutex_insert.lock().await;
 			drop(insert_lock);
 		};
@@ -339,7 +339,7 @@ async fn sync_helper(
 		{
 			// Get and drop the lock to wait for remaining operations to finish
 			let mutex_insert =
-				Arc::clone(services().globals.roomid_mutex_insert.write().unwrap().entry(room_id.clone()).or_default());
+				Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(room_id.clone()).or_default());
 			let insert_lock = mutex_insert.lock().await;
 			drop(insert_lock);
 		};
@@ -485,7 +485,7 @@ async fn load_joined_room(
 		// Get and drop the lock to wait for remaining operations to finish
 		// This will make sure the we have all events until next_batch
 		let mutex_insert =
-			Arc::clone(services().globals.roomid_mutex_insert.write().unwrap().entry(room_id.to_owned()).or_default());
+			Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(room_id.to_owned()).or_default());
 		let insert_lock = mutex_insert.lock().await;
 		drop(insert_lock);
 	};
@@ -500,7 +500,7 @@ async fn load_joined_room(
 		timeline_users.insert(event.sender.as_str().to_owned());
 	}
 
-	services().rooms.lazy_loading.lazy_load_confirm_delivery(sender_user, sender_device, room_id, sincecount)?;
+	services().rooms.lazy_loading.lazy_load_confirm_delivery(sender_user, sender_device, room_id, sincecount).await?;
 
 	// Database queries:
 
@@ -653,13 +653,11 @@ async fn load_joined_room(
 
 			// The state_events above should contain all timeline_users, let's mark them as
 			// lazy loaded.
-			services().rooms.lazy_loading.lazy_load_mark_sent(
-				sender_user,
-				sender_device,
-				room_id,
-				lazy_loaded,
-				next_batchcount,
-			);
+			services()
+				.rooms
+				.lazy_loading
+				.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy_loaded, next_batchcount)
+				.await;
 
 			(heroes, joined_member_count, invited_member_count, true, state_events)
 		} else {
@@ -721,13 +719,11 @@ async fn load_joined_room(
 				}
 			}
 
-			services().rooms.lazy_loading.lazy_load_mark_sent(
-				sender_user,
-				sender_device,
-				room_id,
-				lazy_loaded,
-				next_batchcount,
-			);
+			services()
+				.rooms
+				.lazy_loading
+				.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy_loaded, next_batchcount)
+				.await;
 
 			let encrypted_room = services()
 				.rooms

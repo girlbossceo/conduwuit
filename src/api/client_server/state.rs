@@ -230,7 +230,7 @@ async fn send_state_event_for_key_helper(
 	}
 
 	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(room_id.to_owned()).or_default());
+		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.to_owned()).or_default());
 	let state_lock = mutex_state.lock().await;
 
 	let event_id = services()

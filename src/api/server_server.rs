@@ -6,7 +6,7 @@ use std::{
 	fmt::Debug,
 	mem,
 	net::{IpAddr, SocketAddr},
-	sync::{Arc, RwLock},
+	sync::Arc,
 	time::{Duration, Instant, SystemTime},
 };
 
@@ -50,6 +50,7 @@ use ruma::{
 	OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 use trust_dns_resolver::{error::ResolveError, lookup::SrvLookup};
 
@@ -157,7 +158,7 @@ where
 
 	let mut write_destination_to_cache = false;
 
-	let cached_result = services().globals.actual_destination_cache.read().unwrap().get(destination).cloned();
+	let cached_result = services().globals.actual_destination_cache.read().await.get(destination).cloned();
 
 	let (actual_destination, host) = if let Some(result) = cached_result {
 		result
@@ -276,7 +277,7 @@ where
 						.globals
 						.actual_destination_cache
 						.write()
-						.unwrap()
+						.await
 						.insert(OwnedServerName::from(destination), (actual_destination, host));
 				}
 
@@ -291,7 +292,7 @@ where
 				// well-knowns
 				if !write_destination_to_cache {
 					info!("Evicting {destination} from our true destination cache due to failed request.");
-					services().globals.actual_destination_cache.write().unwrap().remove(destination);
+					services().globals.actual_destination_cache.write().await.remove(destination);
 				}
 
 				Err(Error::FederationError(
@@ -767,7 +768,7 @@ pub async fn send_transaction_message_route(
 
 	for (event_id, value, room_id) in parsed_pdus {
 		let mutex =
-			Arc::clone(services().globals.roomid_mutex_federation.write().unwrap().entry(room_id.clone()).or_default());
+			Arc::clone(services().globals.roomid_mutex_federation.write().await.entry(room_id.clone()).or_default());
 		let mutex_lock = mutex.lock().await;
 		let start_time = Instant::now();
 		resolved_map.insert(
@@ -1264,7 +1265,7 @@ pub async fn create_join_event_template_route(
 	services().rooms.event_handler.acl_check(sender_servername, &body.room_id)?;
 
 	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(body.room_id.clone()).or_default());
+		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
 	let state_lock = mutex_state.lock().await;
 
 	// TODO: Conduit does not implement restricted join rules yet, we always reject
@@ -1413,7 +1414,7 @@ async fn create_join_event(
 	services().rooms.event_handler.fetch_required_signing_keys([&value], &pub_key_map).await?;
 
 	let mutex =
-		Arc::clone(services().globals.roomid_mutex_federation.write().unwrap().entry(room_id.to_owned()).or_default());
+		Arc::clone(services().globals.roomid_mutex_federation.write().await.entry(room_id.to_owned()).or_default());
 	let mutex_lock = mutex.lock().await;
 	let pdu_id: Vec<u8> = services()
 		.rooms

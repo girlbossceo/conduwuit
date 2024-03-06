@@ -8,7 +8,7 @@ use std::{
 	path::PathBuf,
 	sync::{
 		atomic::{self, AtomicBool},
-		Arc, Mutex, RwLock,
+		Arc, RwLock as StdRwLock,
 	},
 	time::{Duration, Instant},
 };
@@ -33,7 +33,7 @@ use ruma::{
 	RoomVersionId, ServerName, UserId,
 };
 use sha2::Digest;
-use tokio::sync::{broadcast, watch::Receiver, Mutex as TokioMutex, Semaphore};
+use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock, Semaphore};
 use tracing::{error, info};
 use trust_dns_resolver::TokioAsyncResolver;
 
@@ -53,7 +53,7 @@ pub struct Service<'a> {
 	pub db: &'static dyn Data,
 
 	pub actual_destination_cache: Arc<RwLock<WellKnownMap>>, // actual_destination, host
-	pub tls_name_override: Arc<RwLock<TlsNameMap>>,
+	pub tls_name_override: Arc<StdRwLock<TlsNameMap>>,
 	pub config: Config,
 	keypair: Arc<ruma::signatures::Ed25519KeyPair>,
 	dns_resolver: TokioAsyncResolver,
@@ -68,9 +68,9 @@ pub struct Service<'a> {
 	pub bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
 	pub servername_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, Arc<Semaphore>>>>,
 	pub sync_receivers: RwLock<HashMap<(OwnedUserId, OwnedDeviceId), SyncHandle>>,
-	pub roomid_mutex_insert: RwLock<HashMap<OwnedRoomId, Arc<TokioMutex<()>>>>,
-	pub roomid_mutex_state: RwLock<HashMap<OwnedRoomId, Arc<TokioMutex<()>>>>,
-	pub roomid_mutex_federation: RwLock<HashMap<OwnedRoomId, Arc<TokioMutex<()>>>>, // this lock will be held longer
+	pub roomid_mutex_insert: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>,
+	pub roomid_mutex_state: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>,
+	pub roomid_mutex_federation: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>, // this lock will be held longer
 	pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub(crate) rotate: RotationHandler,
@@ -109,11 +109,11 @@ impl Default for RotationHandler {
 
 struct Resolver {
 	inner: GaiResolver,
-	overrides: Arc<RwLock<TlsNameMap>>,
+	overrides: Arc<StdRwLock<TlsNameMap>>,
 }
 
 impl Resolver {
-	fn new(overrides: Arc<RwLock<TlsNameMap>>) -> Self {
+	fn new(overrides: Arc<StdRwLock<TlsNameMap>>) -> Self {
 		Resolver {
 			inner: GaiResolver::new(),
 			overrides,
@@ -125,7 +125,7 @@ impl Resolve for Resolver {
 	fn resolve(&self, name: Name) -> Resolving {
 		self.overrides
 			.read()
-			.expect("lock should not be poisoned")
+			.unwrap()
 			.get(name.as_str())
 			.and_then(|(override_name, port)| {
 				override_name.first().map(|first_name| {
@@ -159,7 +159,7 @@ impl Service<'_> {
 			},
 		};
 
-		let tls_name_override = Arc::new(RwLock::new(TlsNameMap::new()));
+		let tls_name_override = Arc::new(StdRwLock::new(TlsNameMap::new()));
 
 		let jwt_decoding_key =
 			config.jwt_secret.as_ref().map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));

@@ -281,17 +281,19 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 
 	let mut failures = BTreeMap::new();
 
-	let back_off = |id| match services().globals.bad_query_ratelimiter.write().unwrap().entry(id) {
-		hash_map::Entry::Vacant(e) => {
-			e.insert((Instant::now(), 1));
-		},
-		hash_map::Entry::Occupied(mut e) => *e.get_mut() = (Instant::now(), e.get().1 + 1),
+	let back_off = |id| async {
+		match services().globals.bad_query_ratelimiter.write().await.entry(id) {
+			hash_map::Entry::Vacant(e) => {
+				e.insert((Instant::now(), 1));
+			},
+			hash_map::Entry::Occupied(mut e) => *e.get_mut() = (Instant::now(), e.get().1 + 1),
+		}
 	};
 
 	let mut futures: FuturesUnordered<_> = get_over_federation
 		.into_iter()
 		.map(|(server, vec)| async move {
-			if let Some((time, tries)) = services().globals.bad_query_ratelimiter.read().unwrap().get(server) {
+			if let Some((time, tries)) = services().globals.bad_query_ratelimiter.read().await.get(server) {
 				// Exponential backoff
 				let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
 				if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
@@ -354,7 +356,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 				device_keys.extend(response.device_keys);
 			},
 			_ => {
-				back_off(server.to_owned());
+				back_off(server.to_owned()).await;
 				failures.insert(server.to_string(), json!({}));
 			},
 		}

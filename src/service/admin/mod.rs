@@ -1,9 +1,4 @@
-use std::{
-	collections::BTreeMap,
-	fmt::Write as _,
-	sync::{Arc, RwLock},
-	time::Instant,
-};
+use std::{collections::BTreeMap, fmt::Write as _, sync::Arc, time::Instant};
 
 use clap::{Parser, Subcommand};
 use regex::Regex;
@@ -29,7 +24,7 @@ use ruma::{
 	ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
 use super::pdu::PduBuilder;
@@ -473,7 +468,7 @@ impl Service {
 						services().globals
 							.roomid_mutex_state
 							.write()
-							.unwrap()
+							.await
 							.entry(conduit_room.clone())
 							.or_default(),
 					);
@@ -1773,7 +1768,7 @@ impl Service {
 					RoomMessageEventContent::text_plain("Room enabled.")
 				},
 				FederationCommand::IncomingFederation => {
-					let map = services().globals.roomid_federationhandletime.read().unwrap();
+					let map = services().globals.roomid_federationhandletime.read().await;
 					let mut msg: String = format!("Handling {} incoming pdus:\n", map.len());
 
 					for (r, (e, i)) in map.iter() {
@@ -1818,7 +1813,7 @@ impl Service {
 									.fetch_required_signing_keys([&value], &pub_key_map)
 									.await?;
 
-								let pub_key_map = pub_key_map.read().unwrap();
+								let pub_key_map = pub_key_map.read().await;
 								match ruma::signatures::verify_json(&pub_key_map, &value) {
 									Ok(_) => RoomMessageEventContent::text_plain("Signature correct"),
 									Err(e) => RoomMessageEventContent::text_plain(format!(
@@ -1841,7 +1836,7 @@ impl Service {
 					RoomMessageEventContent::text_plain(format!("{}", services().globals.config))
 				},
 				ServerCommand::MemoryUsage => {
-					let response1 = services().memory_usage();
+					let response1 = services().memory_usage().await;
 					let response2 = services().globals.db.memory_usage();
 
 					RoomMessageEventContent::text_plain(format!("Services:\n{response1}\n\nDatabase:\n{response2}"))
@@ -1856,7 +1851,7 @@ impl Service {
 				ServerCommand::ClearServiceCaches {
 					amount,
 				} => {
-					services().clear_caches(amount);
+					services().clear_caches(amount).await;
 
 					RoomMessageEventContent::text_plain("Done.")
 				},
@@ -2047,7 +2042,7 @@ impl Service {
 		services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
 		let mutex_state =
-			Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(room_id.clone()).or_default());
+			Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
 		let state_lock = mutex_state.lock().await;
 
 		// Create a user for the server
@@ -2291,7 +2286,7 @@ impl Service {
 		let room_id = services().rooms.alias.resolve_local_alias(&admin_room_alias)?.expect("Admin room must exist");
 
 		let mutex_state =
-			Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(room_id.clone()).or_default());
+			Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
 		let state_lock = mutex_state.lock().await;
 
 		// Use the server user to grant the new admin's power level

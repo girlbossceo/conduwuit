@@ -1,9 +1,10 @@
 use std::{
 	collections::{BTreeMap, HashMap},
-	sync::{Arc, Mutex, RwLock},
+	sync::{Arc, Mutex as StdMutex},
 };
 
 use lru_cache::LruCache;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::{Config, Result};
 
@@ -106,10 +107,10 @@ impl Services<'_> {
 				},
 				state_accessor: rooms::state_accessor::Service {
 					db,
-					server_visibility_cache: Mutex::new(LruCache::new(
+					server_visibility_cache: StdMutex::new(LruCache::new(
 						(100.0 * config.conduit_cache_capacity_modifier) as usize,
 					)),
-					user_visibility_cache: Mutex::new(LruCache::new(
+					user_visibility_cache: StdMutex::new(LruCache::new(
 						(100.0 * config.conduit_cache_capacity_modifier) as usize,
 					)),
 				},
@@ -118,7 +119,7 @@ impl Services<'_> {
 				},
 				state_compressor: rooms::state_compressor::Service {
 					db,
-					stateinfo_cache: Mutex::new(LruCache::new(
+					stateinfo_cache: StdMutex::new(LruCache::new(
 						(100.0 * config.conduit_cache_capacity_modifier) as usize,
 					)),
 				},
@@ -146,7 +147,7 @@ impl Services<'_> {
 			},
 			users: users::Service {
 				db,
-				connections: Mutex::new(BTreeMap::new()),
+				connections: StdMutex::new(BTreeMap::new()),
 			},
 			account_data: account_data::Service {
 				db,
@@ -165,13 +166,13 @@ impl Services<'_> {
 		})
 	}
 
-	fn memory_usage(&self) -> String {
-		let lazy_load_waiting = self.rooms.lazy_loading.lazy_load_waiting.lock().unwrap().len();
+	async fn memory_usage(&self) -> String {
+		let lazy_load_waiting = self.rooms.lazy_loading.lazy_load_waiting.lock().await.len();
 		let server_visibility_cache = self.rooms.state_accessor.server_visibility_cache.lock().unwrap().len();
 		let user_visibility_cache = self.rooms.state_accessor.user_visibility_cache.lock().unwrap().len();
 		let stateinfo_cache = self.rooms.state_compressor.stateinfo_cache.lock().unwrap().len();
-		let lasttimelinecount_cache = self.rooms.timeline.lasttimelinecount_cache.lock().unwrap().len();
-		let roomid_spacechunk_cache = self.rooms.spaces.roomid_spacechunk_cache.lock().unwrap().len();
+		let lasttimelinecount_cache = self.rooms.timeline.lasttimelinecount_cache.lock().await.len();
+		let roomid_spacechunk_cache = self.rooms.spaces.roomid_spacechunk_cache.lock().await.len();
 
 		format!(
 			"\
@@ -184,9 +185,9 @@ roomid_spacechunk_cache: {roomid_spacechunk_cache}"
 		)
 	}
 
-	fn clear_caches(&self, amount: u32) {
+	async fn clear_caches(&self, amount: u32) {
 		if amount > 0 {
-			self.rooms.lazy_loading.lazy_load_waiting.lock().unwrap().clear();
+			self.rooms.lazy_loading.lazy_load_waiting.lock().await.clear();
 		}
 		if amount > 1 {
 			self.rooms.state_accessor.server_visibility_cache.lock().unwrap().clear();
@@ -198,10 +199,10 @@ roomid_spacechunk_cache: {roomid_spacechunk_cache}"
 			self.rooms.state_compressor.stateinfo_cache.lock().unwrap().clear();
 		}
 		if amount > 4 {
-			self.rooms.timeline.lasttimelinecount_cache.lock().unwrap().clear();
+			self.rooms.timeline.lasttimelinecount_cache.lock().await.clear();
 		}
 		if amount > 5 {
-			self.rooms.spaces.roomid_spacechunk_cache.lock().unwrap().clear();
+			self.rooms.spaces.roomid_spacechunk_cache.lock().await.clear();
 		}
 	}
 }

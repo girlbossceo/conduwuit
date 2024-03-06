@@ -65,7 +65,7 @@ pub async fn set_displayname_route(
 
 	for (pdu_builder, room_id) in all_rooms_joined {
 		let mutex_state =
-			Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(room_id.clone()).or_default());
+			Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
 		let state_lock = mutex_state.lock().await;
 
 		let _ = services().rooms.timeline.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock).await;
@@ -176,7 +176,7 @@ pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Re
 
 	for (pdu_builder, room_id) in all_joined_rooms {
 		let mutex_state =
-			Arc::clone(services().globals.roomid_mutex_state.write().unwrap().entry(room_id.clone()).or_default());
+			Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
 		let state_lock = mutex_state.lock().await;
 
 		let _ = services().rooms.timeline.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock).await;
