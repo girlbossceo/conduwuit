@@ -439,7 +439,7 @@ fn default_presence_idle_timeout_s() -> u64 { 5 * 60 }
 
 fn default_presence_offline_timeout_s() -> u64 { 30 * 60 }
 
-fn default_rocksdb_log_level() -> String { "warn".to_owned() }
+fn default_rocksdb_log_level() -> String { "error".to_owned() }
 
 fn default_rocksdb_log_time_to_roll() -> usize { 0 }
 
