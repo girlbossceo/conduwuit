@@ -1012,7 +1012,7 @@ impl KeyValueDatabase {
 	}
 
 	#[tracing::instrument]
-	pub fn start_check_for_updates_task() {
+	fn start_check_for_updates_task() {
 		tokio::spawn(async move {
 			let timer_interval = Duration::from_secs(60 * 60);
 			let mut i = interval(timer_interval);
@@ -1060,7 +1060,7 @@ impl KeyValueDatabase {
 	}
 
 	#[tracing::instrument]
-	pub async fn start_cleanup_task() {
+	async fn start_cleanup_task() {
 		#[cfg(unix)]
 		use tokio::signal::unix::{signal, SignalKind};
 		use tokio::time::Instant;
@@ -1111,7 +1111,7 @@ impl KeyValueDatabase {
 		});
 	}
 
-	pub async fn start_presence_handler(presence_timer_receiver: mpsc::UnboundedReceiver<(OwnedUserId, Duration)>) {
+	async fn start_presence_handler(presence_timer_receiver: mpsc::UnboundedReceiver<(OwnedUserId, Duration)>) {
 		tokio::spawn(async move {
 			match presence_handler(presence_timer_receiver).await {
 				Ok(()) => warn!("Presence maintenance task finished"),
