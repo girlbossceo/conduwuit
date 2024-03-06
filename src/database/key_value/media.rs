@@ -142,10 +142,13 @@ impl service::media::Data for KeyValueDatabase {
 
 		let mut values = values.split(|&b| b == 0xFF);
 
-		let _ts = match values.next().map(|b| u64::from_be_bytes(b.try_into().expect("valid BE array"))) {
+		let _ts = values.next();
+		/* if we ever decide to use timestamp, this is here.
+		match values.next().map(|b| u64::from_be_bytes(b.try_into().expect("valid BE array"))) {
 			Some(0) => None,
 			x => x,
-		};
+		};*/
+
 		let title = match values.next().and_then(|b| String::from_utf8(b.to_vec()).ok()) {
 			Some(s) if s.is_empty() => None,
 			x => x,
@@ -158,15 +161,15 @@ impl service::media::Data for KeyValueDatabase {
 			Some(s) if s.is_empty() => None,
 			x => x,
 		};
-		let image_size = match values.next().map(|b| usize::from_be_bytes(b.try_into().expect("valid BE array"))) {
+		let image_size = match values.next().map(|b| usize::from_be_bytes(b.try_into().unwrap_or_default())) {
 			Some(0) => None,
 			x => x,
 		};
-		let image_width = match values.next().map(|b| u32::from_be_bytes(b.try_into().expect("valid BE array"))) {
+		let image_width = match values.next().map(|b| u32::from_be_bytes(b.try_into().unwrap_or_default())) {
 			Some(0) => None,
 			x => x,
 		};
-		let image_height = match values.next().map(|b| u32::from_be_bytes(b.try_into().expect("valid BE array"))) {
+		let image_height = match values.next().map(|b| u32::from_be_bytes(b.try_into().unwrap_or_default())) {
 			Some(0) => None,
 			x => x,
 		};
