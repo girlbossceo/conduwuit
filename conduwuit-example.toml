@@ -263,6 +263,13 @@ allow_check_for_updates = true
 ### RocksDB options
 
 # Set this to true to use RocksDB config options that are tailored to HDDs (slower device storage)
+#
+# It is worth noting that by default, conduwuit will use RocksDB with Direct IO enabled. *Generally* speaking this improves performance as it bypasses buffered I/O (system page cache).
+# However there is a potential chance that Direct IO may cause issues with database operations if your setup is uncommon. This has been observed with FUSE filesystems, and possibly ZFS filesystem.
+# RocksDB generally deals/corrects these issues but it cannot account for all setups.
+# If you experience any weird RocksDB issues, try enabling this option as it turns off Direct IO and feel free to report in the conduwuit Matrix room if this option fixes your DB issues.
+# See https://github.com/facebook/rocksdb/wiki/Direct-IO for more information.
+#
 # Defaults to false
 #rocksdb_optimize_for_spinning_disks = false
 
