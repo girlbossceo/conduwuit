@@ -1,5 +1,5 @@
 # Conduit - Behind Traefik Reverse Proxy
-version: '3'
+version: '2.4' # uses '2.4' for cpuset
 
 services:
     homeserver:
@@ -18,12 +18,13 @@ services:
         #         GIT_REF: origin/master
         restart: unless-stopped
         volumes:
-            - db:/var/lib/matrix-conduit/
+            - db:/var/lib/matrix-conduit
+            #- ./conduwuit.toml:/etc/conduit.toml
         networks:
             - proxy
         environment:
             CONDUIT_SERVER_NAME: your.server.name # EDIT THIS
-            CONDUIT_DATABASE_PATH: /var/lib/matrix-conduit/
+            CONDUIT_DATABASE_PATH: /var/lib/matrix-conduit
             CONDUIT_DATABASE_BACKEND: rocksdb
             CONDUIT_PORT: 6167
             CONDUIT_MAX_REQUEST_SIZE: 20_000_000 # in bytes, ~20 MB
@@ -34,7 +35,8 @@ services:
             #CONDUIT_MAX_CONCURRENT_REQUESTS: 100
             #CONDUIT_LOG: warn,state_res=warn
             CONDUIT_ADDRESS: 0.0.0.0
-            CONDUIT_CONFIG: '' # Ignore this
+            #CONDUIT_CONFIG: './conduwuit.toml' # Uncomment if you mapped config toml above
+        #cpuset: "0-4" # Uncomment to limit to specific CPU cores
 
     # We need some way to server the client and server .well-known json. The simplest way is to use a nginx container
     # to serve those two as static files. If you want to use a different way, delete or comment the below service, here

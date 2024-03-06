@@ -1,5 +1,5 @@
 # Conduit - Behind Traefik Reverse Proxy
-version: '3'
+version: '2.4' # uses '2.4' for cpuset
 
 services:
     homeserver:
@@ -19,19 +19,17 @@ services:
         restart: unless-stopped
         volumes:
             - db:/srv/conduit/.local/share/conduit
-            ### Uncomment if you want to use conduit.toml to configure Conduit
-            ### Note: Set env vars will override conduit.toml values
-            # - ./conduit.toml:/srv/conduit/conduit.toml
+            #- ./conduwuit.toml:/etc/conduit.toml
         networks:
             - proxy
         environment:
-            CONDUIT_SERVER_NAME: localhost:6167  # replace with your own name
+            CONDUIT_SERVER_NAME: your.server.name # EDIT THIS
             CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
             CONDUIT_ALLOW_REGISTRATION : 'true'
+            #CONDUIT_CONFIG: './conduwuit.toml' # Uncomment if you mapped config toml above
             ### Uncomment and change values as desired
             # CONDUIT_ADDRESS: 0.0.0.0
             # CONDUIT_PORT: 6167
-            # CONDUIT_CONFIG: '/srv/conduit/conduit.toml'  # if you want to configure purely by env vars, set this to an empty string ''
             # Available levels are: error, warn, info, debug, trace - more info at: https://docs.rs/env_logger/*/env_logger/#enabling-logging
             # CONDUIT_LOG: info  # default is: "warn,state_res=warn"
             # CONDUIT_ALLOW_JAEGER: 'false'
@@ -41,6 +39,7 @@ services:
             # CONDUIT_DATABASE_PATH: /srv/conduit/.local/share/conduit
             # CONDUIT_WORKERS: 10
             # CONDUIT_MAX_REQUEST_SIZE: 20_000_000  # in bytes, ~20 MB
+        #cpuset: "0-4" # Uncomment to limit to specific CPU cores
 
     # We need some way to server the client and server .well-known json. The simplest way is to use a nginx container
     # to serve those two as static files. If you want to use a different way, delete or comment the below service, here

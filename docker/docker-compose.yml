@@ -1,5 +1,5 @@
 # Conduit
-version: '2.4'
+version: '2.4' # uses '2.4' for cpuset
 
 services:
     homeserver:
@@ -35,7 +35,7 @@ services:
             #CONDUIT_MAX_CONCURRENT_REQUESTS: 400
             #CONDUIT_LOG: warn,state_res=warn
             CONDUIT_ADDRESS: 0.0.0.0
-            CONDUIT_CONFIG: '' # Leave blank unless you mapped config toml above
+            #CONDUIT_CONFIG: './conduwuit.toml' # Uncomment if you mapped config toml above
         #cpuset: "0-4" # Uncomment to limit to specific CPU cores
     #
     ### Uncomment if you want to use your own Element-Web App.
