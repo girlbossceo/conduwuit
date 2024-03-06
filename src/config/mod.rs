@@ -117,6 +117,8 @@ pub struct Config {
 	pub rocksdb_optimize_for_spinning_disks: bool,
 	#[serde(default = "default_rocksdb_parallelism_threads")]
 	pub rocksdb_parallelism_threads: usize,
+	#[serde(default = "default_rocksdb_max_log_files")]
+	pub rocksdb_max_log_files: usize,
 
 	pub emergency_password: Option<String>,
 
@@ -339,6 +341,7 @@ impl fmt::Display for Config {
 			("zstd Response Body Compression", &self.zstd_compression.to_string()),
 			("RocksDB database log level", &self.rocksdb_log_level),
 			("RocksDB database log time-to-roll", &self.rocksdb_log_time_to_roll.to_string()),
+			("RocksDB Max LOG Files", &self.rocksdb_max_log_files.to_string()),
 			(
 				"RocksDB database max log file size",
 				&self.rocksdb_max_log_file_size.to_string(),
@@ -442,6 +445,8 @@ fn default_presence_offline_timeout_s() -> u64 { 30 * 60 }
 fn default_rocksdb_log_level() -> String { "error".to_owned() }
 
 fn default_rocksdb_log_time_to_roll() -> usize { 0 }
+
+fn default_rocksdb_max_log_files() -> usize { 3 }
 
 fn default_rocksdb_parallelism_threads() -> usize { num_cpus::get_physical() / 2 }
 

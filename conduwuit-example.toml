@@ -302,6 +302,10 @@ allow_check_for_updates = true
 # Defaults to your CPU physical core count (not logical threads) count divided by 2 (half)
 #rocksdb_parallelism_threads = 0
 
+# Maximum number of LOG files RocksDB will keep
+# Defaults to 3 as these are not very useful
+#rocksdb_max_log_files = 3
+
 
 
 ### Presence
