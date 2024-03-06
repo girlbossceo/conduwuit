@@ -92,6 +92,8 @@ pub struct Config {
     pub jwt_secret: Option<String>,
     #[serde(default = "default_trusted_servers")]
     pub trusted_servers: Vec<OwnedServerName>,
+    #[serde(default = "true_fn")]
+    pub query_trusted_key_servers_first: bool,
     #[serde(default = "default_log")]
     pub log: String,
     #[serde(default)]
@@ -319,6 +321,10 @@ impl fmt::Display for Config {
                 }
                 &lst.join(", ")
             }),
+            (
+                "Query Trusted Key Servers First",
+                &self.query_trusted_key_servers_first.to_string(),
+            ),
             (
                 "TURN username",
                 if self.turn_username.is_empty() {

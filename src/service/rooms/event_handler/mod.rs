@@ -1544,39 +1544,11 @@ impl Service {
         Ok(())
     }
 
-    pub(crate) async fn fetch_join_signing_keys(
+    async fn batch_request_signing_keys(
         &self,
-        event: &create_join_event::v2::Response,
-        room_version: &RoomVersionId,
+        mut servers: BTreeMap<OwnedServerName, BTreeMap<OwnedServerSigningKeyId, QueryCriteria>>,
         pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
     ) -> Result<()> {
-        let mut servers: BTreeMap<
-            OwnedServerName,
-            BTreeMap<OwnedServerSigningKeyId, QueryCriteria>,
-        > = BTreeMap::new();
-
-        {
-            let mut pkm = pub_key_map
-                .write()
-                .map_err(|_| Error::bad_database("RwLock is poisoned."))?;
-
-            // Try to fetch keys, failure is okay
-            // Servers we couldn't find in the cache will be added to `servers`
-            for pdu in &event.room_state.state {
-                let _ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm);
-            }
-            for pdu in &event.room_state.auth_chain {
-                let _ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm);
-            }
-
-            drop(pkm);
-        };
-
-        if servers.is_empty() {
-            info!("server is empty, we had all keys locally, not fetching any keys");
-            return Ok(());
-        }
-
         for server in services().globals.trusted_servers() {
             info!("Asking batch signing keys from trusted server {}", server);
             if let Ok(keys) = services()
@@ -1619,13 +1591,16 @@ impl Service {
                     pkm.insert(k.server_name.to_string(), result);
                 }
             }
-
-            if servers.is_empty() {
-                info!("Trusted server supplied all signing keys, no more keys to fetch");
-                return Ok(());
-            }
         }
 
+        Ok(())
+    }
+
+    async fn request_signing_keys(
+        &self,
+        servers: BTreeMap<OwnedServerName, BTreeMap<OwnedServerSigningKeyId, QueryCriteria>>,
+        pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
+    ) -> Result<()> {
         info!("Asking individual servers for signing keys: {servers:?}");
         let mut futures: FuturesUnordered<_> = servers
             .into_keys()
@@ -1641,7 +1616,7 @@ impl Service {
             .collect();
 
         while let Some(result) = futures.next().await {
-            info!("Received new result");
+            debug!("Received new Future result");
             if let (Ok(get_keys_response), origin) = result {
                 info!("Result is from {origin}");
                 if let Ok(key) = get_keys_response.server_key.deserialize() {
@@ -1657,10 +1632,82 @@ impl Service {
                         .insert(origin.to_string(), result);
                 }
             }
-            info!("Done handling result");
+            debug!("Done handling Future result");
+        }
+
+        Ok(())
+    }
+
+    pub(crate) async fn fetch_join_signing_keys(
+        &self,
+        event: &create_join_event::v2::Response,
+        room_version: &RoomVersionId,
+        pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
+    ) -> Result<()> {
+        let mut servers: BTreeMap<
+            OwnedServerName,
+            BTreeMap<OwnedServerSigningKeyId, QueryCriteria>,
+        > = BTreeMap::new();
+
+        {
+            let mut pkm = pub_key_map
+                .write()
+                .map_err(|_| Error::bad_database("RwLock is poisoned."))?;
+
+            // Try to fetch keys, failure is okay
+            // Servers we couldn't find in the cache will be added to `servers`
+            for pdu in &event.room_state.state {
+                let _ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm);
+            }
+            for pdu in &event.room_state.auth_chain {
+                let _ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm);
+            }
+
+            drop(pkm);
+        };
+
+        if servers.is_empty() {
+            info!("We had all keys cached locally, not fetching any keys from remote servers");
+            return Ok(());
+        }
+
+        if services().globals.query_trusted_key_servers_first() {
+            info!("query_trusted_key_servers_first is set to true, querying notary trusted key servers first for homeserver signing keys.");
+
+            self.batch_request_signing_keys(servers.clone(), pub_key_map)
+                .await?;
+
+            if servers.is_empty() {
+                info!("Trusted server supplied all signing keys, no more keys to fetch");
+                return Ok(());
+            }
+
+            info!("Remaining servers left that the notary/trusted servers did not provide: {servers:?}");
+
+            self.request_signing_keys(servers.clone(), pub_key_map)
+                .await?;
+        } else {
+            info!("query_trusted_key_servers_first is set to false, querying individual homeservers first");
+
+            self.request_signing_keys(servers.clone(), pub_key_map)
+                .await?;
+
+            if servers.is_empty() {
+                info!("Individual homeservers supplied all signing keys, no more keys to fetch");
+                return Ok(());
+            }
+
+            info!("Remaining servers left the individual homeservers did not provide: {servers:?}");
+
+            self.batch_request_signing_keys(servers.clone(), pub_key_map)
+                .await?;
         }
 
         info!("Search for signing keys done");
+
+        /*if servers.is_empty() {
+            warn!("Failed to find homeserver signing keys for the remaining servers: {servers:?}");
+        }*/
 
         Ok(())
     }

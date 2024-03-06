@@ -22,10 +22,14 @@
 # YOU NEED TO EDIT THIS
 #server_name = "your.server.name"
 
-# Servers listed here will be used to gather public keys of other servers.
-# Generally, copying this exactly should be enough. (Currently, conduwuit doesn't
-# support batched key requests, so this list should only contain Synapse
-# servers.) Defaults to `matrix.org`
+# Servers listed here will be used to gather public keys of other servers (notary trusted key servers).
+#
+# The default behaviour for conduwuit is to attempt to query trusted key servers before querying the individual servers.
+# This is done for performance reasons, but if you would like to query individual servers before the notary servers
+# configured below, set to
+#
+# (Currently, conduwuit doesn't support batched key requests, so this list should only contain Synapse servers)
+# Defaults to `matrix.org`
 # trusted_servers = ["matrix.org"]
 
 
@@ -227,6 +231,22 @@ allow_check_for_updates = true
 # To disable, set this to "" (an empty string)
 # Defaults to "🏳️‍⚧️" (trans pride flag)
 #new_user_displayname_suffix = "🏳️‍⚧️"
+
+# Option to control whether conduwuit will query your list of trusted notary key servers (`trusted_servers`) for
+# remote homeserver signing keys it doesn't know *first*, or query the individual servers first before falling back to the trusted
+# key servers.
+#
+# The former/default behaviour makes federated/remote rooms joins generally faster because we're querying a single (or list of) server
+# that we know works, is reasonably fast, and is reliable for just about all the homeserver signing keys in the room. Querying individual
+# servers may take longer depending on the general infrastructure of everyone in there, how many dead servers there are, etc.
+#
+# However, this does create an increased reliance on one single or multiple large entities as `trusted_servers` should generally
+# contain long-term and large servers who know a very large number of homeservers.
+#
+# If you don't know what any of this means, leave this and `trusted_servers` alone to their defaults.
+#
+# Defaults to true as this is the fastest option for federation.
+#query_trusted_key_servers_first = true
 
 # Set this to any float value to multiply conduwuit's in-memory LRU caches with.
 # May be useful if you have significant memory to spare to increase performance.

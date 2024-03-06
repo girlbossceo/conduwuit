@@ -1,30 +1,3 @@
-mod data;
-use argon2::Argon2;
-pub use data::Data;
-use regex::RegexSet;
-use ruma::{
-    serde::Base64, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName,
-    OwnedServerSigningKeyId, OwnedUserId,
-};
-
-use sha2::Digest;
-
-use crate::api::server_server::FedDest;
-
-use crate::{services, Config, Error, Result};
-use futures_util::FutureExt;
-use hyper::{
-    client::connect::dns::{GaiResolver, Name},
-    service::Service as HyperService,
-};
-use reqwest::dns::{Addrs, Resolve, Resolving};
-use ruma::{
-    api::{
-        client::sync::sync_events,
-        federation::discovery::{ServerSigningKeys, VerifyKey},
-    },
-    DeviceId, RoomVersionId, ServerName, UserId,
-};
 use std::{
     collections::{BTreeMap, HashMap},
     error::Error as StdError,
@@ -39,11 +12,38 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
+use argon2::Argon2;
+use base64::{engine::general_purpose, Engine as _};
+use futures_util::FutureExt;
+use hyper::{
+    client::connect::dns::{GaiResolver, Name},
+    service::Service as HyperService,
+};
+use regex::RegexSet;
+use reqwest::dns::{Addrs, Resolve, Resolving};
+use ruma::{
+    api::{
+        client::sync::sync_events,
+        federation::discovery::{ServerSigningKeys, VerifyKey},
+    },
+    DeviceId, RoomVersionId, ServerName, UserId,
+};
+use ruma::{
+    serde::Base64, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName,
+    OwnedServerSigningKeyId, OwnedUserId,
+};
+use sha2::Digest;
 use tokio::sync::{broadcast, watch::Receiver, Mutex as TokioMutex, Semaphore};
 use tracing::{error, info};
 use trust_dns_resolver::TokioAsyncResolver;
 
-use base64::{engine::general_purpose, Engine as _};
+pub use data::Data;
+
+use crate::api::server_server::FedDest;
+use crate::{services, Config, Error, Result};
+
+mod data;
 
 type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
 type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
@@ -361,6 +361,10 @@ impl Service<'_> {
 
     pub fn trusted_servers(&self) -> &[OwnedServerName] {
         &self.config.trusted_servers
+    }
+
+    pub fn query_trusted_key_servers_first(&self) -> bool {
+        self.config.query_trusted_key_servers_first
     }
 
     pub fn dns_resolver(&self) -> &TokioAsyncResolver {
