@@ -2,6 +2,7 @@
 
 - GitLab CI ported to GitHub Actions
 - Fixed every single clippy (default lints) and rustc warnings, including some that were performance related or potential safety issues / unsoundness
+- Add a **lot** of other clippy and rustc lints and a rustfmt.toml file
 - Has Renovate and significantly updates all dependencies possible
 - Uses proper argon2 crate instead of questionable rust-argon2 crate
 - Improved and cleaned up logging (less noisy dead server logging, registration attempts, more useful troubleshooting logging, etc)
@@ -19,7 +20,6 @@
 - Revamped admin room infrastructure and commands (via upstream MR)
 - Admin room commands to delete room aliases and unpublish rooms from our room directory (via upstream MR)
 - Make spaces/hierarchy cache use cache_capacity_modifier instead of hardcoded small value
-- Make PDU appending, building, etc asynchronous
 - Add *optional* feature flag to use SHA256 key names for media instead of base64 to overcome filesystem file name length limitations (OS error file name too long) (via upstream MR) 
 - Add *optional* feature flag to enable zstd HTTP body compression
 - Add support for querying both Matrix SRV records, the deprecated `_matrix` record and `_matrix-fed` record if necessary
@@ -28,7 +28,6 @@
 - Add config option for federating `/publicRooms` endpoint (room directory) to other servers with a default disabled for privacy
 - Add support for listening on a UNIX socket for performance and host security with proper default permissions (660)
 - Add missing `destination` key to all `X-Matrix` `Authorization` requests (spec compliance issue)
-- Fix spec compliance issue with servers being able to fetch remote user profiles over federation for users who don't belong to our server (`/_matrix/federation/v1/query/profile`)
 - Use aggressive build-time performance optimisations for release builds (1 codegen unit, no debug, fat LTO, etc, and optimise all crates with same)
 - Raise various hardcoded timeouts in codebase that were way too short, making some things like room joins and client bugs error less or none at all than they should
 - Add debug admin command to force update user device lists (could potentially resolve some E2EE flukes) (`ForceDeviceListUpdates`)
@@ -76,3 +75,5 @@
 - Add admin command to list all the rooms a local user is joined in
 - Add admin command to delete all remote media in the past X minutes as a form of deleting media that you don't want on your server that a remote user posted in a room
 - Config option to block non-admin users from sending room invites or receiving remote room invites. Admin users are still allowed.
+- Startup check if conduwuit running in a container and is listening on 127.0.0.1
+- Make `CONDUIT_CONFIG` optional, relevant for container users that configure only by environment variables and no longer need to set `CONDUIT_CONFIG` to an empty string.
