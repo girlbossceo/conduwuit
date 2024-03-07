@@ -1290,6 +1290,8 @@ impl Service {
 		Ok(())
 	}
 
+	/// Batch requests homeserver signing keys from trusted notary key servers
+	/// (`trusted_servers` config option)
 	async fn batch_request_signing_keys(
 		&self, mut servers: BTreeMap<OwnedServerName, BTreeMap<OwnedServerSigningKeyId, QueryCriteria>>,
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
@@ -1336,6 +1338,8 @@ impl Service {
 		Ok(())
 	}
 
+	/// Requests multiple homeserver signing keys from individual servers (not
+	/// trused notary servers)
 	async fn request_signing_keys(
 		&self, servers: BTreeMap<OwnedServerName, BTreeMap<OwnedServerSigningKeyId, QueryCriteria>>,
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
@@ -1521,61 +1525,120 @@ impl Service {
 			}
 		}
 
-		debug!("Loading signing keys for {}", origin);
+		debug!("Loading signing keys for {origin} from our database if available");
 
 		let mut result: BTreeMap<_, _> =
 			services().globals.signing_keys_for(origin)?.into_iter().map(|(k, v)| (k.to_string(), v.key)).collect();
 
 		if contains_all_ids(&result) {
+			debug!("We have all homeserver signing keys locally for {origin}, not fetching any remotely");
 			return Ok(result);
 		}
 
-		debug!("Fetching signing keys for {} over federation", origin);
+		// i didnt split this out into their own functions because it's relatively small
+		if services().globals.query_trusted_key_servers_first() {
+			info!(
+				"query_trusted_key_servers_first is set to true, querying notary trusted servers first for {origin} \
+				 keys"
+			);
 
-		if let Some(server_key) = services()
-			.sending
-			.send_federation_request(origin, get_server_keys::v2::Request::new())
-			.await
-			.ok()
-			.and_then(|resp| resp.server_key.deserialize().ok())
-		{
-			services().globals.add_signing_key(origin, server_key.clone())?;
+			for server in services().globals.trusted_servers() {
+				debug!("Asking notary server {server} for {origin}'s signing key");
+				if let Some(server_keys) = services()
+					.sending
+					.send_federation_request(
+						server,
+						get_remote_server_keys::v2::Request::new(
+							origin.to_owned(),
+							MilliSecondsSinceUnixEpoch::from_system_time(
+								SystemTime::now().checked_add(Duration::from_secs(3600)).expect("SystemTime too large"),
+							)
+							.expect("time is valid"),
+						),
+					)
+					.await
+					.ok()
+					.map(|resp| resp.server_keys.into_iter().filter_map(|e| e.deserialize().ok()).collect::<Vec<_>>())
+				{
+					debug!("Got signing keys: {:?}", server_keys);
+					for k in server_keys {
+						services().globals.add_signing_key(origin, k.clone())?;
+						result.extend(k.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+						result.extend(k.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+					}
 
-			result.extend(server_key.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
-			result.extend(server_key.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
-
-			if contains_all_ids(&result) {
-				return Ok(result);
+					if contains_all_ids(&result) {
+						return Ok(result);
+					}
+				}
 			}
-		}
 
-		for server in services().globals.trusted_servers() {
-			debug!("Asking {} for {}'s signing key", server, origin);
-			if let Some(server_keys) = services()
+			debug!("Asking {origin} for their signing keys over federation");
+			if let Some(server_key) = services()
 				.sending
-				.send_federation_request(
-					server,
-					get_remote_server_keys::v2::Request::new(
-						origin.to_owned(),
-						MilliSecondsSinceUnixEpoch::from_system_time(
-							SystemTime::now().checked_add(Duration::from_secs(3600)).expect("SystemTime too large"),
-						)
-						.expect("time is valid"),
-					),
-				)
+				.send_federation_request(origin, get_server_keys::v2::Request::new())
 				.await
 				.ok()
-				.map(|resp| resp.server_keys.into_iter().filter_map(|e| e.deserialize().ok()).collect::<Vec<_>>())
+				.and_then(|resp| resp.server_key.deserialize().ok())
 			{
-				debug!("Got signing keys: {:?}", server_keys);
-				for k in server_keys {
-					services().globals.add_signing_key(origin, k.clone())?;
-					result.extend(k.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
-					result.extend(k.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
-				}
+				services().globals.add_signing_key(origin, server_key.clone())?;
+
+				result.extend(server_key.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+				result.extend(server_key.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
 
 				if contains_all_ids(&result) {
 					return Ok(result);
+				}
+			}
+		} else {
+			info!("query_trusted_key_servers_first is set to false, querying {origin} first");
+
+			debug!("Asking {origin} for their signing keys over federation");
+			if let Some(server_key) = services()
+				.sending
+				.send_federation_request(origin, get_server_keys::v2::Request::new())
+				.await
+				.ok()
+				.and_then(|resp| resp.server_key.deserialize().ok())
+			{
+				services().globals.add_signing_key(origin, server_key.clone())?;
+
+				result.extend(server_key.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+				result.extend(server_key.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+
+				if contains_all_ids(&result) {
+					return Ok(result);
+				}
+			}
+
+			for server in services().globals.trusted_servers() {
+				debug!("Asking notary server {server} for {origin}'s signing key");
+				if let Some(server_keys) = services()
+					.sending
+					.send_federation_request(
+						server,
+						get_remote_server_keys::v2::Request::new(
+							origin.to_owned(),
+							MilliSecondsSinceUnixEpoch::from_system_time(
+								SystemTime::now().checked_add(Duration::from_secs(3600)).expect("SystemTime too large"),
+							)
+							.expect("time is valid"),
+						),
+					)
+					.await
+					.ok()
+					.map(|resp| resp.server_keys.into_iter().filter_map(|e| e.deserialize().ok()).collect::<Vec<_>>())
+				{
+					debug!("Got signing keys: {:?}", server_keys);
+					for k in server_keys {
+						services().globals.add_signing_key(origin, k.clone())?;
+						result.extend(k.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+						result.extend(k.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+					}
+
+					if contains_all_ids(&result) {
+						return Ok(result);
+					}
 				}
 			}
 		}
@@ -1584,7 +1647,7 @@ impl Service {
 
 		back_off(signature_ids).await;
 
-		warn!("Failed to find public key for server: {}", origin);
+		warn!("Failed to find public key for server: {origin}");
 		Err(Error::BadServerResponse("Failed to find public key for server"))
 	}
 
