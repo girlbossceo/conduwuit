@@ -83,7 +83,7 @@ where
 			appservice_registration
 		{
 			match metadata.authentication {
-				AuthScheme::AccessToken => {
+				AuthScheme::AccessToken | AuthScheme::AccessTokenOptional => {
 					let user_id = query_params.user_id.map_or_else(
 						|| {
 							UserId::parse_with_server_name(
@@ -95,7 +95,7 @@ where
 						|s| UserId::parse(s).unwrap(),
 					);
 
-					if !services().users.exists(&user_id).unwrap() {
+					if !services().users.exists(&user_id)? {
 						return Err(Error::BadRequest(ErrorKind::Forbidden, "User does not exist."));
 					}
 
@@ -113,7 +113,7 @@ where
 						_ => return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token.")),
 					};
 
-					match services().users.find_from_token(token).unwrap() {
+					match services().users.find_from_token(token)? {
 						None => {
 							return Err(Error::BadRequest(
 								ErrorKind::UnknownToken {
@@ -125,6 +125,27 @@ where
 						Some((user_id, device_id)) => {
 							(Some(user_id), Some(OwnedDeviceId::from(device_id)), None, false)
 						},
+					}
+				},
+				AuthScheme::AccessTokenOptional => {
+					let token = token.unwrap_or("");
+
+					if token.is_empty() {
+						(None, None, None, false)
+					} else {
+						match services().users.find_from_token(token)? {
+							None => {
+								return Err(Error::BadRequest(
+									ErrorKind::UnknownToken {
+										soft_logout: false,
+									},
+									"Unknown access token.",
+								))
+							},
+							Some((user_id, device_id)) => {
+								(Some(user_id), Some(OwnedDeviceId::from(device_id)), None, false)
+							},
+						}
 					}
 				},
 				AuthScheme::ServerSignatures => {
@@ -219,7 +240,7 @@ where
 								_ => return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token.")),
 							};
 
-							match services().users.find_from_token(token).unwrap() {
+							match services().users.find_from_token(token)? {
 								None => {
 									return Err(Error::BadRequest(
 										ErrorKind::UnknownToken {
