@@ -55,7 +55,7 @@ impl Service {
 				warn!("Failed to find destination {}: {}", destination, e);
 				Error::BadServerResponse("Invalid destination")
 			})?
-			.map(bytes::BytesMut::freeze);
+			.map(BytesMut::freeze);
 
 		let reqwest_request = reqwest::Request::try_from(http_request)?;
 

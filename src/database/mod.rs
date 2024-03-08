@@ -229,7 +229,7 @@ impl KeyValueDatabase {
 
 		if !Path::new(&config.database_path).exists() {
 			debug!("Database path does not exist, assuming this is a new setup and creating it");
-			std::fs::create_dir_all(&config.database_path).map_err(|e| {
+			fs::create_dir_all(&config.database_path).map_err(|e| {
 				error!("Failed to create database path: {e}");
 				Error::BadConfig(
 					"Database folder doesn't exists and couldn't be created (e.g. due to missing permissions). Please \
@@ -864,7 +864,7 @@ impl KeyValueDatabase {
 
 					let mut account_data = serde_json::from_str::<PushRulesEvent>(raw_rules_list.get()).unwrap();
 
-					let user_default_rules = ruma::push::Ruleset::server_default(&user);
+					let user_default_rules = Ruleset::server_default(&user);
 					account_data.content.global.update_with_server_default(user_default_rules);
 
 					services().account_data.update(

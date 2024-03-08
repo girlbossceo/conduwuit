@@ -122,11 +122,11 @@ impl service::media::Data for KeyValueDatabase {
 		let mut value = Vec::<u8>::new();
 		value.extend_from_slice(&timestamp.as_secs().to_be_bytes());
 		value.push(0xFF);
-		value.extend_from_slice(data.title.as_ref().map(std::string::String::as_bytes).unwrap_or_default());
+		value.extend_from_slice(data.title.as_ref().map(String::as_bytes).unwrap_or_default());
 		value.push(0xFF);
-		value.extend_from_slice(data.description.as_ref().map(std::string::String::as_bytes).unwrap_or_default());
+		value.extend_from_slice(data.description.as_ref().map(String::as_bytes).unwrap_or_default());
 		value.push(0xFF);
-		value.extend_from_slice(data.image.as_ref().map(std::string::String::as_bytes).unwrap_or_default());
+		value.extend_from_slice(data.image.as_ref().map(String::as_bytes).unwrap_or_default());
 		value.push(0xFF);
 		value.extend_from_slice(&data.image_size.unwrap_or(0).to_be_bytes());
 		value.push(0xFF);

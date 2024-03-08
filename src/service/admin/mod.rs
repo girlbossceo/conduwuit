@@ -609,9 +609,7 @@ impl Service {
 					Err(_) => RoomMessageEventContent::text_plain("Failed to get appservice."),
 				},
 				AppserviceCommand::List => {
-					if let Ok(appservices) =
-						services().appservice.iter_ids().map(std::iter::Iterator::collect::<Vec<_>>)
-					{
+					if let Ok(appservices) = services().appservice.iter_ids().map(Iterator::collect::<Vec<_>>) {
 						let count = appservices.len();
 						let output = format!(
 							"Appservices ({}): {}",

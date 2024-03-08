@@ -57,11 +57,11 @@ impl Service {
 		let mut results = Vec::new();
 
 		while let Some(current_room) = {
-			while stack.last().map_or(false, std::vec::Vec::is_empty) {
+			while stack.last().map_or(false, Vec::is_empty) {
 				stack.pop();
 			}
 			if !stack.is_empty() {
-				stack.last_mut().and_then(std::vec::Vec::pop)
+				stack.last_mut().and_then(Vec::pop)
 			} else {
 				None
 			}
@@ -402,7 +402,7 @@ impl Service {
 		match join_rule {
 			JoinRule::Restricted(r) => {
 				for rule in &r.allow {
-					if let join_rules::AllowRule::RoomMembership(rm) = rule {
+					if let AllowRule::RoomMembership(rm) = rule {
 						if let Ok(true) = services().rooms.state_cache.is_joined(sender_user, &rm.room_id) {
 							return Ok(true);
 						}

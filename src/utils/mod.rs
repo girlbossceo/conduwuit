@@ -19,7 +19,7 @@ pub(crate) fn millis_since_unix_epoch() -> u64 {
 }
 
 pub(crate) fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
-	let number = match old.map(std::convert::TryInto::try_into) {
+	let number = match old.map(TryInto::try_into) {
 		Some(Ok(bytes)) => {
 			let number = u64::from_be_bytes(bytes);
 			number + 1
@@ -80,7 +80,7 @@ pub(crate) fn common_elements(
 	mut iterators: impl Iterator<Item = impl Iterator<Item = Vec<u8>>>, check_order: impl Fn(&[u8], &[u8]) -> Ordering,
 ) -> Option<impl Iterator<Item = Vec<u8>>> {
 	let first_iterator = iterators.next()?;
-	let mut other_iterators = iterators.map(std::iter::Iterator::peekable).collect::<Vec<_>>();
+	let mut other_iterators = iterators.map(Iterator::peekable).collect::<Vec<_>>();
 
 	Some(first_iterator.filter(move |target| {
 		other_iterators.iter_mut().all(|it| {
@@ -112,14 +112,14 @@ pub(crate) fn to_canonical_object<T: serde::Serialize>(value: T) -> Result<Canon
 	}
 }
 
-pub(crate) fn deserialize_from_str<'de, D: serde::de::Deserializer<'de>, T: FromStr<Err = E>, E: std::fmt::Display>(
+pub(crate) fn deserialize_from_str<'de, D: serde::de::Deserializer<'de>, T: FromStr<Err = E>, E: fmt::Display>(
 	deserializer: D,
 ) -> Result<T, D::Error> {
 	struct Visitor<T: FromStr<Err = E>, E>(std::marker::PhantomData<T>);
-	impl<T: FromStr<Err = Err>, Err: std::fmt::Display> serde::de::Visitor<'_> for Visitor<T, Err> {
+	impl<T: FromStr<Err = Err>, Err: fmt::Display> serde::de::Visitor<'_> for Visitor<T, Err> {
 		type Value = T;
 
-		fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
 			write!(formatter, "a parsable string")
 		}
 
