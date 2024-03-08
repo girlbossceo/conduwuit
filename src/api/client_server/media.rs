@@ -42,21 +42,33 @@ pub async fn get_media_preview_route(
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "URL is not allowed to be previewed"));
 	}
 
-	if let Ok(preview) = get_url_preview(url).await {
-		let res = serde_json::value::to_raw_value(&preview).map_err(|e| {
-			error!("Failed to convert UrlPreviewData into a serde json value: {}", e);
-			Error::BadRequest(ErrorKind::Unknown, "Unknown error occurred parsing URL preview")
-		})?;
+	match get_url_preview(url).await {
+		Ok(preview) => {
+			let res = serde_json::value::to_raw_value(&preview).map_err(|e| {
+				error!("Failed to convert UrlPreviewData into a serde json value: {}", e);
+				Error::BadRequest(
+					ErrorKind::LimitExceeded {
+						retry_after_ms: Some(Duration::from_secs(5)),
+					},
+					"Failed to generate a URL preview, try again later.",
+				)
+			})?;
 
-		return Ok(get_media_preview::v3::Response::from_raw_value(res));
-	}
-
-	Err(Error::BadRequest(
-		ErrorKind::LimitExceeded {
-			retry_after_ms: Some(Duration::from_secs(5)),
+			Ok(get_media_preview::v3::Response::from_raw_value(res))
 		},
-		"Retry later",
-	))
+		Err(e) => {
+			warn!("Failed to generate a URL preview: {e}");
+
+			// there doesn't seem to be an agreed-upon error code in the spec.
+			// the only response codes in the preview_url spec page are 200 and 429.
+			Err(Error::BadRequest(
+				ErrorKind::LimitExceeded {
+					retry_after_ms: Some(Duration::from_secs(5)),
+				},
+				"Failed to generate a URL preview, try again later.",
+			))
+		},
+	}
 }
 
 /// # `POST /_matrix/media/v3/upload`
