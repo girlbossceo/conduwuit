@@ -6,7 +6,7 @@ use std::{
 use axum::{
 	extract::{DefaultBodyLimit, FromRequestParts, MatchedPath},
 	response::IntoResponse,
-	routing::{get, on, MethodFilter},
+	routing::{get, on, post, MethodFilter},
 	Router,
 };
 use axum_server::{bind, bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
@@ -620,6 +620,23 @@ fn routes() -> Router {
 		.ruma_route(client_server::get_media_config_route)
 		.ruma_route(client_server::get_media_preview_route)
 		.ruma_route(client_server::create_content_route)
+		// legacy v1 media routes
+		.route(
+			"/_matrix/media/v1/upload",
+			post(client_server::create_content_v1_route)
+		)
+		.route(
+			"/_matrix/media/v1/download/:server_name/:media_id",
+			get(client_server::get_content_v1_route)
+		)
+		.route(
+			"/_matrix/media/v1/download/:server_name/:media_id/:file_name",
+			get(client_server::get_content_as_filename_v1_route)
+		)
+		.route(
+			"/_matrix/media/v1/thumbnail/:server_name/:media_id",
+			get(client_server::get_content_thumbnail_v1_route)
+		)
 		.ruma_route(client_server::get_content_route)
 		.ruma_route(client_server::get_content_as_filename_route)
 		.ruma_route(client_server::get_content_thumbnail_route)

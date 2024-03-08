@@ -14,7 +14,7 @@ use webpage::HTML;
 
 use crate::{
 	service::media::{FileMeta, UrlPreviewData},
-	services, utils, Error, Result, Ruma,
+	services, utils, Error, Result, Ruma, RumaResponse,
 };
 
 /// generated MXC ID (`media-id`) length
@@ -88,6 +88,44 @@ pub async fn create_content_route(body: Ruma<create_content::v3::Request>) -> Re
 		content_uri,
 		blurhash: None,
 	})
+}
+
+/// # `POST /_matrix/media/v1/upload`
+///
+/// Permanently save media in the server.
+///
+/// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
+/// clients may call. conduwuit adds these for compatibility purposes.
+/// See https://spec.matrix.org/legacy/legacy/#id27
+///
+/// - Some metadata will be saved in the database
+/// - Media will be saved in the media/ directory
+pub async fn create_content_v1_route(
+	body: Ruma<create_content::v3::Request>,
+) -> Result<RumaResponse<create_content::v3::Response>> {
+	let mxc = format!(
+		"mxc://{}/{}",
+		services().globals.server_name(),
+		utils::random_string(MXC_LENGTH)
+	);
+
+	services()
+		.media
+		.create(
+			mxc.clone(),
+			body.filename.as_ref().map(|filename| "inline; filename=".to_owned() + filename).as_deref(),
+			body.content_type.as_deref(),
+			&body.file,
+		)
+		.await?;
+
+	let content_uri = mxc.into();
+
+	Ok(create_content::v3::Response {
+		content_uri,
+		blurhash: None,
+	}
+	.into())
 }
 
 /// helper method to fetch remote media from other servers over federation
@@ -169,6 +207,51 @@ pub async fn get_content_route(body: Ruma<get_content::v3::Request>) -> Result<g
 	}
 }
 
+/// # `GET /_matrix/media/v1/download/{serverName}/{mediaId}`
+///
+/// Load media from our server or over federation.
+///
+/// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
+/// clients may call. conduwuit adds these for compatibility purposes.
+/// See https://spec.matrix.org/legacy/legacy/#id27
+///
+/// - Only allows federation if `allow_remote` is true
+/// - Only redirects if `allow_redirect` is true
+/// - Uses client-provided `timeout_ms` if available, else defaults to 20
+///   seconds
+pub async fn get_content_v1_route(
+	body: Ruma<get_content::v3::Request>,
+) -> Result<RumaResponse<get_content::v3::Response>> {
+	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
+
+	if let Some(FileMeta {
+		content_disposition,
+		content_type,
+		file,
+	}) = services().media.get(mxc.clone()).await?
+	{
+		Ok(get_content::v3::Response {
+			file,
+			content_type,
+			content_disposition,
+			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+		}
+		.into())
+	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
+		let remote_content_response = get_remote_content(
+			&mxc,
+			&body.server_name,
+			body.media_id.clone(),
+			body.allow_redirect,
+			body.timeout_ms,
+		)
+		.await?;
+		Ok(remote_content_response.into())
+	} else {
+		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
+	}
+}
+
 /// # `GET /_matrix/media/v3/download/{serverName}/{mediaId}/{fileName}`
 ///
 /// Load media from our server or over federation, permitting desired filename.
@@ -210,6 +293,58 @@ pub async fn get_content_as_filename_route(
 			file: remote_content_response.file,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
 		})
+	} else {
+		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
+	}
+}
+
+/// # `GET /_matrix/media/v1/download/{serverName}/{mediaId}/{fileName}`
+///
+/// Load media from our server or over federation, permitting desired filename.
+///
+/// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
+/// clients may call. conduwuit adds these for compatibility purposes.
+/// See https://spec.matrix.org/legacy/legacy/#id27
+///
+/// - Only allows federation if `allow_remote` is true
+/// - Only redirects if `allow_redirect` is true
+/// - Uses client-provided `timeout_ms` if available, else defaults to 20
+///   seconds
+pub async fn get_content_as_filename_v1_route(
+	body: Ruma<get_content_as_filename::v3::Request>,
+) -> Result<RumaResponse<get_content_as_filename::v3::Response>> {
+	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
+
+	if let Some(FileMeta {
+		content_type,
+		file,
+		..
+	}) = services().media.get(mxc.clone()).await?
+	{
+		Ok(get_content_as_filename::v3::Response {
+			file,
+			content_type,
+			content_disposition: Some(format!("inline; filename={}", body.filename)),
+			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+		}
+		.into())
+	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
+		let remote_content_response = get_remote_content(
+			&mxc,
+			&body.server_name,
+			body.media_id.clone(),
+			body.allow_redirect,
+			body.timeout_ms,
+		)
+		.await?;
+
+		Ok(get_content_as_filename::v3::Response {
+			content_disposition: Some(format!("inline: filename={}", body.filename)),
+			content_type: remote_content_response.content_type,
+			file: remote_content_response.file,
+			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+		}
+		.into())
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
 	}
@@ -287,6 +422,88 @@ pub async fn get_content_thumbnail_route(
 			.await?;
 
 		Ok(get_thumbnail_response)
+	} else {
+		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
+	}
+}
+
+/// # `GET /_matrix/media/v1/thumbnail/{serverName}/{mediaId}`
+///
+/// Load media thumbnail from our server or over federation.
+///
+/// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
+/// clients may call. conduwuit adds these for compatibility purposes.
+/// See https://spec.matrix.org/legacy/legacy/#id27
+///
+/// - Only allows federation if `allow_remote` is true
+/// - Only redirects if `allow_redirect` is true
+/// - Uses client-provided `timeout_ms` if available, else defaults to 20
+///   seconds
+pub async fn get_content_thumbnail_v1_route(
+	body: Ruma<get_content_thumbnail::v3::Request>,
+) -> Result<RumaResponse<get_content_thumbnail::v3::Response>> {
+	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
+
+	if let Some(FileMeta {
+		content_type,
+		file,
+		..
+	}) = services()
+		.media
+		.get_thumbnail(
+			mxc.clone(),
+			body.width.try_into().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
+			body.height.try_into().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Height is invalid."))?,
+		)
+		.await?
+	{
+		Ok(get_content_thumbnail::v3::Response {
+			file,
+			content_type,
+			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+		}
+		.into())
+	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
+		// we'll lie to the client and say the blocked server's media was not found and
+		// log. the client has no way of telling anyways so this is a security bonus.
+		if services().globals.prevent_media_downloads_from().contains(&body.server_name.clone()) {
+			info!(
+				"Received request for remote media `{}` but server is in our media server blocklist. Returning 404.",
+				mxc
+			);
+			return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
+		}
+
+		let get_thumbnail_response = services()
+			.sending
+			.send_federation_request(
+				&body.server_name,
+				get_content_thumbnail::v3::Request {
+					allow_remote: body.allow_remote,
+					height: body.height,
+					width: body.width,
+					method: body.method.clone(),
+					server_name: body.server_name.clone(),
+					media_id: body.media_id.clone(),
+					timeout_ms: body.timeout_ms,
+					allow_redirect: body.allow_redirect,
+				},
+			)
+			.await?;
+
+		services()
+			.media
+			.upload_thumbnail(
+				mxc,
+				None,
+				get_thumbnail_response.content_type.as_deref(),
+				body.width.try_into().expect("all UInts are valid u32s"),
+				body.height.try_into().expect("all UInts are valid u32s"),
+				&get_thumbnail_response.file,
+			)
+			.await?;
+
+		Ok(get_thumbnail_response.into())
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
 	}
