@@ -24,7 +24,7 @@ tower-http = { version = "0.4.4", features = ["add-extension", "cors", "sensitiv
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
 #ruma = { git = "https://github.com/ruma/ruma", rev = "4d9f754657a099df8e61533787b8eebd12946435", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
-ruma = { git = "https://github.com/girlbossceo/ruma", rev = "88e857db7dca3a7f0776414fe1f204508be62af0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
+ruma = { git = "https://github.com/girlbossceo/ruma", rev = "4899da4c0faf59d2394a86354b81a87a21ae3fcb", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 
 # Async runtime and utilities
@@ -36,7 +36,7 @@ tokio = { version = "1.36.0", features = ["fs", "macros", "signal", "sync"] }
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 bytes = "1.5.0"
-http = "0.2.11"
+http = "0.2.12"
 # Used for ruma wrapper
 serde_json = { version = "1.0.114", features = ["raw_value"] }
 # Used for appservice registration files
@@ -74,7 +74,7 @@ opentelemetry_sdk = { version = "0.21.2", features = ["rt-tokio"] }
 opentelemetry-jaeger = { version = "0.20.0", features = ["rt-tokio"] }
 tracing-opentelemetry = "0.22.0"
 lru-cache = "0.1.2"
-rusqlite = { git = "https://github.com/rusqlite/rusqlite", rev = "ccfbc28ae1edc3090fb1b331fdc145f052ec73b9", optional = true, features = ["bundled"] }
+rusqlite = { git = "https://github.com/rusqlite/rusqlite", rev = "def8e9460d8376a5c0c9f4f9846d413a9cd4581a", optional = true, features = ["bundled"] }
 parking_lot = { version = "0.12.1", optional = true }
 num_cpus = "1.16.0"
 # Used for ruma wrapper
