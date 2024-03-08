@@ -47,7 +47,7 @@ serde = { version = "1.0.197", features = ["rc"] }
 rand = "0.8.5"
 # Used to hash passwords
 argon2 = { version = "0.5.3", features = ["alloc", "rand"], default-features = false }
-reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
+reqwest = { version = "0.11.25", default-features = false, features = ["rustls-tls-native-roots", "socks"] }
 # Used for conduit::Error type
 thiserror = "1.0.57"
 # Used to generate thumbnails for images
