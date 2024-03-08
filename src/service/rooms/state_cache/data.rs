@@ -1,13 +1,12 @@
 use std::{collections::HashSet, sync::Arc};
 
 use ruma::{
-	api::appservice::Registration,
 	events::{AnyStrippedStateEvent, AnySyncStateEvent},
 	serde::Raw,
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 
-use crate::Result;
+use crate::{service::appservice::RegistrationInfo, Result};
 
 type StrippedStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
 
@@ -25,7 +24,7 @@ pub trait Data: Send + Sync {
 
 	fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<OwnedUserId>>>;
 
-	fn appservice_in_room(&self, room_id: &RoomId, appservice: &(String, Registration)) -> Result<bool>;
+	fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool>;
 
 	/// Makes a user forget a room.
 	fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()>;

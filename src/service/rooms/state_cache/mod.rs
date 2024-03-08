@@ -2,7 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 pub use data::Data;
 use ruma::{
-	api::{appservice::Registration, federation},
+	api::federation,
 	events::{
 		direct::DirectEvent,
 		ignored_user_list::IgnoredUserListEvent,
@@ -17,7 +17,7 @@ use ruma::{
 };
 use tracing::warn;
 
-use crate::{services, Error, Result};
+use crate::{service::appservice::RegistrationInfo, services, Error, Result};
 
 mod data;
 
@@ -201,7 +201,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, appservice))]
-	pub fn appservice_in_room(&self, room_id: &RoomId, appservice: &(String, Registration)) -> Result<bool> {
+	pub fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool> {
 		self.db.appservice_in_room(room_id, appservice)
 	}
 

@@ -1,5 +1,4 @@
 use rand::seq::SliceRandom;
-use regex::Regex;
 use ruma::{
 	api::{
 		appservice,
@@ -116,19 +115,12 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 	match services().rooms.alias.resolve_local_alias(&room_alias)? {
 		Some(r) => room_id = Some(r),
 		None => {
-			for (_id, registration) in services().appservice.all()? {
-				let aliases = registration
-					.namespaces
-					.aliases
-					.iter()
-					.filter_map(|alias| Regex::new(alias.regex.as_str()).ok())
-					.collect::<Vec<_>>();
-
-				if aliases.iter().any(|aliases| aliases.is_match(room_alias.as_str()))
+			for appservice in services().appservice.registration_info.read().await.values() {
+				if appservice.aliases.is_match(room_alias.as_str())
 					&& if let Some(opt_result) = services()
 						.sending
 						.send_appservice_request(
-							registration,
+							appservice.registration.clone(),
 							appservice::query::query_room_alias::v1::Request {
 								room_alias: room_alias.clone(),
 							},
@@ -144,7 +136,7 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 							.rooms
 							.alias
 							.resolve_local_alias(&room_alias)?
-							.ok_or_else(|| Error::bad_config("Appservice lied to us. Room does not exist."))?,
+							.ok_or_else(|| Error::bad_config("Room does not exist."))?,
 					);
 					break;
 				}
