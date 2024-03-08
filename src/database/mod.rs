@@ -967,6 +967,14 @@ impl KeyValueDatabase {
 			);
 		}
 
+		// Inserting registraions into cache
+		for appservice in services().appservice.all()? {
+			services().appservice.registration_info.write().await.insert(
+				appservice.0,
+				appservice.1.try_into().expect("Should be validated on registration"),
+			);
+		}
+
 		services().admin.start_handler();
 
 		// Set emergency access for the conduit user

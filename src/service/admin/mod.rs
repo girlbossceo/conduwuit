@@ -567,7 +567,7 @@ impl Service {
 						let appservice_config = body[1..body.len() - 1].join("\n");
 						let parsed_config = serde_yaml::from_str::<Registration>(&appservice_config);
 						match parsed_config {
-							Ok(yaml) => match services().appservice.register_appservice(yaml) {
+							Ok(yaml) => match services().appservice.register_appservice(yaml).await {
 								Ok(id) => {
 									RoomMessageEventContent::text_plain(format!("Appservice registered with ID: {id}."))
 								},
@@ -587,7 +587,7 @@ impl Service {
 				},
 				AppserviceCommand::Unregister {
 					appservice_identifier,
-				} => match services().appservice.unregister_appservice(&appservice_identifier) {
+				} => match services().appservice.unregister_appservice(&appservice_identifier).await {
 					Ok(()) => RoomMessageEventContent::text_plain("Appservice unregistered."),
 					Err(e) => RoomMessageEventContent::text_plain(format!("Failed to unregister appservice: {e}")),
 				},

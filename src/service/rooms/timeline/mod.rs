@@ -7,7 +7,6 @@ use std::{
 };
 
 pub use data::Data;
-use regex::Regex;
 use ruma::{
 	api::{client::error::ErrorKind, federation},
 	canonical_json::to_canonical_value,
@@ -36,7 +35,10 @@ use tracing::{error, info, warn};
 use super::state_compressor::CompressedStateEvent;
 use crate::{
 	api::server_server,
-	service::pdu::{EventHash, PduBuilder},
+	service::{
+		appservice::NamespaceRegex,
+		pdu::{EventHash, PduBuilder},
+	},
 	services, utils, Error, PduEvent, Result,
 };
 
@@ -506,9 +508,9 @@ impl Service {
 			}
 		}
 
-		for appservice in services().appservice.all()? {
-			if services().rooms.state_cache.appservice_in_room(&pdu.room_id, &appservice)? {
-				services().sending.send_pdu_appservice(appservice.0, pdu_id.clone())?;
+		for appservice in services().appservice.registration_info.read().await.values() {
+			if services().rooms.state_cache.appservice_in_room(&pdu.room_id, appservice)? {
+				services().sending.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
 				continue;
 			}
 
@@ -518,30 +520,20 @@ impl Service {
 				if let Some(state_key_uid) =
 					&pdu.state_key.as_ref().and_then(|state_key| UserId::parse(state_key.as_str()).ok())
 				{
-					let appservice_uid = appservice.1.sender_localpart.as_str();
+					let appservice_uid = appservice.registration.sender_localpart.as_str();
 					if state_key_uid == appservice_uid {
-						services().sending.send_pdu_appservice(appservice.0, pdu_id.clone())?;
+						services().sending.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
 						continue;
 					}
 				}
 			}
 
-			let namespaces = appservice.1.namespaces;
-
-			// TODO: create some helper function to change from Strings to Regexes
-			let users =
-				namespaces.users.iter().filter_map(|user| Regex::new(user.regex.as_str()).ok()).collect::<Vec<_>>();
-			let aliases =
-				namespaces.aliases.iter().filter_map(|alias| Regex::new(alias.regex.as_str()).ok()).collect::<Vec<_>>();
-			let rooms =
-				namespaces.rooms.iter().filter_map(|room| Regex::new(room.regex.as_str()).ok()).collect::<Vec<_>>();
-
-			let matching_users = |users: &Regex| {
-				users.is_match(pdu.sender.as_str())
+			let matching_users = |users: &NamespaceRegex| {
+				appservice.users.is_match(pdu.sender.as_str())
 					|| pdu.kind == TimelineEventType::RoomMember
 						&& pdu.state_key.as_ref().map_or(false, |state_key| users.is_match(state_key))
 			};
-			let matching_aliases = |aliases: &Regex| {
+			let matching_aliases = |aliases: &NamespaceRegex| {
 				services()
 					.rooms
 					.alias
@@ -550,11 +542,11 @@ impl Service {
 					.any(|room_alias| aliases.is_match(room_alias.as_str()))
 			};
 
-			if aliases.iter().any(matching_aliases)
-				|| rooms.iter().any(|namespace| namespace.is_match(pdu.room_id.as_str()))
-				|| users.iter().any(matching_users)
+			if matching_aliases(&appservice.aliases)
+				|| appservice.rooms.is_match(pdu.room_id.as_str())
+				|| matching_users(&appservice.users)
 			{
-				services().sending.send_pdu_appservice(appservice.0, pdu_id.clone())?;
+				services().sending.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
 			}
 		}
 

@@ -57,6 +57,7 @@ impl Services<'_> {
 		Ok(Self {
 			appservice: appservice::Service {
 				db,
+				registration_info: RwLock::new(HashMap::new()),
 			},
 			pusher: pusher::Service {
 				db,
