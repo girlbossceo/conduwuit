@@ -219,7 +219,7 @@ impl Config {
 
 	/// Checks the presence of the `address` and `unix_socket_path` keys in the
 	/// raw_config, exiting the process if both keys were detected.
-	pub fn is_dual_listening(&self, raw_config: Figment) -> bool {
+	pub fn is_dual_listening(&self, raw_config: &Figment) -> bool {
 		let check_address = raw_config.find_value("address");
 		let check_unix_socket = raw_config.find_value("unix_socket_path");
 

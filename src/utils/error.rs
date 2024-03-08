@@ -10,6 +10,10 @@ use ruma::{
 };
 use thiserror::Error;
 use tracing::{error, info};
+use ErrorKind::{
+	Forbidden, GuestAccessForbidden, LimitExceeded, MissingToken, NotFound, ThreepidAuthFailed, ThreepidDenied,
+	TooLarge, Unauthorized, Unknown, UnknownToken, Unrecognized, UserDeactivated, WrongRoomKeysVersion,
+};
 
 use crate::RumaResponse;
 
@@ -105,10 +109,6 @@ impl Error {
 
 		let message = format!("{self}");
 
-		use ErrorKind::{
-			Forbidden, GuestAccessForbidden, LimitExceeded, MissingToken, NotFound, ThreepidAuthFailed, ThreepidDenied,
-			TooLarge, Unauthorized, Unknown, UnknownToken, Unrecognized, UserDeactivated, WrongRoomKeysVersion,
-		};
 		let (kind, status_code) = match self {
 			Self::BadRequest(kind, _) => (
 				kind.clone(),

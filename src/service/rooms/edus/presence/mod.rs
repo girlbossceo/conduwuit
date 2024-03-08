@@ -121,7 +121,7 @@ pub async fn presence_handler(
 			}
 
 			Some(user_id) = presence_timers.next() => {
-				process_presence_timer(user_id)?;
+				process_presence_timer(&user_id)?;
 			}
 		}
 	}
@@ -133,7 +133,7 @@ async fn presence_timer(user_id: OwnedUserId, timeout: Duration) -> OwnedUserId 
 	user_id
 }
 
-fn process_presence_timer(user_id: OwnedUserId) -> Result<()> {
+fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
 	let idle_timeout = services().globals.config.presence_idle_timeout_s * 1_000;
 	let offline_timeout = services().globals.config.presence_offline_timeout_s * 1_000;
 
@@ -141,8 +141,8 @@ fn process_presence_timer(user_id: OwnedUserId) -> Result<()> {
 	let mut last_active_ago = None;
 	let mut status_msg = None;
 
-	for room_id in services().rooms.state_cache.rooms_joined(&user_id) {
-		let presence_event = services().rooms.edus.presence.get_presence(&room_id?, &user_id)?;
+	for room_id in services().rooms.state_cache.rooms_joined(user_id) {
+		let presence_event = services().rooms.edus.presence.get_presence(&room_id?, user_id)?;
 
 		if let Some(presence_event) = presence_event {
 			presence_state = presence_event.content.presence;
@@ -162,10 +162,10 @@ fn process_presence_timer(user_id: OwnedUserId) -> Result<()> {
 	debug!("Processed presence timer for user '{user_id}': Old state = {presence_state}, New state = {new_state:?}");
 
 	if let Some(new_state) = new_state {
-		for room_id in services().rooms.state_cache.rooms_joined(&user_id) {
+		for room_id in services().rooms.state_cache.rooms_joined(user_id) {
 			services().rooms.edus.presence.set_presence(
 				&room_id?,
-				&user_id,
+				user_id,
 				new_state.clone(),
 				Some(false),
 				last_active_ago,

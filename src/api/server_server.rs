@@ -470,7 +470,7 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
 }
 
 async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
-	fn handle_successful_srv(srv: SrvLookup) -> Option<FedDest> {
+	fn handle_successful_srv(srv: &SrvLookup) -> Option<FedDest> {
 		srv.iter().next().map(|result| {
 			FedDest::Named(
 				result.target().to_string().trim_end_matches('.').to_owned(),
@@ -493,7 +493,7 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
 			info!("Querying deprecated _matrix SRV record for host {:?}", hostname);
 			lookup_srv(&second_hostname)
 		})
-		.and_then(|srv_lookup| async { Ok(handle_successful_srv(srv_lookup)) })
+		.and_then(|srv_lookup| async move { Ok(handle_successful_srv(&srv_lookup)) })
 		.await
 		.ok()
 		.flatten()
