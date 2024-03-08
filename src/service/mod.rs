@@ -80,6 +80,8 @@ impl Services<'_> {
 					},
 					typing: rooms::edus::typing::Service {
 						db,
+						typing: RwLock::new(BTreeMap::new()),
+						last_typing_update: RwLock::new(BTreeMap::new()),
 					},
 				},
 				event_handler: rooms::event_handler::Service,
