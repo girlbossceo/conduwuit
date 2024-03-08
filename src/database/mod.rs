@@ -27,7 +27,10 @@ use ruma::{
 	CanonicalJsonValue, EventId, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
 };
 use serde::Deserialize;
-use tokio::{sync::mpsc, time::interval};
+use tokio::{
+	sync::mpsc,
+	time::{interval, Instant},
+};
 use tracing::{debug, error, info, warn};
 
 use crate::{
@@ -184,6 +187,17 @@ pub struct KeyValueDatabase {
 	pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
 	pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
 	pub(super) presence_timer_sender: Arc<mpsc::UnboundedSender<(OwnedUserId, Duration)>>,
+}
+
+#[derive(Deserialize)]
+struct CheckForUpdatesResponseEntry {
+	id: u64,
+	date: String,
+	message: String,
+}
+#[derive(Deserialize)]
+struct CheckForUpdatesResponse {
+	updates: Vec<CheckForUpdatesResponseEntry>,
 }
 
 impl KeyValueDatabase {
@@ -1035,17 +1049,6 @@ impl KeyValueDatabase {
 		let response =
 			services().globals.default_client().get("https://pupbrain.dev/check-for-updates/stable").send().await?;
 
-		#[derive(Deserialize)]
-		struct CheckForUpdatesResponseEntry {
-			id: u64,
-			date: String,
-			message: String,
-		}
-		#[derive(Deserialize)]
-		struct CheckForUpdatesResponse {
-			updates: Vec<CheckForUpdatesResponseEntry>,
-		}
-
 		let response = serde_json::from_str::<CheckForUpdatesResponse>(&response.text().await?).map_err(|e| {
 			error!("Bad check for updates response: {e}");
 			Error::BadServerResponse("Bad version check response")
@@ -1067,22 +1070,21 @@ impl KeyValueDatabase {
 		Ok(())
 	}
 
+	fn perform_cleanup() {
+		let start = Instant::now();
+		if let Err(e) = services().globals.cleanup() {
+			error!(target: "database-cleanup", "Ran into an error during cleanup: {}", e);
+		} else {
+			debug!(target: "database-cleanup", "Finished cleanup in {:#?}.", start.elapsed());
+		}
+	}
+
 	#[tracing::instrument]
 	async fn start_cleanup_task() {
 		#[cfg(unix)]
 		use tokio::signal::unix::{signal, SignalKind};
-		use tokio::time::Instant;
 
 		let timer_interval = Duration::from_secs(u64::from(services().globals.config.cleanup_second_interval));
-
-		fn perform_cleanup() {
-			let start = Instant::now();
-			if let Err(e) = services().globals.cleanup() {
-				error!(target: "database-cleanup", "Ran into an error during cleanup: {}", e);
-			} else {
-				debug!(target: "database-cleanup", "Finished cleanup in {:#?}.", start.elapsed());
-			}
-		}
 
 		tokio::spawn(async move {
 			let mut i = interval(timer_interval);
@@ -1114,7 +1116,7 @@ impl KeyValueDatabase {
 					debug!(target: "database-cleanup", "Timer ticked")
 				}
 
-				perform_cleanup();
+				Self::perform_cleanup();
 			}
 		});
 	}

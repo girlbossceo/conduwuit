@@ -85,6 +85,23 @@ impl Ord for PduCount {
 	}
 }
 
+// Update Relationships
+#[derive(Deserialize)]
+struct ExtractRelatesTo {
+	#[serde(rename = "m.relates_to")]
+	relates_to: Relation,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ExtractEventId {
+	event_id: OwnedEventId,
+}
+#[derive(Clone, Debug, Deserialize)]
+struct ExtractRelatesToEventId {
+	#[serde(rename = "m.relates_to")]
+	relates_to: ExtractEventId,
+}
+
 pub struct Service {
 	pub db: &'static dyn Data,
 
@@ -465,23 +482,6 @@ impl Service {
 				}
 			},
 			_ => {},
-		}
-
-		// Update Relationships
-		#[derive(Deserialize)]
-		struct ExtractRelatesTo {
-			#[serde(rename = "m.relates_to")]
-			relates_to: Relation,
-		}
-
-		#[derive(Clone, Debug, Deserialize)]
-		struct ExtractEventId {
-			event_id: OwnedEventId,
-		}
-		#[derive(Clone, Debug, Deserialize)]
-		struct ExtractRelatesToEventId {
-			#[serde(rename = "m.relates_to")]
-			relates_to: ExtractEventId,
 		}
 
 		if let Ok(content) = serde_json::from_str::<ExtractRelatesToEventId>(pdu.content.get()) {

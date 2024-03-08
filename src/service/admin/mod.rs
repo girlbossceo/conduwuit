@@ -1030,7 +1030,7 @@ impl Service {
 
 					for room_id in services().rooms.state_cache.rooms_joined(&user_id) {
 						let room_id = room_id?;
-						rooms.push(Self::get_room_info(room_id));
+						rooms.push(Self::get_room_info(&room_id));
 					}
 
 					if rooms.is_empty() {
@@ -1510,7 +1510,7 @@ impl Service {
 						.metadata
 						.iter_ids()
 						.filter_map(std::result::Result::ok)
-						.map(Self::get_room_info)
+						.map(|id: OwnedRoomId| Self::get_room_info(&id))
 						.collect::<Vec<_>>();
 					rooms.sort_by_key(|r| r.1);
 					rooms.reverse();
@@ -1713,7 +1713,7 @@ impl Service {
 							.directory
 							.public_rooms()
 							.filter_map(std::result::Result::ok)
-							.map(Self::get_room_info)
+							.map(|id: OwnedRoomId| Self::get_room_info(&id))
 							.collect::<Vec<_>>();
 						rooms.sort_by_key(|r| r.1);
 						rooms.reverse();
@@ -1955,11 +1955,11 @@ impl Service {
 		Ok(reply_message_content)
 	}
 
-	fn get_room_info(id: OwnedRoomId) -> (OwnedRoomId, u64, String) {
+	fn get_room_info(id: &OwnedRoomId) -> (OwnedRoomId, u64, String) {
 		(
 			id.clone(),
-			services().rooms.state_cache.room_joined_count(&id).ok().flatten().unwrap_or(0),
-			services().rooms.state_accessor.get_name(&id).ok().flatten().unwrap_or_else(|| id.to_string()),
+			services().rooms.state_cache.room_joined_count(id).ok().flatten().unwrap_or(0),
+			services().rooms.state_accessor.get_name(id).ok().flatten().unwrap_or_else(|| id.to_string()),
 		)
 	}
 

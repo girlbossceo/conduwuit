@@ -41,8 +41,8 @@ impl Service {
 
 	#[allow(clippy::too_many_arguments)]
 	pub fn paginate_relations_with_filter(
-		&self, sender_user: &UserId, room_id: &RoomId, target: &EventId, filter_event_type: Option<TimelineEventType>,
-		filter_rel_type: Option<RelationType>, from: PduCount, to: Option<PduCount>, limit: usize,
+		&self, sender_user: &UserId, room_id: &RoomId, target: &EventId, filter_event_type: &Option<TimelineEventType>,
+		filter_rel_type: &Option<RelationType>, from: PduCount, to: Option<PduCount>, limit: usize,
 	) -> Result<get_relating_events::v1::Response> {
 		let next_token;
 

@@ -806,10 +806,7 @@ async fn join_room_by_id_helper(
 
 		let restriction_rooms = match join_rules_event_content {
 			Some(RoomJoinRulesEventContent {
-				join_rule: JoinRule::Restricted(restricted),
-			})
-			| Some(RoomJoinRulesEventContent {
-				join_rule: JoinRule::KnockRestricted(restricted),
+				join_rule: JoinRule::Restricted(restricted) | JoinRule::KnockRestricted(restricted),
 			}) => restricted
 				.allow
 				.into_iter()

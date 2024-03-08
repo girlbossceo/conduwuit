@@ -307,6 +307,7 @@ verbose_file_reads = "warn"
 cast_possible_wrap = "warn"
 # cast_possible_truncation = "warn"
 redundant_closure_for_method_calls = "warn"
+large_futures = "warn"
 
 # not in rust 1.75.0 (breaks CI)
 # infinite_loop = "warn"

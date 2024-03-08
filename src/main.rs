@@ -141,7 +141,7 @@ async fn main() {
 	config.warn_unknown_key();
 
 	// don't start if we're listening on both UNIX sockets and TCP at same time
-	if config.is_dual_listening(raw_config) {
+	if config.is_dual_listening(&raw_config) {
 		return;
 	};
 
