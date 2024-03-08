@@ -18,7 +18,7 @@ impl service::account_data::Data for KeyValueDatabase {
 		&self, room_id: Option<&RoomId>, user_id: &UserId, event_type: RoomAccountDataEventType,
 		data: &serde_json::Value,
 	) -> Result<()> {
-		let mut prefix = room_id.map(std::string::ToString::to_string).unwrap_or_default().as_bytes().to_vec();
+		let mut prefix = room_id.map(ToString::to_string).unwrap_or_default().as_bytes().to_vec();
 		prefix.push(0xFF);
 		prefix.extend_from_slice(user_id.as_bytes());
 		prefix.push(0xFF);
@@ -60,7 +60,7 @@ impl service::account_data::Data for KeyValueDatabase {
 	fn get(
 		&self, room_id: Option<&RoomId>, user_id: &UserId, kind: RoomAccountDataEventType,
 	) -> Result<Option<Box<serde_json::value::RawValue>>> {
-		let mut key = room_id.map(std::string::ToString::to_string).unwrap_or_default().as_bytes().to_vec();
+		let mut key = room_id.map(ToString::to_string).unwrap_or_default().as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
 		key.push(0xFF);
@@ -81,7 +81,7 @@ impl service::account_data::Data for KeyValueDatabase {
 	) -> Result<HashMap<RoomAccountDataEventType, Raw<AnyEphemeralRoomEvent>>> {
 		let mut userdata = HashMap::new();
 
-		let mut prefix = room_id.map(std::string::ToString::to_string).unwrap_or_default().as_bytes().to_vec();
+		let mut prefix = room_id.map(ToString::to_string).unwrap_or_default().as_bytes().to_vec();
 		prefix.push(0xFF);
 		prefix.extend_from_slice(user_id.as_bytes());
 		prefix.push(0xFF);

@@ -66,7 +66,7 @@ pub async fn join_room_by_id_route(body: Ruma<join_room_by_id::v3::Request>) -> 
 			.iter()
 			.filter_map(|event| serde_json::from_str(event.json().get()).ok())
 			.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-			.filter_map(|sender| sender.as_str().map(std::borrow::ToOwned::to_owned))
+			.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
 			.filter_map(|sender| UserId::parse(sender).ok())
 			.map(|user| user.server_name().to_owned()),
 	);
@@ -123,7 +123,7 @@ pub async fn join_room_by_id_or_alias_route(
 					.iter()
 					.filter_map(|event| serde_json::from_str(event.json().get()).ok())
 					.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-					.filter_map(|sender| sender.as_str().map(std::borrow::ToOwned::to_owned))
+					.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
 					.filter_map(|sender| UserId::parse(sender).ok())
 					.map(|user| user.server_name().to_owned()),
 			);
@@ -1382,7 +1382,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		.iter()
 		.filter_map(|event| serde_json::from_str(event.json().get()).ok())
 		.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-		.filter_map(|sender| sender.as_str().map(std::borrow::ToOwned::to_owned))
+		.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
 		.filter_map(|sender| UserId::parse(sender).ok())
 		.map(|user| user.server_name().to_owned())
 		.collect();

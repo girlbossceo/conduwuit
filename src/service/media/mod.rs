@@ -75,7 +75,7 @@ impl Service {
 				debug!("Got local file path: {:?}", file_path);
 
 				debug!("Deleting local file {:?} from filesystem, original MXC: {}", file_path, mxc);
-				tokio::fs::remove_file(file_path).await?;
+				fs::remove_file(file_path).await?;
 
 				debug!("Deleting MXC {mxc} from database");
 				self.db.delete_file_mxc(mxc.clone())?;
@@ -318,20 +318,20 @@ impl Service {
 							u64::from(original_width) * u64::from(height) / u64::from(original_height)
 						};
 						if use_width {
-							if intermediate <= u64::from(::std::u32::MAX) {
+							if intermediate <= u64::from(std::u32::MAX) {
 								(width, intermediate as u32)
 							} else {
 								(
-									(u64::from(width) * u64::from(::std::u32::MAX) / intermediate) as u32,
-									::std::u32::MAX,
+									(u64::from(width) * u64::from(std::u32::MAX) / intermediate) as u32,
+									std::u32::MAX,
 								)
 							}
-						} else if intermediate <= u64::from(::std::u32::MAX) {
+						} else if intermediate <= u64::from(std::u32::MAX) {
 							(intermediate as u32, height)
 						} else {
 							(
-								::std::u32::MAX,
-								(u64::from(height) * u64::from(::std::u32::MAX) / intermediate) as u32,
+								std::u32::MAX,
+								(u64::from(height) * u64::from(std::u32::MAX) / intermediate) as u32,
 							)
 						}
 					};

@@ -62,7 +62,7 @@ impl service::globals::Data for KeyValueDatabase {
 		futures.push(self.userroomid_highlightcount.watch_prefix(&userid_prefix));
 
 		// Events for rooms we are in
-		for room_id in services().rooms.state_cache.rooms_joined(user_id).filter_map(std::result::Result::ok) {
+		for room_id in services().rooms.state_cache.rooms_joined(user_id).filter_map(Result::ok) {
 			let short_roomid = services()
 				.rooms
 				.short
