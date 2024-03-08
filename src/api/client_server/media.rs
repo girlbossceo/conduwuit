@@ -96,7 +96,7 @@ pub async fn create_content_route(body: Ruma<create_content::v3::Request>) -> Re
 ///
 /// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
 /// clients may call. conduwuit adds these for compatibility purposes.
-/// See https://spec.matrix.org/legacy/legacy/#id27
+/// See <https://spec.matrix.org/legacy/legacy/#id27>
 ///
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
@@ -213,7 +213,7 @@ pub async fn get_content_route(body: Ruma<get_content::v3::Request>) -> Result<g
 ///
 /// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
 /// clients may call. conduwuit adds these for compatibility purposes.
-/// See https://spec.matrix.org/legacy/legacy/#id27
+/// See <https://spec.matrix.org/legacy/legacy/#id27>
 ///
 /// - Only allows federation if `allow_remote` is true
 /// - Only redirects if `allow_redirect` is true
@@ -304,7 +304,7 @@ pub async fn get_content_as_filename_route(
 ///
 /// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
 /// clients may call. conduwuit adds these for compatibility purposes.
-/// See https://spec.matrix.org/legacy/legacy/#id27
+/// See <https://spec.matrix.org/legacy/legacy/#id27>
 ///
 /// - Only allows federation if `allow_remote` is true
 /// - Only redirects if `allow_redirect` is true
@@ -433,7 +433,7 @@ pub async fn get_content_thumbnail_route(
 ///
 /// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
 /// clients may call. conduwuit adds these for compatibility purposes.
-/// See https://spec.matrix.org/legacy/legacy/#id27
+/// See <https://spec.matrix.org/legacy/legacy/#id27>
 ///
 /// - Only allows federation if `allow_remote` is true
 /// - Only redirects if `allow_redirect` is true
