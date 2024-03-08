@@ -51,7 +51,7 @@ pub async fn update_device_route(body: Ruma<update_device::v3::Request>) -> Resu
 		.get_device_metadata(sender_user, &body.device_id)?
 		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
 
-	device.display_name = body.display_name.clone();
+	device.display_name.clone_from(&body.display_name);
 
 	services().users.update_device_metadata(sender_user, &body.device_id, &device)?;
 

@@ -240,7 +240,7 @@ pub async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Result<kick_
 	.map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
 	event.membership = MembershipState::Leave;
-	event.reason = body.reason.clone();
+	event.reason.clone_from(&body.reason);
 
 	let mutex_state =
 		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
@@ -347,7 +347,7 @@ pub async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Result<unb
 	.map_err(|_| Error::bad_database("Invalid member event in database."))?;
 
 	event.membership = MembershipState::Leave;
-	event.reason = body.reason.clone();
+	event.reason.clone_from(&body.reason);
 
 	let mutex_state =
 		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
