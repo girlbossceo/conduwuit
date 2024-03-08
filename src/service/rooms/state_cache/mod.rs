@@ -2,7 +2,6 @@ use std::{collections::HashSet, sync::Arc};
 
 pub use data::Data;
 use ruma::{
-	api::federation,
 	events::{
 		direct::DirectEvent,
 		ignored_user_list::IgnoredUserListEvent,
@@ -35,11 +34,16 @@ impl Service {
 		let membership = membership_event.membership;
 
 		// Keep track what remote users exist by adding them as "deactivated" users
+		//
+		// TODO: use futures to update remote profiles without blocking the membership
+		// update
+		#[allow(clippy::collapsible_if)]
 		if user_id.server_name() != services().globals.server_name() {
 			if !services().users.exists(user_id)? {
 				services().users.create(user_id, None)?;
 			}
 
+			/*
 			// Try to update our local copy of the user if ours does not match
 			if ((services().users.displayname(user_id)? != membership_event.displayname)
 				|| (services().users.avatar_url(user_id)? != membership_event.avatar_url)
@@ -55,12 +59,13 @@ impl Service {
 							field: None, // we want the full user's profile to update locally too
 						},
 					)
-					.await?;
+					.await;
 
 				services().users.set_displayname(user_id, response.displayname.clone()).await?;
 				services().users.set_avatar_url(user_id, response.avatar_url).await?;
 				services().users.set_blurhash(user_id, response.blurhash).await?;
 			};
+			*/
 		}
 
 		match &membership {
