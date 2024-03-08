@@ -77,3 +77,4 @@
 - Config option to block non-admin users from sending room invites or receiving remote room invites. Admin users are still allowed.
 - Startup check if conduwuit running in a container and is listening on 127.0.0.1
 - Make `CONDUIT_CONFIG` optional, relevant for container users that configure only by environment variables and no longer need to set `CONDUIT_CONFIG` to an empty string.
+- Config option to change Conduit's behaviour of homeserver key fetching (`query_trusted_key_servers_first`). This option sets whether conduwuit will query trusted notary key servers first before the individual homeserver(s), or vice versa.
