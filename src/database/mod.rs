@@ -27,6 +27,8 @@ use ruma::{
 	CanonicalJsonValue, EventId, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
 };
 use serde::Deserialize;
+#[cfg(unix)]
+use tokio::signal::unix::{signal, SignalKind};
 use tokio::{
 	sync::mpsc,
 	time::{interval, Instant},
@@ -1083,9 +1085,6 @@ impl KeyValueDatabase {
 
 	#[tracing::instrument]
 	async fn start_cleanup_task() {
-		#[cfg(unix)]
-		use tokio::signal::unix::{signal, SignalKind};
-
 		let timer_interval = Duration::from_secs(u64::from(services().globals.config.cleanup_second_interval));
 
 		tokio::spawn(async move {

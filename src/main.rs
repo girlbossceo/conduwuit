@@ -1,7 +1,6 @@
-use std::{
-	fs::Permissions, future::Future, io, net::SocketAddr, os::unix::fs::PermissionsExt, path::Path, sync::atomic,
-	time::Duration,
-};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt as _;
+use std::{fs::Permissions, future::Future, io, net::SocketAddr, path::Path, sync::atomic, time::Duration};
 
 use axum::{
 	extract::{DefaultBodyLimit, FromRequestParts, MatchedPath},
@@ -25,6 +24,7 @@ use http::{
 	Method, StatusCode, Uri,
 };
 use hyper::Server;
+#[cfg(unix)]
 use hyperlocal::SocketIncoming;
 use ruma::api::{
 	client::{
@@ -35,10 +35,9 @@ use ruma::api::{
 };
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
-#[cfg(unix)]
-use tokio::signal;
 use tokio::{
-	sync::{oneshot, oneshot::Sender},
+	signal,
+	sync::oneshot::{self, Sender},
 	task::JoinSet,
 };
 use tower::ServiceBuilder;
@@ -730,19 +729,22 @@ async fn shutdown_signal(handle: ServerHandle, tx: Sender<()>) -> Result<()> {
 	#[cfg(unix)]
 	let terminate = async {
 		signal::unix::signal(signal::unix::SignalKind::terminate())
-			.expect("failed to install signal handler")
+			.expect("failed to install SIGTERM handler")
 			.recv()
 			.await;
 	};
 
-	#[cfg(not(unix))]
-	let terminate = std::future::pending::<()>();
-
 	let sig: &str;
 
+	#[cfg(unix)]
 	tokio::select! {
 		_ = ctrl_c => { sig = "Ctrl+C"; },
 		_ = terminate => { sig = "SIGTERM"; },
+	}
+
+	#[cfg(not(unix))]
+	tokio::select! {
+		_ = ctrl_c => { sig = "Ctrl+C"; },
 	}
 
 	warn!("Received {}, shutting down...", sig);
