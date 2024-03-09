@@ -32,7 +32,6 @@ use ruma::{
 	DeviceId, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
 	RoomVersionId, ServerName, UserId,
 };
-use sha2::Digest;
 use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock, Semaphore};
 use tracing::{error, info};
 use trust_dns_resolver::TokioAsyncResolver;
@@ -430,6 +429,7 @@ impl Service<'_> {
 	/// new SHA256 file name media function, requires "sha256_media" feature
 	/// flag enabled and database migrated uses SHA256 hash of the base64 key as
 	/// the file name
+	#[cfg(feature = "sha256_media")]
 	pub fn get_media_file_new(&self, key: &[u8]) -> PathBuf {
 		let mut r = PathBuf::new();
 		r.push(self.config.database_path.clone());
@@ -437,17 +437,13 @@ impl Service<'_> {
 		// Using the hash of the base64 key as the filename
 		// This is to prevent the total length of the path from exceeding the maximum
 		// length in most filesystems
-		r.push(general_purpose::URL_SAFE_NO_PAD.encode(sha2::Sha256::digest(key)));
+		r.push(general_purpose::URL_SAFE_NO_PAD.encode(<sha2::Sha256 as sha2::Digest>::digest(key)));
 		r
 	}
 
 	/// old base64 file name media function
 	/// This is the old version of `get_media_file` that uses the full base64
 	/// key as the filename.
-	///
-	/// This is deprecated and will be removed in a future release.
-	/// Please use `get_media_file_new` instead.
-	#[deprecated(note = "Use get_media_file_new instead")]
 	pub fn get_media_file(&self, key: &[u8]) -> PathBuf {
 		let mut r = PathBuf::new();
 		r.push(self.config.database_path.clone());

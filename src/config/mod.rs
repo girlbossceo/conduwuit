@@ -338,6 +338,7 @@ impl fmt::Display for Config {
 				}
 				&lst.join(", ")
 			}),
+			#[cfg(feature = "compression-zstd")]
 			("zstd Response Body Compression", &self.zstd_compression.to_string()),
 			("RocksDB database log level", &self.rocksdb_log_level),
 			("RocksDB database log time-to-roll", &self.rocksdb_log_time_to_roll.to_string()),
