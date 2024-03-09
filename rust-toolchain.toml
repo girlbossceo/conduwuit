@@ -3,6 +3,7 @@
 # Other files that need upkeep when this changes:
 #
 # * `.gitlab-ci.yml`
+# * `.github/workflows/ci.yml`
 # * `Cargo.toml`
 # * `flake.nix`
 #
