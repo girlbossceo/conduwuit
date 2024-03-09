@@ -1090,10 +1090,13 @@ impl KeyValueDatabase {
 
 		tokio::spawn(async move {
 			let mut i = interval(timer_interval);
+
 			#[cfg(unix)]
-			let mut hangup = signal(SignalKind::hangup()).unwrap();
-			let mut ctrl_c = signal(SignalKind::interrupt()).unwrap();
-			let mut terminate = signal(SignalKind::terminate()).unwrap();
+			let mut hangup = signal(SignalKind::hangup()).expect("Failed to register SIGHUP signal receiver");
+			#[cfg(unix)]
+			let mut ctrl_c = signal(SignalKind::interrupt()).expect("Failed to register SIGINT signal receiver");
+			#[cfg(unix)]
+			let mut terminate = signal(SignalKind::terminate()).expect("Failed to register SIGTERM signal receiver");
 
 			loop {
 				#[cfg(unix)]
