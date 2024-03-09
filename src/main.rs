@@ -53,13 +53,18 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[clap(version, about, long_about = None)]
-struct Args;
+struct Args {
+	#[arg(short, long)]
+	/// Optional argument to the path of a conduwuit config TOML file
+	config: Option<String>,
+}
 
 #[tokio::main]
 async fn main() {
-	Args::parse();
+	let args = Args::parse();
+
 	// Initialize config
 	let raw_config = if Env::var("CONDUIT_CONFIG").is_some() {
 		Figment::new()
@@ -67,6 +72,16 @@ async fn main() {
 				Toml::file(Env::var("CONDUIT_CONFIG").expect(
 					"The CONDUIT_CONFIG environment variable was set but appears to be invalid. This should be set to \
 					 the path to a valid TOML file, an empty string (for compatibility), or removed/unset entirely.",
+				))
+				.nested(),
+			)
+			.merge(Env::prefixed("CONDUIT_").global())
+	} else if args.config.is_some() {
+		Figment::new()
+			.merge(
+				Toml::file(args.config.expect(
+					"conduwuit config commandline argument was specified, but appears to be invalid. This should be \
+					 set to the path of a valid TOML file.",
 				))
 				.nested(),
 			)

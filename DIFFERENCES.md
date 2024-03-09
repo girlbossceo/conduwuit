@@ -80,3 +80,4 @@
 - Config option to change Conduit's behaviour of homeserver key fetching (`query_trusted_key_servers_first`). This option sets whether conduwuit will query trusted notary key servers first before the individual homeserver(s), or vice versa.
 - Implement database flush and cleanup Conduit operations when using RocksDB
 - Implement legacy Matrix `/v1/` media endpoints that some clients and servers may still call
+- Commandline argument to specify the path to a config file
