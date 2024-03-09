@@ -35,9 +35,9 @@ use ruma::api::{
 };
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
+#[cfg(unix)]
+use tokio::signal;
 use tokio::{
-	net::UnixListener,
-	signal,
 	sync::{oneshot, oneshot::Sender},
 	task::JoinSet,
 };
@@ -163,7 +163,15 @@ async fn main() {
 
 	/* ad-hoc config validation/checks */
 
-	if config.address.is_loopback() {
+	if config.unix_socket_path.is_some() && !cfg!(unix) {
+		error!(
+			"UNIX socket support is only available on *nix platforms. Please remove \"unix_socket_path\" from your \
+			 config."
+		);
+		return;
+	}
+
+	if config.address.is_loopback() && cfg!(unix) {
 		debug!(
 			"Found loopback listening address {}, running checks if we're in a container.",
 			config.address
@@ -389,34 +397,37 @@ async fn run_server() -> io::Result<()> {
 	tokio::spawn(shutdown_signal(handle.clone(), tx));
 
 	if let Some(path) = &config.unix_socket_path {
-		if path.exists() {
-			warn!(
-				"UNIX socket path {:#?} already exists (unclean shutdown?), attempting to remove it.",
-				path.display()
-			);
-			tokio::fs::remove_file(&path).await?;
-		}
+		#[cfg(unix)]
+		{
+			if path.exists() {
+				warn!(
+					"UNIX socket path {:#?} already exists (unclean shutdown?), attempting to remove it.",
+					path.display()
+				);
+				tokio::fs::remove_file(&path).await?;
+			}
 
-		tokio::fs::create_dir_all(path.parent().unwrap()).await?;
+			tokio::fs::create_dir_all(path.parent().unwrap()).await?;
 
-		let socket_perms = config.unix_socket_perms.to_string();
-		let octal_perms = u32::from_str_radix(&socket_perms, 8).unwrap();
+			let socket_perms = config.unix_socket_perms.to_string();
+			let octal_perms = u32::from_str_radix(&socket_perms, 8).unwrap();
 
-		let listener = UnixListener::bind(path.clone())?;
-		tokio::fs::set_permissions(path, Permissions::from_mode(octal_perms)).await.unwrap();
-		let socket = SocketIncoming::from_listener(listener);
+			let listener = tokio::net::UnixListener::bind(path.clone())?;
+			tokio::fs::set_permissions(path, Permissions::from_mode(octal_perms)).await.unwrap();
+			let socket = SocketIncoming::from_listener(listener);
 
-		#[cfg(feature = "systemd")]
-		let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+			#[cfg(feature = "systemd")]
+			let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
-		info!("Listening at {:?}", path);
-		let server = Server::builder(socket).serve(app);
-		let graceful = server.with_graceful_shutdown(async {
-			rx.await.ok();
-		});
+			info!("Listening at {:?}", path);
+			let server = Server::builder(socket).serve(app);
+			let graceful = server.with_graceful_shutdown(async {
+				rx.await.ok();
+			});
 
-		if let Err(e) = graceful.await {
-			error!("Server error: {:?}", e);
+			if let Err(e) = graceful.await {
+				error!("Server error: {:?}", e);
+			}
 		}
 	} else {
 		match &config.tls {

@@ -92,12 +92,6 @@ features = [
   "util",
 ]
 
-# unix socket support
-[dependencies.hyperlocal]
-git = "https://github.com/softprops/hyperlocal"
-rev = "2ee4d149644600d326559af0d2b235c945b05c04"
-features = ["server"]
-
 [dependencies.hyper]
 version = "0.14"
 features = [
@@ -306,6 +300,11 @@ tokio = { version = "1.36.0", features = [
   "sync",
   "signal",
 ] }
+# unix socket support
+[dependencies.hyperlocal]
+git = "https://github.com/softprops/hyperlocal"
+rev = "2ee4d149644600d326559af0d2b235c945b05c04"
+features = ["server"]
 
 
 
