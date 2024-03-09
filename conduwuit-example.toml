@@ -85,6 +85,7 @@ max_request_size = 20_000_000 # in bytes
 #unix_socket_perms = 660
 
 # Set this to true for conduwuit to compress HTTP response bodies using zstd.
+# This option does nothing if conduwuit was not built with `zstd_compression` feature.
 # Please be aware that enabling HTTP compression may weaken or even defeat TLS.
 # Most users should not need to enable this.
 # See https://breachattack.com/ and https://wikipedia.org/wiki/BREACH before deciding to enable this.
