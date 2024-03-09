@@ -50,11 +50,16 @@ impl Service {
 		// Width, Height = 0 if it's not a thumbnail
 		let key = self.db.create_file_metadata(mxc, 0, 0, content_disposition, content_type)?;
 
-		let path = if cfg!(feature = "sha256_media") {
-			services().globals.get_media_file_new(&key)
-		} else {
-			#[allow(deprecated)]
-			services().globals.get_media_file(&key)
+		let path;
+
+		#[cfg(feature = "sha256_media")]
+		{
+			path = services().globals.get_media_file_new(&key)
+		};
+
+		#[cfg(not(feature = "sha256_media"))]
+		{
+			path = services().globals.get_media_file(&key)
 		};
 
 		let mut f = File::create(path).await?;
@@ -66,12 +71,18 @@ impl Service {
 	pub async fn delete(&self, mxc: String) -> Result<()> {
 		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc.clone()) {
 			for key in keys {
-				let file_path = if cfg!(feature = "sha256_media") {
-					services().globals.get_media_file_new(&key)
-				} else {
-					#[allow(deprecated)]
-					services().globals.get_media_file(&key)
+				let file_path;
+
+				#[cfg(feature = "sha256_media")]
+				{
+					file_path = services().globals.get_media_file_new(&key)
 				};
+
+				#[cfg(not(feature = "sha256_media"))]
+				{
+					file_path = services().globals.get_media_file(&key)
+				};
+
 				debug!("Got local file path: {:?}", file_path);
 
 				debug!("Deleting local file {:?} from filesystem, original MXC: {}", file_path, mxc);
@@ -96,13 +107,17 @@ impl Service {
 		file: &[u8],
 	) -> Result<()> {
 		let key = self.db.create_file_metadata(mxc, width, height, content_disposition, content_type)?;
+		let path;
 
-		let path = if cfg!(feature = "sha256_media") {
-			services().globals.get_media_file_new(&key)
-		} else {
-			#[allow(deprecated)]
-			services().globals.get_media_file(&key)
-		};
+		#[cfg(feature = "sha256_media")]
+		{
+			path = services().globals.get_media_file_new(&key);
+		}
+
+		#[cfg(not(feature = "sha256_media"))]
+		{
+			path = services().globals.get_media_file(&key);
+		}
 
 		let mut f = File::create(path).await?;
 		f.write_all(file).await?;
@@ -113,11 +128,16 @@ impl Service {
 	/// Downloads a file.
 	pub async fn get(&self, mxc: String) -> Result<Option<FileMeta>> {
 		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, 0, 0) {
-			let path = if cfg!(feature = "sha256_media") {
-				services().globals.get_media_file_new(&key)
-			} else {
-				#[allow(deprecated)]
-				services().globals.get_media_file(&key)
+			let path;
+
+			#[cfg(feature = "sha256_media")]
+			{
+				path = services().globals.get_media_file_new(&key)
+			};
+
+			#[cfg(not(feature = "sha256_media"))]
+			{
+				path = services().globals.get_media_file(&key)
 			};
 
 			let mut file = Vec::new();
@@ -186,11 +206,16 @@ impl Service {
 					continue;
 				}
 
-				let path = if cfg!(feature = "sha256_media") {
-					services().globals.get_media_file_new(&key)
-				} else {
-					#[allow(deprecated)]
-					services().globals.get_media_file(&key)
+				let path;
+
+				#[cfg(feature = "sha256_media")]
+				{
+					path = services().globals.get_media_file_new(&key)
+				};
+
+				#[cfg(not(feature = "sha256_media"))]
+				{
+					path = services().globals.get_media_file(&key)
 				};
 
 				debug!("MXC path: {:?}", path);
@@ -265,11 +290,16 @@ impl Service {
 
 		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc.clone(), width, height) {
 			// Using saved thumbnail
-			let path = if cfg!(feature = "sha256_media") {
-				services().globals.get_media_file_new(&key)
-			} else {
-				#[allow(deprecated)]
-				services().globals.get_media_file(&key)
+			let path;
+
+			#[cfg(feature = "sha256_media")]
+			{
+				path = services().globals.get_media_file_new(&key)
+			};
+
+			#[cfg(not(feature = "sha256_media"))]
+			{
+				path = services().globals.get_media_file(&key)
 			};
 
 			let mut file = Vec::new();
@@ -282,11 +312,16 @@ impl Service {
 			}))
 		} else if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc.clone(), 0, 0) {
 			// Generate a thumbnail
-			let path = if cfg!(feature = "sha256_media") {
-				services().globals.get_media_file_new(&key)
-			} else {
-				#[allow(deprecated)]
-				services().globals.get_media_file(&key)
+			let path;
+
+			#[cfg(feature = "sha256_media")]
+			{
+				path = services().globals.get_media_file_new(&key)
+			};
+
+			#[cfg(not(feature = "sha256_media"))]
+			{
+				path = services().globals.get_media_file(&key)
 			};
 
 			let mut file = Vec::new();
@@ -351,11 +386,16 @@ impl Service {
 					content_type.as_deref(),
 				)?;
 
-				let path = if cfg!(feature = "sha256_media") {
-					services().globals.get_media_file_new(&thumbnail_key)
-				} else {
-					#[allow(deprecated)]
-					services().globals.get_media_file(&thumbnail_key)
+				let path;
+
+				#[cfg(feature = "sha256_media")]
+				{
+					path = services().globals.get_media_file_new(&thumbnail_key)
+				};
+
+				#[cfg(not(feature = "sha256_media"))]
+				{
+					path = services().globals.get_media_file(&thumbnail_key)
 				};
 
 				let mut f = File::create(path).await?;
@@ -397,7 +437,6 @@ mod tests {
 	use std::path::PathBuf;
 
 	use base64::{engine::general_purpose, Engine as _};
-	use sha2::Digest;
 
 	use super::*;
 

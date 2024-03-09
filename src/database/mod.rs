@@ -894,26 +894,28 @@ impl KeyValueDatabase {
 				warn!("Migration: 12 -> 13 finished");
 			}
 
-			if services().globals.database_version()? < 14 && cfg!(feature = "sha256_media") {
-				warn!("sha256_media feature flag is enabled, migrating legacy base64 file names to sha256 file names");
-				// Move old media files to new names
-				for (key, _) in db.mediaid_file.iter() {
-					// we know that this method is deprecated, but we need to use it to migrate the
-					// old files to the new location
-					//
-					// TODO: remove this once we're sure that all users have migrated
-					#[allow(deprecated)]
-					let old_path = services().globals.get_media_file(&key);
-					let path = services().globals.get_media_file_new(&key);
-					// move the file to the new location
-					if old_path.exists() {
-						tokio::fs::rename(&old_path, &path).await?;
+			#[cfg(feature = "sha256_media")]
+			{
+				if services().globals.database_version()? < 14 && cfg!(feature = "sha256_media") {
+					warn!(
+						"sha256_media feature flag is enabled, migrating legacy base64 file names to sha256 file names"
+					);
+					// Move old media files to new names
+					for (key, _) in db.mediaid_file.iter() {
+						let old_path = services().globals.get_media_file(&key);
+						debug!("Old file path: {old_path:?}");
+						let path = services().globals.get_media_file_new(&key);
+						debug!("New file path: {path:?}");
+						// move the file to the new location
+						if old_path.exists() {
+							tokio::fs::rename(&old_path, &path).await?;
+						}
 					}
+
+					services().globals.bump_database_version(14)?;
+
+					warn!("Migration: 13 -> 14 finished");
 				}
-
-				services().globals.bump_database_version(14)?;
-
-				warn!("Migration: 13 -> 14 finished");
 			}
 
 			assert_eq!(
@@ -981,7 +983,7 @@ impl KeyValueDatabase {
 			);
 		}
 
-		// Inserting registraions into cache
+		// Inserting registrations into cache
 		for appservice in services().appservice.all()? {
 			services().appservice.registration_info.write().await.insert(
 				appservice.0,

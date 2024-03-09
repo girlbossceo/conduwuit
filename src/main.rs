@@ -85,33 +85,39 @@ async fn main() {
 	};
 
 	if config.allow_jaeger {
-		opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-		let tracer = opentelemetry_jaeger::new_agent_pipeline()
-			.with_auto_split_batch(true)
-			.with_service_name("conduit")
-			.install_batch(opentelemetry_sdk::runtime::Tokio)
-			.unwrap();
-		let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+		#[cfg(feature = "perf_measurements")]
+		{
+			opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
+			let tracer = opentelemetry_jaeger::new_agent_pipeline()
+				.with_auto_split_batch(true)
+				.with_service_name("conduit")
+				.install_batch(opentelemetry_sdk::runtime::Tokio)
+				.unwrap();
+			let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
-		let filter_layer = match EnvFilter::try_new(&config.log) {
-			Ok(s) => s,
-			Err(e) => {
-				eprintln!("It looks like your log config is invalid. The following error occurred: {e}");
-				EnvFilter::try_new("warn").unwrap()
-			},
-		};
+			let filter_layer = match EnvFilter::try_new(&config.log) {
+				Ok(s) => s,
+				Err(e) => {
+					eprintln!("It looks like your log config is invalid. The following error occurred: {e}");
+					EnvFilter::try_new("warn").unwrap()
+				},
+			};
 
-		let subscriber = tracing_subscriber::Registry::default().with(filter_layer).with(telemetry);
-		tracing::subscriber::set_global_default(subscriber).unwrap();
+			let subscriber = tracing_subscriber::Registry::default().with(filter_layer).with(telemetry);
+			tracing::subscriber::set_global_default(subscriber).unwrap();
+		}
 	} else if config.tracing_flame {
-		let registry = tracing_subscriber::Registry::default();
-		let (flame_layer, _guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
-		let flame_layer = flame_layer.with_empty_samples(false);
+		#[cfg(feature = "perf_measurements")]
+		{
+			let registry = tracing_subscriber::Registry::default();
+			let (flame_layer, _guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+			let flame_layer = flame_layer.with_empty_samples(false);
 
-		let filter_layer = EnvFilter::new("trace,h2=off");
+			let filter_layer = EnvFilter::new("trace,h2=off");
 
-		let subscriber = registry.with(filter_layer).with(flame_layer);
-		tracing::subscriber::set_global_default(subscriber).unwrap();
+			let subscriber = registry.with(filter_layer).with(flame_layer);
+			tracing::subscriber::set_global_default(subscriber).unwrap();
+		}
 	} else {
 		let registry = tracing_subscriber::Registry::default();
 		let fmt_layer = tracing_subscriber::fmt::Layer::new();
@@ -296,6 +302,7 @@ async fn main() {
 	// if server runs into critical error and shuts down, shut down the tracer
 	// provider if jaegar is used. awaiting run_server() is a blocking call so
 	// putting this after is fine, but not the other options above.
+	#[cfg(feature = "perf_measurements")]
 	if config.allow_jaeger {
 		opentelemetry::global::shutdown_tracer_provider();
 	}
@@ -359,11 +366,21 @@ async fn run_server() -> io::Result<()> {
 			config.max_request_size.try_into().expect("failed to convert max request size"),
 		));
 
-	let app = if cfg!(feature = "zstd_compression") && config.zstd_compression {
-		debug!("zstd body compression is enabled");
-		routes().layer(middlewares.compression()).into_make_service()
-	} else {
-		routes().layer(middlewares).into_make_service()
+	let app;
+
+	#[cfg(feature = "zstd_compression")]
+	{
+		app = if cfg!(feature = "zstd_compression") && config.zstd_compression {
+			debug!("zstd body compression is enabled");
+			routes().layer(middlewares.compression()).into_make_service()
+		} else {
+			routes().layer(middlewares).into_make_service()
+		}
+	};
+
+	#[cfg(not(feature = "zstd_compression"))]
+	{
+		app = routes().layer(middlewares).into_make_service()
 	};
 
 	let handle = ServerHandle::new();
