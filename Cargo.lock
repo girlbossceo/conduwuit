@@ -437,17 +437,17 @@ dependencies = [
  "lru-cache",
  "nix",
  "num_cpus",
- "opentelemetry",
+ "opentelemetry 0.21.0",
  "opentelemetry-jaeger",
- "opentelemetry_sdk",
+ "opentelemetry_sdk 0.21.2",
  "parking_lot",
  "rand",
  "regex",
  "reqwest",
  "ring",
- "rocksdb",
  "ruma",
  "rusqlite",
+ "rust-rocksdb",
  "sd-notify",
  "serde",
  "serde_html_form",
@@ -876,12 +876,18 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http",
- "indexmap",
+ "indexmap 2.2.5",
  "slab",
  "tokio",
  "tokio-util",
  "tracing",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
 name = "hashbrown"
@@ -899,7 +905,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "692eaaf7f7607518dd3cef090f1474b61edc5301d8012f09579920df68b725ee"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.14.3",
 ]
 
 [[package]]
@@ -1104,12 +1110,22 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
+version = "1.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
+dependencies = [
+ "autocfg",
+ "hashbrown 0.12.3",
+]
+
+[[package]]
+name = "indexmap"
 version = "2.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b0b929d511467233429c45a44ac1dcaa21ba0f5ba11e4879e6ed28ddb4f9df4"
 dependencies = [
  "equivalent",
- "hashbrown",
+ "hashbrown 0.14.3",
  "serde",
 ]
 
@@ -1284,23 +1300,6 @@ checksum = "0c2a198fb6b0eada2a8df47933734e6d35d350665a33a3593d7164fa52c75c19"
 dependencies = [
  "cfg-if",
  "windows-targets 0.52.4",
-]
-
-[[package]]
-name = "librocksdb-sys"
-version = "0.16.0+8.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce3d60bc059831dc1c83903fb45c103f75db65c5a7bf22272764d9cc683e348c"
-dependencies = [
- "bindgen",
- "bzip2-sys",
- "cc",
- "glob",
- "libc",
- "libz-sys",
- "lz4-sys",
- "pkg-config",
- "zstd-sys",
 ]
 
 [[package]]
@@ -1615,13 +1614,23 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "opentelemetry"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9591d937bc0e6d2feb6f71a559540ab300ea49955229c347a517a28d27784c54"
+dependencies = [
+ "opentelemetry_api",
+ "opentelemetry_sdk 0.20.0",
+]
+
+[[package]]
+name = "opentelemetry"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e32339a5dc40459130b3bd269e9892439f55b33e772d2a9d402a789baaf4e8a"
 dependencies = [
  "futures-core",
  "futures-sink",
- "indexmap",
+ "indexmap 2.2.5",
  "js-sys",
  "once_cell",
  "pin-project-lite",
@@ -1638,9 +1647,9 @@ dependencies = [
  "async-trait",
  "futures-core",
  "futures-util",
- "opentelemetry",
+ "opentelemetry 0.21.0",
  "opentelemetry-semantic-conventions",
- "opentelemetry_sdk",
+ "opentelemetry_sdk 0.21.2",
  "thrift",
  "tokio",
 ]
@@ -1651,7 +1660,43 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f5774f1ef1f982ef2a447f6ee04ec383981a3ab99c8e77a1a7b30182e65bbc84"
 dependencies = [
- "opentelemetry",
+ "opentelemetry 0.21.0",
+]
+
+[[package]]
+name = "opentelemetry_api"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a81f725323db1b1206ca3da8bb19874bbd3f57c3bcd59471bfb04525b265b9b"
+dependencies = [
+ "futures-channel",
+ "futures-util",
+ "indexmap 1.9.3",
+ "js-sys",
+ "once_cell",
+ "pin-project-lite",
+ "thiserror",
+ "urlencoding",
+]
+
+[[package]]
+name = "opentelemetry_sdk"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa8e705a0612d48139799fcbaba0d4a90f06277153e43dd2bdc16c6f0edd8026"
+dependencies = [
+ "async-trait",
+ "crossbeam-channel",
+ "futures-channel",
+ "futures-executor",
+ "futures-util",
+ "once_cell",
+ "opentelemetry_api",
+ "ordered-float 3.9.2",
+ "percent-encoding",
+ "rand",
+ "regex",
+ "thiserror",
 ]
 
 [[package]]
@@ -1665,9 +1710,8 @@ dependencies = [
  "futures-channel",
  "futures-executor",
  "futures-util",
- "glob",
  "once_cell",
- "opentelemetry",
+ "opentelemetry 0.21.0",
  "ordered-float 4.2.0",
  "percent-encoding",
  "rand",
@@ -1681,6 +1725,15 @@ name = "ordered-float"
 version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "ordered-float"
+version = "3.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1e1c390732d15f1d48471625cd92d154e66db2c56645e29a9cd26f4699f72dc"
 dependencies = [
  "num-traits",
 ]
@@ -2100,19 +2153,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "rocksdb"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bd13e55d6d7b8cd0ea569161127567cd587676c99f4472f779a0279aa60a7a7"
-dependencies = [
- "libc",
- "librocksdb-sys",
-]
-
-[[package]]
 name = "ruma"
 version = "0.9.4"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "assign",
  "js_int",
@@ -2131,7 +2174,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2143,7 +2186,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.17.4"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "as_variant",
  "assign",
@@ -2162,14 +2205,14 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.12.1"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "as_variant",
  "base64 0.21.7",
  "bytes",
  "form_urlencoded",
  "http",
- "indexmap",
+ "indexmap 2.2.5",
  "js_int",
  "konst",
  "percent-encoding",
@@ -2190,10 +2233,10 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.27.11"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "as_variant",
- "indexmap",
+ "indexmap 2.2.5",
  "js_int",
  "js_option",
  "percent-encoding",
@@ -2212,7 +2255,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2224,7 +2267,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.9.3"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "js_int",
  "thiserror",
@@ -2233,7 +2276,7 @@ dependencies = [
 [[package]]
 name = "ruma-identity-service-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2243,7 +2286,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.12.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "once_cell",
  "proc-macro-crate",
@@ -2258,7 +2301,7 @@ dependencies = [
 [[package]]
 name = "ruma-push-gateway-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2270,7 +2313,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.14.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "base64 0.21.7",
  "ed25519-dalek",
@@ -2286,7 +2329,7 @@ dependencies = [
 [[package]]
 name = "ruma-state-res"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruma?rev=13b8386812679b33235c68fa1ec0b50c4647d05a#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
 dependencies = [
  "itertools 0.11.0",
  "js_int",
@@ -2309,6 +2352,31 @@ dependencies = [
  "hashlink",
  "libsqlite3-sys",
  "smallvec",
+]
+
+[[package]]
+name = "rust-librocksdb-sys"
+version = "0.18.1+8.11.3"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=3e4a0f632a8c0c2839c7d183725c53895110d907#3e4a0f632a8c0c2839c7d183725c53895110d907"
+dependencies = [
+ "bindgen",
+ "bzip2-sys",
+ "cc",
+ "glob",
+ "libc",
+ "libz-sys",
+ "lz4-sys",
+ "pkg-config",
+ "zstd-sys",
+]
+
+[[package]]
+name = "rust-rocksdb"
+version = "0.22.7"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=3e4a0f632a8c0c2839c7d183725c53895110d907#3e4a0f632a8c0c2839c7d183725c53895110d907"
+dependencies = [
+ "libc",
+ "rust-librocksdb-sys",
 ]
 
 [[package]]
@@ -2474,7 +2542,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20e1066e1cfa6692a722cf40386a2caec36da5ddc4a2c16df592f0f609677e8c"
 dependencies = [
  "form_urlencoded",
- "indexmap",
+ "indexmap 2.2.5",
  "itoa",
  "ryu",
  "serde",
@@ -2538,7 +2606,7 @@ version = "0.9.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fd075d994154d4a774f95b51fb96bdc2832b0ea48425c92546073816cda1f2f"
 dependencies = [
- "indexmap",
+ "indexmap 2.2.5",
  "itoa",
  "ryu",
  "serde",
@@ -3009,7 +3077,7 @@ version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "396e4d48bbb2b7554c944bde63101b5ae446cff6ec4a24227428f15eb72ef338"
 dependencies = [
- "indexmap",
+ "indexmap 2.2.5",
  "serde",
  "serde_spanned",
  "toml_datetime",
@@ -3112,6 +3180,17 @@ dependencies = [
 
 [[package]]
 name = "tracing-log"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f751112709b4e791d8ce53e32c4ed2d353565a795ce84da2285393f41557bdf2"
+dependencies = [
+ "log",
+ "once_cell",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-log"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
@@ -3123,20 +3202,16 @@ dependencies = [
 
 [[package]]
 name = "tracing-opentelemetry"
-version = "0.22.0"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c67ac25c5407e7b961fafc6f7e9aa5958fd297aada2d20fa2ae1737357e55596"
+checksum = "fc09e402904a5261e42cf27aea09ccb7d5318c6717a9eec3d8e2e65c56b18f19"
 dependencies = [
- "js-sys",
  "once_cell",
- "opentelemetry",
- "opentelemetry_sdk",
- "smallvec",
+ "opentelemetry 0.20.0",
  "tracing",
  "tracing-core",
- "tracing-log",
+ "tracing-log 0.1.4",
  "tracing-subscriber",
- "web-time",
 ]
 
 [[package]]
@@ -3154,7 +3229,7 @@ dependencies = [
  "thread_local",
  "tracing",
  "tracing-core",
- "tracing-log",
+ "tracing-log 0.2.0",
 ]
 
 [[package]]
@@ -3408,16 +3483,6 @@ name = "web-sys"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77afa9a11836342370f4817622a2f0f418b134426d91a82dfb48f532d2ec13ef"
-dependencies = [
- "js-sys",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "web-time"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa30049b1c872b72c89866d458eae9f20380ab280ffd1b1e18df2d3e2d98cfe0"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
