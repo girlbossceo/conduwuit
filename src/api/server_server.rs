@@ -490,7 +490,7 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
 
 	lookup_srv(&first_hostname)
 		.or_else(|_| {
-			info!("Querying deprecated _matrix SRV record for host {:?}", hostname);
+			debug!("Querying deprecated _matrix SRV record for host {:?}", hostname);
 			lookup_srv(&second_hostname)
 		})
 		.and_then(|srv_lookup| async move { Ok(handle_successful_srv(&srv_lookup)) })
