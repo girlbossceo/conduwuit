@@ -4,7 +4,7 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use rocksdb::{
+use rust_rocksdb::{
 	FlushOptions,
 	LogLevel::{Debug, Error, Fatal, Info, Warn},
 };
@@ -14,8 +14,8 @@ use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
 use crate::{utils, Result};
 
 pub(crate) struct Engine {
-	rocks: rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>,
-	cache: rocksdb::Cache,
+	rocks: rust_rocksdb::DBWithThreadMode<rust_rocksdb::MultiThreaded>,
+	cache: rust_rocksdb::Cache,
 	old_cfs: Vec<String>,
 	config: Config,
 }
@@ -27,9 +27,9 @@ struct RocksDbEngineTree<'a> {
 	write_lock: RwLock<()>,
 }
 
-fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Options {
+fn db_options(rocksdb_cache: &rust_rocksdb::Cache, config: &Config) -> rust_rocksdb::Options {
 	// block-based options: https://docs.rs/rocksdb/latest/rocksdb/struct.BlockBasedOptions.html#
-	let mut block_based_options = rocksdb::BlockBasedOptions::default();
+	let mut block_based_options = rust_rocksdb::BlockBasedOptions::default();
 
 	block_based_options.set_block_cache(rocksdb_cache);
 
@@ -39,7 +39,7 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
 	block_based_options.set_cache_index_and_filter_blocks(true);
 
 	// database options: https://docs.rs/rocksdb/latest/rocksdb/struct.Options.html#
-	let mut db_opts = rocksdb::Options::default();
+	let mut db_opts = rust_rocksdb::Options::default();
 
 	let rocksdb_log_level = match config.rocksdb_log_level.as_ref() {
 		"debug" => Debug,
@@ -80,8 +80,8 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
 		threads.try_into().expect("Failed to convert \"rocksdb_parallelism_threads\" usize into i32"),
 	);
 	//db_opts.set_max_open_files(config.rocksdb_max_open_files);
-	db_opts.set_compression_type(rocksdb::DBCompressionType::Zstd);
-	db_opts.set_compaction_style(rocksdb::DBCompactionStyle::Level);
+	db_opts.set_compression_type(rust_rocksdb::DBCompressionType::Zstd);
+	db_opts.set_compaction_style(rust_rocksdb::DBCompactionStyle::Level);
 	db_opts.optimize_level_style_compaction(10 * 1024 * 1024);
 
 	// https://github.com/facebook/rocksdb/wiki/Setup-Options-and-Basic-Tuning
@@ -93,9 +93,9 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
 	// Unclean shutdowns of a Matrix homeserver are likely to be fine when
 	// recovered in this manner as it's likely any lost information will be
 	// restored via federation.
-	db_opts.set_wal_recovery_mode(rocksdb::DBRecoveryMode::TolerateCorruptedTailRecords);
+	db_opts.set_wal_recovery_mode(rust_rocksdb::DBRecoveryMode::TolerateCorruptedTailRecords);
 
-	let prefix_extractor = rocksdb::SliceTransform::create_fixed_prefix(1);
+	let prefix_extractor = rust_rocksdb::SliceTransform::create_fixed_prefix(1);
 	db_opts.set_prefix_extractor(prefix_extractor);
 
 	db_opts
@@ -104,20 +104,21 @@ fn db_options(rocksdb_cache: &rocksdb::Cache, config: &Config) -> rocksdb::Optio
 impl KeyValueDatabaseEngine for Arc<Engine> {
 	fn open(config: &Config) -> Result<Self> {
 		let cache_capacity_bytes = (config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize;
-		let rocksdb_cache = rocksdb::Cache::new_lru_cache(cache_capacity_bytes);
+		let rocksdb_cache = rust_rocksdb::Cache::new_lru_cache(cache_capacity_bytes);
 
 		let db_opts = db_options(&rocksdb_cache, config);
 
 		debug!("Listing column families in database");
-		let cfs = rocksdb::DBWithThreadMode::<rocksdb::MultiThreaded>::list_cf(&db_opts, &config.database_path)
-			.unwrap_or_default();
+		let cfs =
+			rust_rocksdb::DBWithThreadMode::<rust_rocksdb::MultiThreaded>::list_cf(&db_opts, &config.database_path)
+				.unwrap_or_default();
 
 		debug!("Opening column family descriptors in database");
 		info!("RocksDB database compaction will take place now, a delay in startup is expected");
-		let db = rocksdb::DBWithThreadMode::<rocksdb::MultiThreaded>::open_cf_descriptors(
+		let db = rust_rocksdb::DBWithThreadMode::<rust_rocksdb::MultiThreaded>::open_cf_descriptors(
 			&db_opts,
 			&config.database_path,
-			cfs.iter().map(|name| rocksdb::ColumnFamilyDescriptor::new(name, db_options(&rocksdb_cache, config))),
+			cfs.iter().map(|name| rust_rocksdb::ColumnFamilyDescriptor::new(name, db_options(&rocksdb_cache, config))),
 		)?;
 
 		Ok(Arc::new(Engine {
@@ -145,13 +146,13 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 	fn flush(&self) -> Result<()> {
 		debug!("Running flush_wal (no sync)");
-		rocksdb::DBCommon::flush_wal(&self.rocks, false)?;
+		rust_rocksdb::DBCommon::flush_wal(&self.rocks, false)?;
 
 		Ok(())
 	}
 
 	fn memory_usage(&self) -> Result<String> {
-		let stats = rocksdb::perf::get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.cache]))?;
+		let stats = rust_rocksdb::perf::get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.cache]))?;
 		Ok(format!(
 			"Approximate memory usage of all the mem-tables: {:.3} MB\nApproximate memory usage of un-flushed \
 			 mem-tables: {:.3} MB\nApproximate memory usage of all the table readers: {:.3} MB\nApproximate memory \
@@ -166,7 +167,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 	fn cleanup(&self) -> Result<()> {
 		debug!("Running flush_opt");
-		rocksdb::DBCommon::flush_opt(&self.rocks, &FlushOptions::default())?;
+		rust_rocksdb::DBCommon::flush_opt(&self.rocks, &FlushOptions::default())?;
 
 		Ok(())
 	}
@@ -177,7 +178,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 }
 
 impl RocksDbEngineTree<'_> {
-	fn cf(&self) -> Arc<rocksdb::BoundColumnFamily<'_>> { self.db.rocks.cf_handle(self.name).unwrap() }
+	fn cf(&self) -> Arc<rust_rocksdb::BoundColumnFamily<'_>> { self.db.rocks.cf_handle(self.name).unwrap() }
 }
 
 impl KvTree for RocksDbEngineTree<'_> {
@@ -207,7 +208,7 @@ impl KvTree for RocksDbEngineTree<'_> {
 		Box::new(
 			self.db
 				.rocks
-				.iterator_cf(&self.cf(), rocksdb::IteratorMode::Start)
+				.iterator_cf(&self.cf(), rust_rocksdb::IteratorMode::Start)
 				.map(std::result::Result::unwrap)
 				.map(|(k, v)| (Vec::from(k), Vec::from(v))),
 		)
@@ -219,12 +220,12 @@ impl KvTree for RocksDbEngineTree<'_> {
 				.rocks
 				.iterator_cf(
 					&self.cf(),
-					rocksdb::IteratorMode::From(
+					rust_rocksdb::IteratorMode::From(
 						from,
 						if backwards {
-							rocksdb::Direction::Reverse
+							rust_rocksdb::Direction::Reverse
 						} else {
-							rocksdb::Direction::Forward
+							rust_rocksdb::Direction::Forward
 						},
 					),
 				)
@@ -262,7 +263,10 @@ impl KvTree for RocksDbEngineTree<'_> {
 		Box::new(
 			self.db
 				.rocks
-				.iterator_cf(&self.cf(), rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward))
+				.iterator_cf(
+					&self.cf(),
+					rust_rocksdb::IteratorMode::From(&prefix, rust_rocksdb::Direction::Forward),
+				)
 				.map(std::result::Result::unwrap)
 				.map(|(k, v)| (Vec::from(k), Vec::from(v)))
 				.take_while(move |(k, _)| k.starts_with(&prefix)),

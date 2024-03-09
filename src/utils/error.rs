@@ -31,7 +31,7 @@ pub enum Error {
 	#[error("There was a problem with the connection to the rocksdb database: {source}")]
 	RocksDbError {
 		#[from]
-		source: rocksdb::Error,
+		source: rust_rocksdb::Error,
 	},
 	#[error("Could not generate an image.")]
 	ImageError {
