@@ -305,14 +305,14 @@ where
 			// we do not need to log that servers in a room are dead, this is normal in
 			// public rooms and just spams the logs.
 			match e.is_timeout() {
-				true => info!(
+				true => debug!(
 					"Timed out sending request to {} at {}: {}",
 					destination, actual_destination_str, e
 				),
 				false => match e.is_connect() {
-					true => info!("Failed to connect to {} at {}: {}", destination, actual_destination_str, e),
+					true => debug!("Failed to connect to {} at {}: {}", destination, actual_destination_str, e),
 					false => match e.is_redirect() {
-						true => info!(
+						true => debug!(
 							"Redirect loop sending request to {} at {}: {}\nFinal URL: {:?}",
 							destination,
 							actual_destination_str,
@@ -320,7 +320,7 @@ where
 							e.url()
 						),
 						false => {
-							warn!("Could not send request to {} at {}: {}", destination, actual_destination_str, e)
+							info!("Could not send request to {} at {}: {}", destination, actual_destination_str, e)
 						},
 					},
 				},
@@ -520,7 +520,7 @@ async fn request_well_known(destination: &str) -> Option<String> {
 	debug!("Well known response text: {:?}", text);
 
 	if text.as_ref().ok()?.len() > 10000 {
-		info!(
+		debug!(
 			"Well known response for destination '{destination}' exceeded past 10000 characters, assuming no \
 			 well-known."
 		);
