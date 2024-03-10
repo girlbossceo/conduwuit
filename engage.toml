@@ -51,6 +51,7 @@ group = "lints"
 script = """
 RUSTDOCFLAGS="-D warnings" cargo doc \
     --workspace \
+    --all-features \
     --no-deps \
     --document-private-items \
     --color always
