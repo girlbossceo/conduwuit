@@ -41,6 +41,16 @@ group = "versions"
 script = "cargo clippy -- --version"
 
 [[task]]
+name = "cargo-audit"
+group = "versions"
+script = "cargo audit --version"
+
+[[task]]
+name = "cargo-audit"
+group = "security"
+script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked"
+
+[[task]]
 name = "cargo-fmt"
 group = "lints"
 script = "cargo fmt --check -- --color=always"
@@ -74,8 +84,3 @@ cargo test \
     -- \
     --color=always
 """
-
-[[task]]
-name = "cargo-audit"
-group = "security"
-script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked"
