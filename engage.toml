@@ -59,7 +59,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc \
 [[task]]
 name = "cargo-clippy"
 group = "lints"
-script = "cargo clippy --workspace --all-targets --color=always -- -D warnings"
+script = "cargo clippy --workspace --all-targets --all-features --color=always -- -D warnings"
 
 [[task]]
 name = "cargo"
@@ -68,6 +68,7 @@ script = """
 cargo test \
     --workspace \
     --all-targets \
+    --all-features \
     --color=always \
     -- \
     --color=always
