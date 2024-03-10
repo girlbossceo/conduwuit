@@ -1,6 +1,10 @@
 #[cfg(unix)]
+use std::fs::Permissions; // not unix specific, just only for UNIX sockets stuff and *nix container checks
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt as _;
-use std::{fs::Permissions, future::Future, io, net::SocketAddr, path::Path, sync::atomic, time::Duration};
+#[cfg(unix)]
+use std::path::Path; // not unix specific, just only for UNIX sockets stuff and *nix container checks
+use std::{future::Future, io, net::SocketAddr, sync::atomic, time::Duration};
 
 use axum::{
 	extract::{DefaultBodyLimit, FromRequestParts, MatchedPath},
@@ -23,7 +27,6 @@ use http::{
 	header::{self, HeaderName},
 	Method, StatusCode, Uri,
 };
-use hyper::Server;
 #[cfg(unix)]
 use hyperlocal::SocketIncoming;
 use ruma::api::{
@@ -407,10 +410,13 @@ async fn run_server() -> io::Result<()> {
 	};
 
 	let handle = ServerHandle::new();
+
+	#[allow(unused_variables)] // only rx is unused on non-*nix platforms
 	let (tx, rx) = oneshot::channel::<()>();
 
 	tokio::spawn(shutdown_signal(handle.clone(), tx));
 
+	#[allow(unused_variables)] // path is unused on non-*nix platforms
 	if let Some(path) = &config.unix_socket_path {
 		#[cfg(unix)]
 		{
@@ -435,7 +441,7 @@ async fn run_server() -> io::Result<()> {
 			let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
 			info!("Listening at {:?}", path);
-			let server = Server::builder(socket).serve(app);
+			let server = hyper::Server::builder(socket).serve(app);
 			let graceful = server.with_graceful_shutdown(async {
 				rx.await.ok();
 			});
