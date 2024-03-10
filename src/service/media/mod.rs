@@ -518,7 +518,7 @@ mod tests {
 		// r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));
 		// use the sha256 hash of the key as the file name instead of the key itself
 		// this is because the base64 encoded key can be longer than 255 characters.
-		r.push(general_purpose::URL_SAFE_NO_PAD.encode(sha2::Sha256::digest(key)));
+		r.push(general_purpose::URL_SAFE_NO_PAD.encode(<sha2::Sha256 as sha2::Digest>::digest(key)));
 		// Check that the file path is not longer than 255 characters
 		// (255 is the maximum length of a file path on most file systems)
 		assert!(
