@@ -33,6 +33,10 @@ impl Iterator for PreparedStatementIterator<'_> {
 struct NonAliasingBox<T>(*mut T);
 impl<T> Drop for NonAliasingBox<T> {
 	fn drop(&mut self) {
+		// TODO: figure out why this is necessary, but also this is sqlite so dont think
+		// i care that much. i tried checking commit history but couldn't find out why
+		// this was done.
+		#[allow(clippy::undocumented_unsafe_blocks)]
 		unsafe {
 			let _ = Box::from_raw(self.0);
 		};
@@ -157,7 +161,10 @@ impl SqliteTable {
 		//let name = self.name.clone();
 
 		let iterator = Box::new(
-			statement.query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1)))).unwrap().map(move |r| r.unwrap()),
+			statement
+				.query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
+				.unwrap()
+				.map(std::result::Result::unwrap),
 		);
 
 		Box::new(PreparedStatementIterator {
@@ -244,7 +251,7 @@ impl KvTree for SqliteTable {
 				statement
 					.query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
 					.unwrap()
-					.map(move |r| r.unwrap()),
+					.map(std::result::Result::unwrap),
 			);
 			Box::new(PreparedStatementIterator {
 				iterator,
@@ -266,7 +273,7 @@ impl KvTree for SqliteTable {
 				statement
 					.query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
 					.unwrap()
-					.map(move |r| r.unwrap()),
+					.map(std::result::Result::unwrap),
 			);
 
 			Box::new(PreparedStatementIterator {
