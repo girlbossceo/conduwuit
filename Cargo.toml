@@ -178,10 +178,12 @@ features = ["rt-tokio"]
 [dependencies.tikv-jemallocator]
 version = "0.5.4"
 optional = true
+default-features = false
 features = ["unprefixed_malloc_on_supported_platforms"]
 [dependencies.tikv-jemalloc-ctl]
 version = "0.5.4"
 optional = true
+default-features = false
 features = ["use_std"]
 
 # for URL previews
