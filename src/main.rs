@@ -393,6 +393,7 @@ async fn run_server() -> io::Result<()> {
 
 	let app;
 
+	#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 	#[cfg(feature = "zstd_compression")]
 	{
 		app = if cfg!(feature = "zstd_compression") && config.zstd_compression {
