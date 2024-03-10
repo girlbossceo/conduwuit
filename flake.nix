@@ -47,7 +47,7 @@
             owner = "facebook";
             repo = "rocksdb";
             rev = "v${version}";
-            hash = "sha256-KGsYDBc1fz/90YYNGwlZ0LUKXYsP1zyhP29TnRQwgjQ=";
+            hash = "sha256-OpEiMwGxZuxb9o3RQuSrwZMQGLhe9xLT1aa3HpI4KPs=";
           };
         });
 
