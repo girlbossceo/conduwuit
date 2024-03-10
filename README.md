@@ -50,6 +50,8 @@ willing to start contributing again. As is, I think if folks want a more polishe
 
 #### How can I deploy my own?
 
+conduwuit officially supports Linux, macOS, BSD, and Windows.
+
 - Simple install (this was tested the most): [DEPLOY.md](DEPLOY.md)
 - Nix/NixOS (and binary cache): [nix/README.md](nix/README.md)
 
@@ -62,8 +64,7 @@ If you want to connect an Appservice to Conduit, take a look at [APPSERVICES.md]
 2. Ask someone to assign the issue to you (comment on the issue or chat in
    [#conduwuit:puppygock.gay](https://matrix.to/#/#conduwuit:puppygock.gay))
 3. Fork the repo and work on the issue.
-4. Submit a PR (please keep contributions to the GitHub repo, main development is done here,
-not the GitLab repo which exists just as a mirror.)
+4. Submit a PR (please keep contributions to the GitHub repo, main development is done here, not the GitLab repo which exists just as a mirror.)
 
 #### Contact
 
