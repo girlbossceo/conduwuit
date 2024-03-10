@@ -46,6 +46,11 @@ group = "versions"
 script = "cargo audit --version"
 
 [[task]]
+name = "cargo-deb"
+group = "versions"
+script = "cargo deb --version"
+
+[[task]]
 name = "cargo-audit"
 group = "security"
 script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked"
