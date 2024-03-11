@@ -210,11 +210,11 @@ url_preview_check_root_domain = false
 # controls whether encrypted rooms and events are allowed (default true)
 #allow_encryption = false
 
-# conduwuit will send a simple GET request periodically to `https://pupbrain.dev/check-for-updates/stable`
+# if enabled, conduwuit will send a simple GET request periodically to `https://pupbrain.dev/check-for-updates/stable`
 # for any new announcements made. Despite the name, this is not an update check
-# endpoint, it is simply an announcement check endpoint. I don't plan on using
-# this so feel free to disable it.
-allow_check_for_updates = true
+# endpoint, it is simply an announcement check endpoint.
+# Defaults to false.
+#allow_check_for_updates = false
 
 # If you are using delegation via well-known files and you cannot serve them from your reverse proxy, you can
 # uncomment these to serve them directly from conduwuit. This requires proxying all requests to conduwuit, not just `/_matrix` to work.
