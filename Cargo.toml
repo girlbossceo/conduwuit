@@ -359,10 +359,14 @@ systemd-units = { unit-name = "matrix-conduit" }
 [profile.dev]
 debug = 0
 lto = 'off'
+codegen-units = 512
 incremental = true
 # seems to speed up continuous debug compilations
+[profile.dev.build-override]
+opt-level = 3
+[profile.dev.package."*"] # external dependencies
 opt-level = 1
-[profile.dev.package."*"]
+[profile.dev.package."tokio"]
 opt-level = 3
 
 # default release profile
