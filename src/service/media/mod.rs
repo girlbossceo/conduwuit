@@ -399,7 +399,7 @@ impl Service {
 				};
 
 				let mut thumbnail_bytes = Vec::new();
-				thumbnail.write_to(&mut Cursor::new(&mut thumbnail_bytes), image::ImageOutputFormat::Png)?;
+				thumbnail.write_to(&mut Cursor::new(&mut thumbnail_bytes), image::ImageFormat::Png)?;
 
 				// Save thumbnail in database so we don't have to generate it again next time
 				let thumbnail_key = self.db.create_file_metadata(
