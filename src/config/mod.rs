@@ -46,7 +46,7 @@ pub struct Config {
 	pub db_cache_capacity_mb: f64,
 	#[serde(default = "default_new_user_displayname_suffix")]
 	pub new_user_displayname_suffix: String,
-	#[serde(default = "true_fn")]
+	#[serde(default)]
 	pub allow_check_for_updates: bool,
 	#[serde(default = "default_conduit_cache_capacity_modifier")]
 	pub conduit_cache_capacity_modifier: f64,
