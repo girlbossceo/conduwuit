@@ -493,7 +493,7 @@ fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
 		.connect_timeout(Duration::from_secs(60))
 		.timeout(Duration::from_secs(60 * 5))
 		.redirect(redirect_policy)
-		.user_agent(concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")));
+		.user_agent("Conduwuit".to_owned() + "/" + env!("CARGO_PKG_VERSION"));
 
 	if let Some(proxy) = config.proxy.to_proxy()? {
 		reqwest_client_builder = reqwest_client_builder.proxy(proxy);
@@ -520,7 +520,7 @@ fn url_preview_reqwest_client_builder(config: &Config) -> Result<reqwest::Client
 		.connect_timeout(Duration::from_secs(60))
 		.timeout(Duration::from_secs(60 * 5))
 		.redirect(redirect_policy)
-		.user_agent(concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")));
+		.user_agent("Conduwuit".to_owned() + "/" + env!("CARGO_PKG_VERSION"));
 
 	if let Some(proxy) = config.proxy.to_proxy()? {
 		reqwest_client_builder = reqwest_client_builder.proxy(proxy);
