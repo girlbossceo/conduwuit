@@ -357,6 +357,16 @@ impl Service {
 				} else {
 					let (exact_width, exact_height) = {
 						// Copied from image::dynimage::resize_dimensions
+						//
+						// https://github.com/image-rs/image/blob/6edf8ae492c4bb1dacb41da88681ea74dab1bab3/src/math/utils.rs#L5-L11
+						// Calculates the width and height an image should be
+						// resized to. This preserves aspect ratio, and based
+						// on the `fill` parameter will either fill the
+						// dimensions to fit inside the smaller constraint
+						// (will overflow the specified bounds on one axis to
+						// preserve aspect ratio), or will shrink so that both
+						// dimensions are completely contained within the given
+						// `width` and `height`, with empty space on one axis.
 						let ratio = u64::from(original_width) * u64::from(height);
 						let nratio = u64::from(width) * u64::from(original_height);
 
