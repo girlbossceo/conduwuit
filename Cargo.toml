@@ -264,8 +264,8 @@ features = [
 
 [dependencies.rusqlite]
 git = "https://github.com/rusqlite/rusqlite"
-#branch = "master"
-rev = "def8e9460d8376a5c0c9f4f9846d413a9cd4581a"
+branch = "master"
+#rev = "def8e9460d8376a5c0c9f4f9846d413a9cd4581a"
 optional = true
 features = ["bundled"]
 
