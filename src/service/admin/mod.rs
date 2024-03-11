@@ -20,14 +20,14 @@ use ruma::{
 		},
 		TimelineEventType,
 	},
-	EventId, MxcUri, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId, RoomVersionId,
-	ServerName, UserId,
+	CanonicalJsonObject, CanonicalJsonValue, EventId, MxcUri, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId,
+	RoomId, RoomOrAliasId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
-use super::pdu::PduBuilder;
+use super::pdu::{self, PduBuilder};
 use crate::{
 	api::client_server::{get_alias_helper, leave_all_rooms, leave_room, AUTO_GEN_PASSWORD_LENGTH},
 	services,
@@ -375,10 +375,23 @@ enum DebugCommand {
 	/// the command.
 	ParsePdu,
 
-	/// - Retrieve and print a PDU by ID from the Conduit database
+	/// - Retrieve and print a PDU by ID from the conduwuit database or from a
+	///   remote server
 	GetPdu {
 		/// An event ID (a $ followed by the base64 reference hash)
 		event_id: Box<EventId>,
+
+		/// Optional argument for us to attempt to fetch the event from the
+		/// specified remote server. Inserts it into our database/timeline if
+		/// found.
+		/// Use --fetch-first to fetch from the remote server first instead of
+		/// checking our database first.
+		server: Option<Box<ServerName>>,
+
+		/// Optional argument alongside `server` to attempt to fetch the event
+		/// from the remote server first instead of checking our database first.
+		#[arg(short, long)]
+		fetch_first: bool,
 	},
 
 	/// - Forces device lists for all the local users to be updated
@@ -1908,38 +1921,188 @@ impl Service {
 				},
 				DebugCommand::GetPdu {
 					event_id,
+					server,
+					fetch_first,
 				} => {
-					let mut outlier = false;
-					let mut pdu_json = services().rooms.timeline.get_non_outlier_pdu_json(&event_id)?;
-					if pdu_json.is_none() {
-						outlier = true;
-						pdu_json = services().rooms.timeline.get_pdu_json(&event_id)?;
-					}
-					match pdu_json {
-						Some(json) => {
-							let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
-							RoomMessageEventContent::text_html(
-								format!(
-									"{}\n```json\n{}\n```",
-									if outlier {
-										"PDU is outlier"
-									} else {
-										"PDU was accepted"
+					if fetch_first {
+						if let Some(destination) = server {
+							match services()
+								.sending
+								.send_federation_request(
+									&destination,
+									ruma::api::federation::event::get_event::v1::Request {
+										event_id: event_id.to_owned().into(),
 									},
-									json_text
-								),
-								format!(
-									"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-									if outlier {
-										"PDU is outlier"
-									} else {
-										"PDU was accepted"
-									},
-									HtmlEscape(&json_text)
-								),
-							)
-						},
-						None => RoomMessageEventContent::text_plain("PDU not found."),
+								)
+								.await
+							{
+								Ok(response) => {
+									let json: CanonicalJsonObject =
+										serde_json::from_str(response.pdu.get()).map_err(|e| {
+											warn!(
+												"Requested event ID {event_id} from server but failed to convert from \
+												 RawValue to CanonicalJsonObject (malformed event/response?): {e}"
+											);
+											Error::BadRequest(
+												ErrorKind::Unknown,
+												"Received response from server but failed to parse PDU",
+											)
+										})?;
+
+									let json_text =
+										serde_json::to_string_pretty(&json).expect("canonical json is valid json");
+
+									return Ok(RoomMessageEventContent::text_html(
+										format!("{}\n```json\n{}\n```", "Got PDU from specified server", json_text),
+										format!(
+											"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
+											"Got PDU from specified server",
+											HtmlEscape(&json_text)
+										),
+									));
+								},
+								Err(e) => {
+									warn!(
+										"Failed sending request to {destination} for PDU {event_id}, checking if we \
+										 have it locally. Error message: {e}"
+									);
+									let mut outlier = false;
+									let mut pdu_json = services().rooms.timeline.get_non_outlier_pdu_json(&event_id)?;
+									if pdu_json.is_none() {
+										outlier = true;
+										pdu_json = services().rooms.timeline.get_pdu_json(&event_id)?;
+									}
+									match pdu_json {
+										Some(json) => {
+											let json_text = serde_json::to_string_pretty(&json)
+												.expect("canonical json is valid json");
+											return Ok(RoomMessageEventContent::text_html(
+												format!(
+													"{}\n```json\n{}\n```",
+													if outlier {
+														"Outlier PDU found in our database"
+													} else {
+														"PDU found in our database"
+													},
+													json_text
+												),
+												format!(
+													"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
+													if outlier {
+														"Outlier PDU found in our database"
+													} else {
+														"PDU found in our database"
+													},
+													HtmlEscape(&json_text)
+												),
+											));
+										},
+										None => {
+											return Ok(RoomMessageEventContent::text_plain(
+												"PDU not found locally and failed sending request to server for PDU.",
+											));
+										},
+									}
+								},
+							}
+						} else {
+							return Ok(RoomMessageEventContent::text_plain(
+								"--fetch-first was specified but with no server. Please specify a server.",
+							));
+						}
+					} else {
+						debug!("Attempting to get PDU {event_id} locally");
+						let mut outlier = false;
+						let mut pdu_json = services().rooms.timeline.get_non_outlier_pdu_json(&event_id)?;
+						if pdu_json.is_none() {
+							outlier = true;
+							pdu_json = services().rooms.timeline.get_pdu_json(&event_id)?;
+						}
+						match pdu_json {
+							Some(json) => {
+								let json_text =
+									serde_json::to_string_pretty(&json).expect("canonical json is valid json");
+								return Ok(RoomMessageEventContent::text_html(
+									format!(
+										"{}\n```json\n{}\n```",
+										if outlier {
+											"Outlier PDU found in our database"
+										} else {
+											"PDU found in our database"
+										},
+										json_text
+									),
+									format!(
+										"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
+										if outlier {
+											"Outlier PDU found in our database"
+										} else {
+											"PDU found in our database"
+										},
+										HtmlEscape(&json_text)
+									),
+								));
+							},
+							None => {
+								if let Some(destination) = server {
+									debug!(
+										"We don't have PDU {event_id} in our database and server was specified, \
+										 fetching from remote server {destination}"
+									);
+									match services()
+										.sending
+										.send_federation_request(
+											&destination,
+											ruma::api::federation::event::get_event::v1::Request {
+												event_id: event_id.to_owned().into(),
+											},
+										)
+										.await
+									{
+										Ok(response) => {
+											let json: CanonicalJsonObject = serde_json::from_str(response.pdu.get())
+												.map_err(|e| {
+													warn!(
+														"Requested event ID {event_id} from server but failed to \
+														 convert from RawValue to CanonicalJsonObject (malformed \
+														 event/response?): {e}"
+													);
+													Error::BadRequest(
+														ErrorKind::Unknown,
+														"Received response from server but failed to parse PDU",
+													)
+												})?;
+
+											let json_text = serde_json::to_string_pretty(&json)
+												.expect("canonical json is valid json");
+
+											return Ok(RoomMessageEventContent::text_html(
+												format!(
+													"{}\n```json\n{}\n```",
+													"Got PDU from specified server", json_text
+												),
+												format!(
+													"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
+													"Got PDU from specified server",
+													HtmlEscape(&json_text)
+												),
+											));
+										},
+										Err(e) => {
+											warn!(
+												"Failed sending request to {destination} for PDU {event_id}. Error \
+												 message: {e}"
+											);
+											return Ok(RoomMessageEventContent::text_plain(
+												"PDU not found locally and failed sending request to server for PDU.",
+											));
+										},
+									}
+								} else {
+									return Ok(RoomMessageEventContent::text_plain("PDU not found locally."));
+								}
+							},
+						}
 					}
 				},
 				DebugCommand::ForceDeviceListUpdates => {
