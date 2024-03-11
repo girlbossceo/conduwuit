@@ -377,6 +377,7 @@ opt-level = 3
 overflow-checks = true
 strip = "symbols"
 panic = "abort"
+control-flow-guard = true # Windows only
 debug = 0
 
 # high performance release profile which uses fat LTO across all crates, 1 codegen unit, max opt-level, and optimises across all crates
