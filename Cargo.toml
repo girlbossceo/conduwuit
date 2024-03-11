@@ -133,7 +133,7 @@ default-features = false
 
 # Used to generate thumbnails for images
 [dependencies.image]
-version = "0.24.9"
+version = "0.25.0"
 default-features = false
 features = [
   "jpeg",
