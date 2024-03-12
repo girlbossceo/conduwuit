@@ -37,7 +37,7 @@
 ### Database configuration
 
 # This is the only directory where conduwuit will save its data, including media
-database_path = "/var/lib/conduwuit/"
+database_path = "/var/lib/matrix-conduit/"
 
 # Database backend: Only rocksdb and sqlite are supported. Please note that sqlite
 # will perform significantly worse than rocksdb as it is not intended to be used the
@@ -205,6 +205,8 @@ url_preview_check_root_domain = false
 ### Misc
 
 # max log level for conduwuit. allows debug, info, warn, or error
+# see also: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
+# Defaults to "warn"
 #log = "warn"
 
 # controls whether encrypted rooms and events are allowed (default true)

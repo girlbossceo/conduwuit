@@ -347,6 +347,7 @@ assets = [
   ["debian/README.md", "usr/share/doc/matrix-conduit/README.Debian", "644"],
   ["README.md", "usr/share/doc/matrix-conduit/", "644"],
   ["target/release/conduit", "usr/sbin/matrix-conduit", "755"],
+  ["conduwuit-example.toml", "etc/matrix-conduit/conduit.toml", "640"],
 ]
 conf-files = [
   "/etc/matrix-conduit/conduit.toml"
