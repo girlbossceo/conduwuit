@@ -27,7 +27,7 @@ base64 = "0.22.0"
 ring = "0.17.8"
 
 # Used when querying the SRV record of other servers
-trust-dns-resolver = "0.23.2"
+hickory-resolver = "0.24.0"
 
 # Used to find matching events for appservices
 regex = "1.10.3"
