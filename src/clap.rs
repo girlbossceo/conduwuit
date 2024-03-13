@@ -1,5 +1,7 @@
 //! Integration with `clap`
 
+use std::path::PathBuf;
+
 use clap::Parser;
 
 /// Commandline arguments
@@ -8,7 +10,7 @@ use clap::Parser;
 pub struct Args {
 	#[arg(short, long)]
 	/// Optional argument to the path of a conduwuit config TOML file
-	pub config: Option<String>,
+	pub config: Option<PathBuf>,
 }
 
 /// Parse commandline arguments into structured data
