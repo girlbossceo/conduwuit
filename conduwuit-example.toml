@@ -309,6 +309,11 @@ url_preview_check_root_domain = false
 # Defaults to 3 as these are not very useful
 #rocksdb_max_log_files = 3
 
+# Type of RocksDB database compression to use.
+# Available options are "zstd", "zlib", "bz2" and "lz4"
+# Defaults to "zstd"
+#rocksdb_compression_algo = "zstd"
+
 
 
 ### Presence
