@@ -4,7 +4,10 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use rust_rocksdb::LogLevel::{Debug, Error, Fatal, Info, Warn};
+use rust_rocksdb::{
+	LogLevel::{Debug, Error, Fatal, Info, Warn},
+	WriteBatchWithTransaction,
+};
 use tracing::{debug, info};
 
 use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
@@ -223,11 +226,13 @@ impl KvTree for RocksDbEngineTree<'_> {
 	fn insert_batch(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()> {
 		let writeoptions = rust_rocksdb::WriteOptions::default();
 
+		let mut batch = WriteBatchWithTransaction::<false>::default();
+
 		for (key, value) in iter {
-			self.db.rocks.put_cf_opt(&self.cf(), key, value, &writeoptions)?;
+			batch.put_cf(&self.cf(), key, value);
 		}
 
-		Ok(())
+		Ok(self.db.rocks.write_opt(batch, &writeoptions)?)
 	}
 
 	fn remove(&self, key: &[u8]) -> Result<()> {
@@ -293,13 +298,17 @@ impl KvTree for RocksDbEngineTree<'_> {
 		readoptions.set_total_order_seek(true);
 		let writeoptions = rust_rocksdb::WriteOptions::default();
 
+		let mut batch = WriteBatchWithTransaction::<false>::default();
+
 		let lock = self.write_lock.write().unwrap();
 
 		for key in iter {
 			let old = self.db.rocks.get_cf_opt(&self.cf(), &key, &readoptions)?;
 			let new = utils::increment(old.as_deref()).unwrap();
-			self.db.rocks.put_cf_opt(&self.cf(), key, new, &writeoptions)?;
+			batch.put_cf(&self.cf(), key, new);
 		}
+
+		self.db.rocks.write_opt(batch, &writeoptions)?;
 
 		drop(lock);
 
