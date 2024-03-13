@@ -15,7 +15,6 @@ use axum::{
 use axum_server::{bind, bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
 #[cfg(feature = "axum_dual_protocol")]
 use axum_server_dual_protocol::ServerExt;
-use clap::Parser;
 use conduit::api::{client_server, server_server};
 pub use conduit::*; // Re-export everything from the library crate
 use either::Either::{Left, Right};
@@ -56,17 +55,9 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-#[derive(Parser, Debug)]
-#[clap(version, about, long_about = None)]
-struct Args {
-	#[arg(short, long)]
-	/// Optional argument to the path of a conduwuit config TOML file
-	config: Option<String>,
-}
-
 #[tokio::main]
 async fn main() {
-	let args = Args::parse();
+	let args = clap::parse();
 
 	// Initialize config
 	let raw_config = if Env::var("CONDUIT_CONFIG").is_some() {
