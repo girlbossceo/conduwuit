@@ -30,6 +30,11 @@ pub(crate) trait KeyValueDatabaseEngine: Send + Sync {
 pub(crate) trait KvTree: Send + Sync {
 	fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
 
+	#[cfg(feature = "rocksdb")]
+	fn multi_get(
+		&self, iter: Vec<(&Arc<rust_rocksdb::BoundColumnFamily<'_>>, Vec<u8>)>,
+	) -> Vec<std::result::Result<Option<Vec<u8>>, rust_rocksdb::Error>>;
+
 	fn insert(&self, key: &[u8], value: &[u8]) -> Result<()>;
 	fn insert_batch(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()>;
 

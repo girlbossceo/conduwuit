@@ -184,6 +184,12 @@ impl RocksDbEngineTree<'_> {
 impl KvTree for RocksDbEngineTree<'_> {
 	fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> { Ok(self.db.rocks.get_cf(&self.cf(), key)?) }
 
+	fn multi_get(
+		&self, iter: Vec<(&Arc<rust_rocksdb::BoundColumnFamily<'_>>, Vec<u8>)>,
+	) -> Vec<std::result::Result<Option<Vec<u8>>, rust_rocksdb::Error>> {
+		self.db.rocks.multi_get_cf(iter)
+	}
+
 	fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
 		let lock = self.write_lock.read().unwrap();
 		self.db.rocks.put_cf(&self.cf(), key, value)?;
