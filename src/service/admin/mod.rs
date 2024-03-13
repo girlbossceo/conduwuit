@@ -20,14 +20,14 @@ use ruma::{
 		},
 		TimelineEventType,
 	},
-	CanonicalJsonObject, CanonicalJsonValue, EventId, MxcUri, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId,
-	RoomId, RoomOrAliasId, RoomVersionId, ServerName, UserId,
+	CanonicalJsonObject, EventId, MxcUri, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId,
+	RoomOrAliasId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
-use super::pdu::{self, PduBuilder};
+use super::pdu::PduBuilder;
 use crate::{
 	api::client_server::{get_alias_helper, leave_all_rooms, leave_room, AUTO_GEN_PASSWORD_LENGTH},
 	services,
