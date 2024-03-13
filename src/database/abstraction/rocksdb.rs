@@ -38,6 +38,10 @@ fn db_options(rocksdb_cache: &rust_rocksdb::Cache, config: &Config) -> rust_rock
 	block_based_options.set_block_size(64 * 1024);
 	block_based_options.set_cache_index_and_filter_blocks(true);
 
+	block_based_options.set_bloom_filter(10.0, false);
+	block_based_options.set_pin_l0_filter_and_index_blocks_in_cache(true);
+	block_based_options.set_optimize_filters_for_memory(true);
+
 	// database options: https://docs.rs/rocksdb/latest/rocksdb/struct.Options.html#
 	let mut db_opts = rust_rocksdb::Options::default();
 
@@ -47,6 +51,14 @@ fn db_options(rocksdb_cache: &rust_rocksdb::Cache, config: &Config) -> rust_rock
 		"warn" => Warn,
 		"fatal" => Fatal,
 		_ => Error,
+	};
+
+	let rocksdb_compression_algo = match config.rocksdb_compression_algo.as_ref() {
+		"zstd" => rust_rocksdb::DBCompressionType::Zstd,
+		"zlib" => rust_rocksdb::DBCompressionType::Zlib,
+		"lz4" => rust_rocksdb::DBCompressionType::Lz4,
+		"bz2" => rust_rocksdb::DBCompressionType::Bz2,
+		_ => rust_rocksdb::DBCompressionType::Zstd,
 	};
 
 	let threads = if config.rocksdb_parallelism_threads == 0 {
@@ -61,30 +73,27 @@ fn db_options(rocksdb_cache: &rust_rocksdb::Cache, config: &Config) -> rust_rock
 	db_opts.set_keep_log_file_num(config.rocksdb_max_log_files);
 
 	if config.rocksdb_optimize_for_spinning_disks {
-		db_opts.set_skip_stats_update_on_db_open(true);
-		db_opts.set_compaction_readahead_size(2 * 1024 * 1024); // default compaction_readahead_size is 0 which is good for SSDs
-		db_opts.set_target_file_size_base(256 * 1024 * 1024); // default target_file_size is 64MB which is good for SSDs
-		db_opts.set_optimize_filters_for_hits(true); // doesn't really seem useful for
-		                                     // fast storage
+		db_opts.set_skip_stats_update_on_db_open(true); // speeds up opening DB on hard drives
+		db_opts.set_compaction_readahead_size(4 * 1024 * 1024); // "If you’re running RocksDB on spinning disks, you should set this to at least
+														// 2MB. That way RocksDB’s compaction is doing sequential instead of random
+														// reads."
+		db_opts.set_target_file_size_base(256 * 1024 * 1024);
 	} else {
-		db_opts.set_skip_stats_update_on_db_open(false);
 		db_opts.set_max_bytes_for_level_base(512 * 1024 * 1024);
 		db_opts.set_use_direct_reads(true);
 		db_opts.set_use_direct_io_for_flush_and_compaction(true);
 	}
 
 	db_opts.set_block_based_table_factory(&block_based_options);
-	db_opts.set_level_compaction_dynamic_level_bytes(true);
 	db_opts.create_if_missing(true);
 	db_opts.increase_parallelism(
 		threads.try_into().expect("Failed to convert \"rocksdb_parallelism_threads\" usize into i32"),
 	);
-	//db_opts.set_max_open_files(config.rocksdb_max_open_files);
-	db_opts.set_compression_type(rust_rocksdb::DBCompressionType::Zstd);
-	db_opts.set_compaction_style(rust_rocksdb::DBCompactionStyle::Level);
+	db_opts.set_compression_type(rocksdb_compression_algo);
 	db_opts.optimize_level_style_compaction(10 * 1024 * 1024);
 
 	// https://github.com/facebook/rocksdb/wiki/Setup-Options-and-Basic-Tuning
+	db_opts.set_level_compaction_dynamic_level_bytes(true);
 	db_opts.set_max_background_jobs(6);
 	db_opts.set_bytes_per_sync(1_048_576);
 

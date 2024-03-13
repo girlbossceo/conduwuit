@@ -119,6 +119,8 @@ pub struct Config {
 	pub rocksdb_parallelism_threads: usize,
 	#[serde(default = "default_rocksdb_max_log_files")]
 	pub rocksdb_max_log_files: usize,
+	#[serde(default = "default_rocksdb_compression_algo")]
+	pub rocksdb_compression_algo: String,
 
 	pub emergency_password: Option<String>,
 
@@ -352,6 +354,7 @@ impl fmt::Display for Config {
 				&self.rocksdb_optimize_for_spinning_disks.to_string(),
 			),
 			("RocksDB Parallelism Threads", &self.rocksdb_parallelism_threads.to_string()),
+			("RocksDB Compression Algorithm", &self.rocksdb_compression_algo),
 			("Prevent Media Downloads From", {
 				let mut lst = vec![];
 				for domain in &self.prevent_media_downloads_from {
@@ -450,6 +453,8 @@ fn default_rocksdb_log_time_to_roll() -> usize { 0 }
 fn default_rocksdb_max_log_files() -> usize { 3 }
 
 fn default_rocksdb_parallelism_threads() -> usize { num_cpus::get_physical() / 2 }
+
+fn default_rocksdb_compression_algo() -> String { "zstd".to_owned() }
 
 // I know, it's a great name
 pub(crate) fn default_default_room_version() -> RoomVersionId { RoomVersionId::V10 }
