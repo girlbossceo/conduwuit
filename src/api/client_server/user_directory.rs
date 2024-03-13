@@ -41,6 +41,9 @@ pub async fn search_users_route(body: Ruma<search_users::v3::Request>) -> Result
 			return None;
 		}
 
+		// It's a matching user, but is the sender allowed to see them?
+		let mut user_visible = false;
+
 		let user_is_in_public_rooms =
 			services().rooms.state_cache.rooms_joined(&user_id).filter_map(std::result::Result::ok).any(|room| {
 				services().rooms.state_accessor.room_state_get(&room, &StateEventType::RoomJoinRules, "").map_or(
@@ -55,17 +58,21 @@ pub async fn search_users_route(body: Ruma<search_users::v3::Request>) -> Result
 			});
 
 		if user_is_in_public_rooms {
-			return Some(user);
+			user_visible = true;
+		} else {
+			let user_is_in_shared_rooms =
+				services().rooms.user.get_shared_rooms(vec![sender_user.clone(), user_id]).ok()?.next().is_some();
+
+			if user_is_in_shared_rooms {
+				user_visible = true;
+			}
 		}
 
-		let user_is_in_shared_rooms =
-			services().rooms.user.get_shared_rooms(vec![sender_user.clone(), user_id]).ok()?.next().is_some();
-
-		if user_is_in_shared_rooms {
-			return Some(user);
+		if !user_visible {
+			return None;
 		}
 
-		None
+		Some(user)
 	});
 
 	let results = users.by_ref().take(limit).collect();
