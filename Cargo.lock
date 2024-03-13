@@ -1948,9 +1948,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.78"
+version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2422ad645d89c99f8f3e6b88a9fdeca7fabeac836b1002371c4367c8f984aae"
+checksum = "e835ff2298f5721608eb1a980ecaee1aef2c132bf95ecc026a11b7bf3c01c02e"
 dependencies = [
  "unicode-ident",
 ]
@@ -2068,9 +2068,9 @@ checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
 name = "reqwest"
-version = "0.11.25"
+version = "0.11.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0eea5a9eb898d3783f17c6407670e3592fd174cb81a10e51d4c37f49450b9946"
+checksum = "78bf93c4af7a8bb7d879d51cebe797356ff10ae8516ace542b5182d9dcac10b2"
 dependencies = [
  "base64 0.21.7",
  "bytes",
@@ -2136,7 +2136,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.9.4"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "assign",
  "js_int",
@@ -2155,7 +2155,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2167,7 +2167,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.17.4"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "as_variant",
  "assign",
@@ -2186,7 +2186,7 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.12.1"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "as_variant",
  "base64 0.21.7",
@@ -2214,7 +2214,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.27.11"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "as_variant",
  "indexmap",
@@ -2236,7 +2236,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2248,7 +2248,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.9.3"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "js_int",
  "thiserror",
@@ -2257,7 +2257,7 @@ dependencies = [
 [[package]]
 name = "ruma-identity-service-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2267,7 +2267,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.12.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "once_cell",
  "proc-macro-crate",
@@ -2282,7 +2282,7 @@ dependencies = [
 [[package]]
 name = "ruma-push-gateway-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2294,7 +2294,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.14.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "base64 0.21.7",
  "ed25519-dalek",
@@ -2310,7 +2310,7 @@ dependencies = [
 [[package]]
 name = "ruma-state-res"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#13b8386812679b33235c68fa1ec0b50c4647d05a"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#35a6a837218fb68dc76451134d28e5bd61d6310f"
 dependencies = [
  "itertools 0.11.0",
  "js_int",
@@ -2542,9 +2542,9 @@ dependencies = [
 
 [[package]]
 name = "serde_path_to_error"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebd154a240de39fdebcf5775d2675c204d7c13cf39a4c697be6493c8e734337c"
+checksum = "af99884400da37c88f5e9146b7f1fd0fbcae8f6eec4e9da38b67d05486f814a6"
 dependencies = [
  "itoa",
  "serde",
@@ -2796,20 +2796,20 @@ checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
 
 [[package]]
 name = "system-configuration"
-version = "0.6.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "658bc6ee10a9b4fcf576e9b0819d95ec16f4d2c02d39fd83ac1c8789785c4a42"
+checksum = "ba3a3adc5c275d719af8cb4272ea1c4a6d668a777f37e115f6d11ddbc1c8e0e7"
 dependencies = [
- "bitflags 2.4.2",
+ "bitflags 1.3.2",
  "core-foundation",
  "system-configuration-sys",
 ]
 
 [[package]]
 name = "system-configuration-sys"
-version = "0.6.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
+checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -2828,18 +2828,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.57"
+version = "1.0.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e45bcbe8ed29775f228095caf2cd67af7a4ccf756ebff23a306bf3e8b47b24b"
+checksum = "03468839009160513471e86a034bb2c5c0e4baae3b43f79ffc55c4a5427b3297"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.57"
+version = "1.0.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a953cb265bef375dae3de6663da4d3804eee9682ea80d8e2542529b73c531c81"
+checksum = "c61f3ba182994efc43764a46c018c347bc492c79f024e705f46567b418f6d4f7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3452,9 +3452,9 @@ checksum = "653f141f39ec16bba3c5abe400a0c60da7468261cc2cbf36805022876bc721a8"
 
 [[package]]
 name = "wildmatch"
-version = "2.3.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "495ec47bf3c1345005f40724f0269362c8556cbc43aed0526ed44cae1d35fceb"
+checksum = "017f0a8ed8331210d91b7a4c30d4edef8f21a65c02f2540496e2e79725f6d8a8"
 
 [[package]]
 name = "winapi"

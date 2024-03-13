@@ -18,7 +18,7 @@ rust-version = "1.75.0"
 rand = "0.8.5"
 
 # Used for conduit::Error type
-thiserror = "1.0.57"
+thiserror = "1.0.58"
 
 # Used to encode server public key
 base64 = "0.22.0"
@@ -101,7 +101,7 @@ features = [
 ]
 
 [dependencies.reqwest]
-version = "0.11.25"
+version = "0.11.26"
 default-features = false
 features = [
   "rustls-tls-native-roots",
