@@ -7,6 +7,7 @@ use crate::{database::KeyValueDatabase, service, services, utils, Error, PduEven
 
 #[async_trait]
 impl service::rooms::state_accessor::Data for KeyValueDatabase {
+	#[allow(unused_qualifications)] // async traits
 	async fn state_full_ids(&self, shortstatehash: u64) -> Result<HashMap<u64, Arc<EventId>>> {
 		let full_state = services()
 			.rooms
@@ -29,6 +30,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 		Ok(result)
 	}
 
+	#[allow(unused_qualifications)] // async traits
 	async fn state_full(&self, shortstatehash: u64) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
 		let full_state = services()
 			.rooms
@@ -110,6 +112,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 	}
 
 	/// Returns the full room state.
+	#[allow(unused_qualifications)] // async traits
 	async fn room_state_full(&self, room_id: &RoomId) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
 		if let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? {
 			self.state_full(current_shortstatehash).await
