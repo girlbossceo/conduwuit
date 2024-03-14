@@ -84,7 +84,8 @@ where
 			appservice_registration
 		{
 			match metadata.authentication {
-				AuthScheme::AccessToken | AuthScheme::AccessTokenOptional => {
+				// TODO: verify if just or'ing `AuthScheme::AppserviceToken` is correct here
+				AuthScheme::AccessToken | AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken => {
 					let user_id = query_params.user_id.map_or_else(
 						|| {
 							UserId::parse_with_server_name(
@@ -147,6 +148,28 @@ where
 								(Some(user_id), Some(OwnedDeviceId::from(device_id)), None, false)
 							},
 						}
+					}
+				},
+				// TODO: verify if this is correct for Appservices (?)
+				AuthScheme::AppserviceToken => {
+					debug!("non-appservice called an endpoint with AuthScheme::AppserviceToken");
+					let token = match token {
+						Some(token) => token,
+						_ => return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token.")),
+					};
+
+					match services().users.find_from_token(token)? {
+						None => {
+							return Err(Error::BadRequest(
+								ErrorKind::UnknownToken {
+									soft_logout: false,
+								},
+								"Unknown access token.",
+							))
+						},
+						Some((user_id, device_id)) => {
+							(Some(user_id), Some(OwnedDeviceId::from(device_id)), None, false)
+						},
 					}
 				},
 				AuthScheme::ServerSignatures => {
