@@ -28,7 +28,7 @@ use ruma::{
 	uint, DeviceId, OwnedDeviceId, OwnedUserId, RoomId, UInt, UserId,
 };
 use tokio::sync::watch::Sender;
-use tracing::{error, info};
+use tracing::{debug, error};
 
 use crate::{service::rooms::timeline::PduCount, services, Error, PduEvent, Result, Ruma, RumaResponse};
 
@@ -98,7 +98,7 @@ pub async fn sync_events_route(
 
 					o.insert((body.since.clone(), rx.clone()));
 
-					info!("Sync started for {sender_user}");
+					debug!("Sync started for {sender_user}");
 
 					tokio::spawn(sync_helper_wrapper(sender_user.clone(), sender_device.clone(), body, tx));
 
