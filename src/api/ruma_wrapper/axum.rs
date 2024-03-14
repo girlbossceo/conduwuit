@@ -150,28 +150,8 @@ where
 						}
 					}
 				},
-				// TODO: verify if this is correct for Appservices (?)
-				AuthScheme::AppserviceToken => {
-					debug!("non-appservice called an endpoint with AuthScheme::AppserviceToken");
-					let token = match token {
-						Some(token) => token,
-						_ => return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token.")),
-					};
-
-					match services().users.find_from_token(token)? {
-						None => {
-							return Err(Error::BadRequest(
-								ErrorKind::UnknownToken {
-									soft_logout: false,
-								},
-								"Unknown access token.",
-							))
-						},
-						Some((user_id, device_id)) => {
-							(Some(user_id), Some(OwnedDeviceId::from(device_id)), None, false)
-						},
-					}
-				},
+				// treat non-appservice registrations as None authentication
+				AuthScheme::AppserviceToken => (None, None, None, false),
 				AuthScheme::ServerSignatures => {
 					let TypedHeader(Authorization(x_matrix)) =
 						parts.extract::<TypedHeader<Authorization<XMatrix>>>().await.map_err(|e| {
