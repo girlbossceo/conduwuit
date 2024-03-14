@@ -33,8 +33,10 @@ pub(crate) trait KvTree: Send + Sync {
 	#[allow(dead_code)]
 	#[cfg(feature = "rocksdb")]
 	fn multi_get(
-		&self, iter: Vec<(&Arc<rust_rocksdb::BoundColumnFamily<'_>>, Vec<u8>)>,
-	) -> Vec<std::result::Result<Option<Vec<u8>>, rust_rocksdb::Error>>;
+		&self, _iter: Vec<(&Arc<rust_rocksdb::BoundColumnFamily<'_>>, Vec<u8>)>,
+	) -> Vec<std::result::Result<Option<Vec<u8>>, rust_rocksdb::Error>> {
+		unimplemented!()
+	}
 
 	fn insert(&self, key: &[u8], value: &[u8]) -> Result<()>;
 	fn insert_batch(&self, iter: &mut dyn Iterator<Item = (Vec<u8>, Vec<u8>)>) -> Result<()>;
