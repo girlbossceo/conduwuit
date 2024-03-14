@@ -1964,6 +1964,12 @@ impl Service {
 					event_id,
 					server,
 				} => {
+					if !services().globals.config.allow_federation {
+						return Ok(RoomMessageEventContent::text_plain(
+							"Federation is disabled on this homeserver.",
+						));
+					}
+
 					// TODO: use Futures as some requests may take a while so we dont block the
 					// admin room
 					match services()
