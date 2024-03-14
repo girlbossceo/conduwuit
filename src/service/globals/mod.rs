@@ -17,7 +17,6 @@ use argon2::Argon2;
 use base64::{engine::general_purpose, Engine as _};
 pub use data::Data;
 use futures_util::FutureExt;
-use hickory_resolver::TokioAsyncResolver;
 use hyper::{
 	client::connect::dns::{GaiResolver, Name},
 	service::Service as HyperService,
@@ -35,6 +34,7 @@ use ruma::{
 };
 use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock, Semaphore};
 use tracing::{error, info};
+use trust_dns_resolver::TokioAsyncResolver;
 
 use crate::{api::server_server::FedDest, services, Config, Error, Result};
 
