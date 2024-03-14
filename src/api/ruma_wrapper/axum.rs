@@ -39,6 +39,7 @@ where
 {
 	type Rejection = Error;
 
+	#[allow(unused_qualifications)] // async traits
 	async fn from_request(req: Request<B>, _state: &S) -> Result<Self, Self::Rejection> {
 		let (mut parts, mut body) = match req.with_limited_body() {
 			Ok(limited_req) => {

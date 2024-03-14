@@ -9,8 +9,10 @@ use crate::{PduEvent, Result};
 pub trait Data: Send + Sync {
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
+	#[allow(unused_qualifications)] // async traits
 	async fn state_full_ids(&self, shortstatehash: u64) -> Result<HashMap<u64, Arc<EventId>>>;
 
+	#[allow(unused_qualifications)] // async traits
 	async fn state_full(&self, shortstatehash: u64) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>>;
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
@@ -29,6 +31,7 @@ pub trait Data: Send + Sync {
 	fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<Option<u64>>;
 
 	/// Returns the full room state.
+	#[allow(unused_qualifications)] // async traits
 	async fn room_state_full(&self, room_id: &RoomId) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>>;
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
