@@ -1971,6 +1971,13 @@ impl Service {
 						));
 					}
 
+					if server == services().globals.server_name() {
+						return Ok(RoomMessageEventContent::text_plain(
+							"Not allowed to send federation requests to ourselves. Please use `get-pdu` for fetching \
+							 local PDUs.",
+						));
+					}
+
 					// TODO: use Futures as some requests may take a while so we dont block the
 					// admin room
 					match services()
