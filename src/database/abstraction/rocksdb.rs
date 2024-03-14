@@ -84,6 +84,17 @@ fn db_options(rocksdb_cache: &rust_rocksdb::Cache, config: &Config) -> rust_rock
 		db_opts.set_use_direct_io_for_flush_and_compaction(true);
 	}
 
+	if config.rocksdb_bottommost_compression {
+		db_opts.set_bottommost_compression_type(rocksdb_compression_algo);
+		db_opts.set_bottommost_zstd_max_train_bytes(0, true);
+
+		// -14 w_bits is only read by zlib.
+		db_opts.set_bottommost_compression_options(-14, config.rocksdb_compression_level, 0, 0, true);
+	}
+
+	// -14 w_bits is only read by zlib.
+	db_opts.set_compression_options(-14, config.rocksdb_compression_level, 0, 0);
+
 	db_opts.set_block_based_table_factory(&block_based_options);
 	db_opts.create_if_missing(true);
 	db_opts.increase_parallelism(

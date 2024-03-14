@@ -289,8 +289,8 @@ url_preview_check_root_domain = false
 # Defaults to false
 #rocksdb_optimize_for_spinning_disks = false
 
-# RocksDB log level. This is not the same as conduwuit's log level. This is the log level for RocksDB itself
-# which show up in your database folder/path as `LOG` files. Defaults to warn. conduwuit will typically log RocksDB errors. 
+# RocksDB log level. This is not the same as conduwuit's log level. This is the log level for the RocksDB engine/library
+# which show up in your database folder/path as `LOG` files. Defaults to error. conduwuit will typically log RocksDB errors as normal.
 #rocksdb_log_level = "error"
 
 # Max RocksDB `LOG` file size before rotating in bytes. Defaults to 4MB.
@@ -311,8 +311,27 @@ url_preview_check_root_domain = false
 
 # Type of RocksDB database compression to use.
 # Available options are "zstd", "zlib", "bz2" and "lz4"
+# It is best to use ZSTD as an overall good balance between speed/performance, storage, IO amplification, and CPU usage.
+# For more performance but less compression (more storage used) and less CPU usage, use LZ4.
+# See https://github.com/facebook/rocksdb/wiki/Compression for more details.
+#
 # Defaults to "zstd"
 #rocksdb_compression_algo = "zstd"
+
+# Level of compression the specified compression algorithm for RocksDB to use.
+# Default is 32767, which is internally read by RocksDB as the default magic number and
+# translated to the library's default compression level as they all differ.
+# See their `kDefaultCompressionLevel`.
+#
+#rocksdb_compression_level = 32767
+
+# Whether to enable RocksDB "bottommost_compression".
+# At the expense of more CPU usage, this will further compress the database to reduce more storage.
+# It is recommended to use ZSTD compression with this for best compression results.
+# See https://github.com/facebook/rocksdb/wiki/Compression for more details.
+#
+# Defaults to false as this uses more CPU when compressing.
+#rocksdb_bottommost_compression = false
 
 
 

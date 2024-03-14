@@ -371,6 +371,8 @@ impl Service<'_> {
 
 	pub fn rocksdb_compression_algo(&self) -> &String { &self.config.rocksdb_compression_algo }
 
+	pub fn rocksdb_compression_level(&self) -> i32 { self.config.rocksdb_compression_level }
+
 	pub fn prevent_media_downloads_from(&self) -> &[OwnedServerName] { &self.config.prevent_media_downloads_from }
 
 	pub fn ip_range_denylist(&self) -> &[String] { &self.config.ip_range_denylist }

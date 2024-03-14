@@ -121,6 +121,10 @@ pub struct Config {
 	pub rocksdb_max_log_files: usize,
 	#[serde(default = "default_rocksdb_compression_algo")]
 	pub rocksdb_compression_algo: String,
+	#[serde(default = "default_rocksdb_compression_level")]
+	pub rocksdb_compression_level: i32,
+	#[serde(default)]
+	pub rocksdb_bottommost_compression: bool,
 
 	pub emergency_password: Option<String>,
 
@@ -342,19 +346,33 @@ impl fmt::Display for Config {
 			}),
 			#[cfg(feature = "compression-zstd")]
 			("zstd Response Body Compression", &self.zstd_compression.to_string()),
+			#[cfg(feature = "rocksdb")]
 			("RocksDB database log level", &self.rocksdb_log_level),
+			#[cfg(feature = "rocksdb")]
 			("RocksDB database log time-to-roll", &self.rocksdb_log_time_to_roll.to_string()),
+			#[cfg(feature = "rocksdb")]
 			("RocksDB Max LOG Files", &self.rocksdb_max_log_files.to_string()),
+			#[cfg(feature = "rocksdb")]
 			(
 				"RocksDB database max log file size",
 				&self.rocksdb_max_log_file_size.to_string(),
 			),
+			#[cfg(feature = "rocksdb")]
 			(
 				"RocksDB database optimize for spinning disks",
 				&self.rocksdb_optimize_for_spinning_disks.to_string(),
 			),
+			#[cfg(feature = "rocksdb")]
 			("RocksDB Parallelism Threads", &self.rocksdb_parallelism_threads.to_string()),
+			#[cfg(feature = "rocksdb")]
 			("RocksDB Compression Algorithm", &self.rocksdb_compression_algo),
+			#[cfg(feature = "rocksdb")]
+			("RocksDB Compression Level", &self.rocksdb_compression_level.to_string()),
+			#[cfg(feature = "rocksdb")]
+			(
+				"RocksDB Bottommost Level Compression",
+				&self.rocksdb_bottommost_compression.to_string(),
+			),
 			("Prevent Media Downloads From", {
 				let mut lst = vec![];
 				for domain in &self.prevent_media_downloads_from {
@@ -455,6 +473,11 @@ fn default_rocksdb_max_log_files() -> usize { 3 }
 fn default_rocksdb_parallelism_threads() -> usize { num_cpus::get_physical() / 2 }
 
 fn default_rocksdb_compression_algo() -> String { "zstd".to_owned() }
+
+/// Default RocksDB compression level is 32767, which is internally read by
+/// RocksDB as the default magic number and translated to the library's default
+/// compression level as they all differ. See their `kDefaultCompressionLevel`.
+fn default_rocksdb_compression_level() -> i32 { 32767 }
 
 // I know, it's a great name
 pub(crate) fn default_default_room_version() -> RoomVersionId { RoomVersionId::V10 }
