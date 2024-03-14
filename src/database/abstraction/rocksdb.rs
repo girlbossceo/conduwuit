@@ -15,7 +15,8 @@ use crate::{utils, Result};
 
 pub(crate) struct Engine {
 	rocks: rust_rocksdb::DBWithThreadMode<rust_rocksdb::MultiThreaded>,
-	cache: rust_rocksdb::Cache,
+	row_cache: rust_rocksdb::Cache,
+	col_cache: rust_rocksdb::Cache,
 	old_cfs: Vec<String>,
 	opts: rust_rocksdb::Options,
 	env: rust_rocksdb::Env,
@@ -29,25 +30,13 @@ struct RocksDbEngineTree<'a> {
 	write_lock: RwLock<()>,
 }
 
-fn db_options(config: &Config, env: &rust_rocksdb::Env, rocksdb_cache: &rust_rocksdb::Cache) -> rust_rocksdb::Options {
-	// block-based options: https://docs.rs/rocksdb/latest/rocksdb/struct.BlockBasedOptions.html#
-	let mut block_based_options = rust_rocksdb::BlockBasedOptions::default();
-
-	block_based_options.set_block_cache(rocksdb_cache);
-
-	// "Difference of spinning disk"
-	// https://zhangyuchi.gitbooks.io/rocksdbbook/content/RocksDB-Tuning-Guide.html
-	block_based_options.set_block_size(64 * 1024);
-	block_based_options.set_cache_index_and_filter_blocks(true);
-
-	block_based_options.set_bloom_filter(10.0, false);
-	block_based_options.set_pin_l0_filter_and_index_blocks_in_cache(true);
-	block_based_options.set_optimize_filters_for_memory(true);
-
+fn db_options(
+	config: &Config, env: &rust_rocksdb::Env, row_cache: &rust_rocksdb::Cache, col_cache: &rust_rocksdb::Cache,
+) -> rust_rocksdb::Options {
 	// database options: https://docs.rs/rocksdb/latest/rocksdb/struct.Options.html#
 	let mut db_opts = rust_rocksdb::Options::default();
-	db_opts.set_env(env);
 
+	// Logging
 	let rocksdb_log_level = match config.rocksdb_log_level.as_ref() {
 		"debug" => Debug,
 		"info" => Info,
@@ -55,7 +44,52 @@ fn db_options(config: &Config, env: &rust_rocksdb::Env, rocksdb_cache: &rust_roc
 		"fatal" => Fatal,
 		_ => Error,
 	};
+	db_opts.set_log_level(rocksdb_log_level);
+	db_opts.set_max_log_file_size(config.rocksdb_max_log_file_size);
+	db_opts.set_log_file_time_to_roll(config.rocksdb_log_time_to_roll);
+	db_opts.set_keep_log_file_num(config.rocksdb_max_log_files);
 
+	// Processing
+	let threads = if config.rocksdb_parallelism_threads == 0 {
+		num_cpus::get_physical() // max cores if user specified 0
+	} else {
+		config.rocksdb_parallelism_threads
+	};
+
+	db_opts.set_max_background_jobs(threads.try_into().unwrap());
+	db_opts.set_max_subcompactions(threads.try_into().unwrap());
+
+	// IO
+	db_opts.set_use_direct_reads(true);
+	db_opts.set_use_direct_io_for_flush_and_compaction(true);
+	if config.rocksdb_optimize_for_spinning_disks {
+		db_opts.set_skip_stats_update_on_db_open(true); // speeds up opening DB on hard
+		                                        // drives
+	}
+
+	// Blocks
+	let mut block_based_options = rust_rocksdb::BlockBasedOptions::default();
+	block_based_options.set_block_size(4 * 1024);
+	block_based_options.set_metadata_block_size(4 * 1024);
+	block_based_options.set_bloom_filter(9.6, true);
+	block_based_options.set_optimize_filters_for_memory(true);
+	block_based_options.set_cache_index_and_filter_blocks(true);
+	block_based_options.set_pin_top_level_index_and_filter(true);
+	block_based_options.set_block_cache(&col_cache);
+	db_opts.set_row_cache(&row_cache);
+
+	// Buffers
+	db_opts.set_write_buffer_size(2 * 1024 * 1024);
+	db_opts.set_max_write_buffer_number(2);
+	db_opts.set_min_write_buffer_number(1);
+
+	// Files
+	db_opts.set_level_zero_file_num_compaction_trigger(1);
+	db_opts.set_target_file_size_base(64 * 1024 * 1024);
+	db_opts.set_max_bytes_for_level_base(128 * 1024 * 1024);
+	db_opts.set_ttl(14 * 24 * 60 * 60);
+
+	// Compression
 	let rocksdb_compression_algo = match config.rocksdb_compression_algo.as_ref() {
 		"zstd" => rust_rocksdb::DBCompressionType::Zstd,
 		"zlib" => rust_rocksdb::DBCompressionType::Zlib,
@@ -63,29 +97,6 @@ fn db_options(config: &Config, env: &rust_rocksdb::Env, rocksdb_cache: &rust_roc
 		"bz2" => rust_rocksdb::DBCompressionType::Bz2,
 		_ => rust_rocksdb::DBCompressionType::Zstd,
 	};
-
-	let threads = if config.rocksdb_parallelism_threads == 0 {
-		num_cpus::get_physical() // max cores if user specified 0
-	} else {
-		config.rocksdb_parallelism_threads
-	};
-
-	db_opts.set_log_level(rocksdb_log_level);
-	db_opts.set_max_log_file_size(config.rocksdb_max_log_file_size);
-	db_opts.set_log_file_time_to_roll(config.rocksdb_log_time_to_roll);
-	db_opts.set_keep_log_file_num(config.rocksdb_max_log_files);
-
-	if config.rocksdb_optimize_for_spinning_disks {
-		db_opts.set_skip_stats_update_on_db_open(true); // speeds up opening DB on hard drives
-		db_opts.set_compaction_readahead_size(4 * 1024 * 1024); // "If you’re running RocksDB on spinning disks, you should set this to at least
-														// 2MB. That way RocksDB’s compaction is doing sequential instead of random
-														// reads."
-		db_opts.set_target_file_size_base(256 * 1024 * 1024);
-	} else {
-		db_opts.set_max_bytes_for_level_base(512 * 1024 * 1024);
-		db_opts.set_use_direct_reads(true);
-		db_opts.set_use_direct_io_for_flush_and_compaction(true);
-	}
 
 	if config.rocksdb_bottommost_compression {
 		db_opts.set_bottommost_compression_type(rocksdb_compression_algo);
@@ -97,18 +108,10 @@ fn db_options(config: &Config, env: &rust_rocksdb::Env, rocksdb_cache: &rust_roc
 
 	// -14 w_bits is only read by zlib.
 	db_opts.set_compression_options(-14, config.rocksdb_compression_level, 0, 0);
-
-	db_opts.set_block_based_table_factory(&block_based_options);
-	db_opts.create_if_missing(true);
-	db_opts.increase_parallelism(
-		threads.try_into().expect("Failed to convert \"rocksdb_parallelism_threads\" usize into i32"),
-	);
 	db_opts.set_compression_type(rocksdb_compression_algo);
 
-	// https://github.com/facebook/rocksdb/wiki/Setup-Options-and-Basic-Tuning
-	db_opts.set_level_compaction_dynamic_level_bytes(true);
-	db_opts.set_max_background_jobs(6);
-	db_opts.set_bytes_per_sync(1_048_576);
+	// Misc
+	db_opts.create_if_missing(true);
 
 	// https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes#ktoleratecorruptedtailrecords
 	//
@@ -121,15 +124,21 @@ fn db_options(config: &Config, env: &rust_rocksdb::Env, rocksdb_cache: &rust_roc
 	let prefix_extractor = rust_rocksdb::SliceTransform::create_fixed_prefix(1);
 	db_opts.set_prefix_extractor(prefix_extractor);
 
+	db_opts.set_block_based_table_factory(&block_based_options);
+	db_opts.set_env(env);
 	db_opts
 }
 
 impl KeyValueDatabaseEngine for Arc<Engine> {
 	fn open(config: &Config) -> Result<Self> {
-		let cache_capacity_bytes = (config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize;
-		let rocksdb_cache = rust_rocksdb::Cache::new_lru_cache(cache_capacity_bytes);
+		let cache_capacity_bytes = config.db_cache_capacity_mb * 1024.0 * 1024.0;
+		let row_cache_capacity_bytes = (cache_capacity_bytes * 0.25) as usize;
+		let col_cache_capacity_bytes = (cache_capacity_bytes * 0.75) as usize;
+
 		let db_env = rust_rocksdb::Env::new()?;
-		let db_opts = db_options(config, &db_env, &rocksdb_cache);
+		let row_cache = rust_rocksdb::Cache::new_lru_cache(row_cache_capacity_bytes);
+		let col_cache = rust_rocksdb::Cache::new_lru_cache(col_cache_capacity_bytes);
+		let db_opts = db_options(config, &db_env, &row_cache, &col_cache);
 
 		debug!("Listing column families in database");
 		let cfs =
@@ -146,7 +155,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 		Ok(Arc::new(Engine {
 			rocks: db,
-			cache: rocksdb_cache,
+			row_cache,
+			col_cache,
 			old_cfs: cfs,
 			opts: db_opts,
 			env: db_env,
@@ -182,16 +192,23 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	}
 
 	fn memory_usage(&self) -> Result<String> {
-		let stats = rust_rocksdb::perf::get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.cache]))?;
+		let stats = rust_rocksdb::perf::get_memory_usage_stats(
+			Some(&[&self.rocks]),
+			Some(&[&self.row_cache, &self.col_cache]),
+		)?;
 		Ok(format!(
 			"Approximate memory usage of all the mem-tables: {:.3} MB\nApproximate memory usage of un-flushed \
 			 mem-tables: {:.3} MB\nApproximate memory usage of all the table readers: {:.3} MB\nApproximate memory \
-			 usage by cache: {:.3} MB\nApproximate memory usage by cache pinned: {:.3} MB\n",
+			 usage by cache: {:.3} MB\nApproximate memory usage by row cache: {:.3} MB pinned: {:.3} MB\nApproximate \
+			 memory usage by column cache: {:.3} MB pinned: {:.3} MB\n",
 			stats.mem_table_total as f64 / 1024.0 / 1024.0,
 			stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
 			stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
 			stats.cache_total as f64 / 1024.0 / 1024.0,
-			self.cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
+			self.row_cache.get_usage() as f64 / 1024.0 / 1024.0,
+			self.row_cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
+			self.col_cache.get_usage() as f64 / 1024.0 / 1024.0,
+			self.col_cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
 		))
 	}
 

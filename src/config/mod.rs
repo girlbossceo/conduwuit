@@ -448,7 +448,7 @@ fn default_unix_socket_perms() -> u32 { 660 }
 
 fn default_database_backend() -> String { "rocksdb".to_owned() }
 
-fn default_db_cache_capacity_mb() -> f64 { 300.0 }
+fn default_db_cache_capacity_mb() -> f64 { 256.0 }
 
 fn default_conduit_cache_capacity_modifier() -> f64 { 1.0 }
 
@@ -489,7 +489,7 @@ fn default_rocksdb_max_log_file_size() -> usize {
 	4 * 1024 * 1024
 }
 
-fn default_rocksdb_parallelism_threads() -> usize { num_cpus::get_physical() / 2 }
+fn default_rocksdb_parallelism_threads() -> usize { 0 }
 
 fn default_rocksdb_compression_algo() -> String { "zstd".to_owned() }
 
