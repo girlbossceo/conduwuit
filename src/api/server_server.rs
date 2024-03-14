@@ -746,7 +746,7 @@ pub async fn send_transaction_message_route(
 			Ok(t) => t,
 			Err(e) => {
 				warn!("Could not parse PDU: {e}");
-				warn!("Full PDU: {:?}", &pdu);
+				info!("Full PDU: {:?}", &pdu);
 				continue;
 			},
 		};
