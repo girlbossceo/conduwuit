@@ -370,6 +370,7 @@ impl fmt::Display for Config {
 			("RocksDB Compression Algorithm", &self.rocksdb_compression_algo),
 			#[cfg(feature = "rocksdb")]
 			("RocksDB Compression Level", &self.rocksdb_compression_level.to_string()),
+			#[cfg(feature = "rocksdb")]
 			(
 				"RocksDB Bottommost Compression Level",
 				&self.rocksdb_bottommost_compression_level.to_string(),
@@ -470,33 +471,41 @@ fn default_presence_idle_timeout_s() -> u64 { 5 * 60 }
 
 fn default_presence_offline_timeout_s() -> u64 { 30 * 60 }
 
+#[cfg(feature = "rocksdb")]
 fn default_rocksdb_log_level() -> String { "error".to_owned() }
 
+#[cfg(feature = "rocksdb")]
 fn default_rocksdb_log_time_to_roll() -> usize { 0 }
 
+#[cfg(feature = "rocksdb")]
 fn default_rocksdb_max_log_files() -> usize { 3 }
 
+#[cfg(feature = "rocksdb")]
+fn default_rocksdb_max_log_file_size() -> usize {
+	// 4 megabytes
+	4 * 1024 * 1024
+}
+
+#[cfg(feature = "rocksdb")]
 fn default_rocksdb_parallelism_threads() -> usize { num_cpus::get_physical() / 2 }
 
+#[cfg(feature = "rocksdb")]
 fn default_rocksdb_compression_algo() -> String { "zstd".to_owned() }
 
 /// Default RocksDB compression level is 32767, which is internally read by
 /// RocksDB as the default magic number and translated to the library's default
 /// compression level as they all differ. See their `kDefaultCompressionLevel`.
+#[cfg(feature = "rocksdb")]
 fn default_rocksdb_compression_level() -> i32 { 32767 }
 
 /// Default RocksDB compression level is 32767, which is internally read by
 /// RocksDB as the default magic number and translated to the library's default
 /// compression level as they all differ. See their `kDefaultCompressionLevel`.
+#[cfg(feature = "rocksdb")]
 fn default_rocksdb_bottommost_compression_level() -> i32 { 32767 }
 
 // I know, it's a great name
 pub(crate) fn default_default_room_version() -> RoomVersionId { RoomVersionId::V10 }
-
-fn default_rocksdb_max_log_file_size() -> usize {
-	// 4 megabytes
-	4 * 1024 * 1024
-}
 
 fn default_ip_range_denylist() -> Vec<String> {
 	vec![
