@@ -325,6 +325,16 @@ url_preview_check_root_domain = false
 #
 #rocksdb_compression_level = 32767
 
+# Level of compression the specified compression algorithm for the bottommost level/data for RocksDB to use.
+# Default is 32767, which is internally read by RocksDB as the default magic number and
+# translated to the library's default compression level as they all differ.
+# See their `kDefaultCompressionLevel`.
+#
+# Since this is the bottommost level (generally old and least used data), it may be desirable to have a very
+# high compression level here as it's lesss likely for this data to be used. Research your chosen compression algorithm.
+#
+#rocksdb_bottommost_compression_level = 32767
+
 # Whether to enable RocksDB "bottommost_compression".
 # At the expense of more CPU usage, this will further compress the database to reduce more storage.
 # It is recommended to use ZSTD compression with this for best compression results.

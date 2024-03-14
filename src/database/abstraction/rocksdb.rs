@@ -89,7 +89,7 @@ fn db_options(rocksdb_cache: &rust_rocksdb::Cache, config: &Config) -> rust_rock
 		db_opts.set_bottommost_zstd_max_train_bytes(0, true);
 
 		// -14 w_bits is only read by zlib.
-		db_opts.set_bottommost_compression_options(-14, config.rocksdb_compression_level, 0, 0, true);
+		db_opts.set_bottommost_compression_options(-14, config.rocksdb_bottommost_compression_level, 0, 0, true);
 	}
 
 	// -14 w_bits is only read by zlib.
