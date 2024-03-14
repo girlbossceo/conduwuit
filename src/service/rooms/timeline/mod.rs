@@ -7,6 +7,7 @@ use std::{
 };
 
 pub use data::Data;
+use rand::prelude::SliceRandom;
 use ruma::{
 	api::{client::error::ErrorKind, federation},
 	canonical_json::to_canonical_value,
@@ -938,16 +939,30 @@ impl Service {
 			})
 			.transpose()?
 			.unwrap_or_default();
-		let mut admin_servers = power_levels
+
+		let mut servers = power_levels
 			.users
 			.iter()
 			.filter(|(_, level)| **level > power_levels.users_default)
 			.map(|(user_id, _)| user_id.server_name())
-			.collect::<HashSet<_>>();
-		admin_servers.remove(services().globals.server_name());
+			.collect::<Vec<_>>();
 
-		// Request backfill
-		for backfill_server in admin_servers {
+		// don't backfill from ourselves
+		if let Some(server_index) =
+			servers.clone().into_iter().position(|server| server == services().globals.server_name())
+		{
+			servers.remove(server_index);
+		}
+
+		if let Some(server) = room_id.server_name() {
+			servers.push(server);
+		}
+
+		servers.sort_unstable();
+		servers.dedup();
+		servers.shuffle(&mut rand::thread_rng());
+
+		for backfill_server in servers {
 			info!("Asking {backfill_server} for backfill");
 			let response = services()
 				.sending
