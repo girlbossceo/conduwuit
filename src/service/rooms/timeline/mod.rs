@@ -929,6 +929,25 @@ impl Service {
 			return Ok(());
 		}
 
+		let mut servers: Vec<&ServerName> = vec![];
+
+		// add server names from room aliases on the room ID
+		let room_aliases = services().rooms.alias.local_aliases_for_room(room_id).collect::<Result<Vec<_>, _>>();
+		if let Ok(aliases) = &room_aliases {
+			for alias in aliases {
+				if alias.server_name() != services().globals.server_name() {
+					servers.push(alias.server_name());
+				}
+			}
+		}
+
+		// add room ID server name for backfill server
+		if let Some(server) = room_id.server_name() {
+			if server != services().globals.server_name() {
+				servers.push(server);
+			}
+		}
+
 		let power_levels: RoomPowerLevelsEventContent = services()
 			.rooms
 			.state_accessor
@@ -940,22 +959,24 @@ impl Service {
 			.transpose()?
 			.unwrap_or_default();
 
-		let mut servers = power_levels
+		// add server names of the list of admins in the room for backfill server
+		for server in power_levels
 			.users
 			.iter()
 			.filter(|(_, level)| **level > power_levels.users_default)
 			.map(|(user_id, _)| user_id.server_name())
-			.collect::<Vec<_>>();
+			.collect::<Vec<_>>()
+		{
+			if server != services().globals.server_name() {
+				servers.push(server);
+			}
+		}
 
-		// don't backfill from ourselves
+		// don't backfill from ourselves (might be noop if we checked it above already)
 		if let Some(server_index) =
 			servers.clone().into_iter().position(|server| server == services().globals.server_name())
 		{
 			servers.remove(server_index);
-		}
-
-		if let Some(server) = room_id.server_name() {
-			servers.push(server);
 		}
 
 		servers.sort_unstable();
