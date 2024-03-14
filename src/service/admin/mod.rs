@@ -529,7 +529,7 @@ impl Service {
 	async fn process_admin_message(&self, room_message: String) -> RoomMessageEventContent {
 		let mut lines = room_message.lines().filter(|l| !l.trim().is_empty());
 		let command_line = lines.next().expect("each string has at least one line");
-		let body: Vec<_> = lines.collect();
+		let body = lines.collect::<Vec<_>>();
 
 		let admin_command = match self.parse_admin_command(command_line) {
 			Ok(command) => command,
@@ -556,7 +556,7 @@ impl Service {
 	// Parse chat messages from the admin room into an AdminCommand object
 	fn parse_admin_command(&self, command_line: &str) -> std::result::Result<AdminCommand, String> {
 		// Note: argv[0] is `@conduit:servername:`, which is treated as the main command
-		let mut argv: Vec<_> = command_line.split_whitespace().collect();
+		let mut argv = command_line.split_whitespace().collect::<Vec<_>>();
 
 		// Replace `help command` with `command --help`
 		// Clap has a help subcommand, but it omits the long help description.
@@ -664,7 +664,7 @@ impl Service {
 						} else if let Some(event_id) = event_id {
 							debug!("Got event ID to delete media from: {}", event_id);
 
-							let mut mxc_urls: Vec<String> = vec![];
+							let mut mxc_urls = vec![];
 							let mut mxc_deletion_count = 0;
 
 							// parsing the PDU for any MXC URLs begins here
@@ -830,7 +830,7 @@ impl Service {
 			AdminCommand::Users(command) => match command {
 				UserCommand::List => match services().users.list_local_users() {
 					Ok(users) => {
-						let mut msg: String = format!("Found {} local user account(s):\n", users.len());
+						let mut msg = format!("Found {} local user account(s):\n", users.len());
 						msg += &users.join("\n");
 						RoomMessageEventContent::text_plain(&msg)
 					},
@@ -1042,7 +1042,7 @@ impl Service {
 						return Ok(RoomMessageEventContent::text_plain("User does not belong to our server."));
 					}
 
-					let mut rooms: Vec<(OwnedRoomId, u64, String)> = vec![]; // room ID, members joined, room name
+					let mut rooms = vec![]; // room ID, members joined, room name
 
 					for room_id in services().rooms.state_cache.rooms_joined(&user_id) {
 						let room_id = room_id?;
@@ -1486,7 +1486,7 @@ impl Service {
 							)
 						},
 						RoomModeration::ListBannedRooms => {
-							let rooms: Result<Vec<_>, _> = services().rooms.metadata.list_banned_rooms().collect();
+							let rooms = services().rooms.metadata.list_banned_rooms().collect::<Result<Vec<_>, _>>();
 
 							match rooms {
 								Ok(room_ids) => {
@@ -1531,8 +1531,8 @@ impl Service {
 					rooms.sort_by_key(|r| r.1);
 					rooms.reverse();
 
-					let rooms: Vec<_> =
-						rooms.into_iter().skip(page.saturating_sub(1) * PAGE_SIZE).take(PAGE_SIZE).collect();
+					let rooms =
+						rooms.into_iter().skip(page.saturating_sub(1) * PAGE_SIZE).take(PAGE_SIZE).collect::<Vec<_>>();
 
 					if rooms.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain("No more rooms."));
@@ -1648,16 +1648,16 @@ impl Service {
 						room_id,
 					} => match room_id {
 						Some(room_id) => {
-							let aliases: Result<Vec<_>, _> =
-								services().rooms.alias.local_aliases_for_room(&room_id).collect();
+							let aliases =
+								services().rooms.alias.local_aliases_for_room(&room_id).collect::<Result<Vec<_>, _>>();
 							match aliases {
 								Ok(aliases) => {
-									let plain_list: String = aliases.iter().fold(String::new(), |mut output, alias| {
+									let plain_list = aliases.iter().fold(String::new(), |mut output, alias| {
 										writeln!(output, "- {}", alias).unwrap();
 										output
 									});
 
-									let html_list: String = aliases.iter().fold(String::new(), |mut output, alias| {
+									let html_list = aliases.iter().fold(String::new(), |mut output, alias| {
 										writeln!(output, "<li>{}</li>", escape_html(alias.as_ref())).unwrap();
 										output
 									});
@@ -1672,28 +1672,26 @@ impl Service {
 							}
 						},
 						None => {
-							let aliases: Result<Vec<_>, _> = services().rooms.alias.all_local_aliases().collect();
+							let aliases = services().rooms.alias.all_local_aliases().collect::<Result<Vec<_>, _>>();
 							match aliases {
 								Ok(aliases) => {
 									let server_name = services().globals.server_name();
-									let plain_list: String =
-										aliases.iter().fold(String::new(), |mut output, (alias, id)| {
-											writeln!(output, "- `{}` -> #{}:{}", alias, id, server_name).unwrap();
-											output
-										});
+									let plain_list = aliases.iter().fold(String::new(), |mut output, (alias, id)| {
+										writeln!(output, "- `{}` -> #{}:{}", alias, id, server_name).unwrap();
+										output
+									});
 
-									let html_list: String =
-										aliases.iter().fold(String::new(), |mut output, (alias, id)| {
-											writeln!(
-												output,
-												"<li><code>{}</code> -> #{}:{}</li>",
-												escape_html(alias.as_ref()),
-												escape_html(id.as_ref()),
-												server_name
-											)
-											.unwrap();
-											output
-										});
+									let html_list = aliases.iter().fold(String::new(), |mut output, (alias, id)| {
+										writeln!(
+											output,
+											"<li><code>{}</code> -> #{}:{}</li>",
+											escape_html(alias.as_ref()),
+											escape_html(id.as_ref()),
+											server_name
+										)
+										.unwrap();
+										output
+									});
 
 									let plain = format!("Aliases:\n{}", plain_list);
 									let html = format!("Aliases:\n<ul>{}</ul>", html_list);
@@ -1734,8 +1732,11 @@ impl Service {
 						rooms.sort_by_key(|r| r.1);
 						rooms.reverse();
 
-						let rooms: Vec<_> =
-							rooms.into_iter().skip(page.saturating_sub(1) * PAGE_SIZE).take(PAGE_SIZE).collect();
+						let rooms = rooms
+							.into_iter()
+							.skip(page.saturating_sub(1) * PAGE_SIZE)
+							.take(PAGE_SIZE)
+							.collect::<Vec<_>>();
 
 						if rooms.is_empty() {
 							return Ok(RoomMessageEventContent::text_plain("No more rooms."));
@@ -1783,7 +1784,7 @@ impl Service {
 				},
 				FederationCommand::IncomingFederation => {
 					let map = services().globals.roomid_federationhandletime.read().await;
-					let mut msg: String = format!("Handling {} incoming pdus:\n", map.len());
+					let mut msg = format!("Handling {} incoming pdus:\n", map.len());
 
 					for (r, (e, i)) in map.iter() {
 						let elapsed = i.elapsed();
@@ -2104,7 +2105,7 @@ impl Service {
 
 		// Look for a `[commandbody]` tag. If it exists, use all lines below it that
 		// start with a `#` in the USAGE section.
-		let mut text_lines: Vec<&str> = text.lines().collect();
+		let mut text_lines = text.lines().collect::<Vec<&str>>();
 		let mut command_body = String::new();
 
 		if let Some(line_index) = text_lines.iter().position(|line| *line == "[commandbody]") {
