@@ -2020,40 +2020,21 @@ impl Service {
 									warn!("Could not fetch all signatures for PDUs from {server}: {e:?}");
 								});
 
-							info!("Attempting to handle event ID {event_id} as incoming PDU");
-							for (event_id, value, room_id) in parsed_pdu {
-								let mutex = Arc::clone(
-									services()
-										.globals
-										.roomid_mutex_federation
-										.write()
-										.await
-										.entry(room_id.clone())
-										.or_default(),
-								);
-								let mutex_lock = mutex.lock().await;
-
-								services()
-									.rooms
-									.event_handler
-									.handle_incoming_pdu(&server, &event_id, &room_id, value, false, &pub_key_map)
-									.await?;
-
-								drop(mutex_lock);
-							}
+							info!("Attempting to handle event ID {event_id} as backfilled PDU");
+							services().rooms.timeline.backfill_pdu(&server, response.pdu, &pub_key_map).await?;
 
 							let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
 
 							return Ok(RoomMessageEventContent::text_html(
 								format!(
 									"{}\n```json\n{}\n```",
-									"Got PDU from specified server and handled as incoming PDU successfully. Event \
+									"Got PDU from specified server and handled as backfilled PDU successfully. Event \
 									 body:",
 									json_text
 								),
 								format!(
 									"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-									"Got PDU from specified server and handled as incoming PDU successfully. Event \
+									"Got PDU from specified server and handled as backfilled PDU successfully. Event \
 									 body:",
 									HtmlEscape(&json_text)
 								),
