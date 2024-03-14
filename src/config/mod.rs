@@ -123,6 +123,8 @@ pub struct Config {
 	pub rocksdb_compression_algo: String,
 	#[serde(default = "default_rocksdb_compression_level")]
 	pub rocksdb_compression_level: i32,
+	#[serde(default = "default_rocksdb_bottommost_compression_level")]
+	pub rocksdb_bottommost_compression_level: i32,
 	#[serde(default)]
 	pub rocksdb_bottommost_compression: bool,
 
@@ -368,6 +370,10 @@ impl fmt::Display for Config {
 			("RocksDB Compression Algorithm", &self.rocksdb_compression_algo),
 			#[cfg(feature = "rocksdb")]
 			("RocksDB Compression Level", &self.rocksdb_compression_level.to_string()),
+			(
+				"RocksDB Bottommost Compression Level",
+				&self.rocksdb_bottommost_compression_level.to_string(),
+			),
 			#[cfg(feature = "rocksdb")]
 			(
 				"RocksDB Bottommost Level Compression",
@@ -478,6 +484,11 @@ fn default_rocksdb_compression_algo() -> String { "zstd".to_owned() }
 /// RocksDB as the default magic number and translated to the library's default
 /// compression level as they all differ. See their `kDefaultCompressionLevel`.
 fn default_rocksdb_compression_level() -> i32 { 32767 }
+
+/// Default RocksDB compression level is 32767, which is internally read by
+/// RocksDB as the default magic number and translated to the library's default
+/// compression level as they all differ. See their `kDefaultCompressionLevel`.
+fn default_rocksdb_bottommost_compression_level() -> i32 { 32767 }
 
 // I know, it's a great name
 pub(crate) fn default_default_room_version() -> RoomVersionId { RoomVersionId::V10 }
