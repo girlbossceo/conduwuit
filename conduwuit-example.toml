@@ -314,7 +314,7 @@ url_preview_check_root_domain = false
 # Amount of threads that RocksDB will use for parallelism. Set to 0 to use all your physical cores.
 # Conduit eagerly spawns threads mainly for federation, so it may not be desirable to use all your cores / logical threads.
 #
-# Defaults to your CPU physical core count (not logical threads) count divided by 2 (half)
+# Defaults to your CPU physical core count (not logical threads).
 #rocksdb_parallelism_threads = 0
 
 # Maximum number of LOG files RocksDB will keep. This must *not* be set to 0. It must be at least 1.
