@@ -219,7 +219,7 @@ default-features = false
 
 # Used for reading the configuration from conduit.toml & environment variables
 [dependencies.figment]
-version = "0.10.14"
+version = "0.10.15"
 features = [
   "env",
   "toml",
