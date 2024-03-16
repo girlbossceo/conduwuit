@@ -1058,7 +1058,7 @@ impl KeyValueDatabase {
 
 	async fn try_handle_updates() -> Result<()> {
 		let response =
-			services().globals.default_client().get("https://pupbrain.dev/check-for-updates/stable").send().await?;
+			services().globals.client.default.get("https://pupbrain.dev/check-for-updates/stable").send().await?;
 
 		let response = serde_json::from_str::<CheckForUpdatesResponse>(&response.text().await?).map_err(|e| {
 			error!("Bad check for updates response: {e}");

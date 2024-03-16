@@ -239,7 +239,7 @@ where
 	let url = reqwest_request.url().clone();
 
 	debug!("Sending request to {destination} at {url}");
-	let response = services().globals.federation_client().execute(reqwest_request).await;
+	let response = services().globals.client.federation.execute(reqwest_request).await;
 	debug!("Received response from {destination} at {url}");
 
 	match response {
@@ -517,7 +517,8 @@ async fn request_well_known(destination: &str) -> Option<String> {
 
 	let response = services()
 		.globals
-		.default_client()
+		.client
+		.well_known
 		.get(&format!("https://{destination}/.well-known/matrix/server"))
 		.send()
 		.await;

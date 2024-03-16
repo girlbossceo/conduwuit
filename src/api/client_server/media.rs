@@ -707,7 +707,7 @@ fn url_request_allowed(addr: &IpAddr) -> bool {
 }
 
 async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
-	let client = services().globals.url_preview_client();
+	let client = &services().globals.client.url_preview;
 	let response = client.head(url).send().await?;
 
 	if !response.remote_addr().map_or(false, |a| url_request_allowed(&a.ip())) {
@@ -722,8 +722,8 @@ async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
 		None => return Err(Error::BadRequest(ErrorKind::Unknown, "Unknown Content-Type")),
 	};
 	let data = match content_type {
-		html if html.starts_with("text/html") => download_html(&client, url).await?,
-		img if img.starts_with("image/") => download_image(&client, url).await?,
+		html if html.starts_with("text/html") => download_html(client, url).await?,
+		img if img.starts_with("image/") => download_image(client, url).await?,
 		_ => return Err(Error::BadRequest(ErrorKind::Unknown, "Unsupported Content-Type")),
 	};
 
