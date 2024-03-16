@@ -101,7 +101,6 @@ fn db_options(rocksdb_cache: &rust_rocksdb::Cache, config: &Config) -> rust_rock
 		threads.try_into().expect("Failed to convert \"rocksdb_parallelism_threads\" usize into i32"),
 	);
 	db_opts.set_compression_type(rocksdb_compression_algo);
-	db_opts.optimize_level_style_compaction(10 * 1024 * 1024);
 
 	// https://github.com/facebook/rocksdb/wiki/Setup-Options-and-Basic-Tuning
 	db_opts.set_level_compaction_dynamic_level_bytes(true);
