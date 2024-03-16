@@ -1112,7 +1112,7 @@ impl KeyValueDatabase {
 					_ = terminate.recv() => {
 						debug!(target: "database-cleanup","Received SIGTERM");
 					}
-				};
+				}
 
 				#[cfg(not(unix))]
 				{
