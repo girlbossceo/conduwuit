@@ -47,7 +47,7 @@ where
 		*reqwest_request.timeout_mut() = Some(Duration::from_secs(120));
 
 		let url = reqwest_request.url().clone();
-		let mut response = match services().globals.default_client().execute(reqwest_request).await {
+		let mut response = match services().globals.client.appservice.execute(reqwest_request).await {
 			Ok(r) => r,
 			Err(e) => {
 				warn!(

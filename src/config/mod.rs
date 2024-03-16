@@ -63,6 +63,34 @@ pub struct Config {
 	pub max_concurrent_requests: u16,
 	#[serde(default = "default_max_fetch_prev_events")]
 	pub max_fetch_prev_events: u16,
+	#[serde(default = "default_request_conn_timeout")]
+	pub request_conn_timeout: u64,
+	#[serde(default = "default_request_timeout")]
+	pub request_timeout: u64,
+	#[serde(default = "default_request_idle_per_host")]
+	pub request_idle_per_host: u16,
+	#[serde(default = "default_request_idle_timeout")]
+	pub request_idle_timeout: u64,
+	#[serde(default = "default_well_known_conn_timeout")]
+	pub well_known_conn_timeout: u64,
+	#[serde(default = "default_well_known_timeout")]
+	pub well_known_timeout: u64,
+	#[serde(default = "default_federation_timeout")]
+	pub federation_timeout: u64,
+	#[serde(default = "default_federation_idle_per_host")]
+	pub federation_idle_per_host: u16,
+	#[serde(default = "default_federation_idle_timeout")]
+	pub federation_idle_timeout: u64,
+	#[serde(default = "default_sender_timeout")]
+	pub sender_timeout: u64,
+	#[serde(default = "default_sender_idle_timeout")]
+	pub sender_idle_timeout: u64,
+	#[serde(default = "default_appservice_timeout")]
+	pub appservice_timeout: u64,
+	#[serde(default = "default_appservice_idle_timeout")]
+	pub appservice_idle_timeout: u64,
+	#[serde(default = "default_pusher_idle_timeout")]
+	pub pusher_idle_timeout: u64,
 	#[serde(default)]
 	pub allow_registration: bool,
 	#[serde(default)]
@@ -272,6 +300,20 @@ impl fmt::Display for Config {
 			("Cleanup interval in seconds", &self.cleanup_second_interval.to_string()),
 			("Maximum request size (bytes)", &self.max_request_size.to_string()),
 			("Maximum concurrent requests", &self.max_concurrent_requests.to_string()),
+			("Request connect timeout", &self.request_conn_timeout.to_string()),
+			("Request timeout", &self.request_timeout.to_string()),
+			("Idle connections per host", &self.request_idle_per_host.to_string()),
+			("Request pool idle timeout", &self.request_idle_timeout.to_string()),
+			("Well_known connect timeout", &self.well_known_conn_timeout.to_string()),
+			("Well_known timeout", &self.well_known_timeout.to_string()),
+			("Federation timeout", &self.federation_timeout.to_string()),
+			("Federation pool idle per host", &self.federation_idle_per_host.to_string()),
+			("Federation pool idle timeout", &self.federation_idle_timeout.to_string()),
+			("Sender timeout", &self.sender_timeout.to_string()),
+			("Sender pool idle timeout", &self.sender_idle_timeout.to_string()),
+			("Appservice timeout", &self.appservice_timeout.to_string()),
+			("Appservice pool idle timeout", &self.appservice_idle_timeout.to_string()),
+			("Pusher pool idle timeout", &self.pusher_idle_timeout.to_string()),
 			("Allow registration", &self.allow_registration.to_string()),
 			(
 				"Registration token",
@@ -486,6 +528,34 @@ fn default_max_request_size() -> u32 {
 }
 
 fn default_max_concurrent_requests() -> u16 { 500 }
+
+fn default_request_conn_timeout() -> u64 { 10 }
+
+fn default_request_timeout() -> u64 { 35 }
+
+fn default_request_idle_per_host() -> u16 { 1 }
+
+fn default_request_idle_timeout() -> u64 { 5 }
+
+fn default_well_known_conn_timeout() -> u64 { 6 }
+
+fn default_well_known_timeout() -> u64 { 10 }
+
+fn default_federation_timeout() -> u64 { 300 }
+
+fn default_federation_idle_per_host() -> u16 { 1 }
+
+fn default_federation_idle_timeout() -> u64 { 25 }
+
+fn default_sender_timeout() -> u64 { 75 }
+
+fn default_sender_idle_timeout() -> u64 { 180 }
+
+fn default_appservice_timeout() -> u64 { 120 }
+
+fn default_appservice_idle_timeout() -> u64 { 300 }
+
+fn default_pusher_idle_timeout() -> u64 { 15 }
 
 fn default_max_fetch_prev_events() -> u16 { 100_u16 }
 

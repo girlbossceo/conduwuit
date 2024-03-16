@@ -63,7 +63,7 @@ impl Service {
 		//*reqwest_request.timeout_mut() = Some(Duration::from_secs(5));
 
 		let url = reqwest_request.url().clone();
-		let response = services().globals.default_client().execute(reqwest_request).await;
+		let response = services().globals.client.pusher.execute(reqwest_request).await;
 
 		match response {
 			Ok(mut response) => {

@@ -23,7 +23,10 @@ use hyper::{
 	service::Service as HyperService,
 };
 use regex::RegexSet;
-use reqwest::dns::{Addrs, Resolve, Resolving};
+use reqwest::{
+	dns::{Addrs, Resolve, Resolving},
+	redirect,
+};
 use ruma::{
 	api::{
 		client::sync::sync_events,
@@ -57,9 +60,7 @@ pub struct Service<'a> {
 	keypair: Arc<ruma::signatures::Ed25519KeyPair>,
 	dns_resolver: TokioAsyncResolver,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
-	url_preview_client: reqwest::Client,
-	federation_client: reqwest::Client,
-	default_client: reqwest::Client,
+	pub client: Client,
 	pub stable_room_versions: Vec<RoomVersionId>,
 	pub unstable_room_versions: Vec<RoomVersionId>,
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
@@ -76,6 +77,16 @@ pub struct Service<'a> {
 
 	pub shutdown: AtomicBool,
 	pub argon: Argon2<'a>,
+}
+
+pub struct Client {
+	pub default: reqwest::Client,
+	pub url_preview: reqwest::Client,
+	pub well_known: reqwest::Client,
+	pub federation: reqwest::Client,
+	pub sender: reqwest::Client,
+	pub appservice: reqwest::Client,
+	pub pusher: reqwest::Client,
 }
 
 /// Handles "rotation" of long-polling requests. "Rotation" in this context is
@@ -145,6 +156,82 @@ impl Resolve for Resolver {
 	}
 }
 
+impl Client {
+	pub fn new(config: &Config, tls_name_override: &Arc<StdRwLock<TlsNameMap>>) -> Client {
+		let resolver = Arc::new(Resolver::new(tls_name_override.clone()));
+		Client {
+			default: Self::base(config).unwrap().build().unwrap(),
+
+			url_preview: Self::base(config).unwrap().build().unwrap(),
+
+			well_known: Self::base(config)
+				.unwrap()
+				.dns_resolver(resolver.clone())
+				.connect_timeout(Duration::from_secs(config.well_known_conn_timeout))
+				.timeout(Duration::from_secs(config.well_known_timeout))
+				.pool_max_idle_per_host(0)
+				.redirect(redirect::Policy::limited(4))
+				.build()
+				.unwrap(),
+
+			federation: Self::base(config)
+				.unwrap()
+				.dns_resolver(resolver.clone())
+				.timeout(Duration::from_secs(config.federation_timeout))
+				.pool_max_idle_per_host(config.federation_idle_per_host.into())
+				.pool_idle_timeout(Duration::from_secs(config.federation_idle_timeout))
+				.redirect(redirect::Policy::limited(2))
+				.build()
+				.unwrap(),
+
+			sender: Self::base(config)
+				.unwrap()
+				.dns_resolver(resolver)
+				.timeout(Duration::from_secs(config.sender_timeout))
+				.pool_max_idle_per_host(1)
+				.pool_idle_timeout(Duration::from_secs(config.sender_idle_timeout))
+				.redirect(redirect::Policy::limited(2))
+				.build()
+				.unwrap(),
+
+			appservice: Self::base(config)
+				.unwrap()
+				.connect_timeout(Duration::from_secs(5))
+				.timeout(Duration::from_secs(config.appservice_timeout))
+				.pool_max_idle_per_host(1)
+				.pool_idle_timeout(Duration::from_secs(config.appservice_idle_timeout))
+				.redirect(redirect::Policy::limited(2))
+				.build()
+				.unwrap(),
+
+			pusher: Self::base(config)
+				.unwrap()
+				.pool_max_idle_per_host(1)
+				.pool_idle_timeout(Duration::from_secs(config.pusher_idle_timeout))
+				.redirect(redirect::Policy::limited(2))
+				.build()
+				.unwrap(),
+		}
+	}
+
+	fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
+		let builder = reqwest::Client::builder()
+			.hickory_dns(true)
+			.timeout(Duration::from_secs(config.request_timeout))
+			.connect_timeout(Duration::from_secs(config.request_conn_timeout))
+			.pool_max_idle_per_host(config.request_idle_per_host.into())
+			.pool_idle_timeout(Duration::from_secs(config.request_idle_timeout))
+			.user_agent("Conduwuit".to_owned() + "/" + env!("CARGO_PKG_VERSION"))
+			.redirect(redirect::Policy::limited(6));
+
+		if let Some(proxy) = config.proxy.to_proxy()? {
+			Ok(builder.proxy(proxy))
+		} else {
+			Ok(builder)
+		}
+	}
+}
+
 impl Service<'_> {
 	pub fn load(db: &'static dyn Data, config: Config) -> Result<Self> {
 		let keypair = db.load_keypair();
@@ -162,12 +249,6 @@ impl Service<'_> {
 
 		let jwt_decoding_key =
 			config.jwt_secret.as_ref().map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
-
-		let url_preview_client = url_preview_reqwest_client_builder(&config)?.build()?;
-		let default_client = reqwest_client_builder(&config)?.build()?;
-		let federation_client = reqwest_client_builder(&config)?
-			.dns_resolver(Arc::new(Resolver::new(tls_name_override.clone())))
-			.build()?;
 
 		// Supported and stable room versions
 		let stable_room_versions = vec![
@@ -193,17 +274,15 @@ impl Service<'_> {
 		);
 		let mut s = Self {
 			db,
-			config,
+			config: config.clone(),
 			keypair: Arc::new(keypair),
 			dns_resolver: TokioAsyncResolver::tokio_from_system_conf().map_err(|e| {
 				error!("Failed to set up trust dns resolver with system config: {}", e);
 				Error::bad_config("Failed to set up trust dns resolver with system config.")
 			})?,
 			actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
-			tls_name_override,
-			url_preview_client,
-			federation_client,
-			default_client,
+			tls_name_override: tls_name_override.clone(),
+			client: Client::new(&config, &tls_name_override),
 			jwt_decoding_key,
 			stable_room_versions,
 			unstable_room_versions,
@@ -234,26 +313,6 @@ impl Service<'_> {
 
 	/// Returns this server's keypair.
 	pub fn keypair(&self) -> &ruma::signatures::Ed25519KeyPair { &self.keypair }
-
-	/// Returns a reqwest client which can be used to send requests for URL
-	/// previews This is the same as `default_client()` except a redirect policy
-	/// of max 2 is set
-	pub fn url_preview_client(&self) -> reqwest::Client {
-		// Client is cheap to clone (Arc wrapper) and avoids lifetime issues
-		self.url_preview_client.clone()
-	}
-
-	/// Returns a reqwest client which can be used to send requests
-	pub fn default_client(&self) -> reqwest::Client {
-		// Client is cheap to clone (Arc wrapper) and avoids lifetime issues
-		self.default_client.clone()
-	}
-
-	/// Returns a client used for resolving .well-knowns
-	pub fn federation_client(&self) -> reqwest::Client {
-		// Client is cheap to clone (Arc wrapper) and avoids lifetime issues
-		self.federation_client.clone()
-	}
 
 	#[tracing::instrument(skip(self))]
 	pub fn next_count(&self) -> Result<u64> { self.db.next_count() }
@@ -487,57 +546,4 @@ impl Service<'_> {
 		info!(target: "shutdown-sync", "Received shutdown notification, notifying sync helpers...");
 		services().globals.rotate.fire();
 	}
-}
-
-fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
-	let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
-		if attempt.previous().len() > 6 {
-			attempt.error("Too many redirects (max is 6)")
-		} else {
-			attempt.follow()
-		}
-	});
-
-	let mut reqwest_client_builder = reqwest::Client::builder()
-		.hickory_dns(true)
-		.pool_max_idle_per_host(1)
-		.pool_idle_timeout(Duration::from_secs(50))
-		.connect_timeout(Duration::from_secs(60))
-		.timeout(Duration::from_secs(60 * 5))
-		.redirect(redirect_policy)
-		.user_agent("Conduwuit".to_owned() + "/" + env!("CARGO_PKG_VERSION"));
-
-	if let Some(proxy) = config.proxy.to_proxy()? {
-		reqwest_client_builder = reqwest_client_builder.proxy(proxy);
-	}
-
-	Ok(reqwest_client_builder)
-}
-
-fn url_preview_reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
-	// for security reasons (e.g. malicious open redirect), we do not want to follow
-	// too many redirects when generating URL previews. let's keep it at least 2 to
-	// account for HTTP -> HTTPS upgrades, if it becomes an issue we can consider
-	// raising it to 3.
-	let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
-		if attempt.previous().len() > 2 {
-			attempt.error("Too many redirects (max is 2)")
-		} else {
-			attempt.follow()
-		}
-	});
-
-	let mut reqwest_client_builder = reqwest::Client::builder()
-		.hickory_dns(true)
-		.pool_max_idle_per_host(0)
-		.connect_timeout(Duration::from_secs(20))
-		.timeout(Duration::from_secs(30))
-		.redirect(redirect_policy)
-		.user_agent("Conduwuit".to_owned() + "/" + env!("CARGO_PKG_VERSION"));
-
-	if let Some(proxy) = config.proxy.to_proxy()? {
-		reqwest_client_builder = reqwest_client_builder.proxy(proxy);
-	}
-
-	Ok(reqwest_client_builder)
 }
