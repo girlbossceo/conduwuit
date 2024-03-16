@@ -647,6 +647,10 @@ impl Service {
 	where
 		T: OutgoingRequest + Debug,
 	{
+		if !services().globals.allow_federation() {
+			return Err(Error::bad_config("Federation is disabled."));
+		}
+
 		if destination.is_ip_literal() || IPAddress::is_valid(destination.host()) {
 			info!(
 				"Destination {} is an IP literal, checking against IP range denylist.",
