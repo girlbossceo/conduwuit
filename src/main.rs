@@ -669,6 +669,14 @@ fn routes() -> Router {
 		.ruma_route(client_server::create_content_route)
 		// legacy v1 media routes
 		.route(
+			"/_matrix/media/v1/url_preview",
+			get(client_server::get_media_preview_v1_route)
+		)
+		.route(
+			"/_matrix/media/v1/config",
+			get(client_server::get_media_config_v1_route)
+		)
+		.route(
 			"/_matrix/media/v1/upload",
 			post(client_server::create_content_v1_route)
 		)

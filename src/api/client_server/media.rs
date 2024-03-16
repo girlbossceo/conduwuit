@@ -31,6 +31,22 @@ pub async fn get_media_config_route(
 	})
 }
 
+/// # `GET /_matrix/media/v1/config`
+///
+/// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
+/// clients may call. conduwuit adds these for compatibility purposes.
+/// See <https://spec.matrix.org/legacy/legacy/#id27>
+///
+/// Returns max upload size.
+pub async fn get_media_config_v1_route(
+	_body: Ruma<get_media_config::v3::Request>,
+) -> Result<RumaResponse<get_media_config::v3::Response>> {
+	Ok(get_media_config::v3::Response {
+		upload_size: services().globals.max_request_size().into(),
+	}
+	.into())
+}
+
 /// # `GET /_matrix/media/v3/preview_url`
 ///
 /// Returns URL preview.
@@ -55,6 +71,50 @@ pub async fn get_media_preview_route(
 			})?;
 
 			Ok(get_media_preview::v3::Response::from_raw_value(res))
+		},
+		Err(e) => {
+			warn!("Failed to generate a URL preview: {e}");
+
+			// there doesn't seem to be an agreed-upon error code in the spec.
+			// the only response codes in the preview_url spec page are 200 and 429.
+			Err(Error::BadRequest(
+				ErrorKind::LimitExceeded {
+					retry_after_ms: Some(Duration::from_secs(5)),
+				},
+				"Failed to generate a URL preview, try again later.",
+			))
+		},
+	}
+}
+
+/// # `GET /_matrix/media/v1/preview_url`
+///
+/// This is a legacy endpoint ("/v1/") that some very old homeservers and/or
+/// clients may call. conduwuit adds these for compatibility purposes.
+/// See <https://spec.matrix.org/legacy/legacy/#id27>
+///
+/// Returns URL preview.
+pub async fn get_media_preview_v1_route(
+	body: Ruma<get_media_preview::v3::Request>,
+) -> Result<RumaResponse<get_media_preview::v3::Response>> {
+	let url = &body.url;
+	if !url_preview_allowed(url) {
+		return Err(Error::BadRequest(ErrorKind::Forbidden, "URL is not allowed to be previewed"));
+	}
+
+	match get_url_preview(url).await {
+		Ok(preview) => {
+			let res = serde_json::value::to_raw_value(&preview).map_err(|e| {
+				error!("Failed to convert UrlPreviewData into a serde json value: {}", e);
+				Error::BadRequest(
+					ErrorKind::LimitExceeded {
+						retry_after_ms: Some(Duration::from_secs(5)),
+					},
+					"Failed to generate a URL preview, try again later.",
+				)
+			})?;
+
+			Ok(get_media_preview::v3::Response::from_raw_value(res).into())
 		},
 		Err(e) => {
 			warn!("Failed to generate a URL preview: {e}");
