@@ -75,7 +75,7 @@ pub async fn send_state_event_for_empty_key_route(
 	.into())
 }
 
-/// # `GET /_matrix/client/r0/rooms/{roomid}/state`
+/// # `GET /_matrix/client/v3/rooms/{roomid}/state`
 ///
 /// Get all state events for a room.
 ///
