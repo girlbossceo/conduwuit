@@ -153,6 +153,10 @@ where
 				// treat non-appservice registrations as None authentication
 				AuthScheme::AppserviceToken => (None, None, None, false),
 				AuthScheme::ServerSignatures => {
+					if !services().globals.allow_federation() {
+						return Err(Error::bad_config("Federation is disabled."));
+					}
+
 					let TypedHeader(Authorization(x_matrix)) =
 						parts.extract::<TypedHeader<Authorization<XMatrix>>>().await.map_err(|e| {
 							warn!("Missing or invalid Authorization header: {}", e);
