@@ -418,7 +418,7 @@ impl Service {
 			},
 			TimelineEventType::SpaceChild => {
 				if let Some(_state_key) = &pdu.state_key {
-					services().rooms.spaces.roomid_spacechunk_cache.lock().await.remove(&pdu.room_id);
+					services().rooms.spaces.roomid_spacehierarchy_cache.lock().await.remove(&pdu.room_id);
 				}
 			},
 			TimelineEventType::RoomMember => {

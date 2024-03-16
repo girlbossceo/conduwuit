@@ -74,7 +74,7 @@ impl Service {
 						.await?;
 				},
 				TimelineEventType::SpaceChild => {
-					services().rooms.spaces.roomid_spacechunk_cache.lock().await.remove(&pdu.room_id);
+					services().rooms.spaces.roomid_spacehierarchy_cache.lock().await.remove(&pdu.room_id);
 				},
 				_ => continue,
 			}

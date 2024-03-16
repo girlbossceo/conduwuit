@@ -268,6 +268,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 		}))
 	}
 
+	/// Returns the number of users which are currently in a room
 	#[tracing::instrument(skip(self))]
 	fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_joinedcount
@@ -276,6 +277,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 			.transpose()
 	}
 
+	/// Returns the number of users which are currently invited to a room
 	#[tracing::instrument(skip(self))]
 	fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_invitedcount
