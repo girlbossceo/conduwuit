@@ -619,10 +619,6 @@ pub async fn get_server_keys_deprecated_route() -> impl IntoResponse { get_serve
 pub async fn get_public_rooms_filtered_route(
 	body: Ruma<get_public_rooms_filtered::v1::Request>,
 ) -> Result<get_public_rooms_filtered::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	if !services().globals.allow_public_room_directory_over_federation() {
 		return Err(Error::bad_config("Room directory is not public."));
 	}
@@ -650,10 +646,6 @@ pub async fn get_public_rooms_filtered_route(
 pub async fn get_public_rooms_route(
 	body: Ruma<get_public_rooms::v1::Request>,
 ) -> Result<get_public_rooms::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	if !services().globals.allow_public_room_directory_over_federation() {
 		return Err(Error::bad_config("Room directory is not public."));
 	}
@@ -707,10 +699,6 @@ pub fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, Canonical
 pub async fn send_transaction_message_route(
 	body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
 
 	let mut resolved_map = BTreeMap::new();
@@ -946,10 +934,6 @@ pub async fn send_transaction_message_route(
 /// - Only works if a user of this server is currently invited or joined the
 ///   room
 pub async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_event::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
 
 	let event = services().rooms.timeline.get_pdu_json(&body.event_id)?.ok_or_else(|| {
@@ -985,10 +969,6 @@ pub async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_e
 /// Retrieves events from before the sender joined the room, if the room's
 /// history visibility allows.
 pub async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result<get_backfill::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
 
 	debug!("Got backfill request from: {}", sender_servername);
@@ -1041,10 +1021,6 @@ pub async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result
 pub async fn get_missing_events_route(
 	body: Ruma<get_missing_events::v1::Request>,
 ) -> Result<get_missing_events::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
 
 	if !services().rooms.state_cache.server_in_room(sender_servername, &body.room_id)? {
@@ -1118,10 +1094,6 @@ pub async fn get_missing_events_route(
 pub async fn get_event_authorization_route(
 	body: Ruma<get_event_authorization::v1::Request>,
 ) -> Result<get_event_authorization::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
 
 	if !services().rooms.state_cache.server_in_room(sender_servername, &body.room_id)? {
@@ -1157,10 +1129,6 @@ pub async fn get_event_authorization_route(
 ///
 /// Retrieves the current state of the room.
 pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Result<get_room_state::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
 
 	if !services().rooms.state_cache.server_in_room(sender_servername, &body.room_id)? {
@@ -1211,10 +1179,6 @@ pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Re
 pub async fn get_room_state_ids_route(
 	body: Ruma<get_room_state_ids::v1::Request>,
 ) -> Result<get_room_state_ids::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
 
 	if !services().rooms.state_cache.server_in_room(sender_servername, &body.room_id)? {
@@ -1253,10 +1217,6 @@ pub async fn get_room_state_ids_route(
 pub async fn create_join_event_template_route(
 	body: Ruma<prepare_join_event::v1::Request>,
 ) -> Result<prepare_join_event::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	if !services().rooms.metadata.exists(&body.room_id)? {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
@@ -1343,10 +1303,6 @@ pub async fn create_join_event_template_route(
 async fn create_join_event(
 	sender_servername: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
 ) -> Result<create_join_event::v1::RoomState> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	if !services().rooms.metadata.exists(room_id)? {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
@@ -1500,10 +1456,6 @@ pub async fn create_join_event_v2_route(
 ///
 /// Invites a remote user to a room.
 pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Result<create_invite::v2::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
 
 	services().rooms.event_handler.acl_check(sender_servername, &body.room_id)?;
@@ -1622,10 +1574,6 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 ///
 /// Gets information on all devices of the user.
 pub async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<get_devices::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	if body.user_id.server_name() != services().globals.server_name() {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
@@ -1673,10 +1621,6 @@ pub async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<g
 pub async fn get_room_information_route(
 	body: Ruma<get_room_information::v1::Request>,
 ) -> Result<get_room_information::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let room_id = services()
 		.rooms
 		.alias
@@ -1695,10 +1639,6 @@ pub async fn get_room_information_route(
 pub async fn get_profile_information_route(
 	body: Ruma<get_profile_information::v1::Request>,
 ) -> Result<get_profile_information::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	if body.user_id.server_name() != services().globals.server_name() {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
@@ -1738,10 +1678,6 @@ pub async fn get_profile_information_route(
 ///
 /// Gets devices and identity keys for the given users.
 pub async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_keys::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	if body.device_keys.iter().any(|(u, _)| u.server_name() != services().globals.server_name()) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
@@ -1768,10 +1704,6 @@ pub async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_key
 ///
 /// Claims one-time keys.
 pub async fn claim_keys_route(body: Ruma<claim_keys::v1::Request>) -> Result<claim_keys::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	if body.one_time_keys.iter().any(|(u, _)| u.server_name() != services().globals.server_name()) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
@@ -1788,6 +1720,10 @@ pub async fn claim_keys_route(body: Ruma<claim_keys::v1::Request>) -> Result<cla
 
 /// # `GET /.well-known/matrix/server`
 pub async fn well_known_server_route() -> Result<impl IntoResponse> {
+	if !services().globals.allow_federation() {
+		return Err(Error::bad_config("Federation is disabled."));
+	}
+
 	let server_url = match services().globals.well_known_server() {
 		Some(url) => url.clone(),
 		None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
