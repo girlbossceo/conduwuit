@@ -11,11 +11,10 @@
 - Configurable RocksDB logging (`LOG` files) with proper defaults (rotate, max size, verbosity, etc) to stop LOG files from accumulating so much
 - Federated presence support and configurable local presence (via upstream MR)
 - Concurrency support for key fetching for faster remote room joins and room joins that will error less frequently (via upstream MR)
-- Experimental room version 11 support (via upstream MR)
-- Enabled all non-officially-supported room versions as experimental so we can at least attempt to join them
-- Configurable guest registration including forbidding guest registrations if no admin user is created yet, respects allow registration setting, and an optional override setting with a default of no guest registrations allowed.
+- Room version 11 support (via upstream MR)
+- Config option to allow guest registrations
 - Explicit startup error/warning if your configuration allows open registration without a token or such like Synapse
-- Improved RocksDB defaults to use new features that help with performance significantly, uses settings tailored to SSDs, and a conduwuit setting to tell RocksDB to use settings that are tailored to HDDs or slow spinning rust storage.
+- Improved RocksDB defaults to use new features that help with performance significantly, uses settings tailored to SSDs, various ways to tweak RocksDB, and a conduwuit setting to tell RocksDB to use settings that are tailored to HDDs or slow spinning rust storage.
 - Updated Ruma to latest commit where possible, and add some unstable MSCs (some still require an implementation though)
 - Revamped admin room infrastructure and commands (via upstream MR)
 - Admin room commands to delete room aliases and unpublish rooms from our room directory (via upstream MR)
@@ -36,7 +35,6 @@
 - Add non-standard sliding sync proxy health check (?) endpoint at `/client/server.json` that some clients such as Element Web query using the `well_known_client` or `well_known_server` config options
 - Send a User-Agent on all of our requests (`conduwuit/0.7.0-alpha+conduwuit-0.1.1`) which strangely was not done upstream since forever. Some providers consider no User-Agent suspicious and block said requests.
 - Safer and cleaner shutdowns on both database side as we run cleanup on shutdown and exits database loop better (no potential hanging issues in database loop), overall cleaner shutdown logic
-- Basic binary commands like `conduwuit --version` work (interested in expanding it more)
 - Allow HEAD HTTP requests in CORS for clients (despite not being explicity mentioned in Matrix spec, HTTP spec says all HEAD requests need to behave the same as GET requests, Synapse supports HEAD requests)
 - Purge unmaintained/irrelevant/broken database backends (heed, sled, persy)
 - webp support for images
@@ -81,3 +79,6 @@
 - Implement database flush and cleanup Conduit operations when using RocksDB
 - Implement legacy Matrix `/v1/` media endpoints that some clients and servers may still call
 - Commandline argument to specify the path to a config file
+- Admin debug command to fetch a PDU from a remote server and inserts it into our database/timeline
+- Update rusqlite/sqlite (not that you should be using it)
+- Disable update check by default as it's not useful for conduwuit
