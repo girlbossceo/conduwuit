@@ -134,7 +134,7 @@ impl Services<'_> {
 					db,
 				},
 				spaces: rooms::spaces::Service {
-					roomid_spacechunk_cache: Mutex::new(LruCache::new(
+					roomid_spacehierarchy_cache: Mutex::new(LruCache::new(
 						(100.0 * config.conduit_cache_capacity_modifier) as usize,
 					)),
 				},
@@ -175,7 +175,7 @@ impl Services<'_> {
 		let user_visibility_cache = self.rooms.state_accessor.user_visibility_cache.lock().unwrap().len();
 		let stateinfo_cache = self.rooms.state_compressor.stateinfo_cache.lock().unwrap().len();
 		let lasttimelinecount_cache = self.rooms.timeline.lasttimelinecount_cache.lock().await.len();
-		let roomid_spacechunk_cache = self.rooms.spaces.roomid_spacechunk_cache.lock().await.len();
+		let roomid_spacehierarchy_cache = self.rooms.spaces.roomid_spacehierarchy_cache.lock().await.len();
 
 		format!(
 			"\
@@ -184,7 +184,7 @@ server_visibility_cache: {server_visibility_cache}
 user_visibility_cache: {user_visibility_cache}
 stateinfo_cache: {stateinfo_cache}
 lasttimelinecount_cache: {lasttimelinecount_cache}
-roomid_spacechunk_cache: {roomid_spacechunk_cache}"
+roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}"
 		)
 	}
 
@@ -205,7 +205,7 @@ roomid_spacechunk_cache: {roomid_spacechunk_cache}"
 			self.rooms.timeline.lasttimelinecount_cache.lock().await.clear();
 		}
 		if amount > 5 {
-			self.rooms.spaces.roomid_spacechunk_cache.lock().await.clear();
+			self.rooms.spaces.roomid_spacehierarchy_cache.lock().await.clear();
 		}
 	}
 }

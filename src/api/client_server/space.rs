@@ -1,6 +1,11 @@
-use ruma::api::client::space::get_hierarchy;
+use std::str::FromStr;
 
-use crate::{services, Result, Ruma};
+use ruma::{
+	api::client::{error::ErrorKind, space::get_hierarchy},
+	UInt,
+};
+
+use crate::{service::rooms::spaces::PagnationToken, services, Error, Result, Ruma};
 
 /// # `GET /_matrix/client/v1/rooms/{room_id}/hierarchy``
 ///
@@ -9,11 +14,32 @@ use crate::{services, Result, Ruma};
 pub async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) -> Result<get_hierarchy::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let skip = body.from.as_ref().and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
+	let limit = body.limit.unwrap_or_else(|| UInt::from(10_u32)).min(UInt::from(100_u32));
 
-	let limit = body.limit.map_or(10, u64::from).min(100) as usize;
+	let max_depth = body.max_depth.unwrap_or_else(|| UInt::from(3_u32)).min(UInt::from(10_u32));
 
-	let max_depth = body.max_depth.map_or(3, u64::from).min(10) as usize + 1; // +1 to skip the space room itself
+	let key = body.from.as_ref().and_then(|s| PagnationToken::from_str(s).ok());
 
-	services().rooms.spaces.get_hierarchy(sender_user, &body.room_id, limit, skip, max_depth, body.suggested_only).await
+	// Should prevent unexpeded behaviour in (bad) clients
+	if let Some(ref token) = key {
+		if token.suggested_only != body.suggested_only || token.max_depth != max_depth {
+			return Err(Error::BadRequest(
+				ErrorKind::InvalidParam,
+				"suggested_only and max_depth cannot change on paginated requests",
+			));
+		}
+	}
+
+	services()
+		.rooms
+		.spaces
+		.get_client_hierarchy(
+			sender_user,
+			&body.room_id,
+			u64::from(limit) as usize,
+			key.map_or(0, |token| u64::from(token.skip) as usize),
+			u64::from(max_depth) as usize,
+			body.suggested_only,
+		)
+		.await
 }
