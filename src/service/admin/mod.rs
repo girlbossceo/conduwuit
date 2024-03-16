@@ -396,6 +396,21 @@ enum DebugCommand {
 		server: Box<ServerName>,
 	},
 
+	/// - Gets all the room state events for the specified room.
+	///
+	/// This is functionally equivalent to `GET
+	/// /_matrix/client/v3/rooms/{roomid}/state`, except the admin command does
+	/// *not* check if the sender user is allowed to see state events. This is
+	/// done because it's implied that server admins here have database access
+	/// and can see/get room info themselves anyways if they were malicious
+	/// admins.
+	///
+	/// Of course the check is still done on the actual client API.
+	GetRoomState {
+		/// Room ID
+		room_id: Box<RoomId>,
+	},
+
 	/// - Forces device lists for all local and remote users to be updated (as
 	///   having new keys available)
 	ForceDeviceListUpdates,
@@ -2060,6 +2075,41 @@ impl Service {
 							));
 						},
 					}
+				},
+				DebugCommand::GetRoomState {
+					room_id,
+				} => {
+					let room_state = services()
+						.rooms
+						.state_accessor
+						.room_state_full(&room_id)
+						.await?
+						.values()
+						.map(|pdu| pdu.to_state_event())
+						.collect::<Vec<_>>();
+
+					if room_state.is_empty() {
+						return Ok(RoomMessageEventContent::text_plain(
+							"Unable to find room state in our database (vector is empty)",
+						));
+					}
+
+					let json_text = serde_json::to_string_pretty(&room_state).map_err(|e| {
+						error!("Failed converting room state vector in our database to pretty JSON: {e}");
+						Error::bad_database(
+							"Failed to convert room state events to pretty JSON, possible invalid room state events \
+							 in our database",
+						)
+					})?;
+
+					return Ok(RoomMessageEventContent::text_html(
+						format!("{}\n```json\n{}\n```", "Found full room state", json_text),
+						format!(
+							"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
+							"Found full room state",
+							HtmlEscape(&json_text)
+						),
+					));
 				},
 				DebugCommand::ForceDeviceListUpdates => {
 					// Force E2EE device list updates for all users
