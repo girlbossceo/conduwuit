@@ -1007,12 +1007,12 @@ impl Service {
 					return Ok(());
 				},
 				Err(e) => {
-					warn!("{backfill_server} could not provide backfill: {e}");
+					warn!("{backfill_server} failed to provide backfill: {e}");
 				},
 			}
 		}
 
-		info!("No servers could backfill");
+		info!("No servers could backfill, but backfill was needed");
 		Ok(())
 	}
 
