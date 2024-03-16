@@ -220,6 +220,12 @@ async fn main() {
 		}
 	}
 
+	// rocksdb does not allow max_log_files to be 0
+	if config.rocksdb_max_log_files == 0 && cfg!(feature = "rocksdb") {
+		error!("When using RocksDB, rocksdb_max_log_files cannot be 0. Please set a value at least 1.");
+		return;
+	}
+
 	// yeah, unless the user built a debug build hopefully for local testing only
 	if config.server_name == "your.server.name" && !cfg!(debug_assertions) {
 		error!("You must specify a valid server name for production usage of conduwuit.");
