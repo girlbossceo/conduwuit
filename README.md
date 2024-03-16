@@ -6,7 +6,7 @@
 #### What is Matrix?
 [Matrix](https://matrix.org) is an open network for secure and decentralized
 communication. Users from every Matrix homeserver can chat with users from all
-other Matrix servers. You can even use bridges (also called Matrix appservices)
+other Matrix servers. You can even use bridges (also called Matrix Appservices)
 to communicate with users outside of Matrix, like a community on Discord.
 
 #### What is the goal?
@@ -23,9 +23,7 @@ An official conduwuit server ran by me is available at transfem.dev ([element.tr
 
 conduwuit is a fork of Conduit which is in beta, meaning you can join and participate in most
 Matrix rooms, but not all features are supported and you might run into bugs
-from time to time. conduwuit attempts to fix and improve the majority of upstream Conduit bugs
-or UX issues that are taking too long to be resolved, or unnecessary Matrix or developer
-politics halting simple things from being merged or fixed, and general inactivity.
+from time to time.
 
 There are still a few nice to have features missing that some users may notice:
 
@@ -37,18 +35,16 @@ See [DIFFERENCES.md](DIFFERENCES.md)
 
 #### Why does this fork exist? Why don't you contribute back upstream?
 
-I have tried, but:
-- unnecessary Matrix / developer politics
-- bikeshedding unnecessary or irrelevant things in MRs
-- disagreement with how the upstream project is maintained including the codebase
-- upstream maintainer inactivity
-- questionable community members
-- lack of MR reviews or issue triaging and no upstream maintainer interest in receiving help
-- severe bugs, including denial of service and other likely vulnerabilities, not being merged due to things mentioned above
-- no interest in adding co-maintainers to help out
+I now intend on contributing back as time and mental energy sees fit, but my fork still exists as a way to:
+- avoid unnecessary Matrix and general developer politics
+- avoid bikeshedding unnecessary or irrelevant things in upstream MRs
+- Fast tracked bug fixes, performance improvements, security improvements, and new features
+- Have early access to MRs that may not be suitable/acceptable for Conduit (e.g. too niche, too advanced for general users, only being blocked due to pending on contributor actions that we can fix ourselves downstream, pending Matrix spec stuff, etc)
+- Support unspecced or WIP features
+- Have official support for other OS's like Windows, macOS, and BSD.
+- Have a **stable** testing ground for some MRs or new features and bug fixes
 
-are what are keeping me from contributing. If the state of the upstream project improves, I'm
-willing to start contributing again. As is, I think if folks want a more polished and well-kept version of Conduit, conduwuit exists for that.
+And various other reasons that may not be listed here.
 
 #### How can I deploy my own?
 
@@ -66,7 +62,7 @@ If you want to connect an Appservice to Conduit, take a look at [APPSERVICES.md]
 2. Ask someone to assign the issue to you (comment on the issue or chat in
    [#conduwuit:puppygock.gay](https://matrix.to/#/#conduwuit:puppygock.gay))
 3. Fork the repo and work on the issue.
-4. Submit a PR (please keep contributions to the GitHub repo, main development is done here, not the GitLab repo which exists just as a mirror.)
+4. Submit a PR (please keep contributions to the GitHub repo, main development is done here, not the GitLab repo which exists just as a mirror. If you are avoiding GitHub, feel free to join our Matrix chat to get your patch in.)
 
 #### Contact
 
@@ -83,6 +79,10 @@ GitHub Sponsors: <https://github.com/sponsors/girlbossceo>
 #### Logo
 
 No official conduwuit logo exists. Repo and Matrix room picture is from bran (<3).
+
+#### Is it conduwuit or Conduwuit?
+
+Both.
 
 #### Mirrors of conduwuit
 
