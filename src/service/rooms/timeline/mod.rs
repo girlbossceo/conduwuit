@@ -26,7 +26,7 @@ use ruma::{
 	state_res,
 	state_res::{Event, RoomVersion},
 	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
-	RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
+	RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
@@ -461,10 +461,6 @@ impl Service {
 				if let Some(body) = content.body {
 					services().rooms.search.index_pdu(shortroomid, &pdu_id, &body)?;
 
-					let admin_room = services().rooms.alias.resolve_local_alias(
-						<&RoomAliasId>::try_from(format!("#admins:{}", services().globals.server_name()).as_str())
-							.expect("#admins:server_name is a valid room alias"),
-					)?;
 					let server_user = format!("@conduit:{}", services().globals.server_name());
 
 					let to_conduit = body.starts_with(&format!("{server_user}: "))
@@ -477,8 +473,10 @@ impl Service {
 					// the administrator can execute commands as conduit
 					let from_conduit = pdu.sender == server_user && services().globals.emergency_password().is_none();
 
-					if to_conduit && !from_conduit && admin_room.as_ref() == Some(&pdu.room_id) {
-						services().admin.process_message(body, pdu.event_id.clone());
+					if let Some(admin_room) = services().admin.get_admin_room()? {
+						if to_conduit && !from_conduit && admin_room == pdu.room_id {
+							services().admin.process_message(body, pdu.event_id.clone());
+						}
 					}
 				}
 			},
@@ -720,84 +718,82 @@ impl Service {
 	) -> Result<Arc<EventId>> {
 		let (pdu, pdu_json) = self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
 
-		let admin_room = services().rooms.alias.resolve_local_alias(
-			<&RoomAliasId>::try_from(format!("#admins:{}", services().globals.server_name()).as_str())
-				.expect("#admins:server_name is a valid room alias"),
-		)?;
-		if admin_room.filter(|v| v == room_id).is_some() {
-			match pdu.event_type() {
-				TimelineEventType::RoomEncryption => {
-					warn!("Encryption is not allowed in the admins room");
-					return Err(Error::BadRequest(
-						ErrorKind::Forbidden,
-						"Encryption is not allowed in the admins room.",
-					));
-				},
-				TimelineEventType::RoomMember => {
-					#[derive(Deserialize)]
-					struct ExtractMembership {
-						membership: MembershipState,
-					}
-
-					let target = pdu.state_key().filter(|v| v.starts_with('@')).unwrap_or(sender.as_str());
-					let server_name = services().globals.server_name();
-					let server_user = format!("@conduit:{server_name}");
-					let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
-						.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
-
-					if content.membership == MembershipState::Leave {
-						if target == server_user {
-							warn!("Conduit user cannot leave from admins room");
-							return Err(Error::BadRequest(
-								ErrorKind::Forbidden,
-								"Conduit user cannot leave from admins room.",
-							));
+		if let Some(admin_room) = services().admin.get_admin_room()? {
+			if admin_room == room_id {
+				match pdu.event_type() {
+					TimelineEventType::RoomEncryption => {
+						warn!("Encryption is not allowed in the admins room");
+						return Err(Error::BadRequest(
+							ErrorKind::Forbidden,
+							"Encryption is not allowed in the admins room.",
+						));
+					},
+					TimelineEventType::RoomMember => {
+						#[derive(Deserialize)]
+						struct ExtractMembership {
+							membership: MembershipState,
 						}
 
-						let count = services()
-							.rooms
-							.state_cache
-							.room_members(room_id)
-							.filter_map(std::result::Result::ok)
-							.filter(|m| m.server_name() == server_name)
-							.filter(|m| m != target)
-							.count();
-						if count < 2 {
-							warn!("Last admin cannot leave from admins room");
-							return Err(Error::BadRequest(
-								ErrorKind::Forbidden,
-								"Last admin cannot leave from admins room.",
-							));
-						}
-					}
+						let target = pdu.state_key().filter(|v| v.starts_with('@')).unwrap_or(sender.as_str());
+						let server_name = services().globals.server_name();
+						let server_user = format!("@conduit:{server_name}");
+						let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
+							.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
-					if content.membership == MembershipState::Ban && pdu.state_key().is_some() {
-						if target == server_user {
-							warn!("Conduit user cannot be banned in admins room");
-							return Err(Error::BadRequest(
-								ErrorKind::Forbidden,
-								"Conduit user cannot be banned in admins room.",
-							));
+						if content.membership == MembershipState::Leave {
+							if target == server_user {
+								warn!("Conduit user cannot leave from admins room");
+								return Err(Error::BadRequest(
+									ErrorKind::Forbidden,
+									"Conduit user cannot leave from admins room.",
+								));
+							}
+
+							let count = services()
+								.rooms
+								.state_cache
+								.room_members(room_id)
+								.filter_map(std::result::Result::ok)
+								.filter(|m| m.server_name() == server_name)
+								.filter(|m| m != target)
+								.count();
+							if count < 2 {
+								warn!("Last admin cannot leave from admins room");
+								return Err(Error::BadRequest(
+									ErrorKind::Forbidden,
+									"Last admin cannot leave from admins room.",
+								));
+							}
 						}
 
-						let count = services()
-							.rooms
-							.state_cache
-							.room_members(room_id)
-							.filter_map(std::result::Result::ok)
-							.filter(|m| m.server_name() == server_name)
-							.filter(|m| m != target)
-							.count();
-						if count < 2 {
-							warn!("Last admin cannot be banned in admins room");
-							return Err(Error::BadRequest(
-								ErrorKind::Forbidden,
-								"Last admin cannot be banned in admins room.",
-							));
+						if content.membership == MembershipState::Ban && pdu.state_key().is_some() {
+							if target == server_user {
+								warn!("Conduit user cannot be banned in admins room");
+								return Err(Error::BadRequest(
+									ErrorKind::Forbidden,
+									"Conduit user cannot be banned in admins room.",
+								));
+							}
+
+							let count = services()
+								.rooms
+								.state_cache
+								.room_members(room_id)
+								.filter_map(std::result::Result::ok)
+								.filter(|m| m.server_name() == server_name)
+								.filter(|m| m != target)
+								.count();
+							if count < 2 {
+								warn!("Last admin cannot be banned in admins room");
+								return Err(Error::BadRequest(
+									ErrorKind::Forbidden,
+									"Last admin cannot be banned in admins room.",
+								));
+							}
 						}
-					}
-				},
-				_ => {},
+					},
+					_ => {},
+				}
 			}
 		}
 
