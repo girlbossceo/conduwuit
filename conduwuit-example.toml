@@ -161,7 +161,19 @@ registration_token = "change this token for something specific to your server"
 # controls whether non-admin local users are forbidden from sending room invites (local and remote),
 # and if non-admin users can receive remote room invites. admins are always allowed to send and receive all room invites.
 # defaults to false
-# block_non_admin_invites = falsse
+# block_non_admin_invites = false
+
+# List of forbidden username patterns/strings. Values in this list are matched as *contains*.
+# This is checked upon username availability check, registration, and startup as warnings if any local users in your database
+# have a forbidden username.
+# No default.
+# forbidden_usernames = []
+
+# List of forbidden room aliases and room IDs as patterns/strings. Values in this list are matched as *contains*.
+# This is checked upon room alias creation, custom room ID creation if used, and startup as warnings if any room aliases
+# in your database have a forbidden room alias/ID.
+# No default.
+# forbidden_room_names = []
 
 # Set this to true to allow your server's public room directory to be federated.
 # Set this to false to protect against /publicRooms spiders, but will forbid external users
