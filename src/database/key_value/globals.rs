@@ -8,6 +8,7 @@ use ruma::{
 	signatures::Ed25519KeyPair,
 	DeviceId, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, ServerName, UserId,
 };
+use tracing::debug;
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
@@ -185,7 +186,9 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 	fn load_keypair(&self) -> Result<Ed25519KeyPair> {
 		let keypair_bytes = self.global.get(b"keypair")?.map_or_else(
 			|| {
+				debug!("No keypair found in database, assuming this is a new deployment and generating one.");
 				let keypair = utils::generate_keypair();
+				debug!("Generated keypair bytes: {:?}", keypair);
 				self.global.insert(b"keypair", &keypair)?;
 				Ok::<_, Error>(keypair)
 			},
@@ -200,6 +203,7 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 		)
 		.map_err(|_| Error::bad_database("Invalid version bytes in keypair."))
 		.and_then(|version| {
+			debug!("Keypair version: {version}");
 			// 2. key
 			parts
 				.next()
@@ -207,8 +211,10 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 				.map(|key| (version, key))
 		})
 		.and_then(|(version, key)| {
-			Ed25519KeyPair::from_der(key, version)
-				.map_err(|_| Error::bad_database("Private or public keys are invalid."))
+			let keypair = Ed25519KeyPair::from_der(key, version)
+				.map_err(|_| Error::bad_database("Private or public keys are invalid."));
+			debug!("Private and public key bytes: {keypair:?}");
+			keypair
 		})
 	}
 

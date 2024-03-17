@@ -152,7 +152,7 @@ impl Service<'_> {
 		let keypair = match keypair {
 			Ok(k) => k,
 			Err(e) => {
-				error!("Keypair invalid. Deleting...");
+				error!("Homeserver signing keypair in database is invalid. Deleting...");
 				db.remove_keypair()?;
 				return Err(e);
 			},
