@@ -1,4 +1,6 @@
-# Deploying Conduit
+# Simple setup
+
+This is the recommended way to set up Conduit. It is the easiest way to get started and is suitable for most use cases.
 
 ### Please note that this documentation is not fully representative of conduwuit at the moment. Assume majority of it is outdated.
 
@@ -118,7 +120,7 @@ Now we need to create the Conduit's config file in `/etc/conduwuit/conduwuit.tom
 to read it. You need to change at least the server name.**  
 You can also choose to use a different database backend, but right now only `rocksdb` and `sqlite` are recommended.
 
-See the following example config at [conduwuit-example.toml](conduwuit-example.toml)
+See the following example config at [conduwuit-example.toml](../configuration.md)
 
 ## Setting the correct file permissions
 
@@ -300,8 +302,8 @@ $ curl https://your.server.name:8448/_matrix/client/versions
 
 ## Audio/Video calls
 
-For Audio/Video call functionality see the [TURN Guide](TURN.md).
+For Audio/Video call functionality see the [TURN Guide](../turn.md).
 
 ## Appservices
 
-If you want to set up an appservice, take a look at the [Appservice Guide](APPSERVICES.md).
+If you want to set up an appservice, take a look at the [Appservice Guide](../appservices.md).

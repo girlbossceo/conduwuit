@@ -51,6 +51,11 @@ group = "versions"
 script = "cargo deb --version"
 
 [[task]]
+name = "lychee"
+group = "versions"
+script = "lychee --version"
+
+[[task]]
 name = "cargo-audit"
 group = "security"
 script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked"
@@ -76,6 +81,11 @@ RUSTDOCFLAGS="-D warnings" cargo doc \
 name = "cargo-clippy"
 group = "lints"
 script = "cargo clippy --workspace --all-targets --all-features --color=always -- -D warnings"
+
+[[task]]
+name = "lychee"
+group = "lints"
+script = "lychee --offline docs"
 
 [[task]]
 name = "cargo"
