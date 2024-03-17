@@ -15,8 +15,12 @@ use axum::{
 use axum_server::{bind, bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
 #[cfg(feature = "axum_dual_protocol")]
 use axum_server_dual_protocol::ServerExt;
-use conduit::api::{client_server, server_server};
+use base64::{engine::general_purpose, Engine as _};
 pub use conduit::*; // Re-export everything from the library crate
+use conduit::{
+	api::{client_server, server_server},
+	clap::{Args, SigningKey},
+};
 use either::Either::{Left, Right};
 use figment::{
 	providers::{Env, Format, Toml},
@@ -28,12 +32,15 @@ use http::{
 };
 #[cfg(unix)]
 use hyperlocal::SocketIncoming;
-use ruma::api::{
-	client::{
-		error::{Error as RumaError, ErrorBody, ErrorKind},
-		uiaa::UiaaResponse,
+use ruma::{
+	api::{
+		client::{
+			error::{Error as RumaError, ErrorBody, ErrorKind},
+			uiaa::UiaaResponse,
+		},
+		IncomingRequest,
 	},
-	IncomingRequest,
+	serde::Base64,
 };
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
@@ -73,7 +80,7 @@ async fn main() {
 	} else if args.config.is_some() {
 		Figment::new()
 			.merge(
-				Toml::file(args.config.expect(
+				Toml::file(args.config.as_ref().expect(
 					"conduwuit config commandline argument was specified, but appears to be invalid. This should be \
 					 set to the path of a valid TOML file.",
 				))
@@ -169,8 +176,16 @@ async fn main() {
 
 	let config = &services().globals.config;
 
-	/* ad-hoc config validation/checks */
+	/* homeserver signing keypair subcommand stuff */
+	if let Some(subcommands) = &args.signing_key {
+		if signing_key_operations(subcommands).await.is_ok() {
+			return;
+		}
+	}
 
+	debug!("Ed25519KeyPair: {:?}", services().globals.keypair());
+
+	/* ad-hoc config validation/checks */
 	if config.unix_socket_path.is_some() && !cfg!(unix) {
 		error!(
 			"UNIX socket support is only available on *nix platforms. Please remove \"unix_socket_path\" from your \
@@ -911,4 +926,37 @@ fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
 	debug!("Increased nofile soft limit to {hard_limit}");
 
 	Ok(())
+}
+
+/// Homeserver signing key commands/operations
+async fn signing_key_operations(subcommands: &SigningKey) -> Result<()> {
+	match subcommands {
+		SigningKey::ExportPath {
+			path,
+		} => {
+			let mut file = tokio::fs::File::create(path).await?;
+			let mut content = String::new();
+
+			content.push_str("ed25519 ");
+
+			let version = services().globals.keypair().version();
+
+			content.push_str(version);
+			content.push(' ');
+
+			let keypair = services().globals.keypair();
+			debug!("Ed25519KeyPair: {:?}", keypair);
+
+			//let key_base64 = Base64::new(key);
+
+			Ok(())
+		},
+		SigningKey::ImportPath {
+			path,
+			add_to_old_public_keys,
+			timestamp,
+		} => {
+			unimplemented!()
+		},
+	}
 }

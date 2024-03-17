@@ -211,9 +211,10 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 				.map(|key| (version, key))
 		})
 		.and_then(|(version, key)| {
+			debug!("Keypair bytes: {:?}", key);
 			let keypair = Ed25519KeyPair::from_der(key, version)
 				.map_err(|_| Error::bad_database("Private or public keys are invalid."));
-			debug!("Private and public key bytes: {keypair:?}");
+			debug!("Private and public key: {keypair:?}");
 			keypair
 		})
 	}
