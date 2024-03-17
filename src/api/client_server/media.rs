@@ -138,6 +138,8 @@ pub async fn get_media_preview_v1_route(
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
 pub async fn create_content_route(body: Ruma<create_content::v3::Request>) -> Result<create_content::v3::Response> {
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
 	let mxc = format!(
 		"mxc://{}/{}",
 		services().globals.server_name(),
@@ -147,6 +149,7 @@ pub async fn create_content_route(body: Ruma<create_content::v3::Request>) -> Re
 	services()
 		.media
 		.create(
+			Some(sender_user.clone()),
 			mxc.clone(),
 			body.filename.as_ref().map(|filename| "inline; filename=".to_owned() + filename).as_deref(),
 			body.content_type.as_deref(),
@@ -175,6 +178,8 @@ pub async fn create_content_route(body: Ruma<create_content::v3::Request>) -> Re
 pub async fn create_content_v1_route(
 	body: Ruma<create_content::v3::Request>,
 ) -> Result<RumaResponse<create_content::v3::Response>> {
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
 	let mxc = format!(
 		"mxc://{}/{}",
 		services().globals.server_name(),
@@ -184,6 +189,7 @@ pub async fn create_content_v1_route(
 	services()
 		.media
 		.create(
+			Some(sender_user.clone()),
 			mxc.clone(),
 			body.filename.as_ref().map(|filename| "inline; filename=".to_owned() + filename).as_deref(),
 			body.content_type.as_deref(),
@@ -231,6 +237,7 @@ pub async fn get_remote_content(
 	services()
 		.media
 		.create(
+			None,
 			mxc.to_owned(),
 			content_response.content_disposition.as_deref(),
 			content_response.content_type.as_deref(),
@@ -484,6 +491,7 @@ pub async fn get_content_thumbnail_route(
 		services()
 			.media
 			.upload_thumbnail(
+				None,
 				mxc,
 				None,
 				get_thumbnail_response.content_type.as_deref(),
@@ -566,6 +574,7 @@ pub async fn get_content_thumbnail_v1_route(
 		services()
 			.media
 			.upload_thumbnail(
+				None,
 				mxc,
 				None,
 				get_thumbnail_response.content_type.as_deref(),
@@ -589,7 +598,7 @@ async fn download_image(client: &reqwest::Client, url: &str) -> Result<UrlPrevie
 		utils::random_string(MXC_LENGTH)
 	);
 
-	services().media.create(mxc.clone(), None, None, &image).await?;
+	services().media.create(None, mxc.clone(), None, None, &image).await?;
 
 	let (width, height) = match ImgReader::new(Cursor::new(&image)).with_guessed_format() {
 		Err(_) => (None, None),

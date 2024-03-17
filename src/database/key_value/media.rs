@@ -4,12 +4,14 @@ use tracing::debug;
 use crate::{
 	database::KeyValueDatabase,
 	service::{self, media::UrlPreviewData},
-	utils, Error, Result,
+	utils::string_from_bytes,
+	Error, Result,
 };
 
 impl service::media::Data for KeyValueDatabase {
 	fn create_file_metadata(
-		&self, mxc: String, width: u32, height: u32, content_disposition: Option<&str>, content_type: Option<&str>,
+		&self, sender_user: Option<&str>, mxc: String, width: u32, height: u32, content_disposition: Option<&str>,
+		content_type: Option<&str>,
 	) -> Result<Vec<u8>> {
 		let mut key = mxc.as_bytes().to_vec();
 		key.push(0xFF);
@@ -22,6 +24,12 @@ impl service::media::Data for KeyValueDatabase {
 
 		self.mediaid_file.insert(&key, &[])?;
 
+		if let Some(user) = sender_user {
+			let key = mxc.as_bytes().to_vec();
+			let user = user.as_bytes().to_vec();
+			self.mediaid_user.insert(&key, &user)?;
+		}
+
 		Ok(key)
 	}
 
@@ -31,11 +39,20 @@ impl service::media::Data for KeyValueDatabase {
 		let mut prefix = mxc.as_bytes().to_vec();
 		prefix.push(0xFF);
 
-		debug!("MXC db prefix: {:?}", prefix);
+		debug!("MXC db prefix: {prefix:?}");
 
 		for (key, _) in self.mediaid_file.scan_prefix(prefix) {
 			debug!("Deleting key: {:?}", key);
 			self.mediaid_file.remove(&key)?;
+		}
+
+		for (key, value) in self.mediaid_user.scan_prefix(mxc.as_bytes().to_vec()) {
+			if key == mxc.as_bytes().to_vec() {
+				let user = string_from_bytes(&value).unwrap_or_default();
+
+				debug!("Deleting key \"{key:?}\" which was uploaded by user {user}");
+				self.mediaid_user.remove(&key)?;
+			}
 		}
 
 		Ok(())
@@ -85,7 +102,7 @@ impl service::media::Data for KeyValueDatabase {
 		let content_type = parts
 			.next()
 			.map(|bytes| {
-				utils::string_from_bytes(bytes)
+				string_from_bytes(bytes)
 					.map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))
 			})
 			.transpose()?;
@@ -97,7 +114,7 @@ impl service::media::Data for KeyValueDatabase {
 			None
 		} else {
 			Some(
-				utils::string_from_bytes(content_disposition_bytes)
+				string_from_bytes(content_disposition_bytes)
 					.map_err(|_| Error::bad_database("Content Disposition in mediaid_file is invalid unicode."))?,
 			)
 		};
