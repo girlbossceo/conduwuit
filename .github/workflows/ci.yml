@@ -154,6 +154,21 @@ jobs:
           compression-level: 0
 
 
+      - name: Build documentation (book)
+        run: |
+          ./bin/nix-build-and-cache .#book
+          cp -r --dereference result public
+
+      - name: Upload generated documentation (book) as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: public
+          path: public
+          if-no-files-found: error
+          # don't compress again
+          compression-level: 0
+
+
       - name: Extract metadata for Dockerhub
         env:
           REGISTRY: registry.hub.docker.com
