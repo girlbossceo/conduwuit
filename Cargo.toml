@@ -48,7 +48,7 @@ serde_html_form = "0.2.5"
 hmac = "0.12.1"
 sha-1 = "0.10.1"
 
-async-trait = "0.1.77"
+async-trait = "0.1.78"
 
 # used for checking if an IP is in specific subnets / CIDR ranges easier
 ipaddress = "0.1.3"
