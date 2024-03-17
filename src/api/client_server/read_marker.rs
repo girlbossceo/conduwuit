@@ -81,6 +81,8 @@ pub async fn set_read_marker_route(body: Ruma<set_read_marker::v3::Request>) -> 
 				room_id: body.room_id.clone(),
 			},
 		)?;
+
+		services().sending.flush_room(&body.room_id)?;
 	}
 
 	Ok(set_read_marker::v3::Response {})
@@ -136,6 +138,8 @@ pub async fn create_receipt_route(body: Ruma<create_receipt::v3::Request>) -> Re
 					room_id: body.room_id.clone(),
 				},
 			)?;
+
+			services().sending.flush_room(&body.room_id)?;
 		},
 		create_receipt::v3::ReceiptType::ReadPrivate => {
 			let count = services()

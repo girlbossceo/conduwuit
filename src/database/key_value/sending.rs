@@ -90,6 +90,10 @@ impl service::sending::Data for KeyValueDatabase {
 
 	fn mark_as_active(&self, events: &[(SendingEventType, Vec<u8>)]) -> Result<()> {
 		for (e, key) in events {
+			if key.is_empty() {
+				continue;
+			}
+
 			let value = if let SendingEventType::Edu(value) = &e {
 				&**value
 			} else {

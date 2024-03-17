@@ -25,7 +25,7 @@ use ruma::{
 	},
 	device_id,
 	events::{push_rules::PushRulesEvent, receipt::ReceiptType, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType},
-	push, uint, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedUserId, ServerName, UInt, UserId,
+	push, uint, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedUserId, RoomId, ServerName, UInt, UserId,
 };
 use tokio::{
 	select,
@@ -80,6 +80,7 @@ impl OutgoingKind {
 pub enum SendingEventType {
 	Pdu(Vec<u8>), // pduid
 	Edu(Vec<u8>), // pdu json
+	Flush,        // none
 }
 
 pub struct Service {
@@ -237,9 +238,11 @@ impl Service {
 				events.push(e);
 			}
 		} else {
-			self.db.mark_as_active(&new_events)?;
-			for (e, _) in new_events {
-				events.push(e);
+			if !new_events.is_empty() {
+				self.db.mark_as_active(&new_events)?;
+				for (e, _) in new_events {
+					events.push(e);
+				}
 			}
 
 			if let OutgoingKind::Normal(server_name) = outgoing_kind {
@@ -421,6 +424,29 @@ impl Service {
 		Ok(())
 	}
 
+	#[tracing::instrument(skip(self, room_id))]
+	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
+		let servers: HashSet<OwnedServerName> =
+			services().rooms.state_cache.room_servers(room_id).filter_map(std::result::Result::ok).collect();
+
+		self.flush_servers(servers.into_iter())
+	}
+
+	#[tracing::instrument(skip(self, servers))]
+	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
+		let requests = servers
+			.into_iter()
+			.filter(|server| server != services().globals.server_name())
+			.map(OutgoingKind::Normal)
+			.collect::<Vec<_>>();
+
+		for outgoing_kind in requests.into_iter() {
+			self.sender.send((outgoing_kind, SendingEventType::Flush, Vec::<u8>::new())).unwrap();
+		}
+
+		Ok(())
+	}
+
 	/// Cleanup event data
 	/// Used for instance after we remove an appservice registration
 	#[tracing::instrument(skip(self))]
@@ -461,6 +487,9 @@ impl Service {
 						SendingEventType::Edu(_) => {
 							// Appservices don't need EDUs (?)
 						},
+						SendingEventType::Flush => {
+							// flush only; no new content
+						},
 					}
 				}
 
@@ -480,6 +509,7 @@ impl Service {
 								.iter()
 								.map(|e| match e {
 									SendingEventType::Edu(b) | SendingEventType::Pdu(b) => &**b,
+									SendingEventType::Flush => &[],
 								})
 								.collect::<Vec<_>>(),
 						)))
@@ -520,6 +550,9 @@ impl Service {
 						},
 						SendingEventType::Edu(_) => {
 							// Push gateways don't need EDUs (?)
+						},
+						SendingEventType::Flush => {
+							// flush only; no new content
 						},
 					}
 				}
@@ -601,6 +634,9 @@ impl Service {
 								edu_jsons.push(raw);
 							}
 						},
+						SendingEventType::Flush => {
+							// flush only; no new content
+						},
 					}
 				}
 
@@ -618,6 +654,7 @@ impl Service {
 								.iter()
 								.map(|e| match e {
 									SendingEventType::Edu(b) | SendingEventType::Pdu(b) => &**b,
+									SendingEventType::Flush => &[],
 								})
 								.collect::<Vec<_>>(),
 						)))
