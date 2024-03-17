@@ -6,7 +6,7 @@
 ### a well maintained fork of [Conduit](https://conduit.rs/)
 <!-- ANCHOR_END: catchphrase -->
 
-Please visit the [Conduit documentation](https://famedly.gitlab.io/conduit) for more information.
+Visit the [Conduwuit documentation](https://conduwuit.puppyirl.gay/) for more information.
 Alternatively you can open [docs/introduction.md](docs/introduction.md) in this repository.
 
 <!-- ANCHOR: body -->
