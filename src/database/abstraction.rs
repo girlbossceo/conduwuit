@@ -43,6 +43,10 @@ pub(crate) trait KvTree: Send + Sync {
 
 	fn remove(&self, key: &[u8]) -> Result<()>;
 
+	#[allow(dead_code)]
+	#[cfg(feature = "rocksdb")]
+	fn remove_batch(&self, _iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> { unimplemented!() }
+
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a>;
 
 	fn iter_from<'a>(&'a self, from: &[u8], backwards: bool) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a>;

@@ -251,6 +251,18 @@ impl KvTree for RocksDbEngineTree<'_> {
 		Ok(self.db.rocks.delete_cf_opt(&self.cf(), key, &writeoptions)?)
 	}
 
+	fn remove_batch(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
+		let writeoptions = rust_rocksdb::WriteOptions::default();
+
+		let mut batch = WriteBatchWithTransaction::<false>::default();
+
+		for key in iter {
+			batch.delete_cf(&self.cf(), key);
+		}
+
+		Ok(self.db.rocks.write_opt(batch, &writeoptions)?)
+	}
+
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
