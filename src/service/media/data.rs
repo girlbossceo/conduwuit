@@ -2,7 +2,8 @@ use crate::Result;
 
 pub trait Data: Send + Sync {
 	fn create_file_metadata(
-		&self, mxc: String, width: u32, height: u32, content_disposition: Option<&str>, content_type: Option<&str>,
+		&self, sender_user: Option<&str>, mxc: String, width: u32, height: u32, content_disposition: Option<&str>,
+		content_type: Option<&str>,
 	) -> Result<Vec<u8>>;
 
 	fn delete_file_mxc(&self, mxc: String) -> Result<()>;
