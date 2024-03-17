@@ -823,6 +823,10 @@ pub async fn send_transaction_message_route(
 				}
 			},
 			Edu::Receipt(receipt) => {
+				if !services().globals.allow_incoming_read_receipts() {
+					continue;
+				}
+
 				for (room_id, room_updates) in receipt.receipts {
 					for (user_id, user_updates) in room_updates.read {
 						if let Some((event_id, _)) = user_updates
