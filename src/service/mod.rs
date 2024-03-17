@@ -207,5 +207,11 @@ roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}"
 		if amount > 5 {
 			self.rooms.spaces.roomid_spacehierarchy_cache.lock().await.clear();
 		}
+		if amount > 6 {
+			self.globals.tls_name_override.write().unwrap().clear();
+		}
+		if amount > 7 {
+			self.globals.dns_resolver().clear_cache();
+		}
 	}
 }
