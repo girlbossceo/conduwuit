@@ -933,8 +933,13 @@ impl KeyValueDatabase {
 			{
 				let patterns = &services().globals.config.forbidden_usernames;
 				if !patterns.is_empty() {
-					for user in services().users.iter() {
-						let user_id = user?;
+					for user_id in services()
+						.users
+						.iter()
+						.filter_map(std::result::Result::ok)
+						.filter(|user| !services().users.is_deactivated(user).unwrap_or(true))
+						.filter(|user| user.server_name() == services().globals.server_name())
+					{
 						let matches = patterns.matches(user_id.localpart());
 						if matches.matched_any() {
 							warn!(
