@@ -1,4 +1,4 @@
-name: CI and Artifacts
+name: CI, Artifacts, and Documentation
 
 on:
   pull_request:
@@ -6,26 +6,48 @@ on:
     branches:
       - main
 
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
 env:
   # Required to make some things output color
   TERM: ansi
+  # Publishing to my nix binary cache
   ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+  # Just in case incremental is still being set to true, speeds up CI
   CARGO_INCREMENTAL: 0
+  # Custom nix binary cache if fork is being used
   ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
   ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
 
 permissions:
   packages: write
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   ci:
-    name: CI and Artifacts
+    name: CI, Artifacts, and Documentation
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     runs-on: ubuntu-latest
 
     steps:
       - name: Sync repository
         uses: actions/checkout@v4
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
 
       - name: Install Nix (with flakes and nix-command enabled)
         uses: cachix/install-nix-action@v26
@@ -159,7 +181,7 @@ jobs:
           ./bin/nix-build-and-cache .#book
           cp -r --dereference result public
 
-      - name: Upload generated documentation (book) as artifact
+      - name: Upload generated documentation (book) as normal artifact
         uses: actions/upload-artifact@v4
         with:
           name: public
@@ -167,6 +189,15 @@ jobs:
           if-no-files-found: error
           # don't compress again
           compression-level: 0
+
+      - name: Upload generated documentation (book) as GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
 
       - name: Extract metadata for Dockerhub
