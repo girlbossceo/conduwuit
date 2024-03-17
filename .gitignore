@@ -75,5 +75,8 @@ test-conduit.toml
 # Gitlab CI cache
 /.gitlab-ci.d
 
+# mdbook output
+public/
+
 # macOS
 .DS_Store

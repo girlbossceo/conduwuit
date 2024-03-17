@@ -105,6 +105,10 @@ artifacts:
 
     - ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl
     - cp result oci-image-arm64v8.tar.gz
+
+    - ./bin/nix-build-and-cache .#book
+    # We can't just copy the symlink, we need to dereference it https://gitlab.com/gitlab-org/gitlab/-/issues/19746
+    - cp -r --dereference result public
   artifacts:
     paths:
       - x86_64-unknown-linux-musl
@@ -112,6 +116,7 @@ artifacts:
       - x86_64-unknown-linux-musl.deb
       - oci-image-amd64.tar.gz
       - oci-image-arm64v8.tar.gz
+            - public
   rules:
     # CI required for all MRs
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -164,3 +169,15 @@ oci-image:push-gitlab:
     IMAGE_NAME: $CI_REGISTRY_IMAGE/conduwuit
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+pages:
+  stage: publish
+  dependencies:
+    - artifacts
+  only:
+    - next
+  script:
+    - "true"
+  artifacts:
+    paths:
+      - public

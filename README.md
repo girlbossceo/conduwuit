@@ -1,9 +1,17 @@
 # conduwuit
-### a well maintained fork of [Conduit](https://conduit.rs/)
 
 [![CI and Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml)
 
+<!-- ANCHOR: catchphrase -->
+### a well maintained fork of [Conduit](https://conduit.rs/)
+<!-- ANCHOR_END: catchphrase -->
+
+Please visit the [Conduit documentation](https://famedly.gitlab.io/conduit) for more information.
+Alternatively you can open [docs/introduction.md](docs/introduction.md) in this repository.
+
+<!-- ANCHOR: body -->
 #### What is Matrix?
+
 [Matrix](https://matrix.org) is an open network for secure and decentralized
 communication. Users from every Matrix homeserver can chat with users from all
 other Matrix servers. You can even use bridges (also called Matrix Appservices)
@@ -31,7 +39,7 @@ There are still a few nice to have features missing that some users may notice:
 
 #### What's different about your fork than upstream Conduit?
 
-See [DIFFERENCES.md](DIFFERENCES.md)
+See [docs/differences.md](docs/differences.md)
 
 #### Why does this fork exist? Why don't you contribute back upstream?
 
@@ -45,16 +53,9 @@ I now intend on contributing back as time and mental energy sees fit, but my for
 - Have a **stable** testing ground for some MRs or new features and bug fixes
 
 And various other reasons that may not be listed here.
+<!-- ANCHOR_END: body -->
 
-#### How can I deploy my own?
-
-conduwuit officially supports Linux, macOS, BSD, and Windows.
-
-- Simple install (this was tested the most): [DEPLOY.md](DEPLOY.md)
-- Nix/NixOS (and binary cache): [nix/README.md](nix/README.md)
-
-If you want to connect an Appservice to Conduit, take a look at [APPSERVICES.md](APPSERVICES.md).
-
+<!-- ANCHOR: footer -->
 #### How can I contribute?
 
 1. Look for an issue you would like to work on and make sure it's not assigned
@@ -72,9 +73,9 @@ If you run into any question, feel free to
 
 #### Donate
 
-Liberapay: <https://liberapay.com/girlbossceo>\
-Ko-fi: <https://ko-fi.com/puppygock>\
-GitHub Sponsors: <https://github.com/sponsors/girlbossceo>
+- Liberapay: <https://liberapay.com/girlbossceo>
+- Ko-fi: <https://ko-fi.com/puppygock>
+- GitHub Sponsors: <https://github.com/sponsors/girlbossceo>
 
 #### Logo
 
@@ -86,8 +87,9 @@ Both.
 
 #### Mirrors of conduwuit
 
-GitHub: <https://github.com/girlbossceo/conduwuit>\
-GitLab: <https://gitlab.com/girlbossceo/conduwuit>\
-git.gay: <https://git.gay/june/conduwuit>\
-Codeberg: <https://codeberg.org/girlbossceo/conduwuit>\
-sourcehut: <https://git.sr.ht/~girlbossceo/conduwuit>
+- GitHub: <https://github.com/girlbossceo/conduwuit>
+- GitLab: <https://gitlab.com/girlbossceo/conduwuit>
+- git.gay: <https://git.gay/june/conduwuit>
+- Codeberg: <https://codeberg.org/girlbossceo/conduwuit>
+- sourcehut: <https://git.sr.ht/~girlbossceo/conduwuit>
+<!-- ANCHOR_END: footer -->
