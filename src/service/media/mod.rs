@@ -482,7 +482,8 @@ mod tests {
 
 	impl Data for MockedKVDatabase {
 		fn create_file_metadata(
-			&self, mxc: String, width: u32, height: u32, content_disposition: Option<&str>, content_type: Option<&str>,
+			&self, _sender_user: Option<&str>, mxc: String, width: u32, height: u32, content_disposition: Option<&str>,
+			content_type: Option<&str>,
 		) -> Result<Vec<u8>> {
 			// copied from src/database/key_value/media.rs
 			let mut key = mxc.as_bytes().to_vec();
@@ -532,8 +533,10 @@ mod tests {
 		let content_disposition = "attachment; filename=\"this is a very long file name with spaces and special \
 		                           characters like äöüß and even emoji like 🦀.png\"";
 		let content_type = "image/png";
-		let key =
-			media.db.create_file_metadata(mxc, width, height, Some(content_disposition), Some(content_type)).unwrap();
+		let key = media
+			.db
+			.create_file_metadata(None, mxc, width, height, Some(content_disposition), Some(content_type))
+			.unwrap();
 		let mut r = PathBuf::new();
 		r.push("/tmp");
 		r.push("media");
