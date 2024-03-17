@@ -495,6 +495,7 @@ fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
 	});
 
 	let mut reqwest_client_builder = reqwest::Client::builder()
+		.trust_dns(true)
 		.pool_max_idle_per_host(0)
 		.connect_timeout(Duration::from_secs(60))
 		.timeout(Duration::from_secs(60 * 5))
@@ -522,6 +523,7 @@ fn url_preview_reqwest_client_builder(config: &Config) -> Result<reqwest::Client
 	});
 
 	let mut reqwest_client_builder = reqwest::Client::builder()
+		.trust_dns(true)
 		.pool_max_idle_per_host(0)
 		.connect_timeout(Duration::from_secs(60))
 		.timeout(Duration::from_secs(60 * 5))
