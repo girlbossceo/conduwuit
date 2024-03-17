@@ -106,6 +106,7 @@ default-features = false
 features = [
   "rustls-tls-native-roots",
   "socks",
+  "trust-dns",
 ]
 
 # all the serde stuff
