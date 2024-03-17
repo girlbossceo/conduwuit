@@ -116,7 +116,7 @@ artifacts:
       - x86_64-unknown-linux-musl.deb
       - oci-image-amd64.tar.gz
       - oci-image-arm64v8.tar.gz
-            - public
+      - public
   rules:
     # CI required for all MRs
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
