@@ -1540,7 +1540,7 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 	let mut event: JsonObject = serde_json::from_str(body.event.get())
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event bytes."))?;
 
-	event.insert("event_id".to_owned(), "$dummy".into());
+	event.insert("event_id".to_owned(), "$placeholder".into());
 
 	let pdu: PduEvent = serde_json::from_value(event.into()).map_err(|e| {
 		warn!("Invalid invite event: {}", e);

@@ -360,11 +360,11 @@ impl Service {
 
 		for user_id in device_list_changes {
 			// Empty prev id forces synapse to resync: https://github.com/matrix-org/synapse/blob/98aec1cc9da2bd6b8e34ffb282c85abf9b8b42ca/synapse/handlers/device.py#L767
-			// Because synapse resyncs, we can just insert dummy data
+			// Because synapse resyncs, we can just insert placeholder data
 			let edu = Edu::DeviceListUpdate(DeviceListUpdateContent {
 				user_id,
-				device_id: device_id!("dummy").to_owned(),
-				device_display_name: Some("Dummy".to_owned()),
+				device_id: device_id!("placeholder").to_owned(),
+				device_display_name: Some("Placeholder".to_owned()),
 				stream_id: uint!(1),
 				prev_id: Vec::new(),
 				deleted: None,

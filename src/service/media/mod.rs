@@ -194,8 +194,8 @@ impl Service {
 				debug!("Full MXC key from database: {:?}", key);
 
 				// we need to get the MXC URL from the first part of the key (the first 0xff /
-				// 255 push) this code does look kinda crazy but blame conduit for using magic
-				// keys
+				// 255 push). this is all necessary because of conduit using magic keys for
+				// media
 				let mut parts = key.split(|&b| b == 0xFF);
 				let mxc = parts
 					.next()

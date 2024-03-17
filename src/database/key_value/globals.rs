@@ -52,7 +52,7 @@ impl service::globals::Data for KeyValueDatabase {
 
 		let mut futures = FuturesUnordered::new();
 
-		// Return when *any* user changed his key
+		// Return when *any* user changed their key
 		// TODO: only send for user they share a room with
 		futures.push(self.todeviceid_events.watch_prefix(&userdeviceid_prefix));
 
