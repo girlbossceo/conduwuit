@@ -144,6 +144,9 @@ pub struct Config {
 	#[serde(default = "default_presence_offline_timeout_s")]
 	pub presence_offline_timeout_s: u64,
 
+	#[serde(default = "true_fn")]
+	pub allow_incoming_read_receipts: bool,
+
 	#[serde(default)]
 	pub zstd_compression: bool,
 
@@ -281,6 +284,10 @@ impl fmt::Display for Config {
 			(
 				"Allow local presence requests (updates)",
 				&self.allow_local_presence.to_string(),
+			),
+			(
+				"Allow incoming remote read receipts",
+				&self.allow_incoming_read_receipts.to_string(),
 			),
 			(
 				"Block non-admin room invites (local and remote, admins can still send and receive invites)",
