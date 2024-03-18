@@ -1,0 +1,117 @@
+name: Documentation and GitHub Pages
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+  # Required to make some things output color
+  TERM: ansi
+  # Publishing to my nix binary cache
+  ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+  # Custom nix binary cache if fork is being used
+  ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
+  ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  docs:
+    name: Documentation and GitHub Pages
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Sync repository
+        uses: actions/checkout@v4
+
+      - name: Setup GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v4
+
+      - name: Install Nix (with flakes and nix-command enabled)
+        uses: cachix/install-nix-action@v26
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+          # Add `nix-community`, Crane, upstream Conduit, and conduwuit binary caches
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://nix-community.cachix.org
+            extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
+            extra-substituters = https://crane.cachix.org
+            extra-trusted-public-keys = crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=
+            extra-substituters = https://nix.computer.surgery/conduit
+            extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo=
+            extra-substituters = https://attic.kennel.juneis.dog/conduit
+            extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
+            extra-substituters = https://attic.kennel.juneis.dog/conduwuit
+            extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+
+      - name: Add alternative Nix binary caches if specified
+        if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+        run: |
+          echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
+          echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
+
+      - name: Pop/push Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Configure `nix-direnv`
+        run: |
+          echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
+
+      - name: Install `direnv` and `nix-direnv`
+        run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
+
+      # Do this to shorten the logs for the real CI step
+      - name: Populate `/nix/store`
+        run: nix develop --command true
+
+      - name: Allow direnv
+        run: direnv allow
+
+      - name: Cache x86_64 inputs for devShell
+        run: |
+          ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
+
+      - name: Build documentation (book)
+        run: |
+          ./bin/nix-build-and-cache .#book
+          cp -r --dereference result public
+      - name: Upload generated documentation (book) as normal artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: public
+          path: public
+          if-no-files-found: error
+          # don't compress again
+          compression-level: 0
+
+      - name: Upload generated documentation (book) as GitHub Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy to GitHub Pages
+        if: github.event_name != 'pull_request'
+        id: deployment
+        uses: actions/deploy-pages@v4
