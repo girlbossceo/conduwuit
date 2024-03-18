@@ -221,7 +221,7 @@
               root = ./.;
               include = [
                 "book.toml"
-                "conduit-example.toml"
+                "conduwuit-example.toml"
                 "README.md"
                 "debian/README.md"
                 "docs"
