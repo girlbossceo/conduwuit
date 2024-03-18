@@ -84,7 +84,7 @@ where
 			appservice_registration
 		{
 			match metadata.authentication {
-				AuthScheme::AccessToken | AuthScheme::AppserviceToken => {
+				AuthScheme::AccessToken => {
 					let user_id = query_params.user_id.map_or_else(
 						|| {
 							UserId::parse_with_server_name(
@@ -105,7 +105,7 @@ where
 					// TODO: Check if appservice is allowed to be that user
 					(Some(user_id), None, None, true)
 				},
-				AuthScheme::AccessTokenOptional => {
+				AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken => {
 					let user_id = query_params.user_id.map_or_else(
 						|| {
 							UserId::parse_with_server_name(
