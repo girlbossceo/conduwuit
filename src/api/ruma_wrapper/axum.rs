@@ -84,8 +84,7 @@ where
 			appservice_registration
 		{
 			match metadata.authentication {
-				// TODO: verify if just or'ing `AuthScheme::AppserviceToken` is correct here
-				AuthScheme::AccessToken | AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken => {
+				AuthScheme::AccessToken | AuthScheme::AppserviceToken => {
 					let user_id = query_params.user_id.map_or_else(
 						|| {
 							UserId::parse_with_server_name(
@@ -97,12 +96,35 @@ where
 						|s| UserId::parse(s).unwrap(),
 					);
 
+					debug!("User ID: {:?}", user_id);
+
 					if !services().users.exists(&user_id)? {
 						return Err(Error::BadRequest(ErrorKind::Forbidden, "User does not exist."));
 					}
 
 					// TODO: Check if appservice is allowed to be that user
 					(Some(user_id), None, None, true)
+				},
+				AuthScheme::AccessTokenOptional => {
+					let user_id = query_params.user_id.map_or_else(
+						|| {
+							UserId::parse_with_server_name(
+								registration.sender_localpart.as_str(),
+								services().globals.server_name(),
+							)
+							.unwrap()
+						},
+						|s| UserId::parse(s).unwrap(),
+					);
+
+					debug!("User ID: {:?}", user_id);
+
+					if !services().users.exists(&user_id)? {
+						(None, None, None, true)
+					} else {
+						// TODO: Check if appservice is allowed to be that user
+						(Some(user_id), None, None, true)
+					}
 				},
 				AuthScheme::ServerSignatures => (None, None, None, true),
 				AuthScheme::None => (None, None, None, true),
