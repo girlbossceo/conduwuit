@@ -1,5 +1,5 @@
 # Example configuration
 
 ``` toml
-{{#include ../conduit-example.toml}}
+{{#include ../conduwuit-example.toml}}
 ```
