@@ -170,8 +170,13 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	}
 
 	fn flush(&self) -> Result<()> {
-		debug!("Running flush_wal (no sync)");
 		rust_rocksdb::DBCommon::flush_wal(&self.rocks, false)?;
+
+		Ok(())
+	}
+
+	fn sync(&self) -> Result<()> {
+		rust_rocksdb::DBCommon::flush_wal(&self.rocks, true)?;
 
 		Ok(())
 	}
