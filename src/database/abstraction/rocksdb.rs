@@ -17,6 +17,8 @@ pub(crate) struct Engine {
 	rocks: rust_rocksdb::DBWithThreadMode<rust_rocksdb::MultiThreaded>,
 	cache: rust_rocksdb::Cache,
 	old_cfs: Vec<String>,
+	opts: rust_rocksdb::Options,
+	env: rust_rocksdb::Env,
 	config: Config,
 }
 
@@ -27,7 +29,7 @@ struct RocksDbEngineTree<'a> {
 	write_lock: RwLock<()>,
 }
 
-fn db_options(rocksdb_cache: &rust_rocksdb::Cache, config: &Config) -> rust_rocksdb::Options {
+fn db_options(config: &Config, env: &rust_rocksdb::Env, rocksdb_cache: &rust_rocksdb::Cache) -> rust_rocksdb::Options {
 	// block-based options: https://docs.rs/rocksdb/latest/rocksdb/struct.BlockBasedOptions.html#
 	let mut block_based_options = rust_rocksdb::BlockBasedOptions::default();
 
@@ -44,6 +46,7 @@ fn db_options(rocksdb_cache: &rust_rocksdb::Cache, config: &Config) -> rust_rock
 
 	// database options: https://docs.rs/rocksdb/latest/rocksdb/struct.Options.html#
 	let mut db_opts = rust_rocksdb::Options::default();
+	db_opts.set_env(env);
 
 	let rocksdb_log_level = match config.rocksdb_log_level.as_ref() {
 		"debug" => Debug,
@@ -125,8 +128,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	fn open(config: &Config) -> Result<Self> {
 		let cache_capacity_bytes = (config.db_cache_capacity_mb * 1024.0 * 1024.0) as usize;
 		let rocksdb_cache = rust_rocksdb::Cache::new_lru_cache(cache_capacity_bytes);
-
-		let db_opts = db_options(&rocksdb_cache, config);
+		let db_env = rust_rocksdb::Env::new()?;
+		let db_opts = db_options(config, &db_env, &rocksdb_cache);
 
 		debug!("Listing column families in database");
 		let cfs =
@@ -138,13 +141,15 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		let db = rust_rocksdb::DBWithThreadMode::<rust_rocksdb::MultiThreaded>::open_cf_descriptors(
 			&db_opts,
 			&config.database_path,
-			cfs.iter().map(|name| rust_rocksdb::ColumnFamilyDescriptor::new(name, db_options(&rocksdb_cache, config))),
+			cfs.iter().map(|name| rust_rocksdb::ColumnFamilyDescriptor::new(name, db_opts.clone())),
 		)?;
 
 		Ok(Arc::new(Engine {
 			rocks: db,
 			cache: rocksdb_cache,
 			old_cfs: cfs,
+			opts: db_opts,
+			env: db_env,
 			config: config.clone(),
 		}))
 	}
@@ -153,7 +158,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		if !self.old_cfs.contains(&name.to_owned()) {
 			// Create if it didn't exist
 			debug!("Creating new column family in database: {}", name);
-			let _ = self.rocks.create_cf(name, &db_options(&self.cache, &self.config));
+			let _ = self.rocks.create_cf(name, &self.opts);
 		}
 
 		Ok(Arc::new(RocksDbEngineTree {
