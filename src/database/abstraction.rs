@@ -20,6 +20,9 @@ pub(crate) trait KeyValueDatabaseEngine: Send + Sync {
 	fn flush(&self) -> Result<()>;
 	#[allow(dead_code)]
 	fn sync(&self) -> Result<()> { Ok(()) }
+	fn cork(&self) -> Result<()> { Ok(()) }
+	fn uncork(&self) -> Result<()> { Ok(()) }
+	fn corked(&self) -> bool { false }
 	fn cleanup(&self) -> Result<()> { Ok(()) }
 	fn memory_usage(&self) -> Result<String> {
 		Ok("Current database engine does not support memory usage reporting.".to_owned())
@@ -87,5 +90,34 @@ pub(crate) trait KvTree: Send + Sync {
 		}
 
 		Ok(())
+	}
+}
+
+pub struct Cork {
+	db: Arc<dyn KeyValueDatabaseEngine>,
+	flush: bool,
+	sync: bool,
+}
+
+impl Cork {
+	pub(crate) fn new(db: &Arc<dyn KeyValueDatabaseEngine>, flush: bool, sync: bool) -> Self {
+		db.cork().unwrap();
+		Cork {
+			db: db.clone(),
+			flush,
+			sync,
+		}
+	}
+}
+
+impl Drop for Cork {
+	fn drop(&mut self) {
+		self.db.uncork().ok();
+		if self.flush {
+			self.db.flush().ok();
+		}
+		if self.sync {
+			self.db.sync().ok();
+		}
 	}
 }

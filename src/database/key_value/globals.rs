@@ -9,7 +9,10 @@ use ruma::{
 	DeviceId, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, ServerName, UserId,
 };
 
-use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
+use crate::{
+	database::{abstraction::Cork, KeyValueDatabase},
+	service, services, utils, Error, Result,
+};
 
 const COUNTER: &[u8] = b"c";
 const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
@@ -118,6 +121,12 @@ impl service::globals::Data for KeyValueDatabase {
 	fn cleanup(&self) -> Result<()> { self.db.cleanup() }
 
 	fn flush(&self) -> Result<()> { self.db.flush() }
+
+	fn cork(&self) -> Result<Cork> { Ok(Cork::new(&self.db, false, false)) }
+
+	fn cork_and_flush(&self) -> Result<Cork> { Ok(Cork::new(&self.db, true, false)) }
+
+	fn cork_and_sync(&self) -> Result<Cork> { Ok(Cork::new(&self.db, true, true)) }
 
 	fn memory_usage(&self) -> String {
 		let pdu_cache = self.pdu_cache.lock().unwrap().len();
