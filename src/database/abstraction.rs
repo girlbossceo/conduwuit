@@ -18,6 +18,7 @@ pub(crate) trait KeyValueDatabaseEngine: Send + Sync {
 		Self: Sized;
 	fn open_tree(&self, name: &'static str) -> Result<Arc<dyn KvTree>>;
 	fn flush(&self) -> Result<()>;
+	fn sync(&self) -> Result<()> { Ok(()) }
 	fn cleanup(&self) -> Result<()> { Ok(()) }
 	fn memory_usage(&self) -> Result<String> {
 		Ok("Current database engine does not support memory usage reporting.".to_owned())
