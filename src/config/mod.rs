@@ -42,6 +42,9 @@ pub struct Config {
 	#[serde(default = "default_database_backend")]
 	pub database_backend: String,
 	pub database_path: String,
+	pub database_backup_path: Option<String>,
+	#[serde(default = "default_database_backups_to_keep")]
+	pub database_backups_to_keep: i16,
 	#[serde(default = "default_db_cache_capacity_mb")]
 	pub db_cache_capacity_mb: f64,
 	#[serde(default = "default_new_user_displayname_suffix")]
@@ -252,6 +255,14 @@ impl fmt::Display for Config {
 			("Server name", self.server_name.host()),
 			("Database backend", &self.database_backend),
 			("Database path", &self.database_path),
+			(
+				"Database backup path",
+				match self.database_backup_path.as_ref() {
+					Some(path) => path,
+					None => "",
+				},
+			),
+			("Database backups to keep", &self.database_backups_to_keep.to_string()),
 			("Database cache capacity (MB)", &self.db_cache_capacity_mb.to_string()),
 			("Cache capacity modifier", &self.conduit_cache_capacity_modifier.to_string()),
 			("PDU cache capacity", &self.pdu_cache_capacity.to_string()),
@@ -445,6 +456,8 @@ fn default_port() -> ListeningPort {
 }
 
 fn default_unix_socket_perms() -> u32 { 660 }
+
+fn default_database_backups_to_keep() -> i16 { 1 }
 
 fn default_database_backend() -> String { "rocksdb".to_owned() }
 
