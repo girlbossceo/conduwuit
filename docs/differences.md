@@ -82,3 +82,9 @@
 - Admin debug command to fetch a PDU from a remote server and inserts it into our database/timeline
 - Update rusqlite/sqlite (not that you should be using it)
 - Disable update check by default as it's not useful for conduwuit
+- Declare various missing server capabilities at `/_matrix/client/v3/capabilities` which also fixes FluffyChat password resets, and other clients that expose basic features based on this endpoint's response
+- Config option to disable incoming remote read receipts if desired
+- Extend clear cache admin command to support clearing DNS and TLS name override caches
+- Responsive outgoing read receipt EDU support
+- Federation destination DNS cache support to call *less* of the thread-blocking `getaddrinfo(3)` significantly less, improving federation ping/latency
+- Store the sender user with the MXC URL for all media uploads (`/upload`) (not for thumbnails or media requests which are unauthenticated)
