@@ -35,11 +35,7 @@ from time to time.
 
 There are still a few nice to have features missing that some users may notice:
 
-- Outgoing read receipts and typing indicators (receiving works)
-
-#### What's different about your fork than upstream Conduit?
-
-See [docs/differences.md](docs/differences.md)
+- Outgoing typing indicators (receiving works)
 
 #### Why does this fork exist? Why don't you contribute back upstream?
 
