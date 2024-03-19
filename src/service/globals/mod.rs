@@ -17,6 +17,7 @@ use argon2::Argon2;
 use base64::{engine::general_purpose, Engine as _};
 pub use data::Data;
 use futures_util::FutureExt;
+use hickory_resolver::TokioAsyncResolver;
 use hyper::{
 	client::connect::dns::{GaiResolver, Name},
 	service::Service as HyperService,
@@ -34,7 +35,6 @@ use ruma::{
 };
 use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock, Semaphore};
 use tracing::{error, info};
-use trust_dns_resolver::TokioAsyncResolver;
 
 use crate::{api::server_server::FedDest, services, Config, Error, Result};
 
@@ -497,7 +497,7 @@ fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
 	});
 
 	let mut reqwest_client_builder = reqwest::Client::builder()
-		.trust_dns(true)
+		.hickory_dns(true)
 		.pool_max_idle_per_host(1)
 		.pool_idle_timeout(Duration::from_secs(18))
 		.connect_timeout(Duration::from_secs(60))
@@ -526,7 +526,7 @@ fn url_preview_reqwest_client_builder(config: &Config) -> Result<reqwest::Client
 	});
 
 	let mut reqwest_client_builder = reqwest::Client::builder()
-		.trust_dns(true)
+		.hickory_dns(true)
 		.pool_max_idle_per_host(0)
 		.connect_timeout(Duration::from_secs(60))
 		.timeout(Duration::from_secs(60 * 5))
