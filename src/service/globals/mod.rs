@@ -345,7 +345,7 @@ impl Service<'_> {
 
 	pub fn url_preview_check_root_domain(&self) -> bool { self.config.url_preview_check_root_domain }
 
-	pub fn forbidden_room_names(&self) -> &RegexSet { &self.config.forbidden_room_names }
+	pub fn forbidden_alias_names(&self) -> &RegexSet { &self.config.forbidden_alias_names }
 
 	pub fn forbidden_usernames(&self) -> &RegexSet { &self.config.forbidden_usernames }
 

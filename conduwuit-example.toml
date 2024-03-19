@@ -173,7 +173,7 @@ registration_token = "change this token for something specific to your server"
 # This is checked upon room alias creation, custom room ID creation if used, and startup as warnings if any room aliases
 # in your database have a forbidden room alias/ID.
 # No default.
-# forbidden_room_names = []
+# forbidden_alias_names = []
 
 # Set this to true to allow your server's public room directory to be federated.
 # Set this to false to protect against /publicRooms spiders, but will forbid external users
