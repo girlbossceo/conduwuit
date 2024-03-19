@@ -13,6 +13,7 @@ use std::{
 use axum::{response::IntoResponse, Json};
 use futures_util::future::TryFutureExt;
 use get_profile_information::v1::ProfileField;
+use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use http::header::{HeaderValue, AUTHORIZATION};
 use ipaddress::IPAddress;
 use ruma::{
@@ -53,7 +54,6 @@ use ruma::{
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
-use trust_dns_resolver::{error::ResolveError, lookup::SrvLookup};
 
 use crate::{
 	api::client_server::{self, claim_keys_helper, get_keys_helper},

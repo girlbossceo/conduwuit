@@ -27,7 +27,7 @@ base64 = "0.22.0"
 ring = "0.17.8"
 
 # Used when querying the SRV record of other servers
-trust-dns-resolver = "0.23.2"
+hickory-resolver = "0.24.0"
 
 # Used to find matching events for appservices
 regex = "1.10.3"
@@ -101,7 +101,7 @@ features = [
 ]
 
 [dependencies.reqwest]
-version = "0.11.26"
+version = "0.11.27"
 default-features = false
 features = [
   "rustls-tls-native-roots",
@@ -255,7 +255,7 @@ features = [
 [dependencies.rust-rocksdb]
 git = "https://github.com/zaidoon1/rust-rocksdb"
 #branch = "master"
-rev = "3e4a0f632a8c0c2839c7d183725c53895110d907"
+rev = "4b8491b9db45066115435881184902bbb23d3811"
 optional = true
 default-features = true
 features = [
