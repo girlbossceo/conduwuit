@@ -7,7 +7,7 @@ use ruma::{
 	DeviceId, OwnedServerSigningKeyId, ServerName, UserId,
 };
 
-use crate::Result;
+use crate::{database::abstraction::Cork, Result};
 
 #[async_trait]
 pub trait Data: Send + Sync {
@@ -19,6 +19,9 @@ pub trait Data: Send + Sync {
 	async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()>;
 	fn cleanup(&self) -> Result<()>;
 	fn flush(&self) -> Result<()>;
+	fn cork(&self) -> Result<Cork>;
+	fn cork_and_flush(&self) -> Result<Cork>;
+	fn cork_and_sync(&self) -> Result<Cork>;
 	fn memory_usage(&self) -> String;
 	fn clear_caches(&self, amount: u32);
 	fn load_keypair(&self) -> Result<Ed25519KeyPair>;

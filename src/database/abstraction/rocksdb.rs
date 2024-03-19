@@ -1,7 +1,7 @@
 use std::{
 	future::Future,
 	pin::Pin,
-	sync::{Arc, RwLock},
+	sync::{atomic::AtomicU32, Arc, RwLock},
 };
 
 use chrono::{DateTime, Utc};
@@ -23,6 +23,7 @@ pub(crate) struct Engine {
 	opts: rust_rocksdb::Options,
 	env: rust_rocksdb::Env,
 	config: Config,
+	corks: AtomicU32,
 }
 
 struct RocksDbEngineTree<'a> {
@@ -62,6 +63,7 @@ fn db_options(
 	db_opts.set_max_subcompactions(threads.try_into().unwrap());
 
 	// IO
+	db_opts.set_manual_wal_flush(true);
 	db_opts.set_use_direct_reads(true);
 	db_opts.set_use_direct_io_for_flush_and_compaction(true);
 	if config.rocksdb_optimize_for_spinning_disks {
@@ -163,6 +165,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			opts: db_opts,
 			env: db_env,
 			config: config.clone(),
+			corks: AtomicU32::new(0),
 		}))
 	}
 
@@ -189,6 +192,20 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 	fn sync(&self) -> Result<()> {
 		rust_rocksdb::DBCommon::flush_wal(&self.rocks, true)?;
+
+		Ok(())
+	}
+
+	fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
+
+	fn cork(&self) -> Result<()> {
+		self.corks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+		Ok(())
+	}
+
+	fn uncork(&self) -> Result<()> {
+		self.corks.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 
 		Ok(())
 	}
@@ -320,6 +337,10 @@ impl KvTree for RocksDbEngineTree<'_> {
 
 		drop(lock);
 
+		if !self.db.corked() {
+			self.db.flush()?;
+		}
+
 		self.watchers.wake(key);
 
 		Ok(())
@@ -334,13 +355,25 @@ impl KvTree for RocksDbEngineTree<'_> {
 			batch.put_cf(&self.cf(), key, value);
 		}
 
-		Ok(self.db.rocks.write_opt(batch, &writeoptions)?)
+		let result = self.db.rocks.write_opt(batch, &writeoptions);
+
+		if !self.db.corked() {
+			self.db.flush()?;
+		}
+
+		Ok(result?)
 	}
 
 	fn remove(&self, key: &[u8]) -> Result<()> {
 		let writeoptions = rust_rocksdb::WriteOptions::default();
 
-		Ok(self.db.rocks.delete_cf_opt(&self.cf(), key, &writeoptions)?)
+		let result = self.db.rocks.delete_cf_opt(&self.cf(), key, &writeoptions);
+
+		if !self.db.corked() {
+			self.db.flush()?;
+		}
+
+		Ok(result?)
 	}
 
 	fn remove_batch(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
@@ -352,7 +385,13 @@ impl KvTree for RocksDbEngineTree<'_> {
 			batch.delete_cf(&self.cf(), key);
 		}
 
-		Ok(self.db.rocks.write_opt(batch, &writeoptions)?)
+		let result = self.db.rocks.write_opt(batch, &writeoptions);
+
+		if !self.db.corked() {
+			self.db.flush()?;
+		}
+
+		Ok(result?)
 	}
 
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
@@ -404,6 +443,11 @@ impl KvTree for RocksDbEngineTree<'_> {
 		self.db.rocks.put_cf_opt(&self.cf(), key, &new, &writeoptions)?;
 
 		drop(lock);
+
+		if !self.db.corked() {
+			self.db.flush()?;
+		}
+
 		Ok(new)
 	}
 
@@ -425,6 +469,10 @@ impl KvTree for RocksDbEngineTree<'_> {
 		self.db.rocks.write_opt(batch, &writeoptions)?;
 
 		drop(lock);
+
+		if !self.db.corked() {
+			self.db.flush()?;
+		}
 
 		Ok(())
 	}
