@@ -274,8 +274,8 @@ url_preview_check_root_domain = false
 
 # Set this to any float value in megabytes for conduwuit to tell the database engine that this much memory is available for database-related caches.
 # May be useful if you have significant memory to spare to increase performance.
-# Defaults to 300.0
-#db_cache_capacity_mb = 300.0
+# Defaults to 256.0
+#db_cache_capacity_mb = 256.0
 
 # Interval in seconds when conduwuit will run database cleanup operations.
 #
