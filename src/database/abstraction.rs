@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{error::Error, future::Future, pin::Pin, sync::Arc};
 
 use super::Config;
 use crate::Result;
@@ -26,6 +26,14 @@ pub(crate) trait KeyValueDatabaseEngine: Send + Sync {
 
 	#[allow(dead_code)]
 	fn clear_caches(&self) {}
+
+	fn backup(&self) -> Result<(), Box<dyn Error>> {
+		unimplemented!()
+	}
+
+	fn backup_list(&self) -> Result<String> {
+		Ok(String::new())
+	}
 }
 
 pub(crate) trait KvTree: Send + Sync {

@@ -272,4 +272,12 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 		self.global.insert(b"version", &new_version.to_be_bytes())?;
 		Ok(())
 	}
+
+	fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
+		self.db.backup()
+	}
+
+	fn backup_list(&self) -> Result<String> {
+		self.db.backup_list()
+	}
 }

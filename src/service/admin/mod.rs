@@ -436,6 +436,12 @@ enum ServerCommand {
 	ClearServiceCaches {
 		amount: u32,
 	},
+
+	/// - Backup the database
+	BackupDatabase,
+
+	/// - List database backups
+	ListBackups,
 }
 
 #[derive(Debug)]
@@ -1865,6 +1871,27 @@ impl Service {
 					services().clear_caches(amount).await;
 
 					RoomMessageEventContent::text_plain("Done.")
+				},
+				ServerCommand::ListBackups => {
+					let result = services().globals.db.backup_list()?;
+
+					RoomMessageEventContent::text_plain(result)
+				},
+				ServerCommand::BackupDatabase => {
+					let mut result = tokio::task::spawn_blocking(move || {
+						match services().globals.db.backup() {
+							Ok(_) => String::new(),
+							Err(e) => (*e).to_string(),
+						}
+					})
+					.await
+					.unwrap();
+
+					if result.is_empty() {
+						result = services().globals.db.backup_list()?;
+					}
+
+					RoomMessageEventContent::text_plain(&result)
 				},
 			},
 			AdminCommand::Debug(command) => match command {

@@ -3,12 +3,17 @@ use std::{
 	pin::Pin,
 	sync::{Arc, RwLock},
 };
+use chrono::{
+	DateTime,
+	Utc,
+};
 
 use rust_rocksdb::{
+	backup::{BackupEngine, BackupEngineOptions},
 	LogLevel::{Debug, Error, Fatal, Info, Warn},
 	WriteBatchWithTransaction,
 };
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
 use crate::{utils, Result};
@@ -219,6 +224,68 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		rust_rocksdb::DBCommon::flush_opt(&self.rocks, &flushoptions)?;
 
 		Ok(())
+	}
+
+	fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
+		let path = self.config.database_backup_path.as_ref();
+		if path.is_none() || path.is_some_and(String::is_empty) {
+			return Ok(());
+		}
+
+		let options = BackupEngineOptions::new(&path.unwrap())?;
+		let mut engine = BackupEngine::open(&options, &self.env)?;
+		let ret = if self.config.database_backups_to_keep > 0 {
+			match engine.create_new_backup_flush(&self.rocks, true) {
+				Err(e) => return Err(Box::new(e)),
+				Ok(_) => {
+					let _info = engine.get_backup_info();
+					let info = &_info.last().unwrap();
+					info!(
+						"Created database backup #{} using {} bytes in {} files",
+						info.backup_id,
+						info.size,
+						info.num_files,
+					);
+					Ok(())
+				},
+			}
+		} else {
+			Ok(())
+		};
+
+		if self.config.database_backups_to_keep >= 0 {
+			let keep = u32::try_from(self.config.database_backups_to_keep)?;
+			if let Err(e) =  engine.purge_old_backups(keep.try_into()?) {
+				error!("Failed to purge old backup: {:?}", e.to_string())
+			}
+		}
+
+		ret
+	}
+
+	fn backup_list(&self) -> Result<String> {
+		let path = self.config.database_backup_path.as_ref();
+		if path.is_none() || path.is_some_and(String::is_empty) {
+			return Ok("Configure database_backup_path to enable backups".to_owned());
+		}
+
+		let mut res = String::new();
+		let options = BackupEngineOptions::new(&path.unwrap())?;
+		let engine = BackupEngine::open(&options, &self.env)?;
+		for info in engine.get_backup_info() {
+			std::fmt::write(&mut res, format_args!(
+				"#{} {}: {} bytes, {} files\n",
+				info.backup_id,
+				DateTime::<Utc>::from_timestamp(info.timestamp, 0)
+					.unwrap()
+					.to_rfc2822(),
+				info.size,
+				info.num_files,
+			))
+			.unwrap();
+		}
+
+		Ok(res)
 	}
 
 	// TODO: figure out if this is needed for rocksdb

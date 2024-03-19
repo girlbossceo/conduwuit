@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::error::Error;
 
 use async_trait::async_trait;
 use ruma::{
@@ -32,4 +33,6 @@ pub trait Data: Send + Sync {
 	fn signing_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>>;
 	fn database_version(&self) -> Result<u64>;
 	fn bump_database_version(&self, new_version: u64) -> Result<()>;
+	fn backup(&self) -> Result<(), Box<dyn Error>> { unimplemented!() }
+	fn backup_list(&self) -> Result<String> { Ok(String::new()) }
 }
