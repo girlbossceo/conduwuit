@@ -471,10 +471,7 @@ wildcard_dependencies = "warn"
 or_fun_call = "warn"
 unnecessary_lazy_evaluations = "warn"
 # as_conversions = "warn"
-
-# seems to be broken
-#assertions_on_result_states = "warn"
-
+assertions_on_result_states = "warn"
 default_union_representation = "warn"
 deref_by_slicing = "warn"
 empty_drop = "warn"

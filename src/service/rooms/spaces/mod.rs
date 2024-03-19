@@ -1098,7 +1098,7 @@ mod tests {
 	fn invalid_pagnation_tokens() {
 		fn token_is_err(token: &str) {
 			let token: Result<PagnationToken> = PagnationToken::from_str(token);
-			assert!(token.is_err());
+			token.unwrap_err();
 		}
 
 		token_is_err("231_2_noabool");
