@@ -21,7 +21,7 @@ pub async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result
 		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
 	}
 
-	if services().globals.forbidden_room_names().is_match(body.room_alias.alias()) {
+	if services().globals.forbidden_alias_names().is_match(body.room_alias.alias()) {
 		return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias is forbidden."));
 	}
 

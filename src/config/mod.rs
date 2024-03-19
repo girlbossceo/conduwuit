@@ -172,7 +172,7 @@ pub struct Config {
 
 	#[serde(default = "RegexSet::empty")]
 	#[serde(with = "serde_regex")]
-	pub forbidden_room_names: RegexSet,
+	pub forbidden_alias_names: RegexSet,
 
 	#[serde(default = "RegexSet::empty")]
 	#[serde(with = "serde_regex")]
@@ -405,8 +405,8 @@ impl fmt::Display for Config {
 			("Forbidden usernames", {
 				&self.forbidden_usernames.patterns().iter().join(", ")
 			}),
-			("Forbidden room names", {
-				&self.forbidden_room_names.patterns().iter().join(", ")
+			("Forbidden room aliases", {
+				&self.forbidden_alias_names.patterns().iter().join(", ")
 			}),
 			(
 				"URL preview domain contains allowlist",

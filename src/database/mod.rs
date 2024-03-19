@@ -953,7 +953,7 @@ impl KeyValueDatabase {
 			}
 
 			{
-				let patterns = &services().globals.config.forbidden_room_names;
+				let patterns = &services().globals.config.forbidden_alias_names;
 				if !patterns.is_empty() {
 					for address in services().rooms.metadata.iter_ids() {
 						let room_id = address?;

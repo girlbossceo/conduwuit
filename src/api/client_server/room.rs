@@ -80,7 +80,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				}
 
 				// apply forbidden room alias checks to custom room IDs too
-				if services().globals.forbidden_room_names().is_match(&custom_room_id_s) {
+				if services().globals.forbidden_alias_names().is_match(&custom_room_id_s) {
 					return Err(Error::BadRequest(ErrorKind::Unknown, "Custom room ID is forbidden."));
 				}
 
@@ -144,7 +144,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 		}
 
 		// check if room alias is forbidden
-		if services().globals.forbidden_room_names().is_match(localpart) {
+		if services().globals.forbidden_alias_names().is_match(localpart) {
 			return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias name is forbidden."));
 		}
 
