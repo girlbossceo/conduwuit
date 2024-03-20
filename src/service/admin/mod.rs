@@ -1875,6 +1875,10 @@ impl Service {
 				ServerCommand::ListBackups => {
 					let result = services().globals.db.backup_list()?;
 
+					if result.is_empty() {
+						return Ok(RoomMessageEventContent::text_plain("No backups found."));
+					}
+
 					RoomMessageEventContent::text_plain(result)
 				},
 				ServerCommand::BackupDatabase => {
