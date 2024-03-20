@@ -327,6 +327,8 @@ impl Service<'_> {
 
 	pub fn turn_secret(&self) -> &String { &self.config.turn_secret }
 
+	pub fn auto_join_rooms(&self) -> &[OwnedRoomId] { &self.config.auto_join_rooms }
+
 	pub fn notification_push_path(&self) -> &String { &self.config.notification_push_path }
 
 	pub fn emergency_password(&self) -> &Option<String> { &self.config.emergency_password }

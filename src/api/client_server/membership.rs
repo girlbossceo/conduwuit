@@ -474,7 +474,7 @@ pub async fn joined_members_route(body: Ruma<joined_members::v3::Request>) -> Re
 	})
 }
 
-async fn join_room_by_id_helper(
+pub(crate) async fn join_room_by_id_helper(
 	sender_user: Option<&UserId>, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	_third_party_signed: Option<&ThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
