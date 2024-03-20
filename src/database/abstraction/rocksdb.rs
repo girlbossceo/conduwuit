@@ -275,7 +275,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 				format_args!(
 					"#{} {}: {} bytes, {} files\n",
 					info.backup_id,
-					DateTime::<Utc>::from_timestamp(info.timestamp, 0).unwrap().to_rfc2822(),
+					DateTime::<Utc>::from_timestamp(info.timestamp, 0).unwrap_or_default().to_rfc2822(),
 					info.size,
 					info.num_files,
 				),
