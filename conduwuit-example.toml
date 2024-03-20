@@ -263,6 +263,11 @@ url_preview_check_root_domain = false
 # Defaults to true as this is the fastest option for federation.
 #query_trusted_key_servers_first = true
 
+# List/vector of room **IDs** that conduwuit will make newly registered users join.
+#
+# No default.
+#auto_join_rooms = []
+
 
 
 ### Generic database options

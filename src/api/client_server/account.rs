@@ -12,10 +12,13 @@ use ruma::{
 	events::{room::message::RoomMessageEventContent, GlobalAccountDataEventType},
 	push, UserId,
 };
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
-use crate::{api::client_server, services, utils, Error, Result, Ruma};
+use crate::{
+	api::client_server::{self, join_room_by_id_helper},
+	services, utils, Error, Result, Ruma,
+};
 
 const RANDOM_USER_ID_LENGTH: usize = 10;
 
@@ -281,6 +284,30 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 				services().admin.make_user_admin(&user_id, displayname).await?;
 
 				warn!("Granting {} admin privileges as the first user", user_id);
+			}
+		}
+	}
+
+	if !services().globals.config.auto_join_rooms.is_empty() {
+		for room in &services().globals.config.auto_join_rooms {
+			if let Some(room_id_server_name) = room.server_name() {
+				match join_room_by_id_helper(
+					Some(&user_id),
+					room,
+					Some("Automatically joining this room".to_owned()),
+					&[room_id_server_name.to_owned()],
+					None,
+				)
+				.await
+				{
+					Ok(_) => {
+						info!("Automatically joined room {room} for user {user_id}");
+					},
+					Err(e) => {
+						// don't return this error so we don't fail registrations
+						error!("Failed to automatically join room {room} for user {user_id}: {e}");
+					},
+				};
 			}
 		}
 	}

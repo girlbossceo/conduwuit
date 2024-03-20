@@ -10,7 +10,7 @@ use either::Either;
 use figment::Figment;
 use itertools::Itertools;
 use regex::RegexSet;
-use ruma::{OwnedServerName, RoomVersionId};
+use ruma::{OwnedRoomId, OwnedServerName, RoomVersionId};
 use serde::{de::IgnoredAny, Deserialize};
 use tracing::{debug, error, warn};
 
@@ -109,6 +109,9 @@ pub struct Config {
 	pub turn_secret: String,
 	#[serde(default = "default_turn_ttl")]
 	pub turn_ttl: u64,
+
+	#[serde(default = "Vec::new")]
+	pub auto_join_rooms: Vec<OwnedRoomId>,
 
 	#[serde(default = "default_rocksdb_log_level")]
 	pub rocksdb_log_level: String,
@@ -363,6 +366,13 @@ impl fmt::Display for Config {
 					lst.push(uri);
 				}
 				&lst.join(", ")
+			}),
+			("Auto Join Rooms", {
+				let mut lst = vec![];
+				for room in &self.auto_join_rooms {
+					lst.push(room);
+				}
+				&lst.into_iter().join(", ")
 			}),
 			#[cfg(feature = "compression-zstd")]
 			("zstd Response Body Compression", &self.zstd_compression.to_string()),
