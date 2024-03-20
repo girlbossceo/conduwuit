@@ -1333,9 +1333,7 @@ pub async fn sync_events_v4_route(
 					ruma::JsOption::Some(heroes_avatar)
 				} else {
 					match services().rooms.state_accessor.get_avatar(room_id)? {
-						ruma::JsOption::Some(avatar) => {
-							avatar.url.map_or(ruma::JsOption::Undefined, ruma::JsOption::Some)
-						},
+						ruma::JsOption::Some(avatar) => ruma::JsOption::from_option(avatar.url),
 						ruma::JsOption::Null => ruma::JsOption::Null,
 						ruma::JsOption::Undefined => ruma::JsOption::Undefined,
 					}
