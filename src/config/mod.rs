@@ -41,7 +41,7 @@ pub struct Config {
 	pub server_name: OwnedServerName,
 	#[serde(default = "default_database_backend")]
 	pub database_backend: String,
-	pub database_path: String,
+	pub database_path: PathBuf,
 	pub database_backup_path: Option<String>,
 	#[serde(default = "default_database_backups_to_keep")]
 	pub database_backups_to_keep: i16,
@@ -254,7 +254,7 @@ impl fmt::Display for Config {
 		let lines = [
 			("Server name", self.server_name.host()),
 			("Database backend", &self.database_backend),
-			("Database path", &self.database_path),
+			("Database path", &self.database_path.to_string_lossy()),
 			(
 				"Database backup path",
 				match self.database_backup_path.as_ref() {
