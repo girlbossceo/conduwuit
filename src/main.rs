@@ -280,7 +280,7 @@ async fn main() {
 	}
 
 	if config.allow_outgoing_presence && !config.allow_local_presence {
-		error!("Outgoing presence requires allowing local presence. Please enable \"allow_outgoing_presence\".");
+		error!("Outgoing presence requires allowing local presence. Please enable \"allow_local_presence\".");
 		return;
 	}
 
