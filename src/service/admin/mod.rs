@@ -1878,11 +1878,9 @@ impl Service {
 					RoomMessageEventContent::text_plain(result)
 				},
 				ServerCommand::BackupDatabase => {
-					let mut result = tokio::task::spawn_blocking(move || {
-						match services().globals.db.backup() {
-							Ok(_) => String::new(),
-							Err(e) => (*e).to_string(),
-						}
+					let mut result = tokio::task::spawn_blocking(move || match services().globals.db.backup() {
+						Ok(_) => String::new(),
+						Err(e) => (*e).to_string(),
 					})
 					.await
 					.unwrap();

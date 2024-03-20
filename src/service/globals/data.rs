@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-use std::error::Error;
+use std::{collections::BTreeMap, error::Error};
 
 use async_trait::async_trait;
 use ruma::{

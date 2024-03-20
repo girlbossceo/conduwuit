@@ -18,6 +18,7 @@ pub(crate) trait KeyValueDatabaseEngine: Send + Sync {
 		Self: Sized;
 	fn open_tree(&self, name: &'static str) -> Result<Arc<dyn KvTree>>;
 	fn flush(&self) -> Result<()>;
+	#[allow(dead_code)]
 	fn sync(&self) -> Result<()> { Ok(()) }
 	fn cleanup(&self) -> Result<()> { Ok(()) }
 	fn memory_usage(&self) -> Result<String> {
@@ -27,13 +28,9 @@ pub(crate) trait KeyValueDatabaseEngine: Send + Sync {
 	#[allow(dead_code)]
 	fn clear_caches(&self) {}
 
-	fn backup(&self) -> Result<(), Box<dyn Error>> {
-		unimplemented!()
-	}
+	fn backup(&self) -> Result<(), Box<dyn Error>> { unimplemented!() }
 
-	fn backup_list(&self) -> Result<String> {
-		Ok(String::new())
-	}
+	fn backup_list(&self) -> Result<String> { Ok(String::new()) }
 }
 
 pub(crate) trait KvTree: Send + Sync {
@@ -57,6 +54,8 @@ pub(crate) trait KvTree: Send + Sync {
 	}
 
 	fn remove(&self, key: &[u8]) -> Result<()>;
+
+	#[allow(dead_code)]
 	fn remove_batch(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
 		for key in iter {
 			self.remove(&key)?;
