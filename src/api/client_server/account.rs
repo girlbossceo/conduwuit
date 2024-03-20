@@ -290,12 +290,17 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 
 	if !services().globals.config.auto_join_rooms.is_empty() {
 		for room in &services().globals.config.auto_join_rooms {
+			if !services().rooms.state_cache.server_in_room(services().globals.server_name(), room)? {
+				warn!("Skipping room {room} to automatically join as we have never joined before.");
+				continue;
+			}
+
 			if let Some(room_id_server_name) = room.server_name() {
 				match join_room_by_id_helper(
 					Some(&user_id),
 					room,
-					Some("Automatically joining this room".to_owned()),
-					&[room_id_server_name.to_owned()],
+					Some("Automatically joining this room upon registration".to_owned()),
+					&[room_id_server_name.to_owned(), services().globals.server_name().to_owned()],
 					None,
 				)
 				.await
