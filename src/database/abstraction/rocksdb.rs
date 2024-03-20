@@ -225,7 +225,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 	fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
 		let path = self.config.database_backup_path.as_ref();
-		if path.is_none() || path.is_some_and(String::is_empty) {
+		if path.is_none() || path.is_some_and(|path| path.as_os_str().is_empty()) {
 			return Ok(());
 		}
 
@@ -260,8 +260,10 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 	fn backup_list(&self) -> Result<String> {
 		let path = self.config.database_backup_path.as_ref();
-		if path.is_none() || path.is_some_and(String::is_empty) {
-			return Ok("Configure database_backup_path to enable backups".to_owned());
+		if path.is_none() || path.is_some_and(|path| path.as_os_str().is_empty()) {
+			return Ok(
+				"Configure database_backup_path to enable backups, or the path specified is not valid".to_owned(),
+			);
 		}
 
 		let mut res = String::new();

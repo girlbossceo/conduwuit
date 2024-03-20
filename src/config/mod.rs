@@ -42,7 +42,7 @@ pub struct Config {
 	#[serde(default = "default_database_backend")]
 	pub database_backend: String,
 	pub database_path: PathBuf,
-	pub database_backup_path: Option<String>,
+	pub database_backup_path: Option<PathBuf>,
 	#[serde(default = "default_database_backups_to_keep")]
 	pub database_backups_to_keep: i16,
 	#[serde(default = "default_db_cache_capacity_mb")]
@@ -257,8 +257,8 @@ impl fmt::Display for Config {
 			("Database path", &self.database_path.to_string_lossy()),
 			(
 				"Database backup path",
-				match self.database_backup_path.as_ref() {
-					Some(path) => path,
+				match &self.database_backup_path {
+					Some(path) => path.to_str().unwrap(),
 					None => "",
 				},
 			),
