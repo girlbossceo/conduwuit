@@ -3,11 +3,8 @@ use std::{
 	pin::Pin,
 	sync::{Arc, RwLock},
 };
-use chrono::{
-	DateTime,
-	Utc,
-};
 
+use chrono::{DateTime, Utc};
 use rust_rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	LogLevel::{Debug, Error, Fatal, Info, Warn},
@@ -80,8 +77,8 @@ fn db_options(
 	block_based_options.set_optimize_filters_for_memory(true);
 	block_based_options.set_cache_index_and_filter_blocks(true);
 	block_based_options.set_pin_top_level_index_and_filter(true);
-	block_based_options.set_block_cache(&col_cache);
-	db_opts.set_row_cache(&row_cache);
+	block_based_options.set_block_cache(col_cache);
+	db_opts.set_row_cache(row_cache);
 
 	// Buffers
 	db_opts.set_write_buffer_size(2 * 1024 * 1024);
@@ -232,7 +229,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			return Ok(());
 		}
 
-		let options = BackupEngineOptions::new(&path.unwrap())?;
+		let options = BackupEngineOptions::new(path.unwrap())?;
 		let mut engine = BackupEngine::open(&options, &self.env)?;
 		let ret = if self.config.database_backups_to_keep > 0 {
 			match engine.create_new_backup_flush(&self.rocks, true) {
@@ -242,9 +239,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 					let info = &_info.last().unwrap();
 					info!(
 						"Created database backup #{} using {} bytes in {} files",
-						info.backup_id,
-						info.size,
-						info.num_files,
+						info.backup_id, info.size, info.num_files,
 					);
 					Ok(())
 				},
@@ -255,7 +250,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 		if self.config.database_backups_to_keep >= 0 {
 			let keep = u32::try_from(self.config.database_backups_to_keep)?;
-			if let Err(e) =  engine.purge_old_backups(keep.try_into()?) {
+			if let Err(e) = engine.purge_old_backups(keep.try_into()?) {
 				error!("Failed to purge old backup: {:?}", e.to_string())
 			}
 		}
@@ -270,18 +265,19 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		}
 
 		let mut res = String::new();
-		let options = BackupEngineOptions::new(&path.unwrap())?;
+		let options = BackupEngineOptions::new(path.unwrap())?;
 		let engine = BackupEngine::open(&options, &self.env)?;
 		for info in engine.get_backup_info() {
-			std::fmt::write(&mut res, format_args!(
-				"#{} {}: {} bytes, {} files\n",
-				info.backup_id,
-				DateTime::<Utc>::from_timestamp(info.timestamp, 0)
-					.unwrap()
-					.to_rfc2822(),
-				info.size,
-				info.num_files,
-			))
+			std::fmt::write(
+				&mut res,
+				format_args!(
+					"#{} {}: {} bytes, {} files\n",
+					info.backup_id,
+					DateTime::<Utc>::from_timestamp(info.timestamp, 0).unwrap().to_rfc2822(),
+					info.size,
+					info.num_files,
+				),
+			)
 			.unwrap();
 		}
 

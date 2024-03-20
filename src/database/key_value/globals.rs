@@ -273,11 +273,7 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 		Ok(())
 	}
 
-	fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
-		self.db.backup()
-	}
+	fn backup(&self) -> Result<(), Box<dyn std::error::Error>> { self.db.backup() }
 
-	fn backup_list(&self) -> Result<String> {
-		self.db.backup_list()
-	}
+	fn backup_list(&self) -> Result<String> { self.db.backup_list() }
 }
