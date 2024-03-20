@@ -437,7 +437,8 @@ enum ServerCommand {
 		amount: u32,
 	},
 
-	/// - Backup the database
+	/// - Performs an online backup of the database (only available for RocksDB
+	///   at the moment)
 	BackupDatabase,
 
 	/// - List database backups
@@ -1882,6 +1883,12 @@ impl Service {
 					RoomMessageEventContent::text_plain(result)
 				},
 				ServerCommand::BackupDatabase => {
+					if !cfg!(feature = "rocksdb") {
+						return Ok(RoomMessageEventContent::text_plain(
+							"Only RocksDB supports online backups in conduwuit.",
+						));
+					}
+
 					let mut result = tokio::task::spawn_blocking(move || match services().globals.db.backup() {
 						Ok(_) => String::new(),
 						Err(e) => (*e).to_string(),
