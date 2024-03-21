@@ -535,11 +535,15 @@ async fn unrecognized_method<B: Send + 'static>(
 	let uri = req.uri().clone();
 	let inner = next.run(req).await;
 	if inner.status() == StatusCode::METHOD_NOT_ALLOWED {
-		warn!("Method not allowed: {method} {uri}");
+		if uri.path().contains("_matrix/") {
+			warn!("Method not allowed: {method} {uri}");
+		} else {
+			info!("Method not allowed: {method} {uri}");
+		}
 		return Ok(RumaResponse(UiaaResponse::MatrixError(RumaError {
 			body: ErrorBody::Standard {
 				kind: ErrorKind::Unrecognized,
-				message: "M_UNRECOGNIZED: Unrecognized request".to_owned(),
+				message: "M_UNRECOGNIZED: Method not allowed for endpoint".to_owned(),
 			},
 			status_code: StatusCode::METHOD_NOT_ALLOWED,
 		}))
@@ -806,7 +810,12 @@ async fn shutdown_signal(handle: ServerHandle, tx: Sender<()>) -> Result<()> {
 }
 
 async fn not_found(uri: Uri) -> impl IntoResponse {
-	warn!("Not found: {uri}");
+	if uri.path().contains("_matrix/") {
+		warn!("Not found: {uri}");
+	} else {
+		info!("Not found: {uri}");
+	}
+
 	Error::BadRequest(ErrorKind::Unrecognized, "Unrecognized request")
 }
 
