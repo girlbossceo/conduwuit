@@ -313,7 +313,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 			(
 				server,
 				tokio::time::timeout(
-					Duration::from_secs(50),
+					Duration::from_secs(90),
 					services().sending.send_federation_request(
 						server,
 						federation::keys::get_keys::v1::Request {
@@ -323,7 +323,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 				)
 				.await
 				.map_err(|e| {
-					error!("get_keys_helper query took too long: {}", e);
+					error!("get_keys_helper query took too long: {e}");
 					Error::BadServerResponse("get_keys_helper query took too long")
 				}),
 			)
