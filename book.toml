@@ -1,6 +1,6 @@
 [book]
-title = "Conduit"
-description = "Conduit is a simple, fast and reliable chat server for the Matrix protocol"
+title = "conduwuit"
+description = "conduwuit, which is a fork of Conduit, is a simple, fast and reliable chat server for the Matrix protocol"
 language = "en"
 multilingual = false
 src = "docs"
@@ -10,9 +10,9 @@ build-dir = "public"
 create-missing = true
 
 [output.html]
-git-repository-url = "https://gitlab.com/famedly/conduit"
-edit-url-template = "https://gitlab.com/famedly/conduit/-/edit/next/{path}"
-git-repository-icon = "fa-git-square"
+git-repository-url = "https://github.com/girlbossceo/conduwuit"
+edit-url-template = "https://github.com/girlbossceo/conduwuit/edit/main/{path}"
+git-repository-icon = "fa-github-square"
 
 [output.html.search]
 limit-results = 15
