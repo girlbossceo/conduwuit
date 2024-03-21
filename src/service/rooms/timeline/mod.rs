@@ -221,6 +221,9 @@ impl Service {
 		leaves: Vec<OwnedEventId>,
 		state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Vec<u8>> {
+		// Coalesce database writes for the remainder of this scope.
+		let _cork = services().globals.db.cork_and_flush()?;
+
 		let shortroomid = services().rooms.short.get_shortroomid(&pdu.room_id)?.expect("room exists");
 
 		// Make unsigned fields correct. This is not properly documented in the spec,

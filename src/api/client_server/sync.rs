@@ -197,6 +197,10 @@ async fn sync_helper(
 		.extend(services().users.keys_changed(sender_user.as_ref(), since, None).filter_map(std::result::Result::ok));
 
 	let all_joined_rooms = services().rooms.state_cache.rooms_joined(&sender_user).collect::<Vec<_>>();
+
+	// Coalesce database writes for the remainder of this scope.
+	let _cork = services().globals.db.cork_and_flush()?;
+
 	for room_id in all_joined_rooms {
 		let room_id = room_id?;
 		if let Ok(joined_room) = load_joined_room(
