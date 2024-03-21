@@ -148,6 +148,7 @@ impl Service {
 				Some(response) = futures.next() => {
 					match response {
 						Ok(outgoing_kind) => {
+							let _cork = services().globals.db.cork();
 							self.db.delete_all_active_requests_for(&outgoing_kind)?;
 
 							// Find events that have been added since starting the last request
@@ -202,6 +203,7 @@ impl Service {
 		let mut retry = false;
 		let mut allow = true;
 
+		let _cork = services().globals.db.cork();
 		let entry = current_transaction_status.entry(outgoing_kind.clone());
 
 		entry
@@ -384,6 +386,7 @@ impl Service {
 	pub fn send_push_pdu(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
 		let outgoing_kind = OutgoingKind::Push(user.to_owned(), pushkey);
 		let event = SendingEventType::Pdu(pdu_id.to_owned());
+		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
 		self.sender.send((outgoing_kind, event, keys.into_iter().next().unwrap())).unwrap();
 
@@ -396,6 +399,7 @@ impl Service {
 			.into_iter()
 			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Pdu(pdu_id.to_owned())))
 			.collect::<Vec<_>>();
+		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&requests.iter().map(|(o, e)| (o, e.clone())).collect::<Vec<_>>())?;
 		for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
 			self.sender.send((outgoing_kind.clone(), event, key)).unwrap();
@@ -408,6 +412,7 @@ impl Service {
 	pub fn send_reliable_edu(&self, server: &ServerName, serialized: Vec<u8>, id: u64) -> Result<()> {
 		let outgoing_kind = OutgoingKind::Normal(server.to_owned());
 		let event = SendingEventType::Edu(serialized);
+		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
 		self.sender.send((outgoing_kind, event, keys.into_iter().next().unwrap())).unwrap();
 
@@ -418,6 +423,7 @@ impl Service {
 	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
 		let outgoing_kind = OutgoingKind::Appservice(appservice_id);
 		let event = SendingEventType::Pdu(pdu_id);
+		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
 		self.sender.send((outgoing_kind, event, keys.into_iter().next().unwrap())).unwrap();
 
