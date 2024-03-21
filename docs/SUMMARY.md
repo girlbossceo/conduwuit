@@ -4,7 +4,7 @@
 - [Differences from upstream Conduit](differences.md)
 
 - [Example configuration](configuration.md)
-- [Deployment options](deploying.md)
+- [Deploying](deploying.md)
     - [Generic](deploying/generic.md)
     - [Debian](deploying/debian.md)
     - [Docker](deploying/docker.md)
