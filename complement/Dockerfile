@@ -1,4 +1,4 @@
-FROM rust:1.75.0
+FROM rust:1.77.0
 
 WORKDIR /workdir
 
