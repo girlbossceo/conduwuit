@@ -264,6 +264,7 @@ url_preview_check_root_domain = false
 #query_trusted_key_servers_first = true
 
 # List/vector of room **IDs** that conduwuit will make newly registered users join.
+# The room IDs specified must be rooms that you have joined at least once on the server, and must be public.
 #
 # No default.
 #auto_join_rooms = []
