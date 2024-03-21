@@ -30,7 +30,9 @@ use tracing::{debug, error, info, warn};
 use super::pdu::PduBuilder;
 use crate::{
 	api::{
-		client_server::{get_alias_helper, leave_all_rooms, leave_room, AUTO_GEN_PASSWORD_LENGTH},
+		client_server::{
+			get_alias_helper, join_room_by_id_helper, leave_all_rooms, leave_room, AUTO_GEN_PASSWORD_LENGTH,
+		},
 		server_server::parse_incoming_pdu,
 	},
 	services,
@@ -899,6 +901,35 @@ impl Service {
 						})
 						.expect("to json value always works"),
 					)?;
+
+					if !services().globals.config.auto_join_rooms.is_empty() {
+						for room in &services().globals.config.auto_join_rooms {
+							if !services().rooms.state_cache.server_in_room(services().globals.server_name(), room)? {
+								warn!("Skipping room {room} to automatically join as we have never joined before.");
+								continue;
+							}
+
+							if let Some(room_id_server_name) = room.server_name() {
+								match join_room_by_id_helper(
+									Some(&user_id),
+									room,
+									Some("Automatically joining this room upon registration".to_owned()),
+									&[room_id_server_name.to_owned(), services().globals.server_name().to_owned()],
+									None,
+								)
+								.await
+								{
+									Ok(_) => {
+										info!("Automatically joined room {room} for user {user_id}");
+									},
+									Err(e) => {
+										// don't return this error so we don't fail registrations
+										error!("Failed to automatically join room {room} for user {user_id}: {e}");
+									},
+								};
+							}
+						}
+					}
 
 					// we dont add a device since we're not the user, just the creator
 
