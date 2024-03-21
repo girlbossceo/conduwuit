@@ -501,7 +501,7 @@ fn reqwest_client_builder(config: &Config) -> Result<reqwest::ClientBuilder> {
 	let mut reqwest_client_builder = reqwest::Client::builder()
 		.hickory_dns(true)
 		.pool_max_idle_per_host(1)
-		.pool_idle_timeout(Duration::from_secs(18))
+		.pool_idle_timeout(Duration::from_secs(50))
 		.connect_timeout(Duration::from_secs(60))
 		.timeout(Duration::from_secs(60 * 5))
 		.redirect(redirect_policy)
