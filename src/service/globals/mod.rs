@@ -530,8 +530,8 @@ fn url_preview_reqwest_client_builder(config: &Config) -> Result<reqwest::Client
 	let mut reqwest_client_builder = reqwest::Client::builder()
 		.hickory_dns(true)
 		.pool_max_idle_per_host(0)
-		.connect_timeout(Duration::from_secs(60))
-		.timeout(Duration::from_secs(60 * 5))
+		.connect_timeout(Duration::from_secs(20))
+		.timeout(Duration::from_secs(30))
 		.redirect(redirect_policy)
 		.user_agent("Conduwuit".to_owned() + "/" + env!("CARGO_PKG_VERSION"));
 
