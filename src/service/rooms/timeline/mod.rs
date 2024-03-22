@@ -1000,18 +1000,18 @@ impl Service {
 					let pub_key_map = RwLock::new(BTreeMap::new());
 					for pdu in response.pdus {
 						if let Err(e) = self.backfill_pdu(backfill_server, pdu, &pub_key_map).await {
-							warn!("Failed to add backfilled pdu: {e}");
+							warn!("Failed to add backfilled pdu in room {room_id}: {e}");
 						}
 					}
 					return Ok(());
 				},
 				Err(e) => {
-					warn!("{backfill_server} failed to provide backfill: {e}");
+					warn!("{backfill_server} failed to provide backfill for room {room_id}: {e}");
 				},
 			}
 		}
 
-		info!("No servers could backfill, but backfill was needed");
+		info!("No servers could backfill, but backfill was needed in room {room_id}");
 		Ok(())
 	}
 
