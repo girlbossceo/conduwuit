@@ -55,10 +55,7 @@ impl Services<'_> {
 		db: &'static D, config: Config,
 	) -> Result<Self> {
 		Ok(Self {
-			appservice: appservice::Service {
-				db,
-				registration_info: RwLock::new(HashMap::new()),
-			},
+			appservice: appservice::Service::build(db)?,
 			pusher: pusher::Service {
 				db,
 			},

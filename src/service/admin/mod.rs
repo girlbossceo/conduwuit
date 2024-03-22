@@ -623,8 +623,8 @@ impl Service {
 				},
 				AppserviceCommand::Show {
 					appservice_identifier,
-				} => match services().appservice.get_registration(&appservice_identifier) {
-					Ok(Some(config)) => {
+				} => match services().appservice.get_registration(&appservice_identifier).await {
+					Some(config) => {
 						let config_str =
 							serde_yaml::to_string(&config).expect("config should've been validated on register");
 						let output = format!("Config for {}:\n\n```yaml\n{}\n```", appservice_identifier, config_str,);
@@ -635,21 +635,12 @@ impl Service {
 						);
 						RoomMessageEventContent::text_html(output, output_html)
 					},
-					Ok(None) => RoomMessageEventContent::text_plain("Appservice does not exist."),
-					Err(_) => RoomMessageEventContent::text_plain("Failed to get appservice."),
+					None => RoomMessageEventContent::text_plain("Appservice does not exist."),
 				},
 				AppserviceCommand::List => {
-					if let Ok(appservices) = services().appservice.iter_ids().map(Iterator::collect::<Vec<_>>) {
-						let count = appservices.len();
-						let output = format!(
-							"Appservices ({}): {}",
-							count,
-							appservices.into_iter().filter_map(std::result::Result::ok).collect::<Vec<_>>().join(", ")
-						);
-						RoomMessageEventContent::text_plain(output)
-					} else {
-						RoomMessageEventContent::text_plain("Failed to get appservices.")
-					}
+					let appservices = services().appservice.iter_ids().await;
+					let output = format!("Appservices ({}): {}", appservices.len(), appservices.join(", "));
+					RoomMessageEventContent::text_plain(output)
 				},
 			},
 			AdminCommand::Media(command) => {
