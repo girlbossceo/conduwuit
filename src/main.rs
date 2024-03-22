@@ -673,7 +673,7 @@ fn routes() -> Router {
 		.ruma_route(client_server::create_content_route)
 		// legacy v1 media routes
 		.route(
-			"/_matrix/media/v1/url_preview",
+			"/_matrix/media/v1/preview_url",
 			get(client_server::get_media_preview_v1_route)
 		)
 		.route(
