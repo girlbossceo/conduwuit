@@ -180,7 +180,7 @@ impl Client {
 				.timeout(Duration::from_secs(config.federation_timeout))
 				.pool_max_idle_per_host(config.federation_idle_per_host.into())
 				.pool_idle_timeout(Duration::from_secs(config.federation_idle_timeout))
-				.redirect(redirect::Policy::limited(2))
+				.redirect(redirect::Policy::limited(3))
 				.build()
 				.unwrap(),
 
