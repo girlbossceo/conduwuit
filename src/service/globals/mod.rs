@@ -162,7 +162,7 @@ impl Client {
 		Client {
 			default: Self::base(config).unwrap().build().unwrap(),
 
-			url_preview: Self::base(config).unwrap().build().unwrap(),
+			url_preview: Self::base(config).unwrap().redirect(redirect::Policy::limited(3)).build().unwrap(),
 
 			well_known: Self::base(config)
 				.unwrap()
