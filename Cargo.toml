@@ -218,6 +218,7 @@ features = [
   "help",
   "usage",
   "error-context",
+  "string"
 ]
 
 [dependencies.futures-util]
