@@ -124,10 +124,6 @@ fn db_options(
 	// restored via federation.
 	db_opts.set_wal_recovery_mode(rust_rocksdb::DBRecoveryMode::TolerateCorruptedTailRecords);
 
-	// TODO: remove me? https://gitlab.com/famedly/conduit/-/merge_requests/602/diffs#a3a261d6a9014330581b5bdecd586dab5ae00245_62_54
-	let prefix_extractor = rust_rocksdb::SliceTransform::create_fixed_prefix(1);
-	db_opts.set_prefix_extractor(prefix_extractor);
-
 	db_opts.set_block_based_table_factory(&block_based_options);
 	db_opts.set_env(env);
 	db_opts
