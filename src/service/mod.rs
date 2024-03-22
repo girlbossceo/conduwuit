@@ -4,7 +4,7 @@ use std::{
 };
 
 use lru_cache::LruCache;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{broadcast, Mutex, RwLock};
 
 use crate::{Config, Result};
 
@@ -77,9 +77,9 @@ impl Services<'_> {
 						db,
 					},
 					typing: rooms::edus::typing::Service {
-						db,
 						typing: RwLock::new(BTreeMap::new()),
 						last_typing_update: RwLock::new(BTreeMap::new()),
+						typing_update_sender: broadcast::channel(100).0,
 					},
 				},
 				event_handler: rooms::event_handler::Service,
