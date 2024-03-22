@@ -1,18 +1,15 @@
-mod data;
-
 use std::collections::BTreeMap;
 
-pub use data::Data;
 use ruma::{events::SyncEphemeralRoomEvent, OwnedRoomId, OwnedUserId, RoomId, UserId};
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
 
 use crate::{services, utils, Result};
 
 pub struct Service {
-	pub db: &'static dyn Data,
 	pub typing: RwLock<BTreeMap<OwnedRoomId, BTreeMap<OwnedUserId, u64>>>, // u64 is unix timestamp of timeout
 	pub last_typing_update: RwLock<BTreeMap<OwnedRoomId, u64>>,            /* timestamp of the last change to typing
 	                                                                        * users */
+	pub typing_update_sender: broadcast::Sender<OwnedRoomId>,
 }
 
 impl Service {
@@ -21,6 +18,7 @@ impl Service {
 	pub async fn typing_add(&self, user_id: &UserId, room_id: &RoomId, timeout: u64) -> Result<()> {
 		self.typing.write().await.entry(room_id.to_owned()).or_default().insert(user_id.to_owned(), timeout);
 		self.last_typing_update.write().await.insert(room_id.to_owned(), services().globals.next_count()?);
+		let _ = self.typing_update_sender.send(room_id.to_owned());
 		Ok(())
 	}
 
@@ -28,6 +26,18 @@ impl Service {
 	pub async fn typing_remove(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		self.typing.write().await.entry(room_id.to_owned()).or_default().remove(user_id);
 		self.last_typing_update.write().await.insert(room_id.to_owned(), services().globals.next_count()?);
+		let _ = self.typing_update_sender.send(room_id.to_owned());
+		Ok(())
+	}
+
+	pub async fn wait_for_update(&self, room_id: &RoomId) -> Result<()> {
+		let mut receiver = self.typing_update_sender.subscribe();
+		while let Ok(next) = receiver.recv().await {
+			if next == room_id {
+				break;
+			}
+		}
+
 		Ok(())
 	}
 
@@ -55,6 +65,7 @@ impl Service {
 				room.remove(&user);
 			}
 			self.last_typing_update.write().await.insert(room_id.to_owned(), services().globals.next_count()?);
+			let _ = self.typing_update_sender.send(room_id.to_owned());
 		}
 
 		Ok(())
