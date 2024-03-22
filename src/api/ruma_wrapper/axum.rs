@@ -76,11 +76,13 @@ where
 
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&body).ok();
 
-		let appservices = services().appservice.all().unwrap();
-		let appservice_registration =
-			appservices.iter().find(|(_id, registration)| Some(registration.as_token.as_str()) == token);
+		let appservice_registration = if let Some(token) = token {
+			services().appservice.find_from_token(token).await
+		} else {
+			None
+		};
 
-		let (sender_user, sender_device, sender_servername, from_appservice) = if let Some((_id, registration)) =
+		let (sender_user, sender_device, sender_servername, from_appservice) = if let Some(info) =
 			appservice_registration
 		{
 			match metadata.authentication {
@@ -88,7 +90,7 @@ where
 					let user_id = query_params.user_id.map_or_else(
 						|| {
 							UserId::parse_with_server_name(
-								registration.sender_localpart.as_str(),
+								info.registration.sender_localpart.as_str(),
 								services().globals.server_name(),
 							)
 							.unwrap()
@@ -109,7 +111,7 @@ where
 					let user_id = query_params.user_id.map_or_else(
 						|| {
 							UserId::parse_with_server_name(
-								registration.sender_localpart.as_str(),
+								info.registration.sender_localpart.as_str(),
 								services().globals.server_name(),
 							)
 							.unwrap()

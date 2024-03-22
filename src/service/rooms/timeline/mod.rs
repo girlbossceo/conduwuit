@@ -510,7 +510,7 @@ impl Service {
 			}
 		}
 
-		for appservice in services().appservice.registration_info.read().await.values() {
+		for appservice in services().appservice.read().await.values() {
 			if services().rooms.state_cache.appservice_in_room(&pdu.room_id, appservice)? {
 				services().sending.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
 				continue;
