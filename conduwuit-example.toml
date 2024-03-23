@@ -218,6 +218,7 @@ url_preview_check_root_domain = false
 
 # max log level for conduwuit. allows debug, info, warn, or error
 # see also: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
+# For release builds, the maximum log level for conduwuit is info. For debug builds, it is "trace".
 # Defaults to "warn"
 #log = "warn"
 
