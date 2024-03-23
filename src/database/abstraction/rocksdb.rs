@@ -116,7 +116,7 @@ fn db_options(
 	// Misc
 	db_opts.create_if_missing(true);
 
-	// https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes#ktoleratecorruptedtailrecords
+	// Default: https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes#ktoleratecorruptedtailrecords
 	//
 	// Unclean shutdowns of a Matrix homeserver are likely to be fine when
 	// recovered in this manner as it's likely any lost information will be
