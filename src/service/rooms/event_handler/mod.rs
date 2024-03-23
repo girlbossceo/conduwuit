@@ -1313,7 +1313,7 @@ impl Service {
 					let k = match k.deserialize() {
 						Ok(key) => key,
 						Err(e) => {
-							warn!("Received error {} while fetching keys from trusted server {}", e, server);
+							warn!("Received error {e} while fetching keys from trusted server {server}");
 							warn!("{}", k.into_json());
 							continue;
 						},
@@ -1331,6 +1331,11 @@ impl Service {
 
 					pkm.insert(k.server_name.to_string(), result);
 				}
+			} else {
+				warn!(
+					"Failed sending batched key request to trusted key server {server} for the remote servers \
+					 {servers:?}"
+				);
 			}
 		}
 
