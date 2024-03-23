@@ -230,9 +230,7 @@ impl Service {
 
 	pub fn get_name(&self, room_id: &RoomId) -> Result<Option<String>> {
 		services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomName, "")?.map_or(Ok(None), |s| {
-			Ok(serde_json::from_str(s.content.get())
-				.map(|c: RoomNameEventContent| Some(c.name))
-				.unwrap_or_else(|_| None))
+			Ok(serde_json::from_str(s.content.get()).map_or_else(|_| None, |c: RoomNameEventContent| Some(c.name)))
 		})
 	}
 

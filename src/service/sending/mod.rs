@@ -490,11 +490,9 @@ impl Service {
 									.to_room_event(),
 							);
 						},
-						SendingEventType::Edu(_) => {
-							// Appservices don't need EDUs (?)
-						},
-						SendingEventType::Flush => {
-							// flush only; no new content
+						SendingEventType::Edu(_) | SendingEventType::Flush => {
+							// Appservices don't need EDUs (?) and flush only;
+							// no new content
 						},
 					}
 				}
@@ -554,11 +552,9 @@ impl Service {
 									})?,
 							);
 						},
-						SendingEventType::Edu(_) => {
-							// Push gateways don't need EDUs (?)
-						},
-						SendingEventType::Flush => {
-							// flush only; no new content
+						SendingEventType::Edu(_) | SendingEventType::Flush => {
+							// Push gateways don't need EDUs (?) and flush only;
+							// no new content
 						},
 					}
 				}

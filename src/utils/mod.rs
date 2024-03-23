@@ -18,7 +18,7 @@ pub(crate) fn millis_since_unix_epoch() -> u64 {
 	SystemTime::now().duration_since(UNIX_EPOCH).expect("time is valid").as_millis() as u64
 }
 
-pub(crate) fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
+pub(crate) fn increment(old: Option<&[u8]>) -> Vec<u8> {
 	let number = match old.map(TryInto::try_into) {
 		Some(Ok(bytes)) => {
 			let number = u64::from_be_bytes(bytes);
@@ -27,7 +27,7 @@ pub(crate) fn increment(old: Option<&[u8]>) -> Option<Vec<u8>> {
 		_ => 1, // Start at one. since 0 should return the first event in the db
 	};
 
-	Some(number.to_be_bytes().to_vec())
+	number.to_be_bytes().to_vec()
 }
 
 pub fn generate_keypair() -> Vec<u8> {
@@ -50,7 +50,7 @@ pub fn string_from_bytes(bytes: &[u8]) -> Result<String, std::string::FromUtf8Er
 	String::from_utf8(bytes.to_vec())
 }
 
-/// Parses a OwnedUserId from bytes.
+/// Parses a `OwnedUserId` from bytes.
 pub fn user_id_from_bytes(bytes: &[u8]) -> Result<OwnedUserId> {
 	OwnedUserId::try_from(
 		string_from_bytes(bytes).map_err(|_| Error::bad_database("Failed to parse string from bytes"))?,

@@ -263,12 +263,11 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 			.server_signingkeys
 			.get(origin.as_bytes())?
 			.and_then(|bytes| serde_json::from_slice(&bytes).ok())
-			.map(|keys: ServerSigningKeys| {
+			.map_or_else(BTreeMap::new, |keys: ServerSigningKeys| {
 				let mut tree = keys.verify_keys;
 				tree.extend(keys.old_verify_keys.into_iter().map(|old| (old.0, VerifyKey::new(old.1.key))));
 				tree
-			})
-			.unwrap_or_else(BTreeMap::new);
+			});
 
 		Ok(signingkeys)
 	}

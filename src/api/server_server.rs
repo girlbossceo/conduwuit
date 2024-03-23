@@ -65,7 +65,7 @@ use crate::{
 /// (colon-plus-port if it was specified).
 ///
 /// Note: A `FedDest::Named` might contain an IP address in string form if there
-/// was no port specified to construct a SocketAddr with.
+/// was no port specified to construct a `SocketAddr` with.
 ///
 /// # Examples:
 /// ```rust
@@ -73,9 +73,9 @@ use crate::{
 /// # fn main() -> Result<(), std::net::AddrParseError> {
 /// FedDest::Literal("198.51.100.3:8448".parse()?);
 /// FedDest::Literal("[2001:db8::4:5]:443".parse()?);
-/// FedDest::Named("matrix.example.org".to_owned(), "".to_owned());
+/// FedDest::Named("matrix.example.org".to_owned(), String::new());
 /// FedDest::Named("matrix.example.org".to_owned(), ":8448".to_owned());
-/// FedDest::Named("198.51.100.5".to_owned(), "".to_owned());
+/// FedDest::Named("198.51.100.5".to_owned(), String::new());
 /// # Ok(())
 /// # }
 /// ```
@@ -309,24 +309,21 @@ where
 				debug!(
 					"Timed out sending request to {} at {}: {}",
 					destination, actual_destination_str, e
-				)
+				);
+			} else if e.is_connect() {
+				debug!("Failed to connect to {} at {}: {}", destination, actual_destination_str, e);
+			} else if e.is_redirect() {
+				debug!(
+					"Redirect loop sending request to {} at {}: {}\nFinal URL: {:?}",
+					destination,
+					actual_destination_str,
+					e,
+					e.url()
+				);
 			} else {
-				if e.is_connect() {
-					debug!("Failed to connect to {} at {}: {}", destination, actual_destination_str, e)
-				} else {
-					if e.is_redirect() {
-						debug!(
-							"Redirect loop sending request to {} at {}: {}\nFinal URL: {:?}",
-							destination,
-							actual_destination_str,
-							e,
-							e.url()
-						)
-					} else {
-						info!("Could not send request to {} at {}: {}", destination, actual_destination_str, e);
-					}
-				}
+				info!("Could not send request to {} at {}: {}", destination, actual_destination_str, e);
 			}
+
 			Err(e.into())
 		},
 	}
@@ -350,7 +347,7 @@ fn add_port_to_hostname(destination_str: &str) -> FedDest {
 	FedDest::Named(host.to_owned(), port.to_owned())
 }
 
-/// Returns: actual_destination, host header
+/// Returns: `actual_destination`, host header
 /// Implemented according to the specification at <https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names>
 /// Numbers in comments below refer to bullet points in linked section of
 /// specification
@@ -1690,9 +1687,9 @@ pub async fn get_profile_information_route(
 	}
 
 	Ok(get_profile_information::v1::Response {
-		blurhash,
 		displayname,
 		avatar_url,
+		blurhash,
 	})
 }
 

@@ -20,15 +20,16 @@ pub async fn update_tag_route(body: Ruma<create_tag::v3::Request>) -> Result<cre
 
 	let event = services().account_data.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
 
-	let mut tags_event = event
-		.map(|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")))
-		.unwrap_or_else(|| {
+	let mut tags_event = event.map_or_else(
+		|| {
 			Ok(TagEvent {
 				content: TagEventContent {
 					tags: BTreeMap::new(),
 				},
 			})
-		})?;
+		},
+		|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")),
+	)?;
 
 	tags_event.content.tags.insert(body.tag.clone().into(), body.tag_info.clone());
 
@@ -52,15 +53,16 @@ pub async fn delete_tag_route(body: Ruma<delete_tag::v3::Request>) -> Result<del
 
 	let event = services().account_data.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
 
-	let mut tags_event = event
-		.map(|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")))
-		.unwrap_or_else(|| {
+	let mut tags_event = event.map_or_else(
+		|| {
 			Ok(TagEvent {
 				content: TagEventContent {
 					tags: BTreeMap::new(),
 				},
 			})
-		})?;
+		},
+		|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")),
+	)?;
 
 	tags_event.content.tags.remove(&body.tag.clone().into());
 
@@ -84,15 +86,16 @@ pub async fn get_tags_route(body: Ruma<get_tags::v3::Request>) -> Result<get_tag
 
 	let event = services().account_data.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
 
-	let tags_event = event
-		.map(|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")))
-		.unwrap_or_else(|| {
+	let tags_event = event.map_or_else(
+		|| {
 			Ok(TagEvent {
 				content: TagEventContent {
 					tags: BTreeMap::new(),
 				},
 			})
-		})?;
+		},
+		|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")),
+	)?;
 
 	Ok(get_tags::v3::Response {
 		tags: tags_event.content.tags,

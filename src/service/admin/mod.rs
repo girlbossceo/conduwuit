@@ -790,12 +790,12 @@ impl Service {
 								"Deleted {} total MXCs from our database and the filesystem from event ID {event_id}.",
 								mxc_deletion_count
 							)));
-						} else {
-							return Ok(RoomMessageEventContent::text_plain(
-								"Please specify either an MXC using --mxc or an event ID using --event-id of the \
-								 message containing an image. See --help for details.",
-							));
 						}
+
+						return Ok(RoomMessageEventContent::text_plain(
+							"Please specify either an MXC using --mxc or an event ID using --event-id of the message \
+							 containing an image. See --help for details.",
+						));
 					},
 					MediaCommand::DeleteList => {
 						if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
@@ -814,11 +814,11 @@ impl Service {
 								 filesystem.",
 								mxc_deletion_count
 							)));
-						} else {
-							return Ok(RoomMessageEventContent::text_plain(
-								"Expected code block in command body. Add --help for details.",
-							));
 						}
+
+						return Ok(RoomMessageEventContent::text_plain(
+							"Expected code block in command body. Add --help for details.",
+						));
 					},
 					MediaCommand::DeletePastRemoteMedia {
 						duration,
@@ -1322,12 +1322,12 @@ impl Service {
 													 ignoring error and logging here: {e}"
 												);
 												continue;
-											} else {
-												return Ok(RoomMessageEventContent::text_plain(format!(
-													"{room_id} is not a valid room ID, please fix the list and try \
-													 again: {e}"
-												)));
 											}
+
+											return Ok(RoomMessageEventContent::text_plain(format!(
+												"{room_id} is not a valid room ID, please fix the list and try again: \
+												 {e}"
+											)));
 										},
 									}
 								}
@@ -1415,17 +1415,16 @@ impl Service {
 										 disabled incoming federation with the room.",
 										room_ban_count
 									)));
-								} else {
-									return Ok(RoomMessageEventContent::text_plain(format!(
-										"Finished bulk room ban, banned {} total rooms and evicted all users.",
-										room_ban_count
-									)));
 								}
-							} else {
-								return Ok(RoomMessageEventContent::text_plain(
-									"Expected code block in command body. Add --help for details.",
-								));
+								return Ok(RoomMessageEventContent::text_plain(format!(
+									"Finished bulk room ban, banned {} total rooms and evicted all users.",
+									room_ban_count
+								)));
 							}
+
+							return Ok(RoomMessageEventContent::text_plain(
+								"Expected code block in command body. Add --help for details.",
+							));
 						},
 						RoomModeration::UnbanRoom {
 							room,
@@ -1856,7 +1855,7 @@ impl Service {
 
 								let pub_key_map = pub_key_map.read().await;
 								match ruma::signatures::verify_json(&pub_key_map, &value) {
-									Ok(_) => RoomMessageEventContent::text_plain("Signature correct"),
+									Ok(()) => RoomMessageEventContent::text_plain("Signature correct"),
 									Err(e) => RoomMessageEventContent::text_plain(format!(
 										"Signature verification failed: {e}"
 									)),
@@ -1913,7 +1912,7 @@ impl Service {
 					}
 
 					let mut result = tokio::task::spawn_blocking(move || match services().globals.db.backup() {
-						Ok(_) => String::new(),
+						Ok(()) => String::new(),
 						Err(e) => (*e).to_string(),
 					})
 					.await
@@ -2040,7 +2039,7 @@ impl Service {
 						.send_federation_request(
 							&server,
 							ruma::api::federation::event::get_event::v1::Request {
-								event_id: event_id.to_owned().into(),
+								event_id: event_id.clone().into(),
 							},
 						)
 						.await
@@ -2208,7 +2207,7 @@ impl Service {
 		if let Some(line_index) = text_lines.iter().position(|line| *line == "[commandbody]") {
 			text_lines.remove(line_index);
 
-			while text_lines.get(line_index).map(|line| line.starts_with('#')).unwrap_or(false) {
+			while text_lines.get(line_index).is_some_and(|line| line.starts_with('#')) {
 				command_body += if text_lines[line_index].starts_with("# ") {
 					&text_lines[line_index][2..]
 				} else {
@@ -2293,7 +2292,7 @@ impl Service {
 					event_type: TimelineEventType::RoomCreate,
 					content: to_raw_value(&content).expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				&conduit_user,
@@ -2346,7 +2345,7 @@ impl Service {
 					})
 					.expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				&conduit_user,
@@ -2365,7 +2364,7 @@ impl Service {
 					content: to_raw_value(&RoomJoinRulesEventContent::new(JoinRule::Invite))
 						.expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				&conduit_user,
@@ -2384,7 +2383,7 @@ impl Service {
 					content: to_raw_value(&RoomHistoryVisibilityEventContent::new(HistoryVisibility::Shared))
 						.expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				&conduit_user,
@@ -2403,7 +2402,7 @@ impl Service {
 					content: to_raw_value(&RoomGuestAccessEventContent::new(GuestAccess::Forbidden))
 						.expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				&conduit_user,
@@ -2423,7 +2422,7 @@ impl Service {
 					content: to_raw_value(&RoomNameEventContent::new(room_name))
 						.expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				&conduit_user,
@@ -2443,7 +2442,7 @@ impl Service {
 					})
 					.expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				&conduit_user,
@@ -2469,7 +2468,7 @@ impl Service {
 					})
 					.expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				&conduit_user,
@@ -2579,7 +2578,7 @@ impl Service {
 						})
 						.expect("event is valid, we just created it"),
 						unsigned: None,
-						state_key: Some("".to_owned()),
+						state_key: Some(String::new()),
 						redacts: None,
 					},
 					&conduit_user,
