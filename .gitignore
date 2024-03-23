@@ -80,3 +80,6 @@ public/
 
 # macOS
 .DS_Store
+
+# Zed
+.zed/
