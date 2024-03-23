@@ -734,9 +734,8 @@ fn is_accessable_child_recurse(
 				false
 			},
 			SpaceRoomJoinRule::Public | SpaceRoomJoinRule::Knock => true,
-			#[allow(clippy::match_same_arms)]
-			SpaceRoomJoinRule::Invite | SpaceRoomJoinRule::Private => false,
-			// Custom join rule
+			// SpaceRoomJoinRule::Invite | SpaceRoomJoinRule::Private => false,
+			// Custom join rules, Invites, or Private
 			_ => false,
 		})
 	} else {
