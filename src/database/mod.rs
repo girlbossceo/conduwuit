@@ -1007,7 +1007,7 @@ impl KeyValueDatabase {
 
 		Self::start_cleanup_task().await;
 		if services().globals.allow_check_for_updates() {
-			Self::start_check_for_updates_task();
+			Self::start_check_for_updates_task().await;
 		}
 		if services().globals.allow_local_presence() {
 			Self::start_presence_handler(presence_receiver).await;
@@ -1027,12 +1027,19 @@ impl KeyValueDatabase {
 	}
 
 	#[tracing::instrument]
-	fn start_check_for_updates_task() {
+	async fn start_check_for_updates_task() {
+		let timer_interval = Duration::from_secs(7200); // 2 hours
+
 		tokio::spawn(async move {
-			let timer_interval = Duration::from_secs(60 * 60);
 			let mut i = interval(timer_interval);
+
 			loop {
-				i.tick().await;
+				tokio::select! {
+					_ = i.tick() => {
+						debug!(target: "start_check_for_updates_task", "Timer ticked");
+					},
+				}
+
 				let _ = Self::try_handle_updates().await;
 			}
 		});
