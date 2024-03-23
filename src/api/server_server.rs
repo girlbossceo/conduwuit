@@ -1800,7 +1800,7 @@ mod tests {
 		assert_eq!(
 			add_port_to_hostname("example.com"),
 			FedDest::Named(String::from("example.com"), String::from(":8448"))
-		)
+		);
 	}
 
 	#[test]
@@ -1808,6 +1808,6 @@ mod tests {
 		assert_eq!(
 			add_port_to_hostname("example.com:1337"),
 			FedDest::Named(String::from("example.com"), String::from(":1337"))
-		)
+		);
 	}
 }

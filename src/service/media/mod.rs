@@ -128,7 +128,7 @@ impl Service {
 		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 		#[cfg(feature = "sha256_media")]
 		{
-			path = services().globals.get_media_file_new(&key)
+			path = services().globals.get_media_file_new(&key);
 		};
 
 		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
@@ -231,7 +231,7 @@ impl Service {
 				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 				#[cfg(feature = "sha256_media")]
 				{
-					path = services().globals.get_media_file_new(&key)
+					path = services().globals.get_media_file_new(&key);
 				};
 
 				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
