@@ -153,7 +153,7 @@ optional = true
 version = "0.2.0"
 optional = true
 [dependencies.tracing-opentelemetry]
-version = "0.22.0"
+version = "0.23.0"
 optional = true
 [dependencies.opentelemetry_sdk]
 version = "0.21.2"
