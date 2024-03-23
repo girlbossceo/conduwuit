@@ -34,6 +34,8 @@ pub(crate) trait KeyValueDatabaseEngine: Send + Sync {
 	fn backup(&self) -> Result<(), Box<dyn Error>> { unimplemented!() }
 
 	fn backup_list(&self) -> Result<String> { Ok(String::new()) }
+
+	fn file_list(&self) -> Result<String> { Ok(String::new()) }
 }
 
 pub(crate) trait KvTree: Send + Sync {
