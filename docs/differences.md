@@ -87,3 +87,9 @@
 - Responsive outgoing read receipt EDU support
 - Federation destination DNS cache support to call *less* of the thread-blocking `getaddrinfo(3)` significantly less, improving federation ping/latency
 - Store the sender user with the MXC URL for all media uploads (`/upload`) (not for thumbnails or media requests which are unauthenticated)
+- Perform connection pooling and keepalives where necessary to significantly improve federation performance and latency
+- Implement RocksDB online backups via admin command
+- Implement RocksDB write buffer corking and coalescing in database write-heavy areas
+- Various config options to tweak connection pooling, request timeouts, connection timeouts, etc with good defaults
+- Implement config option to auto join rooms upon registration
+- Overall significant database, Client-Server, and federation performance and latency improvements
