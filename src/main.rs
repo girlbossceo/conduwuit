@@ -921,3 +921,12 @@ fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
 
 	Ok(())
 }
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[cfg(unix)]
+	#[test]
+	fn maximize_fd_limit_works() { maximize_fd_limit().unwrap() }
+}
