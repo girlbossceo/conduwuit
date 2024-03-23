@@ -144,9 +144,8 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 		},
 	};
 
-	let room_id = match room_id {
-		Some(room_id) => room_id,
-		None => return Err(Error::BadRequest(ErrorKind::NotFound, "Room with alias not found.")),
+	let Some(room_id) = room_id else {
+		return Err(Error::BadRequest(ErrorKind::NotFound, "Room with alias not found."));
 	};
 
 	let mut servers: Vec<OwnedServerName> = Vec::new();

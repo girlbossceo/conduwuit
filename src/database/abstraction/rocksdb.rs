@@ -174,7 +174,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		if !self.old_cfs.contains(&name.to_owned()) {
 			// Create if it didn't exist
 			debug!("Creating new column family in database: {}", name);
-			let _ = self.rocks.create_cf(name, &self.opts);
+			_ = self.rocks.create_cf(name, &self.opts);
 		}
 
 		Ok(Arc::new(RocksDbEngineTree {
@@ -253,8 +253,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			match engine.create_new_backup_flush(&self.rocks, true) {
 				Err(e) => return Err(Box::new(e)),
 				Ok(()) => {
-					let _info = engine.get_backup_info();
-					let info = &_info.last().unwrap();
+					let engine_info = engine.get_backup_info();
+					let info = &engine_info.last().unwrap();
 					info!(
 						"Created database backup #{} using {} bytes in {} files",
 						info.backup_id, info.size, info.num_files,

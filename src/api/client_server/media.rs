@@ -634,9 +634,8 @@ async fn download_html(client: &reqwest::Client, url: &str) -> Result<UrlPreview
 		}
 	}
 	let body = String::from_utf8_lossy(&bytes);
-	let html = match HTML::from_string(body.to_string(), Some(url.to_owned())) {
-		Ok(html) => html,
-		Err(_) => return Err(Error::BadRequest(ErrorKind::Unknown, "Failed to parse HTML")),
+	let Ok(html) = HTML::from_string(body.to_string(), Some(url.to_owned())) else {
+		return Err(Error::BadRequest(ErrorKind::Unknown, "Failed to parse HTML"));
 	};
 
 	let mut data = match html.opengraph.images.first() {
@@ -653,7 +652,7 @@ async fn download_html(client: &reqwest::Client, url: &str) -> Result<UrlPreview
 	Ok(data)
 }
 
-fn url_request_allowed(addr: &IpAddr) -> bool {
+pub(crate) fn url_request_allowed(addr: &IpAddr) -> bool {
 	// TODO: make this check ip_range_denylist
 
 	// could be implemented with reqwest when it supports IP filtering:

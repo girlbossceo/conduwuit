@@ -513,7 +513,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 	// 8. Events implied by invite (and TODO: invite_3pid)
 	drop(state_lock);
 	for user_id in &body.invite {
-		let _ = invite_helper(sender_user, user_id, &room_id, None, body.is_direct).await;
+		_ = invite_helper(sender_user, user_id, &room_id, None, body.is_direct).await;
 	}
 
 	// Homeserver specific stuff
@@ -819,7 +819,7 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 
 	// Modify the power levels in the old room to prevent sending of events and
 	// inviting new users
-	let _ = services()
+	_ = services()
 		.rooms
 		.timeline
 		.build_and_append_pdu(

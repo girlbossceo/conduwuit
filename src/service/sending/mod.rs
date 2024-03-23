@@ -409,7 +409,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, server, serialized))]
-	pub fn send_reliable_edu(&self, server: &ServerName, serialized: Vec<u8>, _id: u64) -> Result<()> {
+	pub fn send_reliable_edu(&self, server: &ServerName, serialized: Vec<u8>, id: u64) -> Result<()> {
 		let outgoing_kind = OutgoingKind::Normal(server.to_owned());
 		let event = SendingEventType::Edu(serialized);
 		let _cork = services().globals.db.cork()?;
@@ -446,7 +446,7 @@ impl Service {
 			.map(OutgoingKind::Normal)
 			.collect::<Vec<_>>();
 
-		for outgoing_kind in requests.into_iter() {
+		for outgoing_kind in requests {
 			self.sender.send((outgoing_kind, SendingEventType::Flush, Vec::<u8>::new())).unwrap();
 		}
 

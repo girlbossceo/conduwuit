@@ -435,6 +435,7 @@ async fn run_server() -> io::Result<()> {
 			tokio::fs::set_permissions(path, Permissions::from_mode(octal_perms)).await.unwrap();
 			let socket = SocketIncoming::from_listener(listener);
 
+			#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
 			#[cfg(feature = "systemd")]
 			let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
@@ -486,6 +487,7 @@ async fn run_server() -> io::Result<()> {
 					}
 				}
 
+				#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
 				#[cfg(feature = "systemd")]
 				let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
@@ -507,6 +509,7 @@ async fn run_server() -> io::Result<()> {
 					join_set.spawn(bind(*addr).handle(handle.clone()).serve(app.clone()));
 				}
 
+				#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
 				#[cfg(feature = "systemd")]
 				let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
@@ -785,6 +788,7 @@ async fn shutdown_signal(handle: ServerHandle, tx: Sender<()>) -> Result<()> {
 
 	services().globals.shutdown();
 
+	#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
 	#[cfg(feature = "systemd")]
 	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
 
@@ -800,6 +804,7 @@ async fn shutdown_signal(handle: ServerHandle, tx: Sender<()>) -> Result<()> {
 			handle.connection_count()
 		);
 
+		#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
 		#[cfg(feature = "systemd")]
 		let _ = sd_notify::notify(true, &[sd_notify::NotifyState::ExtendTimeoutUsec(120)]);
 	}

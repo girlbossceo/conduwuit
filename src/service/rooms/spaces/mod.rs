@@ -329,7 +329,7 @@ impl Service {
 				let mut children = Vec::new();
 				let mut inaccessible_children = Vec::new();
 
-				for child in get_parent_children(*room.clone(), suggested_only) {
+				for child in get_parent_children(&room.clone(), suggested_only) {
 					match self
 						.get_summary_and_children(&child, suggested_only, Identifier::ServerName(server_name))
 						.await?
@@ -379,7 +379,7 @@ impl Service {
 
 		Ok(
 			if let Some(children_pdus) = get_stripped_space_child_events(current_room).await? {
-				let summary = self.get_room_summary(current_room, children_pdus, identifier);
+				let summary = self.get_room_summary(current_room, children_pdus, &identifier);
 				if let Ok(summary) = summary {
 					self.roomid_spacehierarchy_cache.lock().await.insert(
 						current_room.clone(),
@@ -485,7 +485,7 @@ impl Service {
 
 	fn get_room_summary(
 		&self, current_room: &OwnedRoomId, children_state: Vec<Raw<HierarchySpaceChildEvent>>,
-		identifier: Identifier<'_>,
+		identifier: &Identifier<'_>,
 	) -> Result<SpaceHierarchyParentSummary, Error> {
 		let room_id: &RoomId = current_room;
 
@@ -504,7 +504,7 @@ impl Service {
 
 		let allowed_room_ids = allowed_room_ids(join_rule.clone());
 
-		if !is_accessable_child(current_room, &join_rule.clone().into(), &identifier, &allowed_room_ids)? {
+		if !is_accessable_child(current_room, &join_rule.clone().into(), identifier, &allowed_room_ids)? {
 			debug!("User is not allowed to see room {room_id}");
 			// This error will be caught later
 			return Err(Error::BadRequest(ErrorKind::Forbidden, "User is not allowed to see the room"));
@@ -590,7 +590,7 @@ impl Service {
 				let mut results = Vec::new();
 				let root = arena.first_untraversed().expect("The node just added is not traversed");
 
-				arena.push(root, get_parent_children(*summary.clone(), suggested_only));
+				arena.push(root, get_parent_children(&summary.clone(), suggested_only));
 				results.push(summary_to_chunk(*summary.clone()));
 
 				while let Some(current_room) = arena.first_untraversed() {
@@ -603,7 +603,7 @@ impl Service {
 							)
 							.await?
 						{
-							let children = get_parent_children(*summary.clone(), suggested_only);
+							let children = get_parent_children(&summary.clone(), suggested_only);
 							arena.push(current_room, children);
 
 							if left_to_skip > 0 {
@@ -837,7 +837,7 @@ fn allowed_room_ids(join_rule: JoinRule) -> Vec<OwnedRoomId> {
 
 /// Returns the children of a SpaceHierarchyParentSummary, making use of the
 /// children_state field
-fn get_parent_children(parent: SpaceHierarchyParentSummary, suggested_only: bool) -> Vec<OwnedRoomId> {
+fn get_parent_children(parent: &SpaceHierarchyParentSummary, suggested_only: bool) -> Vec<OwnedRoomId> {
 	parent
 		.children_state
 		.iter()
@@ -861,10 +861,10 @@ mod tests {
 
 	use super::*;
 
-	fn first(arena: &mut Arena, room_id: OwnedRoomId) {
+	fn first(arena: &mut Arena, room_id: &OwnedRoomId) {
 		let first_untrav = arena.first_untraversed().unwrap();
 
-		assert_eq!(arena.get(first_untrav).unwrap().room_id, room_id);
+		assert_eq!(&arena.get(first_untrav).unwrap().room_id, room_id);
 	}
 
 	#[test]
@@ -896,16 +896,16 @@ mod tests {
 			vec![owned_room_id!("!room1:example.org"), owned_room_id!("!room2:example.org")],
 		);
 
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room2:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room2:example.org"));
 
 		arena.push(
 			subspace2,
 			vec![owned_room_id!("!room3:example.org"), owned_room_id!("!room4:example.org")],
 		);
 
-		first(&mut arena, owned_room_id!("!room3:example.org"));
-		first(&mut arena, owned_room_id!("!room4:example.org"));
+		first(&mut arena, &owned_room_id!("!room3:example.org"));
+		first(&mut arena, &owned_room_id!("!room4:example.org"));
 
 		let foo_node = NodeId {
 			index: 1,
@@ -931,7 +931,7 @@ mod tests {
 		let room1 = arena.first_untraversed().unwrap();
 		arena.push(room1, vec![]);
 
-		first(&mut arena, owned_room_id!("!room2:example.org"));
+		first(&mut arena, &owned_room_id!("!room2:example.org"));
 		assert!(arena.first_untraversed().is_none());
 	}
 
@@ -973,9 +973,9 @@ mod tests {
 			],
 		);
 
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room3:example.org"));
-		first(&mut arena, owned_room_id!("!room5:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room3:example.org"));
+		first(&mut arena, &owned_room_id!("!room5:example.org"));
 
 		let subspace2 = arena.first_untraversed().unwrap();
 
@@ -986,9 +986,9 @@ mod tests {
 			vec![owned_room_id!("!room1:example.org"), owned_room_id!("!room2:example.org")],
 		);
 
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room2:example.org"));
-		first(&mut arena, owned_room_id!("!foo:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room2:example.org"));
+		first(&mut arena, &owned_room_id!("!foo:example.org"));
 
 		assert_eq!(arena.first_untraversed(), None);
 	}
@@ -1052,14 +1052,14 @@ mod tests {
 		.into();
 
 		assert_eq!(
-			get_parent_children(summary.clone(), false),
+			get_parent_children(&summary, false),
 			vec![
 				owned_room_id!("!foo:example.org"),
 				owned_room_id!("!bar:example.org"),
 				owned_room_id!("!baz:example.org")
 			]
 		);
-		assert_eq!(get_parent_children(summary, true), vec![owned_room_id!("!bar:example.org")]);
+		assert_eq!(get_parent_children(&summary, true), vec![owned_room_id!("!bar:example.org")]);
 	}
 
 	#[test]
@@ -1191,10 +1191,10 @@ mod tests {
 		);
 
 		assert_eq!(arena.nodes.len(), 7);
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!subspace2:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!subspace2:example.org"));
 		assert!(arena.first_untraversed().is_none());
 	}
 }

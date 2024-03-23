@@ -52,7 +52,7 @@ impl Services<'_> {
 			+ sending::Data
 			+ 'static,
 	>(
-		db: &'static D, config: Config,
+		db: &'static D, config: &Config,
 	) -> Result<Self> {
 		Ok(Self {
 			appservice: appservice::Service::build(db)?,
@@ -160,7 +160,7 @@ impl Services<'_> {
 				db,
 				url_preview_mutex: RwLock::new(HashMap::new()),
 			},
-			sending: sending::Service::build(db, &config),
+			sending: sending::Service::build(db, config),
 
 			globals: globals::Service::load(db, config)?,
 		})
