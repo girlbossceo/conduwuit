@@ -30,7 +30,7 @@ ring = "0.17.8"
 trust-dns-resolver = "0.23.2"
 
 # Used to find matching events for appservices
-regex = "1.10.3"
+regex = "1.10.4"
 
 # Used to load forbidden room/user regex from config
 serde_regex = "1.1.0"
