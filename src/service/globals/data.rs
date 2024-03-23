@@ -37,4 +37,5 @@ pub trait Data: Send + Sync {
 	fn bump_database_version(&self, new_version: u64) -> Result<()>;
 	fn backup(&self) -> Result<(), Box<dyn Error>> { unimplemented!() }
 	fn backup_list(&self) -> Result<String> { Ok(String::new()) }
+	fn file_list(&self) -> Result<String> { Ok(String::new()) }
 }

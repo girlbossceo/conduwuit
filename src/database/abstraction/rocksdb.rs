@@ -304,6 +304,30 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		Ok(res)
 	}
 
+	fn file_list(&self) -> Result<String> {
+		match self.rocks.live_files() {
+			Err(e) => Ok(String::from(e)),
+			Ok(files) => {
+				let mut res = String::new();
+				for file in files {
+					let _ = std::fmt::write(
+						&mut res,
+						format_args!(
+							"<code>L{} {:<13} {:7}+ {:4}- {:9}</code> {}<br>",
+							file.level,
+							file.name,
+							file.num_entries,
+							file.num_deletions,
+							file.size,
+							file.column_family_name,
+						),
+					);
+				}
+				Ok(res)
+			},
+		}
+	}
+
 	// TODO: figure out if this is needed for rocksdb
 	#[allow(dead_code)]
 	fn clear_caches(&self) {}
