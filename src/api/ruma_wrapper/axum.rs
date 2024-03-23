@@ -128,8 +128,7 @@ where
 						(Some(user_id), None, None, true)
 					}
 				},
-				AuthScheme::ServerSignatures => (None, None, None, true),
-				AuthScheme::None => (None, None, None, true),
+				AuthScheme::ServerSignatures | AuthScheme::None => (None, None, None, true),
 			}
 		} else {
 			match metadata.authentication {
@@ -341,8 +340,8 @@ where
 			sender_user,
 			sender_device,
 			sender_servername,
-			from_appservice,
 			json_body,
+			from_appservice,
 		})
 	}
 }

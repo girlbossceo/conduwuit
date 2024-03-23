@@ -367,7 +367,7 @@ impl Service {
 
 			// The original create event must be in the auth events
 			if !matches!(
-				auth_events.get(&(StateEventType::RoomCreate, "".to_owned())).map(AsRef::as_ref),
+				auth_events.get(&(StateEventType::RoomCreate, String::new())).map(AsRef::as_ref),
 				Some(_) | None
 			) {
 				return Err(Error::BadRequest(

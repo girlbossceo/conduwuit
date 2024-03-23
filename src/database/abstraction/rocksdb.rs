@@ -95,7 +95,6 @@ fn db_options(
 
 	// Compression
 	let rocksdb_compression_algo = match config.rocksdb_compression_algo.as_ref() {
-		"zstd" => rust_rocksdb::DBCompressionType::Zstd,
 		"zlib" => rust_rocksdb::DBCompressionType::Zlib,
 		"lz4" => rust_rocksdb::DBCompressionType::Lz4,
 		"bz2" => rust_rocksdb::DBCompressionType::Bz2,
@@ -247,7 +246,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		let ret = if self.config.database_backups_to_keep > 0 {
 			match engine.create_new_backup_flush(&self.rocks, true) {
 				Err(e) => return Err(Box::new(e)),
-				Ok(_) => {
+				Ok(()) => {
 					let _info = engine.get_backup_info();
 					let info = &_info.last().unwrap();
 					info!(
@@ -435,7 +434,7 @@ impl KvTree for RocksDbEngineTree<'_> {
 		let lock = self.write_lock.write().unwrap();
 
 		let old = self.db.rocks.get_cf_opt(&self.cf(), key, &readoptions)?;
-		let new = utils::increment(old.as_deref()).unwrap();
+		let new = utils::increment(old.as_deref());
 		self.db.rocks.put_cf_opt(&self.cf(), key, &new, &writeoptions)?;
 
 		drop(lock);
@@ -458,7 +457,7 @@ impl KvTree for RocksDbEngineTree<'_> {
 
 		for key in iter {
 			let old = self.db.rocks.get_cf_opt(&self.cf(), &key, &readoptions)?;
-			let new = utils::increment(old.as_deref()).unwrap();
+			let new = utils::increment(old.as_deref());
 			batch.put_cf(&self.cf(), key, new);
 		}
 

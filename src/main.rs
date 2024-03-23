@@ -770,8 +770,8 @@ async fn shutdown_signal(handle: ServerHandle, tx: Sender<()>) -> Result<()> {
 
 	#[cfg(unix)]
 	tokio::select! {
-		_ = ctrl_c => { sig = "Ctrl+C"; },
-		_ = terminate => { sig = "SIGTERM"; },
+		() = ctrl_c => { sig = "Ctrl+C"; },
+		() = terminate => { sig = "SIGTERM"; },
 	}
 
 	#[cfg(not(unix))]

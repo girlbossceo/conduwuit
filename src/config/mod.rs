@@ -1,7 +1,6 @@
 use std::{
-	collections::BTreeMap,
-	fmt,
-	fmt::Write as _,
+	collections::BTreeSet,
+	fmt::{self, Write as _},
 	net::{IpAddr, Ipv4Addr},
 	path::PathBuf,
 };
@@ -11,7 +10,7 @@ use figment::Figment;
 use itertools::Itertools;
 use regex::RegexSet;
 use ruma::{OwnedRoomId, OwnedServerName, RoomVersionId};
-use serde::{de::IgnoredAny, Deserialize};
+use serde::Deserialize;
 use tracing::{debug, error, warn};
 
 use self::proxy::ProxyConfig;
@@ -27,6 +26,7 @@ pub struct ListeningPort {
 
 /// all the config options for conduwuit
 #[derive(Clone, Debug, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Config {
 	/// [`IpAddr`] conduwuit will listen on (can be IPv4 or IPv6)
 	#[serde(default = "default_address")]
@@ -216,7 +216,7 @@ pub struct Config {
 	pub block_non_admin_invites: bool,
 
 	#[serde(flatten)]
-	pub catchall: BTreeMap<String, IgnoredAny>,
+	pub catchall: BTreeSet<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -238,7 +238,7 @@ impl Config {
 	pub fn warn_deprecated(&self) {
 		debug!("Checking for deprecated config keys");
 		let mut was_deprecated = false;
-		for key in self.catchall.keys().filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key)) {
+		for key in self.catchall.iter().filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key)) {
 			warn!("Config parameter \"{}\" is deprecated, ignoring.", key);
 			was_deprecated = true;
 		}
@@ -256,7 +256,7 @@ impl Config {
 	pub fn warn_unknown_key(&self) {
 		debug!("Checking for unknown config keys");
 		for key in
-			self.catchall.keys().filter(|key| "config".to_owned().ne(key.to_owned()) /* "config" is expected */)
+			self.catchall.iter().filter(|key| "config".to_owned().ne(key.to_owned()) /* "config" is expected */)
 		{
 			warn!("Config parameter \"{}\" is unknown to conduwuit, ignoring.", key);
 		}
@@ -589,11 +589,13 @@ fn default_rocksdb_compression_algo() -> String { "zstd".to_owned() }
 /// Default RocksDB compression level is 32767, which is internally read by
 /// RocksDB as the default magic number and translated to the library's default
 /// compression level as they all differ. See their `kDefaultCompressionLevel`.
+#[allow(clippy::doc_markdown)]
 fn default_rocksdb_compression_level() -> i32 { 32767 }
 
 /// Default RocksDB compression level is 32767, which is internally read by
 /// RocksDB as the default magic number and translated to the library's default
 /// compression level as they all differ. See their `kDefaultCompressionLevel`.
+#[allow(clippy::doc_markdown)]
 fn default_rocksdb_bottommost_compression_level() -> i32 { 32767 }
 
 // I know, it's a great name

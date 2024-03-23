@@ -713,7 +713,7 @@ fn is_accessable_child_recurse(
 					return Ok(true);
 				}
 			},
-			_ => (),
+			Identifier::None => (),
 		} // Takes care of joinrules
 		Ok(match join_rule {
 			SpaceRoomJoinRule::KnockRestricted | SpaceRoomJoinRule::Restricted => {
@@ -734,6 +734,7 @@ fn is_accessable_child_recurse(
 				false
 			},
 			SpaceRoomJoinRule::Public | SpaceRoomJoinRule::Knock => true,
+			#[allow(clippy::match_same_arms)]
 			SpaceRoomJoinRule::Invite | SpaceRoomJoinRule::Private => false,
 			// Custom join rule
 			_ => false,
@@ -828,7 +829,7 @@ fn allowed_room_ids(join_rule: JoinRule) -> Vec<OwnedRoomId> {
 				room_id: membership,
 			}) = rule
 			{
-				room_ids.push(membership.to_owned());
+				room_ids.push(membership.clone());
 			}
 		}
 	}

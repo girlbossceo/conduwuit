@@ -126,9 +126,9 @@ pub async fn get_displayname_route(
 	})
 }
 
-/// # `PUT /_matrix/client/r0/profile/{userId}/avatar_url`
+/// # `PUT /_matrix/client/v3/profile/{userId}/avatar_url`
 ///
-/// Updates the avatar_url and blurhash.
+/// Updates the `avatar_url` and `blurhash`.
 ///
 /// - Also makes sure other users receive the update using presence EDUs
 pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Result<set_avatar_url::v3::Response> {
@@ -192,10 +192,10 @@ pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Re
 
 /// # `GET /_matrix/client/v3/profile/{userId}/avatar_url`
 ///
-/// Returns the avatar_url and blurhash of the user.
+/// Returns the `avatar_url` and `blurhash` of the user.
 ///
 /// - If user is on another server and we do not have a local copy already
-/// fetch avatar_url and blurhash over federation
+/// fetch `avatar_url` and blurhash over federation
 pub async fn get_avatar_url_route(body: Ruma<get_avatar_url::v3::Request>) -> Result<get_avatar_url::v3::Response> {
 	if body.user_id.server_name() != services().globals.server_name() {
 		// Create and update our local copy of the user

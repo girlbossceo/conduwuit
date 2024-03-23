@@ -20,7 +20,7 @@ use crate::{service::pdu::PduBuilder, services, Error, Result, Ruma, RumaRespons
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is
 ///   allowed
-/// - If event is new canonical_alias: Rejects if alias is incorrect
+/// - If event is new `canonical_alias`: Rejects if alias is incorrect
 pub async fn send_state_event_for_key_route(
 	body: Ruma<send_state_event::v3::Request>,
 ) -> Result<send_state_event::v3::Response> {
@@ -48,7 +48,7 @@ pub async fn send_state_event_for_key_route(
 /// - The only requirement for the content is that it has to be valid json
 /// - Tries to send the event into the room, auth rules will determine if it is
 ///   allowed
-/// - If event is new canonical_alias: Rejects if alias is incorrect
+/// - If event is new `canonical_alias`: Rejects if alias is incorrect
 pub async fn send_state_event_for_empty_key_route(
 	body: Ruma<send_state_event::v3::Request>,
 ) -> Result<RumaResponse<send_state_event::v3::Response>> {

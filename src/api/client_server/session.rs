@@ -192,7 +192,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 
 	// send client well-known if specified so the client knows to reconfigure itself
 	let client_discovery_info = DiscoveryInfo::new(HomeserverInfo::new(
-		services().globals.well_known_client().to_owned().unwrap_or_else(|| "".to_owned()),
+		services().globals.well_known_client().to_owned().unwrap_or_default(),
 	));
 
 	info!("{} logged in", user_id);

@@ -131,7 +131,7 @@ impl std::str::FromStr for WildCardedDomain {
 		Ok(if s.starts_with("*.") {
 			WildCardedDomain::WildCarded(s[1..].to_owned())
 		} else if s == "*" {
-			WildCardedDomain::WildCarded("".to_owned())
+			WildCardedDomain::WildCarded(String::new())
 		} else {
 			WildCardedDomain::Exact(s.to_owned())
 		})

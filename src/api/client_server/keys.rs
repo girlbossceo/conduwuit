@@ -363,11 +363,11 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 	}
 
 	Ok(get_keys::v3::Response {
+		failures,
+		device_keys,
 		master_keys,
 		self_signing_keys,
 		user_signing_keys,
-		device_keys,
-		failures,
 	})
 }
 

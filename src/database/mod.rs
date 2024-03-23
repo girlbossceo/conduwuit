@@ -120,8 +120,8 @@ pub struct KeyValueDatabase {
 	pub(super) roomsynctoken_shortstatehash: Arc<dyn KvTree>,
 	/// Remember the state hash at events in the past.
 	pub(super) shorteventid_shortstatehash: Arc<dyn KvTree>,
-	/// StateKey = EventType + StateKey, ShortStateKey = Count
-	pub(super) statekey_shortstatekey: Arc<dyn KvTree>,
+	pub(super) statekey_shortstatekey: Arc<dyn KvTree>, /* StateKey = EventType + StateKey, ShortStateKey =
+	                                                     * Count */
 	pub(super) shortstatekey_statekey: Arc<dyn KvTree>,
 
 	pub(super) roomid_shortroomid: Arc<dyn KvTree>,

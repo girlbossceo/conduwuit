@@ -68,7 +68,7 @@ use crate::{service::rooms::timeline::PduCount, services, Error, PduEvent, Resul
 ///   at the point of the invite
 ///
 /// For left rooms:
-/// - If the user left after `since`: prev_batch token, empty state (TODO:
+/// - If the user left after `since`: `prev_batch` token, empty state (TODO:
 ///   subset of the state at the point of the leave)
 ///
 /// - Sync is handled in an async task, multiple requests from the same device

@@ -76,6 +76,7 @@ pub async fn get_register_available_route(
 /// - Creates a new account and populates it with default account data
 /// - If `inhibit_login` is false: Creates a device and returns device id and
 ///   access_token
+#[allow(clippy::doc_markdown)]
 pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<register::v3::Response> {
 	if !services().globals.allow_registration() && !body.from_appservice {
 		info!(
@@ -390,7 +391,7 @@ pub async fn change_password_route(body: Ruma<change_password::v3::Request>) -> 
 
 /// # `GET _matrix/client/r0/account/whoami`
 ///
-/// Get user_id of the sender user.
+/// Get `user_id` of the sender user.
 ///
 /// Note: Also works for Application Services
 pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3::Response> {

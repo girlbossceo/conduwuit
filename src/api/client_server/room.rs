@@ -34,7 +34,7 @@ use crate::{api::client_server::invite_helper, service::pdu::PduBuilder, service
 /// Creates a new room.
 ///
 /// - Room ID is randomly generated
-/// - Create alias if room_alias_name is set
+/// - Create alias if `room_alias_name` is set
 /// - Send create event
 /// - Join sender user
 /// - Send power levels event
@@ -273,7 +273,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				event_type: TimelineEventType::RoomCreate,
 				content: to_raw_value(&content).expect("event is valid, we just created it"),
 				unsigned: None,
-				state_key: Some("".to_owned()),
+				state_key: Some(String::new()),
 				redacts: None,
 			},
 			sender_user,
@@ -350,7 +350,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				event_type: TimelineEventType::RoomPowerLevels,
 				content: to_raw_value(&power_levels_content).expect("to_raw_value always works on serde_json::Value"),
 				unsigned: None,
-				state_key: Some("".to_owned()),
+				state_key: Some(String::new()),
 				redacts: None,
 			},
 			sender_user,
@@ -373,7 +373,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 					})
 					.expect("We checked that alias earlier, it must be fine"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				sender_user,
@@ -399,7 +399,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				}))
 				.expect("event is valid, we just created it"),
 				unsigned: None,
-				state_key: Some("".to_owned()),
+				state_key: Some(String::new()),
 				redacts: None,
 			},
 			sender_user,
@@ -418,7 +418,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				content: to_raw_value(&RoomHistoryVisibilityEventContent::new(HistoryVisibility::Shared))
 					.expect("event is valid, we just created it"),
 				unsigned: None,
-				state_key: Some("".to_owned()),
+				state_key: Some(String::new()),
 				redacts: None,
 			},
 			sender_user,
@@ -440,7 +440,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				}))
 				.expect("event is valid, we just created it"),
 				unsigned: None,
-				state_key: Some("".to_owned()),
+				state_key: Some(String::new()),
 				redacts: None,
 			},
 			sender_user,
@@ -457,7 +457,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 		})?;
 
 		// Implicit state key defaults to ""
-		pdu_builder.state_key.get_or_insert_with(|| "".to_owned());
+		pdu_builder.state_key.get_or_insert_with(String::new);
 
 		// Silently skip encryption events if they are not allowed
 		if pdu_builder.event_type == TimelineEventType::RoomEncryption && !services().globals.allow_encryption() {
@@ -478,7 +478,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 					content: to_raw_value(&RoomNameEventContent::new(name.clone()))
 						.expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				sender_user,
@@ -500,7 +500,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 					})
 					.expect("event is valid, we just created it"),
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				sender_user,
@@ -564,7 +564,7 @@ pub async fn get_room_event_route(body: Ruma<get_room_event::v3::Request>) -> Re
 /// Lists all aliases of the room.
 ///
 /// - Only users joined to the room are allowed to call this TODO: Allow any
-///   user to call it if history_visibility is world readable
+///   user to call it if `history_visibility` is world readable
 pub async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<aliases::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -623,7 +623,7 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 				})
 				.expect("event is valid, we just created it"),
 				unsigned: None,
-				state_key: Some("".to_owned()),
+				state_key: Some(String::new()),
 				redacts: None,
 			},
 			sender_user,
@@ -720,7 +720,7 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 				event_type: TimelineEventType::RoomCreate,
 				content: to_raw_value(&create_event_content).expect("event is valid, we just created it"),
 				unsigned: None,
-				state_key: Some("".to_owned()),
+				state_key: Some(String::new()),
 				redacts: None,
 			},
 			sender_user,
@@ -785,7 +785,7 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 					event_type: event_type.to_string().into(),
 					content: event_content,
 					unsigned: None,
-					state_key: Some("".to_owned()),
+					state_key: Some(String::new()),
 					redacts: None,
 				},
 				sender_user,
@@ -827,7 +827,7 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 				event_type: TimelineEventType::RoomPowerLevels,
 				content: to_raw_value(&power_levels_event_content).expect("event is valid, we just created it"),
 				unsigned: None,
-				state_key: Some("".to_owned()),
+				state_key: Some(String::new()),
 				redacts: None,
 			},
 			sender_user,

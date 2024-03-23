@@ -91,8 +91,7 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 		}
 	}
 
-	let start_token =
-		events_before.last().map(|(count, _)| count.stringify()).unwrap_or_else(|| base_token.stringify());
+	let start_token = events_before.last().map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
 
 	let events_before: Vec<_> = events_before.into_iter().map(|(_, pdu)| pdu.to_room_event()).collect();
 
@@ -134,7 +133,7 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 
 	let state_ids = services().rooms.state_accessor.state_full_ids(shortstatehash).await?;
 
-	let end_token = events_after.last().map(|(count, _)| count.stringify()).unwrap_or_else(|| base_token.stringify());
+	let end_token = events_after.last().map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
 
 	let events_after: Vec<_> = events_after.into_iter().map(|(_, pdu)| pdu.to_room_event()).collect();
 

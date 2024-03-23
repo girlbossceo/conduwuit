@@ -9,6 +9,7 @@ use clap::Parser;
 /// Set the environment variable `CONDUIT_VERSION_EXTRA` to any UTF-8 string to
 /// include it in parenthesis after the SemVer version. A common value are git
 /// commit hashes.
+#[allow(clippy::doc_markdown)]
 fn version() -> String {
 	let cargo_pkg_version = env!("CARGO_PKG_VERSION");
 
@@ -28,4 +29,5 @@ pub struct Args {
 }
 
 /// Parse commandline arguments into structured data
+#[must_use]
 pub fn parse() -> Args { Args::parse() }
