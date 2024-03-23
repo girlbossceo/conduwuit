@@ -22,9 +22,10 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 	let search_criteria = body.search_categories.room_events.as_ref().unwrap();
 	let filter = &search_criteria.filter;
 
-	let room_ids = filter.rooms.clone().unwrap_or_else(|| {
-		services().rooms.state_cache.rooms_joined(sender_user).filter_map(std::result::Result::ok).collect()
-	});
+	let room_ids = filter
+		.rooms
+		.clone()
+		.unwrap_or_else(|| services().rooms.state_cache.rooms_joined(sender_user).filter_map(Result::ok).collect());
 
 	// Use limit or else 10, with maximum 100
 	let limit = filter.limit.map_or(10, u64::from).min(100) as usize;
@@ -92,7 +93,7 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 				result: Some(result),
 			})
 		})
-		.filter_map(std::result::Result::ok)
+		.filter_map(Result::ok)
 		.skip(skip)
 		.take(limit)
 		.collect();

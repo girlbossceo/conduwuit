@@ -95,7 +95,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 		let mut joined_servers = HashSet::new();
 		let mut real_users = HashSet::new();
 
-		for joined in self.room_members(room_id).filter_map(std::result::Result::ok) {
+		for joined in self.room_members(room_id).filter_map(Result::ok) {
 			joined_servers.insert(joined.server_name().to_owned());
 			if joined.server_name() == services().globals.server_name()
 				&& !services().users.is_deactivated(&joined).unwrap_or(true)
@@ -105,7 +105,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 			joinedcount += 1;
 		}
 
-		for _invited in self.room_members_invited(room_id).filter_map(std::result::Result::ok) {
+		for _invited in self.room_members_invited(room_id).filter_map(Result::ok) {
 			invitedcount += 1;
 		}
 
@@ -115,7 +115,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 
 		self.our_real_users_cache.write().unwrap().insert(room_id.to_owned(), Arc::new(real_users));
 
-		for old_joined_server in self.room_servers(room_id).filter_map(std::result::Result::ok) {
+		for old_joined_server in self.room_servers(room_id).filter_map(Result::ok) {
 			if !joined_servers.remove(&old_joined_server) {
 				// Server not in room anymore
 				let mut roomserver_id = room_id.as_bytes().to_vec();

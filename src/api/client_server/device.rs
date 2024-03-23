@@ -16,7 +16,7 @@ pub async fn get_devices_route(body: Ruma<get_devices::v3::Request>) -> Result<g
 	let devices: Vec<device::Device> = services()
 		.users
 		.all_devices_metadata(sender_user)
-		.filter_map(std::result::Result::ok) // Filter out buggy devices
+		.filter_map(Result::ok) // Filter out buggy devices
 		.collect();
 
 	Ok(get_devices::v3::Response {

@@ -562,7 +562,7 @@ impl service::users::Data for KeyValueDatabase {
 
 	fn mark_device_key_update(&self, user_id: &UserId) -> Result<()> {
 		let count = services().globals.next_count()?.to_be_bytes();
-		for room_id in services().rooms.state_cache.rooms_joined(user_id).filter_map(std::result::Result::ok) {
+		for room_id in services().rooms.state_cache.rooms_joined(user_id).filter_map(Result::ok) {
 			// Don't send key updates to unencrypted rooms
 			if services().rooms.state_accessor.room_state_get(&room_id, &StateEventType::RoomEncryption, "")?.is_none()
 			{
@@ -719,7 +719,7 @@ impl service::users::Data for KeyValueDatabase {
 						.map_err(|_| Error::bad_database("ToDeviceId has invalid count bytes."))?,
 				))
 			})
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.take_while(|&(_, count)| count <= until)
 		{
 			self.todeviceid_events.remove(&key)?;

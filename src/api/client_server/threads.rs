@@ -20,7 +20,7 @@ pub async fn get_threads_route(body: Ruma<get_threads::v1::Request>) -> Result<g
 		.threads
 		.threads_until(sender_user, &body.room_id, from, &body.include)?
 		.take(limit)
-		.filter_map(std::result::Result::ok)
+		.filter_map(Result::ok)
 		.filter(|(_, pdu)| {
 			services()
 				.rooms

@@ -90,7 +90,7 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 		let mut servers = response.servers;
 
 		// find active servers in room state cache to suggest
-		for extra_servers in services().rooms.state_cache.room_servers(&room_id).filter_map(std::result::Result::ok) {
+		for extra_servers in services().rooms.state_cache.room_servers(&room_id).filter_map(Result::ok) {
 			servers.push(extra_servers);
 		}
 
@@ -152,7 +152,7 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 	let mut servers: Vec<OwnedServerName> = Vec::new();
 
 	// find active servers in room state cache to suggest
-	for extra_servers in services().rooms.state_cache.room_servers(&room_id).filter_map(std::result::Result::ok) {
+	for extra_servers in services().rooms.state_cache.room_servers(&room_id).filter_map(Result::ok) {
 		servers.push(extra_servers);
 	}
 

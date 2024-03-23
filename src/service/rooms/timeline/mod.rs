@@ -37,6 +37,7 @@ use super::state_compressor::CompressedStateEvent;
 use crate::{
 	api::server_server,
 	service::{
+		self,
 		appservice::NamespaceRegex,
 		pdu::{EventHash, PduBuilder},
 	},
@@ -476,7 +477,7 @@ impl Service {
 					// the administrator can execute commands as conduit
 					let from_conduit = pdu.sender == server_user && services().globals.emergency_password().is_none();
 
-					if let Some(admin_room) = services().admin.get_admin_room()? {
+					if let Some(admin_room) = service::admin::Service::get_admin_room()? {
 						if to_conduit && !from_conduit && admin_room == pdu.room_id {
 							services().admin.process_message(body, pdu.event_id.clone());
 						}
@@ -540,7 +541,7 @@ impl Service {
 					.rooms
 					.alias
 					.local_aliases_for_room(&pdu.room_id)
-					.filter_map(std::result::Result::ok)
+					.filter_map(Result::ok)
 					.any(|room_alias| aliases.is_match(room_alias.as_str()))
 			};
 
@@ -721,7 +722,7 @@ impl Service {
 	) -> Result<Arc<EventId>> {
 		let (pdu, pdu_json) = self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
 
-		if let Some(admin_room) = services().admin.get_admin_room()? {
+		if let Some(admin_room) = service::admin::Service::get_admin_room()? {
 			if admin_room == room_id {
 				match pdu.event_type() {
 					TimelineEventType::RoomEncryption => {
@@ -756,7 +757,7 @@ impl Service {
 								.rooms
 								.state_cache
 								.room_members(room_id)
-								.filter_map(std::result::Result::ok)
+								.filter_map(Result::ok)
 								.filter(|m| m.server_name() == server_name)
 								.filter(|m| m != target)
 								.count();
@@ -782,7 +783,7 @@ impl Service {
 								.rooms
 								.state_cache
 								.room_members(room_id)
-								.filter_map(std::result::Result::ok)
+								.filter_map(Result::ok)
 								.filter(|m| m.server_name() == server_name)
 								.filter(|m| m != target)
 								.count();
@@ -821,7 +822,7 @@ impl Service {
 		services().rooms.state.set_room_state(room_id, statehashid, state_lock)?;
 
 		let mut servers: HashSet<OwnedServerName> =
-			services().rooms.state_cache.room_servers(room_id).filter_map(std::result::Result::ok).collect();
+			services().rooms.state_cache.room_servers(room_id).filter_map(Result::ok).collect();
 
 		// In case we are kicking or banning a user, we need to inform their server of
 		// the change

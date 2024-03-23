@@ -69,7 +69,7 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 		.timeline
 		.pdus_until(sender_user, &room_id, base_token)?
 		.take(limit / 2)
-		.filter_map(std::result::Result::ok) // Remove buggy events
+		.filter_map(Result::ok) // Remove buggy events
 		.filter(|(_, pdu)| {
 			services()
 				.rooms
@@ -101,7 +101,7 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 		.timeline
 		.pdus_after(sender_user, &room_id, base_token)?
 		.take(limit / 2)
-		.filter_map(std::result::Result::ok) // Remove buggy events
+		.filter_map(Result::ok) // Remove buggy events
 		.filter(|(_, pdu)| {
 			services()
 				.rooms

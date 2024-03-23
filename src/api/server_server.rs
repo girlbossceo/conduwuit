@@ -321,7 +321,7 @@ where
 							e.url()
 						),
 						false => {
-							info!("Could not send request to {} at {}: {}", destination, actual_destination_str, e)
+							info!("Could not send request to {} at {}: {}", destination, actual_destination_str, e);
 						},
 					},
 				},
@@ -1016,7 +1016,7 @@ pub async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result
 		.take(limit.try_into().unwrap());
 
 	let events = all_events
-		.filter_map(std::result::Result::ok)
+		.filter_map(Result::ok)
 		.filter(|(_, e)| {
 			matches!(
 				services().rooms.state_accessor.server_can_see_event(sender_servername, &e.room_id, &e.event_id,),
@@ -1412,7 +1412,7 @@ async fn create_join_event(
 		.rooms
 		.state_cache
 		.room_servers(room_id)
-		.filter_map(std::result::Result::ok)
+		.filter_map(Result::ok)
 		.filter(|server| &**server != services().globals.server_name());
 
 	services().sending.send_pdu(servers, &pdu_id)?;
@@ -1614,7 +1614,7 @@ pub async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<g
 		devices: services()
 			.users
 			.all_devices_metadata(&body.user_id)
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.filter_map(|metadata| {
 				let device_id_string = metadata.device_id.as_str().to_owned();
 				let device_display_name = match services().globals.allow_device_name_federation() {

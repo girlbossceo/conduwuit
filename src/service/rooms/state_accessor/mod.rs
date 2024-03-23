@@ -111,7 +111,7 @@ impl Service {
 			.rooms
 			.state_cache
 			.room_members(room_id)
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.filter(|member| member.server_name() == origin);
 
 		let visibility = match history_visibility {

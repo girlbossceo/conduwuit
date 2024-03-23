@@ -44,7 +44,7 @@ pub async fn report_event_route(body: Ruma<report_content::v3::Request>) -> Resu
 		.rooms
 		.state_cache
 		.room_members(&pdu.room_id)
-		.filter_map(std::result::Result::ok)
+		.filter_map(Result::ok)
 		.any(|user_id| user_id == *sender_user)
 	{
 		return Err(Error::BadRequest(

@@ -404,7 +404,7 @@ async fn run_server() -> io::Result<()> {
 	#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 	#[cfg(not(feature = "zstd_compression"))]
 	{
-		app = routes().layer(middlewares).into_make_service()
+		app = routes().layer(middlewares).into_make_service();
 	};
 
 	let handle = ServerHandle::new();

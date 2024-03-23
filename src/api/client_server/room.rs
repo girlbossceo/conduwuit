@@ -576,12 +576,7 @@ pub async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<
 	}
 
 	Ok(aliases::v3::Response {
-		aliases: services()
-			.rooms
-			.alias
-			.local_aliases_for_room(&body.room_id)
-			.filter_map(std::result::Result::ok)
-			.collect(),
+		aliases: services().rooms.alias.local_aliases_for_room(&body.room_id).filter_map(Result::ok).collect(),
 	})
 }
 
@@ -801,7 +796,7 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 	}
 
 	// Moves any local aliases to the new room
-	for alias in services().rooms.alias.local_aliases_for_room(&body.room_id).filter_map(std::result::Result::ok) {
+	for alias in services().rooms.alias.local_aliases_for_room(&body.room_id).filter_map(Result::ok) {
 		services().rooms.alias.set_alias(&alias, &replacement_room)?;
 	}
 

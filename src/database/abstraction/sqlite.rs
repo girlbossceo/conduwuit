@@ -161,10 +161,7 @@ impl SqliteTable {
 		//let name = self.name.clone();
 
 		let iterator = Box::new(
-			statement
-				.query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
-				.unwrap()
-				.map(std::result::Result::unwrap),
+			statement.query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1)))).unwrap().map(Result::unwrap),
 		);
 
 		Box::new(PreparedStatementIterator {
@@ -251,7 +248,7 @@ impl KvTree for SqliteTable {
 				statement
 					.query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
 					.unwrap()
-					.map(std::result::Result::unwrap),
+					.map(Result::unwrap),
 			);
 			Box::new(PreparedStatementIterator {
 				iterator,
@@ -273,7 +270,7 @@ impl KvTree for SqliteTable {
 				statement
 					.query_map([from], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
 					.unwrap()
-					.map(std::result::Result::unwrap),
+					.map(Result::unwrap),
 			);
 
 			Box::new(PreparedStatementIterator {

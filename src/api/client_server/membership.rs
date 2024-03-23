@@ -399,12 +399,7 @@ pub async fn joined_rooms_route(body: Ruma<joined_rooms::v3::Request>) -> Result
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	Ok(joined_rooms::v3::Response {
-		joined_rooms: services()
-			.rooms
-			.state_cache
-			.rooms_joined(sender_user)
-			.filter_map(std::result::Result::ok)
-			.collect(),
+		joined_rooms: services().rooms.state_cache.rooms_joined(sender_user).filter_map(Result::ok).collect(),
 	})
 }
 
@@ -456,7 +451,7 @@ pub async fn joined_members_route(body: Ruma<joined_members::v3::Request>) -> Re
 	}
 
 	let mut joined = BTreeMap::new();
-	for user_id in services().rooms.state_cache.room_members(&body.room_id).filter_map(std::result::Result::ok) {
+	for user_id in services().rooms.state_cache.room_members(&body.room_id).filter_map(Result::ok) {
 		let display_name = services().users.displayname(&user_id)?;
 		let avatar_url = services().users.avatar_url(&user_id)?;
 
@@ -847,7 +842,7 @@ pub(crate) async fn join_room_by_id_helper(
 							.rooms
 							.state_cache
 							.room_members(restriction_room_id)
-							.filter_map(std::result::Result::ok)
+							.filter_map(Result::ok)
 							.find(|uid| uid.server_name() == services().globals.server_name())
 					});
 				Some(authorized_user)
@@ -1208,7 +1203,7 @@ pub(crate) async fn invite_helper(
 			.rooms
 			.state_cache
 			.room_servers(room_id)
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.filter(|server| &**server != services().globals.server_name());
 
 		services().sending.send_pdu(servers, &pdu_id)?;

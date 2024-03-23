@@ -45,17 +45,20 @@ impl Service {
 	async fn typings_maintain(&self, room_id: &RoomId) -> Result<()> {
 		let current_timestamp = utils::millis_since_unix_epoch();
 		let mut removable = Vec::new();
+
 		{
 			let typing = self.typing.read().await;
 			let Some(room) = typing.get(room_id) else {
 				return Ok(());
 			};
+
 			for (user, timeout) in room {
 				if *timeout < current_timestamp {
 					removable.push(user.clone());
 				}
 			}
-			drop(typing)
+
+			drop(typing);
 		};
 
 		if !removable.is_empty() {

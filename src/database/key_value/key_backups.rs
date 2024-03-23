@@ -222,7 +222,7 @@ impl service::key_backups::Data for KeyValueDatabase {
 
 				Ok::<_, Error>((session_id, key_data))
 			})
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.collect())
 	}
 
