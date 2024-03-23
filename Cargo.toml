@@ -64,7 +64,7 @@ cyborgtime = "2.1.1"
 
 # all the web/HTTP dependencies
 # Used for the http request / response body type for Ruma endpoints used with reqwest
-bytes = "1.5.0"
+bytes = "1.6.0"
 http = "0.2.12"
 
 # standard date and time tools
