@@ -121,7 +121,13 @@ fn db_options(
 	// Unclean shutdowns of a Matrix homeserver are likely to be fine when
 	// recovered in this manner as it's likely any lost information will be
 	// restored via federation.
-	db_opts.set_wal_recovery_mode(rust_rocksdb::DBRecoveryMode::TolerateCorruptedTailRecords);
+	db_opts.set_wal_recovery_mode(match config.rocksdb_recovery_mode {
+		0 => rust_rocksdb::DBRecoveryMode::AbsoluteConsistency,
+		1 => rust_rocksdb::DBRecoveryMode::TolerateCorruptedTailRecords,
+		2 => rust_rocksdb::DBRecoveryMode::PointInTime,
+		3 => rust_rocksdb::DBRecoveryMode::SkipAnyCorruptedRecord,
+		4_u8..=u8::MAX => unimplemented!(),
+	});
 
 	db_opts.set_block_based_table_factory(&block_based_options);
 	db_opts.set_env(env);
