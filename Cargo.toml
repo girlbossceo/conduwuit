@@ -2,7 +2,10 @@
 name = "conduit"
 description = "a cool fork of Conduit, a Matrix homeserver written in Rust"
 license = "Apache-2.0"
-authors = ["strawberry <strawberry@puppygock.gay>", "timokoesters <timo@koesters.xyz>"]
+authors = [
+    "strawberry <strawberry@puppygock.gay>",
+    "timokoesters <timo@koesters.xyz>",
+]
 homepage = "https://puppygock.gay/conduwuit"
 repository = "https://gitlab.com/girlbossceo/conduwuit"
 readme = "README.md"
@@ -90,30 +93,16 @@ features = ["util"]
 
 [dependencies.tower-http]
 version = "0.4.4"
-features = [
-  "add-extension",
-  "cors",
-  "sensitive-headers",
-  "trace",
-  "util",
-]
+features = ["add-extension", "cors", "sensitive-headers", "trace", "util"]
 
 [dependencies.hyper]
 version = "0.14"
-features = [
-  "server",
-  "http1",
-  "http2",
-]
+features = ["server", "http1", "http2"]
 
 [dependencies.reqwest]
 version = "0.11.27"
 default-features = false
-features = [
-  "rustls-tls-native-roots",
-  "socks",
-  "trust-dns",
-]
+features = ["rustls-tls-native-roots", "socks", "trust-dns"]
 
 # all the serde stuff
 # Used for pdu definition
@@ -132,22 +121,14 @@ features = ["raw_value"]
 # Used for password hashing
 [dependencies.argon2]
 version = "0.5.3"
-features = [
-  "alloc",
-  "rand",
-]
+features = ["alloc", "rand"]
 default-features = false
 
 # Used to generate thumbnails for images
 [dependencies.image]
 version = "0.25.0"
 default-features = false
-features = [
-  "jpeg",
-  "png",
-  "gif",
-  "webp",
-]
+features = ["jpeg", "png", "gif", "webp"]
 
 # logging
 [dependencies.tracing]
@@ -214,14 +195,7 @@ optional = true
 [dependencies.clap]
 version = "4.5.3"
 default-features = false
-features = [
-  "std",
-  "derive",
-  "help",
-  "usage",
-  "error-context",
-  "string"
-]
+features = ["std", "derive", "help", "usage", "error-context", "string"]
 
 [dependencies.futures-util]
 version = "0.3.30"
@@ -230,10 +204,7 @@ default-features = false
 # Used for reading the configuration from conduit.toml & environment variables
 [dependencies.figment]
 version = "0.10.15"
-features = [
-  "env",
-  "toml",
-]
+features = ["env", "toml"]
 
 # Used for matrix spec type definitions and helpers
 #ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
@@ -243,22 +214,22 @@ features = [
 git = "https://github.com/girlbossceo/ruma"
 branch = "conduwuit-changes"
 features = [
-  "compat",
-  "rand",
-  "appservice-api-c",
-  "client-api",
-  "federation-api",
-  "push-gateway-api-c",
-  "state-res",
-  "unstable-msc2448",
-  "unstable-msc3575",
-  "unstable-exhaustive-types",
-  "ring-compat",
-  "unstable-unspecified",
-  "unstable-msc2870",
-  "unstable-msc3061",
-  "unstable-msc2867",
-  "unstable-extensible-events",
+    "compat",
+    "rand",
+    "appservice-api-c",
+    "client-api",
+    "federation-api",
+    "push-gateway-api-c",
+    "state-res",
+    "unstable-msc2448",
+    "unstable-msc3575",
+    "unstable-exhaustive-types",
+    "ring-compat",
+    "unstable-unspecified",
+    "unstable-msc2870",
+    "unstable-msc3061",
+    "unstable-msc2867",
+    "unstable-extensible-events",
 ]
 
 [dependencies.rust-rocksdb]
@@ -293,19 +264,15 @@ optional = true
 
 [dependencies.tokio]
 version = "1.36.0"
-features = [
-  "fs",
-  "macros",
-  "sync",
-  "signal",
-]
+features = ["fs", "macros", "sync", "signal"]
 
 # *nix-specific dependencies
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.28.0", features = ["resource"] }
 sd-notify = { version = "0.4.1", optional = true } # systemd is only available/relevant on *nix platforms
-hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d149644600d326559af0d2b235c945b05c04", features = ["server"] } # unix socket support
-
+hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d149644600d326559af0d2b235c945b05c04", features = [
+    "server",
+] } # unix socket support
 
 
 [features]
@@ -327,8 +294,13 @@ sha256_media = ["sha2"]
 io_uring = ["rust-rocksdb/io-uring"]
 axum_dual_protocol = ["axum-server-dual-protocol"]
 
-perf_measurements = ["opentelemetry", "tracing-flame", "tracing-opentelemetry", "opentelemetry_sdk", "opentelemetry-jaeger"]
-
+perf_measurements = [
+    "opentelemetry",
+    "tracing-flame",
+    "tracing-opentelemetry",
+    "opentelemetry_sdk",
+    "opentelemetry-jaeger",
+]
 
 
 [[bin]]
@@ -351,17 +323,30 @@ a cool fork of Conduit, a Matrix homeserver written in Rust"""
 section = "net"
 priority = "optional"
 assets = [
-  ["debian/README.md", "usr/share/doc/matrix-conduit/README.Debian", "644"],
-  ["README.md", "usr/share/doc/matrix-conduit/", "644"],
-  ["target/release/conduit", "usr/sbin/matrix-conduit", "755"],
-  ["conduwuit-example.toml", "etc/matrix-conduit/conduit.toml", "640"],
+    [
+        "debian/README.md",
+        "usr/share/doc/matrix-conduit/README.Debian",
+        "644",
+    ],
+    [
+        "README.md",
+        "usr/share/doc/matrix-conduit/",
+        "644",
+    ],
+    [
+        "target/release/conduit",
+        "usr/sbin/matrix-conduit",
+        "755",
+    ],
+    [
+        "conduwuit-example.toml",
+        "etc/matrix-conduit/conduit.toml",
+        "640",
+    ],
 ]
-conf-files = [
-  "/etc/matrix-conduit/conduit.toml"
-]
+conf-files = ["/etc/matrix-conduit/conduit.toml"]
 maintainer-scripts = "debian/"
 systemd-units = { unit-name = "matrix-conduit" }
-
 
 
 [profile.dev]
@@ -406,7 +391,6 @@ opt-level = 3
 codegen-units = 1
 
 
-
 [lints]
 workspace = true
 
@@ -435,10 +419,10 @@ unit_bindings = "warn"
 unused_braces = "allow"
 
 [workspace.lints.clippy]
-# pedantic = "warn"
+pedantic = "warn"
 
 suspicious = "warn" # assume deny in practice
-perf = "warn" # assume deny in practice
+perf = "warn"       # assume deny in practice
 
 redundant_clone = "warn"
 cloned_instead_of_copied = "warn"
@@ -511,6 +495,7 @@ cast_possible_wrap = "warn"
 # cast_possible_truncation = "warn"
 redundant_closure_for_method_calls = "warn"
 large_futures = "warn"
+semicolon_if_nothing_returned = "warn"
 
 # not in rust 1.75.0 (breaks CI)
 # infinite_loop = "warn"
