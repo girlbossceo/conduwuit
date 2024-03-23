@@ -496,6 +496,7 @@ cast_possible_wrap = "warn"
 redundant_closure_for_method_calls = "warn"
 large_futures = "warn"
 semicolon_if_nothing_returned = "warn"
+match_bool = "warn"
 
 # not in rust 1.75.0 (breaks CI)
 # infinite_loop = "warn"

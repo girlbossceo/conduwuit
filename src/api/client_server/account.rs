@@ -16,7 +16,8 @@ use tracing::{error, info, warn};
 
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{
-	api::client_server::{self, join_room_by_id_helper}, service, services, utils, Error, Result, Ruma
+	api::client_server::{self, join_room_by_id_helper},
+	service, services, utils, Error, Result, Ruma,
 };
 
 const RANDOM_USER_ID_LENGTH: usize = 10;
