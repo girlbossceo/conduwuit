@@ -52,9 +52,9 @@ checksum = "8901269c6307e8d93993578286ac0edf7f195079ffff5ebdeea6a59ffb7e36bc"
 
 [[package]]
 name = "arc-swap"
-version = "1.7.0"
+version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b3d0060af21e8d11a926981cc00c6c1541aa91dd64b9f881985c3da1094425f"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
 name = "argon2"
@@ -1177,9 +1177,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.2.5"
+version = "2.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b0b929d511467233429c45a44ac1dcaa21ba0f5ba11e4879e6ed28ddb4f9df4"
+checksum = "168fb715dda47215e360912c096649d23d58bf392ac62f73919e831745e40f26"
 dependencies = [
  "equivalent",
  "hashbrown",
@@ -1356,7 +1356,7 @@ dependencies = [
 [[package]]
 name = "libsqlite3-sys"
 version = "0.28.0"
-source = "git+https://github.com/rusqlite/rusqlite?branch=master#20487e8c27c483de1a83c33176e47dd998e2a7d1"
+source = "git+https://github.com/rusqlite/rusqlite?branch=master#e00b626e2b1c67347d789fb7f600281705c89381"
 dependencies = [
  "cc",
  "pkg-config",
@@ -2153,7 +2153,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.9.4"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "assign",
  "js_int",
@@ -2172,7 +2172,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2184,7 +2184,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.17.4"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "as_variant",
  "assign",
@@ -2203,7 +2203,7 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.12.1"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "as_variant",
  "base64 0.21.7",
@@ -2233,7 +2233,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.27.11"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "as_variant",
  "indexmap",
@@ -2255,7 +2255,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2267,7 +2267,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.9.3"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "js_int",
  "thiserror",
@@ -2276,7 +2276,7 @@ dependencies = [
 [[package]]
 name = "ruma-identity-service-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2286,7 +2286,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.12.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "once_cell",
  "proc-macro-crate",
@@ -2301,7 +2301,7 @@ dependencies = [
 [[package]]
 name = "ruma-push-gateway-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2313,7 +2313,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.14.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "base64 0.21.7",
  "ed25519-dalek",
@@ -2329,7 +2329,7 @@ dependencies = [
 [[package]]
 name = "ruma-state-res"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+source = "git+https://github.com/girlbossceo/ruma?rev=c988b5ff158ede9c10aeffc76ad5e31604f19ddb#c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 dependencies = [
  "itertools 0.11.0",
  "js_int",
@@ -2344,7 +2344,7 @@ dependencies = [
 [[package]]
 name = "rusqlite"
 version = "0.31.0"
-source = "git+https://github.com/rusqlite/rusqlite?branch=master#20487e8c27c483de1a83c33176e47dd998e2a7d1"
+source = "git+https://github.com/rusqlite/rusqlite?branch=master#e00b626e2b1c67347d789fb7f600281705c89381"
 dependencies = [
  "bitflags 2.5.0",
  "fallible-iterator",

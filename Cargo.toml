@@ -212,7 +212,8 @@ features = ["env", "toml"]
 #ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 [dependencies.ruma]
 git = "https://github.com/girlbossceo/ruma"
-branch = "conduwuit-changes"
+rev = "c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
+#branch = "conduwuit-changes"
 features = [
     "compat",
     "rand",
