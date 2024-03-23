@@ -482,7 +482,7 @@ impl Service {
 		let conduit_user = UserId::parse(format!("@conduit:{}", services().globals.server_name()))
 			.expect("@conduit:server_name is valid");
 
-		if let Ok(Some(conduit_room)) = services().admin.get_admin_room() {
+		if let Ok(Some(conduit_room)) = Self::get_admin_room() {
 			loop {
 				tokio::select! {
 					Some(event) = receiver.recv() => {
@@ -1131,7 +1131,7 @@ impl Service {
 									.try_into()
 									.expect("#admins:server_name is a valid alias name");
 
-							if let Some(admin_room_id) = services().admin.get_admin_room()? {
+							if let Some(admin_room_id) = Self::get_admin_room()? {
 								if room.to_string().eq(&admin_room_id) || room.to_string().eq(&admin_room_alias) {
 									return Ok(RoomMessageEventContent::text_plain(
 										"Not allowed to ban the admin room.",
@@ -1304,7 +1304,7 @@ impl Service {
 									match <&RoomId>::try_from(room_id) {
 										Ok(owned_room_id) => {
 											// silently ignore deleting admin room
-											if let Some(admin_room_id) = services().admin.get_admin_room()? {
+											if let Some(admin_room_id) = Self::get_admin_room()? {
 												if owned_room_id.eq(&admin_room_id) {
 													info!("User specified admin room in bulk ban list, ignoring");
 													continue;
@@ -1550,7 +1550,7 @@ impl Service {
 						.rooms
 						.metadata
 						.iter_ids()
-						.filter_map(std::result::Result::ok)
+						.filter_map(Result::ok)
 						.map(|id: OwnedRoomId| Self::get_room_info(&id))
 						.collect::<Vec<_>>();
 					rooms.sort_by_key(|r| r.1);
@@ -1751,7 +1751,7 @@ impl Service {
 							.rooms
 							.directory
 							.public_rooms()
-							.filter_map(std::result::Result::ok)
+							.filter_map(Result::ok)
 							.map(|id: OwnedRoomId| Self::get_room_info(&id))
 							.collect::<Vec<_>>();
 						rooms.sort_by_key(|r| r.1);
@@ -2152,7 +2152,7 @@ impl Service {
 				},
 				DebugCommand::ForceDeviceListUpdates => {
 					// Force E2EE device list updates for all users
-					for user_id in services().users.iter().filter_map(std::result::Result::ok) {
+					for user_id in services().users.iter().filter_map(Result::ok) {
 						services().users.mark_device_key_update(&user_id)?;
 					}
 					RoomMessageEventContent::text_plain("Marked all devices for all users as having new keys to update")
@@ -2486,7 +2486,7 @@ impl Service {
 	///
 	/// Errors are propagated from the database, and will have None if there is
 	/// no admin room
-	pub(crate) fn get_admin_room(&self) -> Result<Option<OwnedRoomId>> {
+	pub(crate) fn get_admin_room() -> Result<Option<OwnedRoomId>> {
 		let admin_room_alias: Box<RoomAliasId> = format!("#admins:{}", services().globals.server_name())
 			.try_into()
 			.expect("#admins:server_name is a valid alias name");
@@ -2498,7 +2498,7 @@ impl Service {
 	///
 	/// In conduit, this is equivalent to granting admin privileges.
 	pub(crate) async fn make_user_admin(&self, user_id: &UserId, displayname: String) -> Result<()> {
-		if let Some(room_id) = services().admin.get_admin_room()? {
+		if let Some(room_id) = Self::get_admin_room()? {
 			let mutex_state =
 				Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
 			let state_lock = mutex_state.lock().await;

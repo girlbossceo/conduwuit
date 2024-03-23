@@ -431,12 +431,9 @@ impl KeyValueDatabase {
 				for (roomserverid, _) in db.roomserverids.iter() {
 					let mut parts = roomserverid.split(|&b| b == 0xFF);
 					let room_id = parts.next().expect("split always returns one element");
-					let servername = match parts.next() {
-						Some(s) => s,
-						None => {
-							error!("Migration: Invalid roomserverid in db.");
-							continue;
-						},
+					let Some(servername) = parts.next() else {
+						error!("Migration: Invalid roomserverid in db.");
+						continue;
 					};
 					let mut serverroomid = servername.to_vec();
 					serverroomid.push(0xFF);
@@ -771,7 +768,7 @@ impl KeyValueDatabase {
 				}
 
 				// Force E2EE device list updates so we can send them over federation
-				for user_id in services().users.iter().filter_map(std::result::Result::ok) {
+				for user_id in services().users.iter().filter_map(Result::ok) {
 					services().users.mark_device_key_update(&user_id)?;
 				}
 
@@ -929,7 +926,7 @@ impl KeyValueDatabase {
 					for user_id in services()
 						.users
 						.iter()
-						.filter_map(std::result::Result::ok)
+						.filter_map(Result::ok)
 						.filter(|user| !services().users.is_deactivated(user).unwrap_or(true))
 						.filter(|user| user.server_name() == services().globals.server_name())
 					{

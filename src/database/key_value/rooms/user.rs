@@ -106,7 +106,7 @@ impl service::rooms::user::Data for KeyValueDatabase {
 
 					Ok::<_, Error>(room_id)
 				})
-				.filter_map(std::result::Result::ok)
+				.filter_map(Result::ok)
 		});
 
 		// We use the default compare function because keys are sorted correctly (not

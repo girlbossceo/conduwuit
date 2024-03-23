@@ -60,17 +60,18 @@ impl Service {
 		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 		#[cfg(feature = "sha256_media")]
 		{
-			path = services().globals.get_media_file_new(&key)
+			path = services().globals.get_media_file_new(&key);
 		};
 
 		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 		#[cfg(not(feature = "sha256_media"))]
 		{
-			path = services().globals.get_media_file(&key)
+			path = services().globals.get_media_file(&key);
 		};
 
 		let mut f = File::create(path).await?;
 		f.write_all(file).await?;
+
 		Ok(())
 	}
 
@@ -83,13 +84,13 @@ impl Service {
 				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 				#[cfg(feature = "sha256_media")]
 				{
-					file_path = services().globals.get_media_file_new(&key)
+					file_path = services().globals.get_media_file_new(&key);
 				};
 
 				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 				#[cfg(not(feature = "sha256_media"))]
 				{
-					file_path = services().globals.get_media_file(&key)
+					file_path = services().globals.get_media_file(&key);
 				};
 
 				debug!("Got local file path: {:?}", file_path);
@@ -133,7 +134,7 @@ impl Service {
 		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 		#[cfg(not(feature = "sha256_media"))]
 		{
-			path = services().globals.get_media_file(&key)
+			path = services().globals.get_media_file(&key);
 		};
 
 		let mut f = File::create(path).await?;
@@ -150,13 +151,13 @@ impl Service {
 			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 			#[cfg(feature = "sha256_media")]
 			{
-				path = services().globals.get_media_file_new(&key)
+				path = services().globals.get_media_file_new(&key);
 			};
 
 			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 			#[cfg(not(feature = "sha256_media"))]
 			{
-				path = services().globals.get_media_file(&key)
+				path = services().globals.get_media_file(&key);
 			};
 
 			let mut file = Vec::new();
@@ -236,7 +237,7 @@ impl Service {
 				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 				#[cfg(not(feature = "sha256_media"))]
 				{
-					path = services().globals.get_media_file(&key)
+					path = services().globals.get_media_file(&key);
 				};
 
 				debug!("MXC path: {:?}", path);
@@ -316,13 +317,13 @@ impl Service {
 			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 			#[cfg(feature = "sha256_media")]
 			{
-				path = services().globals.get_media_file_new(&key)
+				path = services().globals.get_media_file_new(&key);
 			};
 
 			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 			#[cfg(not(feature = "sha256_media"))]
 			{
-				path = services().globals.get_media_file(&key)
+				path = services().globals.get_media_file(&key);
 			};
 
 			let mut file = Vec::new();
@@ -340,13 +341,13 @@ impl Service {
 			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 			#[cfg(feature = "sha256_media")]
 			{
-				path = services().globals.get_media_file_new(&key)
+				path = services().globals.get_media_file_new(&key);
 			};
 
 			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 			#[cfg(not(feature = "sha256_media"))]
 			{
-				path = services().globals.get_media_file(&key)
+				path = services().globals.get_media_file(&key);
 			};
 
 			let mut file = Vec::new();
@@ -427,13 +428,13 @@ impl Service {
 				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 				#[cfg(feature = "sha256_media")]
 				{
-					path = services().globals.get_media_file_new(&thumbnail_key)
+					path = services().globals.get_media_file_new(&thumbnail_key);
 				};
 
 				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 				#[cfg(not(feature = "sha256_media"))]
 				{
-					path = services().globals.get_media_file(&thumbnail_key)
+					path = services().globals.get_media_file(&thumbnail_key);
 				};
 
 				let mut f = File::create(path).await?;

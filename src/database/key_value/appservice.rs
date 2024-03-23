@@ -40,7 +40,7 @@ impl service::appservice::Data for KeyValueDatabase {
 
 	fn all(&self) -> Result<Vec<(String, Registration)>> {
 		self.iter_ids()?
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.map(move |id| {
 				Ok((
 					id.clone(),

@@ -16,8 +16,7 @@ use tracing::{error, info, warn};
 
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{
-	api::client_server::{self, join_room_by_id_helper},
-	services, utils, Error, Result, Ruma,
+	api::client_server::{self, join_room_by_id_helper}, service, services, utils, Error, Result, Ruma
 };
 
 const RANDOM_USER_ID_LENGTH: usize = 10;
@@ -279,7 +278,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 	// If this is the first real user, grant them admin privileges except for guest
 	// users Note: the server user, @conduit:servername, is generated first
 	if !is_guest {
-		if let Some(admin_room) = services().admin.get_admin_room()? {
+		if let Some(admin_room) = service::admin::Service::get_admin_room()? {
 			if services().rooms.state_cache.room_joined_count(&admin_room)? == Some(1) {
 				services().admin.make_user_admin(&user_id, displayname).await?;
 
@@ -375,12 +374,7 @@ pub async fn change_password_route(body: Ruma<change_password::v3::Request>) -> 
 
 	if body.logout_devices {
 		// Logout all devices except the current one
-		for id in services()
-			.users
-			.all_device_ids(sender_user)
-			.filter_map(std::result::Result::ok)
-			.filter(|id| id != sender_device)
-		{
+		for id in services().users.all_device_ids(sender_user).filter_map(Result::ok).filter(|id| id != sender_device) {
 			services().users.remove_device(sender_user, &id)?;
 		}
 	}

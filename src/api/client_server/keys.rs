@@ -191,10 +191,10 @@ pub async fn get_key_changes_route(body: Ruma<get_key_changes::v3::Request>) -> 
 				body.from.parse().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
 				Some(body.to.parse().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?),
 			)
-			.filter_map(std::result::Result::ok),
+			.filter_map(Result::ok),
 	);
 
-	for room_id in services().rooms.state_cache.rooms_joined(sender_user).filter_map(std::result::Result::ok) {
+	for room_id in services().rooms.state_cache.rooms_joined(sender_user).filter_map(Result::ok) {
 		device_list_updates.extend(
 			services()
 				.users
@@ -203,7 +203,7 @@ pub async fn get_key_changes_route(body: Ruma<get_key_changes::v3::Request>) -> 
 					body.from.parse().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
 					Some(body.to.parse().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?),
 				)
-				.filter_map(std::result::Result::ok),
+				.filter_map(Result::ok),
 		);
 	}
 	Ok(get_key_changes::v3::Response {

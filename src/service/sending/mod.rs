@@ -126,7 +126,7 @@ impl Service {
 		// Retry requests we could not finish yet
 		let mut initial_transactions = HashMap::<OutgoingKind, Vec<SendingEventType>>::new();
 
-		for (key, outgoing_kind, event) in self.db.active_requests().filter_map(std::result::Result::ok) {
+		for (key, outgoing_kind, event) in self.db.active_requests().filter_map(Result::ok) {
 			let entry = initial_transactions.entry(outgoing_kind.clone()).or_default();
 
 			if entry.len() > 30 {
@@ -152,7 +152,7 @@ impl Service {
 							self.db.delete_all_active_requests_for(&outgoing_kind)?;
 
 							// Find events that have been added since starting the last request
-							let new_events = self.db.queued_requests(&outgoing_kind).filter_map(std::result::Result::ok).take(30).collect::<Vec<_>>();
+							let new_events = self.db.queued_requests(&outgoing_kind).filter_map(Result::ok).take(30).collect::<Vec<_>>();
 
 							if !new_events.is_empty() {
 								// Insert pdus we found
@@ -236,7 +236,7 @@ impl Service {
 
 		if retry {
 			// We retry the previous transaction
-			for (_, e) in self.db.active_requests_for(outgoing_kind).filter_map(std::result::Result::ok) {
+			for (_, e) in self.db.active_requests_for(outgoing_kind).filter_map(Result::ok) {
 				events.push(e);
 			}
 		} else {
@@ -274,7 +274,7 @@ impl Service {
 				services()
 					.users
 					.keys_changed(room_id.as_ref(), since, None)
-					.filter_map(std::result::Result::ok)
+					.filter_map(Result::ok)
 					.filter(|user_id| user_id.server_name() == services().globals.server_name()),
 			);
 
@@ -409,7 +409,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, server, serialized))]
-	pub fn send_reliable_edu(&self, server: &ServerName, serialized: Vec<u8>, id: u64) -> Result<()> {
+	pub fn send_reliable_edu(&self, server: &ServerName, serialized: Vec<u8>, _id: u64) -> Result<()> {
 		let outgoing_kind = OutgoingKind::Normal(server.to_owned());
 		let event = SendingEventType::Edu(serialized);
 		let _cork = services().globals.db.cork()?;
@@ -433,7 +433,7 @@ impl Service {
 	#[tracing::instrument(skip(self, room_id))]
 	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
 		let servers: HashSet<OwnedServerName> =
-			services().rooms.state_cache.room_servers(room_id).filter_map(std::result::Result::ok).collect();
+			services().rooms.state_cache.room_servers(room_id).filter_map(Result::ok).collect();
 
 		self.flush_servers(servers.into_iter())
 	}

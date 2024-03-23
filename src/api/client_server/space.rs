@@ -7,7 +7,7 @@ use ruma::{
 
 use crate::{service::rooms::spaces::PagnationToken, services, Error, Result, Ruma};
 
-/// # `GET /_matrix/client/v1/rooms/{room_id}/hierarchy``
+/// # `GET /_matrix/client/v1/rooms/{room_id}/hierarchy`
 ///
 /// Paginates over the space tree in a depth-first manner to locate child rooms
 /// of a given space.

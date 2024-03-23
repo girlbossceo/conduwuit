@@ -109,7 +109,7 @@ impl Arena {
 				if let Some(next) = self.next_sibling(current) {
 					current = next;
 				} else if let Some(parent) = self.parent(current) {
-					current = parent
+					current = parent;
 				} else {
 					break;
 				}
@@ -148,7 +148,7 @@ impl Arena {
 			)];
 
 			while let Some(parent) = self.parent(parents.last().expect("Has at least one value, as above").0) {
-				parents.push((parent, self.get(parent).expect("It is some, as above").room_id.clone()))
+				parents.push((parent, self.get(parent).expect("It is some, as above").room_id.clone()));
 			}
 
 			// If at max_depth, don't add new rooms
@@ -607,9 +607,9 @@ impl Service {
 							arena.push(current_room, children);
 
 							if left_to_skip > 0 {
-								left_to_skip -= 1
+								left_to_skip -= 1;
 							} else {
-								results.push(summary_to_chunk(*summary.clone()))
+								results.push(summary_to_chunk(*summary.clone()));
 							}
 						}
 					} else {

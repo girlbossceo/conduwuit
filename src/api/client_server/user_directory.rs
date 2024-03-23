@@ -45,7 +45,7 @@ pub async fn search_users_route(body: Ruma<search_users::v3::Request>) -> Result
 		let mut user_visible = false;
 
 		let user_is_in_public_rooms =
-			services().rooms.state_cache.rooms_joined(&user_id).filter_map(std::result::Result::ok).any(|room| {
+			services().rooms.state_cache.rooms_joined(&user_id).filter_map(Result::ok).any(|room| {
 				services().rooms.state_accessor.room_state_get(&room, &StateEventType::RoomJoinRules, "").map_or(
 					false,
 					|event| {

@@ -193,8 +193,7 @@ async fn sync_helper(
 	let mut device_list_left = HashSet::new();
 
 	// Look for device list updates of this account
-	device_list_updates
-		.extend(services().users.keys_changed(sender_user.as_ref(), since, None).filter_map(std::result::Result::ok));
+	device_list_updates.extend(services().users.keys_changed(sender_user.as_ref(), since, None).filter_map(Result::ok));
 
 	let all_joined_rooms = services().rooms.state_cache.rooms_joined(&sender_user).collect::<Vec<_>>();
 
@@ -372,7 +371,7 @@ async fn sync_helper(
 			.rooms
 			.user
 			.get_shared_rooms(vec![sender_user.clone(), user_id.clone()])?
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.filter_map(|other_room_id| {
 				Some(
 					services()
@@ -542,7 +541,7 @@ async fn load_joined_room(
 					.rooms
 					.timeline
 					.all_pdus(sender_user, room_id)?
-					.filter_map(std::result::Result::ok) // Ignore all broken pdus
+					.filter_map(Result::ok) // Ignore all broken pdus
 					.filter(|(_, pdu)| pdu.kind == TimelineEventType::RoomMember)
 					.map(|(_, pdu)| {
 						let content: RoomMemberEventContent = serde_json::from_str(pdu.content.get())
@@ -566,7 +565,7 @@ async fn load_joined_room(
 						}
 					})
 					// Filter out buggy users
-					.filter_map(std::result::Result::ok)
+					.filter_map(Result::ok)
 					// Filter for possible heroes
 					.flatten()
 				{
@@ -817,8 +816,7 @@ async fn load_joined_room(
 	};
 
 	// Look for device list updates in this room
-	device_list_updates
-		.extend(services().users.keys_changed(room_id.as_ref(), since, None).filter_map(std::result::Result::ok));
+	device_list_updates.extend(services().users.keys_changed(room_id.as_ref(), since, None).filter_map(Result::ok));
 
 	let notification_count = if send_notification_counts {
 		Some(
@@ -863,7 +861,7 @@ async fn load_joined_room(
 		.edus
 		.read_receipt
 		.readreceipts_since(room_id, since)
-		.filter_map(std::result::Result::ok) // Filter out buggy events
+		.filter_map(Result::ok) // Filter out buggy events
 		.map(|(_, _, v)| v)
 		.collect();
 
@@ -956,7 +954,7 @@ fn share_encrypted_room(sender_user: &UserId, user_id: &UserId, ignore_room: &Ro
 		.rooms
 		.user
 		.get_shared_rooms(vec![sender_user.to_owned(), user_id.to_owned()])?
-		.filter_map(std::result::Result::ok)
+		.filter_map(Result::ok)
 		.filter(|room_id| room_id != ignore_room)
 		.filter_map(|other_room_id| {
 			Some(
@@ -999,7 +997,7 @@ pub async fn sync_events_v4_route(
 		services().users.update_sync_request_with_cache(sender_user.clone(), sender_device.clone(), &mut body);
 
 	let all_joined_rooms =
-		services().rooms.state_cache.rooms_joined(&sender_user).filter_map(std::result::Result::ok).collect::<Vec<_>>();
+		services().rooms.state_cache.rooms_joined(&sender_user).filter_map(Result::ok).collect::<Vec<_>>();
 
 	if body.extensions.to_device.enabled.unwrap_or(false) {
 		services().users.remove_to_device_events(&sender_user, &sender_device, globalsince)?;
@@ -1011,9 +1009,8 @@ pub async fn sync_events_v4_route(
 
 	if body.extensions.e2ee.enabled.unwrap_or(false) {
 		// Look for device list updates of this account
-		device_list_changes.extend(
-			services().users.keys_changed(sender_user.as_ref(), globalsince, None).filter_map(std::result::Result::ok),
-		);
+		device_list_changes
+			.extend(services().users.keys_changed(sender_user.as_ref(), globalsince, None).filter_map(Result::ok));
 
 		for room_id in &all_joined_rooms {
 			let current_shortstatehash = if let Some(s) = services().rooms.state.get_room_shortstatehash(room_id)? {
@@ -1129,16 +1126,15 @@ pub async fn sync_events_v4_route(
 				}
 			}
 			// Look for device list updates in this room
-			device_list_changes.extend(
-				services().users.keys_changed(room_id.as_ref(), globalsince, None).filter_map(std::result::Result::ok),
-			);
+			device_list_changes
+				.extend(services().users.keys_changed(room_id.as_ref(), globalsince, None).filter_map(Result::ok));
 		}
 		for user_id in left_encrypted_users {
 			let dont_share_encrypted_room = services()
 				.rooms
 				.user
 				.get_shared_rooms(vec![sender_user.clone(), user_id.clone()])?
-				.filter_map(std::result::Result::ok)
+				.filter_map(Result::ok)
 				.filter_map(|other_room_id| {
 					Some(
 						services()
@@ -1288,7 +1284,7 @@ pub async fn sync_events_v4_route(
 		let required_state = required_state_request
 			.iter()
 			.map(|state| services().rooms.state_accessor.room_state_get(room_id, &state.0, &state.1))
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.flatten()
 			.map(|state| state.to_sync_state_event())
 			.collect();
@@ -1298,7 +1294,7 @@ pub async fn sync_events_v4_route(
 			.rooms
 			.state_cache
 			.room_members(room_id)
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.filter(|member| member != &sender_user)
 			.map(|member| {
 				Ok::<_, Error>(
@@ -1310,7 +1306,7 @@ pub async fn sync_events_v4_route(
 					}),
 				)
 			})
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.flatten()
 			.take(5)
 			.collect::<Vec<_>>();

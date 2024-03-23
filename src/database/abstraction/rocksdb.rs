@@ -264,7 +264,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		if self.config.database_backups_to_keep >= 0 {
 			let keep = u32::try_from(self.config.database_backups_to_keep)?;
 			if let Err(e) = engine.purge_old_backups(keep.try_into()?) {
-				error!("Failed to purge old backup: {:?}", e.to_string())
+				error!("Failed to purge old backup: {:?}", e.to_string());
 			}
 		}
 
@@ -398,7 +398,7 @@ impl KvTree for RocksDbEngineTree<'_> {
 			self.db
 				.rocks
 				.iterator_cf_opt(&self.cf(), readoptions, rust_rocksdb::IteratorMode::Start)
-				.map(std::result::Result::unwrap)
+				.map(Result::unwrap)
 				.map(|(k, v)| (Vec::from(k), Vec::from(v))),
 		)
 	}
@@ -422,7 +422,7 @@ impl KvTree for RocksDbEngineTree<'_> {
 						},
 					),
 				)
-				.map(std::result::Result::unwrap)
+				.map(Result::unwrap)
 				.map(|(k, v)| (Vec::from(k), Vec::from(v))),
 		)
 	}
@@ -485,7 +485,7 @@ impl KvTree for RocksDbEngineTree<'_> {
 					readoptions,
 					rust_rocksdb::IteratorMode::From(&prefix, rust_rocksdb::Direction::Forward),
 				)
-				.map(std::result::Result::unwrap)
+				.map(Result::unwrap)
 				.map(|(k, v)| (Vec::from(k), Vec::from(v)))
 				.take_while(move |(k, _)| k.starts_with(&prefix)),
 		)
