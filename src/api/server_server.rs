@@ -305,26 +305,27 @@ where
 		Err(e) => {
 			// we do not need to log that servers in a room are dead, this is normal in
 			// public rooms and just spams the logs.
-			match e.is_timeout() {
-				true => debug!(
+			if e.is_timeout() {
+				debug!(
 					"Timed out sending request to {} at {}: {}",
 					destination, actual_destination_str, e
-				),
-				false => match e.is_connect() {
-					true => debug!("Failed to connect to {} at {}: {}", destination, actual_destination_str, e),
-					false => match e.is_redirect() {
-						true => debug!(
+				)
+			} else {
+				if e.is_connect() {
+					debug!("Failed to connect to {} at {}: {}", destination, actual_destination_str, e)
+				} else {
+					if e.is_redirect() {
+						debug!(
 							"Redirect loop sending request to {} at {}: {}\nFinal URL: {:?}",
 							destination,
 							actual_destination_str,
 							e,
 							e.url()
-						),
-						false => {
-							info!("Could not send request to {} at {}: {}", destination, actual_destination_str, e);
-						},
-					},
-				},
+						)
+					} else {
+						info!("Could not send request to {} at {}: {}", destination, actual_destination_str, e);
+					}
+				}
 			}
 			Err(e.into())
 		},
@@ -1617,9 +1618,10 @@ pub async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<g
 			.filter_map(Result::ok)
 			.filter_map(|metadata| {
 				let device_id_string = metadata.device_id.as_str().to_owned();
-				let device_display_name = match services().globals.allow_device_name_federation() {
-					true => metadata.display_name,
-					false => Some(device_id_string),
+				let device_display_name = if services().globals.allow_device_name_federation() {
+					metadata.display_name
+				} else {
+					Some(device_id_string)
 				};
 				Some(UserDevice {
 					keys: services().users.get_device_keys(&body.user_id, &metadata.device_id).ok()??,
