@@ -153,6 +153,8 @@ features = [
 [dependencies.tracing]
 version = "0.1.40"
 default-features = false
+features = ["max_level_trace", "release_max_level_info"]
+
 [dependencies.tracing-subscriber]
 version = "0.3.18"
 features = ["env-filter"]
