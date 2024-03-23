@@ -106,11 +106,11 @@ impl RotationHandler {
 		let mut r = self.0.subscribe();
 
 		async move {
-			let _ = r.recv().await;
+			_ = r.recv().await;
 		}
 	}
 
-	pub fn fire(&self) { let _ = self.0.send(()); }
+	pub fn fire(&self) { _ = self.0.send(()); }
 }
 
 impl Default for RotationHandler {
@@ -233,7 +233,7 @@ impl Client {
 }
 
 impl Service<'_> {
-	pub fn load(db: &'static dyn Data, config: Config) -> Result<Self> {
+	pub fn load(db: &'static dyn Data, config: &Config) -> Result<Self> {
 		let keypair = db.load_keypair();
 
 		let keypair = match keypair {
@@ -282,7 +282,7 @@ impl Service<'_> {
 			})?,
 			actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
 			tls_name_override: tls_name_override.clone(),
-			client: Client::new(&config, &tls_name_override),
+			client: Client::new(config, &tls_name_override),
 			jwt_decoding_key,
 			stable_room_versions,
 			unstable_room_versions,

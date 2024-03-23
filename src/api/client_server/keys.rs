@@ -151,7 +151,6 @@ pub async fn upload_signatures_route(
 				.as_object()
 				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid signature."))?
 				.clone()
-				.into_iter()
 			{
 				// Signature validation?
 				let signature = (

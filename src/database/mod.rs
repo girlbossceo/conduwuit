@@ -237,6 +237,7 @@ impl KeyValueDatabase {
 	}
 
 	/// Load an existing database or create a new one.
+	#[allow(clippy::too_many_lines)]
 	pub async fn load_or_create(config: Config) -> Result<()> {
 		Self::check_db_setup(&config)?;
 
@@ -397,7 +398,7 @@ impl KeyValueDatabase {
 
 		let db = Box::leak(db_raw);
 
-		let services_raw = Box::new(Services::build(db, config)?);
+		let services_raw = Box::new(Services::build(db, &config)?);
 
 		// This is the first and only time we initialize the SERVICE static
 		*SERVICES.write().unwrap() = Some(Box::leak(services_raw));
@@ -1040,7 +1041,7 @@ impl KeyValueDatabase {
 					},
 				}
 
-				let _ = Self::try_handle_updates().await;
+				_ = Self::try_handle_updates().await;
 			}
 		});
 	}

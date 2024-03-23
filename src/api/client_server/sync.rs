@@ -146,7 +146,7 @@ async fn sync_helper_wrapper(
 		}
 	}
 
-	let _ = tx.send(Some(r.map(|(r, _)| r)));
+	_ = tx.send(Some(r.map(|(r, _)| r)));
 }
 
 async fn sync_helper(
@@ -300,12 +300,9 @@ async fn sync_helper(
                     // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
                     || *sender_user == state_key
 				{
-					let pdu = match services().rooms.timeline.get_pdu(&id)? {
-						Some(pdu) => pdu,
-						None => {
-							error!("Pdu in state not found: {}", id);
-							continue;
-						},
+					let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
+						error!("Pdu in state not found: {}", id);
+						continue;
 					};
 
 					left_state_events.push(pdu.to_sync_state_event());
@@ -431,7 +428,7 @@ async fn sync_helper(
 		device_unused_fallback_key_types: None,
 	};
 
-	// TODO: Retry the endpoint instead of returning (waiting for #118)
+	// TODO: Retry the endpoint instead of returning
 	if !full_state
 		&& response.rooms.is_empty()
 		&& response.presence.is_empty()
@@ -445,7 +442,7 @@ async fn sync_helper(
 		if duration.as_secs() > 30 {
 			duration = Duration::from_secs(30);
 		}
-		let _ = tokio::time::timeout(duration, watcher).await;
+		_ = tokio::time::timeout(duration, watcher).await;
 		Ok((response, false))
 	} else {
 		Ok((response, since != next_batch)) // Only cache if we made progress
@@ -1382,7 +1379,7 @@ pub async fn sync_events_v4_route(
 		if duration.as_secs() > 30 {
 			duration = Duration::from_secs(30);
 		}
-		let _ = tokio::time::timeout(duration, watcher).await;
+		_ = tokio::time::timeout(duration, watcher).await;
 	}
 
 	Ok(sync_events::v4::Response {

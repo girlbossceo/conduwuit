@@ -1264,12 +1264,12 @@ pub async fn leave_all_rooms(user_id: &UserId) -> Result<()> {
 		.collect::<Vec<_>>();
 
 	for room_id in all_rooms {
-		let room_id = match room_id {
-			Ok(room_id) => room_id,
-			Err(_) => continue,
+		let Ok(room_id) = room_id else {
+			continue;
 		};
 
-		let _ = leave_room(user_id, &room_id, None).await;
+		// ignore errors
+		_ = leave_room(user_id, &room_id, None).await;
 	}
 
 	Ok(())

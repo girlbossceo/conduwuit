@@ -589,6 +589,7 @@ impl Service {
 		AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
 	}
 
+	#[allow(clippy::too_many_lines)]
 	async fn process_admin_command(&self, command: AdminCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 		let reply_message_content = match command {
 			AdminCommand::Appservices(command) => match command {
@@ -787,8 +788,8 @@ impl Service {
 							}
 
 							return Ok(RoomMessageEventContent::text_plain(format!(
-								"Deleted {} total MXCs from our database and the filesystem from event ID {event_id}.",
-								mxc_deletion_count
+								"Deleted {mxc_deletion_count} total MXCs from our database and the filesystem from \
+								 event ID {event_id}."
 							)));
 						}
 
@@ -1050,7 +1051,7 @@ impl Service {
 
 						if leave_rooms {
 							for &user_id in &user_ids {
-								let _ = leave_all_rooms(user_id).await;
+								_ = leave_all_rooms(user_id).await;
 							}
 						}
 
@@ -1236,7 +1237,8 @@ impl Service {
 										 evicting admins too)",
 										&local_user, &room_id
 									);
-									let _ = leave_room(&local_user, &room_id, None).await;
+
+									_ = leave_room(&local_user, &room_id, None).await;
 								}
 							} else {
 								for local_user in services()
@@ -1364,7 +1366,7 @@ impl Service {
 												 errors, evicting admins too)",
 												&local_user, room_id
 											);
-											let _ = leave_room(&local_user, room_id, None).await;
+											_ = leave_room(&local_user, room_id, None).await;
 										}
 									} else {
 										for local_user in services()
@@ -1632,11 +1634,11 @@ impl Service {
 								(_, Ok(None)) => match services().rooms.alias.set_alias(&room_alias, &room_id) {
 									Ok(()) => RoomMessageEventContent::text_plain("Successfully set alias"),
 									Err(err) => {
-										RoomMessageEventContent::text_plain(format!("Failed to remove alias: {}", err))
+										RoomMessageEventContent::text_plain(format!("Failed to remove alias: {err}"))
 									},
 								},
 								(_, Err(err)) => {
-									RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {}", err))
+									RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {err}"))
 								},
 							},
 							RoomAliasCommand::Remove {
@@ -1671,14 +1673,14 @@ impl Service {
 					},
 					RoomAliasCommand::List {
 						room_id,
-					} => match room_id {
-						Some(room_id) => {
+					} => {
+						if let Some(room_id) = room_id {
 							let aliases =
 								services().rooms.alias.local_aliases_for_room(&room_id).collect::<Result<Vec<_>, _>>();
 							match aliases {
 								Ok(aliases) => {
 									let plain_list = aliases.iter().fold(String::new(), |mut output, alias| {
-										writeln!(output, "- {}", alias).unwrap();
+										writeln!(output, "- {alias}").unwrap();
 										output
 									});
 
@@ -1687,22 +1689,21 @@ impl Service {
 										output
 									});
 
-									let plain = format!("Aliases for {}:\n{}", room_id, plain_list);
-									let html = format!("Aliases for {}:\n<ul>{}</ul>", room_id, html_list);
+									let plain = format!("Aliases for {room_id}:\n{plain_list}");
+									let html = format!("Aliases for {room_id}:\n<ul>{html_list}</ul>");
 									RoomMessageEventContent::text_html(plain, html)
 								},
 								Err(err) => {
 									RoomMessageEventContent::text_plain(format!("Unable to list aliases: {}", err))
 								},
 							}
-						},
-						None => {
+						} else {
 							let aliases = services().rooms.alias.all_local_aliases().collect::<Result<Vec<_>, _>>();
 							match aliases {
 								Ok(aliases) => {
 									let server_name = services().globals.server_name();
 									let plain_list = aliases.iter().fold(String::new(), |mut output, (alias, id)| {
-										writeln!(output, "- `{}` -> #{}:{}", alias, id, server_name).unwrap();
+										writeln!(output, "- `{alias}` -> #{id}:{server_name}").unwrap();
 										output
 									});
 
@@ -1718,15 +1719,15 @@ impl Service {
 										output
 									});
 
-									let plain = format!("Aliases:\n{}", plain_list);
-									let html = format!("Aliases:\n<ul>{}</ul>", html_list);
+									let plain = format!("Aliases:\n{plain_list}");
+									let html = format!("Aliases:\n<ul>{html_list}</ul>");
 									RoomMessageEventContent::text_html(plain, html)
 								},
-								Err(err) => {
-									RoomMessageEventContent::text_plain(format!("Unable to list room aliases: {}", err))
+								Err(e) => {
+									RoomMessageEventContent::text_plain(format!("Unable to list room aliases: {e}"))
 								},
 							}
-						},
+						}
 					},
 				},
 				RoomCommand::Directory(command) => match command {

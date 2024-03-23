@@ -143,22 +143,18 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 		let (event_type, state_key) = services().rooms.short.get_statekey_from_short(shortstatekey)?;
 
 		if event_type != StateEventType::RoomMember {
-			let pdu = match services().rooms.timeline.get_pdu(&id)? {
-				Some(pdu) => pdu,
-				None => {
-					error!("Pdu in state not found: {}", id);
-					continue;
-				},
+			let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
+				error!("Pdu in state not found: {}", id);
+				continue;
 			};
+
 			state.push(pdu.to_state_event());
 		} else if !lazy_load_enabled || lazy_loaded.contains(&state_key) {
-			let pdu = match services().rooms.timeline.get_pdu(&id)? {
-				Some(pdu) => pdu,
-				None => {
-					error!("Pdu in state not found: {}", id);
-					continue;
-				},
+			let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
+				error!("Pdu in state not found: {}", id);
+				continue;
 			};
+
 			state.push(pdu.to_state_event());
 		}
 	}

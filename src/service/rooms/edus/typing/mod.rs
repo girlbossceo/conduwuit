@@ -18,7 +18,7 @@ impl Service {
 	pub async fn typing_add(&self, user_id: &UserId, room_id: &RoomId, timeout: u64) -> Result<()> {
 		self.typing.write().await.entry(room_id.to_owned()).or_default().insert(user_id.to_owned(), timeout);
 		self.last_typing_update.write().await.insert(room_id.to_owned(), services().globals.next_count()?);
-		let _ = self.typing_update_sender.send(room_id.to_owned());
+		_ = self.typing_update_sender.send(room_id.to_owned());
 		Ok(())
 	}
 
@@ -26,7 +26,7 @@ impl Service {
 	pub async fn typing_remove(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		self.typing.write().await.entry(room_id.to_owned()).or_default().remove(user_id);
 		self.last_typing_update.write().await.insert(room_id.to_owned(), services().globals.next_count()?);
-		let _ = self.typing_update_sender.send(room_id.to_owned());
+		_ = self.typing_update_sender.send(room_id.to_owned());
 		Ok(())
 	}
 
@@ -68,7 +68,7 @@ impl Service {
 				room.remove(&user);
 			}
 			self.last_typing_update.write().await.insert(room_id.to_owned(), services().globals.next_count()?);
-			let _ = self.typing_update_sender.send(room_id.to_owned());
+			_ = self.typing_update_sender.send(room_id.to_owned());
 		}
 
 		Ok(())

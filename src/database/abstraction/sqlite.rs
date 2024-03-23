@@ -38,7 +38,7 @@ impl<T> Drop for NonAliasingBox<T> {
 		// this was done.
 		#[allow(clippy::undocumented_unsafe_blocks)]
 		unsafe {
-			let _ = Box::from_raw(self.0);
+			_ = Box::from_raw(self.0);
 		};
 	}
 }

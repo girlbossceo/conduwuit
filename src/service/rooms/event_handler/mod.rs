@@ -1143,7 +1143,7 @@ impl Service {
 	{
 		let mut server_key_ids = HashMap::new();
 
-		for event in events.into_iter() {
+		for event in events {
 			debug!("Fetching keys for event: {event:?}");
 			for (signature_server, signature) in event
 				.get("signatures")
@@ -1391,10 +1391,10 @@ impl Service {
 			// Try to fetch keys, failure is okay
 			// Servers we couldn't find in the cache will be added to `servers`
 			for pdu in &event.room_state.state {
-				let _ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm).await;
+				_ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm).await;
 			}
 			for pdu in &event.room_state.auth_chain {
-				let _ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm).await;
+				_ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm).await;
 			}
 
 			drop(pkm);
