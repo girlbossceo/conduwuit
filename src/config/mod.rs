@@ -548,7 +548,7 @@ fn default_federation_idle_per_host() -> u16 { 1 }
 
 fn default_federation_idle_timeout() -> u64 { 25 }
 
-fn default_sender_timeout() -> u64 { 75 }
+fn default_sender_timeout() -> u64 { 180 }
 
 fn default_sender_idle_timeout() -> u64 { 180 }
 
