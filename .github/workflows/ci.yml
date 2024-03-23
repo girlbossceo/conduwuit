@@ -19,6 +19,7 @@ env:
   # Custom nix binary cache if fork is being used
   ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
   ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
+  DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
 
 permissions:
   packages: write
@@ -184,7 +185,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          username: girlbossceo
+          # username is not really a secret
+          username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
@@ -194,7 +196,7 @@ jobs:
           REGISTRY: ghcr.io
         with:
           registry: ${{ env.REGISTRY }}
-          username: girlbossceo
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
 
