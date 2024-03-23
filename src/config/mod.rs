@@ -162,7 +162,7 @@ pub struct Config {
 	#[serde(default)]
 	pub rocksdb_bottommost_compression: bool,
 	#[serde(default = "default_rocksdb_recovery_mode")]
-	pub rocksdb_recovery_mode: u32,
+	pub rocksdb_recovery_mode: u8,
 
 	pub emergency_password: Option<String>,
 
@@ -454,7 +454,7 @@ impl fmt::Display for Config {
 				&self.rocksdb_bottommost_compression.to_string(),
 			),
 			#[cfg(feature = "rocksdb")]
-			("RocksDB Recovery mode", &self.rocksdb_recovery_mode.to_string()),
+			("RocksDB Recovery Mode", &self.rocksdb_recovery_mode.to_string()),
 			("Prevent Media Downloads From", {
 				let mut lst = vec![];
 				for domain in &self.prevent_media_downloads_from {
@@ -576,7 +576,7 @@ fn default_presence_idle_timeout_s() -> u64 { 5 * 60 }
 
 fn default_presence_offline_timeout_s() -> u64 { 30 * 60 }
 
-fn default_rocksdb_recovery_mode() -> u32 { 1 }
+fn default_rocksdb_recovery_mode() -> u8 { 1 }
 
 fn default_rocksdb_log_level() -> String { "error".to_owned() }
 

@@ -361,6 +361,33 @@ url_preview_check_root_domain = false
 # Defaults to false as this uses more CPU when compressing.
 #rocksdb_bottommost_compression = false
 
+# RocksDB WAL recovery mode
+#
+# If the database becomes corrupted, an attempt at some form of recovery or at least opening it can be made
+# using this config option.
+#
+# In this event, provided that you have searched for any backups already, it's recommended to start by using PointInTime recovery mode. If this opens your database successfully,
+# you will want to immediately run the `clear-cache` database admin command and restart Conduwuit again setting this back to 1 (TolerateCorruptedTailRecords)
+# If no further issues arrise, your database should be okay now.
+#
+# As a very last ditch effort, if PointInTime does not fix or resolve anything, you can try SkipAnyCorruptedRecord but this
+# has a good chance to do more damage than before
+#
+# TolerateCorruptedTailRecords is the default as generally tail records may be caused by unclean shutdowns, and any data here is likely
+# federation data that can be re-retrieved by other servers again. 
+#
+#
+# The options are:
+# 0 = AbsoluteConsistency
+# 1 = TolerateCorruptedTailRecords (default)
+# 2 = PointInTime (use me if trying to recover)
+# 3 = SkipAnyCorruptedRecord (you now voided your Conduwuit warranty)
+#
+# See https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes for more information
+#
+# Defaults to 1 (TolerateCorruptedTailRecords)
+#rocksdb_recovery_mode = 1
+
 
 
 ### Request Timeouts, Connection Timeouts, and Connection Pooling
@@ -412,7 +439,7 @@ url_preview_check_root_domain = false
 # You most definitely want this to be high to account for extremely large room joins, slow homeservers, your own resources etc.
 #
 # Defaults to 300 seconds
-#federation_timeout
+#federation_timeout = 300
 
 # Federation client/sender max idle connections per host
 #
