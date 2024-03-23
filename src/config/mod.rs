@@ -1,5 +1,5 @@
 use std::{
-	collections::BTreeSet,
+	collections::BTreeMap,
 	fmt::{self, Write as _},
 	net::{IpAddr, Ipv4Addr},
 	path::PathBuf,
@@ -10,7 +10,7 @@ use figment::Figment;
 use itertools::Itertools;
 use regex::RegexSet;
 use ruma::{OwnedRoomId, OwnedServerName, RoomVersionId};
-use serde::Deserialize;
+use serde::{de::IgnoredAny, Deserialize};
 use tracing::{debug, error, warn};
 
 use self::proxy::ProxyConfig;
@@ -216,7 +216,8 @@ pub struct Config {
 	pub block_non_admin_invites: bool,
 
 	#[serde(flatten)]
-	pub catchall: BTreeSet<String>,
+	#[allow(clippy::zero_sized_map_values)] // this is a catchall, the map shouldn't be zero at runtime
+	pub catchall: BTreeMap<String, IgnoredAny>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -238,7 +239,7 @@ impl Config {
 	pub fn warn_deprecated(&self) {
 		debug!("Checking for deprecated config keys");
 		let mut was_deprecated = false;
-		for key in self.catchall.iter().filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key)) {
+		for key in self.catchall.keys().filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key)) {
 			warn!("Config parameter \"{}\" is deprecated, ignoring.", key);
 			was_deprecated = true;
 		}
@@ -256,7 +257,7 @@ impl Config {
 	pub fn warn_unknown_key(&self) {
 		debug!("Checking for unknown config keys");
 		for key in
-			self.catchall.iter().filter(|key| "config".to_owned().ne(key.to_owned()) /* "config" is expected */)
+			self.catchall.keys().filter(|key| "config".to_owned().ne(key.to_owned()) /* "config" is expected */)
 		{
 			warn!("Config parameter \"{}\" is unknown to conduwuit, ignoring.", key);
 		}
