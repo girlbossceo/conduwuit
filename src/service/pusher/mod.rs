@@ -3,6 +3,7 @@ use std::{fmt::Debug, mem};
 
 use bytes::BytesMut;
 pub use data::Data;
+use ipaddress::IPAddress;
 use ruma::{
 	api::{
 		client::push::{set_pusher, Pusher, PusherKind},
@@ -19,7 +20,7 @@ use ruma::{
 	serde::Raw,
 	uint, RoomId, UInt, UserId,
 };
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::{services, Error, PduEvent, Result};
 
@@ -63,11 +64,49 @@ impl Service {
 		//*reqwest_request.timeout_mut() = Some(Duration::from_secs(5));
 
 		let url = reqwest_request.url().clone();
+
+		if let Some(url_host) = url.host_str() {
+			debug!("Checking request URL for IP");
+			if let Ok(ip) = IPAddress::parse(url_host) {
+				let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
+				let mut cidr_ranges: Vec<IPAddress> = Vec::new();
+
+				for cidr in cidr_ranges_s {
+					cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
+				}
+
+				for cidr in cidr_ranges {
+					if cidr.includes(&ip) {
+						return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
+					}
+				}
+			}
+		}
+
 		let response = services().globals.client.pusher.execute(reqwest_request).await;
 
 		match response {
 			Ok(mut response) => {
 				// reqwest::Response -> http::Response conversion
+
+				debug!("Checking response destination's IP");
+				if let Some(remote_addr) = response.remote_addr() {
+					if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
+						let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
+						let mut cidr_ranges: Vec<IPAddress> = Vec::new();
+
+						for cidr in cidr_ranges_s {
+							cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
+						}
+
+						for cidr in cidr_ranges {
+							if cidr.includes(&ip) {
+								return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
+							}
+						}
+					}
+				}
+
 				let status = response.status();
 				let mut http_response_builder = http::Response::builder().status(status).version(response.version());
 				mem::swap(
