@@ -1,8 +1,9 @@
 use std::{fmt::Debug, mem, time::Duration};
 
 use bytes::BytesMut;
+use ipaddress::IPAddress;
 use ruma::api::{appservice::Registration, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::{services, utils, Error, Result};
 
@@ -44,6 +45,25 @@ where
 	*reqwest_request.timeout_mut() = Some(Duration::from_secs(120));
 
 	let url = reqwest_request.url().clone();
+
+	if let Some(url_host) = url.host_str() {
+		debug!("Checking request URL for IP");
+		if let Ok(ip) = IPAddress::parse(url_host) {
+			let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
+			let mut cidr_ranges: Vec<IPAddress> = Vec::new();
+
+			for cidr in cidr_ranges_s {
+				cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
+			}
+
+			for cidr in cidr_ranges {
+				if cidr.includes(&ip) {
+					return Some(Err(Error::BadServerResponse("Not allowed to send requests to this IP")));
+				}
+			}
+		}
+	}
+
 	let mut response = match services().globals.client.appservice.execute(reqwest_request).await {
 		Ok(r) => r,
 		Err(e) => {
