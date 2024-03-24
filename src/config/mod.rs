@@ -572,9 +572,9 @@ fn default_notification_push_path() -> String { "/_matrix/push/v1/notify".to_own
 
 fn default_turn_ttl() -> u64 { 60 * 60 * 24 }
 
-fn default_presence_idle_timeout_s() -> u64 { 5 * 60 }
+fn default_presence_idle_timeout_s() -> u64 { 2 * 60 }
 
-fn default_presence_offline_timeout_s() -> u64 { 30 * 60 }
+fn default_presence_offline_timeout_s() -> u64 { 15 * 60 }
 
 fn default_rocksdb_recovery_mode() -> u8 { 1 }
 
