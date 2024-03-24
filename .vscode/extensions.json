@@ -1,6 +1,7 @@
 {
     "recommendations": [
         "rust-lang.rust-analyzer",
+        "editorconfig.editorconfig",
         "ms-azuretools.vscode-docker",
         "eamodio.gitlens",
         "serayuzgur.crates",
