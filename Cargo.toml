@@ -277,7 +277,7 @@ hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d1496
 
 
 [features]
-default = ["conduit_bin", "backend_rocksdb", "systemd"]
+default = ["conduit_bin", "backend_rocksdb", "systemd", "element_hacks"]
 conduit_bin = ["axum"]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
@@ -302,6 +302,11 @@ perf_measurements = [
     "opentelemetry_sdk",
     "opentelemetry-jaeger",
 ]
+
+# client/server interopability hacks
+#
+## element has various non-spec compliant behaviour
+element_hacks = []
 
 
 [[bin]]

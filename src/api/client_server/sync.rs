@@ -298,7 +298,7 @@ async fn sync_helper(
                     || event_type != StateEventType::RoomMember
                     || full_state
                     // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
-                    || *sender_user == state_key
+                    || (cfg!(features = "element_hacks") && *sender_user == state_key)
 				{
 					let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
 						error!("Pdu in state not found: {}", id);
@@ -627,7 +627,7 @@ async fn load_joined_room(
                 || full_state
                 || timeline_users.contains(&state_key)
                 // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
-                || *sender_user == state_key
+                || (cfg!(features = "element_hacks") && *sender_user == state_key)
 				{
 					let pdu = match services().rooms.timeline.get_pdu(&id)? {
 						Some(pdu) => pdu,
@@ -966,6 +966,9 @@ fn share_encrypted_room(sender_user: &UserId, user_id: &UserId, ignore_room: &Ro
 		.any(|encrypted| encrypted))
 }
 
+/// POST `/_matrix/client/unstable/org.matrix.msc3575/sync`
+///
+/// Sliding Sync endpoint (future endpoint: `/_matrix/client/v4/sync`)
 pub async fn sync_events_v4_route(
 	body: Ruma<sync_events::v4::Request>,
 ) -> Result<sync_events::v4::Response, RumaResponse<UiaaResponse>> {
