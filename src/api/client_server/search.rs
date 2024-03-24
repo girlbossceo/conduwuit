@@ -106,8 +106,12 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 
 	Ok(search_events::v3::Response::new(ResultCategories {
 		room_events: ResultRoomEvents {
-			count: Some((results.len() as u32).into()), // TODO: set this to none. Element shouldn't depend on it
-			groups: BTreeMap::new(),                    // TODO
+			count: if cfg!(feature = "element_hacks") {
+				Some((results.len() as u32).into())
+			} else {
+				None
+			}, // TODO: set this to none. Element shouldn't depend on it (strawberry: why not?)
+			groups: BTreeMap::new(), // TODO
 			next_batch,
 			results,
 			state: BTreeMap::new(), // TODO

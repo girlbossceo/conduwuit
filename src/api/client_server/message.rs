@@ -193,7 +193,7 @@ pub async fn get_message_events_route(
 				 * https://github.com/vector-im/element-android/issues/3417
 				 * https://github.com/vector-im/element-web/issues/21034
 				 */
-				if !cfg!(features = "element_hacks")
+				if !cfg!(feature = "element_hacks")
 					&& !services().rooms.lazy_loading.lazy_load_was_sent_before(
 						sender_user,
 						sender_device,
@@ -237,7 +237,7 @@ pub async fn get_message_events_route(
 				 * https://github.com/vector-im/element-android/issues/3417
 				 * https://github.com/vector-im/element-web/issues/21034
 				 */
-				if !cfg!(features = "element_hacks")
+				if !cfg!(feature = "element_hacks")
 					&& !services().rooms.lazy_loading.lazy_load_was_sent_before(
 						sender_user,
 						sender_device,
