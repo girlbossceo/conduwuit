@@ -1,12 +1,18 @@
 use std::collections::BTreeMap;
 
-use ruma::api::client::{
-	error::ErrorKind,
-	search::search_events::{
-		self,
-		v3::{EventContextResult, ResultCategories, ResultRoomEvents, SearchResult},
+use ruma::{
+	api::client::{
+		error::ErrorKind,
+		search::search_events::{
+			self,
+			v3::{EventContextResult, ResultCategories, ResultRoomEvents, SearchResult},
+		},
 	},
+	events::AnyStateEvent,
+	serde::Raw,
+	OwnedRoomId,
 };
+use tracing::debug;
 
 use crate::{services, Error, Result, Ruma};
 
@@ -21,6 +27,7 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 
 	let search_criteria = body.search_categories.room_events.as_ref().unwrap();
 	let filter = &search_criteria.filter;
+	let include_state = &search_criteria.include_state;
 
 	let room_ids = filter
 		.rooms
@@ -30,17 +37,51 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 	// Use limit or else 10, with maximum 100
 	let limit = filter.limit.map_or(10, u64::from).min(100) as usize;
 
+	let mut room_states: BTreeMap<OwnedRoomId, Vec<Raw<AnyStateEvent>>> = BTreeMap::new();
+
+	if include_state.is_some_and(|include_state| include_state) {
+		for room_id in &room_ids {
+			if !services().rooms.state_cache.is_joined(sender_user, room_id)? {
+				return Err(Error::BadRequest(
+					ErrorKind::Forbidden,
+					"You don't have permission to view this room.",
+				));
+			}
+
+			// check if sender_user can see state events
+			if services().rooms.state_accessor.user_can_see_state_events(sender_user, room_id)? {
+				let room_state = services()
+					.rooms
+					.state_accessor
+					.room_state_full(room_id)
+					.await?
+					.values()
+					.map(|pdu| pdu.to_state_event())
+					.collect::<Vec<_>>();
+
+				debug!("Room state: {:?}", room_state);
+
+				room_states.insert(room_id.clone(), room_state);
+			} else {
+				return Err(Error::BadRequest(
+					ErrorKind::Forbidden,
+					"You don't have permission to view this room.",
+				));
+			}
+		}
+	}
+
 	let mut searches = Vec::new();
 
-	for room_id in room_ids {
-		if !services().rooms.state_cache.is_joined(sender_user, &room_id)? {
+	for room_id in &room_ids {
+		if !services().rooms.state_cache.is_joined(sender_user, room_id)? {
 			return Err(Error::BadRequest(
 				ErrorKind::Forbidden,
 				"You don't have permission to view this room.",
 			));
 		}
 
-		if let Some(search) = services().rooms.search.search_pdus(&room_id, &search_criteria.search_term)? {
+		if let Some(search) = services().rooms.search.search_pdus(room_id, &search_criteria.search_term)? {
 			searches.push(search.0.peekable());
 		}
 	}
@@ -114,7 +155,7 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 			groups: BTreeMap::new(), // TODO
 			next_batch,
 			results,
-			state: BTreeMap::new(), // TODO
+			state: room_states,
 			highlights: search_criteria
 				.search_term
 				.split_terminator(|c: char| !c.is_alphanumeric())
