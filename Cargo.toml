@@ -9,7 +9,7 @@ authors = [
 homepage = "https://puppygock.gay/conduwuit"
 repository = "https://gitlab.com/girlbossceo/conduwuit"
 readme = "README.md"
-version = "0.7.0-alpha+conduwuit-0.1.9"
+version = "0.7.0-alpha+conduwuit-0.1.10"
 edition = "2021"
 
 # See also `rust-toolchain.toml`
