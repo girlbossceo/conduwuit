@@ -1,32 +1,20 @@
 use std::{
 	collections::{BTreeMap, HashMap},
-	error::Error as StdError,
 	fs,
-	future::{self, Future},
-	iter,
-	net::{IpAddr, SocketAddr},
+	future::Future,
 	path::PathBuf,
 	sync::{
 		atomic::{self, AtomicBool},
-		Arc, RwLock as StdRwLock,
+		Arc,
 	},
-	time::{Duration, Instant},
+	time::Instant,
 };
 
 use argon2::Argon2;
 use base64::{engine::general_purpose, Engine as _};
 pub use data::Data;
-use futures_util::FutureExt;
 use hickory_resolver::TokioAsyncResolver;
-use hyper::{
-	client::connect::dns::{GaiResolver, Name},
-	service::Service as HyperService,
-};
 use regex::RegexSet;
-use reqwest::{
-	dns::{Addrs, Resolve, Resolving},
-	redirect,
-};
 use ruma::{
 	api::{
 		client::sync::sync_events,
@@ -39,12 +27,12 @@ use ruma::{
 use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock, Semaphore};
 use tracing::{error, info};
 
-use crate::{api::server_server::FedDest, services, Config, Error, Result};
+use crate::{services, Config, Result};
 
+pub mod client;
 mod data;
+pub mod resolver;
 
-type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
-type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 type SyncHandle = (
 	Option<String>,                                      // since
@@ -54,13 +42,11 @@ type SyncHandle = (
 pub struct Service<'a> {
 	pub db: &'static dyn Data,
 
-	pub actual_destination_cache: Arc<RwLock<WellKnownMap>>, // actual_destination, host
-	pub tls_name_override: Arc<StdRwLock<TlsNameMap>>,
 	pub config: Config,
 	keypair: Arc<ruma::signatures::Ed25519KeyPair>,
-	dns_resolver: TokioAsyncResolver,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
-	pub client: Client,
+	pub resolver: Arc<resolver::Resolver>,
+	pub client: client::Client,
 	pub stable_room_versions: Vec<RoomVersionId>,
 	pub unstable_room_versions: Vec<RoomVersionId>,
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
@@ -77,16 +63,6 @@ pub struct Service<'a> {
 
 	pub shutdown: AtomicBool,
 	pub argon: Argon2<'a>,
-}
-
-pub struct Client {
-	pub default: reqwest::Client,
-	pub url_preview: reqwest::Client,
-	pub well_known: reqwest::Client,
-	pub federation: reqwest::Client,
-	pub sender: reqwest::Client,
-	pub appservice: reqwest::Client,
-	pub pusher: reqwest::Client,
 }
 
 /// Handles "rotation" of long-polling requests. "Rotation" in this context is
@@ -117,121 +93,6 @@ impl Default for RotationHandler {
 	fn default() -> Self { Self::new() }
 }
 
-struct Resolver {
-	inner: GaiResolver,
-	overrides: Arc<StdRwLock<TlsNameMap>>,
-}
-
-impl Resolver {
-	fn new(overrides: Arc<StdRwLock<TlsNameMap>>) -> Self {
-		Resolver {
-			inner: GaiResolver::new(),
-			overrides,
-		}
-	}
-}
-
-impl Resolve for Resolver {
-	fn resolve(&self, name: Name) -> Resolving {
-		self.overrides
-			.read()
-			.unwrap()
-			.get(name.as_str())
-			.and_then(|(override_name, port)| {
-				override_name.first().map(|first_name| {
-					let x: Box<dyn Iterator<Item = SocketAddr> + Send> =
-						Box::new(iter::once(SocketAddr::new(*first_name, *port)));
-					let x: Resolving = Box::pin(future::ready(Ok(x)));
-					x
-				})
-			})
-			.unwrap_or_else(|| {
-				let this = &mut self.inner.clone();
-				Box::pin(HyperService::<Name>::call(this, name).map(|result| {
-					result
-						.map(|addrs| -> Addrs { Box::new(addrs) })
-						.map_err(|err| -> Box<dyn StdError + Send + Sync> { Box::new(err) })
-				}))
-			})
-	}
-}
-
-impl Client {
-	pub fn new(config: &Config, tls_name_override: &Arc<StdRwLock<TlsNameMap>>) -> Client {
-		let resolver = Arc::new(Resolver::new(tls_name_override.clone()));
-		Client {
-			default: Self::base(config).unwrap().build().unwrap(),
-
-			url_preview: Self::base(config).unwrap().redirect(redirect::Policy::limited(3)).build().unwrap(),
-
-			well_known: Self::base(config)
-				.unwrap()
-				.dns_resolver(resolver.clone())
-				.connect_timeout(Duration::from_secs(config.well_known_conn_timeout))
-				.timeout(Duration::from_secs(config.well_known_timeout))
-				.pool_max_idle_per_host(0)
-				.redirect(redirect::Policy::limited(4))
-				.build()
-				.unwrap(),
-
-			federation: Self::base(config)
-				.unwrap()
-				.dns_resolver(resolver.clone())
-				.timeout(Duration::from_secs(config.federation_timeout))
-				.pool_max_idle_per_host(config.federation_idle_per_host.into())
-				.pool_idle_timeout(Duration::from_secs(config.federation_idle_timeout))
-				.redirect(redirect::Policy::limited(3))
-				.build()
-				.unwrap(),
-
-			sender: Self::base(config)
-				.unwrap()
-				.dns_resolver(resolver)
-				.timeout(Duration::from_secs(config.sender_timeout))
-				.pool_max_idle_per_host(1)
-				.pool_idle_timeout(Duration::from_secs(config.sender_idle_timeout))
-				.redirect(redirect::Policy::limited(2))
-				.build()
-				.unwrap(),
-
-			appservice: Self::base(config)
-				.unwrap()
-				.connect_timeout(Duration::from_secs(5))
-				.timeout(Duration::from_secs(config.appservice_timeout))
-				.pool_max_idle_per_host(1)
-				.pool_idle_timeout(Duration::from_secs(config.appservice_idle_timeout))
-				.redirect(redirect::Policy::limited(2))
-				.build()
-				.unwrap(),
-
-			pusher: Self::base(config)
-				.unwrap()
-				.pool_max_idle_per_host(1)
-				.pool_idle_timeout(Duration::from_secs(config.pusher_idle_timeout))
-				.redirect(redirect::Policy::limited(2))
-				.build()
-				.unwrap(),
-		}
-	}
-
-	fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
-		let builder = reqwest::Client::builder()
-			.hickory_dns(true)
-			.timeout(Duration::from_secs(config.request_timeout))
-			.connect_timeout(Duration::from_secs(config.request_conn_timeout))
-			.pool_max_idle_per_host(config.request_idle_per_host.into())
-			.pool_idle_timeout(Duration::from_secs(config.request_idle_timeout))
-			.user_agent("Conduwuit".to_owned() + "/" + env!("CARGO_PKG_VERSION"))
-			.redirect(redirect::Policy::limited(6));
-
-		if let Some(proxy) = config.proxy.to_proxy()? {
-			Ok(builder.proxy(proxy))
-		} else {
-			Ok(builder)
-		}
-	}
-}
-
 impl Service<'_> {
 	pub fn load(db: &'static dyn Data, config: &Config) -> Result<Self> {
 		let keypair = db.load_keypair();
@@ -245,10 +106,10 @@ impl Service<'_> {
 			},
 		};
 
-		let tls_name_override = Arc::new(StdRwLock::new(TlsNameMap::new()));
-
 		let jwt_decoding_key =
 			config.jwt_secret.as_ref().map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
+
+		let resolver = Arc::new(resolver::Resolver::new(config));
 
 		// Supported and stable room versions
 		let stable_room_versions = vec![
@@ -276,13 +137,8 @@ impl Service<'_> {
 			db,
 			config: config.clone(),
 			keypair: Arc::new(keypair),
-			dns_resolver: TokioAsyncResolver::tokio_from_system_conf().map_err(|e| {
-				error!("Failed to set up trust dns resolver with system config: {}", e);
-				Error::bad_config("Failed to set up trust dns resolver with system config.")
-			})?,
-			actual_destination_cache: Arc::new(RwLock::new(WellKnownMap::new())),
-			tls_name_override: tls_name_override.clone(),
-			client: Client::new(config, &tls_name_override),
+			resolver: resolver.clone(),
+			client: client::Client::new(config, &resolver),
 			jwt_decoding_key,
 			stable_room_versions,
 			unstable_room_versions,
@@ -372,7 +228,9 @@ impl Service<'_> {
 
 	pub fn query_trusted_key_servers_first(&self) -> bool { self.config.query_trusted_key_servers_first }
 
-	pub fn dns_resolver(&self) -> &TokioAsyncResolver { &self.dns_resolver }
+	pub fn dns_resolver(&self) -> &TokioAsyncResolver { &self.resolver.resolver }
+
+	pub fn actual_destinations(&self) -> &Arc<RwLock<resolver::WellKnownMap>> { &self.resolver.destinations }
 
 	pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> { self.jwt_decoding_key.as_ref() }
 
