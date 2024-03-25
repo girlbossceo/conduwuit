@@ -7,11 +7,13 @@ use crate::{database::KeyValueDatabase, service, utils, Error, Result};
 
 impl service::rooms::state::Data for KeyValueDatabase {
 	fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>> {
-		self.roomid_shortstatehash.get(room_id.as_bytes())?.map_or(Ok(None), |bytes| {
-			Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
-				Error::bad_database("Invalid shortstatehash in roomid_shortstatehash")
-			})?))
-		})
+		self.roomid_shortstatehash
+			.get(room_id.as_bytes())?
+			.map_or(Ok(None), |bytes| {
+				Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
+					Error::bad_database("Invalid shortstatehash in roomid_shortstatehash")
+				})?))
+			})
 	}
 
 	fn set_room_state(
@@ -20,12 +22,14 @@ impl service::rooms::state::Data for KeyValueDatabase {
 		new_shortstatehash: u64,
 		_mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
-		self.roomid_shortstatehash.insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes())?;
+		self.roomid_shortstatehash
+			.insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes())?;
 		Ok(())
 	}
 
 	fn set_event_state(&self, shorteventid: u64, shortstatehash: u64) -> Result<()> {
-		self.shorteventid_shortstatehash.insert(&shorteventid.to_be_bytes(), &shortstatehash.to_be_bytes())?;
+		self.shorteventid_shortstatehash
+			.insert(&shorteventid.to_be_bytes(), &shortstatehash.to_be_bytes())?;
 		Ok(())
 	}
 

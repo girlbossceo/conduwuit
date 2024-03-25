@@ -53,7 +53,9 @@ impl service::pusher::Data for KeyValueDatabase {
 		Box::new(self.senderkey_pusher.scan_prefix(prefix).map(|(k, _)| {
 			let mut parts = k.splitn(2, |&b| b == 0xFF);
 			let _senderkey = parts.next();
-			let push_key = parts.next().ok_or_else(|| Error::bad_database("Invalid senderkey_pusher in db"))?;
+			let push_key = parts
+				.next()
+				.ok_or_else(|| Error::bad_database("Invalid senderkey_pusher in db"))?;
 			let push_key_string = utils::string_from_bytes(push_key)
 				.map_err(|_| Error::bad_database("Invalid pusher bytes in senderkey_pusher"))?;
 

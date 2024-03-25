@@ -7,10 +7,15 @@ pub async fn get_threads_route(body: Ruma<get_threads::v1::Request>) -> Result<g
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	// Use limit or else 10, with maximum 100
-	let limit = body.limit.and_then(|l| l.try_into().ok()).unwrap_or(10).min(100);
+	let limit = body
+		.limit
+		.and_then(|l| l.try_into().ok())
+		.unwrap_or(10)
+		.min(100);
 
 	let from = if let Some(from) = &body.from {
-		from.parse().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, ""))?
+		from.parse()
+			.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, ""))?
 	} else {
 		u64::MAX
 	};
@@ -33,7 +38,10 @@ pub async fn get_threads_route(body: Ruma<get_threads::v1::Request>) -> Result<g
 	let next_batch = threads.last().map(|(count, _)| count.to_string());
 
 	Ok(get_threads::v1::Response {
-		chunk: threads.into_iter().map(|(_, pdu)| pdu.to_room_event()).collect(),
+		chunk: threads
+			.into_iter()
+			.map(|(_, pdu)| pdu.to_room_event())
+			.collect(),
 		next_batch,
 	})
 }

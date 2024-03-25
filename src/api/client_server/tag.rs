@@ -18,7 +18,9 @@ use crate::{services, Error, Result, Ruma};
 pub async fn update_tag_route(body: Ruma<create_tag::v3::Request>) -> Result<create_tag::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event = services().account_data.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
+	let event = services()
+		.account_data
+		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
 
 	let mut tags_event = event.map_or_else(
 		|| {
@@ -31,7 +33,10 @@ pub async fn update_tag_route(body: Ruma<create_tag::v3::Request>) -> Result<cre
 		|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")),
 	)?;
 
-	tags_event.content.tags.insert(body.tag.clone().into(), body.tag_info.clone());
+	tags_event
+		.content
+		.tags
+		.insert(body.tag.clone().into(), body.tag_info.clone());
 
 	services().account_data.update(
 		Some(&body.room_id),
@@ -51,7 +56,9 @@ pub async fn update_tag_route(body: Ruma<create_tag::v3::Request>) -> Result<cre
 pub async fn delete_tag_route(body: Ruma<delete_tag::v3::Request>) -> Result<delete_tag::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event = services().account_data.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
+	let event = services()
+		.account_data
+		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
 
 	let mut tags_event = event.map_or_else(
 		|| {
@@ -84,7 +91,9 @@ pub async fn delete_tag_route(body: Ruma<delete_tag::v3::Request>) -> Result<del
 pub async fn get_tags_route(body: Ruma<get_tags::v3::Request>) -> Result<get_tags::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event = services().account_data.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
+	let event = services()
+		.account_data
+		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
 
 	let tags_event = event.map_or_else(
 		|| {

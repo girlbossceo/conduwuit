@@ -32,8 +32,10 @@ impl service::rooms::pdu_metadata::Data for KeyValueDatabase {
 		current.extend_from_slice(&count_raw.to_be_bytes());
 
 		Ok(Box::new(
-			self.tofrom_relation.iter_from(&current, true).take_while(move |(k, _)| k.starts_with(&prefix)).map(
-				move |(tofrom, _data)| {
+			self.tofrom_relation
+				.iter_from(&current, true)
+				.take_while(move |(k, _)| k.starts_with(&prefix))
+				.map(move |(tofrom, _data)| {
 					let from = utils::u64_from_bytes(&tofrom[(mem::size_of::<u64>())..])
 						.map_err(|_| Error::bad_database("Invalid count in tofrom_relation."))?;
 
@@ -49,8 +51,7 @@ impl service::rooms::pdu_metadata::Data for KeyValueDatabase {
 						pdu.remove_transaction_id()?;
 					}
 					Ok((PduCount::Normal(from), pdu))
-				},
-			),
+				}),
 		))
 	}
 
@@ -75,6 +76,8 @@ impl service::rooms::pdu_metadata::Data for KeyValueDatabase {
 	}
 
 	fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> {
-		self.softfailedeventids.get(event_id.as_bytes()).map(|o| o.is_some())
+		self.softfailedeventids
+			.get(event_id.as_bytes())
+			.map(|o| o.is_some())
 	}
 }

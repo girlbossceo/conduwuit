@@ -125,8 +125,9 @@ impl Service {
 			.first_pdu_in_room(room_id)?
 			.ok_or_else(|| Error::bad_database("Failed to find first pdu in db."))?;
 
-		let (incoming_pdu, val) =
-			self.handle_outlier_pdu(origin, &create_event, event_id, room_id, value, false, pub_key_map).await?;
+		let (incoming_pdu, val) = self
+			.handle_outlier_pdu(origin, &create_event, event_id, room_id, value, false, pub_key_map)
+			.await?;
 		self.check_room_id(room_id, &incoming_pdu)?;
 
 		// 8. if not timeline event: stop
@@ -167,7 +168,13 @@ impl Service {
 				));
 			}
 
-			if let Some((time, tries)) = services().globals.bad_event_ratelimiter.read().await.get(&*prev_id) {
+			if let Some((time, tries)) = services()
+				.globals
+				.bad_event_ratelimiter
+				.read()
+				.await
+				.get(&*prev_id)
+			{
 				// Exponential backoff
 				let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
 				if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
@@ -182,7 +189,13 @@ impl Service {
 
 			if errors >= 5 {
 				// Timeout other events
-				match services().globals.bad_event_ratelimiter.write().await.entry((*prev_id).to_owned()) {
+				match services()
+					.globals
+					.bad_event_ratelimiter
+					.write()
+					.await
+					.entry((*prev_id).to_owned())
+				{
 					hash_map::Entry::Vacant(e) => {
 						e.insert((Instant::now(), 1));
 					},
@@ -207,12 +220,19 @@ impl Service {
 					.await
 					.insert(room_id.to_owned(), ((*prev_id).to_owned(), start_time));
 
-				if let Err(e) =
-					self.upgrade_outlier_to_timeline_pdu(pdu, json, &create_event, origin, room_id, pub_key_map).await
+				if let Err(e) = self
+					.upgrade_outlier_to_timeline_pdu(pdu, json, &create_event, origin, room_id, pub_key_map)
+					.await
 				{
 					errors += 1;
 					warn!("Prev event {} failed: {}", prev_id, e);
-					match services().globals.bad_event_ratelimiter.write().await.entry((*prev_id).to_owned()) {
+					match services()
+						.globals
+						.bad_event_ratelimiter
+						.write()
+						.await
+						.entry((*prev_id).to_owned())
+					{
 						hash_map::Entry::Vacant(e) => {
 							e.insert((Instant::now(), 1));
 						},
@@ -222,7 +242,12 @@ impl Service {
 					}
 				}
 				let elapsed = start_time.elapsed();
-				services().globals.roomid_federationhandletime.write().await.remove(&room_id.to_owned());
+				services()
+					.globals
+					.roomid_federationhandletime
+					.write()
+					.await
+					.remove(&room_id.to_owned());
 				debug!(
 					"Handling prev event {} took {}m{}s",
 					prev_id,
@@ -246,7 +271,12 @@ impl Service {
 			.event_handler
 			.upgrade_outlier_to_timeline_pdu(incoming_pdu, val, &create_event, origin, room_id, pub_key_map)
 			.await;
-		services().globals.roomid_federationhandletime.write().await.remove(&room_id.to_owned());
+		services()
+			.globals
+			.roomid_federationhandletime
+			.write()
+			.await
+			.remove(&room_id.to_owned());
 
 		r
 	}
@@ -323,7 +353,11 @@ impl Service {
 				debug!(event_id = ?incoming_pdu.event_id, "Fetching auth events");
 				self.fetch_and_handle_outliers(
 					origin,
-					&incoming_pdu.auth_events.iter().map(|x| Arc::from(&**x)).collect::<Vec<_>>(),
+					&incoming_pdu
+						.auth_events
+						.iter()
+						.map(|x| Arc::from(&**x))
+						.collect::<Vec<_>>(),
 					create_event,
 					room_id,
 					room_version_id,
@@ -351,7 +385,10 @@ impl Service {
 
 				match auth_events.entry((
 					auth_event.kind.to_string().into(),
-					auth_event.state_key.clone().expect("all auth events have state keys"),
+					auth_event
+						.state_key
+						.clone()
+						.expect("all auth events have state keys"),
 				)) {
 					hash_map::Entry::Vacant(v) => {
 						v.insert(auth_event);
@@ -367,7 +404,9 @@ impl Service {
 
 			// The original create event must be in the auth events
 			if !matches!(
-				auth_events.get(&(StateEventType::RoomCreate, String::new())).map(AsRef::as_ref),
+				auth_events
+					.get(&(StateEventType::RoomCreate, String::new()))
+					.map(AsRef::as_ref),
 				Some(_) | None
 			) {
 				return Err(Error::BadRequest(
@@ -390,7 +429,10 @@ impl Service {
 			debug!("Validation successful.");
 
 			// 7. Persist the event as an outlier.
-			services().rooms.outlier.add_pdu_outlier(&incoming_pdu.event_id, &val)?;
+			services()
+				.rooms
+				.outlier
+				.add_pdu_outlier(&incoming_pdu.event_id, &val)?;
 
 			debug!("Added pdu as outlier.");
 
@@ -407,7 +449,11 @@ impl Service {
 			return Ok(Some(pduid));
 		}
 
-		if services().rooms.pdu_metadata.is_event_soft_failed(&incoming_pdu.event_id)? {
+		if services()
+			.rooms
+			.pdu_metadata
+			.is_event_soft_failed(&incoming_pdu.event_id)?
+		{
 			return Err(Error::BadRequest(ErrorKind::InvalidParam, "Event has been soft failed"));
 		}
 
@@ -434,10 +480,19 @@ impl Service {
 
 		if incoming_pdu.prev_events.len() == 1 {
 			let prev_event = &*incoming_pdu.prev_events[0];
-			let prev_event_sstatehash = services().rooms.state_accessor.pdu_shortstatehash(prev_event)?;
+			let prev_event_sstatehash = services()
+				.rooms
+				.state_accessor
+				.pdu_shortstatehash(prev_event)?;
 
 			let state = if let Some(shortstatehash) = prev_event_sstatehash {
-				Some(services().rooms.state_accessor.state_full_ids(shortstatehash).await)
+				Some(
+					services()
+						.rooms
+						.state_accessor
+						.state_full_ids(shortstatehash)
+						.await,
+				)
 			} else {
 				None
 			};
@@ -477,7 +532,11 @@ impl Service {
 					break;
 				};
 
-				let sstatehash = if let Ok(Some(s)) = services().rooms.state_accessor.pdu_shortstatehash(prev_eventid) {
+				let sstatehash = if let Ok(Some(s)) = services()
+					.rooms
+					.state_accessor
+					.pdu_shortstatehash(prev_eventid)
+				{
 					s
 				} else {
 					okay = false;
@@ -492,8 +551,11 @@ impl Service {
 				let mut auth_chain_sets = Vec::with_capacity(extremity_sstatehashes.len());
 
 				for (sstatehash, prev_event) in extremity_sstatehashes {
-					let mut leaf_state: HashMap<_, _> =
-						services().rooms.state_accessor.state_full_ids(sstatehash).await?;
+					let mut leaf_state: HashMap<_, _> = services()
+						.rooms
+						.state_accessor
+						.state_full_ids(sstatehash)
+						.await?;
 
 					if let Some(state_key) = &prev_event.state_key {
 						let shortstatekey = services()
@@ -518,8 +580,14 @@ impl Service {
 						starting_events.push(id);
 					}
 
-					auth_chain_sets
-						.push(services().rooms.auth_chain.get_auth_chain(room_id, starting_events).await?.collect());
+					auth_chain_sets.push(
+						services()
+							.rooms
+							.auth_chain
+							.get_auth_chain(room_id, starting_events)
+							.await?
+							.collect(),
+					);
 
 					fork_states.push(state);
 				}
@@ -579,7 +647,11 @@ impl Service {
 				Ok(res) => {
 					debug!("Fetching state events at event.");
 
-					let collect = res.pdu_ids.iter().map(|x| Arc::from(&**x)).collect::<Vec<_>>();
+					let collect = res
+						.pdu_ids
+						.iter()
+						.map(|x| Arc::from(&**x))
+						.collect::<Vec<_>>();
 
 					let state_vec = self
 						.fetch_and_handle_outliers(
@@ -679,8 +751,15 @@ impl Service {
 		// 13. Use state resolution to find new room state
 
 		// We start looking at current room state now, so lets lock the room
-		let mutex_state =
-			Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.to_owned()).or_default());
+		let mutex_state = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_state
+				.write()
+				.await
+				.entry(room_id.to_owned())
+				.or_default(),
+		);
 		let state_lock = mutex_state.lock().await;
 
 		// Now we calculate the set of extremities this room has after the incoming
@@ -698,13 +777,26 @@ impl Service {
 		}
 
 		// Only keep those extremities were not referenced yet
-		extremities.retain(|id| !matches!(services().rooms.pdu_metadata.is_event_referenced(room_id, id), Ok(true)));
+		extremities.retain(|id| {
+			!matches!(
+				services()
+					.rooms
+					.pdu_metadata
+					.is_event_referenced(room_id, id),
+				Ok(true)
+			)
+		});
 
 		debug!("Compressing state at event");
 		let state_ids_compressed = Arc::new(
 			state_at_incoming_event
 				.iter()
-				.map(|(shortstatekey, id)| services().rooms.state_compressor.compress_state_event(*shortstatekey, id))
+				.map(|(shortstatekey, id)| {
+					services()
+						.rooms
+						.state_compressor
+						.compress_state_event(*shortstatekey, id)
+				})
 				.collect::<Result<_>>()?,
 		);
 
@@ -722,14 +814,23 @@ impl Service {
 				state_after.insert(shortstatekey, Arc::from(&*incoming_pdu.event_id));
 			}
 
-			let new_room_state = self.resolve_state(room_id, room_version_id, state_after).await?;
+			let new_room_state = self
+				.resolve_state(room_id, room_version_id, state_after)
+				.await?;
 
 			// Set the new room state to the resolved state
 			debug!("Forcing new room state");
 
-			let (sstatehash, new, removed) = services().rooms.state_compressor.save_state(room_id, new_room_state)?;
+			let (sstatehash, new, removed) = services()
+				.rooms
+				.state_compressor
+				.save_state(room_id, new_room_state)?;
 
-			services().rooms.state.force_state(room_id, sstatehash, new, removed, &state_lock).await?;
+			services()
+				.rooms
+				.state
+				.force_state(room_id, sstatehash, new, removed, &state_lock)
+				.await?;
 		}
 
 		// 14. Check if the event passes auth based on the "current state" of the room,
@@ -752,7 +853,10 @@ impl Service {
 
 			// Soft fail, we keep the event as an outlier but don't add it to the timeline
 			warn!("Event was soft failed: {:?}", incoming_pdu);
-			services().rooms.pdu_metadata.mark_event_soft_failed(&incoming_pdu.event_id)?;
+			services()
+				.rooms
+				.pdu_metadata
+				.mark_event_soft_failed(&incoming_pdu.event_id)?;
 			return Err(Error::BadRequest(ErrorKind::InvalidParam, "Event has been soft failed"));
 		}
 
@@ -787,10 +891,17 @@ impl Service {
 		&self, room_id: &RoomId, room_version_id: &RoomVersionId, incoming_state: HashMap<u64, Arc<EventId>>,
 	) -> Result<Arc<HashSet<CompressedStateEvent>>> {
 		debug!("Loading current room state ids");
-		let current_sstatehash =
-			services().rooms.state.get_room_shortstatehash(room_id)?.expect("every room has state");
+		let current_sstatehash = services()
+			.rooms
+			.state
+			.get_room_shortstatehash(room_id)?
+			.expect("every room has state");
 
-		let current_state_ids = services().rooms.state_accessor.state_full_ids(current_sstatehash).await?;
+		let current_state_ids = services()
+			.rooms
+			.state_accessor
+			.state_full_ids(current_sstatehash)
+			.await?;
 
 		let fork_states = [current_state_ids, incoming_state];
 
@@ -852,9 +963,14 @@ impl Service {
 		let new_room_state = state
 			.into_iter()
 			.map(|((event_type, state_key), event_id)| {
-				let shortstatekey =
-					services().rooms.short.get_or_create_shortstatekey(&event_type.to_string().into(), &state_key)?;
-				services().rooms.state_compressor.compress_state_event(shortstatekey, &event_id)
+				let shortstatekey = services()
+					.rooms
+					.short
+					.get_or_create_shortstatekey(&event_type.to_string().into(), &state_key)?;
+				services()
+					.rooms
+					.state_compressor
+					.compress_state_event(shortstatekey, &event_id)
 			})
 			.collect::<Result<_>>()?;
 
@@ -877,7 +993,13 @@ impl Service {
 	) -> AsyncRecursiveCanonicalJsonVec<'a> {
 		Box::pin(async move {
 			let back_off = |id| async {
-				match services().globals.bad_event_ratelimiter.write().await.entry(id) {
+				match services()
+					.globals
+					.bad_event_ratelimiter
+					.write()
+					.await
+					.entry(id)
+				{
 					hash_map::Entry::Vacant(e) => {
 						e.insert((Instant::now(), 1));
 					},
@@ -904,7 +1026,13 @@ impl Service {
 				let mut events_all = HashSet::new();
 				let mut i = 0;
 				while let Some(next_id) = todo_auth_events.pop() {
-					if let Some((time, tries)) = services().globals.bad_event_ratelimiter.read().await.get(&*next_id) {
+					if let Some((time, tries)) = services()
+						.globals
+						.bad_event_ratelimiter
+						.read()
+						.await
+						.get(&*next_id)
+					{
 						// Exponential backoff
 						let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
 						if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
@@ -1010,7 +1138,13 @@ impl Service {
 					pdus.push((local_pdu, None));
 				}
 				for (next_id, value) in events_in_reverse_order.iter().rev() {
-					if let Some((time, tries)) = services().globals.bad_event_ratelimiter.read().await.get(&**next_id) {
+					if let Some((time, tries)) = services()
+						.globals
+						.bad_event_ratelimiter
+						.read()
+						.await
+						.get(&**next_id)
+					{
 						// Exponential backoff
 						let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
 						if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
@@ -1087,9 +1221,14 @@ impl Service {
 					continue;
 				}
 
-				if let Some(json) =
-					json_opt.or_else(|| services().rooms.outlier.get_outlier_pdu_json(&prev_event_id).ok().flatten())
-				{
+				if let Some(json) = json_opt.or_else(|| {
+					services()
+						.rooms
+						.outlier
+						.get_outlier_pdu_json(&prev_event_id)
+						.ok()
+						.flatten()
+				}) {
 					if pdu.origin_server_ts > first_pdu_in_room.origin_server_ts {
 						amount += 1;
 						for prev_prev in &pdu.prev_events {
@@ -1122,7 +1261,9 @@ impl Service {
 			Ok((
 				int!(0),
 				MilliSecondsSinceUnixEpoch(
-					eventid_info.get(event_id).map_or_else(|| uint!(0), |info| info.0.origin_server_ts),
+					eventid_info
+						.get(event_id)
+						.map_or_else(|| uint!(0), |info| info.0.origin_server_ts),
 				),
 			))
 		})
@@ -1172,7 +1313,11 @@ impl Service {
 
 		info!(
 			"Fetch keys for {}",
-			server_key_ids.keys().cloned().collect::<Vec<_>>().join(", ")
+			server_key_ids
+				.keys()
+				.cloned()
+				.collect::<Vec<_>>()
+				.join(", ")
 		);
 
 		let mut server_keys: FuturesUnordered<_> = server_key_ids
@@ -1204,7 +1349,10 @@ impl Service {
 		while let Some(fetch_res) = server_keys.next().await {
 			match fetch_res {
 				Ok((signature_server, keys)) => {
-					pub_key_map.write().await.insert(signature_server.clone(), keys);
+					pub_key_map
+						.write()
+						.await
+						.insert(signature_server.clone(), keys);
 				},
 				Err((signature_server, e)) => {
 					warn!("Failed to fetch keys for {}: {:?}", signature_server, e);
@@ -1235,7 +1383,13 @@ impl Service {
 		);
 		let event_id = <&EventId>::try_from(event_id.as_str()).expect("ruma's reference hashes are valid event ids");
 
-		if let Some((time, tries)) = services().globals.bad_event_ratelimiter.read().await.get(event_id) {
+		if let Some((time, tries)) = services()
+			.globals
+			.bad_event_ratelimiter
+			.read()
+			.await
+			.get(event_id)
+		{
 			// Exponential backoff
 			let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
 			if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
@@ -1275,8 +1429,12 @@ impl Service {
 
 			debug!("Loading signing keys for {}", origin);
 
-			let result: BTreeMap<_, _> =
-				services().globals.signing_keys_for(origin)?.into_iter().map(|(k, v)| (k.to_string(), v.key)).collect();
+			let result: BTreeMap<_, _> = services()
+				.globals
+				.signing_keys_for(origin)?
+				.into_iter()
+				.map(|(k, v)| (k.to_string(), v.key))
+				.collect();
 
 			if !contains_all_ids(&result) {
 				debug!("Signing key not loaded for {}", origin);
@@ -1353,7 +1511,10 @@ impl Service {
 			.into_keys()
 			.map(|server| async move {
 				(
-					services().sending.send_federation_request(&server, get_server_keys::v2::Request::new()).await,
+					services()
+						.sending
+						.send_federation_request(&server, get_server_keys::v2::Request::new())
+						.await,
 					server,
 				)
 			})
@@ -1391,10 +1552,14 @@ impl Service {
 			// Try to fetch keys, failure is okay
 			// Servers we couldn't find in the cache will be added to `servers`
 			for pdu in &event.room_state.state {
-				_ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm).await;
+				_ = self
+					.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm)
+					.await;
 			}
 			for pdu in &event.room_state.auth_chain {
-				_ = self.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm).await;
+				_ = self
+					.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm)
+					.await;
 			}
 
 			drop(pkm);
@@ -1411,7 +1576,8 @@ impl Service {
 				 homeserver signing keys."
 			);
 
-			self.batch_request_signing_keys(servers.clone(), pub_key_map).await?;
+			self.batch_request_signing_keys(servers.clone(), pub_key_map)
+				.await?;
 
 			if servers.is_empty() {
 				info!("Trusted server supplied all signing keys, no more keys to fetch");
@@ -1420,11 +1586,13 @@ impl Service {
 
 			info!("Remaining servers left that the notary/trusted servers did not provide: {servers:?}");
 
-			self.request_signing_keys(servers.clone(), pub_key_map).await?;
+			self.request_signing_keys(servers.clone(), pub_key_map)
+				.await?;
 		} else {
 			info!("query_trusted_key_servers_first is set to false, querying individual homeservers first");
 
-			self.request_signing_keys(servers.clone(), pub_key_map).await?;
+			self.request_signing_keys(servers.clone(), pub_key_map)
+				.await?;
 
 			if servers.is_empty() {
 				info!("Individual homeservers supplied all signing keys, no more keys to fetch");
@@ -1433,7 +1601,8 @@ impl Service {
 
 			info!("Remaining servers left the individual homeservers did not provide: {servers:?}");
 
-			self.batch_request_signing_keys(servers.clone(), pub_key_map).await?;
+			self.batch_request_signing_keys(servers.clone(), pub_key_map)
+				.await?;
 		}
 
 		info!("Search for signing keys done");
@@ -1448,7 +1617,11 @@ impl Service {
 	/// Returns Ok if the acl allows the server
 	pub fn acl_check(&self, server_name: &ServerName, room_id: &RoomId) -> Result<()> {
 		let acl_event =
-			match services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomServerAcl, "")? {
+			match services()
+				.rooms
+				.state_accessor
+				.room_state_get(room_id, &StateEventType::RoomServerAcl, "")?
+			{
 				Some(acl) => {
 					debug!("ACL event found: {acl:?}");
 					acl
@@ -1493,21 +1666,36 @@ impl Service {
 	) -> Result<BTreeMap<String, Base64>> {
 		let contains_all_ids = |keys: &BTreeMap<String, Base64>| signature_ids.iter().all(|id| keys.contains_key(id));
 
-		let permit =
-			services().globals.servername_ratelimiter.read().await.get(origin).map(|s| Arc::clone(s).acquire_owned());
+		let permit = services()
+			.globals
+			.servername_ratelimiter
+			.read()
+			.await
+			.get(origin)
+			.map(|s| Arc::clone(s).acquire_owned());
 
 		let permit = if let Some(p) = permit {
 			p
 		} else {
 			let mut write = services().globals.servername_ratelimiter.write().await;
-			let s = Arc::clone(write.entry(origin.to_owned()).or_insert_with(|| Arc::new(Semaphore::new(1))));
+			let s = Arc::clone(
+				write
+					.entry(origin.to_owned())
+					.or_insert_with(|| Arc::new(Semaphore::new(1))),
+			);
 
 			s.acquire_owned()
 		}
 		.await;
 
 		let back_off = |id| async {
-			match services().globals.bad_signature_ratelimiter.write().await.entry(id) {
+			match services()
+				.globals
+				.bad_signature_ratelimiter
+				.write()
+				.await
+				.entry(id)
+			{
 				hash_map::Entry::Vacant(e) => {
 					e.insert((Instant::now(), 1));
 				},
@@ -1515,7 +1703,13 @@ impl Service {
 			}
 		};
 
-		if let Some((time, tries)) = services().globals.bad_signature_ratelimiter.read().await.get(&signature_ids) {
+		if let Some((time, tries)) = services()
+			.globals
+			.bad_signature_ratelimiter
+			.read()
+			.await
+			.get(&signature_ids)
+		{
 			// Exponential backoff
 			let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
 			if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
@@ -1530,8 +1724,12 @@ impl Service {
 
 		debug!("Loading signing keys for {origin} from our database if available");
 
-		let mut result: BTreeMap<_, _> =
-			services().globals.signing_keys_for(origin)?.into_iter().map(|(k, v)| (k.to_string(), v.key)).collect();
+		let mut result: BTreeMap<_, _> = services()
+			.globals
+			.signing_keys_for(origin)?
+			.into_iter()
+			.map(|(k, v)| (k.to_string(), v.key))
+			.collect();
 
 		if contains_all_ids(&result) {
 			debug!("We have all homeserver signing keys locally for {origin}, not fetching any remotely");
@@ -1554,20 +1752,34 @@ impl Service {
 						get_remote_server_keys::v2::Request::new(
 							origin.to_owned(),
 							MilliSecondsSinceUnixEpoch::from_system_time(
-								SystemTime::now().checked_add(Duration::from_secs(3600)).expect("SystemTime too large"),
+								SystemTime::now()
+									.checked_add(Duration::from_secs(3600))
+									.expect("SystemTime too large"),
 							)
 							.expect("time is valid"),
 						),
 					)
 					.await
 					.ok()
-					.map(|resp| resp.server_keys.into_iter().filter_map(|e| e.deserialize().ok()).collect::<Vec<_>>())
-				{
+					.map(|resp| {
+						resp.server_keys
+							.into_iter()
+							.filter_map(|e| e.deserialize().ok())
+							.collect::<Vec<_>>()
+					}) {
 					debug!("Got signing keys: {:?}", server_keys);
 					for k in server_keys {
 						services().globals.add_signing_key(origin, k.clone())?;
-						result.extend(k.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
-						result.extend(k.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+						result.extend(
+							k.verify_keys
+								.into_iter()
+								.map(|(k, v)| (k.to_string(), v.key)),
+						);
+						result.extend(
+							k.old_verify_keys
+								.into_iter()
+								.map(|(k, v)| (k.to_string(), v.key)),
+						);
 					}
 
 					if contains_all_ids(&result) {
@@ -1584,10 +1796,22 @@ impl Service {
 				.ok()
 				.and_then(|resp| resp.server_key.deserialize().ok())
 			{
-				services().globals.add_signing_key(origin, server_key.clone())?;
+				services()
+					.globals
+					.add_signing_key(origin, server_key.clone())?;
 
-				result.extend(server_key.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
-				result.extend(server_key.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+				result.extend(
+					server_key
+						.verify_keys
+						.into_iter()
+						.map(|(k, v)| (k.to_string(), v.key)),
+				);
+				result.extend(
+					server_key
+						.old_verify_keys
+						.into_iter()
+						.map(|(k, v)| (k.to_string(), v.key)),
+				);
 
 				if contains_all_ids(&result) {
 					return Ok(result);
@@ -1604,10 +1828,22 @@ impl Service {
 				.ok()
 				.and_then(|resp| resp.server_key.deserialize().ok())
 			{
-				services().globals.add_signing_key(origin, server_key.clone())?;
+				services()
+					.globals
+					.add_signing_key(origin, server_key.clone())?;
 
-				result.extend(server_key.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
-				result.extend(server_key.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+				result.extend(
+					server_key
+						.verify_keys
+						.into_iter()
+						.map(|(k, v)| (k.to_string(), v.key)),
+				);
+				result.extend(
+					server_key
+						.old_verify_keys
+						.into_iter()
+						.map(|(k, v)| (k.to_string(), v.key)),
+				);
 
 				if contains_all_ids(&result) {
 					return Ok(result);
@@ -1623,20 +1859,34 @@ impl Service {
 						get_remote_server_keys::v2::Request::new(
 							origin.to_owned(),
 							MilliSecondsSinceUnixEpoch::from_system_time(
-								SystemTime::now().checked_add(Duration::from_secs(3600)).expect("SystemTime too large"),
+								SystemTime::now()
+									.checked_add(Duration::from_secs(3600))
+									.expect("SystemTime too large"),
 							)
 							.expect("time is valid"),
 						),
 					)
 					.await
 					.ok()
-					.map(|resp| resp.server_keys.into_iter().filter_map(|e| e.deserialize().ok()).collect::<Vec<_>>())
-				{
+					.map(|resp| {
+						resp.server_keys
+							.into_iter()
+							.filter_map(|e| e.deserialize().ok())
+							.collect::<Vec<_>>()
+					}) {
 					debug!("Got signing keys: {:?}", server_keys);
 					for k in server_keys {
 						services().globals.add_signing_key(origin, k.clone())?;
-						result.extend(k.verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
-						result.extend(k.old_verify_keys.into_iter().map(|(k, v)| (k.to_string(), v.key)));
+						result.extend(
+							k.verify_keys
+								.into_iter()
+								.map(|(k, v)| (k.to_string(), v.key)),
+						);
+						result.extend(
+							k.old_verify_keys
+								.into_iter()
+								.map(|(k, v)| (k.to_string(), v.key)),
+						);
 					}
 
 					if contains_all_ids(&result) {

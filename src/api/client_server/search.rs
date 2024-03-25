@@ -29,10 +29,14 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 	let filter = &search_criteria.filter;
 	let include_state = &search_criteria.include_state;
 
-	let room_ids = filter
-		.rooms
-		.clone()
-		.unwrap_or_else(|| services().rooms.state_cache.rooms_joined(sender_user).filter_map(Result::ok).collect());
+	let room_ids = filter.rooms.clone().unwrap_or_else(|| {
+		services()
+			.rooms
+			.state_cache
+			.rooms_joined(sender_user)
+			.filter_map(Result::ok)
+			.collect()
+	});
 
 	// Use limit or else 10, with maximum 100
 	let limit = filter.limit.map_or(10, u64::from).min(100) as usize;
@@ -41,7 +45,11 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 
 	if include_state.is_some_and(|include_state| include_state) {
 		for room_id in &room_ids {
-			if !services().rooms.state_cache.is_joined(sender_user, room_id)? {
+			if !services()
+				.rooms
+				.state_cache
+				.is_joined(sender_user, room_id)?
+			{
 				return Err(Error::BadRequest(
 					ErrorKind::Forbidden,
 					"You don't have permission to view this room.",
@@ -49,7 +57,11 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 			}
 
 			// check if sender_user can see state events
-			if services().rooms.state_accessor.user_can_see_state_events(sender_user, room_id)? {
+			if services()
+				.rooms
+				.state_accessor
+				.user_can_see_state_events(sender_user, room_id)?
+			{
 				let room_state = services()
 					.rooms
 					.state_accessor
@@ -74,14 +86,22 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 	let mut searches = Vec::new();
 
 	for room_id in &room_ids {
-		if !services().rooms.state_cache.is_joined(sender_user, room_id)? {
+		if !services()
+			.rooms
+			.state_cache
+			.is_joined(sender_user, room_id)?
+		{
 			return Err(Error::BadRequest(
 				ErrorKind::Forbidden,
 				"You don't have permission to view this room.",
 			));
 		}
 
-		if let Some(search) = services().rooms.search.search_pdus(room_id, &search_criteria.search_term)? {
+		if let Some(search) = services()
+			.rooms
+			.search
+			.search_pdus(room_id, &search_criteria.search_term)?
+		{
 			searches.push(search.0.peekable());
 		}
 	}

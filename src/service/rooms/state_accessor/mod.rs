@@ -59,19 +59,18 @@ impl Service {
 
 	/// Get membership for given user in state
 	fn user_membership(&self, shortstatehash: u64, user_id: &UserId) -> Result<MembershipState> {
-		self.state_get(shortstatehash, &StateEventType::RoomMember, user_id.as_str())?.map_or(
-			Ok(MembershipState::Leave),
-			|s| {
+		self.state_get(shortstatehash, &StateEventType::RoomMember, user_id.as_str())?
+			.map_or(Ok(MembershipState::Leave), |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomMemberEventContent| c.membership)
 					.map_err(|_| Error::bad_database("Invalid room membership event in database."))
-			},
-		)
+			})
 	}
 
 	/// The user was a joined member at this state (potentially in the past)
 	fn user_was_joined(&self, shortstatehash: u64, user_id: &UserId) -> bool {
-		self.user_membership(shortstatehash, user_id).is_ok_and(|s| s == MembershipState::Join)
+		self.user_membership(shortstatehash, user_id)
+			.is_ok_and(|s| s == MembershipState::Join)
 		// Return sensible default, i.e.
 		// false
 	}
@@ -92,20 +91,22 @@ impl Service {
 			return Ok(true);
 		};
 
-		if let Some(visibility) =
-			self.server_visibility_cache.lock().unwrap().get_mut(&(origin.to_owned(), shortstatehash))
+		if let Some(visibility) = self
+			.server_visibility_cache
+			.lock()
+			.unwrap()
+			.get_mut(&(origin.to_owned(), shortstatehash))
 		{
 			return Ok(*visibility);
 		}
 
-		let history_visibility = self.state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")?.map_or(
-			Ok(HistoryVisibility::Shared),
-			|s| {
+		let history_visibility = self
+			.state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")?
+			.map_or(Ok(HistoryVisibility::Shared), |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
 					.map_err(|_| Error::bad_database("Invalid history visibility event in database."))
-			},
-		)?;
+			})?;
 
 		let mut current_server_members = services()
 			.rooms
@@ -130,7 +131,10 @@ impl Service {
 			},
 		};
 
-		self.server_visibility_cache.lock().unwrap().insert((origin.to_owned(), shortstatehash), visibility);
+		self.server_visibility_cache
+			.lock()
+			.unwrap()
+			.insert((origin.to_owned(), shortstatehash), visibility);
 
 		Ok(visibility)
 	}
@@ -144,22 +148,24 @@ impl Service {
 			None => return Ok(true),
 		};
 
-		if let Some(visibility) =
-			self.user_visibility_cache.lock().unwrap().get_mut(&(user_id.to_owned(), shortstatehash))
+		if let Some(visibility) = self
+			.user_visibility_cache
+			.lock()
+			.unwrap()
+			.get_mut(&(user_id.to_owned(), shortstatehash))
 		{
 			return Ok(*visibility);
 		}
 
 		let currently_member = services().rooms.state_cache.is_joined(user_id, room_id)?;
 
-		let history_visibility = self.state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")?.map_or(
-			Ok(HistoryVisibility::Shared),
-			|s| {
+		let history_visibility = self
+			.state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")?
+			.map_or(Ok(HistoryVisibility::Shared), |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
 					.map_err(|_| Error::bad_database("Invalid history visibility event in database."))
-			},
-		)?;
+			})?;
 
 		let visibility = match history_visibility {
 			HistoryVisibility::WorldReadable => true,
@@ -178,7 +184,10 @@ impl Service {
 			},
 		};
 
-		self.user_visibility_cache.lock().unwrap().insert((user_id.to_owned(), shortstatehash), visibility);
+		self.user_visibility_cache
+			.lock()
+			.unwrap()
+			.insert((user_id.to_owned(), shortstatehash), visibility);
 
 		Ok(visibility)
 	}
@@ -189,17 +198,16 @@ impl Service {
 	pub fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let currently_member = services().rooms.state_cache.is_joined(user_id, room_id)?;
 
-		let history_visibility = self.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?.map_or(
-			Ok(HistoryVisibility::Shared),
-			|s| {
+		let history_visibility = self
+			.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
+			.map_or(Ok(HistoryVisibility::Shared), |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
 					.map_err(|e| {
 						error!("Invalid history visibility event in database for room {}: {e}", &room_id);
 						Error::bad_database("Invalid history visibility event in database.")
 					})
-			},
-		)?;
+			})?;
 
 		Ok(currently_member || history_visibility == HistoryVisibility::WorldReadable)
 	}
@@ -232,28 +240,34 @@ impl Service {
 	}
 
 	pub fn get_name(&self, room_id: &RoomId) -> Result<Option<String>> {
-		services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomName, "")?.map_or(Ok(None), |s| {
-			Ok(serde_json::from_str(s.content.get()).map_or_else(|_| None, |c: RoomNameEventContent| Some(c.name)))
-		})
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomName, "")?
+			.map_or(Ok(None), |s| {
+				Ok(serde_json::from_str(s.content.get()).map_or_else(|_| None, |c: RoomNameEventContent| Some(c.name)))
+			})
 	}
 
 	pub fn get_avatar(&self, room_id: &RoomId) -> Result<ruma::JsOption<RoomAvatarEventContent>> {
-		services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomAvatar, "")?.map_or(
-			Ok(ruma::JsOption::Undefined),
-			|s| {
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomAvatar, "")?
+			.map_or(Ok(ruma::JsOption::Undefined), |s| {
 				serde_json::from_str(s.content.get())
 					.map_err(|_| Error::bad_database("Invalid room avatar event in database."))
-			},
-		)
+			})
 	}
 
 	pub fn get_member(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<RoomMemberEventContent>> {
-		services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?.map_or(
-			Ok(None),
-			|s| {
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
+			.map_or(Ok(None), |s| {
 				serde_json::from_str(s.content.get())
 					.map_err(|_| Error::bad_database("Invalid room member event in database."))
-			},
-		)
+			})
 	}
 }

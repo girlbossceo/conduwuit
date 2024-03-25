@@ -55,7 +55,11 @@ pub(crate) async fn process(command: RoomCommand, body: Vec<&str>) -> Result<Roo
 			rooms.sort_by_key(|r| r.1);
 			rooms.reverse();
 
-			let rooms = rooms.into_iter().skip(page.saturating_sub(1) * PAGE_SIZE).take(PAGE_SIZE).collect::<Vec<_>>();
+			let rooms = rooms
+				.into_iter()
+				.skip(page.saturating_sub(1) * PAGE_SIZE)
+				.take(PAGE_SIZE)
+				.collect::<Vec<_>>();
 
 			if rooms.is_empty() {
 				return Ok(RoomMessageEventContent::text_plain("No more rooms."));
@@ -72,17 +76,19 @@ pub(crate) async fn process(command: RoomCommand, body: Vec<&str>) -> Result<Roo
 			let output_html = format!(
 				"<table><caption>Room list - page \
 				 {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-				rooms.iter().fold(String::new(), |mut output, (id, members, name)| {
-					writeln!(
-						output,
-						"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
-						escape_html(id.as_ref()),
-						members,
-						escape_html(name)
-					)
-					.unwrap();
-					output
-				})
+				rooms
+					.iter()
+					.fold(String::new(), |mut output, (id, members, name)| {
+						writeln!(
+							output,
+							"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
+							escape_html(id.as_ref()),
+							members,
+							escape_html(name)
+						)
+						.unwrap();
+						output
+					})
 			);
 			Ok(RoomMessageEventContent::text_html(output_plain, output_html))
 		},

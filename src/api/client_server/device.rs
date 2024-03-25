@@ -53,7 +53,9 @@ pub async fn update_device_route(body: Ruma<update_device::v3::Request>) -> Resu
 
 	device.display_name.clone_from(&body.display_name);
 
-	services().users.update_device_metadata(sender_user, &body.device_id, &device)?;
+	services()
+		.users
+		.update_device_metadata(sender_user, &body.device_id, &device)?;
 
 	Ok(update_device::v3::Response {})
 }
@@ -84,20 +86,26 @@ pub async fn delete_device_route(body: Ruma<delete_device::v3::Request>) -> Resu
 	};
 
 	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services().uiaa.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+		let (worked, uiaainfo) = services()
+			.uiaa
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
 	// Success!
 	} else if let Some(json) = body.json_body {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services().uiaa.create(sender_user, sender_device, &uiaainfo, &json)?;
+		services()
+			.uiaa
+			.create(sender_user, sender_device, &uiaainfo, &json)?;
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
 	}
 
-	services().users.remove_device(sender_user, &body.device_id)?;
+	services()
+		.users
+		.remove_device(sender_user, &body.device_id)?;
 
 	Ok(delete_device::v3::Response {})
 }
@@ -130,14 +138,18 @@ pub async fn delete_devices_route(body: Ruma<delete_devices::v3::Request>) -> Re
 	};
 
 	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services().uiaa.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+		let (worked, uiaainfo) = services()
+			.uiaa
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
 	// Success!
 	} else if let Some(json) = body.json_body {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services().uiaa.create(sender_user, sender_device, &uiaainfo, &json)?;
+		services()
+			.uiaa
+			.create(sender_user, sender_device, &uiaainfo, &json)?;
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));

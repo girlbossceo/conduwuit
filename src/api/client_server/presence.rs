@@ -46,10 +46,19 @@ pub async fn get_presence_route(body: Ruma<get_presence::v3::Request>) -> Result
 
 	let mut presence_event = None;
 
-	for room_id in services().rooms.user.get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])? {
+	for room_id in services()
+		.rooms
+		.user
+		.get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])?
+	{
 		let room_id = room_id?;
 
-		if let Some(presence) = services().rooms.edus.presence.get_presence(&room_id, sender_user)? {
+		if let Some(presence) = services()
+			.rooms
+			.edus
+			.presence
+			.get_presence(&room_id, sender_user)?
+		{
 			presence_event = Some(presence);
 			break;
 		}
@@ -60,7 +69,10 @@ pub async fn get_presence_route(body: Ruma<get_presence::v3::Request>) -> Result
 			// TODO: Should ruma just use the presenceeventcontent type here?
 			status_msg: presence.content.status_msg,
 			currently_active: presence.content.currently_active,
-			last_active_ago: presence.content.last_active_ago.map(|millis| Duration::from_millis(millis.into())),
+			last_active_ago: presence
+				.content
+				.last_active_ago
+				.map(|millis| Duration::from_millis(millis.into())),
 			presence: presence.content.presence,
 		})
 	} else {

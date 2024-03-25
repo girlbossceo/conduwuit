@@ -81,7 +81,12 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 				let room_id = <&RoomId>::try_from(room_id_str)
 					.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 				let start = Instant::now();
-				let count = services().rooms.auth_chain.get_auth_chain(room_id, vec![event_id]).await?.count();
+				let count = services()
+					.rooms
+					.auth_chain
+					.get_auth_chain(room_id, vec![event_id])
+					.await?
+					.count();
 				let elapsed = start.elapsed();
 				RoomMessageEventContent::text_plain(format!("Loaded auth chain with length {count} in {elapsed:?}"))
 			} else {
@@ -119,7 +124,10 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 			event_id,
 		} => {
 			let mut outlier = false;
-			let mut pdu_json = services().rooms.timeline.get_non_outlier_pdu_json(&event_id)?;
+			let mut pdu_json = services()
+				.rooms
+				.timeline
+				.get_non_outlier_pdu_json(&event_id)?;
 			if pdu_json.is_none() {
 				outlier = true;
 				pdu_json = services().rooms.timeline.get_pdu_json(&event_id)?;
@@ -224,7 +232,11 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 						});
 
 					info!("Attempting to handle event ID {event_id} as backfilled PDU");
-					services().rooms.timeline.backfill_pdu(&server, response.pdu, &pub_key_map).await?;
+					services()
+						.rooms
+						.timeline
+						.backfill_pdu(&server, response.pdu, &pub_key_map)
+						.await?;
 
 					let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
 

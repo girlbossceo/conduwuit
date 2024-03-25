@@ -159,7 +159,13 @@ where
 
 	let mut write_destination_to_cache = false;
 
-	let cached_result = services().globals.actual_destinations().read().await.get(destination).cloned();
+	let cached_result = services()
+		.globals
+		.actual_destinations()
+		.read()
+		.await
+		.get(destination)
+		.cloned();
 
 	let (actual_destination, host) = if let Some(result) = cached_result {
 		result
@@ -196,7 +202,12 @@ where
 	request_map.insert("method".to_owned(), T::METADATA.method.to_string().into());
 	request_map.insert(
 		"uri".to_owned(),
-		http_request.uri().path_and_query().expect("all requests have a path").to_string().into(),
+		http_request
+			.uri()
+			.path_and_query()
+			.expect("all requests have a path")
+			.to_string()
+			.into(),
 	);
 	request_map.insert("origin".to_owned(), services().globals.server_name().as_str().into());
 	request_map.insert("destination".to_owned(), destination.as_str().into());
@@ -217,7 +228,12 @@ where
 		.as_object()
 		.unwrap()
 		.values()
-		.map(|v| v.as_object().unwrap().iter().map(|(k, v)| (k, v.as_str().unwrap())));
+		.map(|v| {
+			v.as_object()
+				.unwrap()
+				.iter()
+				.map(|(k, v)| (k, v.as_str().unwrap()))
+		});
 
 	for signature_server in signatures {
 		for s in signature_server {
@@ -257,7 +273,12 @@ where
 	}
 
 	debug!("Sending request to {destination} at {url}");
-	let response = services().globals.client.federation.execute(reqwest_request).await;
+	let response = services()
+		.globals
+		.client
+		.federation
+		.execute(reqwest_request)
+		.await;
 	debug!("Received response from {destination} at {url}");
 
 	match response {
@@ -283,10 +304,14 @@ where
 			}
 
 			let status = response.status();
-			let mut http_response_builder = http::Response::builder().status(status).version(response.version());
+			let mut http_response_builder = http::Response::builder()
+				.status(status)
+				.version(response.version());
 			mem::swap(
 				response.headers_mut(),
-				http_response_builder.headers_mut().expect("http::response::Builder is usable"),
+				http_response_builder
+					.headers_mut()
+					.expect("http::response::Builder is usable"),
 			);
 
 			debug!("Getting response bytes from {destination}");
@@ -301,11 +326,16 @@ where
 					"Response not successful\n{} {}: {}",
 					url,
 					status,
-					String::from_utf8_lossy(&body).lines().collect::<Vec<_>>().join(" ")
+					String::from_utf8_lossy(&body)
+						.lines()
+						.collect::<Vec<_>>()
+						.join(" ")
 				);
 			}
 
-			let http_response = http_response_builder.body(body).expect("reqwest body is valid http body");
+			let http_response = http_response_builder
+				.body(body)
+				.expect("reqwest body is valid http body");
 
 			if status.is_success() {
 				debug!("Parsing response bytes from {destination}");
@@ -490,7 +520,12 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
 }
 
 async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u16) {
-	match services().globals.dns_resolver().lookup_ip(hostname.to_owned()).await {
+	match services()
+		.globals
+		.dns_resolver()
+		.lookup_ip(hostname.to_owned())
+		.await
+	{
 		Ok(override_ip) => {
 			debug!("Caching result of {:?} overriding {:?}", hostname, overname);
 
@@ -521,7 +556,11 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
 	async fn lookup_srv(hostname: &str) -> Result<SrvLookup, ResolveError> {
 		debug!("querying SRV for {:?}", hostname);
 		let hostname = hostname.trim_end_matches('.');
-		services().globals.dns_resolver().srv_lookup(hostname.to_owned()).await
+		services()
+			.globals
+			.dns_resolver()
+			.srv_lookup(hostname.to_owned())
+			.await
 	}
 
 	let first_hostname = format!("_matrix-fed._tcp.{hostname}.");
@@ -539,7 +578,14 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
 }
 
 async fn request_well_known(destination: &str) -> Option<String> {
-	if !services().globals.resolver.overrides.read().unwrap().contains_key(destination) {
+	if !services()
+		.globals
+		.resolver
+		.overrides
+		.read()
+		.unwrap()
+		.contains_key(destination)
+	{
 		query_and_cache_override(destination, destination, 8448).await;
 	}
 
@@ -663,7 +709,10 @@ pub async fn get_server_keys_deprecated_route() -> impl IntoResponse { get_serve
 pub async fn get_public_rooms_filtered_route(
 	body: Ruma<get_public_rooms_filtered::v1::Request>,
 ) -> Result<get_public_rooms_filtered::v1::Response> {
-	if !services().globals.allow_public_room_directory_over_federation() {
+	if !services()
+		.globals
+		.allow_public_room_directory_over_federation()
+	{
 		return Err(Error::bad_config("Room directory is not public."));
 	}
 
@@ -690,7 +739,10 @@ pub async fn get_public_rooms_filtered_route(
 pub async fn get_public_rooms_route(
 	body: Ruma<get_public_rooms::v1::Request>,
 ) -> Result<get_public_rooms::v1::Response> {
-	if !services().globals.allow_public_room_directory_over_federation() {
+	if !services()
+		.globals
+		.allow_public_room_directory_over_federation()
+	{
 		return Err(Error::bad_config("Room directory is not public."));
 	}
 
@@ -743,7 +795,10 @@ pub fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, Canonical
 pub async fn send_transaction_message_route(
 	body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
 	let mut resolved_map = BTreeMap::new();
 
@@ -799,8 +854,15 @@ pub async fn send_transaction_message_route(
 		});
 
 	for (event_id, value, room_id) in parsed_pdus {
-		let mutex =
-			Arc::clone(services().globals.roomid_mutex_federation.write().await.entry(room_id.clone()).or_default());
+		let mutex = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_federation
+				.write()
+				.await
+				.entry(room_id.clone())
+				.or_default(),
+		);
 		let mutex_lock = mutex.lock().await;
 		let start_time = Instant::now();
 		resolved_map.insert(
@@ -831,7 +893,11 @@ pub async fn send_transaction_message_route(
 		}
 	}
 
-	for edu in body.edus.iter().filter_map(|edu| serde_json::from_str::<Edu>(edu.json().get()).ok()) {
+	for edu in body
+		.edus
+		.iter()
+		.filter_map(|edu| serde_json::from_str::<Edu>(edu.json().get()).ok())
+	{
 		match edu {
 			Edu::Presence(presence) => {
 				if !services().globals.allow_incoming_presence() {
@@ -862,7 +928,13 @@ pub async fn send_transaction_message_route(
 							.event_ids
 							.iter()
 							.filter_map(|id| {
-								services().rooms.timeline.get_pdu_count(id).ok().flatten().map(|r| (id, r))
+								services()
+									.rooms
+									.timeline
+									.get_pdu_count(id)
+									.ok()
+									.flatten()
+									.map(|r| (id, r))
 							})
 							.max_by_key(|(_, count)| *count)
 						{
@@ -879,7 +951,11 @@ pub async fn send_transaction_message_route(
 								content: ReceiptEventContent(receipt_content),
 								room_id: room_id.clone(),
 							};
-							services().rooms.edus.read_receipt.readreceipt_update(&user_id, &room_id, event)?;
+							services()
+								.rooms
+								.edus
+								.read_receipt
+								.readreceipt_update(&user_id, &room_id, event)?;
 						} else {
 							// TODO fetch missing events
 							debug!("No known event ids in read receipt: {:?}", user_updates);
@@ -888,7 +964,11 @@ pub async fn send_transaction_message_route(
 				}
 			},
 			Edu::Typing(typing) => {
-				if services().rooms.state_cache.is_joined(&typing.user_id, &typing.room_id)? {
+				if services()
+					.rooms
+					.state_cache
+					.is_joined(&typing.user_id, &typing.room_id)?
+				{
 					if typing.typing {
 						services()
 							.rooms
@@ -897,7 +977,12 @@ pub async fn send_transaction_message_route(
 							.typing_add(&typing.user_id, &typing.room_id, 3000 + utils::millis_since_unix_epoch())
 							.await?;
 					} else {
-						services().rooms.edus.typing.typing_remove(&typing.user_id, &typing.room_id).await?;
+						services()
+							.rooms
+							.edus
+							.typing
+							.typing_remove(&typing.user_id, &typing.room_id)
+							.await?;
 					}
 				}
 			},
@@ -914,7 +999,11 @@ pub async fn send_transaction_message_route(
 				messages,
 			}) => {
 				// Check if this is a new transaction id
-				if services().transaction_ids.existing_txnid(&sender, None, &message_id)?.is_some() {
+				if services()
+					.transaction_ids
+					.existing_txnid(&sender, None, &message_id)?
+					.is_some()
+				{
 					continue;
 				}
 
@@ -952,7 +1041,9 @@ pub async fn send_transaction_message_route(
 				}
 
 				// Save transaction id with empty data
-				services().transaction_ids.add_txnid(&sender, None, &message_id, &[])?;
+				services()
+					.transaction_ids
+					.add_txnid(&sender, None, &message_id, &[])?;
 			},
 			Edu::SigningKeyUpdate(SigningKeyUpdateContent {
 				user_id,
@@ -963,7 +1054,9 @@ pub async fn send_transaction_message_route(
 					continue;
 				}
 				if let Some(master_key) = master_key {
-					services().users.add_cross_signing_keys(&user_id, &master_key, &self_signing_key, &None, true)?;
+					services()
+						.users
+						.add_cross_signing_keys(&user_id, &master_key, &self_signing_key, &None, true)?;
 				}
 			},
 			Edu::_Custom(_) => {},
@@ -971,7 +1064,10 @@ pub async fn send_transaction_message_route(
 	}
 
 	Ok(send_transaction_message::v1::Response {
-		pdus: resolved_map.into_iter().map(|(e, r)| (e, r.map_err(|e| e.sanitized_error()))).collect(),
+		pdus: resolved_map
+			.into_iter()
+			.map(|(e, r)| (e, r.map_err(|e| e.sanitized_error())))
+			.collect(),
 	})
 }
 
@@ -982,12 +1078,19 @@ pub async fn send_transaction_message_route(
 /// - Only works if a user of this server is currently invited or joined the
 ///   room
 pub async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_event::v1::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
-	let event = services().rooms.timeline.get_pdu_json(&body.event_id)?.ok_or_else(|| {
-		warn!("Event not found, event ID: {:?}", &body.event_id);
-		Error::BadRequest(ErrorKind::NotFound, "Event not found.")
-	})?;
+	let event = services()
+		.rooms
+		.timeline
+		.get_pdu_json(&body.event_id)?
+		.ok_or_else(|| {
+			warn!("Event not found, event ID: {:?}", &body.event_id);
+			Error::BadRequest(ErrorKind::NotFound, "Event not found.")
+		})?;
 
 	let room_id_str = event
 		.get("room_id")
@@ -997,11 +1100,19 @@ pub async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_e
 	let room_id = <&RoomId>::try_from(room_id_str)
 		.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 
-	if !services().rooms.state_cache.server_in_room(sender_servername, room_id)? {
+	if !services()
+		.rooms
+		.state_cache
+		.server_in_room(sender_servername, room_id)?
+	{
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room"));
 	}
 
-	if !services().rooms.state_accessor.server_can_see_event(sender_servername, room_id, &body.event_id)? {
+	if !services()
+		.rooms
+		.state_accessor
+		.server_can_see_event(sender_servername, room_id, &body.event_id)?
+	{
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not allowed to see event."));
 	}
 
@@ -1017,15 +1128,25 @@ pub async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_e
 /// Retrieves events from before the sender joined the room, if the room's
 /// history visibility allows.
 pub async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result<get_backfill::v1::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
 	debug!("Got backfill request from: {}", sender_servername);
 
-	if !services().rooms.state_cache.server_in_room(sender_servername, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_cache
+		.server_in_room(sender_servername, &body.room_id)?
+	{
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room."));
 	}
 
-	services().rooms.event_handler.acl_check(sender_servername, &body.room_id)?;
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender_servername, &body.room_id)?;
 
 	let until = body
 		.v
@@ -1047,7 +1168,10 @@ pub async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result
 		.filter_map(Result::ok)
 		.filter(|(_, e)| {
 			matches!(
-				services().rooms.state_accessor.server_can_see_event(sender_servername, &e.room_id, &e.event_id,),
+				services()
+					.rooms
+					.state_accessor
+					.server_can_see_event(sender_servername, &e.room_id, &e.event_id,),
 				Ok(true),
 			)
 		})
@@ -1069,13 +1193,23 @@ pub async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result
 pub async fn get_missing_events_route(
 	body: Ruma<get_missing_events::v1::Request>,
 ) -> Result<get_missing_events::v1::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
-	if !services().rooms.state_cache.server_in_room(sender_servername, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_cache
+		.server_in_room(sender_servername, &body.room_id)?
+	{
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room"));
 	}
 
-	services().rooms.event_handler.acl_check(sender_servername, &body.room_id)?;
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender_servername, &body.room_id)?;
 
 	let mut queued_events = body.latest_events.clone();
 	let mut events = Vec::new();
@@ -1142,18 +1276,32 @@ pub async fn get_missing_events_route(
 pub async fn get_event_authorization_route(
 	body: Ruma<get_event_authorization::v1::Request>,
 ) -> Result<get_event_authorization::v1::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
-	if !services().rooms.state_cache.server_in_room(sender_servername, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_cache
+		.server_in_room(sender_servername, &body.room_id)?
+	{
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room."));
 	}
 
-	services().rooms.event_handler.acl_check(sender_servername, &body.room_id)?;
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender_servername, &body.room_id)?;
 
-	let event = services().rooms.timeline.get_pdu_json(&body.event_id)?.ok_or_else(|| {
-		warn!("Event not found, event ID: {:?}", &body.event_id);
-		Error::BadRequest(ErrorKind::NotFound, "Event not found.")
-	})?;
+	let event = services()
+		.rooms
+		.timeline
+		.get_pdu_json(&body.event_id)?
+		.ok_or_else(|| {
+			warn!("Event not found, event ID: {:?}", &body.event_id);
+			Error::BadRequest(ErrorKind::NotFound, "Event not found.")
+		})?;
 
 	let room_id_str = event
 		.get("room_id")
@@ -1163,7 +1311,11 @@ pub async fn get_event_authorization_route(
 	let room_id = <&RoomId>::try_from(room_id_str)
 		.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 
-	let auth_chain_ids = services().rooms.auth_chain.get_auth_chain(room_id, vec![Arc::from(&*body.event_id)]).await?;
+	let auth_chain_ids = services()
+		.rooms
+		.auth_chain
+		.get_auth_chain(room_id, vec![Arc::from(&*body.event_id)])
+		.await?;
 
 	Ok(get_event_authorization::v1::Response {
 		auth_chain: auth_chain_ids
@@ -1177,13 +1329,23 @@ pub async fn get_event_authorization_route(
 ///
 /// Retrieves the current state of the room.
 pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Result<get_room_state::v1::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
-	if !services().rooms.state_cache.server_in_room(sender_servername, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_cache
+		.server_in_room(sender_servername, &body.room_id)?
+	{
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room."));
 	}
 
-	services().rooms.event_handler.acl_check(sender_servername, &body.room_id)?;
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender_servername, &body.room_id)?;
 
 	let shortstatehash = services()
 		.rooms
@@ -1199,13 +1361,21 @@ pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Re
 		.into_values()
 		.map(|id| {
 			PduEvent::convert_to_outgoing_federation_event(
-				services().rooms.timeline.get_pdu_json(&id).unwrap().unwrap(),
+				services()
+					.rooms
+					.timeline
+					.get_pdu_json(&id)
+					.unwrap()
+					.unwrap(),
 			)
 		})
 		.collect();
 
-	let auth_chain_ids =
-		services().rooms.auth_chain.get_auth_chain(&body.room_id, vec![Arc::from(&*body.event_id)]).await?;
+	let auth_chain_ids = services()
+		.rooms
+		.auth_chain
+		.get_auth_chain(&body.room_id, vec![Arc::from(&*body.event_id)])
+		.await?;
 
 	Ok(get_room_state::v1::Response {
 		auth_chain: auth_chain_ids
@@ -1227,13 +1397,23 @@ pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Re
 pub async fn get_room_state_ids_route(
 	body: Ruma<get_room_state_ids::v1::Request>,
 ) -> Result<get_room_state_ids::v1::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
-	if !services().rooms.state_cache.server_in_room(sender_servername, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_cache
+		.server_in_room(sender_servername, &body.room_id)?
+	{
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room."));
 	}
 
-	services().rooms.event_handler.acl_check(sender_servername, &body.room_id)?;
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender_servername, &body.room_id)?;
 
 	let shortstatehash = services()
 		.rooms
@@ -1250,8 +1430,11 @@ pub async fn get_room_state_ids_route(
 		.map(|id| (*id).to_owned())
 		.collect();
 
-	let auth_chain_ids =
-		services().rooms.auth_chain.get_auth_chain(&body.room_id, vec![Arc::from(&*body.event_id)]).await?;
+	let auth_chain_ids = services()
+		.rooms
+		.auth_chain
+		.get_auth_chain(&body.room_id, vec![Arc::from(&*body.event_id)])
+		.await?;
 
 	Ok(get_room_state_ids::v1::Response {
 		auth_chain_ids: auth_chain_ids.map(|id| (*id).to_owned()).collect(),
@@ -1269,17 +1452,33 @@ pub async fn create_join_event_template_route(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
-	services().rooms.event_handler.acl_check(sender_servername, &body.room_id)?;
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender_servername, &body.room_id)?;
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(body.room_id.clone())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	// TODO: Conduit does not implement restricted join rules yet, we always reject
 	let join_rules_event =
-		services().rooms.state_accessor.room_state_get(&body.room_id, &StateEventType::RoomJoinRules, "")?;
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(&body.room_id, &StateEventType::RoomJoinRules, "")?;
 
 	let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
 		.as_ref()
@@ -1376,11 +1575,17 @@ async fn create_join_event(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
-	services().rooms.event_handler.acl_check(sender_servername, room_id)?;
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender_servername, room_id)?;
 
 	// TODO: Conduit does not implement restricted join rules yet, we always reject
 	let join_rules_event =
-		services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
 
 	let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
 		.as_ref()
@@ -1431,16 +1636,29 @@ async fn create_join_event(
 
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
-			value.get("origin").ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Event needs an origin field."))?,
+			value
+				.get("origin")
+				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Event needs an origin field."))?,
 		)
 		.expect("CanonicalJson is valid json value"),
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-	services().rooms.event_handler.fetch_required_signing_keys([&value], &pub_key_map).await?;
+	services()
+		.rooms
+		.event_handler
+		.fetch_required_signing_keys([&value], &pub_key_map)
+		.await?;
 
-	let mutex =
-		Arc::clone(services().globals.roomid_mutex_federation.write().await.entry(room_id.to_owned()).or_default());
+	let mutex = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_federation
+			.write()
+			.await
+			.entry(room_id.to_owned())
+			.or_default(),
+	);
 	let mutex_lock = mutex.lock().await;
 	let pdu_id: Vec<u8> = services()
 		.rooms
@@ -1453,9 +1671,16 @@ async fn create_join_event(
 		))?;
 	drop(mutex_lock);
 
-	let state_ids = services().rooms.state_accessor.state_full_ids(shortstatehash).await?;
-	let auth_chain_ids =
-		services().rooms.auth_chain.get_auth_chain(room_id, state_ids.values().cloned().collect()).await?;
+	let state_ids = services()
+		.rooms
+		.state_accessor
+		.state_full_ids(shortstatehash)
+		.await?;
+	let auth_chain_ids = services()
+		.rooms
+		.auth_chain
+		.get_auth_chain(room_id, state_ids.values().cloned().collect())
+		.await?;
 
 	let servers = services()
 		.rooms
@@ -1486,7 +1711,10 @@ async fn create_join_event(
 pub async fn create_join_event_v1_route(
 	body: Ruma<create_join_event::v1::Request>,
 ) -> Result<create_join_event::v1::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
 	let room_state = create_join_event(sender_servername, &body.room_id, &body.pdu).await?;
 
@@ -1501,7 +1729,10 @@ pub async fn create_join_event_v1_route(
 pub async fn create_join_event_v2_route(
 	body: Ruma<create_join_event::v2::Request>,
 ) -> Result<create_join_event::v2::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
 	let create_join_event::v1::RoomState {
 		auth_chain,
@@ -1525,11 +1756,21 @@ pub async fn create_join_event_v2_route(
 ///
 /// Invites a remote user to a room.
 pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Result<create_invite::v2::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
-	services().rooms.event_handler.acl_check(sender_servername, &body.room_id)?;
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender_servername, &body.room_id)?;
 
-	if !services().globals.supported_room_versions().contains(&body.room_version) {
+	if !services()
+		.globals
+		.supported_room_versions()
+		.contains(&body.room_version)
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::IncompatibleRoomVersion {
 				room_version: body.room_version.clone(),
@@ -1619,7 +1860,11 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 
 	// If we are active in the room, the remote server will notify us about the join
 	// via /send
-	if !services().rooms.state_cache.server_in_room(services().globals.server_name(), &body.room_id)? {
+	if !services()
+		.rooms
+		.state_cache
+		.server_in_room(services().globals.server_name(), &body.room_id)?
+	{
 		services()
 			.rooms
 			.state_cache
@@ -1650,7 +1895,10 @@ pub async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<g
 		));
 	}
 
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
 	Ok(get_devices::v1::Response {
 		user_id: body.user_id.clone(),
@@ -1672,13 +1920,18 @@ pub async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<g
 					Some(device_id_string)
 				};
 				Some(UserDevice {
-					keys: services().users.get_device_keys(&body.user_id, &metadata.device_id).ok()??,
+					keys: services()
+						.users
+						.get_device_keys(&body.user_id, &metadata.device_id)
+						.ok()??,
 					device_id: metadata.device_id,
 					device_display_name,
 				})
 			})
 			.collect(),
-		master_key: services().users.get_master_key(None, &body.user_id, &|u| u.server_name() == sender_servername)?,
+		master_key: services()
+			.users
+			.get_master_key(None, &body.user_id, &|u| u.server_name() == sender_servername)?,
 		self_signing_key: services()
 			.users
 			.get_self_signing_key(None, &body.user_id, &|u| u.server_name() == sender_servername)?,
@@ -1748,7 +2001,11 @@ pub async fn get_profile_information_route(
 ///
 /// Gets devices and identity keys for the given users.
 pub async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_keys::v1::Response> {
-	if body.device_keys.iter().any(|(u, _)| u.server_name() != services().globals.server_name()) {
+	if body
+		.device_keys
+		.iter()
+		.any(|(u, _)| u.server_name() != services().globals.server_name())
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"User does not belong to this server.",
@@ -1774,7 +2031,11 @@ pub async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_key
 ///
 /// Claims one-time keys.
 pub async fn claim_keys_route(body: Ruma<claim_keys::v1::Request>) -> Result<claim_keys::v1::Response> {
-	if body.one_time_keys.iter().any(|(u, _)| u.server_name() != services().globals.server_name()) {
+	if body
+		.one_time_keys
+		.iter()
+		.any(|(u, _)| u.server_name() != services().globals.server_name())
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Tried to access user from other server.",
@@ -1809,10 +2070,17 @@ pub async fn well_known_server_route() -> Result<impl IntoResponse> {
 /// Gets the space tree in a depth-first manner to locate child rooms of a given
 /// space.
 pub async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) -> Result<get_hierarchy::v1::Response> {
-	let sender_servername = body.sender_servername.as_ref().expect("server is authenticated");
+	let sender_servername = body
+		.sender_servername
+		.as_ref()
+		.expect("server is authenticated");
 
 	if services().rooms.metadata.exists(&body.room_id)? {
-		services().rooms.spaces.get_federation_hierarchy(&body.room_id, sender_servername, body.suggested_only).await
+		services()
+			.rooms
+			.spaces
+			.get_federation_hierarchy(&body.room_id, sender_servername, body.suggested_only)
+			.await
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Room does not exist."))
 	}

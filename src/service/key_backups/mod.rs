@@ -44,7 +44,8 @@ impl Service {
 	pub fn add_key(
 		&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str, key_data: &Raw<KeyBackupData>,
 	) -> Result<()> {
-		self.db.add_key(user_id, version, room_id, session_id, key_data)
+		self.db
+			.add_key(user_id, version, room_id, session_id, key_data)
 	}
 
 	pub fn count_keys(&self, user_id: &UserId, version: &str) -> Result<usize> { self.db.count_keys(user_id, version) }
@@ -76,6 +77,7 @@ impl Service {
 	}
 
 	pub fn delete_room_key(&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str) -> Result<()> {
-		self.db.delete_room_key(user_id, version, room_id, session_id)
+		self.db
+			.delete_room_key(user_id, version, room_id, session_id)
 	}
 }

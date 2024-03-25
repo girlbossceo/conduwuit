@@ -55,7 +55,12 @@ impl Service {
 	/// removed diff for the selected shortstatehash and each parent layer.
 	#[tracing::instrument(skip(self))]
 	pub fn load_shortstatehash_info(&self, shortstatehash: u64) -> ShortStateInfoResult {
-		if let Some(r) = self.stateinfo_cache.lock().unwrap().get_mut(&shortstatehash) {
+		if let Some(r) = self
+			.stateinfo_cache
+			.lock()
+			.unwrap()
+			.get_mut(&shortstatehash)
+		{
 			return Ok(r.clone());
 		}
 
@@ -76,19 +81,31 @@ impl Service {
 
 			response.push((shortstatehash, Arc::new(state), added, Arc::new(removed)));
 
-			self.stateinfo_cache.lock().unwrap().insert(shortstatehash, response.clone());
+			self.stateinfo_cache
+				.lock()
+				.unwrap()
+				.insert(shortstatehash, response.clone());
 
 			Ok(response)
 		} else {
 			let response = vec![(shortstatehash, added.clone(), added, removed)];
-			self.stateinfo_cache.lock().unwrap().insert(shortstatehash, response.clone());
+			self.stateinfo_cache
+				.lock()
+				.unwrap()
+				.insert(shortstatehash, response.clone());
 			Ok(response)
 		}
 	}
 
 	pub fn compress_state_event(&self, shortstatekey: u64, event_id: &EventId) -> Result<CompressedStateEvent> {
 		let mut v = shortstatekey.to_be_bytes().to_vec();
-		v.extend_from_slice(&services().rooms.short.get_or_create_shorteventid(event_id)?.to_be_bytes());
+		v.extend_from_slice(
+			&services()
+				.rooms
+				.short
+				.get_or_create_shorteventid(event_id)?
+				.to_be_bytes(),
+		);
 		Ok(v.try_into().expect("we checked the size above"))
 	}
 
@@ -238,10 +255,17 @@ impl Service {
 	) -> HashSetCompressStateEvent {
 		let previous_shortstatehash = services().rooms.state.get_room_shortstatehash(room_id)?;
 
-		let state_hash =
-			utils::calculate_hash(&new_state_ids_compressed.iter().map(|bytes| &bytes[..]).collect::<Vec<_>>());
+		let state_hash = utils::calculate_hash(
+			&new_state_ids_compressed
+				.iter()
+				.map(|bytes| &bytes[..])
+				.collect::<Vec<_>>(),
+		);
 
-		let (new_shortstatehash, already_existed) = services().rooms.short.get_or_create_shortstatehash(&state_hash)?;
+		let (new_shortstatehash, already_existed) = services()
+			.rooms
+			.short
+			.get_or_create_shortstatehash(&state_hash)?;
 
 		if Some(new_shortstatehash) == previous_shortstatehash {
 			return Ok((new_shortstatehash, Arc::new(HashSet::new()), Arc::new(HashSet::new())));
@@ -251,10 +275,16 @@ impl Service {
 			previous_shortstatehash.map_or_else(|| Ok(Vec::new()), |p| self.load_shortstatehash_info(p))?;
 
 		let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last() {
-			let statediffnew: HashSet<_> = new_state_ids_compressed.difference(&parent_stateinfo.1).copied().collect();
+			let statediffnew: HashSet<_> = new_state_ids_compressed
+				.difference(&parent_stateinfo.1)
+				.copied()
+				.collect();
 
-			let statediffremoved: HashSet<_> =
-				parent_stateinfo.1.difference(&new_state_ids_compressed).copied().collect();
+			let statediffremoved: HashSet<_> = parent_stateinfo
+				.1
+				.difference(&new_state_ids_compressed)
+				.copied()
+				.collect();
 
 			(Arc::new(statediffnew), Arc::new(statediffremoved))
 		} else {

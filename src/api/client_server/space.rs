@@ -14,11 +14,20 @@ use crate::{service::rooms::spaces::PagnationToken, services, Error, Result, Rum
 pub async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) -> Result<get_hierarchy::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let limit = body.limit.unwrap_or_else(|| UInt::from(10_u32)).min(UInt::from(100_u32));
+	let limit = body
+		.limit
+		.unwrap_or_else(|| UInt::from(10_u32))
+		.min(UInt::from(100_u32));
 
-	let max_depth = body.max_depth.unwrap_or_else(|| UInt::from(3_u32)).min(UInt::from(10_u32));
+	let max_depth = body
+		.max_depth
+		.unwrap_or_else(|| UInt::from(3_u32))
+		.min(UInt::from(10_u32));
 
-	let key = body.from.as_ref().and_then(|s| PagnationToken::from_str(s).ok());
+	let key = body
+		.from
+		.as_ref()
+		.and_then(|s| PagnationToken::from_str(s).ok());
 
 	// Should prevent unexpeded behaviour in (bad) clients
 	if let Some(ref token) = key {

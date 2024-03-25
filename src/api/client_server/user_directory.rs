@@ -29,12 +29,19 @@ pub async fn search_users_route(body: Ruma<search_users::v3::Request>) -> Result
 			avatar_url: services().users.avatar_url(&user_id).ok()?,
 		};
 
-		let user_id_matches = user.user_id.to_string().to_lowercase().contains(&body.search_term.to_lowercase());
+		let user_id_matches = user
+			.user_id
+			.to_string()
+			.to_lowercase()
+			.contains(&body.search_term.to_lowercase());
 
 		let user_displayname_matches = user
 			.display_name
 			.as_ref()
-			.filter(|name| name.to_lowercase().contains(&body.search_term.to_lowercase()))
+			.filter(|name| {
+				name.to_lowercase()
+					.contains(&body.search_term.to_lowercase())
+			})
 			.is_some();
 
 		if !user_id_matches && !user_displayname_matches {
@@ -44,24 +51,34 @@ pub async fn search_users_route(body: Ruma<search_users::v3::Request>) -> Result
 		// It's a matching user, but is the sender allowed to see them?
 		let mut user_visible = false;
 
-		let user_is_in_public_rooms =
-			services().rooms.state_cache.rooms_joined(&user_id).filter_map(Result::ok).any(|room| {
-				services().rooms.state_accessor.room_state_get(&room, &StateEventType::RoomJoinRules, "").map_or(
-					false,
-					|event| {
+		let user_is_in_public_rooms = services()
+			.rooms
+			.state_cache
+			.rooms_joined(&user_id)
+			.filter_map(Result::ok)
+			.any(|room| {
+				services()
+					.rooms
+					.state_accessor
+					.room_state_get(&room, &StateEventType::RoomJoinRules, "")
+					.map_or(false, |event| {
 						event.map_or(false, |event| {
 							serde_json::from_str(event.content.get())
 								.map_or(false, |r: RoomJoinRulesEventContent| r.join_rule == JoinRule::Public)
 						})
-					},
-				)
+					})
 			});
 
 		if user_is_in_public_rooms {
 			user_visible = true;
 		} else {
-			let user_is_in_shared_rooms =
-				services().rooms.user.get_shared_rooms(vec![sender_user.clone(), user_id]).ok()?.next().is_some();
+			let user_is_in_shared_rooms = services()
+				.rooms
+				.user
+				.get_shared_rooms(vec![sender_user.clone(), user_id])
+				.ok()?
+				.next()
+				.is_some();
 
 			if user_is_in_shared_rooms {
 				user_visible = true;

@@ -81,33 +81,38 @@ pub async fn sync_events_route(
 	let sender_device = body.sender_device.expect("user is authenticated");
 	let body = body.body;
 
-	let mut rx =
-		match services().globals.sync_receivers.write().await.entry((sender_user.clone(), sender_device.clone())) {
-			Entry::Vacant(v) => {
+	let mut rx = match services()
+		.globals
+		.sync_receivers
+		.write()
+		.await
+		.entry((sender_user.clone(), sender_device.clone()))
+	{
+		Entry::Vacant(v) => {
+			let (tx, rx) = tokio::sync::watch::channel(None);
+
+			v.insert((body.since.clone(), rx.clone()));
+
+			tokio::spawn(sync_helper_wrapper(sender_user.clone(), sender_device.clone(), body, tx));
+
+			rx
+		},
+		Entry::Occupied(mut o) => {
+			if o.get().0 != body.since {
 				let (tx, rx) = tokio::sync::watch::channel(None);
 
-				v.insert((body.since.clone(), rx.clone()));
+				o.insert((body.since.clone(), rx.clone()));
+
+				debug!("Sync started for {sender_user}");
 
 				tokio::spawn(sync_helper_wrapper(sender_user.clone(), sender_device.clone(), body, tx));
 
 				rx
-			},
-			Entry::Occupied(mut o) => {
-				if o.get().0 != body.since {
-					let (tx, rx) = tokio::sync::watch::channel(None);
-
-					o.insert((body.since.clone(), rx.clone()));
-
-					debug!("Sync started for {sender_user}");
-
-					tokio::spawn(sync_helper_wrapper(sender_user.clone(), sender_device.clone(), body, tx));
-
-					rx
-				} else {
-					o.get().1.clone()
-				}
-			},
-		};
+			} else {
+				o.get().1.clone()
+			}
+		},
+	};
 
 	let we_have_to_wait = rx.borrow().is_none();
 	if we_have_to_wait {
@@ -116,7 +121,11 @@ pub async fn sync_events_route(
 		}
 	}
 
-	let result = match rx.borrow().as_ref().expect("When sync channel changes it's always set to some") {
+	let result = match rx
+		.borrow()
+		.as_ref()
+		.expect("When sync channel changes it's always set to some")
+	{
 		Ok(response) => Ok(response.clone()),
 		Err(error) => Err(error.to_response()),
 	};
@@ -134,7 +143,13 @@ async fn sync_helper_wrapper(
 
 	if let Ok((_, caching_allowed)) = r {
 		if !caching_allowed {
-			match services().globals.sync_receivers.write().await.entry((sender_user, sender_device)) {
+			match services()
+				.globals
+				.sync_receivers
+				.write()
+				.await
+				.entry((sender_user, sender_device))
+			{
 				Entry::Occupied(o) => {
 					// Only remove if the device didn't start a different /sync already
 					if o.get().0 == since {
@@ -157,7 +172,11 @@ async fn sync_helper(
 ) -> Result<(sync_events::v3::Response, bool), Error> {
 	// Presence update
 	if services().globals.allow_local_presence() {
-		services().rooms.edus.presence.ping_presence(&sender_user, body.set_presence)?;
+		services()
+			.rooms
+			.edus
+			.presence
+			.ping_presence(&sender_user, body.set_presence)?;
 	}
 
 	// Setup watchers, so if there's no response, we can wait for them
@@ -171,7 +190,10 @@ async fn sync_helper(
 	let filter = match body.filter {
 		None => FilterDefinition::default(),
 		Some(Filter::FilterDefinition(filter)) => filter,
-		Some(Filter::FilterId(filter_id)) => services().users.get_filter(&sender_user, &filter_id)?.unwrap_or_default(),
+		Some(Filter::FilterId(filter_id)) => services()
+			.users
+			.get_filter(&sender_user, &filter_id)?
+			.unwrap_or_default(),
 	};
 
 	let (lazy_load_enabled, lazy_load_send_redundant) = match filter.room.state.lazy_load_options {
@@ -184,7 +206,11 @@ async fn sync_helper(
 	let full_state = body.full_state;
 
 	let mut joined_rooms = BTreeMap::new();
-	let since = body.since.as_ref().and_then(|string| string.parse().ok()).unwrap_or(0);
+	let since = body
+		.since
+		.as_ref()
+		.and_then(|string| string.parse().ok())
+		.unwrap_or(0);
 	let sincecount = PduCount::Normal(since);
 
 	let mut presence_updates = HashMap::new();
@@ -193,9 +219,18 @@ async fn sync_helper(
 	let mut device_list_left = HashSet::new();
 
 	// Look for device list updates of this account
-	device_list_updates.extend(services().users.keys_changed(sender_user.as_ref(), since, None).filter_map(Result::ok));
+	device_list_updates.extend(
+		services()
+			.users
+			.keys_changed(sender_user.as_ref(), since, None)
+			.filter_map(Result::ok),
+	);
 
-	let all_joined_rooms = services().rooms.state_cache.rooms_joined(&sender_user).collect::<Vec<_>>();
+	let all_joined_rooms = services()
+		.rooms
+		.state_cache
+		.rooms_joined(&sender_user)
+		.collect::<Vec<_>>();
 
 	// Coalesce database writes for the remainder of this scope.
 	let _cork = services().globals.db.cork_and_flush()?;
@@ -229,7 +264,11 @@ async fn sync_helper(
 	}
 
 	let mut left_rooms = BTreeMap::new();
-	let all_left_rooms: Vec<_> = services().rooms.state_cache.rooms_left(&sender_user).collect();
+	let all_left_rooms: Vec<_> = services()
+		.rooms
+		.state_cache
+		.rooms_left(&sender_user)
+		.collect();
 	for result in all_left_rooms {
 		let (room_id, _) = result?;
 
@@ -237,13 +276,23 @@ async fn sync_helper(
 
 		{
 			// Get and drop the lock to wait for remaining operations to finish
-			let mutex_insert =
-				Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(room_id.clone()).or_default());
+			let mutex_insert = Arc::clone(
+				services()
+					.globals
+					.roomid_mutex_insert
+					.write()
+					.await
+					.entry(room_id.clone())
+					.or_default(),
+			);
 			let insert_lock = mutex_insert.lock().await;
 			drop(insert_lock);
 		};
 
-		let left_count = services().rooms.state_cache.get_left_count(&room_id, &sender_user)?;
+		let left_count = services()
+			.rooms
+			.state_cache
+			.get_left_count(&room_id, &sender_user)?;
 
 		// Left before last sync
 		if Some(since) >= left_count {
@@ -255,7 +304,10 @@ async fn sync_helper(
 			continue;
 		}
 
-		let since_shortstatehash = services().rooms.user.get_token_shortstatehash(&room_id, since)?;
+		let since_shortstatehash = services()
+			.rooms
+			.user
+			.get_token_shortstatehash(&room_id, since)?;
 
 		let since_state_ids = match since_shortstatehash {
 			Some(s) => services().rooms.state_accessor.state_full_ids(s).await?,
@@ -274,7 +326,11 @@ async fn sync_helper(
 			},
 		};
 
-		let left_shortstatehash = match services().rooms.state_accessor.pdu_shortstatehash(&left_event_id)? {
+		let left_shortstatehash = match services()
+			.rooms
+			.state_accessor
+			.pdu_shortstatehash(&left_event_id)?
+		{
 			Some(s) => s,
 			None => {
 				error!("Leave event has no state");
@@ -282,10 +338,16 @@ async fn sync_helper(
 			},
 		};
 
-		let mut left_state_ids = services().rooms.state_accessor.state_full_ids(left_shortstatehash).await?;
+		let mut left_state_ids = services()
+			.rooms
+			.state_accessor
+			.state_full_ids(left_shortstatehash)
+			.await?;
 
-		let leave_shortstatekey =
-			services().rooms.short.get_or_create_shortstatekey(&StateEventType::RoomMember, sender_user.as_str())?;
+		let leave_shortstatekey = services()
+			.rooms
+			.short
+			.get_or_create_shortstatekey(&StateEventType::RoomMember, sender_user.as_str())?;
 
 		left_state_ids.insert(leave_shortstatekey, left_event_id);
 
@@ -334,19 +396,33 @@ async fn sync_helper(
 	}
 
 	let mut invited_rooms = BTreeMap::new();
-	let all_invited_rooms: Vec<_> = services().rooms.state_cache.rooms_invited(&sender_user).collect();
+	let all_invited_rooms: Vec<_> = services()
+		.rooms
+		.state_cache
+		.rooms_invited(&sender_user)
+		.collect();
 	for result in all_invited_rooms {
 		let (room_id, invite_state_events) = result?;
 
 		{
 			// Get and drop the lock to wait for remaining operations to finish
-			let mutex_insert =
-				Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(room_id.clone()).or_default());
+			let mutex_insert = Arc::clone(
+				services()
+					.globals
+					.roomid_mutex_insert
+					.write()
+					.await
+					.entry(room_id.clone())
+					.or_default(),
+			);
 			let insert_lock = mutex_insert.lock().await;
 			drop(insert_lock);
 		};
 
-		let invite_count = services().rooms.state_cache.get_invite_count(&room_id, &sender_user)?;
+		let invite_count = services()
+			.rooms
+			.state_cache
+			.get_invite_count(&room_id, &sender_user)?;
 
 		// Invited before last sync
 		if Some(since) >= invite_count {
@@ -388,7 +464,9 @@ async fn sync_helper(
 	}
 
 	// Remove all to-device events the device received *last time*
-	services().users.remove_to_device_events(&sender_user, &sender_device, since)?;
+	services()
+		.users
+		.remove_to_device_events(&sender_user, &sender_device, since)?;
 
 	let response = sync_events::v3::Response {
 		next_batch: next_batch_string,
@@ -420,9 +498,13 @@ async fn sync_helper(
 			changed: device_list_updates.into_iter().collect(),
 			left: device_list_left.into_iter().collect(),
 		},
-		device_one_time_keys_count: services().users.count_one_time_keys(&sender_user, &sender_device)?,
+		device_one_time_keys_count: services()
+			.users
+			.count_one_time_keys(&sender_user, &sender_device)?,
 		to_device: ToDevice {
-			events: services().users.get_to_device_events(&sender_user, &sender_device)?,
+			events: services()
+				.users
+				.get_to_device_events(&sender_user, &sender_device)?,
 		},
 		// Fallback keys are not yet supported
 		device_unused_fallback_key_types: None,
@@ -453,7 +535,12 @@ async fn process_room_presence_updates(
 	presence_updates: &mut HashMap<OwnedUserId, PresenceEvent>, room_id: &RoomId, since: u64,
 ) -> Result<()> {
 	// Take presence updates from this room
-	for (user_id, _, presence_event) in services().rooms.edus.presence.presence_since(room_id, since) {
+	for (user_id, _, presence_event) in services()
+		.rooms
+		.edus
+		.presence
+		.presence_since(room_id, since)
+	{
 		match presence_updates.entry(user_id) {
 			Entry::Vacant(slot) => {
 				slot.insert(presence_event);
@@ -465,11 +552,19 @@ async fn process_room_presence_updates(
 
 				// Update existing presence event with more info
 				curr_content.presence = new_content.presence;
-				curr_content.status_msg = new_content.status_msg.or_else(|| curr_content.status_msg.take());
+				curr_content.status_msg = new_content
+					.status_msg
+					.or_else(|| curr_content.status_msg.take());
 				curr_content.last_active_ago = new_content.last_active_ago.or(curr_content.last_active_ago);
-				curr_content.displayname = new_content.displayname.or_else(|| curr_content.displayname.take());
-				curr_content.avatar_url = new_content.avatar_url.or_else(|| curr_content.avatar_url.take());
-				curr_content.currently_active = new_content.currently_active.or(curr_content.currently_active);
+				curr_content.displayname = new_content
+					.displayname
+					.or_else(|| curr_content.displayname.take());
+				curr_content.avatar_url = new_content
+					.avatar_url
+					.or_else(|| curr_content.avatar_url.take());
+				curr_content.currently_active = new_content
+					.currently_active
+					.or(curr_content.currently_active);
 			},
 		}
 	}
@@ -486,23 +581,38 @@ async fn load_joined_room(
 	{
 		// Get and drop the lock to wait for remaining operations to finish
 		// This will make sure the we have all events until next_batch
-		let mutex_insert =
-			Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(room_id.to_owned()).or_default());
+		let mutex_insert = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_insert
+				.write()
+				.await
+				.entry(room_id.to_owned())
+				.or_default(),
+		);
 		let insert_lock = mutex_insert.lock().await;
 		drop(insert_lock);
 	};
 
 	let (timeline_pdus, limited) = load_timeline(sender_user, room_id, sincecount, 10)?;
 
-	let send_notification_counts =
-		!timeline_pdus.is_empty() || services().rooms.user.last_notification_read(sender_user, room_id)? > since;
+	let send_notification_counts = !timeline_pdus.is_empty()
+		|| services()
+			.rooms
+			.user
+			.last_notification_read(sender_user, room_id)?
+			> since;
 
 	let mut timeline_users = HashSet::new();
 	for (_, event) in &timeline_pdus {
 		timeline_users.insert(event.sender.as_str().to_owned());
 	}
 
-	services().rooms.lazy_loading.lazy_load_confirm_delivery(sender_user, sender_device, room_id, sincecount).await?;
+	services()
+		.rooms
+		.lazy_loading
+		.lazy_load_confirm_delivery(sender_user, sender_device, room_id, sincecount)
+		.await?;
 
 	// Database queries:
 
@@ -513,28 +623,37 @@ async fn load_joined_room(
 		return Err(Error::BadDatabase("Room has no state"));
 	};
 
-	let since_shortstatehash = services().rooms.user.get_token_shortstatehash(room_id, since)?;
+	let since_shortstatehash = services()
+		.rooms
+		.user
+		.get_token_shortstatehash(room_id, since)?;
 
-	let (heroes, joined_member_count, invited_member_count, joined_since_last_sync, state_events) = if timeline_pdus
-		.is_empty()
-		&& since_shortstatehash == Some(current_shortstatehash)
-	{
-		// No state changes
-		(Vec::new(), None, None, false, Vec::new())
-	} else {
-		// Calculates joined_member_count, invited_member_count and heroes
-		let calculate_counts = || {
-			let joined_member_count = services().rooms.state_cache.room_joined_count(room_id)?.unwrap_or(0);
-			let invited_member_count = services().rooms.state_cache.room_invited_count(room_id)?.unwrap_or(0);
+	let (heroes, joined_member_count, invited_member_count, joined_since_last_sync, state_events) =
+		if timeline_pdus.is_empty() && since_shortstatehash == Some(current_shortstatehash) {
+			// No state changes
+			(Vec::new(), None, None, false, Vec::new())
+		} else {
+			// Calculates joined_member_count, invited_member_count and heroes
+			let calculate_counts = || {
+				let joined_member_count = services()
+					.rooms
+					.state_cache
+					.room_joined_count(room_id)?
+					.unwrap_or(0);
+				let invited_member_count = services()
+					.rooms
+					.state_cache
+					.room_invited_count(room_id)?
+					.unwrap_or(0);
 
-			// Recalculate heroes (first 5 members)
-			let mut heroes = Vec::new();
+				// Recalculate heroes (first 5 members)
+				let mut heroes = Vec::new();
 
-			if joined_member_count + invited_member_count <= 5 {
-				// Go through all PDUs and for each member event, check if the user is still
-				// joined or invited until we have 5 or we reach the end
+				if joined_member_count + invited_member_count <= 5 {
+					// Go through all PDUs and for each member event, check if the user is still
+					// joined or invited until we have 5 or we reach the end
 
-				for hero in services()
+					for hero in services()
 					.rooms
 					.timeline
 					.all_pdus(sender_user, room_id)?
@@ -565,116 +684,77 @@ async fn load_joined_room(
 					.filter_map(Result::ok)
 					// Filter for possible heroes
 					.flatten()
-				{
-					if heroes.contains(&hero) || hero == sender_user.as_str() {
-						continue;
+					{
+						if heroes.contains(&hero) || hero == sender_user.as_str() {
+							continue;
+						}
+
+						heroes.push(hero);
 					}
-
-					heroes.push(hero);
 				}
-			}
 
-			Ok::<_, Error>((Some(joined_member_count), Some(invited_member_count), heroes))
-		};
+				Ok::<_, Error>((Some(joined_member_count), Some(invited_member_count), heroes))
+			};
 
-		let since_sender_member: Option<RoomMemberEventContent> = since_shortstatehash
-			.and_then(|shortstatehash| {
-				services()
+			let since_sender_member: Option<RoomMemberEventContent> = since_shortstatehash
+				.and_then(|shortstatehash| {
+					services()
+						.rooms
+						.state_accessor
+						.state_get(shortstatehash, &StateEventType::RoomMember, sender_user.as_str())
+						.transpose()
+				})
+				.transpose()?
+				.and_then(|pdu| {
+					serde_json::from_str(pdu.content.get())
+						.map_err(|_| Error::bad_database("Invalid PDU in database."))
+						.ok()
+				});
+
+			let joined_since_last_sync =
+				since_sender_member.map_or(true, |member| member.membership != MembershipState::Join);
+
+			if since_shortstatehash.is_none() || joined_since_last_sync {
+				// Probably since = 0, we will do an initial sync
+
+				let (joined_member_count, invited_member_count, heroes) = calculate_counts()?;
+
+				let current_state_ids = services()
 					.rooms
 					.state_accessor
-					.state_get(shortstatehash, &StateEventType::RoomMember, sender_user.as_str())
-					.transpose()
-			})
-			.transpose()?
-			.and_then(|pdu| {
-				serde_json::from_str(pdu.content.get())
-					.map_err(|_| Error::bad_database("Invalid PDU in database."))
-					.ok()
-			});
+					.state_full_ids(current_shortstatehash)
+					.await?;
 
-		let joined_since_last_sync =
-			since_sender_member.map_or(true, |member| member.membership != MembershipState::Join);
+				let mut state_events = Vec::new();
+				let mut lazy_loaded = HashSet::new();
 
-		if since_shortstatehash.is_none() || joined_since_last_sync {
-			// Probably since = 0, we will do an initial sync
+				let mut i = 0;
+				for (shortstatekey, id) in current_state_ids {
+					let (event_type, state_key) = services()
+						.rooms
+						.short
+						.get_statekey_from_short(shortstatekey)?;
 
-			let (joined_member_count, invited_member_count, heroes) = calculate_counts()?;
+					if event_type != StateEventType::RoomMember {
+						let pdu = match services().rooms.timeline.get_pdu(&id)? {
+							Some(pdu) => pdu,
+							None => {
+								error!("Pdu in state not found: {}", id);
+								continue;
+							},
+						};
+						state_events.push(pdu);
 
-			let current_state_ids = services().rooms.state_accessor.state_full_ids(current_shortstatehash).await?;
-
-			let mut state_events = Vec::new();
-			let mut lazy_loaded = HashSet::new();
-
-			let mut i = 0;
-			for (shortstatekey, id) in current_state_ids {
-				let (event_type, state_key) = services().rooms.short.get_statekey_from_short(shortstatekey)?;
-
-				if event_type != StateEventType::RoomMember {
-					let pdu = match services().rooms.timeline.get_pdu(&id)? {
-						Some(pdu) => pdu,
-						None => {
-							error!("Pdu in state not found: {}", id);
-							continue;
-						},
-					};
-					state_events.push(pdu);
-
-					i += 1;
-					if i % 100 == 0 {
-						tokio::task::yield_now().await;
-					}
-				} else if !lazy_load_enabled
+						i += 1;
+						if i % 100 == 0 {
+							tokio::task::yield_now().await;
+						}
+					} else if !lazy_load_enabled
                 || full_state
                 || timeline_users.contains(&state_key)
                 // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
                 || (cfg!(feature = "element_hacks") && *sender_user == state_key)
-				{
-					let pdu = match services().rooms.timeline.get_pdu(&id)? {
-						Some(pdu) => pdu,
-						None => {
-							error!("Pdu in state not found: {}", id);
-							continue;
-						},
-					};
-
-					// This check is in case a bad user ID made it into the database
-					if let Ok(uid) = UserId::parse(&state_key) {
-						lazy_loaded.insert(uid);
-					}
-					state_events.push(pdu);
-
-					i += 1;
-					if i % 100 == 0 {
-						tokio::task::yield_now().await;
-					}
-				}
-			}
-
-			// Reset lazy loading because this is an initial sync
-			services().rooms.lazy_loading.lazy_load_reset(sender_user, sender_device, room_id)?;
-
-			// The state_events above should contain all timeline_users, let's mark them as
-			// lazy loaded.
-			services()
-				.rooms
-				.lazy_loading
-				.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy_loaded, next_batchcount)
-				.await;
-
-			(heroes, joined_member_count, invited_member_count, true, state_events)
-		} else {
-			// Incremental /sync
-			let since_shortstatehash = since_shortstatehash.unwrap();
-
-			let mut state_events = Vec::new();
-			let mut lazy_loaded = HashSet::new();
-
-			if since_shortstatehash != current_shortstatehash {
-				let current_state_ids = services().rooms.state_accessor.state_full_ids(current_shortstatehash).await?;
-				let since_state_ids = services().rooms.state_accessor.state_full_ids(since_shortstatehash).await?;
-
-				for (key, id) in current_state_ids {
-					if full_state || since_state_ids.get(&key) != Some(&id) {
+					{
 						let pdu = match services().rooms.timeline.get_pdu(&id)? {
 							Some(pdu) => pdu,
 							None => {
@@ -683,137 +763,210 @@ async fn load_joined_room(
 							},
 						};
 
-						if pdu.kind == TimelineEventType::RoomMember {
-							match UserId::parse(pdu.state_key.as_ref().expect("State event has state key").clone()) {
-								Ok(state_key_userid) => {
-									lazy_loaded.insert(state_key_userid);
-								},
-								Err(e) => error!("Invalid state key for member event: {}", e),
-							}
+						// This check is in case a bad user ID made it into the database
+						if let Ok(uid) = UserId::parse(&state_key) {
+							lazy_loaded.insert(uid);
 						}
-
 						state_events.push(pdu);
-						tokio::task::yield_now().await;
+
+						i += 1;
+						if i % 100 == 0 {
+							tokio::task::yield_now().await;
+						}
 					}
 				}
-			}
 
-			for (_, event) in &timeline_pdus {
-				if lazy_loaded.contains(&event.sender) {
-					continue;
-				}
+				// Reset lazy loading because this is an initial sync
+				services()
+					.rooms
+					.lazy_loading
+					.lazy_load_reset(sender_user, sender_device, room_id)?;
 
-				if !services().rooms.lazy_loading.lazy_load_was_sent_before(
-					sender_user,
-					sender_device,
-					room_id,
-					&event.sender,
-				)? || lazy_load_send_redundant
-				{
-					if let Some(member_event) = services().rooms.state_accessor.room_state_get(
-						room_id,
-						&StateEventType::RoomMember,
-						event.sender.as_str(),
-					)? {
-						lazy_loaded.insert(event.sender.clone());
-						state_events.push(member_event);
+				// The state_events above should contain all timeline_users, let's mark them as
+				// lazy loaded.
+				services()
+					.rooms
+					.lazy_loading
+					.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy_loaded, next_batchcount)
+					.await;
+
+				(heroes, joined_member_count, invited_member_count, true, state_events)
+			} else {
+				// Incremental /sync
+				let since_shortstatehash = since_shortstatehash.unwrap();
+
+				let mut state_events = Vec::new();
+				let mut lazy_loaded = HashSet::new();
+
+				if since_shortstatehash != current_shortstatehash {
+					let current_state_ids = services()
+						.rooms
+						.state_accessor
+						.state_full_ids(current_shortstatehash)
+						.await?;
+					let since_state_ids = services()
+						.rooms
+						.state_accessor
+						.state_full_ids(since_shortstatehash)
+						.await?;
+
+					for (key, id) in current_state_ids {
+						if full_state || since_state_ids.get(&key) != Some(&id) {
+							let pdu = match services().rooms.timeline.get_pdu(&id)? {
+								Some(pdu) => pdu,
+								None => {
+									error!("Pdu in state not found: {}", id);
+									continue;
+								},
+							};
+
+							if pdu.kind == TimelineEventType::RoomMember {
+								match UserId::parse(
+									pdu.state_key
+										.as_ref()
+										.expect("State event has state key")
+										.clone(),
+								) {
+									Ok(state_key_userid) => {
+										lazy_loaded.insert(state_key_userid);
+									},
+									Err(e) => error!("Invalid state key for member event: {}", e),
+								}
+							}
+
+							state_events.push(pdu);
+							tokio::task::yield_now().await;
+						}
 					}
 				}
-			}
 
-			services()
-				.rooms
-				.lazy_loading
-				.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy_loaded, next_batchcount)
-				.await;
-
-			let encrypted_room = services()
-				.rooms
-				.state_accessor
-				.state_get(current_shortstatehash, &StateEventType::RoomEncryption, "")?
-				.is_some();
-
-			let since_encryption =
-				services().rooms.state_accessor.state_get(since_shortstatehash, &StateEventType::RoomEncryption, "")?;
-
-			// Calculations:
-			let new_encrypted_room = encrypted_room && since_encryption.is_none();
-
-			let send_member_count = state_events.iter().any(|event| event.kind == TimelineEventType::RoomMember);
-
-			if encrypted_room {
-				for state_event in &state_events {
-					if state_event.kind != TimelineEventType::RoomMember {
+				for (_, event) in &timeline_pdus {
+					if lazy_loaded.contains(&event.sender) {
 						continue;
 					}
 
-					if let Some(state_key) = &state_event.state_key {
-						let user_id = UserId::parse(state_key.clone())
-							.map_err(|_| Error::bad_database("Invalid UserId in member PDU."))?;
-
-						if user_id == sender_user {
-							continue;
-						}
-
-						let new_membership = serde_json::from_str::<RoomMemberEventContent>(state_event.content.get())
-							.map_err(|_| Error::bad_database("Invalid PDU in database."))?
-							.membership;
-
-						match new_membership {
-							MembershipState::Join => {
-								// A new user joined an encrypted room
-								if !share_encrypted_room(sender_user, &user_id, room_id)? {
-									device_list_updates.insert(user_id);
-								}
-							},
-							MembershipState::Leave => {
-								// Write down users that have left encrypted rooms we are in
-								left_encrypted_users.insert(user_id);
-							},
-							_ => {},
+					if !services().rooms.lazy_loading.lazy_load_was_sent_before(
+						sender_user,
+						sender_device,
+						room_id,
+						&event.sender,
+					)? || lazy_load_send_redundant
+					{
+						if let Some(member_event) = services().rooms.state_accessor.room_state_get(
+							room_id,
+							&StateEventType::RoomMember,
+							event.sender.as_str(),
+						)? {
+							lazy_loaded.insert(event.sender.clone());
+							state_events.push(member_event);
 						}
 					}
 				}
+
+				services()
+					.rooms
+					.lazy_loading
+					.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy_loaded, next_batchcount)
+					.await;
+
+				let encrypted_room = services()
+					.rooms
+					.state_accessor
+					.state_get(current_shortstatehash, &StateEventType::RoomEncryption, "")?
+					.is_some();
+
+				let since_encryption = services().rooms.state_accessor.state_get(
+					since_shortstatehash,
+					&StateEventType::RoomEncryption,
+					"",
+				)?;
+
+				// Calculations:
+				let new_encrypted_room = encrypted_room && since_encryption.is_none();
+
+				let send_member_count = state_events
+					.iter()
+					.any(|event| event.kind == TimelineEventType::RoomMember);
+
+				if encrypted_room {
+					for state_event in &state_events {
+						if state_event.kind != TimelineEventType::RoomMember {
+							continue;
+						}
+
+						if let Some(state_key) = &state_event.state_key {
+							let user_id = UserId::parse(state_key.clone())
+								.map_err(|_| Error::bad_database("Invalid UserId in member PDU."))?;
+
+							if user_id == sender_user {
+								continue;
+							}
+
+							let new_membership =
+								serde_json::from_str::<RoomMemberEventContent>(state_event.content.get())
+									.map_err(|_| Error::bad_database("Invalid PDU in database."))?
+									.membership;
+
+							match new_membership {
+								MembershipState::Join => {
+									// A new user joined an encrypted room
+									if !share_encrypted_room(sender_user, &user_id, room_id)? {
+										device_list_updates.insert(user_id);
+									}
+								},
+								MembershipState::Leave => {
+									// Write down users that have left encrypted rooms we are in
+									left_encrypted_users.insert(user_id);
+								},
+								_ => {},
+							}
+						}
+					}
+				}
+
+				if joined_since_last_sync && encrypted_room || new_encrypted_room {
+					// If the user is in a new encrypted room, give them all joined users
+					device_list_updates.extend(
+						services()
+							.rooms
+							.state_cache
+							.room_members(room_id)
+							.flatten()
+							.filter(|user_id| {
+								// Don't send key updates from the sender to the sender
+								sender_user != user_id
+							})
+							.filter(|user_id| {
+								// Only send keys if the sender doesn't share an encrypted room with the target
+								// already
+								!share_encrypted_room(sender_user, user_id, room_id).unwrap_or(false)
+							}),
+					);
+				}
+
+				let (joined_member_count, invited_member_count, heroes) = if send_member_count {
+					calculate_counts()?
+				} else {
+					(None, None, Vec::new())
+				};
+
+				(
+					heroes,
+					joined_member_count,
+					invited_member_count,
+					joined_since_last_sync,
+					state_events,
+				)
 			}
-
-			if joined_since_last_sync && encrypted_room || new_encrypted_room {
-				// If the user is in a new encrypted room, give them all joined users
-				device_list_updates.extend(
-					services()
-						.rooms
-						.state_cache
-						.room_members(room_id)
-						.flatten()
-						.filter(|user_id| {
-							// Don't send key updates from the sender to the sender
-							sender_user != user_id
-						})
-						.filter(|user_id| {
-							// Only send keys if the sender doesn't share an encrypted room with the target
-							// already
-							!share_encrypted_room(sender_user, user_id, room_id).unwrap_or(false)
-						}),
-				);
-			}
-
-			let (joined_member_count, invited_member_count, heroes) = if send_member_count {
-				calculate_counts()?
-			} else {
-				(None, None, Vec::new())
-			};
-
-			(
-				heroes,
-				joined_member_count,
-				invited_member_count,
-				joined_since_last_sync,
-				state_events,
-			)
-		}
-	};
+		};
 
 	// Look for device list updates in this room
-	device_list_updates.extend(services().users.keys_changed(room_id.as_ref(), since, None).filter_map(Result::ok));
+	device_list_updates.extend(
+		services()
+			.users
+			.keys_changed(room_id.as_ref(), since, None)
+			.filter_map(Result::ok),
+	);
 
 	let notification_count = if send_notification_counts {
 		Some(
@@ -841,17 +994,22 @@ async fn load_joined_room(
 		None
 	};
 
-	let prev_batch = timeline_pdus.first().map_or(Ok::<_, Error>(None), |(pdu_count, _)| {
-		Ok(Some(match pdu_count {
-			PduCount::Backfilled(_) => {
-				error!("timeline in backfill state?!");
-				"0".to_owned()
-			},
-			PduCount::Normal(c) => c.to_string(),
-		}))
-	})?;
+	let prev_batch = timeline_pdus
+		.first()
+		.map_or(Ok::<_, Error>(None), |(pdu_count, _)| {
+			Ok(Some(match pdu_count {
+				PduCount::Backfilled(_) => {
+					error!("timeline in backfill state?!");
+					"0".to_owned()
+				},
+				PduCount::Normal(c) => c.to_string(),
+			}))
+		})?;
 
-	let room_events: Vec<_> = timeline_pdus.iter().map(|(_, pdu)| pdu.to_sync_room_event()).collect();
+	let room_events: Vec<_> = timeline_pdus
+		.iter()
+		.map(|(_, pdu)| pdu.to_sync_room_event())
+		.collect();
 
 	let mut edus: Vec<_> = services()
 		.rooms
@@ -862,7 +1020,13 @@ async fn load_joined_room(
 		.map(|(_, _, v)| v)
 		.collect();
 
-	if services().rooms.edus.typing.last_typing_update(room_id).await? > since {
+	if services()
+		.rooms
+		.edus
+		.typing
+		.last_typing_update(room_id)
+		.await? > since
+	{
 		edus.push(
 			serde_json::from_str(
 				&serde_json::to_string(&services().rooms.edus.typing.typings_all(room_id).await?)
@@ -874,7 +1038,10 @@ async fn load_joined_room(
 
 	// Save the state after this sync so we can send the correct state diff next
 	// sync
-	services().rooms.user.associate_token_shortstatehash(room_id, next_batch, current_shortstatehash)?;
+	services()
+		.rooms
+		.user
+		.associate_token_shortstatehash(room_id, next_batch, current_shortstatehash)?;
 
 	Ok(JoinedRoom {
 		account_data: RoomAccountData {
@@ -904,7 +1071,10 @@ async fn load_joined_room(
 			events: room_events,
 		},
 		state: State {
-			events: state_events.iter().map(|pdu| pdu.to_sync_state_event()).collect(),
+			events: state_events
+				.iter()
+				.map(|pdu| pdu.to_sync_state_event())
+				.collect(),
 		},
 		ephemeral: Ephemeral {
 			events: edus,
@@ -918,7 +1088,12 @@ fn load_timeline(
 ) -> Result<(Vec<(PduCount, PduEvent)>, bool), Error> {
 	let timeline_pdus;
 	let limited;
-	if services().rooms.timeline.last_timeline_count(sender_user, room_id)? > roomsincecount {
+	if services()
+		.rooms
+		.timeline
+		.last_timeline_count(sender_user, room_id)?
+		> roomsincecount
+	{
 		let mut non_timeline_pdus = services()
 			.rooms
 			.timeline
@@ -933,8 +1108,13 @@ fn load_timeline(
 			.take_while(|(pducount, _)| pducount > &roomsincecount);
 
 		// Take the last events for the timeline
-		timeline_pdus =
-			non_timeline_pdus.by_ref().take(limit as usize).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>();
+		timeline_pdus = non_timeline_pdus
+			.by_ref()
+			.take(limit as usize)
+			.collect::<Vec<_>>()
+			.into_iter()
+			.rev()
+			.collect::<Vec<_>>();
 
 		// They /sync response doesn't always return all messages, so we say the output
 		// is limited unless there are events in non_timeline_pdus
@@ -980,7 +1160,11 @@ pub async fn sync_events_v4_route(
 
 	let next_batch = services().globals.next_count()?;
 
-	let globalsince = body.pos.as_ref().and_then(|string| string.parse().ok()).unwrap_or(0);
+	let globalsince = body
+		.pos
+		.as_ref()
+		.and_then(|string| string.parse().ok())
+		.unwrap_or(0);
 
 	if globalsince == 0 {
 		if let Some(conn_id) = &body.conn_id {
@@ -994,13 +1178,21 @@ pub async fn sync_events_v4_route(
 
 	// Get sticky parameters from cache
 	let known_rooms =
-		services().users.update_sync_request_with_cache(sender_user.clone(), sender_device.clone(), &mut body);
+		services()
+			.users
+			.update_sync_request_with_cache(sender_user.clone(), sender_device.clone(), &mut body);
 
-	let all_joined_rooms =
-		services().rooms.state_cache.rooms_joined(&sender_user).filter_map(Result::ok).collect::<Vec<_>>();
+	let all_joined_rooms = services()
+		.rooms
+		.state_cache
+		.rooms_joined(&sender_user)
+		.filter_map(Result::ok)
+		.collect::<Vec<_>>();
 
 	if body.extensions.to_device.enabled.unwrap_or(false) {
-		services().users.remove_to_device_events(&sender_user, &sender_device, globalsince)?;
+		services()
+			.users
+			.remove_to_device_events(&sender_user, &sender_device, globalsince)?;
 	}
 
 	let mut left_encrypted_users = HashSet::new(); // Users that have left any encrypted rooms the sender was in
@@ -1009,8 +1201,12 @@ pub async fn sync_events_v4_route(
 
 	if body.extensions.e2ee.enabled.unwrap_or(false) {
 		// Look for device list updates of this account
-		device_list_changes
-			.extend(services().users.keys_changed(sender_user.as_ref(), globalsince, None).filter_map(Result::ok));
+		device_list_changes.extend(
+			services()
+				.users
+				.keys_changed(sender_user.as_ref(), globalsince, None)
+				.filter_map(Result::ok),
+		);
 
 		for room_id in &all_joined_rooms {
 			let current_shortstatehash = if let Some(s) = services().rooms.state.get_room_shortstatehash(room_id)? {
@@ -1020,7 +1216,10 @@ pub async fn sync_events_v4_route(
 				continue;
 			};
 
-			let since_shortstatehash = services().rooms.user.get_token_shortstatehash(room_id, globalsince)?;
+			let since_shortstatehash = services()
+				.rooms
+				.user
+				.get_token_shortstatehash(room_id, globalsince)?;
 
 			let since_sender_member: Option<RoomMemberEventContent> = since_shortstatehash
 				.and_then(|shortstatehash| {
@@ -1060,9 +1259,16 @@ pub async fn sync_events_v4_route(
 
 				let new_encrypted_room = encrypted_room && since_encryption.is_none();
 				if encrypted_room {
-					let current_state_ids =
-						services().rooms.state_accessor.state_full_ids(current_shortstatehash).await?;
-					let since_state_ids = services().rooms.state_accessor.state_full_ids(since_shortstatehash).await?;
+					let current_state_ids = services()
+						.rooms
+						.state_accessor
+						.state_full_ids(current_shortstatehash)
+						.await?;
+					let since_state_ids = services()
+						.rooms
+						.state_accessor
+						.state_full_ids(since_shortstatehash)
+						.await?;
 
 					for (key, id) in current_state_ids {
 						if since_state_ids.get(&key) != Some(&id) {
@@ -1126,8 +1332,12 @@ pub async fn sync_events_v4_route(
 				}
 			}
 			// Look for device list updates in this room
-			device_list_changes
-				.extend(services().users.keys_changed(room_id.as_ref(), globalsince, None).filter_map(Result::ok));
+			device_list_changes.extend(
+				services()
+					.users
+					.keys_changed(room_id.as_ref(), globalsince, None)
+					.filter_map(Result::ok),
+			);
 		}
 		for user_id in left_encrypted_users {
 			let dont_share_encrypted_room = services()
@@ -1171,19 +1381,33 @@ pub async fn sync_events_v4_route(
 					.ranges
 					.into_iter()
 					.map(|mut r| {
-						r.0 = r.0.clamp(uint!(0), UInt::from(all_joined_rooms.len() as u32 - 1));
-						r.1 = r.1.clamp(r.0, UInt::from(all_joined_rooms.len() as u32 - 1));
+						r.0 =
+							r.0.clamp(uint!(0), UInt::from(all_joined_rooms.len() as u32 - 1));
+						r.1 =
+							r.1.clamp(r.0, UInt::from(all_joined_rooms.len() as u32 - 1));
 						let room_ids = all_joined_rooms[(u64::from(r.0) as usize)..=(u64::from(r.1) as usize)].to_vec();
 						new_known_rooms.extend(room_ids.iter().cloned());
 						for room_id in &room_ids {
-							let todo_room = todo_rooms.entry(room_id.clone()).or_insert((BTreeSet::new(), 0, u64::MAX));
-							let limit = list.room_details.timeline_limit.map_or(10, u64::from).min(100);
-							todo_room.0.extend(list.room_details.required_state.iter().cloned());
+							let todo_room = todo_rooms
+								.entry(room_id.clone())
+								.or_insert((BTreeSet::new(), 0, u64::MAX));
+							let limit = list
+								.room_details
+								.timeline_limit
+								.map_or(10, u64::from)
+								.min(100);
+							todo_room
+								.0
+								.extend(list.room_details.required_state.iter().cloned());
 							todo_room.1 = todo_room.1.max(limit);
 							// 0 means unknown because it got out of date
-							todo_room.2 = todo_room
-								.2
-								.min(known_rooms.get(&list_id).and_then(|k| k.get(room_id)).copied().unwrap_or(0));
+							todo_room.2 = todo_room.2.min(
+								known_rooms
+									.get(&list_id)
+									.and_then(|k| k.get(room_id))
+									.copied()
+									.unwrap_or(0),
+							);
 						}
 						sync_events::v4::SyncOp {
 							op: SlidingOp::Sync,
@@ -1215,13 +1439,20 @@ pub async fn sync_events_v4_route(
 		if !services().rooms.metadata.exists(room_id)? {
 			continue;
 		}
-		let todo_room = todo_rooms.entry(room_id.clone()).or_insert((BTreeSet::new(), 0, u64::MAX));
+		let todo_room = todo_rooms
+			.entry(room_id.clone())
+			.or_insert((BTreeSet::new(), 0, u64::MAX));
 		let limit = room.timeline_limit.map_or(10, u64::from).min(100);
 		todo_room.0.extend(room.required_state.iter().cloned());
 		todo_room.1 = todo_room.1.max(limit);
 		// 0 means unknown because it got out of date
-		todo_room.2 =
-			todo_room.2.min(known_rooms.get("subscriptions").and_then(|k| k.get(room_id)).copied().unwrap_or(0));
+		todo_room.2 = todo_room.2.min(
+			known_rooms
+				.get("subscriptions")
+				.and_then(|k| k.get(room_id))
+				.copied()
+				.unwrap_or(0),
+		);
 		known_subscription_rooms.insert(room_id.clone());
 	}
 
@@ -1279,11 +1510,19 @@ pub async fn sync_events_v4_route(
 				}
 			});
 
-		let room_events: Vec<_> = timeline_pdus.iter().map(|(_, pdu)| pdu.to_sync_room_event()).collect();
+		let room_events: Vec<_> = timeline_pdus
+			.iter()
+			.map(|(_, pdu)| pdu.to_sync_room_event())
+			.collect();
 
 		let required_state = required_state_request
 			.iter()
-			.map(|state| services().rooms.state_accessor.room_state_get(room_id, &state.0, &state.1))
+			.map(|state| {
+				services()
+					.rooms
+					.state_accessor
+					.room_state_get(room_id, &state.0, &state.1)
+			})
 			.filter_map(Result::ok)
 			.flatten()
 			.map(|state| state.to_sync_state_event())
@@ -1298,12 +1537,18 @@ pub async fn sync_events_v4_route(
 			.filter(|member| member != &sender_user)
 			.map(|member| {
 				Ok::<_, Error>(
-					services().rooms.state_accessor.get_member(room_id, &member)?.map(|memberevent| {
-						(
-							memberevent.displayname.unwrap_or_else(|| member.to_string()),
-							memberevent.avatar_url,
-						)
-					}),
+					services()
+						.rooms
+						.state_accessor
+						.get_member(room_id, &member)?
+						.map(|memberevent| {
+							(
+								memberevent
+									.displayname
+									.unwrap_or_else(|| member.to_string()),
+								memberevent.avatar_url,
+							)
+						}),
 				)
 			})
 			.filter_map(Result::ok)
@@ -1313,7 +1558,13 @@ pub async fn sync_events_v4_route(
 		let name = match heroes.len().cmp(&(1_usize)) {
 			Ordering::Greater => {
 				let last = heroes[0].0.clone();
-				Some(heroes[1..].iter().map(|h| h.0.clone()).collect::<Vec<_>>().join(", ") + " and " + &last)
+				Some(
+					heroes[1..]
+						.iter()
+						.map(|h| h.0.clone())
+						.collect::<Vec<_>>()
+						.join(", ") + " and " + &last,
+				)
 			},
 			Ordering::Equal => Some(heroes[0].0.clone()),
 			Ordering::Less => None,
@@ -1364,10 +1615,20 @@ pub async fn sync_events_v4_route(
 				prev_batch,
 				limited,
 				joined_count: Some(
-					(services().rooms.state_cache.room_joined_count(room_id)?.unwrap_or(0) as u32).into(),
+					(services()
+						.rooms
+						.state_cache
+						.room_joined_count(room_id)?
+						.unwrap_or(0) as u32)
+						.into(),
 				),
 				invited_count: Some(
-					(services().rooms.state_cache.room_invited_count(room_id)?.unwrap_or(0) as u32).into(),
+					(services()
+						.rooms
+						.state_cache
+						.room_invited_count(room_id)?
+						.unwrap_or(0) as u32)
+						.into(),
 				),
 				num_live: None, // Count events in timeline greater than global sync counter
 				timestamp: None,
@@ -1375,7 +1636,10 @@ pub async fn sync_events_v4_route(
 		);
 	}
 
-	if rooms.iter().all(|(_, r)| r.timeline.is_empty() && r.required_state.is_empty()) {
+	if rooms
+		.iter()
+		.all(|(_, r)| r.timeline.is_empty() && r.required_state.is_empty())
+	{
 		// Hang a few seconds so requests are not spammed
 		// Stop hanging if new info arrives
 		let mut duration = body.timeout.unwrap_or(Duration::from_secs(30));
@@ -1394,7 +1658,9 @@ pub async fn sync_events_v4_route(
 		extensions: sync_events::v4::Extensions {
 			to_device: if body.extensions.to_device.enabled.unwrap_or(false) {
 				Some(sync_events::v4::ToDevice {
-					events: services().users.get_to_device_events(&sender_user, &sender_device)?,
+					events: services()
+						.users
+						.get_to_device_events(&sender_user, &sender_device)?,
 					next_batch: next_batch.to_string(),
 				})
 			} else {
@@ -1405,7 +1671,9 @@ pub async fn sync_events_v4_route(
 					changed: device_list_changes.into_iter().collect(),
 					left: device_list_left.into_iter().collect(),
 				},
-				device_one_time_keys_count: services().users.count_one_time_keys(&sender_user, &sender_device)?,
+				device_one_time_keys_count: services()
+					.users
+					.count_one_time_keys(&sender_user, &sender_device)?,
 				// Fallback keys are not yet supported
 				device_unused_fallback_key_types: None,
 			},

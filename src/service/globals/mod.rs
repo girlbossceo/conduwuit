@@ -106,8 +106,10 @@ impl Service<'_> {
 			},
 		};
 
-		let jwt_decoding_key =
-			config.jwt_secret.as_ref().map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
+		let jwt_decoding_key = config
+			.jwt_secret
+			.as_ref()
+			.map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
 
 		let resolver = Arc::new(resolver::Resolver::new(config));
 
@@ -159,7 +161,10 @@ impl Service<'_> {
 
 		fs::create_dir_all(s.get_media_folder())?;
 
-		if !s.supported_room_versions().contains(&s.config.default_room_version) {
+		if !s
+			.supported_room_versions()
+			.contains(&s.config.default_room_version)
+		{
 			error!(config=?s.config.default_room_version, fallback=?crate::config::default_default_room_version(), "Room version in config isn't supported, falling back to default version");
 			s.config.default_room_version = crate::config::default_default_room_version();
 		};

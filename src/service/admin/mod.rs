@@ -169,11 +169,15 @@ impl Service {
 	}
 
 	pub fn process_message(&self, room_message: String, event_id: Arc<EventId>) {
-		self.sender.send(AdminRoomEvent::ProcessMessage(room_message, event_id)).unwrap();
+		self.sender
+			.send(AdminRoomEvent::ProcessMessage(room_message, event_id))
+			.unwrap();
 	}
 
 	pub fn send_message(&self, message_content: RoomMessageEventContent) {
-		self.sender.send(AdminRoomEvent::SendMessage(message_content)).unwrap();
+		self.sender
+			.send(AdminRoomEvent::SendMessage(message_content))
+			.unwrap();
 	}
 
 	// Parse and process a message from the admin room
@@ -276,7 +280,10 @@ impl Service {
 		if let Some(line_index) = text_lines.iter().position(|line| *line == "[commandbody]") {
 			text_lines.remove(line_index);
 
-			while text_lines.get(line_index).is_some_and(|line| line.starts_with('#')) {
+			while text_lines
+				.get(line_index)
+				.is_some_and(|line| line.starts_with('#'))
+			{
 				command_body += if text_lines[line_index].starts_with("# ") {
 					&text_lines[line_index][2..]
 				} else {
@@ -304,7 +311,9 @@ impl Service {
 
 		// Add HTML line-breaks
 
-		text.replace("\n\n\n", "\n\n").replace('\n', "<br>\n").replace("[nobr]<br>", "")
+		text.replace("\n\n\n", "\n\n")
+			.replace('\n', "<br>\n")
+			.replace("[nobr]<br>", "")
 	}
 
 	/// Create the admin room.
@@ -316,8 +325,15 @@ impl Service {
 
 		services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
-		let mutex_state =
-			Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
+		let mutex_state = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_state
+				.write()
+				.await
+				.entry(room_id.clone())
+				.or_default(),
+		);
 		let state_lock = mutex_state.lock().await;
 
 		// Create a user for the server
@@ -560,7 +576,10 @@ impl Service {
 			.try_into()
 			.expect("#admins:server_name is a valid alias name");
 
-		services().rooms.alias.resolve_local_alias(&admin_room_alias)
+		services()
+			.rooms
+			.alias
+			.resolve_local_alias(&admin_room_alias)
 	}
 
 	/// Invite the user to the conduit admin room.
@@ -568,8 +587,15 @@ impl Service {
 	/// In conduit, this is equivalent to granting admin privileges.
 	pub(crate) async fn make_user_admin(&self, user_id: &UserId, displayname: String) -> Result<()> {
 		if let Some(room_id) = Self::get_admin_room()? {
-			let mutex_state =
-				Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
+			let mutex_state = Arc::clone(
+				services()
+					.globals
+					.roomid_mutex_state
+					.write()
+					.await
+					.entry(room_id.clone())
+					.or_default(),
+			);
 			let state_lock = mutex_state.lock().await;
 
 			// Use the server user to grant the new admin's power level
@@ -681,13 +707,29 @@ impl Service {
 	}
 }
 
-fn escape_html(s: &str) -> String { s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;") }
+fn escape_html(s: &str) -> String {
+	s.replace('&', "&amp;")
+		.replace('<', "&lt;")
+		.replace('>', "&gt;")
+}
 
 fn get_room_info(id: &OwnedRoomId) -> (OwnedRoomId, u64, String) {
 	(
 		id.clone(),
-		services().rooms.state_cache.room_joined_count(id).ok().flatten().unwrap_or(0),
-		services().rooms.state_accessor.get_name(id).ok().flatten().unwrap_or_else(|| id.to_string()),
+		services()
+			.rooms
+			.state_cache
+			.room_joined_count(id)
+			.ok()
+			.flatten()
+			.unwrap_or(0),
+		services()
+			.rooms
+			.state_accessor
+			.get_name(id)
+			.ok()
+			.flatten()
+			.unwrap_or_else(|| id.to_string()),
 	)
 }
 
@@ -705,7 +747,9 @@ mod test {
 	fn get_help_subcommand() { get_help_inner("help"); }
 
 	fn get_help_inner(input: &str) {
-		let error = AdminCommand::try_parse_from(["argv[0] doesn't matter", input]).unwrap_err().to_string();
+		let error = AdminCommand::try_parse_from(["argv[0] doesn't matter", input])
+			.unwrap_err()
+			.to_string();
 
 		// Search for a handful of keywords that suggest the help printed properly
 		assert!(error.contains("Usage:"));

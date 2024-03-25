@@ -60,7 +60,9 @@ impl Service {
 
 				unsigned.insert(
 					"m.relations".to_owned(),
-					json!({ "m.thread": content }).try_into().expect("thread is valid json"),
+					json!({ "m.thread": content })
+						.try_into()
+						.expect("thread is valid json"),
 				);
 			} else {
 				// New thread
@@ -74,11 +76,16 @@ impl Service {
 
 				unsigned.insert(
 					"m.relations".to_owned(),
-					json!({ "m.thread": content }).try_into().expect("thread is valid json"),
+					json!({ "m.thread": content })
+						.try_into()
+						.expect("thread is valid json"),
 				);
 			}
 
-			services().rooms.timeline.replace_pdu(root_id, &root_pdu_json, &root_pdu)?;
+			services()
+				.rooms
+				.timeline
+				.replace_pdu(root_id, &root_pdu_json, &root_pdu)?;
 		}
 
 		let mut users = Vec::new();

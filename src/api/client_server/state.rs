@@ -86,7 +86,11 @@ pub async fn get_state_events_route(
 ) -> Result<get_state_events::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().rooms.state_accessor.user_can_see_state_events(sender_user, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_accessor
+		.user_can_see_state_events(sender_user, &body.room_id)?
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view the room state.",
@@ -118,21 +122,30 @@ pub async fn get_state_events_for_key_route(
 ) -> Result<get_state_events_for_key::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().rooms.state_accessor.user_can_see_state_events(sender_user, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_accessor
+		.user_can_see_state_events(sender_user, &body.room_id)?
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view the room state.",
 		));
 	}
 
-	let event =
-		services().rooms.state_accessor.room_state_get(&body.room_id, &body.event_type, &body.state_key)?.ok_or_else(
-			|| {
-				warn!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
-				Error::BadRequest(ErrorKind::NotFound, "State event not found.")
-			},
-		)?;
-	if body.format.as_ref().is_some_and(|f| f.to_lowercase().eq("event")) {
+	let event = services()
+		.rooms
+		.state_accessor
+		.room_state_get(&body.room_id, &body.event_type, &body.state_key)?
+		.ok_or_else(|| {
+			warn!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
+			Error::BadRequest(ErrorKind::NotFound, "State event not found.")
+		})?;
+	if body
+		.format
+		.as_ref()
+		.is_some_and(|f| f.to_lowercase().eq("event"))
+	{
 		Ok(get_state_events_for_key::v3::Response {
 			content: None,
 			event: serde_json::from_str(event.to_state_event().json().get()).map_err(|e| {
@@ -164,20 +177,31 @@ pub async fn get_state_events_for_empty_key_route(
 ) -> Result<RumaResponse<get_state_events_for_key::v3::Response>> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().rooms.state_accessor.user_can_see_state_events(sender_user, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_accessor
+		.user_can_see_state_events(sender_user, &body.room_id)?
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view the room state.",
 		));
 	}
 
-	let event =
-		services().rooms.state_accessor.room_state_get(&body.room_id, &body.event_type, "")?.ok_or_else(|| {
+	let event = services()
+		.rooms
+		.state_accessor
+		.room_state_get(&body.room_id, &body.event_type, "")?
+		.ok_or_else(|| {
 			warn!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
 			Error::BadRequest(ErrorKind::NotFound, "State event not found.")
 		})?;
 
-	if body.format.as_ref().is_some_and(|f| f.to_lowercase().eq("event")) {
+	if body
+		.format
+		.as_ref()
+		.is_some_and(|f| f.to_lowercase().eq("event"))
+	{
 		Ok(get_state_events_for_key::v3::Response {
 			content: None,
 			event: serde_json::from_str(event.to_state_event().json().get()).map_err(|e| {
@@ -229,8 +253,15 @@ async fn send_state_event_for_key_helper(
 		}
 	}
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.to_owned()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(room_id.to_owned())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	let event_id = services()

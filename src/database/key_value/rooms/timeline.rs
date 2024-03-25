@@ -8,15 +8,22 @@ use crate::{database::KeyValueDatabase, service, services, utils, Error, PduEven
 
 impl service::rooms::timeline::Data for KeyValueDatabase {
 	fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
-		match self.lasttimelinecount_cache.lock().unwrap().entry(room_id.to_owned()) {
+		match self
+			.lasttimelinecount_cache
+			.lock()
+			.unwrap()
+			.entry(room_id.to_owned())
+		{
 			hash_map::Entry::Vacant(v) => {
-				if let Some(last_count) = self.pdus_until(sender_user, room_id, PduCount::max())?.find_map(|r| {
-					// Filter out buggy events
-					if r.is_err() {
-						error!("Bad pdu in pdus_since: {:?}", r);
-					}
-					r.ok()
-				}) {
+				if let Some(last_count) = self
+					.pdus_until(sender_user, room_id, PduCount::max())?
+					.find_map(|r| {
+						// Filter out buggy events
+						if r.is_err() {
+							error!("Bad pdu in pdus_since: {:?}", r);
+						}
+						r.ok()
+					}) {
 					Ok(*v.insert(last_count.0))
 				} else {
 					Ok(PduCount::Normal(0))
@@ -28,7 +35,10 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 
 	/// Returns the `count` of this pdu's id.
 	fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<PduCount>> {
-		self.eventid_pduid.get(event_id.as_bytes())?.map(|pdu_id| pdu_count(&pdu_id)).transpose()
+		self.eventid_pduid
+			.get(event_id.as_bytes())?
+			.map(|pdu_id| pdu_count(&pdu_id))
+			.transpose()
 	}
 
 	/// Returns the json of a pdu.
@@ -49,7 +59,9 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 		self.eventid_pduid
 			.get(event_id.as_bytes())?
 			.map(|pduid| {
-				self.pduid_pdu.get(&pduid)?.ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
+				self.pduid_pdu
+					.get(&pduid)?
+					.ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
 			})
 			.transpose()?
 			.map(|pdu| serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db.")))
@@ -64,7 +76,9 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 		self.eventid_pduid
 			.get(event_id.as_bytes())?
 			.map(|pduid| {
-				self.pduid_pdu.get(&pduid)?.ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
+				self.pduid_pdu
+					.get(&pduid)?
+					.ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
 			})
 			.transpose()?
 			.map(|pdu| serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db.")))
@@ -92,7 +106,10 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 			)?
 			.map(Arc::new)
 		{
-			self.pdu_cache.lock().unwrap().insert(event_id.to_owned(), Arc::clone(&pdu));
+			self.pdu_cache
+				.lock()
+				.unwrap()
+				.insert(event_id.to_owned(), Arc::clone(&pdu));
 			Ok(Some(pdu))
 		} else {
 			Ok(None)
@@ -125,7 +142,10 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 			&serde_json::to_vec(json).expect("CanonicalJsonObject is always a valid"),
 		)?;
 
-		self.lasttimelinecount_cache.lock().unwrap().insert(pdu.room_id.clone(), PduCount::Normal(count));
+		self.lasttimelinecount_cache
+			.lock()
+			.unwrap()
+			.insert(pdu.room_id.clone(), PduCount::Normal(count));
 
 		self.eventid_pduid.insert(pdu.event_id.as_bytes(), pdu_id)?;
 		self.eventid_outlierpdu.remove(pdu.event_id.as_bytes())?;
@@ -156,7 +176,10 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 			return Err(Error::BadRequest(ErrorKind::NotFound, "PDU does not exist."));
 		}
 
-		self.pdu_cache.lock().unwrap().remove(&(*pdu.event_id).to_owned());
+		self.pdu_cache
+			.lock()
+			.unwrap()
+			.remove(&(*pdu.event_id).to_owned());
 
 		Ok(())
 	}
@@ -172,8 +195,10 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 		let user_id = user_id.to_owned();
 
 		Ok(Box::new(
-			self.pduid_pdu.iter_from(&current, true).take_while(move |(k, _)| k.starts_with(&prefix)).map(
-				move |(pdu_id, v)| {
+			self.pduid_pdu
+				.iter_from(&current, true)
+				.take_while(move |(k, _)| k.starts_with(&prefix))
+				.map(move |(pdu_id, v)| {
 					let mut pdu = serde_json::from_slice::<PduEvent>(&v)
 						.map_err(|_| Error::bad_database("PDU in db is invalid."))?;
 					if pdu.sender != user_id {
@@ -182,8 +207,7 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 					pdu.add_age()?;
 					let count = pdu_count(&pdu_id)?;
 					Ok((count, pdu))
-				},
-			),
+				}),
 		))
 	}
 
@@ -195,8 +219,10 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 		let user_id = user_id.to_owned();
 
 		Ok(Box::new(
-			self.pduid_pdu.iter_from(&current, false).take_while(move |(k, _)| k.starts_with(&prefix)).map(
-				move |(pdu_id, v)| {
+			self.pduid_pdu
+				.iter_from(&current, false)
+				.take_while(move |(k, _)| k.starts_with(&prefix))
+				.map(move |(pdu_id, v)| {
 					let mut pdu = serde_json::from_slice::<PduEvent>(&v)
 						.map_err(|_| Error::bad_database("PDU in db is invalid."))?;
 					if pdu.sender != user_id {
@@ -205,8 +231,7 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 					pdu.add_age()?;
 					let count = pdu_count(&pdu_id)?;
 					Ok((count, pdu))
-				},
-			),
+				}),
 		))
 	}
 
@@ -228,8 +253,10 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 			highlights_batch.push(userroom_id);
 		}
 
-		self.userroomid_notificationcount.increment_batch(&mut notifies_batch.into_iter())?;
-		self.userroomid_highlightcount.increment_batch(&mut highlights_batch.into_iter())?;
+		self.userroomid_notificationcount
+			.increment_batch(&mut notifies_batch.into_iter())?;
+		self.userroomid_highlightcount
+			.increment_batch(&mut highlights_batch.into_iter())?;
 		Ok(())
 	}
 }

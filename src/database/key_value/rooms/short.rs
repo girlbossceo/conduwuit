@@ -17,20 +17,28 @@ impl service::rooms::short::Data for KeyValueDatabase {
 			},
 			None => {
 				let shorteventid = services().globals.next_count()?;
-				self.eventid_shorteventid.insert(event_id.as_bytes(), &shorteventid.to_be_bytes())?;
-				self.shorteventid_eventid.insert(&shorteventid.to_be_bytes(), event_id.as_bytes())?;
+				self.eventid_shorteventid
+					.insert(event_id.as_bytes(), &shorteventid.to_be_bytes())?;
+				self.shorteventid_eventid
+					.insert(&shorteventid.to_be_bytes(), event_id.as_bytes())?;
 				shorteventid
 			},
 		};
 
-		self.eventidshort_cache.lock().unwrap().insert(event_id.to_owned(), short);
+		self.eventidshort_cache
+			.lock()
+			.unwrap()
+			.insert(event_id.to_owned(), short);
 
 		Ok(short)
 	}
 
 	fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<Option<u64>> {
-		if let Some(short) =
-			self.statekeyshort_cache.lock().unwrap().get_mut(&(event_type.clone(), state_key.to_owned()))
+		if let Some(short) = self
+			.statekeyshort_cache
+			.lock()
+			.unwrap()
+			.get_mut(&(event_type.clone(), state_key.to_owned()))
 		{
 			return Ok(Some(*short));
 		}
@@ -48,15 +56,21 @@ impl service::rooms::short::Data for KeyValueDatabase {
 			.transpose()?;
 
 		if let Some(s) = short {
-			self.statekeyshort_cache.lock().unwrap().insert((event_type.clone(), state_key.to_owned()), s);
+			self.statekeyshort_cache
+				.lock()
+				.unwrap()
+				.insert((event_type.clone(), state_key.to_owned()), s);
 		}
 
 		Ok(short)
 	}
 
 	fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<u64> {
-		if let Some(short) =
-			self.statekeyshort_cache.lock().unwrap().get_mut(&(event_type.clone(), state_key.to_owned()))
+		if let Some(short) = self
+			.statekeyshort_cache
+			.lock()
+			.unwrap()
+			.get_mut(&(event_type.clone(), state_key.to_owned()))
 		{
 			return Ok(*short);
 		}
@@ -70,19 +84,29 @@ impl service::rooms::short::Data for KeyValueDatabase {
 				.map_err(|_| Error::bad_database("Invalid shortstatekey in db."))?,
 			None => {
 				let shortstatekey = services().globals.next_count()?;
-				self.statekey_shortstatekey.insert(&statekey_vec, &shortstatekey.to_be_bytes())?;
-				self.shortstatekey_statekey.insert(&shortstatekey.to_be_bytes(), &statekey_vec)?;
+				self.statekey_shortstatekey
+					.insert(&statekey_vec, &shortstatekey.to_be_bytes())?;
+				self.shortstatekey_statekey
+					.insert(&shortstatekey.to_be_bytes(), &statekey_vec)?;
 				shortstatekey
 			},
 		};
 
-		self.statekeyshort_cache.lock().unwrap().insert((event_type.clone(), state_key.to_owned()), short);
+		self.statekeyshort_cache
+			.lock()
+			.unwrap()
+			.insert((event_type.clone(), state_key.to_owned()), short);
 
 		Ok(short)
 	}
 
 	fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<EventId>> {
-		if let Some(id) = self.shorteventid_cache.lock().unwrap().get_mut(&shorteventid) {
+		if let Some(id) = self
+			.shorteventid_cache
+			.lock()
+			.unwrap()
+			.get_mut(&shorteventid)
+		{
 			return Ok(Arc::clone(id));
 		}
 
@@ -97,13 +121,21 @@ impl service::rooms::short::Data for KeyValueDatabase {
 		)
 		.map_err(|_| Error::bad_database("EventId in shorteventid_eventid is invalid."))?;
 
-		self.shorteventid_cache.lock().unwrap().insert(shorteventid, Arc::clone(&event_id));
+		self.shorteventid_cache
+			.lock()
+			.unwrap()
+			.insert(shorteventid, Arc::clone(&event_id));
 
 		Ok(event_id)
 	}
 
 	fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
-		if let Some(id) = self.shortstatekey_cache.lock().unwrap().get_mut(&shortstatekey) {
+		if let Some(id) = self
+			.shortstatekey_cache
+			.lock()
+			.unwrap()
+			.get_mut(&shortstatekey)
+		{
 			return Ok(id.clone());
 		}
 
@@ -114,8 +146,9 @@ impl service::rooms::short::Data for KeyValueDatabase {
 
 		let mut parts = bytes.splitn(2, |&b| b == 0xFF);
 		let eventtype_bytes = parts.next().expect("split always returns one entry");
-		let statekey_bytes =
-			parts.next().ok_or_else(|| Error::bad_database("Invalid statekey in shortstatekey_statekey."))?;
+		let statekey_bytes = parts
+			.next()
+			.ok_or_else(|| Error::bad_database("Invalid statekey in shortstatekey_statekey."))?;
 
 		let event_type = StateEventType::from(utils::string_from_bytes(eventtype_bytes).map_err(|e| {
 			warn!("Event type in shortstatekey_statekey is invalid: {}", e);
@@ -127,7 +160,10 @@ impl service::rooms::short::Data for KeyValueDatabase {
 
 		let result = (event_type, state_key);
 
-		self.shortstatekey_cache.lock().unwrap().insert(shortstatekey, result.clone());
+		self.shortstatekey_cache
+			.lock()
+			.unwrap()
+			.insert(shortstatekey, result.clone());
 
 		Ok(result)
 	}
@@ -142,7 +178,8 @@ impl service::rooms::short::Data for KeyValueDatabase {
 			),
 			None => {
 				let shortstatehash = services().globals.next_count()?;
-				self.statehash_shortstatehash.insert(state_hash, &shortstatehash.to_be_bytes())?;
+				self.statehash_shortstatehash
+					.insert(state_hash, &shortstatehash.to_be_bytes())?;
 				(shortstatehash, false)
 			},
 		})
@@ -162,7 +199,8 @@ impl service::rooms::short::Data for KeyValueDatabase {
 			},
 			None => {
 				let short = services().globals.next_count()?;
-				self.roomid_shortroomid.insert(room_id.as_bytes(), &short.to_be_bytes())?;
+				self.roomid_shortroomid
+					.insert(room_id.as_bytes(), &short.to_be_bytes())?;
 				short
 			},
 		})

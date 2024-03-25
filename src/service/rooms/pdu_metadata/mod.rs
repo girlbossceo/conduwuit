@@ -126,8 +126,10 @@ impl Service {
 
 				next_token = events_before.last().map(|(count, _)| count).copied();
 
-				let events_before: Vec<_> =
-					events_before.into_iter().map(|(_, pdu)| pdu.to_message_like_event()).collect();
+				let events_before: Vec<_> = events_before
+					.into_iter()
+					.map(|(_, pdu)| pdu.to_message_like_event())
+					.collect();
 
 				Ok(get_relating_events::v1::Response {
 					chunk: events_before,
