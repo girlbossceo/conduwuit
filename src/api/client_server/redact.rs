@@ -17,8 +17,15 @@ pub async fn redact_event_route(body: Ruma<redact_event::v3::Request>) -> Result
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let body = body.body;
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(body.room_id.clone())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	let event_id = services()

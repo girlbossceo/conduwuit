@@ -6,7 +6,8 @@ impl service::appservice::Data for KeyValueDatabase {
 	/// Registers an appservice and returns the ID to the caller
 	fn register_appservice(&self, yaml: Registration) -> Result<String> {
 		let id = yaml.id.as_str();
-		self.id_appserviceregistrations.insert(id.as_bytes(), serde_yaml::to_string(&yaml).unwrap().as_bytes())?;
+		self.id_appserviceregistrations
+			.insert(id.as_bytes(), serde_yaml::to_string(&yaml).unwrap().as_bytes())?;
 
 		Ok(id.to_owned())
 	}
@@ -17,7 +18,8 @@ impl service::appservice::Data for KeyValueDatabase {
 	///
 	/// * `service_name` - the name you send to register the service previously
 	fn unregister_appservice(&self, service_name: &str) -> Result<()> {
-		self.id_appserviceregistrations.remove(service_name.as_bytes())?;
+		self.id_appserviceregistrations
+			.remove(service_name.as_bytes())?;
 		Ok(())
 	}
 
@@ -44,7 +46,8 @@ impl service::appservice::Data for KeyValueDatabase {
 			.map(move |id| {
 				Ok((
 					id.clone(),
-					self.get_registration(&id)?.expect("iter_ids only returns appservices that exist"),
+					self.get_registration(&id)?
+						.expect("iter_ids only returns appservices that exist"),
 				))
 			})
 			.collect()

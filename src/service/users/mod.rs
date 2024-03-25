@@ -44,7 +44,10 @@ impl Service {
 	pub fn exists(&self, user_id: &UserId) -> Result<bool> { self.db.exists(user_id) }
 
 	pub fn forget_sync_request_connection(&self, user_id: OwnedUserId, device_id: OwnedDeviceId, conn_id: String) {
-		self.connections.lock().unwrap().remove(&(user_id, device_id, conn_id));
+		self.connections
+			.lock()
+			.unwrap()
+			.remove(&(user_id, device_id, conn_id));
 	}
 
 	pub fn update_sync_request_with_cache(
@@ -55,14 +58,18 @@ impl Service {
 		};
 
 		let mut cache = self.connections.lock().unwrap();
-		let cached = Arc::clone(cache.entry((user_id, device_id, conn_id)).or_insert_with(|| {
-			Arc::new(Mutex::new(SlidingSyncCache {
-				lists: BTreeMap::new(),
-				subscriptions: BTreeMap::new(),
-				known_rooms: BTreeMap::new(),
-				extensions: ExtensionsConfig::default(),
-			}))
-		}));
+		let cached = Arc::clone(
+			cache
+				.entry((user_id, device_id, conn_id))
+				.or_insert_with(|| {
+					Arc::new(Mutex::new(SlidingSyncCache {
+						lists: BTreeMap::new(),
+						subscriptions: BTreeMap::new(),
+						known_rooms: BTreeMap::new(),
+						extensions: ExtensionsConfig::default(),
+					}))
+				}),
+		);
 		let cached = &mut cached.lock().unwrap();
 		drop(cache);
 
@@ -72,12 +79,18 @@ impl Service {
 					list.sort.clone_from(&cached_list.sort);
 				};
 				if list.room_details.required_state.is_empty() {
-					list.room_details.required_state.clone_from(&cached_list.room_details.required_state);
+					list.room_details
+						.required_state
+						.clone_from(&cached_list.room_details.required_state);
 				};
-				list.room_details.timeline_limit =
-					list.room_details.timeline_limit.or(cached_list.room_details.timeline_limit);
-				list.include_old_rooms =
-					list.include_old_rooms.clone().or_else(|| cached_list.include_old_rooms.clone());
+				list.room_details.timeline_limit = list
+					.room_details
+					.timeline_limit
+					.or(cached_list.room_details.timeline_limit);
+				list.include_old_rooms = list
+					.include_old_rooms
+					.clone()
+					.or_else(|| cached_list.include_old_rooms.clone());
 				match (&mut list.filters, cached_list.filters.clone()) {
 					(Some(list_filters), Some(cached_filters)) => {
 						list_filters.is_dm = list_filters.is_dm.or(cached_filters.is_dm);
@@ -92,8 +105,10 @@ impl Service {
 						if list_filters.not_room_types.is_empty() {
 							list_filters.not_room_types = cached_filters.not_room_types;
 						}
-						list_filters.room_name_like =
-							list_filters.room_name_like.clone().or(cached_filters.room_name_like);
+						list_filters.room_name_like = list_filters
+							.room_name_like
+							.clone()
+							.or(cached_filters.room_name_like);
 						if list_filters.tags.is_empty() {
 							list_filters.tags = cached_filters.tags;
 						}
@@ -106,26 +121,49 @@ impl Service {
 					(..) => {},
 				}
 				if list.bump_event_types.is_empty() {
-					list.bump_event_types.clone_from(&cached_list.bump_event_types);
+					list.bump_event_types
+						.clone_from(&cached_list.bump_event_types);
 				};
 			}
 			cached.lists.insert(list_id.clone(), list.clone());
 		}
 
-		cached.subscriptions.extend(request.room_subscriptions.clone());
-		request.room_subscriptions.extend(cached.subscriptions.clone());
+		cached
+			.subscriptions
+			.extend(request.room_subscriptions.clone());
+		request
+			.room_subscriptions
+			.extend(cached.subscriptions.clone());
 
-		request.extensions.e2ee.enabled = request.extensions.e2ee.enabled.or(cached.extensions.e2ee.enabled);
+		request.extensions.e2ee.enabled = request
+			.extensions
+			.e2ee
+			.enabled
+			.or(cached.extensions.e2ee.enabled);
 
-		request.extensions.to_device.enabled =
-			request.extensions.to_device.enabled.or(cached.extensions.to_device.enabled);
+		request.extensions.to_device.enabled = request
+			.extensions
+			.to_device
+			.enabled
+			.or(cached.extensions.to_device.enabled);
 
-		request.extensions.account_data.enabled =
-			request.extensions.account_data.enabled.or(cached.extensions.account_data.enabled);
-		request.extensions.account_data.lists =
-			request.extensions.account_data.lists.clone().or_else(|| cached.extensions.account_data.lists.clone());
-		request.extensions.account_data.rooms =
-			request.extensions.account_data.rooms.clone().or_else(|| cached.extensions.account_data.rooms.clone());
+		request.extensions.account_data.enabled = request
+			.extensions
+			.account_data
+			.enabled
+			.or(cached.extensions.account_data.enabled);
+		request.extensions.account_data.lists = request
+			.extensions
+			.account_data
+			.lists
+			.clone()
+			.or_else(|| cached.extensions.account_data.lists.clone());
+		request.extensions.account_data.rooms = request
+			.extensions
+			.account_data
+			.rooms
+			.clone()
+			.or_else(|| cached.extensions.account_data.rooms.clone());
 
 		cached.extensions = request.extensions.clone();
 
@@ -137,14 +175,18 @@ impl Service {
 		subscriptions: BTreeMap<OwnedRoomId, sync_events::v4::RoomSubscription>,
 	) {
 		let mut cache = self.connections.lock().unwrap();
-		let cached = Arc::clone(cache.entry((user_id, device_id, conn_id)).or_insert_with(|| {
-			Arc::new(Mutex::new(SlidingSyncCache {
-				lists: BTreeMap::new(),
-				subscriptions: BTreeMap::new(),
-				known_rooms: BTreeMap::new(),
-				extensions: ExtensionsConfig::default(),
-			}))
-		}));
+		let cached = Arc::clone(
+			cache
+				.entry((user_id, device_id, conn_id))
+				.or_insert_with(|| {
+					Arc::new(Mutex::new(SlidingSyncCache {
+						lists: BTreeMap::new(),
+						subscriptions: BTreeMap::new(),
+						known_rooms: BTreeMap::new(),
+						extensions: ExtensionsConfig::default(),
+					}))
+				}),
+		);
 		let cached = &mut cached.lock().unwrap();
 		drop(cache);
 
@@ -156,18 +198,27 @@ impl Service {
 		new_cached_rooms: BTreeSet<OwnedRoomId>, globalsince: u64,
 	) {
 		let mut cache = self.connections.lock().unwrap();
-		let cached = Arc::clone(cache.entry((user_id, device_id, conn_id)).or_insert_with(|| {
-			Arc::new(Mutex::new(SlidingSyncCache {
-				lists: BTreeMap::new(),
-				subscriptions: BTreeMap::new(),
-				known_rooms: BTreeMap::new(),
-				extensions: ExtensionsConfig::default(),
-			}))
-		}));
+		let cached = Arc::clone(
+			cache
+				.entry((user_id, device_id, conn_id))
+				.or_insert_with(|| {
+					Arc::new(Mutex::new(SlidingSyncCache {
+						lists: BTreeMap::new(),
+						subscriptions: BTreeMap::new(),
+						known_rooms: BTreeMap::new(),
+						extensions: ExtensionsConfig::default(),
+					}))
+				}),
+		);
 		let cached = &mut cached.lock().unwrap();
 		drop(cache);
 
-		for (roomid, lastsince) in cached.known_rooms.entry(list_id.clone()).or_default().iter_mut() {
+		for (roomid, lastsince) in cached
+			.known_rooms
+			.entry(list_id.clone())
+			.or_default()
+			.iter_mut()
+		{
 			if !new_cached_rooms.contains(roomid) {
 				*lastsince = 0;
 			}
@@ -185,9 +236,16 @@ impl Service {
 	pub fn is_admin(&self, user_id: &UserId) -> Result<bool> {
 		let admin_room_alias_id = RoomAliasId::parse(format!("#admins:{}", services().globals.server_name()))
 			.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid alias."))?;
-		let admin_room_id = services().rooms.alias.resolve_local_alias(&admin_room_alias_id)?.unwrap();
+		let admin_room_id = services()
+			.rooms
+			.alias
+			.resolve_local_alias(&admin_room_alias_id)?
+			.unwrap();
 
-		services().rooms.state_cache.is_joined(user_id, &admin_room_id)
+		services()
+			.rooms
+			.state_cache
+			.is_joined(user_id, &admin_room_id)
 	}
 
 	/// Create a new user account on this homeserver.
@@ -250,7 +308,8 @@ impl Service {
 	pub fn create_device(
 		&self, user_id: &UserId, device_id: &DeviceId, token: &str, initial_device_display_name: Option<String>,
 	) -> Result<()> {
-		self.db.create_device(user_id, device_id, token, initial_device_display_name)
+		self.db
+			.create_device(user_id, device_id, token, initial_device_display_name)
 	}
 
 	/// Removes a device from a user.
@@ -272,7 +331,8 @@ impl Service {
 		&self, user_id: &UserId, device_id: &DeviceId, one_time_key_key: &DeviceKeyId,
 		one_time_key_value: &Raw<OneTimeKey>,
 	) -> Result<()> {
-		self.db.add_one_time_key(user_id, device_id, one_time_key_key, one_time_key_value)
+		self.db
+			.add_one_time_key(user_id, device_id, one_time_key_key, one_time_key_value)
 	}
 
 	pub fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
@@ -299,7 +359,8 @@ impl Service {
 		&self, user_id: &UserId, master_key: &Raw<CrossSigningKey>, self_signing_key: &Option<Raw<CrossSigningKey>>,
 		user_signing_key: &Option<Raw<CrossSigningKey>>, notify: bool,
 	) -> Result<()> {
-		self.db.add_cross_signing_keys(user_id, master_key, self_signing_key, user_signing_key, notify)
+		self.db
+			.add_cross_signing_keys(user_id, master_key, self_signing_key, user_signing_key, notify)
 	}
 
 	pub fn sign_key(
@@ -329,19 +390,22 @@ impl Service {
 	pub fn get_key(
 		&self, key: &[u8], sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
 	) -> Result<Option<Raw<CrossSigningKey>>> {
-		self.db.get_key(key, sender_user, user_id, allowed_signatures)
+		self.db
+			.get_key(key, sender_user, user_id, allowed_signatures)
 	}
 
 	pub fn get_master_key(
 		&self, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
 	) -> Result<Option<Raw<CrossSigningKey>>> {
-		self.db.get_master_key(sender_user, user_id, allowed_signatures)
+		self.db
+			.get_master_key(sender_user, user_id, allowed_signatures)
 	}
 
 	pub fn get_self_signing_key(
 		&self, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
 	) -> Result<Option<Raw<CrossSigningKey>>> {
-		self.db.get_self_signing_key(sender_user, user_id, allowed_signatures)
+		self.db
+			.get_self_signing_key(sender_user, user_id, allowed_signatures)
 	}
 
 	pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<Raw<CrossSigningKey>>> {
@@ -352,7 +416,8 @@ impl Service {
 		&self, sender: &UserId, target_user_id: &UserId, target_device_id: &DeviceId, event_type: &str,
 		content: serde_json::Value,
 	) -> Result<()> {
-		self.db.add_to_device_event(sender, target_user_id, target_device_id, event_type, content)
+		self.db
+			.add_to_device_event(sender, target_user_id, target_device_id, event_type, content)
 	}
 
 	pub fn get_to_device_events(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Vec<Raw<AnyToDeviceEvent>>> {
@@ -411,7 +476,10 @@ impl Service {
 pub fn clean_signatures<F: Fn(&UserId) -> bool>(
 	cross_signing_key: &mut serde_json::Value, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: F,
 ) -> Result<(), Error> {
-	if let Some(signatures) = cross_signing_key.get_mut("signatures").and_then(|v| v.as_object_mut()) {
+	if let Some(signatures) = cross_signing_key
+		.get_mut("signatures")
+		.and_then(|v| v.as_object_mut())
+	{
 		// Don't allocate for the full size of the current signatures, but require
 		// at most one resize if nothing is dropped
 		let new_capacity = signatures.len() / 2;

@@ -73,7 +73,8 @@ impl service::sending::Data for KeyValueDatabase {
 			batch.push((key.clone(), value.to_owned()));
 			keys.push(key);
 		}
-		self.servernameevent_data.insert_batch(&mut batch.into_iter())?;
+		self.servernameevent_data
+			.insert_batch(&mut batch.into_iter())?;
 		Ok(keys)
 	}
 
@@ -107,13 +108,16 @@ impl service::sending::Data for KeyValueDatabase {
 	}
 
 	fn set_latest_educount(&self, server_name: &ServerName, last_count: u64) -> Result<()> {
-		self.servername_educount.insert(server_name.as_bytes(), &last_count.to_be_bytes())
+		self.servername_educount
+			.insert(server_name.as_bytes(), &last_count.to_be_bytes())
 	}
 
 	fn get_latest_educount(&self, server_name: &ServerName) -> Result<u64> {
-		self.servername_educount.get(server_name.as_bytes())?.map_or(Ok(0), |bytes| {
-			utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid u64 in servername_educount."))
-		})
+		self.servername_educount
+			.get(server_name.as_bytes())?
+			.map_or(Ok(0), |bytes| {
+				utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid u64 in servername_educount."))
+			})
 	}
 }
 
@@ -124,7 +128,9 @@ fn parse_servercurrentevent(key: &[u8], value: Vec<u8>) -> Result<(OutgoingKind,
 		let mut parts = key[1..].splitn(2, |&b| b == 0xFF);
 
 		let server = parts.next().expect("splitn always returns one element");
-		let event = parts.next().ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+		let event = parts
+			.next()
+			.ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
 
 		let server = utils::string_from_bytes(server)
 			.map_err(|_| Error::bad_database("Invalid server bytes in server_currenttransaction"))?;
@@ -146,11 +152,15 @@ fn parse_servercurrentevent(key: &[u8], value: Vec<u8>) -> Result<(OutgoingKind,
 		let user_id =
 			UserId::parse(user_string).map_err(|_| Error::bad_database("Invalid user id in servercurrentevent"))?;
 
-		let pushkey = parts.next().ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+		let pushkey = parts
+			.next()
+			.ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
 		let pushkey_string = utils::string_from_bytes(pushkey)
 			.map_err(|_| Error::bad_database("Invalid pushkey in servercurrentevent"))?;
 
-		let event = parts.next().ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+		let event = parts
+			.next()
+			.ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
 
 		(
 			OutgoingKind::Push(user_id, pushkey_string),
@@ -165,7 +175,9 @@ fn parse_servercurrentevent(key: &[u8], value: Vec<u8>) -> Result<(OutgoingKind,
 		let mut parts = key.splitn(2, |&b| b == 0xFF);
 
 		let server = parts.next().expect("splitn always returns one element");
-		let event = parts.next().ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
+		let event = parts
+			.next()
+			.ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
 
 		let server = utils::string_from_bytes(server)
 			.map_err(|_| Error::bad_database("Invalid server bytes in server_currenttransaction"))?;

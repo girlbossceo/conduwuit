@@ -115,13 +115,18 @@ pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 				displayname.push_str(&(" ".to_owned() + services().globals.new_user_displayname_suffix()));
 			}
 
-			services().users.set_displayname(&user_id, Some(displayname)).await?;
+			services()
+				.users
+				.set_displayname(&user_id, Some(displayname))
+				.await?;
 
 			// Initial account data
 			services().account_data.update(
 				None,
 				&user_id,
-				ruma::events::GlobalAccountDataEventType::PushRules.to_string().into(),
+				ruma::events::GlobalAccountDataEventType::PushRules
+					.to_string()
+					.into(),
 				&serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
 					content: ruma::events::push_rules::PushRulesEventContent {
 						global: ruma::push::Ruleset::server_default(&user_id),
@@ -132,7 +137,11 @@ pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 
 			if !services().globals.config.auto_join_rooms.is_empty() {
 				for room in &services().globals.config.auto_join_rooms {
-					if !services().rooms.state_cache.server_in_room(services().globals.server_name(), room)? {
+					if !services()
+						.rooms
+						.state_cache
+						.server_in_room(services().globals.server_name(), room)?
+					{
 						warn!("Skipping room {room} to automatically join as we have never joined before.");
 						continue;
 					}
@@ -230,7 +239,10 @@ pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 
 			let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
 
-			match services().users.set_password(&user_id, Some(new_password.as_str())) {
+			match services()
+				.users
+				.set_password(&user_id, Some(new_password.as_str()))
+			{
 				Ok(()) => Ok(RoomMessageEventContent::text_plain(format!(
 					"Successfully reset the password for user {user_id}: `{new_password}`"
 				))),
@@ -343,17 +355,19 @@ pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 			let output_html = format!(
 				"<table><caption>Rooms {user_id} \
 				 Joined</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-				rooms.iter().fold(String::new(), |mut output, (id, members, name)| {
-					writeln!(
-						output,
-						"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
-						escape_html(id.as_ref()),
-						members,
-						escape_html(name)
-					)
-					.unwrap();
-					output
-				})
+				rooms
+					.iter()
+					.fold(String::new(), |mut output, (id, members, name)| {
+						writeln!(
+							output,
+							"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
+							escape_html(id.as_ref()),
+							members,
+							escape_html(name)
+						)
+						.unwrap();
+						output
+					})
 			);
 			Ok(RoomMessageEventContent::text_html(output_plain, output_html))
 		},

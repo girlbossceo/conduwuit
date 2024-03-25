@@ -155,7 +155,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		let db = rust_rocksdb::DBWithThreadMode::<rust_rocksdb::MultiThreaded>::open_cf_descriptors(
 			&db_opts,
 			&config.database_path,
-			cfs.iter().map(|name| rust_rocksdb::ColumnFamilyDescriptor::new(name, db_opts.clone())),
+			cfs.iter()
+				.map(|name| rust_rocksdb::ColumnFamilyDescriptor::new(name, db_opts.clone())),
 		)?;
 
 		Ok(Arc::new(Engine {
@@ -200,13 +201,15 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
 
 	fn cork(&self) -> Result<()> {
-		self.corks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+		self.corks
+			.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
 		Ok(())
 	}
 
 	fn uncork(&self) -> Result<()> {
-		self.corks.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+		self.corks
+			.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 
 		Ok(())
 	}
@@ -293,7 +296,9 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 				format_args!(
 					"#{} {}: {} bytes, {} files\n",
 					info.backup_id,
-					DateTime::<Utc>::from_timestamp(info.timestamp, 0).unwrap_or_default().to_rfc2822(),
+					DateTime::<Utc>::from_timestamp(info.timestamp, 0)
+						.unwrap_or_default()
+						.to_rfc2822(),
 					info.size,
 					info.num_files,
 				),
@@ -358,7 +363,9 @@ impl KvTree for RocksDbEngineTree<'_> {
 		let writeoptions = rust_rocksdb::WriteOptions::default();
 		let lock = self.write_lock.read().unwrap();
 
-		self.db.rocks.put_cf_opt(&self.cf(), key, value, &writeoptions)?;
+		self.db
+			.rocks
+			.put_cf_opt(&self.cf(), key, value, &writeoptions)?;
 
 		drop(lock);
 
@@ -465,7 +472,9 @@ impl KvTree for RocksDbEngineTree<'_> {
 
 		let old = self.db.rocks.get_cf_opt(&self.cf(), key, &readoptions)?;
 		let new = utils::increment(old.as_deref());
-		self.db.rocks.put_cf_opt(&self.cf(), key, &new, &writeoptions)?;
+		self.db
+			.rocks
+			.put_cf_opt(&self.cf(), key, &new, &writeoptions)?;
 
 		drop(lock);
 

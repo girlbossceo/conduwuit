@@ -42,7 +42,11 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 
 	let room_id = base_event.room_id.clone();
 
-	if !services().rooms.state_accessor.user_can_see_event(sender_user, &room_id, &body.event_id)? {
+	if !services()
+		.rooms
+		.state_accessor
+		.user_can_see_event(sender_user, &room_id, &body.event_id)?
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view this event.",
@@ -91,9 +95,14 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 		}
 	}
 
-	let start_token = events_before.last().map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
+	let start_token = events_before
+		.last()
+		.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
 
-	let events_before: Vec<_> = events_before.into_iter().map(|(_, pdu)| pdu.to_room_event()).collect();
+	let events_before: Vec<_> = events_before
+		.into_iter()
+		.map(|(_, pdu)| pdu.to_room_event())
+		.collect();
 
 	let events_after: Vec<_> = services()
 		.rooms
@@ -122,25 +131,41 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 		}
 	}
 
-	let shortstatehash = match services()
-		.rooms
-		.state_accessor
-		.pdu_shortstatehash(events_after.last().map_or(&*body.event_id, |(_, e)| &*e.event_id))?
-	{
+	let shortstatehash = match services().rooms.state_accessor.pdu_shortstatehash(
+		events_after
+			.last()
+			.map_or(&*body.event_id, |(_, e)| &*e.event_id),
+	)? {
 		Some(s) => s,
-		None => services().rooms.state.get_room_shortstatehash(&room_id)?.expect("All rooms have state"),
+		None => services()
+			.rooms
+			.state
+			.get_room_shortstatehash(&room_id)?
+			.expect("All rooms have state"),
 	};
 
-	let state_ids = services().rooms.state_accessor.state_full_ids(shortstatehash).await?;
+	let state_ids = services()
+		.rooms
+		.state_accessor
+		.state_full_ids(shortstatehash)
+		.await?;
 
-	let end_token = events_after.last().map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
+	let end_token = events_after
+		.last()
+		.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
 
-	let events_after: Vec<_> = events_after.into_iter().map(|(_, pdu)| pdu.to_room_event()).collect();
+	let events_after: Vec<_> = events_after
+		.into_iter()
+		.map(|(_, pdu)| pdu.to_room_event())
+		.collect();
 
 	let mut state = Vec::new();
 
 	for (shortstatekey, id) in state_ids {
-		let (event_type, state_key) = services().rooms.short.get_statekey_from_short(shortstatekey)?;
+		let (event_type, state_key) = services()
+			.rooms
+			.short
+			.get_statekey_from_short(shortstatekey)?;
 
 		if event_type != StateEventType::RoomMember {
 			let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {

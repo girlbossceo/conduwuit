@@ -127,7 +127,9 @@ impl Service {
 		let mut initial_transactions = HashMap::<OutgoingKind, Vec<SendingEventType>>::new();
 
 		for (key, outgoing_kind, event) in self.db.active_requests().filter_map(Result::ok) {
-			let entry = initial_transactions.entry(outgoing_kind.clone()).or_default();
+			let entry = initial_transactions
+				.entry(outgoing_kind.clone())
+				.or_default();
 
 			if entry.len() > 30 {
 				warn!("Dropping some current events: {:?} {:?} {:?}", key, outgoing_kind, event);
@@ -236,7 +238,11 @@ impl Service {
 
 		if retry {
 			// We retry the previous transaction
-			for (_, e) in self.db.active_requests_for(outgoing_kind).filter_map(Result::ok) {
+			for (_, e) in self
+				.db
+				.active_requests_for(outgoing_kind)
+				.filter_map(Result::ok)
+			{
 				events.push(e);
 			}
 		} else {
@@ -282,7 +288,12 @@ impl Service {
 				// Look for presence updates in this room
 				let mut presence_updates = Vec::new();
 
-				for (user_id, count, presence_event) in services().rooms.edus.presence.presence_since(&room_id, since) {
+				for (user_id, count, presence_event) in services()
+					.rooms
+					.edus
+					.presence
+					.presence_since(&room_id, since)
+				{
 					if count > max_edu_count {
 						max_edu_count = count;
 					}
@@ -295,7 +306,10 @@ impl Service {
 						user_id,
 						presence: presence_event.content.presence,
 						currently_active: presence_event.content.currently_active.unwrap_or(false),
-						last_active_ago: presence_event.content.last_active_ago.unwrap_or_else(|| uint!(0)),
+						last_active_ago: presence_event
+							.content
+							.last_active_ago
+							.unwrap_or_else(|| uint!(0)),
 						status_msg: presence_event.content.status_msg,
 					});
 				}
@@ -305,7 +319,12 @@ impl Service {
 			}
 
 			// Look for read receipts in this room
-			for r in services().rooms.edus.read_receipt.readreceipts_since(&room_id, since) {
+			for r in services()
+				.rooms
+				.edus
+				.read_receipt
+				.readreceipts_since(&room_id, since)
+			{
 				let (user_id, count, read_receipt) = r?;
 
 				if count > max_edu_count {
@@ -321,8 +340,12 @@ impl Service {
 				let federation_event = if let AnySyncEphemeralRoomEvent::Receipt(r) = event {
 					let mut read = BTreeMap::new();
 
-					let (event_id, mut receipt) =
-						r.content.0.into_iter().next().expect("we only use one event per read receipt");
+					let (event_id, mut receipt) = r
+						.content
+						.0
+						.into_iter()
+						.next()
+						.expect("we only use one event per read receipt");
 					let receipt = receipt
 						.remove(&ReceiptType::Read)
 						.expect("our read receipts always set this")
@@ -385,7 +408,9 @@ impl Service {
 		let event = SendingEventType::Pdu(pdu_id.to_owned());
 		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
-		self.sender.send((outgoing_kind, event, keys.into_iter().next().unwrap())).unwrap();
+		self.sender
+			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
+			.unwrap();
 
 		Ok(())
 	}
@@ -397,9 +422,16 @@ impl Service {
 			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Pdu(pdu_id.to_owned())))
 			.collect::<Vec<_>>();
 		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(&requests.iter().map(|(o, e)| (o, e.clone())).collect::<Vec<_>>())?;
+		let keys = self.db.queue_requests(
+			&requests
+				.iter()
+				.map(|(o, e)| (o, e.clone()))
+				.collect::<Vec<_>>(),
+		)?;
 		for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
-			self.sender.send((outgoing_kind.clone(), event, key)).unwrap();
+			self.sender
+				.send((outgoing_kind.clone(), event, key))
+				.unwrap();
 		}
 
 		Ok(())
@@ -411,7 +443,9 @@ impl Service {
 		let event = SendingEventType::Edu(serialized);
 		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
-		self.sender.send((outgoing_kind, event, keys.into_iter().next().unwrap())).unwrap();
+		self.sender
+			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
+			.unwrap();
 
 		Ok(())
 	}
@@ -422,15 +456,21 @@ impl Service {
 		let event = SendingEventType::Pdu(pdu_id);
 		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
-		self.sender.send((outgoing_kind, event, keys.into_iter().next().unwrap())).unwrap();
+		self.sender
+			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
+			.unwrap();
 
 		Ok(())
 	}
 
 	#[tracing::instrument(skip(self, room_id))]
 	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
-		let servers: HashSet<OwnedServerName> =
-			services().rooms.state_cache.room_servers(room_id).filter_map(Result::ok).collect();
+		let servers: HashSet<OwnedServerName> = services()
+			.rooms
+			.state_cache
+			.room_servers(room_id)
+			.filter_map(Result::ok)
+			.collect();
 
 		self.flush_servers(servers.into_iter())
 	}
@@ -444,7 +484,9 @@ impl Service {
 			.collect::<Vec<_>>();
 
 		for outgoing_kind in requests {
-			self.sender.send((outgoing_kind, SendingEventType::Flush, Vec::<u8>::new())).unwrap();
+			self.sender
+				.send((outgoing_kind, SendingEventType::Flush, Vec::<u8>::new()))
+				.unwrap();
 		}
 
 		Ok(())
@@ -454,7 +496,8 @@ impl Service {
 	/// Used for instance after we remove an appservice registration
 	#[tracing::instrument(skip(self))]
 	pub fn cleanup_events(&self, appservice_id: String) -> Result<()> {
-		self.db.delete_all_requests_for(&OutgoingKind::Appservice(appservice_id))?;
+		self.db
+			.delete_all_requests_for(&OutgoingKind::Appservice(appservice_id))?;
 
 		Ok(())
 	}
@@ -497,12 +540,16 @@ impl Service {
 				let permit = services().sending.maximum_requests.acquire().await;
 
 				let response = match appservice_server::send_request(
-					services().appservice.get_registration(id).await.ok_or_else(|| {
-						(
-							kind.clone(),
-							Error::bad_database("[Appservice] Could not load registration from db."),
-						)
-					})?,
+					services()
+						.appservice
+						.get_registration(id)
+						.await
+						.ok_or_else(|| {
+							(
+								kind.clone(),
+								Error::bad_database("[Appservice] Could not load registration from db."),
+							)
+						})?,
 					appservice::event::push_events::v1::Request {
 						events: pdu_jsons,
 						txn_id: (&*general_purpose::URL_SAFE_NO_PAD.encode(calculate_hash(
@@ -520,7 +567,9 @@ impl Service {
 				.await
 				{
 					None => Ok(kind.clone()),
-					Some(op_resp) => op_resp.map(|_response| kind.clone()).map_err(|e| (kind.clone(), e)),
+					Some(op_resp) => op_resp
+						.map(|_response| kind.clone())
+						.map_err(|e| (kind.clone(), e)),
 				};
 
 				drop(permit);

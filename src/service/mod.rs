@@ -168,11 +168,41 @@ impl Services<'_> {
 
 	async fn memory_usage(&self) -> String {
 		let lazy_load_waiting = self.rooms.lazy_loading.lazy_load_waiting.lock().await.len();
-		let server_visibility_cache = self.rooms.state_accessor.server_visibility_cache.lock().unwrap().len();
-		let user_visibility_cache = self.rooms.state_accessor.user_visibility_cache.lock().unwrap().len();
-		let stateinfo_cache = self.rooms.state_compressor.stateinfo_cache.lock().unwrap().len();
-		let lasttimelinecount_cache = self.rooms.timeline.lasttimelinecount_cache.lock().await.len();
-		let roomid_spacehierarchy_cache = self.rooms.spaces.roomid_spacehierarchy_cache.lock().await.len();
+		let server_visibility_cache = self
+			.rooms
+			.state_accessor
+			.server_visibility_cache
+			.lock()
+			.unwrap()
+			.len();
+		let user_visibility_cache = self
+			.rooms
+			.state_accessor
+			.user_visibility_cache
+			.lock()
+			.unwrap()
+			.len();
+		let stateinfo_cache = self
+			.rooms
+			.state_compressor
+			.stateinfo_cache
+			.lock()
+			.unwrap()
+			.len();
+		let lasttimelinecount_cache = self
+			.rooms
+			.timeline
+			.lasttimelinecount_cache
+			.lock()
+			.await
+			.len();
+		let roomid_spacehierarchy_cache = self
+			.rooms
+			.spaces
+			.roomid_spacehierarchy_cache
+			.lock()
+			.await
+			.len();
 
 		format!(
 			"\
@@ -187,22 +217,52 @@ roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}"
 
 	async fn clear_caches(&self, amount: u32) {
 		if amount > 0 {
-			self.rooms.lazy_loading.lazy_load_waiting.lock().await.clear();
+			self.rooms
+				.lazy_loading
+				.lazy_load_waiting
+				.lock()
+				.await
+				.clear();
 		}
 		if amount > 1 {
-			self.rooms.state_accessor.server_visibility_cache.lock().unwrap().clear();
+			self.rooms
+				.state_accessor
+				.server_visibility_cache
+				.lock()
+				.unwrap()
+				.clear();
 		}
 		if amount > 2 {
-			self.rooms.state_accessor.user_visibility_cache.lock().unwrap().clear();
+			self.rooms
+				.state_accessor
+				.user_visibility_cache
+				.lock()
+				.unwrap()
+				.clear();
 		}
 		if amount > 3 {
-			self.rooms.state_compressor.stateinfo_cache.lock().unwrap().clear();
+			self.rooms
+				.state_compressor
+				.stateinfo_cache
+				.lock()
+				.unwrap()
+				.clear();
 		}
 		if amount > 4 {
-			self.rooms.timeline.lasttimelinecount_cache.lock().await.clear();
+			self.rooms
+				.timeline
+				.lasttimelinecount_cache
+				.lock()
+				.await
+				.clear();
 		}
 		if amount > 5 {
-			self.rooms.spaces.roomid_spacehierarchy_cache.lock().await.clear();
+			self.rooms
+				.spaces
+				.roomid_spacehierarchy_cache
+				.lock()
+				.await
+				.clear();
 		}
 		if amount > 6 {
 			self.globals.resolver.overrides.write().unwrap().clear();

@@ -107,7 +107,11 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 			room_id,
 		} => {
 			if let Some(room_id) = room_id {
-				let aliases = services().rooms.alias.local_aliases_for_room(&room_id).collect::<Result<Vec<_>, _>>();
+				let aliases = services()
+					.rooms
+					.alias
+					.local_aliases_for_room(&room_id)
+					.collect::<Result<Vec<_>, _>>();
 				match aliases {
 					Ok(aliases) => {
 						let plain_list = aliases.iter().fold(String::new(), |mut output, alias| {
@@ -127,26 +131,34 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 					Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to list aliases: {}", err))),
 				}
 			} else {
-				let aliases = services().rooms.alias.all_local_aliases().collect::<Result<Vec<_>, _>>();
+				let aliases = services()
+					.rooms
+					.alias
+					.all_local_aliases()
+					.collect::<Result<Vec<_>, _>>();
 				match aliases {
 					Ok(aliases) => {
 						let server_name = services().globals.server_name();
-						let plain_list = aliases.iter().fold(String::new(), |mut output, (alias, id)| {
-							writeln!(output, "- `{alias}` -> #{id}:{server_name}").unwrap();
-							output
-						});
+						let plain_list = aliases
+							.iter()
+							.fold(String::new(), |mut output, (alias, id)| {
+								writeln!(output, "- `{alias}` -> #{id}:{server_name}").unwrap();
+								output
+							});
 
-						let html_list = aliases.iter().fold(String::new(), |mut output, (alias, id)| {
-							writeln!(
-								output,
-								"<li><code>{}</code> -> #{}:{}</li>",
-								escape_html(alias.as_ref()),
-								escape_html(id.as_ref()),
-								server_name
-							)
-							.unwrap();
-							output
-						});
+						let html_list = aliases
+							.iter()
+							.fold(String::new(), |mut output, (alias, id)| {
+								writeln!(
+									output,
+									"<li><code>{}</code> -> #{}:{}</li>",
+									escape_html(alias.as_ref()),
+									escape_html(id.as_ref()),
+									server_name
+								)
+								.unwrap();
+								output
+							});
 
 						let plain = format!("Aliases:\n{plain_list}");
 						let html = format!("Aliases:\n<ul>{html_list}</ul>");

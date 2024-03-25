@@ -18,9 +18,19 @@ impl service::media::Data for KeyValueDatabase {
 		key.extend_from_slice(&width.to_be_bytes());
 		key.extend_from_slice(&height.to_be_bytes());
 		key.push(0xFF);
-		key.extend_from_slice(content_disposition.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
+		key.extend_from_slice(
+			content_disposition
+				.as_ref()
+				.map(|f| f.as_bytes())
+				.unwrap_or_default(),
+		);
 		key.push(0xFF);
-		key.extend_from_slice(content_type.as_ref().map(|c| c.as_bytes()).unwrap_or_default());
+		key.extend_from_slice(
+			content_type
+				.as_ref()
+				.map(|c| c.as_bytes())
+				.unwrap_or_default(),
+		);
 
 		self.mediaid_file.insert(&key, &[])?;
 
@@ -107,8 +117,9 @@ impl service::media::Data for KeyValueDatabase {
 			})
 			.transpose()?;
 
-		let content_disposition_bytes =
-			parts.next().ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?;
+		let content_disposition_bytes = parts
+			.next()
+			.ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?;
 
 		let content_disposition = if content_disposition_bytes.is_empty() {
 			None
@@ -139,11 +150,26 @@ impl service::media::Data for KeyValueDatabase {
 		let mut value = Vec::<u8>::new();
 		value.extend_from_slice(&timestamp.as_secs().to_be_bytes());
 		value.push(0xFF);
-		value.extend_from_slice(data.title.as_ref().map(String::as_bytes).unwrap_or_default());
+		value.extend_from_slice(
+			data.title
+				.as_ref()
+				.map(String::as_bytes)
+				.unwrap_or_default(),
+		);
 		value.push(0xFF);
-		value.extend_from_slice(data.description.as_ref().map(String::as_bytes).unwrap_or_default());
+		value.extend_from_slice(
+			data.description
+				.as_ref()
+				.map(String::as_bytes)
+				.unwrap_or_default(),
+		);
 		value.push(0xFF);
-		value.extend_from_slice(data.image.as_ref().map(String::as_bytes).unwrap_or_default());
+		value.extend_from_slice(
+			data.image
+				.as_ref()
+				.map(String::as_bytes)
+				.unwrap_or_default(),
+		);
 		value.push(0xFF);
 		value.extend_from_slice(&data.image_size.unwrap_or(0).to_be_bytes());
 		value.push(0xFF);
@@ -166,27 +192,45 @@ impl service::media::Data for KeyValueDatabase {
 			x => x,
 		};*/
 
-		let title = match values.next().and_then(|b| String::from_utf8(b.to_vec()).ok()) {
+		let title = match values
+			.next()
+			.and_then(|b| String::from_utf8(b.to_vec()).ok())
+		{
 			Some(s) if s.is_empty() => None,
 			x => x,
 		};
-		let description = match values.next().and_then(|b| String::from_utf8(b.to_vec()).ok()) {
+		let description = match values
+			.next()
+			.and_then(|b| String::from_utf8(b.to_vec()).ok())
+		{
 			Some(s) if s.is_empty() => None,
 			x => x,
 		};
-		let image = match values.next().and_then(|b| String::from_utf8(b.to_vec()).ok()) {
+		let image = match values
+			.next()
+			.and_then(|b| String::from_utf8(b.to_vec()).ok())
+		{
 			Some(s) if s.is_empty() => None,
 			x => x,
 		};
-		let image_size = match values.next().map(|b| usize::from_be_bytes(b.try_into().unwrap_or_default())) {
+		let image_size = match values
+			.next()
+			.map(|b| usize::from_be_bytes(b.try_into().unwrap_or_default()))
+		{
 			Some(0) => None,
 			x => x,
 		};
-		let image_width = match values.next().map(|b| u32::from_be_bytes(b.try_into().unwrap_or_default())) {
+		let image_width = match values
+			.next()
+			.map(|b| u32::from_be_bytes(b.try_into().unwrap_or_default()))
+		{
 			Some(0) => None,
 			x => x,
 		};
-		let image_height = match values.next().map(|b| u32::from_be_bytes(b.try_into().unwrap_or_default())) {
+		let image_height = match values
+			.next()
+			.map(|b| u32::from_be_bytes(b.try_into().unwrap_or_default()))
+		{
 			Some(0) => None,
 			x => x,
 		};

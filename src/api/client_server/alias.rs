@@ -21,15 +21,29 @@ pub async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result
 		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
 	}
 
-	if services().globals.forbidden_alias_names().is_match(body.room_alias.alias()) {
+	if services()
+		.globals
+		.forbidden_alias_names()
+		.is_match(body.room_alias.alias())
+	{
 		return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias is forbidden."));
 	}
 
-	if services().rooms.alias.resolve_local_alias(&body.room_alias)?.is_some() {
+	if services()
+		.rooms
+		.alias
+		.resolve_local_alias(&body.room_alias)?
+		.is_some()
+	{
 		return Err(Error::Conflict("Alias already exists."));
 	}
 
-	if services().rooms.alias.set_alias(&body.room_alias, &body.room_id).is_err() {
+	if services()
+		.rooms
+		.alias
+		.set_alias(&body.room_alias, &body.room_id)
+		.is_err()
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Invalid room alias. Alias must be in the form of '#localpart:server_name'",
@@ -50,11 +64,21 @@ pub async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result
 		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
 	}
 
-	if services().rooms.alias.resolve_local_alias(&body.room_alias)?.is_none() {
+	if services()
+		.rooms
+		.alias
+		.resolve_local_alias(&body.room_alias)?
+		.is_none()
+	{
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Alias does not exist."));
 	}
 
-	if services().rooms.alias.remove_alias(&body.room_alias).is_err() {
+	if services()
+		.rooms
+		.alias
+		.remove_alias(&body.room_alias)
+		.is_err()
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Invalid room alias. Alias must be in the form of '#localpart:server_name'",
@@ -90,13 +114,20 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 		let mut servers = response.servers;
 
 		// find active servers in room state cache to suggest
-		for extra_servers in services().rooms.state_cache.room_servers(&room_id).filter_map(Result::ok) {
+		for extra_servers in services()
+			.rooms
+			.state_cache
+			.room_servers(&room_id)
+			.filter_map(Result::ok)
+		{
 			servers.push(extra_servers);
 		}
 
 		// insert our server as the very first choice if in list
-		if let Some(server_index) =
-			servers.clone().into_iter().position(|server| server == services().globals.server_name())
+		if let Some(server_index) = servers
+			.clone()
+			.into_iter()
+			.position(|server| server == services().globals.server_name())
 		{
 			servers.remove(server_index);
 			servers.insert(0, services().globals.server_name().to_owned());
@@ -151,13 +182,20 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 	let mut servers: Vec<OwnedServerName> = Vec::new();
 
 	// find active servers in room state cache to suggest
-	for extra_servers in services().rooms.state_cache.room_servers(&room_id).filter_map(Result::ok) {
+	for extra_servers in services()
+		.rooms
+		.state_cache
+		.room_servers(&room_id)
+		.filter_map(Result::ok)
+	{
 		servers.push(extra_servers);
 	}
 
 	// insert our server as the very first choice if in list
-	if let Some(server_index) =
-		servers.clone().into_iter().position(|server| server == services().globals.server_name())
+	if let Some(server_index) = servers
+		.clone()
+		.into_iter()
+		.position(|server| server == services().globals.server_name())
 	{
 		servers.remove(server_index);
 		servers.insert(0, services().globals.server_name().to_owned());

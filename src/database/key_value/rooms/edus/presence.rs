@@ -65,7 +65,8 @@ impl service::rooms::edus::presence::Data for KeyValueDatabase {
 				None => Presence::new(new_state.clone(), new_state == PresenceState::Online, now, count, None),
 			};
 
-			self.roomuserid_presence.insert(&key, &new_presence.to_json_bytes()?)?;
+			self.roomuserid_presence
+				.insert(&key, &new_presence.to_json_bytes()?)?;
 		}
 
 		let timeout = match new_state {
@@ -73,10 +74,12 @@ impl service::rooms::edus::presence::Data for KeyValueDatabase {
 			_ => services().globals.config.presence_offline_timeout_s,
 		};
 
-		self.presence_timer_sender.send((user_id.to_owned(), Duration::from_secs(timeout))).map_err(|e| {
-			error!("Failed to add presence timer: {}", e);
-			Error::bad_database("Failed to add presence timer")
-		})
+		self.presence_timer_sender
+			.send((user_id.to_owned(), Duration::from_secs(timeout)))
+			.map_err(|e| {
+				error!("Failed to add presence timer: {}", e);
+				Error::bad_database("Failed to add presence timer")
+			})
 	}
 
 	fn set_presence(
@@ -104,12 +107,15 @@ impl service::rooms::edus::presence::Data for KeyValueDatabase {
 			_ => services().globals.config.presence_offline_timeout_s,
 		};
 
-		self.presence_timer_sender.send((user_id.to_owned(), Duration::from_secs(timeout))).map_err(|e| {
-			error!("Failed to add presence timer: {}", e);
-			Error::bad_database("Failed to add presence timer")
-		})?;
+		self.presence_timer_sender
+			.send((user_id.to_owned(), Duration::from_secs(timeout)))
+			.map_err(|e| {
+				error!("Failed to add presence timer: {}", e);
+				Error::bad_database("Failed to add presence timer")
+			})?;
 
-		self.roomuserid_presence.insert(&key, &presence.to_json_bytes()?)?;
+		self.roomuserid_presence
+			.insert(&key, &presence.to_json_bytes()?)?;
 
 		Ok(())
 	}

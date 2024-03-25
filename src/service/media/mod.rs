@@ -50,9 +50,11 @@ impl Service {
 	) -> Result<()> {
 		// Width, Height = 0 if it's not a thumbnail
 		let key = if let Some(user) = sender_user {
-			self.db.create_file_metadata(Some(user.as_str()), mxc, 0, 0, content_disposition, content_type)?
+			self.db
+				.create_file_metadata(Some(user.as_str()), mxc, 0, 0, content_disposition, content_type)?
 		} else {
-			self.db.create_file_metadata(None, mxc, 0, 0, content_disposition, content_type)?
+			self.db
+				.create_file_metadata(None, mxc, 0, 0, content_disposition, content_type)?
 		};
 
 		let path;
@@ -118,9 +120,11 @@ impl Service {
 		content_type: Option<&str>, width: u32, height: u32, file: &[u8],
 	) -> Result<()> {
 		let key = if let Some(user) = sender_user {
-			self.db.create_file_metadata(Some(user.as_str()), mxc, width, height, content_disposition, content_type)?
+			self.db
+				.create_file_metadata(Some(user.as_str()), mxc, width, height, content_disposition, content_type)?
 		} else {
-			self.db.create_file_metadata(None, mxc, width, height, content_disposition, content_type)?
+			self.db
+				.create_file_metadata(None, mxc, width, height, content_disposition, content_type)?
 		};
 
 		let path;
@@ -161,7 +165,9 @@ impl Service {
 			};
 
 			let mut file = Vec::new();
-			BufReader::new(File::open(path).await?).read_to_end(&mut file).await?;
+			BufReader::new(File::open(path).await?)
+				.read_to_end(&mut file)
+				.await?;
 
 			Ok(Some(FileMeta {
 				content_disposition,
@@ -308,7 +314,9 @@ impl Service {
 	/// For width,height <= 96 the server uses another thumbnailing algorithm
 	/// which crops the image afterwards.
 	pub async fn get_thumbnail(&self, mxc: String, width: u32, height: u32) -> Result<Option<FileMeta>> {
-		let (width, height, crop) = self.thumbnail_properties(width, height).unwrap_or((0, 0, false)); // 0, 0 because that's the original file
+		let (width, height, crop) = self
+			.thumbnail_properties(width, height)
+			.unwrap_or((0, 0, false)); // 0, 0 because that's the original file
 
 		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc.clone(), width, height) {
 			// Using saved thumbnail
@@ -466,7 +474,9 @@ impl Service {
 	}
 
 	pub async fn set_url_preview(&self, url: &str, data: &UrlPreviewData) -> Result<()> {
-		let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).expect("valid system time");
+		let now = SystemTime::now()
+			.duration_since(SystemTime::UNIX_EPOCH)
+			.expect("valid system time");
 		self.db.set_url_preview(url, data, now)
 	}
 }
@@ -492,9 +502,19 @@ mod tests {
 			key.extend_from_slice(&width.to_be_bytes());
 			key.extend_from_slice(&height.to_be_bytes());
 			key.push(0xFF);
-			key.extend_from_slice(content_disposition.as_ref().map(|f| f.as_bytes()).unwrap_or_default());
+			key.extend_from_slice(
+				content_disposition
+					.as_ref()
+					.map(|f| f.as_bytes())
+					.unwrap_or_default(),
+			);
 			key.push(0xFF);
-			key.extend_from_slice(content_type.as_ref().map(|c| c.as_bytes()).unwrap_or_default());
+			key.extend_from_slice(
+				content_type
+					.as_ref()
+					.map(|c| c.as_bytes())
+					.unwrap_or_default(),
+			);
 
 			Ok(key)
 		}

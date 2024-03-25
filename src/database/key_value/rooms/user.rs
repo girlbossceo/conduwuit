@@ -11,10 +11,13 @@ impl service::rooms::user::Data for KeyValueDatabase {
 		roomuser_id.push(0xFF);
 		roomuser_id.extend_from_slice(user_id.as_bytes());
 
-		self.userroomid_notificationcount.insert(&userroom_id, &0_u64.to_be_bytes())?;
-		self.userroomid_highlightcount.insert(&userroom_id, &0_u64.to_be_bytes())?;
+		self.userroomid_notificationcount
+			.insert(&userroom_id, &0_u64.to_be_bytes())?;
+		self.userroomid_highlightcount
+			.insert(&userroom_id, &0_u64.to_be_bytes())?;
 
-		self.roomuserid_lastnotificationread.insert(&roomuser_id, &services().globals.next_count()?.to_be_bytes())?;
+		self.roomuserid_lastnotificationread
+			.insert(&roomuser_id, &services().globals.next_count()?.to_be_bytes())?;
 
 		Ok(())
 	}
@@ -24,9 +27,11 @@ impl service::rooms::user::Data for KeyValueDatabase {
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
-		self.userroomid_notificationcount.get(&userroom_id)?.map_or(Ok(0), |bytes| {
-			utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid notification count in db."))
-		})
+		self.userroomid_notificationcount
+			.get(&userroom_id)?
+			.map_or(Ok(0), |bytes| {
+				utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid notification count in db."))
+			})
 	}
 
 	fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
@@ -34,9 +39,11 @@ impl service::rooms::user::Data for KeyValueDatabase {
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
-		self.userroomid_highlightcount.get(&userroom_id)?.map_or(Ok(0), |bytes| {
-			utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid highlight count in db."))
-		})
+		self.userroomid_highlightcount
+			.get(&userroom_id)?
+			.map_or(Ok(0), |bytes| {
+				utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid highlight count in db."))
+			})
 	}
 
 	fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
@@ -56,16 +63,25 @@ impl service::rooms::user::Data for KeyValueDatabase {
 	}
 
 	fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64, shortstatehash: u64) -> Result<()> {
-		let shortroomid = services().rooms.short.get_shortroomid(room_id)?.expect("room exists");
+		let shortroomid = services()
+			.rooms
+			.short
+			.get_shortroomid(room_id)?
+			.expect("room exists");
 
 		let mut key = shortroomid.to_be_bytes().to_vec();
 		key.extend_from_slice(&token.to_be_bytes());
 
-		self.roomsynctoken_shortstatehash.insert(&key, &shortstatehash.to_be_bytes())
+		self.roomsynctoken_shortstatehash
+			.insert(&key, &shortstatehash.to_be_bytes())
 	}
 
 	fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>> {
-		let shortroomid = services().rooms.short.get_shortroomid(room_id)?.expect("room exists");
+		let shortroomid = services()
+			.rooms
+			.short
+			.get_shortroomid(room_id)?
+			.expect("room exists");
 
 		let mut key = shortroomid.to_be_bytes().to_vec();
 		key.extend_from_slice(&token.to_be_bytes());
@@ -106,13 +122,15 @@ impl service::rooms::user::Data for KeyValueDatabase {
 		// We use the default compare function because keys are sorted correctly (not
 		// reversed)
 		Ok(Box::new(
-			utils::common_elements(iterators, Ord::cmp).expect("users is not empty").map(|bytes| {
-				RoomId::parse(
-					utils::string_from_bytes(&bytes)
-						.map_err(|_| Error::bad_database("Invalid RoomId bytes in userroomid_joined"))?,
-				)
-				.map_err(|_| Error::bad_database("Invalid RoomId in userroomid_joined."))
-			}),
+			utils::common_elements(iterators, Ord::cmp)
+				.expect("users is not empty")
+				.map(|bytes| {
+					RoomId::parse(
+						utils::string_from_bytes(&bytes)
+							.map_err(|_| Error::bad_database("Invalid RoomId bytes in userroomid_joined"))?,
+					)
+					.map_err(|_| Error::bad_database("Invalid RoomId in userroomid_joined."))
+				}),
 		))
 	}
 }

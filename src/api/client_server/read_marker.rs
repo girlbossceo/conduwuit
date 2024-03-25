@@ -36,7 +36,10 @@ pub async fn set_read_marker_route(body: Ruma<set_read_marker::v3::Request>) -> 
 	}
 
 	if body.private_read_receipt.is_some() || body.read_receipt.is_some() {
-		services().rooms.user.reset_notification_counts(sender_user, &body.room_id)?;
+		services()
+			.rooms
+			.user
+			.reset_notification_counts(sender_user, &body.room_id)?;
 	}
 
 	if let Some(event) = &body.private_read_receipt {
@@ -54,7 +57,11 @@ pub async fn set_read_marker_route(body: Ruma<set_read_marker::v3::Request>) -> 
 			},
 			PduCount::Normal(c) => c,
 		};
-		services().rooms.edus.read_receipt.private_read_set(&body.room_id, sender_user, count)?;
+		services()
+			.rooms
+			.edus
+			.read_receipt
+			.private_read_set(&body.room_id, sender_user, count)?;
 	}
 
 	if let Some(event) = &body.read_receipt {
@@ -98,7 +105,10 @@ pub async fn create_receipt_route(body: Ruma<create_receipt::v3::Request>) -> Re
 		&body.receipt_type,
 		create_receipt::v3::ReceiptType::Read | create_receipt::v3::ReceiptType::ReadPrivate
 	) {
-		services().rooms.user.reset_notification_counts(sender_user, &body.room_id)?;
+		services()
+			.rooms
+			.user
+			.reset_notification_counts(sender_user, &body.room_id)?;
 	}
 
 	match body.receipt_type {
@@ -156,7 +166,11 @@ pub async fn create_receipt_route(body: Ruma<create_receipt::v3::Request>) -> Re
 				},
 				PduCount::Normal(c) => c,
 			};
-			services().rooms.edus.read_receipt.private_read_set(&body.room_id, sender_user, count)?;
+			services()
+				.rooms
+				.edus
+				.read_receipt
+				.private_read_set(&body.room_id, sender_user, count)?;
 		},
 		_ => return Err(Error::bad_database("Unsupported receipt type")),
 	}

@@ -107,7 +107,10 @@ impl Service {
 		for appservice in db.all()? {
 			registration_info.insert(
 				appservice.0,
-				appservice.1.try_into().expect("Should be validated on registration"),
+				appservice
+					.1
+					.try_into()
+					.expect("Should be validated on registration"),
 			);
 		}
 
@@ -119,7 +122,12 @@ impl Service {
 
 	/// Registers an appservice and returns the ID to the caller
 	pub async fn register_appservice(&self, yaml: Registration) -> Result<String> {
-		services().appservice.registration_info.write().await.insert(yaml.id.clone(), yaml.clone().try_into()?);
+		services()
+			.appservice
+			.registration_info
+			.write()
+			.await
+			.insert(yaml.id.clone(), yaml.clone().try_into()?);
 
 		self.db.register_appservice(yaml)
 	}
@@ -130,19 +138,40 @@ impl Service {
 	///
 	/// * `service_name` - the name you send to register the service previously
 	pub async fn unregister_appservice(&self, service_name: &str) -> Result<()> {
-		services().appservice.registration_info.write().await.remove(service_name);
+		services()
+			.appservice
+			.registration_info
+			.write()
+			.await
+			.remove(service_name);
 
 		self.db.unregister_appservice(service_name)
 	}
 
 	pub async fn get_registration(&self, id: &str) -> Option<Registration> {
-		self.registration_info.read().await.get(id).cloned().map(|info| info.registration)
+		self.registration_info
+			.read()
+			.await
+			.get(id)
+			.cloned()
+			.map(|info| info.registration)
 	}
 
-	pub async fn iter_ids(&self) -> Vec<String> { self.registration_info.read().await.keys().cloned().collect() }
+	pub async fn iter_ids(&self) -> Vec<String> {
+		self.registration_info
+			.read()
+			.await
+			.keys()
+			.cloned()
+			.collect()
+	}
 
 	pub async fn find_from_token(&self, token: &str) -> Option<RegistrationInfo> {
-		self.read().await.values().find(|info| info.registration.as_token == token).cloned()
+		self.read()
+			.await
+			.values()
+			.find(|info| info.registration.as_token == token)
+			.cloned()
 	}
 
 	pub fn read(&self) -> impl Future<Output = tokio::sync::RwLockReadGuard<'_, BTreeMap<String, RegistrationInfo>>> {

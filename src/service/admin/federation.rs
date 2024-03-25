@@ -88,7 +88,11 @@ pub(crate) async fn process(command: FederationCommand, body: Vec<&str>) -> Resu
 					Ok(value) => {
 						let pub_key_map = RwLock::new(BTreeMap::new());
 
-						services().rooms.event_handler.fetch_required_signing_keys([&value], &pub_key_map).await?;
+						services()
+							.rooms
+							.event_handler
+							.fetch_required_signing_keys([&value], &pub_key_map)
+							.await?;
 
 						let pub_key_map = pub_key_map.read().await;
 						match ruma::signatures::verify_json(&pub_key_map, &value) {

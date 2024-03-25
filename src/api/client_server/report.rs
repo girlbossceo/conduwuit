@@ -71,18 +71,20 @@ pub async fn report_event_route(body: Ruma<report_content::v3::Request>) -> Resu
 
 	// send admin room message that we received the report with an @room ping for
 	// urgency
-	services().admin.send_message(message::RoomMessageEventContent::text_html(
-		format!(
-			"@room Report received from: {}\n\nEvent ID: {}\nRoom ID: {}\nSent By: {}\n\nReport Score: {}\nReport \
-			 Reason: {}",
-			sender_user.to_owned(),
-			pdu.event_id,
-			pdu.room_id,
-			pdu.sender.clone(),
-			body.score.unwrap_or_else(|| ruma::Int::from(0)),
-			body.reason.as_deref().unwrap_or("")
-		),
-		format!(
+	services()
+		.admin
+		.send_message(message::RoomMessageEventContent::text_html(
+			format!(
+				"@room Report received from: {}\n\nEvent ID: {}\nRoom ID: {}\nSent By: {}\n\nReport Score: {}\nReport \
+				 Reason: {}",
+				sender_user.to_owned(),
+				pdu.event_id,
+				pdu.room_id,
+				pdu.sender.clone(),
+				body.score.unwrap_or_else(|| ruma::Int::from(0)),
+				body.reason.as_deref().unwrap_or("")
+			),
+			format!(
 				"<details><summary>@room Report received from: <a href=\"https://matrix.to/#/{0}\">{0}\
                 </a></summary><ul><li>Event Info<ul><li>Event ID: <code>{1}</code>\
                 <a href=\"https://matrix.to/#/{2}/{1}\">🔗</a></li><li>Room ID: <code>{2}</code>\
@@ -96,7 +98,7 @@ pub async fn report_event_route(body: Ruma<report_content::v3::Request>) -> Resu
 				body.score.unwrap_or_else(|| ruma::Int::from(0)),
 				HtmlEscape(body.reason.as_deref().unwrap_or(""))
 			),
-	));
+		));
 
 	// even though this is kinda security by obscurity, let's still make a small
 	// random delay sending a successful response per spec suggestion regarding

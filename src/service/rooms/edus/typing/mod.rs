@@ -16,16 +16,32 @@ impl Service {
 	/// Sets a user as typing until the timeout timestamp is reached or
 	/// roomtyping_remove is called.
 	pub async fn typing_add(&self, user_id: &UserId, room_id: &RoomId, timeout: u64) -> Result<()> {
-		self.typing.write().await.entry(room_id.to_owned()).or_default().insert(user_id.to_owned(), timeout);
-		self.last_typing_update.write().await.insert(room_id.to_owned(), services().globals.next_count()?);
+		self.typing
+			.write()
+			.await
+			.entry(room_id.to_owned())
+			.or_default()
+			.insert(user_id.to_owned(), timeout);
+		self.last_typing_update
+			.write()
+			.await
+			.insert(room_id.to_owned(), services().globals.next_count()?);
 		_ = self.typing_update_sender.send(room_id.to_owned());
 		Ok(())
 	}
 
 	/// Removes a user from typing before the timeout is reached.
 	pub async fn typing_remove(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
-		self.typing.write().await.entry(room_id.to_owned()).or_default().remove(user_id);
-		self.last_typing_update.write().await.insert(room_id.to_owned(), services().globals.next_count()?);
+		self.typing
+			.write()
+			.await
+			.entry(room_id.to_owned())
+			.or_default()
+			.remove(user_id);
+		self.last_typing_update
+			.write()
+			.await
+			.insert(room_id.to_owned(), services().globals.next_count()?);
 		_ = self.typing_update_sender.send(room_id.to_owned());
 		Ok(())
 	}
@@ -67,7 +83,10 @@ impl Service {
 			for user in removable {
 				room.remove(&user);
 			}
-			self.last_typing_update.write().await.insert(room_id.to_owned(), services().globals.next_count()?);
+			self.last_typing_update
+				.write()
+				.await
+				.insert(room_id.to_owned(), services().globals.next_count()?);
 			_ = self.typing_update_sender.send(room_id.to_owned());
 		}
 
@@ -77,7 +96,13 @@ impl Service {
 	/// Returns the count of the last typing update in this room.
 	pub async fn last_typing_update(&self, room_id: &RoomId) -> Result<u64> {
 		self.typings_maintain(room_id).await?;
-		Ok(self.last_typing_update.read().await.get(room_id).copied().unwrap_or(0))
+		Ok(self
+			.last_typing_update
+			.read()
+			.await
+			.get(room_id)
+			.copied()
+			.unwrap_or(0))
 	}
 
 	/// Returns a new typing EDU.

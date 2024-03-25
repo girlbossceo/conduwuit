@@ -80,7 +80,11 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				}
 
 				// apply forbidden room alias checks to custom room IDs too
-				if services().globals.forbidden_alias_names().is_match(&custom_room_id_s) {
+				if services()
+					.globals
+					.forbidden_alias_names()
+					.is_match(&custom_room_id_s)
+				{
 					return Err(Error::BadRequest(ErrorKind::Unknown, "Custom room ID is forbidden."));
 				}
 
@@ -110,60 +114,83 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 
 	services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(room_id.clone())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
-	let alias: Option<OwnedRoomAliasId> = body.room_alias_name.as_ref().map_or(Ok(None), |localpart| {
-		// Basic checks on the room alias validity
-		if localpart.contains(':') {
-			return Err(Error::BadRequest(
-				ErrorKind::InvalidParam,
-				"Room alias contained `:` which is not allowed. Please note that this expects a localpart, not the \
-				 full room alias.",
-			));
-		} else if localpart.contains(char::is_whitespace) {
-			return Err(Error::BadRequest(
-				ErrorKind::InvalidParam,
-				"Room alias contained spaces which is not a valid room alias.",
-			));
-		} else if localpart.len() > 255 {
-			// there is nothing spec-wise saying to check the limit of this,
-			// however absurdly long room aliases are guaranteed to be unreadable or done
-			// maliciously. there is no reason a room alias should even exceed 100
-			// characters as is. generally in spec, 255 is matrix's fav number
-			return Err(Error::BadRequest(
-				ErrorKind::InvalidParam,
-				"Room alias is excessively long, clients may not be able to handle this. Please shorten it.",
-			));
-		} else if localpart.contains('"') {
-			return Err(Error::BadRequest(
-				ErrorKind::InvalidParam,
-				"Room alias contained `\"` which is not allowed.",
-			));
-		}
+	let alias: Option<OwnedRoomAliasId> = body
+		.room_alias_name
+		.as_ref()
+		.map_or(Ok(None), |localpart| {
+			// Basic checks on the room alias validity
+			if localpart.contains(':') {
+				return Err(Error::BadRequest(
+					ErrorKind::InvalidParam,
+					"Room alias contained `:` which is not allowed. Please note that this expects a localpart, not \
+					 the full room alias.",
+				));
+			} else if localpart.contains(char::is_whitespace) {
+				return Err(Error::BadRequest(
+					ErrorKind::InvalidParam,
+					"Room alias contained spaces which is not a valid room alias.",
+				));
+			} else if localpart.len() > 255 {
+				// there is nothing spec-wise saying to check the limit of this,
+				// however absurdly long room aliases are guaranteed to be unreadable or done
+				// maliciously. there is no reason a room alias should even exceed 100
+				// characters as is. generally in spec, 255 is matrix's fav number
+				return Err(Error::BadRequest(
+					ErrorKind::InvalidParam,
+					"Room alias is excessively long, clients may not be able to handle this. Please shorten it.",
+				));
+			} else if localpart.contains('"') {
+				return Err(Error::BadRequest(
+					ErrorKind::InvalidParam,
+					"Room alias contained `\"` which is not allowed.",
+				));
+			}
 
-		// check if room alias is forbidden
-		if services().globals.forbidden_alias_names().is_match(localpart) {
-			return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias name is forbidden."));
-		}
+			// check if room alias is forbidden
+			if services()
+				.globals
+				.forbidden_alias_names()
+				.is_match(localpart)
+			{
+				return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias name is forbidden."));
+			}
 
-		let alias =
-			RoomAliasId::parse(format!("#{}:{}", localpart, services().globals.server_name())).map_err(|e| {
-				warn!("Failed to parse room alias for room ID {}: {e}", room_id);
-				Error::BadRequest(ErrorKind::InvalidParam, "Invalid room alias specified.")
-			})?;
+			let alias =
+				RoomAliasId::parse(format!("#{}:{}", localpart, services().globals.server_name())).map_err(|e| {
+					warn!("Failed to parse room alias for room ID {}: {e}", room_id);
+					Error::BadRequest(ErrorKind::InvalidParam, "Invalid room alias specified.")
+				})?;
 
-		if services().rooms.alias.resolve_local_alias(&alias)?.is_some() {
-			Err(Error::BadRequest(ErrorKind::RoomInUse, "Room alias already exists."))
-		} else {
-			Ok(Some(alias))
-		}
-	})?;
+			if services()
+				.rooms
+				.alias
+				.resolve_local_alias(&alias)?
+				.is_some()
+			{
+				Err(Error::BadRequest(ErrorKind::RoomInUse, "Room alias already exists."))
+			} else {
+				Ok(Some(alias))
+			}
+		})?;
 
 	let room_version = match body.room_version.clone() {
 		Some(room_version) => {
-			if services().globals.supported_room_versions().contains(&room_version) {
+			if services()
+				.globals
+				.supported_room_versions()
+				.contains(&room_version)
+			{
 				room_version
 			} else {
 				return Err(Error::BadRequest(
@@ -177,10 +204,12 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 
 	let content = match &body.creation_content {
 		Some(content) => {
-			let mut content = content.deserialize_as::<CanonicalJsonObject>().map_err(|e| {
-				error!("Failed to deserialise content as canonical JSON: {}", e);
-				Error::bad_database("Failed to deserialise content as canonical JSON.")
-			})?;
+			let mut content = content
+				.deserialize_as::<CanonicalJsonObject>()
+				.map_err(|e| {
+					error!("Failed to deserialise content as canonical JSON: {}", e);
+					Error::bad_database("Failed to deserialise content as canonical JSON.")
+				})?;
 			match room_version {
 				RoomVersionId::V1
 				| RoomVersionId::V2
@@ -256,8 +285,11 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 	};
 
 	// Validate creation content
-	let de_result =
-		serde_json::from_str::<CanonicalJsonObject>(to_raw_value(&content).expect("Invalid creation content").get());
+	let de_result = serde_json::from_str::<CanonicalJsonObject>(
+		to_raw_value(&content)
+			.expect("Invalid creation content")
+			.get(),
+	);
 
 	if de_result.is_err() {
 		return Err(Error::BadRequest(ErrorKind::BadJson, "Invalid creation content"));
@@ -463,7 +495,11 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 			continue;
 		}
 
-		services().rooms.timeline.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock).await?;
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock)
+			.await?;
 	}
 
 	// 7. Events implied by name and topic
@@ -538,12 +574,20 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 pub async fn get_room_event_route(body: Ruma<get_room_event::v3::Request>) -> Result<get_room_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event = services().rooms.timeline.get_pdu(&body.event_id)?.ok_or_else(|| {
-		warn!("Event not found, event ID: {:?}", &body.event_id);
-		Error::BadRequest(ErrorKind::NotFound, "Event not found.")
-	})?;
+	let event = services()
+		.rooms
+		.timeline
+		.get_pdu(&body.event_id)?
+		.ok_or_else(|| {
+			warn!("Event not found, event ID: {:?}", &body.event_id);
+			Error::BadRequest(ErrorKind::NotFound, "Event not found.")
+		})?;
 
-	if !services().rooms.state_accessor.user_can_see_event(sender_user, &event.room_id, &body.event_id)? {
+	if !services()
+		.rooms
+		.state_accessor
+		.user_can_see_event(sender_user, &event.room_id, &body.event_id)?
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view this event.",
@@ -567,7 +611,11 @@ pub async fn get_room_event_route(body: Ruma<get_room_event::v3::Request>) -> Re
 pub async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<aliases::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().rooms.state_accessor.user_can_see_state_events(sender_user, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_accessor
+		.user_can_see_state_events(sender_user, &body.room_id)?
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view this room.",
@@ -575,7 +623,12 @@ pub async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<
 	}
 
 	Ok(aliases::v3::Response {
-		aliases: services().rooms.alias.local_aliases_for_room(&body.room_id).filter_map(Result::ok).collect(),
+		aliases: services()
+			.rooms
+			.alias
+			.local_aliases_for_room(&body.room_id)
+			.filter_map(Result::ok)
+			.collect(),
 	})
 }
 
@@ -592,7 +645,11 @@ pub async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<
 pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result<upgrade_room::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().globals.supported_room_versions().contains(&body.new_version) {
+	if !services()
+		.globals
+		.supported_room_versions()
+		.contains(&body.new_version)
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::UnsupportedRoomVersion,
 			"This server does not support that room version.",
@@ -601,10 +658,20 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 
 	// Create a replacement room
 	let replacement_room = RoomId::new(services().globals.server_name());
-	services().rooms.short.get_or_create_shortroomid(&replacement_room)?;
+	services()
+		.rooms
+		.short
+		.get_or_create_shortroomid(&replacement_room)?;
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(body.room_id.clone())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	// Send a m.room.tombstone event to the old room to indicate that it is not
@@ -633,8 +700,15 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 
 	// Change lock to replacement room
 	drop(state_lock);
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(replacement_room.clone()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(replacement_room.clone())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	// Get the old room creation event
@@ -704,7 +778,9 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 
 	// Validate creation event content
 	let de_result = serde_json::from_str::<CanonicalJsonObject>(
-		to_raw_value(&create_event_content).expect("Error forming creation event").get(),
+		to_raw_value(&create_event_content)
+			.expect("Error forming creation event")
+			.get(),
 	);
 
 	if de_result.is_err() {
@@ -771,7 +847,11 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 
 	// Replicate transferable state events to the new room
 	for event_type in transferable_state_events {
-		let event_content = match services().rooms.state_accessor.room_state_get(&body.room_id, &event_type, "")? {
+		let event_content = match services()
+			.rooms
+			.state_accessor
+			.room_state_get(&body.room_id, &event_type, "")?
+		{
 			Some(v) => v.content.clone(),
 			None => continue, // Skipping missing events.
 		};
@@ -795,8 +875,16 @@ pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result
 	}
 
 	// Moves any local aliases to the new room
-	for alias in services().rooms.alias.local_aliases_for_room(&body.room_id).filter_map(Result::ok) {
-		services().rooms.alias.set_alias(&alias, &replacement_room)?;
+	for alias in services()
+		.rooms
+		.alias
+		.local_aliases_for_room(&body.room_id)
+		.filter_map(Result::ok)
+	{
+		services()
+			.rooms
+			.alias
+			.set_alias(&alias, &replacement_room)?;
 	}
 
 	// Get the old room power levels

@@ -152,7 +152,10 @@ impl Service {
 
 	/// Returns the version of a room, if known
 	pub fn get_room_version(&self, room_id: &RoomId) -> Result<Option<RoomVersionId>> {
-		let create_event = services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomCreate, "")?;
+		let create_event = services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomCreate, "")?;
 
 		let create_event_content: Option<RoomCreateEventContent> = create_event
 			.as_ref()
@@ -225,16 +228,25 @@ impl Service {
 		// Coalesce database writes for the remainder of this scope.
 		let _cork = services().globals.db.cork_and_flush()?;
 
-		let shortroomid = services().rooms.short.get_shortroomid(&pdu.room_id)?.expect("room exists");
+		let shortroomid = services()
+			.rooms
+			.short
+			.get_shortroomid(&pdu.room_id)?
+			.expect("room exists");
 
 		// Make unsigned fields correct. This is not properly documented in the spec,
 		// but state events need to have previous content in the unsigned field, so
 		// clients can easily interpret things like membership changes
 		if let Some(state_key) = &pdu.state_key {
-			if let CanonicalJsonValue::Object(unsigned) =
-				pdu_json.entry("unsigned".to_owned()).or_insert_with(|| CanonicalJsonValue::Object(BTreeMap::default()))
+			if let CanonicalJsonValue::Object(unsigned) = pdu_json
+				.entry("unsigned".to_owned())
+				.or_insert_with(|| CanonicalJsonValue::Object(BTreeMap::default()))
 			{
-				if let Some(shortstatehash) = services().rooms.state_accessor.pdu_shortstatehash(&pdu.event_id).unwrap()
+				if let Some(shortstatehash) = services()
+					.rooms
+					.state_accessor
+					.pdu_shortstatehash(&pdu.event_id)
+					.unwrap()
 				{
 					if let Some(prev_state) = services()
 						.rooms
@@ -259,18 +271,38 @@ impl Service {
 		}
 
 		// We must keep track of all events that have been referenced.
-		services().rooms.pdu_metadata.mark_as_referenced(&pdu.room_id, &pdu.prev_events)?;
-		services().rooms.state.set_forward_extremities(&pdu.room_id, leaves, state_lock)?;
+		services()
+			.rooms
+			.pdu_metadata
+			.mark_as_referenced(&pdu.room_id, &pdu.prev_events)?;
+		services()
+			.rooms
+			.state
+			.set_forward_extremities(&pdu.room_id, leaves, state_lock)?;
 
-		let mutex_insert =
-			Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(pdu.room_id.clone()).or_default());
+		let mutex_insert = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_insert
+				.write()
+				.await
+				.entry(pdu.room_id.clone())
+				.or_default(),
+		);
 		let insert_lock = mutex_insert.lock().await;
 
 		let count1 = services().globals.next_count()?;
 		// Mark as read first so the sending client doesn't get a notification even if
 		// appending fails
-		services().rooms.edus.read_receipt.private_read_set(&pdu.room_id, &pdu.sender, count1)?;
-		services().rooms.user.reset_notification_counts(&pdu.sender, &pdu.room_id)?;
+		services()
+			.rooms
+			.edus
+			.read_receipt
+			.private_read_set(&pdu.room_id, &pdu.sender, count1)?;
+		services()
+			.rooms
+			.user
+			.reset_notification_counts(&pdu.sender, &pdu.room_id)?;
 
 		let count2 = services().globals.next_count()?;
 		let mut pdu_id = shortroomid.to_be_bytes().to_vec();
@@ -318,7 +350,10 @@ impl Service {
 		let mut notifies = Vec::new();
 		let mut highlights = Vec::new();
 
-		let mut push_target = services().rooms.state_cache.get_our_real_users(&pdu.room_id)?;
+		let mut push_target = services()
+			.rooms
+			.state_cache
+			.get_our_real_users(&pdu.room_id)?;
 
 		if pdu.kind == TimelineEventType::RoomMember {
 			if let Some(state_key) = &pdu.state_key {
@@ -354,7 +389,9 @@ impl Service {
 			let mut notify = false;
 
 			for action in
-				services().pusher.get_actions(user, &rules_for_user, &power_levels, &sync_pdu, &pdu.room_id)?
+				services()
+					.pusher
+					.get_actions(user, &rules_for_user, &power_levels, &sync_pdu, &pdu.room_id)?
 			{
 				match action {
 					Action::Notify => notify = true,
@@ -378,7 +415,8 @@ impl Service {
 			}
 		}
 
-		self.db.increment_notification_counts(&pdu.room_id, notifies, highlights)?;
+		self.db
+			.increment_notification_counts(&pdu.room_id, notifies, highlights)?;
 
 		match pdu.kind {
 			TimelineEventType::RoomRedaction => {
@@ -422,7 +460,13 @@ impl Service {
 			},
 			TimelineEventType::SpaceChild => {
 				if let Some(_state_key) = &pdu.state_key {
-					services().rooms.spaces.roomid_spacehierarchy_cache.lock().await.remove(&pdu.room_id);
+					services()
+						.rooms
+						.spaces
+						.roomid_spacehierarchy_cache
+						.lock()
+						.await
+						.remove(&pdu.room_id);
 				}
 			},
 			TimelineEventType::RoomMember => {
@@ -463,7 +507,10 @@ impl Service {
 					.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
 				if let Some(body) = content.body {
-					services().rooms.search.index_pdu(shortroomid, &pdu_id, &body)?;
+					services()
+						.rooms
+						.search
+						.index_pdu(shortroomid, &pdu_id, &body)?;
 
 					let server_user = format!("@conduit:{}", services().globals.server_name());
 
@@ -488,8 +535,15 @@ impl Service {
 		}
 
 		if let Ok(content) = serde_json::from_str::<ExtractRelatesToEventId>(pdu.content.get()) {
-			if let Some(related_pducount) = services().rooms.timeline.get_pdu_count(&content.relates_to.event_id)? {
-				services().rooms.pdu_metadata.add_relation(PduCount::Normal(count2), related_pducount)?;
+			if let Some(related_pducount) = services()
+				.rooms
+				.timeline
+				.get_pdu_count(&content.relates_to.event_id)?
+			{
+				services()
+					.rooms
+					.pdu_metadata
+					.add_relation(PduCount::Normal(count2), related_pducount)?;
 			}
 		}
 
@@ -500,32 +554,52 @@ impl Service {
 				} => {
 					// We need to do it again here, because replies don't have
 					// event_id as a top level field
-					if let Some(related_pducount) = services().rooms.timeline.get_pdu_count(&in_reply_to.event_id)? {
-						services().rooms.pdu_metadata.add_relation(PduCount::Normal(count2), related_pducount)?;
+					if let Some(related_pducount) = services()
+						.rooms
+						.timeline
+						.get_pdu_count(&in_reply_to.event_id)?
+					{
+						services()
+							.rooms
+							.pdu_metadata
+							.add_relation(PduCount::Normal(count2), related_pducount)?;
 					}
 				},
 				Relation::Thread(thread) => {
-					services().rooms.threads.add_to_thread(&thread.event_id, pdu)?;
+					services()
+						.rooms
+						.threads
+						.add_to_thread(&thread.event_id, pdu)?;
 				},
 				_ => {}, // TODO: Aggregate other types
 			}
 		}
 
 		for appservice in services().appservice.read().await.values() {
-			if services().rooms.state_cache.appservice_in_room(&pdu.room_id, appservice)? {
-				services().sending.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
+			if services()
+				.rooms
+				.state_cache
+				.appservice_in_room(&pdu.room_id, appservice)?
+			{
+				services()
+					.sending
+					.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
 				continue;
 			}
 
 			// If the RoomMember event has a non-empty state_key, it is targeted at someone.
 			// If it is our appservice user, we send this PDU to it.
 			if pdu.kind == TimelineEventType::RoomMember {
-				if let Some(state_key_uid) =
-					&pdu.state_key.as_ref().and_then(|state_key| UserId::parse(state_key.as_str()).ok())
+				if let Some(state_key_uid) = &pdu
+					.state_key
+					.as_ref()
+					.and_then(|state_key| UserId::parse(state_key.as_str()).ok())
 				{
 					let appservice_uid = appservice.registration.sender_localpart.as_str();
 					if state_key_uid == appservice_uid {
-						services().sending.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
+						services()
+							.sending
+							.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
 						continue;
 					}
 				}
@@ -534,7 +608,10 @@ impl Service {
 			let matching_users = |users: &NamespaceRegex| {
 				appservice.users.is_match(pdu.sender.as_str())
 					|| pdu.kind == TimelineEventType::RoomMember
-						&& pdu.state_key.as_ref().map_or(false, |state_key| users.is_match(state_key))
+						&& pdu
+							.state_key
+							.as_ref()
+							.map_or(false, |state_key| users.is_match(state_key))
 			};
 			let matching_aliases = |aliases: &NamespaceRegex| {
 				services()
@@ -549,7 +626,9 @@ impl Service {
 				|| appservice.rooms.is_match(pdu.room_id.as_str())
 				|| matching_users(&appservice.users)
 			{
-				services().sending.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
+				services()
+					.sending
+					.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
 			}
 		}
 
@@ -571,31 +650,43 @@ impl Service {
 			redacts,
 		} = pdu_builder;
 
-		let prev_events: Vec<_> =
-			services().rooms.state.get_forward_extremities(room_id)?.into_iter().take(20).collect();
+		let prev_events: Vec<_> = services()
+			.rooms
+			.state
+			.get_forward_extremities(room_id)?
+			.into_iter()
+			.take(20)
+			.collect();
 
 		// If there was no create event yet, assume we are creating a room
-		let room_version_id = services().rooms.state.get_room_version(room_id).or_else(|_| {
-			if event_type == TimelineEventType::RoomCreate {
-				#[derive(Deserialize)]
-				struct RoomCreate {
-					room_version: RoomVersionId,
+		let room_version_id = services()
+			.rooms
+			.state
+			.get_room_version(room_id)
+			.or_else(|_| {
+				if event_type == TimelineEventType::RoomCreate {
+					#[derive(Deserialize)]
+					struct RoomCreate {
+						room_version: RoomVersionId,
+					}
+					let content =
+						serde_json::from_str::<RoomCreate>(content.get()).expect("Invalid content in RoomCreate pdu.");
+					Ok(content.room_version)
+				} else {
+					Err(Error::InconsistentRoomState(
+						"non-create event for room of unknown version",
+						room_id.to_owned(),
+					))
 				}
-				let content =
-					serde_json::from_str::<RoomCreate>(content.get()).expect("Invalid content in RoomCreate pdu.");
-				Ok(content.room_version)
-			} else {
-				Err(Error::InconsistentRoomState(
-					"non-create event for room of unknown version",
-					room_id.to_owned(),
-				))
-			}
-		})?;
+			})?;
 
 		let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
 
 		let auth_events =
-			services().rooms.state.get_auth_events(room_id, &event_type, sender, state_key.as_deref(), &content)?;
+			services()
+				.rooms
+				.state
+				.get_auth_events(room_id, &event_type, sender, state_key.as_deref(), &content)?;
 
 		// Our depth is the maximum depth of prev_events + 1
 		let depth = prev_events
@@ -609,7 +700,10 @@ impl Service {
 
 		if let Some(state_key) = &state_key {
 			if let Some(prev_pdu) =
-				services().rooms.state_accessor.room_state_get(room_id, &event_type.to_string().into(), state_key)?
+				services()
+					.rooms
+					.state_accessor
+					.room_state_get(room_id, &event_type.to_string().into(), state_key)?
 			{
 				unsigned.insert(
 					"prev_content".to_owned(),
@@ -626,13 +720,18 @@ impl Service {
 			event_id: ruma::event_id!("$thiswillbefilledinlater").into(),
 			room_id: room_id.to_owned(),
 			sender: sender.to_owned(),
-			origin_server_ts: utils::millis_since_unix_epoch().try_into().expect("time is valid"),
+			origin_server_ts: utils::millis_since_unix_epoch()
+				.try_into()
+				.expect("time is valid"),
 			kind: event_type,
 			content,
 			state_key,
 			prev_events,
 			depth,
-			auth_events: auth_events.values().map(|pdu| pdu.event_id.clone()).collect(),
+			auth_events: auth_events
+				.values()
+				.map(|pdu| pdu.event_id.clone())
+				.collect(),
 			redacts,
 			unsigned: if unsigned.is_empty() {
 				None
@@ -710,7 +809,10 @@ impl Service {
 		);
 
 		// Generate short event id
-		let _shorteventid = services().rooms.short.get_or_create_shorteventid(&pdu.event_id)?;
+		let _shorteventid = services()
+			.rooms
+			.short
+			.get_or_create_shorteventid(&pdu.event_id)?;
 
 		Ok((pdu, pdu_json))
 	}
@@ -744,7 +846,10 @@ impl Service {
 							membership: MembershipState,
 						}
 
-						let target = pdu.state_key().filter(|v| v.starts_with('@')).unwrap_or(sender.as_str());
+						let target = pdu
+							.state_key()
+							.filter(|v| v.starts_with('@'))
+							.unwrap_or(sender.as_str());
 						let server_name = services().globals.server_name();
 						let server_user = format!("@conduit:{server_name}");
 						let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
@@ -825,16 +930,25 @@ impl Service {
 
 		// We set the room state after inserting the pdu, so that we never have a moment
 		// in time where events in the current room state do not exist
-		services().rooms.state.set_room_state(room_id, statehashid, state_lock)?;
+		services()
+			.rooms
+			.state
+			.set_room_state(room_id, statehashid, state_lock)?;
 
-		let mut servers: HashSet<OwnedServerName> =
-			services().rooms.state_cache.room_servers(room_id).filter_map(Result::ok).collect();
+		let mut servers: HashSet<OwnedServerName> = services()
+			.rooms
+			.state_cache
+			.room_servers(room_id)
+			.filter_map(Result::ok)
+			.collect();
 
 		// In case we are kicking or banning a user, we need to inform their server of
 		// the change
 		if pdu.kind == TimelineEventType::RoomMember {
-			if let Some(state_key_uid) =
-				&pdu.state_key.as_ref().and_then(|state_key| UserId::parse(state_key.as_str()).ok())
+			if let Some(state_key_uid) = &pdu
+				.state_key
+				.as_ref()
+				.and_then(|state_key| UserId::parse(state_key.as_str()).ok())
 			{
 				servers.insert(state_key_uid.server_name().to_owned());
 			}
@@ -864,15 +978,28 @@ impl Service {
 		// We append to state before appending the pdu, so we don't have a moment in
 		// time with the pdu without it's state. This is okay because append_pdu can't
 		// fail.
-		services().rooms.state.set_event_state(&pdu.event_id, &pdu.room_id, state_ids_compressed)?;
+		services()
+			.rooms
+			.state
+			.set_event_state(&pdu.event_id, &pdu.room_id, state_ids_compressed)?;
 
 		if soft_fail {
-			services().rooms.pdu_metadata.mark_as_referenced(&pdu.room_id, &pdu.prev_events)?;
-			services().rooms.state.set_forward_extremities(&pdu.room_id, new_room_leaves, state_lock)?;
+			services()
+				.rooms
+				.pdu_metadata
+				.mark_as_referenced(&pdu.room_id, &pdu.prev_events)?;
+			services()
+				.rooms
+				.state
+				.set_forward_extremities(&pdu.room_id, new_room_leaves, state_lock)?;
 			return Ok(None);
 		}
 
-		let pdu_id = services().rooms.timeline.append_pdu(pdu, pdu_json, new_room_leaves, state_lock).await?;
+		let pdu_id = services()
+			.rooms
+			.timeline
+			.append_pdu(pdu, pdu_json, new_room_leaves, state_lock)
+			.await?;
 
 		Ok(Some(pdu_id))
 	}
@@ -908,8 +1035,9 @@ impl Service {
 	pub fn redact_pdu(&self, event_id: &EventId, reason: &PduEvent) -> Result<()> {
 		// TODO: Don't reserialize, keep original json
 		if let Some(pdu_id) = self.get_pdu_id(event_id)? {
-			let mut pdu =
-				self.get_pdu_from_id(&pdu_id)?.ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
+			let mut pdu = self
+				.get_pdu_from_id(&pdu_id)?
+				.ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
 			let room_version_id = services().rooms.state.get_room_version(&pdu.room_id)?;
 			pdu.redact(room_version_id, reason)?;
 			self.replace_pdu(
@@ -927,8 +1055,10 @@ impl Service {
 
 	#[tracing::instrument(skip(self, room_id))]
 	pub async fn backfill_if_required(&self, room_id: &RoomId, from: PduCount) -> Result<()> {
-		let first_pdu =
-			self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?.next().expect("Room is not empty")?;
+		let first_pdu = self
+			.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?
+			.next()
+			.expect("Room is not empty")?;
 
 		if first_pdu.0 < from {
 			// No backfill required, there are still events between them
@@ -938,7 +1068,11 @@ impl Service {
 		let mut servers: Vec<&ServerName> = vec![];
 
 		// add server names from room aliases on the room ID
-		let room_aliases = services().rooms.alias.local_aliases_for_room(room_id).collect::<Result<Vec<_>, _>>();
+		let room_aliases = services()
+			.rooms
+			.alias
+			.local_aliases_for_room(room_id)
+			.collect::<Result<Vec<_>, _>>();
 		if let Ok(aliases) = &room_aliases {
 			for alias in aliases {
 				if alias.server_name() != services().globals.server_name() {
@@ -979,8 +1113,10 @@ impl Service {
 		}
 
 		// don't backfill from ourselves (might be noop if we checked it above already)
-		if let Some(server_index) =
-			servers.clone().into_iter().position(|server| server == services().globals.server_name())
+		if let Some(server_index) = servers
+			.clone()
+			.into_iter()
+			.position(|server| server == services().globals.server_name())
 		{
 			servers.remove(server_index);
 		}
@@ -1030,8 +1166,15 @@ impl Service {
 		let (event_id, value, room_id) = server_server::parse_incoming_pdu(&pdu)?;
 
 		// Lock so we cannot backfill the same pdu twice at the same time
-		let mutex =
-			Arc::clone(services().globals.roomid_mutex_federation.write().await.entry(room_id.clone()).or_default());
+		let mutex = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_federation
+				.write()
+				.await
+				.entry(room_id.clone())
+				.or_default(),
+		);
 		let mutex_lock = mutex.lock().await;
 
 		// Skip the PDU if we already have it as a timeline event
@@ -1040,7 +1183,11 @@ impl Service {
 			return Ok(());
 		}
 
-		services().rooms.event_handler.fetch_required_signing_keys([&value], pub_key_map).await?;
+		services()
+			.rooms
+			.event_handler
+			.fetch_required_signing_keys([&value], pub_key_map)
+			.await?;
 
 		services()
 			.rooms
@@ -1051,10 +1198,21 @@ impl Service {
 		let value = self.get_pdu_json(&event_id)?.expect("We just created it");
 		let pdu = self.get_pdu(&event_id)?.expect("We just created it");
 
-		let shortroomid = services().rooms.short.get_shortroomid(&room_id)?.expect("room exists");
+		let shortroomid = services()
+			.rooms
+			.short
+			.get_shortroomid(&room_id)?
+			.expect("room exists");
 
-		let mutex_insert =
-			Arc::clone(services().globals.roomid_mutex_insert.write().await.entry(room_id.clone()).or_default());
+		let mutex_insert = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_insert
+				.write()
+				.await
+				.entry(room_id.clone())
+				.or_default(),
+		);
 		let insert_lock = mutex_insert.lock().await;
 
 		let count = services().globals.next_count()?;
@@ -1077,7 +1235,10 @@ impl Service {
 				.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
 			if let Some(body) = content.body {
-				services().rooms.search.index_pdu(shortroomid, &pdu_id, &body)?;
+				services()
+					.rooms
+					.search
+					.index_pdu(shortroomid, &pdu_id, &body)?;
 			}
 		}
 		drop(mutex_lock);

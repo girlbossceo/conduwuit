@@ -111,7 +111,9 @@ async fn main() {
 				},
 			};
 
-			let subscriber = tracing_subscriber::Registry::default().with(filter_layer).with(telemetry);
+			let subscriber = tracing_subscriber::Registry::default()
+				.with(filter_layer)
+				.with(telemetry);
 			tracing::subscriber::set_global_default(subscriber).unwrap();
 		}
 	} else if config.tracing_flame {
@@ -292,21 +294,30 @@ async fn main() {
 		);
 	}
 
-	if config.url_preview_domain_contains_allowlist.contains(&"*".to_owned()) {
+	if config
+		.url_preview_domain_contains_allowlist
+		.contains(&"*".to_owned())
+	{
 		warn!(
 			"All URLs are allowed for URL previews via setting \"url_preview_domain_contains_allowlist\" to \"*\". \
 			 This opens up significant attack surface to your server. You are expected to be aware of the risks by \
 			 doing this."
 		);
 	}
-	if config.url_preview_domain_explicit_allowlist.contains(&"*".to_owned()) {
+	if config
+		.url_preview_domain_explicit_allowlist
+		.contains(&"*".to_owned())
+	{
 		warn!(
 			"All URLs are allowed for URL previews via setting \"url_preview_domain_explicit_allowlist\" to \"*\". \
 			 This opens up significant attack surface to your server. You are expected to be aware of the risks by \
 			 doing this."
 		);
 	}
-	if config.url_preview_url_contains_allowlist.contains(&"*".to_owned()) {
+	if config
+		.url_preview_url_contains_allowlist
+		.contains(&"*".to_owned())
+	{
 		warn!(
 			"All URLs are allowed for URL previews via setting \"url_preview_url_contains_allowlist\" to \"*\". This \
 			 opens up significant attack surface to your server. You are expected to be aware of the risks by doing \
@@ -338,9 +349,17 @@ async fn run_server() -> io::Result<()> {
 			// Left is only 1 value, so make a vec with 1 value only
 			let port_vec = [port];
 
-			port_vec.iter().copied().map(|port| SocketAddr::from((config.address, *port))).collect::<Vec<_>>()
+			port_vec
+				.iter()
+				.copied()
+				.map(|port| SocketAddr::from((config.address, *port)))
+				.collect::<Vec<_>>()
 		},
-		Right(ports) => ports.iter().copied().map(|port| SocketAddr::from((config.address, port))).collect::<Vec<_>>(),
+		Right(ports) => ports
+			.iter()
+			.copied()
+			.map(|port| SocketAddr::from((config.address, port)))
+			.collect::<Vec<_>>(),
 	};
 
 	let x_requested_with = HeaderName::from_static("x-requested-with");
@@ -385,7 +404,10 @@ async fn run_server() -> io::Result<()> {
 				.max_age(Duration::from_secs(86400)),
 		)
 		.layer(DefaultBodyLimit::max(
-			config.max_request_size.try_into().expect("failed to convert max request size"),
+			config
+				.max_request_size
+				.try_into()
+				.expect("failed to convert max request size"),
 		));
 
 	let app;
@@ -395,7 +417,9 @@ async fn run_server() -> io::Result<()> {
 	{
 		app = if cfg!(feature = "zstd_compression") && config.zstd_compression {
 			debug!("zstd body compression is enabled");
-			routes().layer(middlewares.compression()).into_make_service()
+			routes()
+				.layer(middlewares.compression())
+				.into_make_service()
 		} else {
 			routes().layer(middlewares).into_make_service()
 		}
@@ -432,7 +456,9 @@ async fn run_server() -> io::Result<()> {
 			let octal_perms = u32::from_str_radix(&socket_perms, 8).unwrap();
 
 			let listener = tokio::net::UnixListener::bind(path.clone())?;
-			tokio::fs::set_permissions(path, Permissions::from_mode(octal_perms)).await.unwrap();
+			tokio::fs::set_permissions(path, Permissions::from_mode(octal_perms))
+				.await
+				.unwrap();
 			let socket = SocketIncoming::from_listener(listener);
 
 			#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
@@ -483,7 +509,11 @@ async fn run_server() -> io::Result<()> {
 					}
 				} else {
 					for addr in &addrs {
-						join_set.spawn(bind_rustls(*addr, conf.clone()).handle(handle.clone()).serve(app.clone()));
+						join_set.spawn(
+							bind_rustls(*addr, conf.clone())
+								.handle(handle.clone())
+								.serve(app.clone()),
+						);
 					}
 				}
 
@@ -528,7 +558,9 @@ async fn spawn_task<B: Send + 'static>(
 	if services().globals.shutdown.load(atomic::Ordering::Relaxed) {
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
 	}
-	tokio::spawn(next.run(req)).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+	tokio::spawn(next.run(req))
+		.await
+		.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 async fn unrecognized_method<B: Send + 'static>(
@@ -758,7 +790,9 @@ fn routes() -> Router {
 
 async fn shutdown_signal(handle: ServerHandle, tx: Sender<()>) -> Result<()> {
 	let ctrl_c = async {
-		signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
+		signal::ctrl_c()
+			.await
+			.expect("failed to install Ctrl+C handler");
 	};
 
 	#[cfg(unix)]

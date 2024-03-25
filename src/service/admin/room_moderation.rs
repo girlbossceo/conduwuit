@@ -446,7 +446,11 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 			))
 		},
 		RoomModerationCommand::ListBannedRooms => {
-			let rooms = services().rooms.metadata.list_banned_rooms().collect::<Result<Vec<_>, _>>();
+			let rooms = services()
+				.rooms
+				.metadata
+				.list_banned_rooms()
+				.collect::<Result<Vec<_>, _>>();
 
 			match rooms {
 				Ok(room_ids) => {

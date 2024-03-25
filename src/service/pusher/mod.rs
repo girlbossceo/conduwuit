@@ -83,7 +83,12 @@ impl Service {
 			}
 		}
 
-		let response = services().globals.client.pusher.execute(reqwest_request).await;
+		let response = services()
+			.globals
+			.client
+			.pusher
+			.execute(reqwest_request)
+			.await;
 
 		match response {
 			Ok(mut response) => {
@@ -108,10 +113,14 @@ impl Service {
 				}
 
 				let status = response.status();
-				let mut http_response_builder = http::Response::builder().status(status).version(response.version());
+				let mut http_response_builder = http::Response::builder()
+					.status(status)
+					.version(response.version());
 				mem::swap(
 					response.headers_mut(),
-					http_response_builder.headers_mut().expect("http::response::Builder is usable"),
+					http_response_builder
+						.headers_mut()
+						.expect("http::response::Builder is usable"),
 				);
 
 				let body = response.bytes().await.unwrap_or_else(|e| {
@@ -130,7 +139,9 @@ impl Service {
 				}
 
 				let response = T::IncomingResponse::try_from_http_response(
-					http_response_builder.body(body).expect("reqwest body is valid http body"),
+					http_response_builder
+						.body(body)
+						.expect("reqwest body is valid http body"),
 				);
 				response.map_err(|_| {
 					info!("Push gateway returned invalid response bytes {}\n{}", destination, url);
@@ -202,9 +213,18 @@ impl Service {
 
 		let ctx = PushConditionRoomCtx {
 			room_id: room_id.to_owned(),
-			member_count: UInt::from(services().rooms.state_cache.room_joined_count(room_id)?.unwrap_or(1) as u32),
+			member_count: UInt::from(
+				services()
+					.rooms
+					.state_cache
+					.room_joined_count(room_id)?
+					.unwrap_or(1) as u32,
+			),
 			user_id: user.to_owned(),
-			user_display_name: services().users.displayname(user)?.unwrap_or_else(|| user.localpart().to_owned()),
+			user_display_name: services()
+				.users
+				.displayname(user)?
+				.unwrap_or_else(|| user.localpart().to_owned()),
 			power_levels: Some(power_levels),
 		};
 
@@ -242,13 +262,16 @@ impl Service {
 				notifi.counts = NotificationCounts::new(unread, uint!(0));
 
 				if event.kind == TimelineEventType::RoomEncrypted
-					|| tweaks.iter().any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
+					|| tweaks
+						.iter()
+						.any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
 				{
 					notifi.prio = NotificationPriority::High;
 				}
 
 				if event_id_only {
-					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi)).await?;
+					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
+						.await?;
 				} else {
 					notifi.sender = Some(event.sender.clone());
 					notifi.event_type = Some(event.kind.clone());
@@ -262,7 +285,8 @@ impl Service {
 
 					notifi.room_name = services().rooms.state_accessor.get_name(&event.room_id)?;
 
-					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi)).await?;
+					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
+						.await?;
 				}
 
 				Ok(())
