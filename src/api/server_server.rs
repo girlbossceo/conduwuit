@@ -159,7 +159,7 @@ where
 
 	let mut write_destination_to_cache = false;
 
-	let cached_result = services().globals.actual_destination_cache.read().await.get(destination).cloned();
+	let cached_result = services().globals.actual_destinations().read().await.get(destination).cloned();
 
 	let (actual_destination, host) = if let Some(result) = cached_result {
 		result
@@ -313,7 +313,7 @@ where
 				if response.is_ok() && write_destination_to_cache {
 					services()
 						.globals
-						.actual_destination_cache
+						.actual_destinations()
 						.write()
 						.await
 						.insert(OwnedServerName::from(destination), (actual_destination, host));
@@ -496,7 +496,8 @@ async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u1
 
 			services()
 				.globals
-				.tls_name_override
+				.resolver
+				.overrides
 				.write()
 				.unwrap()
 				.insert(overname.to_owned(), (override_ip.iter().collect(), port));
@@ -538,7 +539,7 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
 }
 
 async fn request_well_known(destination: &str) -> Option<String> {
-	if !services().globals.tls_name_override.read().unwrap().contains_key(destination) {
+	if !services().globals.resolver.overrides.read().unwrap().contains_key(destination) {
 		query_and_cache_override(destination, destination, 8448).await;
 	}
 

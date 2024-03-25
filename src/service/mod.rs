@@ -205,10 +205,10 @@ roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}"
 			self.rooms.spaces.roomid_spacehierarchy_cache.lock().await.clear();
 		}
 		if amount > 6 {
-			self.globals.tls_name_override.write().unwrap().clear();
+			self.globals.resolver.overrides.write().unwrap().clear();
 		}
 		if amount > 7 {
-			self.globals.dns_resolver().clear_cache();
+			self.globals.resolver.resolver.clear_cache();
 		}
 	}
 }
