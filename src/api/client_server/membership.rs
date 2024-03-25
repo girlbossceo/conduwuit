@@ -526,9 +526,14 @@ pub(crate) async fn join_room_by_id_helper(
 			.expect("event is valid, we just created it"),
 		);
 
-		// We don't leave the event id in the pdu because that's only allowed in v1 or
+		// We keep the "event_id" in the pdu only in v1 or
 		// v2 rooms
-		join_event_stub.remove("event_id");
+		match room_version_id {
+			RoomVersionId::V1 | RoomVersionId::V2 => {},
+			_ => {
+				join_event_stub.remove("event_id");
+			},
+		};
 
 		// In order to create a compatible ref hash (EventID) the `hashes` field needs
 		// to be present
@@ -929,9 +934,14 @@ pub(crate) async fn join_room_by_id_helper(
 				.expect("event is valid, we just created it"),
 			);
 
-			// We don't leave the event id in the pdu because that's only allowed in v1 or
+			// We keep the "event_id" in the pdu only in v1 or
 			// v2 rooms
-			join_event_stub.remove("event_id");
+			match room_version_id {
+				RoomVersionId::V1 | RoomVersionId::V2 => {},
+				_ => {
+					join_event_stub.remove("event_id");
+				},
+			};
 
 			// In order to create a compatible ref hash (EventID) the `hashes` field needs
 			// to be present
@@ -1419,9 +1429,14 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 			utils::millis_since_unix_epoch().try_into().expect("Timestamp is valid js_int value"),
 		),
 	);
-	// We don't leave the event id in the pdu because that's only allowed in v1 or
-	// v2 rooms
-	leave_event_stub.remove("event_id");
+
+	// room v3 and above removed the "event_id" field from remote PDU format
+	match room_version_id {
+		RoomVersionId::V1 | RoomVersionId::V2 => {},
+		_ => {
+			leave_event_stub.remove("event_id");
+		},
+	};
 
 	// In order to create a compatible ref hash (EventID) the `hashes` field needs
 	// to be present

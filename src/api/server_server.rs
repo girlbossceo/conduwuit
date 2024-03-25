@@ -49,7 +49,7 @@ use ruma::{
 	serde::{Base64, JsonObject, Raw},
 	to_device::DeviceIdOrAllDevices,
 	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId,
-	OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, ServerName,
+	OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, RoomVersionId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
@@ -1347,7 +1347,28 @@ pub async fn create_join_event_template_route(
 
 	drop(state_lock);
 
-	pdu_json.remove("event_id");
+	// room v3 and above removed the "event_id" field from remote PDU format
+	match room_version_id {
+		RoomVersionId::V1 | RoomVersionId::V2 => {},
+		RoomVersionId::V3
+		| RoomVersionId::V4
+		| RoomVersionId::V5
+		| RoomVersionId::V6
+		| RoomVersionId::V7
+		| RoomVersionId::V8
+		| RoomVersionId::V9
+		| RoomVersionId::V10
+		| RoomVersionId::V11 => {
+			pdu_json.remove("event_id");
+		},
+		_ => {
+			warn!("Unexpected or unsupported room version {room_version_id}");
+			return Err(Error::BadRequest(
+				ErrorKind::BadJson,
+				"Unexpected or unsupported room version found",
+			));
+		},
+	};
 
 	Ok(prepare_join_event::v1::Response {
 		room_version: Some(room_version_id),

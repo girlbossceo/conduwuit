@@ -202,7 +202,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				},
 				RoomVersionId::V11 => {}, // V11 removed the "creator" key
 				_ => {
-					warn!("Unexpected or unsupported room version {}", room_version);
+					warn!("Unexpected or unsupported room version {room_version}");
 					return Err(Error::BadRequest(
 						ErrorKind::BadJson,
 						"Unexpected or unsupported room version found",
@@ -219,7 +219,6 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 			content
 		},
 		None => {
-			// TODO: Add correct value for v11
 			let content = match room_version {
 				RoomVersionId::V1
 				| RoomVersionId::V2
@@ -233,7 +232,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				| RoomVersionId::V10 => RoomCreateEventContent::new_v1(sender_user.clone()),
 				RoomVersionId::V11 => RoomCreateEventContent::new_v11(),
 				_ => {
-					warn!("Unexpected or unsupported room version {}", room_version);
+					warn!("Unexpected or unsupported room version {room_version}");
 					return Err(Error::BadRequest(
 						ErrorKind::BadJson,
 						"Unexpected or unsupported room version found",
