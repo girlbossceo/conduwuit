@@ -7,16 +7,17 @@ use std::{
 use chrono::{DateTime, Utc};
 use rust_rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
+	DBWithThreadMode as Db,
 	LogLevel::{Debug, Error, Fatal, Info, Warn},
-	WriteBatchWithTransaction,
+	MultiThreaded, WriteBatchWithTransaction,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
 use crate::{utils, Result};
 
 pub(crate) struct Engine {
-	rocks: rust_rocksdb::DBWithThreadMode<rust_rocksdb::MultiThreaded>,
+	rocks: Db<MultiThreaded>,
 	row_cache: rust_rocksdb::Cache,
 	col_cache: rust_rocksdb::Cache,
 	old_cfs: Vec<String>,
@@ -145,19 +146,30 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		let db_opts = db_options(config, &db_env, &row_cache, &col_cache);
 
 		debug!("Listing column families in database");
-		let cfs =
-			rust_rocksdb::DBWithThreadMode::<rust_rocksdb::MultiThreaded>::list_cf(&db_opts, &config.database_path)
-				.unwrap_or_default();
+		let cfs = Db::<MultiThreaded>::list_cf(&db_opts, &config.database_path).unwrap_or_default();
 
-		debug!("Opening column family descriptors in database");
+		if config.rocksdb_repair {
+			warn!("Starting database repair. This may take a long time...");
+			if let Err(e) = Db::<MultiThreaded>::repair(&db_opts, &config.database_path) {
+				error!("Repair failed: {:?}", e);
+			}
+		}
+
+		debug!("Opening {} column family descriptors in database", cfs.len());
 		info!("RocksDB database compaction will take place now, a delay in startup is expected");
-		let db = rust_rocksdb::DBWithThreadMode::<rust_rocksdb::MultiThreaded>::open_cf_descriptors(
-			&db_opts,
-			&config.database_path,
-			cfs.iter()
-				.map(|name| rust_rocksdb::ColumnFamilyDescriptor::new(name, db_opts.clone())),
-		)?;
 
+		let cfds = cfs
+			.iter()
+			.map(|name| rust_rocksdb::ColumnFamilyDescriptor::new(name, db_opts.clone()))
+			.collect::<Vec<_>>();
+
+		let db = if config.rocksdb_read_only {
+			Db::<MultiThreaded>::open_cf_for_read_only(&db_opts, &config.database_path, cfs.clone(), false)?
+		} else {
+			Db::<MultiThreaded>::open_cf_descriptors(&db_opts, &config.database_path, cfds)?
+		};
+
+		debug!("Opened database at sequence number {}", db.latest_sequence_number());
 		Ok(Arc::new(Engine {
 			rocks: db,
 			row_cache,
