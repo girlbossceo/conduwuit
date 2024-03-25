@@ -17,13 +17,22 @@ pub struct Client {
 impl Client {
 	pub fn new(config: &Config, resolver: &Arc<resolver::Resolver>) -> Client {
 		Client {
-			default: Self::base(config).unwrap().build().unwrap(),
+			default: Self::base(config)
+				.unwrap()
+				.dns_resolver(resolver.clone())
+				.build()
+				.unwrap(),
 
-			url_preview: Self::base(config).unwrap().redirect(redirect::Policy::limited(3)).build().unwrap(),
+			url_preview: Self::base(config)
+				.unwrap()
+				.dns_resolver(resolver.clone())
+				.redirect(redirect::Policy::limited(3))
+				.build()
+				.unwrap(),
 
 			well_known: Self::base(config)
 				.unwrap()
-				.dns_resolver(resolver.clone())
+				.dns_resolver(resolver.hooked.clone())
 				.connect_timeout(Duration::from_secs(config.well_known_conn_timeout))
 				.timeout(Duration::from_secs(config.well_known_timeout))
 				.pool_max_idle_per_host(0)
@@ -33,7 +42,7 @@ impl Client {
 
 			federation: Self::base(config)
 				.unwrap()
-				.dns_resolver(resolver.clone())
+				.dns_resolver(resolver.hooked.clone())
 				.timeout(Duration::from_secs(config.federation_timeout))
 				.pool_max_idle_per_host(config.federation_idle_per_host.into())
 				.pool_idle_timeout(Duration::from_secs(config.federation_idle_timeout))
@@ -43,7 +52,7 @@ impl Client {
 
 			sender: Self::base(config)
 				.unwrap()
-				.dns_resolver(resolver.clone())
+				.dns_resolver(resolver.hooked.clone())
 				.timeout(Duration::from_secs(config.sender_timeout))
 				.pool_max_idle_per_host(1)
 				.pool_idle_timeout(Duration::from_secs(config.sender_idle_timeout))
@@ -53,6 +62,7 @@ impl Client {
 
 			appservice: Self::base(config)
 				.unwrap()
+				.dns_resolver(resolver.clone())
 				.connect_timeout(Duration::from_secs(5))
 				.timeout(Duration::from_secs(config.appservice_timeout))
 				.pool_max_idle_per_host(1)
@@ -63,6 +73,7 @@ impl Client {
 
 			pusher: Self::base(config)
 				.unwrap()
+				.dns_resolver(resolver.clone())
 				.pool_max_idle_per_host(1)
 				.pool_idle_timeout(Duration::from_secs(config.pusher_idle_timeout))
 				.redirect(redirect::Policy::limited(2))
