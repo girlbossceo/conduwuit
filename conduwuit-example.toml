@@ -390,6 +390,31 @@ url_preview_check_root_domain = false
 
 
 
+### Domain Name Resolution and Caching
+
+# Maximum entries stored in DNS memory-cache. The size of an entry may vary so please take care if
+# raising this value excessively. Only decrease this when using an external DNS cache. Please note
+# that systemd does *not* count as an external cache, even when configured to do so.
+#dns_cache_entries = 12288
+
+# Minimum time-to-live in seconds for entries in the DNS cache. The default may appear high to most
+# administrators; this is by design. Only decrease this if you are using an external DNS cache.
+#dns_min_ttl = 60 * 90
+
+# Minimum time-to-live in seconds for NXDOMAIN entries in the DNS cache. This value is critical for
+# the server to federate efficiently. NXDOMAIN's are assumed to not be returning to the federation
+# and aggressively cached rather than constantly rechecked.
+#dns_min_ttl_nxdomain = 60 * 60 * 24 * 3
+
+# The number of seconds to wait for a reply to a DNS query. Please note that recursive queries can
+# take up to several seconds for some domains, so this value should not be too low.
+#dns_timeout = 5
+
+# Number of retries after a timeout.
+#dns_attempts = 5
+
+
+
 ### Request Timeouts, Connection Timeouts, and Connection Pooling
 
 ## Request Timeouts are HTTP response timeouts
