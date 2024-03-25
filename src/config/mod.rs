@@ -207,6 +207,10 @@ pub struct Config {
 	pub rocksdb_bottommost_compression: bool,
 	#[serde(default = "default_rocksdb_recovery_mode")]
 	pub rocksdb_recovery_mode: u8,
+	#[serde(default)]
+	pub rocksdb_repair: bool,
+	#[serde(default)]
+	pub rocksdb_read_only: bool,
 
 	pub emergency_password: Option<String>,
 
@@ -629,6 +633,8 @@ impl fmt::Display for Config {
 			),
 			#[cfg(feature = "rocksdb")]
 			("RocksDB Recovery Mode", &self.rocksdb_recovery_mode.to_string()),
+			("RocksDB Repair Mode", &self.rocksdb_repair.to_string()),
+			("RocksDB Read-only Mode", &self.rocksdb_read_only.to_string()),
 			("Prevent Media Downloads From", {
 				let mut lst = vec![];
 				for domain in &self.prevent_media_downloads_from {
