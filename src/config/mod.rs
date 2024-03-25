@@ -57,6 +57,16 @@ pub struct Config {
 	pub pdu_cache_capacity: u32,
 	#[serde(default = "default_cleanup_second_interval")]
 	pub cleanup_second_interval: u32,
+	#[serde(default = "default_dns_cache_entries")]
+	pub dns_cache_entries: u32,
+	#[serde(default = "default_dns_min_ttl")]
+	pub dns_min_ttl: u64,
+	#[serde(default = "default_dns_min_ttl_nxdomain")]
+	pub dns_min_ttl_nxdomain: u64,
+	#[serde(default = "default_dns_attempts")]
+	pub dns_attempts: u16,
+	#[serde(default = "default_dns_timeout")]
+	pub dns_timeout: u64,
 	#[serde(default = "default_max_request_size")]
 	pub max_request_size: u32,
 	#[serde(default = "default_max_concurrent_requests")]
@@ -301,6 +311,11 @@ impl fmt::Display for Config {
 			("Cache capacity modifier", &self.conduit_cache_capacity_modifier.to_string()),
 			("PDU cache capacity", &self.pdu_cache_capacity.to_string()),
 			("Cleanup interval in seconds", &self.cleanup_second_interval.to_string()),
+			("DNS cache entry limit", &self.dns_cache_entries.to_string()),
+			("DNS minimum ttl", &self.dns_min_ttl.to_string()),
+			("DNS minimum nxdomain ttl", &self.dns_min_ttl_nxdomain.to_string()),
+			("DNS attempts", &self.dns_attempts.to_string()),
+			("DNS timeout", &self.dns_timeout.to_string()),
 			("Maximum request size (bytes)", &self.max_request_size.to_string()),
 			("Maximum concurrent requests", &self.max_concurrent_requests.to_string()),
 			("Request connect timeout", &self.request_conn_timeout.to_string()),
@@ -527,6 +542,16 @@ fn default_pdu_cache_capacity() -> u32 { 150_000 }
 fn default_cleanup_second_interval() -> u32 {
 	1800 // every 30 minutes
 }
+
+fn default_dns_cache_entries() -> u32 { 12288 }
+
+fn default_dns_min_ttl() -> u64 { 60 * 90 }
+
+fn default_dns_min_ttl_nxdomain() -> u64 { 60 * 60 * 24 * 3 }
+
+fn default_dns_attempts() -> u16 { 5 }
+
+fn default_dns_timeout() -> u64 { 5 }
 
 fn default_max_request_size() -> u32 {
 	20 * 1024 * 1024 // Default to 20 MB

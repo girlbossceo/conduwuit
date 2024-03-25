@@ -3,6 +3,7 @@ use std::{
 	future, iter,
 	net::{IpAddr, SocketAddr},
 	sync::{Arc, RwLock as StdRwLock},
+	time::Duration,
 };
 
 use hickory_resolver::TokioAsyncResolver;
@@ -30,14 +31,27 @@ pub struct Hooked {
 }
 
 impl Resolver {
-	pub(crate) fn new(_config: &Config) -> Self {
-		let overrides = Arc::new(StdRwLock::new(TlsNameMap::new()));
-		let resolver = Arc::new(TokioAsyncResolver::tokio_from_system_conf().map_err(|e| {
-			error!("Failed to set up trust dns resolver with system config: {}", e);
-			Error::bad_config("Failed to set up trust dns resolver with system config.")
-		})
-		.unwrap());
+	pub(crate) fn new(config: &Config) -> Self {
+		let (conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
+			.map_err(|e| {
+				error!("Failed to set up hickory dns resolver with system config: {}", e);
+				Error::bad_config("Failed to set up hickory dns resolver with system config.")
+			})
+			.unwrap();
 
+		opts.cache_size = config.dns_cache_entries as usize;
+		opts.negative_min_ttl = Some(Duration::from_secs(config.dns_min_ttl_nxdomain));
+		opts.negative_max_ttl = Some(Duration::from_secs(60 * 60 * 24 * 30));
+		opts.positive_min_ttl = Some(Duration::from_secs(config.dns_min_ttl));
+		opts.positive_max_ttl = Some(Duration::from_secs(60 * 60 * 24 * 7));
+		opts.timeout = Duration::from_secs(config.dns_timeout);
+		opts.attempts = config.dns_attempts as usize;
+		opts.num_concurrent_reqs = 1;
+		opts.shuffle_dns_servers = true;
+		opts.rotate = true;
+
+		let resolver = Arc::new(TokioAsyncResolver::tokio(conf, opts));
+		let overrides = Arc::new(StdRwLock::new(TlsNameMap::new()));
 		Resolver {
 			destinations: Arc::new(RwLock::new(WellKnownMap::new())),
 			overrides: overrides.clone(),
@@ -62,8 +76,10 @@ impl Resolve for Hooked {
 			.read()
 			.unwrap()
 			.get(name.as_str())
-			.map(|(override_name, port)| cached_to_reqwest(override_name, *port))
-			.unwrap_or_else(|| resolve_to_reqwest(self.resolver.clone(), name))
+			.map_or_else(
+				|| resolve_to_reqwest(self.resolver.clone(), name),
+				|(override_name, port)| cached_to_reqwest(override_name, *port)
+			)
 	}
 }
 
