@@ -666,7 +666,13 @@ impl Service {
 			Error::bad_database("Failed to convert PDU to canonical JSON.")
 		})?;
 
-		pdu_json.remove("event_id");
+		// room v3 and above removed the "event_id" field from remote PDU format
+		match room_version_id {
+			RoomVersionId::V1 | RoomVersionId::V2 => {},
+			_ => {
+				pdu_json.remove("event_id");
+			},
+		};
 
 		// Add origin because synapse likes that (and it's required in the spec)
 		pdu_json.insert(

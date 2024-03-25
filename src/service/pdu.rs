@@ -18,7 +18,7 @@ use serde_json::{
 };
 use tracing::warn;
 
-use crate::Error;
+use crate::{services, Error};
 
 /// Content hashes of a PDU.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -281,7 +281,21 @@ impl PduEvent {
 			unsigned.remove("transaction_id");
 		}
 
-		pdu_json.remove("event_id");
+		if let Some(room_id) = pdu_json.get("room_id").and_then(|val| RoomId::parse(val.as_str()?).ok()) {
+			if let Ok(room_version_id) = services().rooms.state.get_room_version(&room_id) {
+				// room v3 and above removed the "event_id" field from remote PDU format
+				match room_version_id {
+					RoomVersionId::V1 | RoomVersionId::V2 => {},
+					_ => {
+						pdu_json.remove("event_id");
+					},
+				};
+			} else {
+				pdu_json.remove("event_id");
+			}
+		} else {
+			pdu_json.remove("event_id");
+		}
 
 		// TODO: another option would be to convert it to a canonical string to validate
 		// size and return a Result<Raw<...>>
