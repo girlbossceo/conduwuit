@@ -361,21 +361,21 @@ url_preview_check_root_domain = false
 # Defaults to false as this uses more CPU when compressing.
 #rocksdb_bottommost_compression = false
 
-# RocksDB WAL recovery mode
+# Database recovery mode (for RocksDB WAL corruption)
 #
-# If the database becomes corrupted, an attempt at some form of recovery or at least opening it can be made
-# using this config option.
+# Use this option when the server reports corruption and refuses to start. Set mode 2 (PointInTime)
+# to cleanly recover from this corruption. The server will continue from the last good state,
+# several seconds or minutes prior to the crash. Clients may have to run "clear-cache & reload" to
+# account for the rollback. Upon success, you may reset the mode back to default and restart again.
+# Please note in some cases the corruption error may not be cleared for at least 30 minutes of
+# operation in PointInTime mode.
 #
-# In this event, provided that you have searched for any backups already, it's recommended to start by using PointInTime recovery mode. If this opens your database successfully,
-# you will want to immediately run the `clear-cache` database admin command and restart Conduwuit again setting this back to 1 (TolerateCorruptedTailRecords)
-# If no further issues arrise, your database should be okay now.
+# As a very last ditch effort, if PointInTime does not fix or resolve anything, you can try mode
+# 3 (SkipAnyCorruptedRecord) but this will leave the server in a potentially inconsistent state.
 #
-# As a very last ditch effort, if PointInTime does not fix or resolve anything, you can try SkipAnyCorruptedRecord but this
-# has a good chance to do more damage than before
-#
-# TolerateCorruptedTailRecords is the default as generally tail records may be caused by unclean shutdowns, and any data here is likely
-# federation data that can be re-retrieved by other servers again. 
-#
+# The default mode 1 (TolerateCorruptedTailRecords) will automatically drop the last entry in the
+# database if corrupted during shutdown, but nothing more. It is extraordinarily unlikely this will
+# desynchronize clients. To disable any form of silent rollback set mode 0 (AbsoluteConsistency).
 #
 # The options are:
 # 0 = AbsoluteConsistency
