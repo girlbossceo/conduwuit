@@ -563,12 +563,12 @@ pub async fn get_room_event_route(body: Ruma<get_room_event::v3::Request>) -> Re
 ///
 /// Lists all aliases of the room.
 ///
-/// - Only users joined to the room are allowed to call this TODO: Allow any
-///   user to call it if `history_visibility` is world readable
+/// - Only users joined to the room are allowed to call this, or if
+///   `history_visibility` is world readable in the room
 pub async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<aliases::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().rooms.state_cache.is_joined(sender_user, &body.room_id)? {
+	if !services().rooms.state_accessor.user_can_see_state_events(sender_user, &body.room_id)? {
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view this room.",

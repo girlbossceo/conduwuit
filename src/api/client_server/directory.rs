@@ -228,8 +228,13 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 							.map(|c: RoomHistoryVisibilityEventContent| {
 								c.history_visibility == HistoryVisibility::WorldReadable
 							})
-							.map_err(|_| Error::bad_database("Invalid room history visibility event in database."))
-					})?,
+                            .map_err(|e| {
+                                error!(
+                                    "Invalid room history visibility event in database for room {}: {e}",
+                                    &room_id
+                                );
+                                Error::bad_database("Invalid room history visibility event in database.")
+                            })})?,
 				guest_can_join: services()
 					.rooms
 					.state_accessor

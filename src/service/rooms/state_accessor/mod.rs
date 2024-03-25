@@ -194,7 +194,10 @@ impl Service {
 			|s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
-					.map_err(|_| Error::bad_database("Invalid history visibility event in database."))
+					.map_err(|e| {
+						error!("Invalid history visibility event in database for room {}: {e}", &room_id);
+						Error::bad_database("Invalid history visibility event in database.")
+					})
 			},
 		)?;
 
