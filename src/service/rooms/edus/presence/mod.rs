@@ -91,7 +91,8 @@ impl Service {
 		&self, room_id: &RoomId, user_id: &UserId, presence_state: PresenceState, currently_active: Option<bool>,
 		last_active_ago: Option<UInt>, status_msg: Option<String>,
 	) -> Result<()> {
-		self.db.set_presence(room_id, user_id, presence_state, currently_active, last_active_ago, status_msg)
+		self.db
+			.set_presence(room_id, user_id, presence_state, currently_active, last_active_ago, status_msg)
 	}
 
 	/// Removes the presence record for the given user from the database.
@@ -142,7 +143,11 @@ fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
 	let mut status_msg = None;
 
 	for room_id in services().rooms.state_cache.rooms_joined(user_id) {
-		let presence_event = services().rooms.edus.presence.get_presence(&room_id?, user_id)?;
+		let presence_event = services()
+			.rooms
+			.edus
+			.presence
+			.get_presence(&room_id?, user_id)?;
 
 		if let Some(presence_event) = presence_event {
 			presence_state = presence_event.content.presence;

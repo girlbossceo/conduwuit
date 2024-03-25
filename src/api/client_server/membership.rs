@@ -242,8 +242,15 @@ pub async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Result<kick_
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(body.room_id.clone())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	services()
@@ -293,8 +300,14 @@ pub async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_use
 				serde_json::from_str(event.content.get())
 					.map(|event: RoomMemberEventContent| RoomMemberEventContent {
 						membership: MembershipState::Ban,
-						displayname: services().users.displayname(&body.user_id).unwrap_or_default(),
-						avatar_url: services().users.avatar_url(&body.user_id).unwrap_or_default(),
+						displayname: services()
+							.users
+							.displayname(&body.user_id)
+							.unwrap_or_default(),
+						avatar_url: services()
+							.users
+							.avatar_url(&body.user_id)
+							.unwrap_or_default(),
 						blurhash: services().users.blurhash(&body.user_id).unwrap_or_default(),
 						reason: body.reason.clone(),
 						..event
@@ -303,8 +316,15 @@ pub async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_use
 			},
 		)?;
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(body.room_id.clone())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	services()
@@ -349,8 +369,15 @@ pub async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Result<unb
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(body.room_id.clone())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	services()
@@ -387,7 +414,10 @@ pub async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Result<unb
 pub async fn forget_room_route(body: Ruma<forget_room::v3::Request>) -> Result<forget_room::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	services().rooms.state_cache.forget(&body.room_id, sender_user)?;
+	services()
+		.rooms
+		.state_cache
+		.forget(&body.room_id, sender_user)?;
 
 	Ok(forget_room::v3::Response::new())
 }
@@ -399,7 +429,12 @@ pub async fn joined_rooms_route(body: Ruma<joined_rooms::v3::Request>) -> Result
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	Ok(joined_rooms::v3::Response {
-		joined_rooms: services().rooms.state_cache.rooms_joined(sender_user).filter_map(Result::ok).collect(),
+		joined_rooms: services()
+			.rooms
+			.state_cache
+			.rooms_joined(sender_user)
+			.filter_map(Result::ok)
+			.collect(),
 	})
 }
 
@@ -414,7 +449,11 @@ pub async fn get_member_events_route(
 ) -> Result<get_member_events::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().rooms.state_accessor.user_can_see_state_events(sender_user, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_accessor
+		.user_can_see_state_events(sender_user, &body.room_id)?
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view this room.",
@@ -443,7 +482,11 @@ pub async fn get_member_events_route(
 pub async fn joined_members_route(body: Ruma<joined_members::v3::Request>) -> Result<joined_members::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().rooms.state_accessor.user_can_see_state_events(sender_user, &body.room_id)? {
+	if !services()
+		.rooms
+		.state_accessor
+		.user_can_see_state_events(sender_user, &body.room_id)?
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view this room.",
@@ -451,7 +494,12 @@ pub async fn joined_members_route(body: Ruma<joined_members::v3::Request>) -> Re
 	}
 
 	let mut joined = BTreeMap::new();
-	for user_id in services().rooms.state_cache.room_members(&body.room_id).filter_map(Result::ok) {
+	for user_id in services()
+		.rooms
+		.state_cache
+		.room_members(&body.room_id)
+		.filter_map(Result::ok)
+	{
 		let display_name = services().users.displayname(&user_id)?;
 		let avatar_url = services().users.avatar_url(&user_id)?;
 
@@ -475,12 +523,23 @@ pub(crate) async fn join_room_by_id_helper(
 ) -> Result<join_room_by_id::v3::Response> {
 	let sender_user = sender_user.expect("user is authenticated");
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.to_owned()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(room_id.to_owned())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	// Ask a remote server if we are not participating in this room
-	if !services().rooms.state_cache.server_in_room(services().globals.server_name(), room_id)? {
+	if !services()
+		.rooms
+		.state_cache
+		.server_in_room(services().globals.server_name(), room_id)?
+	{
 		info!("Joining {room_id} over federation.");
 
 		let (make_join_response, remote_server) = make_join_request(sender_user, room_id, servers).await?;
@@ -488,7 +547,14 @@ pub(crate) async fn join_room_by_id_helper(
 		info!("make_join finished");
 
 		let room_version_id = match make_join_response.room_version {
-			Some(room_version) if services().globals.supported_room_versions().contains(&room_version) => room_version,
+			Some(room_version)
+				if services()
+					.globals
+					.supported_room_versions()
+					.contains(&room_version) =>
+			{
+				room_version
+			},
 			_ => return Err(Error::BadServerResponse("Room version is not supported")),
 		};
 
@@ -497,7 +563,11 @@ pub(crate) async fn join_room_by_id_helper(
 
 		let join_authorized_via_users_server = join_event_stub
 			.get("content")
-			.map(|s| s.as_object()?.get("join_authorised_via_users_server")?.as_str())
+			.map(|s| {
+				s.as_object()?
+					.get("join_authorised_via_users_server")?
+					.as_str()
+			})
 			.and_then(|s| OwnedUserId::try_from(s.unwrap_or_default()).ok());
 
 		// TODO: Is origin needed?
@@ -508,7 +578,9 @@ pub(crate) async fn join_room_by_id_helper(
 		join_event_stub.insert(
 			"origin_server_ts".to_owned(),
 			CanonicalJsonValue::Integer(
-				utils::millis_since_unix_epoch().try_into().expect("Timestamp is valid js_int value"),
+				utils::millis_since_unix_epoch()
+					.try_into()
+					.expect("Timestamp is valid js_int value"),
 			),
 		);
 		join_event_stub.insert(
@@ -691,10 +763,15 @@ pub(crate) async fn join_room_by_id_helper(
 				Error::BadServerResponse("Invalid PDU in send_join response.")
 			})?;
 
-			services().rooms.outlier.add_pdu_outlier(&event_id, &value)?;
+			services()
+				.rooms
+				.outlier
+				.add_pdu_outlier(&event_id, &value)?;
 			if let Some(state_key) = &pdu.state_key {
-				let shortstatekey =
-					services().rooms.short.get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)?;
+				let shortstatekey = services()
+					.rooms
+					.short
+					.get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)?;
 				state.insert(shortstatekey, pdu.event_id.clone());
 			}
 		}
@@ -711,7 +788,10 @@ pub(crate) async fn join_room_by_id_helper(
 				Err(_) => continue,
 			};
 
-			services().rooms.outlier.add_pdu_outlier(&event_id, &value)?;
+			services()
+				.rooms
+				.outlier
+				.add_pdu_outlier(&event_id, &value)?;
 		}
 
 		info!("Running send_join auth check");
@@ -725,8 +805,13 @@ pub(crate) async fn join_room_by_id_helper(
 					.rooms
 					.timeline
 					.get_pdu(
-						state
-							.get(&services().rooms.short.get_or_create_shortstatekey(&k.to_string().into(), s).ok()?)?,
+						state.get(
+							&services()
+								.rooms
+								.short
+								.get_or_create_shortstatekey(&k.to_string().into(), s)
+								.ok()?,
+						)?,
 					)
 					.ok()?
 			},
@@ -746,12 +831,21 @@ pub(crate) async fn join_room_by_id_helper(
 			Arc::new(
 				state
 					.into_iter()
-					.map(|(k, id)| services().rooms.state_compressor.compress_state_event(k, &id))
+					.map(|(k, id)| {
+						services()
+							.rooms
+							.state_compressor
+							.compress_state_event(k, &id)
+					})
 					.collect::<Result<_>>()?,
 			),
 		)?;
 
-		services().rooms.state.force_state(room_id, statehash_before_join, new, removed, &state_lock).await?;
+		services()
+			.rooms
+			.state
+			.force_state(room_id, statehash_before_join, new, removed, &state_lock)
+			.await?;
 
 		info!("Updating joined counts for new room");
 		services().rooms.state_cache.update_joined_count(room_id)?;
@@ -776,14 +870,23 @@ pub(crate) async fn join_room_by_id_helper(
 		info!("Setting final room state for new room");
 		// We set the room state after inserting the pdu, so that we never have a moment
 		// in time where events in the current room state do not exist
-		services().rooms.state.set_room_state(room_id, statehash_after_join, &state_lock)?;
+		services()
+			.rooms
+			.state
+			.set_room_state(room_id, statehash_after_join, &state_lock)?;
 	} else {
 		info!("We can join locally");
 
 		let join_rules_event =
-			services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
+			services()
+				.rooms
+				.state_accessor
+				.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
 		let power_levels_event =
-			services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?;
+			services()
+				.rooms
+				.state_accessor
+				.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?;
 
 		let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
 			.as_ref()
@@ -821,7 +924,12 @@ pub(crate) async fn join_room_by_id_helper(
 		let authorized_user = restriction_rooms
 			.iter()
 			.find_map(|restriction_room_id| {
-				if !services().rooms.state_cache.is_joined(sender_user, restriction_room_id).ok()? {
+				if !services()
+					.rooms
+					.state_cache
+					.is_joined(sender_user, restriction_room_id)
+					.ok()?
+				{
 					return None;
 				}
 				let authorized_user = power_levels_event_content
@@ -888,7 +996,10 @@ pub(crate) async fn join_room_by_id_helper(
 		};
 
 		if !restriction_rooms.is_empty()
-			&& servers.iter().filter(|s| *s != services().globals.server_name()).count() > 0
+			&& servers
+				.iter()
+				.filter(|s| *s != services().globals.server_name())
+				.count() > 0
 		{
 			info!(
 				"We couldn't do the join locally, maybe federation can help to satisfy the restricted join \
@@ -897,7 +1008,12 @@ pub(crate) async fn join_room_by_id_helper(
 			let (make_join_response, remote_server) = make_join_request(sender_user, room_id, servers).await?;
 
 			let room_version_id = match make_join_response.room_version {
-				Some(room_version_id) if services().globals.supported_room_versions().contains(&room_version_id) => {
+				Some(room_version_id)
+					if services()
+						.globals
+						.supported_room_versions()
+						.contains(&room_version_id) =>
+				{
 					room_version_id
 				},
 				_ => return Err(Error::BadServerResponse("Room version is not supported")),
@@ -906,7 +1022,11 @@ pub(crate) async fn join_room_by_id_helper(
 				.map_err(|_| Error::BadServerResponse("Invalid make_join event json received from server."))?;
 			let join_authorized_via_users_server = join_event_stub
 				.get("content")
-				.map(|s| s.as_object()?.get("join_authorised_via_users_server")?.as_str())
+				.map(|s| {
+					s.as_object()?
+						.get("join_authorised_via_users_server")?
+						.as_str()
+				})
 				.and_then(|s| OwnedUserId::try_from(s.unwrap_or_default()).ok());
 			// TODO: Is origin needed?
 			join_event_stub.insert(
@@ -916,7 +1036,9 @@ pub(crate) async fn join_room_by_id_helper(
 			join_event_stub.insert(
 				"origin_server_ts".to_owned(),
 				CanonicalJsonValue::Integer(
-					utils::millis_since_unix_epoch().try_into().expect("Timestamp is valid js_int value"),
+					utils::millis_since_unix_epoch()
+						.try_into()
+						.expect("Timestamp is valid js_int value"),
 				),
 			);
 			join_event_stub.insert(
@@ -1002,7 +1124,11 @@ pub(crate) async fn join_room_by_id_helper(
 
 				drop(state_lock);
 				let pub_key_map = RwLock::new(BTreeMap::new());
-				services().rooms.event_handler.fetch_required_signing_keys([&signed_value], &pub_key_map).await?;
+				services()
+					.rooms
+					.event_handler
+					.fetch_required_signing_keys([&signed_value], &pub_key_map)
+					.await?;
 				services()
 					.rooms
 					.event_handler
@@ -1065,7 +1191,13 @@ async fn validate_and_add_event_id(
 	.expect("ruma's reference hashes are valid event ids");
 
 	let back_off = |id| async {
-		match services().globals.bad_event_ratelimiter.write().await.entry(id) {
+		match services()
+			.globals
+			.bad_event_ratelimiter
+			.write()
+			.await
+			.entry(id)
+		{
 			Entry::Vacant(e) => {
 				e.insert((Instant::now(), 1));
 			},
@@ -1073,7 +1205,13 @@ async fn validate_and_add_event_id(
 		}
 	};
 
-	if let Some((time, tries)) = services().globals.bad_event_ratelimiter.read().await.get(&event_id) {
+	if let Some((time, tries)) = services()
+		.globals
+		.bad_event_ratelimiter
+		.read()
+		.await
+		.get(&event_id)
+	{
 		// Exponential backoff
 		let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
 		if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
@@ -1110,8 +1248,15 @@ pub(crate) async fn invite_helper(
 
 	if user_id.server_name() != services().globals.server_name() {
 		let (pdu, pdu_json, invite_room_state) = {
-			let mutex_state =
-				Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.to_owned()).or_default());
+			let mutex_state = Arc::clone(
+				services()
+					.globals
+					.roomid_mutex_state
+					.write()
+					.await
+					.entry(room_id.to_owned())
+					.or_default(),
+			);
 			let state_lock = mutex_state.lock().await;
 
 			let content = to_raw_value(&RoomMemberEventContent {
@@ -1196,7 +1341,11 @@ pub(crate) async fn invite_helper(
 		)
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-		services().rooms.event_handler.fetch_required_signing_keys([&value], &pub_key_map).await?;
+		services()
+			.rooms
+			.event_handler
+			.fetch_required_signing_keys([&value], &pub_key_map)
+			.await?;
 
 		let pdu_id: Vec<u8> = services()
 			.rooms
@@ -1221,15 +1370,26 @@ pub(crate) async fn invite_helper(
 		return Ok(());
 	}
 
-	if !services().rooms.state_cache.is_joined(sender_user, room_id)? {
+	if !services()
+		.rooms
+		.state_cache
+		.is_joined(sender_user, room_id)?
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"You don't have permission to view this room.",
 		));
 	}
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.to_owned()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(room_id.to_owned())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	services()
@@ -1270,7 +1430,13 @@ pub async fn leave_all_rooms(user_id: &UserId) -> Result<()> {
 		.rooms
 		.state_cache
 		.rooms_joined(user_id)
-		.chain(services().rooms.state_cache.rooms_invited(user_id).map(|t| t.map(|(r, _)| r)))
+		.chain(
+			services()
+				.rooms
+				.state_cache
+				.rooms_invited(user_id)
+				.map(|t| t.map(|(r, _)| r)),
+		)
 		.collect::<Vec<_>>();
 
 	for room_id in all_rooms {
@@ -1313,12 +1479,22 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 			)
 			.await?;
 	} else {
-		let mutex_state =
-			Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.to_owned()).or_default());
+		let mutex_state = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_state
+				.write()
+				.await
+				.entry(room_id.to_owned())
+				.or_default(),
+		);
 		let state_lock = mutex_state.lock().await;
 
 		let member_event =
-			services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?;
+			services()
+				.rooms
+				.state_accessor
+				.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?;
 
 		// Fix for broken rooms
 		let member_event = match member_event {
@@ -1411,7 +1587,14 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 	let (make_leave_response, remote_server) = make_leave_response_and_server?;
 
 	let room_version_id = match make_leave_response.room_version {
-		Some(version) if services().globals.supported_room_versions().contains(&version) => version,
+		Some(version)
+			if services()
+				.globals
+				.supported_room_versions()
+				.contains(&version) =>
+		{
+			version
+		},
 		_ => return Err(Error::BadServerResponse("Room version is not supported")),
 	};
 
@@ -1426,7 +1609,9 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 	leave_event_stub.insert(
 		"origin_server_ts".to_owned(),
 		CanonicalJsonValue::Integer(
-			utils::millis_since_unix_epoch().try_into().expect("Timestamp is valid js_int value"),
+			utils::millis_since_unix_epoch()
+				.try_into()
+				.expect("Timestamp is valid js_int value"),
 		),
 	);
 

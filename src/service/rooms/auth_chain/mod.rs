@@ -53,7 +53,11 @@ impl Service {
 			}
 
 			let chunk_key: Vec<u64> = chunk.iter().map(|(short, _)| short).copied().collect();
-			if let Some(cached) = services().rooms.auth_chain.get_cached_eventid_authchain(&chunk_key)? {
+			if let Some(cached) = services()
+				.rooms
+				.auth_chain
+				.get_cached_eventid_authchain(&chunk_key)?
+			{
 				hits += 1;
 				full_auth_chain.extend(cached.iter().copied());
 				continue;
@@ -65,13 +69,20 @@ impl Service {
 			let mut misses2 = 0;
 			let mut i = 0;
 			for (sevent_id, event_id) in chunk {
-				if let Some(cached) = services().rooms.auth_chain.get_cached_eventid_authchain(&[sevent_id])? {
+				if let Some(cached) = services()
+					.rooms
+					.auth_chain
+					.get_cached_eventid_authchain(&[sevent_id])?
+				{
 					hits2 += 1;
 					chunk_cache.extend(cached.iter().copied());
 				} else {
 					misses2 += 1;
 					let auth_chain = Arc::new(self.get_auth_chain_inner(room_id, &event_id)?);
-					services().rooms.auth_chain.cache_auth_chain(vec![sevent_id], Arc::clone(&auth_chain))?;
+					services()
+						.rooms
+						.auth_chain
+						.cache_auth_chain(vec![sevent_id], Arc::clone(&auth_chain))?;
 					debug!(
 						event_id = ?event_id,
 						chain_length = ?auth_chain.len(),
@@ -92,7 +103,10 @@ impl Service {
 				"Chunk missed",
 			);
 			let chunk_cache = Arc::new(chunk_cache);
-			services().rooms.auth_chain.cache_auth_chain(chunk_key, Arc::clone(&chunk_cache))?;
+			services()
+				.rooms
+				.auth_chain
+				.cache_auth_chain(chunk_key, Arc::clone(&chunk_cache))?;
 			full_auth_chain.extend(chunk_cache.iter());
 		}
 
@@ -103,7 +117,9 @@ impl Service {
 			"Auth chain stats",
 		);
 
-		Ok(full_auth_chain.into_iter().filter_map(move |sid| services().rooms.short.get_eventid_from_short(sid).ok()))
+		Ok(full_auth_chain
+			.into_iter()
+			.filter_map(move |sid| services().rooms.short.get_eventid_from_short(sid).ok()))
 	}
 
 	#[tracing::instrument(skip(self, event_id))]
@@ -118,7 +134,10 @@ impl Service {
 						return Err(Error::BadRequest(ErrorKind::Forbidden, "Evil event in db"));
 					}
 					for auth_event in &pdu.auth_events {
-						let sauthevent = services().rooms.short.get_or_create_shorteventid(auth_event)?;
+						let sauthevent = services()
+							.rooms
+							.short
+							.get_or_create_shorteventid(auth_event)?;
 
 						if !found.contains(&sauthevent) {
 							found.insert(sauthevent);

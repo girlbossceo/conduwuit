@@ -101,7 +101,11 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 				return Err(Error::BadServerResponse("could not hash"));
 			};
 
-			let hash_matches = services().globals.argon.verify_password(password.as_bytes(), &parsed_hash).is_ok();
+			let hash_matches = services()
+				.globals
+				.argon
+				.verify_password(password.as_bytes(), &parsed_hash)
+				.is_ok();
 
 			if !hash_matches {
 				return Err(Error::BadRequest(ErrorKind::Forbidden, "Wrong username or password."));
@@ -174,25 +178,37 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 	};
 
 	// Generate new device id if the user didn't specify one
-	let device_id = body.device_id.clone().unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
+	let device_id = body
+		.device_id
+		.clone()
+		.unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
 
 	// Generate a new token for the device
 	let token = utils::random_string(TOKEN_LENGTH);
 
 	// Determine if device_id was provided and exists in the db for this user
 	let device_exists = body.device_id.as_ref().map_or(false, |device_id| {
-		services().users.all_device_ids(&user_id).any(|x| x.as_ref().map_or(false, |v| v == device_id))
+		services()
+			.users
+			.all_device_ids(&user_id)
+			.any(|x| x.as_ref().map_or(false, |v| v == device_id))
 	});
 
 	if device_exists {
 		services().users.set_token(&user_id, &device_id, &token)?;
 	} else {
-		services().users.create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())?;
+		services()
+			.users
+			.create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())?;
 	}
 
 	// send client well-known if specified so the client knows to reconfigure itself
 	let client_discovery_info = DiscoveryInfo::new(HomeserverInfo::new(
-		services().globals.well_known_client().to_owned().unwrap_or_default(),
+		services()
+			.globals
+			.well_known_client()
+			.to_owned()
+			.unwrap_or_default(),
 	));
 
 	info!("{} logged in", user_id);

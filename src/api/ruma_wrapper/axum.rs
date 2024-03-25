@@ -44,14 +44,16 @@ where
 		let (mut parts, mut body) = match req.with_limited_body() {
 			Ok(limited_req) => {
 				let (parts, body) = limited_req.into_parts();
-				let body =
-					to_bytes(body).await.map_err(|_| Error::BadRequest(ErrorKind::MissingToken, "Missing token."))?;
+				let body = to_bytes(body)
+					.await
+					.map_err(|_| Error::BadRequest(ErrorKind::MissingToken, "Missing token."))?;
 				(parts, body)
 			},
 			Err(original_req) => {
 				let (parts, body) = original_req.into_parts();
-				let body =
-					to_bytes(body).await.map_err(|_| Error::BadRequest(ErrorKind::MissingToken, "Missing token."))?;
+				let body = to_bytes(body)
+					.await
+					.map_err(|_| Error::BadRequest(ErrorKind::MissingToken, "Missing token."))?;
 				(parts, body)
 			},
 		};
@@ -180,8 +182,10 @@ where
 						return Err(Error::bad_config("Federation is disabled."));
 					}
 
-					let TypedHeader(Authorization(x_matrix)) =
-						parts.extract::<TypedHeader<Authorization<XMatrix>>>().await.map_err(|e| {
+					let TypedHeader(Authorization(x_matrix)) = parts
+						.extract::<TypedHeader<Authorization<XMatrix>>>()
+						.await
+						.map_err(|e| {
 							warn!("Missing or invalid Authorization header: {}", e);
 
 							let msg = match e.reason() {
@@ -265,7 +269,11 @@ where
 				AuthScheme::None => match parts.uri.path() {
 					// allow_public_room_directory_without_auth
 					"/_matrix/client/v3/publicRooms" | "/_matrix/client/r0/publicRooms" => {
-						if !services().globals.config.allow_public_room_directory_without_auth {
+						if !services()
+							.globals
+							.config
+							.allow_public_room_directory_without_auth
+						{
 							let token = match token {
 								Some(token) => token,
 								_ => return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token.")),
@@ -362,7 +370,9 @@ impl Credentials for XMatrix {
 			"HeaderValue to decode should start with \"X-Matrix ..\", received = {value:?}",
 		);
 
-		let parameters = str::from_utf8(&value.as_bytes()["X-Matrix ".len()..]).ok()?.trim_start();
+		let parameters = str::from_utf8(&value.as_bytes()["X-Matrix ".len()..])
+			.ok()?
+			.trim_start();
 
 		let mut origin = None;
 		let mut destination = None;
@@ -374,7 +384,10 @@ impl Credentials for XMatrix {
 
 			// It's not at all clear why some fields are quoted and others not in the spec,
 			// let's simply accept either form for every field.
-			let value = value.strip_prefix('"').and_then(|rest| rest.strip_suffix('"')).unwrap_or(value);
+			let value = value
+				.strip_prefix('"')
+				.and_then(|rest| rest.strip_suffix('"'))
+				.unwrap_or(value);
 
 			// FIXME: Catch multiple fields of the same name
 			match name {

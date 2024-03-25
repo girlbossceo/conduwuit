@@ -152,7 +152,10 @@ pub async fn create_content_route(body: Ruma<create_content::v3::Request>) -> Re
 		.create(
 			Some(sender_user.clone()),
 			mxc.clone(),
-			body.filename.as_ref().map(|filename| "inline; filename=".to_owned() + filename).as_deref(),
+			body.filename
+				.as_ref()
+				.map(|filename| "inline; filename=".to_owned() + filename)
+				.as_deref(),
 			body.content_type.as_deref(),
 			&body.file,
 		)
@@ -192,7 +195,10 @@ pub async fn create_content_v1_route(
 		.create(
 			Some(sender_user.clone()),
 			mxc.clone(),
-			body.filename.as_ref().map(|filename| "inline; filename=".to_owned() + filename).as_deref(),
+			body.filename
+				.as_ref()
+				.map(|filename| "inline; filename=".to_owned() + filename)
+				.as_deref(),
 			body.content_type.as_deref(),
 			&body.file,
 		)
@@ -213,7 +219,11 @@ pub async fn get_remote_content(
 ) -> Result<get_content::v3::Response, Error> {
 	// we'll lie to the client and say the blocked server's media was not found and
 	// log. the client has no way of telling anyways so this is a security bonus.
-	if services().globals.prevent_media_downloads_from().contains(&server_name.to_owned()) {
+	if services()
+		.globals
+		.prevent_media_downloads_from()
+		.contains(&server_name.to_owned())
+	{
 		info!(
 			"Received request for remote media `{}` but server is in our media server blocklist. Returning 404.",
 			mxc
@@ -451,8 +461,12 @@ pub async fn get_content_thumbnail_route(
 		.media
 		.get_thumbnail(
 			mxc.clone(),
-			body.width.try_into().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
-			body.height.try_into().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Height is invalid."))?,
+			body.width
+				.try_into()
+				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
+			body.height
+				.try_into()
+				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Height is invalid."))?,
 		)
 		.await?
 	{
@@ -464,7 +478,11 @@ pub async fn get_content_thumbnail_route(
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
 		// we'll lie to the client and say the blocked server's media was not found and
 		// log. the client has no way of telling anyways so this is a security bonus.
-		if services().globals.prevent_media_downloads_from().contains(&body.server_name.clone()) {
+		if services()
+			.globals
+			.prevent_media_downloads_from()
+			.contains(&body.server_name.clone())
+		{
 			info!(
 				"Received request for remote media `{}` but server is in our media server blocklist. Returning 404.",
 				mxc
@@ -533,8 +551,12 @@ pub async fn get_content_thumbnail_v1_route(
 		.media
 		.get_thumbnail(
 			mxc.clone(),
-			body.width.try_into().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
-			body.height.try_into().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Height is invalid."))?,
+			body.width
+				.try_into()
+				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
+			body.height
+				.try_into()
+				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Height is invalid."))?,
 		)
 		.await?
 	{
@@ -547,7 +569,11 @@ pub async fn get_content_thumbnail_v1_route(
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
 		// we'll lie to the client and say the blocked server's media was not found and
 		// log. the client has no way of telling anyways so this is a security bonus.
-		if services().globals.prevent_media_downloads_from().contains(&body.server_name.clone()) {
+		if services()
+			.globals
+			.prevent_media_downloads_from()
+			.contains(&body.server_name.clone())
+		{
 			info!(
 				"Received request for remote media `{}` but server is in our media server blocklist. Returning 404.",
 				mxc
@@ -599,7 +625,10 @@ async fn download_image(client: &reqwest::Client, url: &str) -> Result<UrlPrevie
 		utils::random_string(MXC_LENGTH)
 	);
 
-	services().media.create(None, mxc.clone(), None, None, &image).await?;
+	services()
+		.media
+		.create(None, mxc.clone(), None, None, &image)
+		.await?;
 
 	let (width, height) = match ImgReader::new(Cursor::new(&image)).with_guessed_format() {
 		Err(_) => (None, None),
@@ -749,14 +778,21 @@ async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
 		}
 	}
 
-	if !response.remote_addr().map_or(false, |a| url_request_allowed(&a.ip())) {
+	if !response
+		.remote_addr()
+		.map_or(false, |a| url_request_allowed(&a.ip()))
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::Forbidden,
 			"Requesting from this address is forbidden",
 		));
 	}
 
-	let content_type = match response.headers().get(reqwest::header::CONTENT_TYPE).and_then(|x| x.to_str().ok()) {
+	let content_type = match response
+		.headers()
+		.get(reqwest::header::CONTENT_TYPE)
+		.and_then(|x| x.to_str().ok())
+	{
 		Some(ct) => ct,
 		None => return Err(Error::BadRequest(ErrorKind::Unknown, "Unknown Content-Type")),
 	};
@@ -777,7 +813,15 @@ async fn get_url_preview(url: &str) -> Result<UrlPreviewData> {
 	}
 
 	// ensure that only one request is made per URL
-	let mutex_request = Arc::clone(services().media.url_preview_mutex.write().await.entry(url.to_owned()).or_default());
+	let mutex_request = Arc::clone(
+		services()
+			.media
+			.url_preview_mutex
+			.write()
+			.await
+			.entry(url.to_owned())
+			.or_default(),
+	);
 	let _request_lock = mutex_request.lock().await;
 
 	match services().media.get_url_preview(url).await {
@@ -795,7 +839,10 @@ fn url_preview_allowed(url_str: &str) -> bool {
 		},
 	};
 
-	if ["http", "https"].iter().all(|&scheme| scheme != url.scheme().to_lowercase()) {
+	if ["http", "https"]
+		.iter()
+		.all(|&scheme| scheme != url.scheme().to_lowercase())
+	{
 		debug!("Ignoring non-HTTP/HTTPS URL to preview: {}", url);
 		return false;
 	}
@@ -826,12 +873,18 @@ fn url_preview_allowed(url_str: &str) -> bool {
 			return true;
 		}
 
-		if allowlist_domain_contains.iter().any(|domain_s| domain_s.contains(&host.clone())) {
+		if allowlist_domain_contains
+			.iter()
+			.any(|domain_s| domain_s.contains(&host.clone()))
+		{
 			debug!("Host {} is allowed by url_preview_domain_contains_allowlist (check 2/3)", &host);
 			return true;
 		}
 
-		if allowlist_url_contains.iter().any(|url_s| url.to_string().contains(&url_s.to_string())) {
+		if allowlist_url_contains
+			.iter()
+			.any(|url_s| url.to_string().contains(&url_s.to_string()))
+		{
 			debug!("URL {} is allowed by url_preview_url_contains_allowlist (check 3/3)", &host);
 			return true;
 		}
@@ -850,7 +903,10 @@ fn url_preview_allowed(url_str: &str) -> bool {
 						return true;
 					}
 
-					if allowlist_domain_contains.iter().any(|domain_s| domain_s.contains(&root_domain.to_owned())) {
+					if allowlist_domain_contains
+						.iter()
+						.any(|domain_s| domain_s.contains(&root_domain.to_owned()))
+					{
 						debug!(
 							"Root domain {} is allowed by url_preview_domain_contains_allowlist (check 2/3)",
 							&root_domain

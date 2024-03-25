@@ -15,7 +15,10 @@ use ruma::{canonical_json::try_from_json_map, CanonicalJsonError, CanonicalJsonO
 use crate::{services, Error, Result};
 
 pub(crate) fn millis_since_unix_epoch() -> u64 {
-	SystemTime::now().duration_since(UNIX_EPOCH).expect("time is valid").as_millis() as u64
+	SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.expect("time is valid")
+		.as_millis() as u64
 }
 
 pub(crate) fn increment(old: Option<&[u8]>) -> Vec<u8> {
@@ -59,13 +62,21 @@ pub fn user_id_from_bytes(bytes: &[u8]) -> Result<OwnedUserId> {
 }
 
 pub fn random_string(length: usize) -> String {
-	thread_rng().sample_iter(&rand::distributions::Alphanumeric).take(length).map(char::from).collect()
+	thread_rng()
+		.sample_iter(&rand::distributions::Alphanumeric)
+		.take(length)
+		.map(char::from)
+		.collect()
 }
 
 /// Calculate a new hash for the given password
 pub fn calculate_password_hash(password: &str) -> Result<String, argon2::password_hash::Error> {
 	let salt = SaltString::generate(thread_rng());
-	services().globals.argon.hash_password(password.as_bytes(), &salt).map(|it| it.to_string())
+	services()
+		.globals
+		.argon
+		.hash_password(password.as_bytes(), &salt)
+		.map(|it| it.to_string())
 }
 
 #[tracing::instrument(skip(keys))]

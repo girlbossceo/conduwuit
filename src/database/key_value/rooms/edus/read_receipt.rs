@@ -18,7 +18,10 @@ impl service::rooms::edus::read_receipt::Data for KeyValueDatabase {
 			.iter_from(&last_possible_key, true)
 			.take_while(|(key, _)| key.starts_with(&prefix))
 			.find(|(key, _)| {
-				key.rsplit(|&b| b == 0xFF).next().expect("rsplit always returns an element") == user_id.as_bytes()
+				key.rsplit(|&b| b == 0xFF)
+					.next()
+					.expect("rsplit always returns an element")
+					== user_id.as_bytes()
 			}) {
 			// This is the old room_latest
 			self.readreceiptid_readreceipt.remove(&old)?;
@@ -78,9 +81,11 @@ impl service::rooms::edus::read_receipt::Data for KeyValueDatabase {
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
 
-		self.roomuserid_privateread.insert(&key, &count.to_be_bytes())?;
+		self.roomuserid_privateread
+			.insert(&key, &count.to_be_bytes())?;
 
-		self.roomuserid_lastprivatereadupdate.insert(&key, &services().globals.next_count()?.to_be_bytes())
+		self.roomuserid_lastprivatereadupdate
+			.insert(&key, &services().globals.next_count()?.to_be_bytes())
 	}
 
 	fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
@@ -88,11 +93,13 @@ impl service::rooms::edus::read_receipt::Data for KeyValueDatabase {
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
 
-		self.roomuserid_privateread.get(&key)?.map_or(Ok(None), |v| {
-			Ok(Some(
-				utils::u64_from_bytes(&v).map_err(|_| Error::bad_database("Invalid private read marker bytes"))?,
-			))
-		})
+		self.roomuserid_privateread
+			.get(&key)?
+			.map_or(Ok(None), |v| {
+				Ok(Some(
+					utils::u64_from_bytes(&v).map_err(|_| Error::bad_database("Invalid private read marker bytes"))?,
+				))
+			})
 	}
 
 	fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {

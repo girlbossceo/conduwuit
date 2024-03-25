@@ -20,7 +20,8 @@ impl Service {
 	pub fn lazy_load_was_sent_before(
 		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, ll_user: &UserId,
 	) -> Result<bool> {
-		self.db.lazy_load_was_sent_before(user_id, device_id, room_id, ll_user)
+		self.db
+			.lazy_load_was_sent_before(user_id, device_id, room_id, ll_user)
 	}
 
 	#[tracing::instrument(skip(self))]
@@ -44,7 +45,8 @@ impl Service {
 			room_id.to_owned(),
 			since,
 		)) {
-			self.db.lazy_load_confirm_delivery(user_id, device_id, room_id, &mut user_ids.iter().map(|u| &**u))?;
+			self.db
+				.lazy_load_confirm_delivery(user_id, device_id, room_id, &mut user_ids.iter().map(|u| &**u))?;
 		} else {
 			// Ignore
 		}

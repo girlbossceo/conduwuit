@@ -31,14 +31,17 @@ impl service::globals::Data for KeyValueDatabase {
 	}
 
 	fn last_check_for_updates_id(&self) -> Result<u64> {
-		self.global.get(LAST_CHECK_FOR_UPDATES_COUNT)?.map_or(Ok(0_u64), |bytes| {
-			utils::u64_from_bytes(&bytes)
-				.map_err(|_| Error::bad_database("last check for updates count has invalid bytes."))
-		})
+		self.global
+			.get(LAST_CHECK_FOR_UPDATES_COUNT)?
+			.map_or(Ok(0_u64), |bytes| {
+				utils::u64_from_bytes(&bytes)
+					.map_err(|_| Error::bad_database("last check for updates count has invalid bytes."))
+			})
 	}
 
 	fn update_check_for_updates_id(&self, id: u64) -> Result<()> {
-		self.global.insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes())?;
+		self.global
+			.insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes())?;
 
 		Ok(())
 	}
@@ -62,11 +65,19 @@ impl service::globals::Data for KeyValueDatabase {
 		futures.push(self.userroomid_joined.watch_prefix(&userid_prefix));
 		futures.push(self.userroomid_invitestate.watch_prefix(&userid_prefix));
 		futures.push(self.userroomid_leftstate.watch_prefix(&userid_prefix));
-		futures.push(self.userroomid_notificationcount.watch_prefix(&userid_prefix));
+		futures.push(
+			self.userroomid_notificationcount
+				.watch_prefix(&userid_prefix),
+		);
 		futures.push(self.userroomid_highlightcount.watch_prefix(&userid_prefix));
 
 		// Events for rooms we are in
-		for room_id in services().rooms.state_cache.rooms_joined(user_id).filter_map(Result::ok) {
+		for room_id in services()
+			.rooms
+			.state_cache
+			.rooms_joined(user_id)
+			.filter_map(Result::ok)
+		{
 			let short_roomid = services()
 				.rooms
 				.short
@@ -98,13 +109,19 @@ impl service::globals::Data for KeyValueDatabase {
 			let mut roomuser_prefix = roomid_prefix.clone();
 			roomuser_prefix.extend_from_slice(&userid_prefix);
 
-			futures.push(self.roomusertype_roomuserdataid.watch_prefix(&roomuser_prefix));
+			futures.push(
+				self.roomusertype_roomuserdataid
+					.watch_prefix(&roomuser_prefix),
+			);
 		}
 
 		let mut globaluserdata_prefix = vec![0xFF];
 		globaluserdata_prefix.extend_from_slice(&userid_prefix);
 
-		futures.push(self.roomusertype_roomuserdataid.watch_prefix(&globaluserdata_prefix));
+		futures.push(
+			self.roomusertype_roomuserdataid
+				.watch_prefix(&globaluserdata_prefix),
+		);
 
 		// More key changes (used when user is not joined to any rooms)
 		futures.push(self.keychangeid_userid.watch_prefix(&userid_prefix));
@@ -207,7 +224,9 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 
 		utils::string_from_bytes(
 			// 1. version
-			parts.next().expect("splitn always returns at least one element"),
+			parts
+				.next()
+				.expect("splitn always returns at least one element"),
 		)
 		.map_err(|_| Error::bad_database("Invalid version bytes in keypair."))
 		.and_then(|version| {
@@ -231,10 +250,12 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 		// Not atomic, but this is not critical
 		let signingkeys = self.server_signingkeys.get(origin.as_bytes())?;
 
-		let mut keys = signingkeys.and_then(|keys| serde_json::from_slice(&keys).ok()).unwrap_or_else(|| {
-			// Just insert "now", it doesn't matter
-			ServerSigningKeys::new(origin.to_owned(), MilliSecondsSinceUnixEpoch::now())
-		});
+		let mut keys = signingkeys
+			.and_then(|keys| serde_json::from_slice(&keys).ok())
+			.unwrap_or_else(|| {
+				// Just insert "now", it doesn't matter
+				ServerSigningKeys::new(origin.to_owned(), MilliSecondsSinceUnixEpoch::now())
+			});
 
 		let ServerSigningKeys {
 			verify_keys,
@@ -251,7 +272,11 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 		)?;
 
 		let mut tree = keys.verify_keys;
-		tree.extend(keys.old_verify_keys.into_iter().map(|old| (old.0, VerifyKey::new(old.1.key))));
+		tree.extend(
+			keys.old_verify_keys
+				.into_iter()
+				.map(|old| (old.0, VerifyKey::new(old.1.key))),
+		);
 
 		Ok(tree)
 	}
@@ -265,7 +290,11 @@ lasttimelinecount_cache: {lasttimelinecount_cache}\n"
 			.and_then(|bytes| serde_json::from_slice(&bytes).ok())
 			.map_or_else(BTreeMap::new, |keys: ServerSigningKeys| {
 				let mut tree = keys.verify_keys;
-				tree.extend(keys.old_verify_keys.into_iter().map(|old| (old.0, VerifyKey::new(old.1.key))));
+				tree.extend(
+					keys.old_verify_keys
+						.into_iter()
+						.map(|old| (old.0, VerifyKey::new(old.1.key))),
+				);
 				tree
 			});
 

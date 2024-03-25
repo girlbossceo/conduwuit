@@ -25,7 +25,10 @@ pub async fn set_displayname_route(
 ) -> Result<set_display_name::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	services().users.set_displayname(sender_user, body.displayname.clone()).await?;
+	services()
+		.users
+		.set_displayname(sender_user, body.displayname.clone())
+		.await?;
 
 	// Send a new membership event and presence update into all joined rooms
 	let all_rooms_joined: Vec<_> = services()
@@ -64,16 +67,31 @@ pub async fn set_displayname_route(
 		.collect();
 
 	for (pdu_builder, room_id) in all_rooms_joined {
-		let mutex_state =
-			Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
+		let mutex_state = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_state
+				.write()
+				.await
+				.entry(room_id.clone())
+				.or_default(),
+		);
 		let state_lock = mutex_state.lock().await;
 
-		_ = services().rooms.timeline.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock).await;
+		_ = services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock)
+			.await;
 	}
 
 	if services().globals.allow_local_presence() {
 		// Presence update
-		services().rooms.edus.presence.ping_presence(sender_user, PresenceState::Online)?;
+		services()
+			.rooms
+			.edus
+			.presence
+			.ping_presence(sender_user, PresenceState::Online)?;
 	}
 
 	Ok(set_display_name::v3::Response {})
@@ -105,9 +123,18 @@ pub async fn get_displayname_route(
 				services().users.create(&body.user_id, None)?;
 			}
 
-			services().users.set_displayname(&body.user_id, response.displayname.clone()).await?;
-			services().users.set_avatar_url(&body.user_id, response.avatar_url.clone()).await?;
-			services().users.set_blurhash(&body.user_id, response.blurhash.clone()).await?;
+			services()
+				.users
+				.set_displayname(&body.user_id, response.displayname.clone())
+				.await?;
+			services()
+				.users
+				.set_avatar_url(&body.user_id, response.avatar_url.clone())
+				.await?;
+			services()
+				.users
+				.set_blurhash(&body.user_id, response.blurhash.clone())
+				.await?;
 
 			return Ok(get_display_name::v3::Response {
 				displayname: response.displayname,
@@ -134,9 +161,15 @@ pub async fn get_displayname_route(
 pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Result<set_avatar_url::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	services().users.set_avatar_url(sender_user, body.avatar_url.clone()).await?;
+	services()
+		.users
+		.set_avatar_url(sender_user, body.avatar_url.clone())
+		.await?;
 
-	services().users.set_blurhash(sender_user, body.blurhash.clone()).await?;
+	services()
+		.users
+		.set_blurhash(sender_user, body.blurhash.clone())
+		.await?;
 
 	// Send a new membership event and presence update into all joined rooms
 	let all_joined_rooms: Vec<_> = services()
@@ -175,16 +208,31 @@ pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Re
 		.collect();
 
 	for (pdu_builder, room_id) in all_joined_rooms {
-		let mutex_state =
-			Arc::clone(services().globals.roomid_mutex_state.write().await.entry(room_id.clone()).or_default());
+		let mutex_state = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_state
+				.write()
+				.await
+				.entry(room_id.clone())
+				.or_default(),
+		);
 		let state_lock = mutex_state.lock().await;
 
-		_ = services().rooms.timeline.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock).await;
+		_ = services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock)
+			.await;
 	}
 
 	if services().globals.allow_local_presence() {
 		// Presence update
-		services().rooms.edus.presence.ping_presence(sender_user, PresenceState::Online)?;
+		services()
+			.rooms
+			.edus
+			.presence
+			.ping_presence(sender_user, PresenceState::Online)?;
 	}
 
 	Ok(set_avatar_url::v3::Response {})
@@ -214,9 +262,18 @@ pub async fn get_avatar_url_route(body: Ruma<get_avatar_url::v3::Request>) -> Re
 				services().users.create(&body.user_id, None)?;
 			}
 
-			services().users.set_displayname(&body.user_id, response.displayname.clone()).await?;
-			services().users.set_avatar_url(&body.user_id, response.avatar_url.clone()).await?;
-			services().users.set_blurhash(&body.user_id, response.blurhash.clone()).await?;
+			services()
+				.users
+				.set_displayname(&body.user_id, response.displayname.clone())
+				.await?;
+			services()
+				.users
+				.set_avatar_url(&body.user_id, response.avatar_url.clone())
+				.await?;
+			services()
+				.users
+				.set_blurhash(&body.user_id, response.blurhash.clone())
+				.await?;
 
 			return Ok(get_avatar_url::v3::Response {
 				avatar_url: response.avatar_url,
@@ -261,9 +318,18 @@ pub async fn get_profile_route(body: Ruma<get_profile::v3::Request>) -> Result<g
 				services().users.create(&body.user_id, None)?;
 			}
 
-			services().users.set_displayname(&body.user_id, response.displayname.clone()).await?;
-			services().users.set_avatar_url(&body.user_id, response.avatar_url.clone()).await?;
-			services().users.set_blurhash(&body.user_id, response.blurhash.clone()).await?;
+			services()
+				.users
+				.set_displayname(&body.user_id, response.displayname.clone())
+				.await?;
+			services()
+				.users
+				.set_avatar_url(&body.user_id, response.avatar_url.clone())
+				.await?;
+			services()
+				.users
+				.set_blurhash(&body.user_id, response.blurhash.clone())
+				.await?;
 
 			return Ok(get_profile::v3::Response {
 				displayname: response.displayname,

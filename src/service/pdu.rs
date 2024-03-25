@@ -277,11 +277,17 @@ impl PduEvent {
 	/// This does not return a full `Pdu` it is only to satisfy ruma's types.
 	#[tracing::instrument]
 	pub fn convert_to_outgoing_federation_event(mut pdu_json: CanonicalJsonObject) -> Box<RawJsonValue> {
-		if let Some(unsigned) = pdu_json.get_mut("unsigned").and_then(|val| val.as_object_mut()) {
+		if let Some(unsigned) = pdu_json
+			.get_mut("unsigned")
+			.and_then(|val| val.as_object_mut())
+		{
 			unsigned.remove("transaction_id");
 		}
 
-		if let Some(room_id) = pdu_json.get("room_id").and_then(|val| RoomId::parse(val.as_str()?).ok()) {
+		if let Some(room_id) = pdu_json
+			.get("room_id")
+			.and_then(|val| RoomId::parse(val.as_str()?).ok())
+		{
 			if let Ok(room_version_id) = services().rooms.state.get_room_version(&room_id) {
 				// room v3 and above removed the "event_id" field from remote PDU format
 				match room_version_id {

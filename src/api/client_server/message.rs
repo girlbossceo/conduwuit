@@ -32,8 +32,15 @@ pub async fn send_message_event_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_deref();
 
-	let mutex_state =
-		Arc::clone(services().globals.roomid_mutex_state.write().await.entry(body.room_id.clone()).or_default());
+	let mutex_state = Arc::clone(
+		services()
+			.globals
+			.roomid_mutex_state
+			.write()
+			.await
+			.entry(body.room_id.clone())
+			.or_default(),
+	);
 	let state_lock = mutex_state.lock().await;
 
 	// Forbid m.room.encrypted if encryption is disabled
@@ -90,7 +97,10 @@ pub async fn send_message_event_route(
 	};
 
 	// Check if this is a new transaction id
-	if let Some(response) = services().transaction_ids.existing_txnid(sender_user, sender_device, &body.txn_id)? {
+	if let Some(response) = services()
+		.transaction_ids
+		.existing_txnid(sender_user, sender_device, &body.txn_id)?
+	{
 		// The client might have sent a txnid of the /sendToDevice endpoint
 		// This txnid has no response associated with it
 		if response.is_empty() {
@@ -130,7 +140,9 @@ pub async fn send_message_event_route(
 		)
 		.await?;
 
-	services().transaction_ids.add_txnid(sender_user, sender_device, &body.txn_id, event_id.as_bytes())?;
+	services()
+		.transaction_ids
+		.add_txnid(sender_user, sender_device, &body.txn_id, event_id.as_bytes())?;
 
 	drop(state_lock);
 
@@ -158,9 +170,16 @@ pub async fn get_message_events_route(
 		},
 	};
 
-	let to = body.to.as_ref().and_then(|t| PduCount::try_from_string(t).ok());
+	let to = body
+		.to
+		.as_ref()
+		.and_then(|t| PduCount::try_from_string(t).ok());
 
-	services().rooms.lazy_loading.lazy_load_confirm_delivery(sender_user, sender_device, &body.room_id, from).await?;
+	services()
+		.rooms
+		.lazy_loading
+		.lazy_load_confirm_delivery(sender_user, sender_device, &body.room_id, from)
+		.await?;
 
 	let limit = u64::from(body.limit).min(100) as usize;
 
@@ -208,14 +227,21 @@ pub async fn get_message_events_route(
 
 			next_token = events_after.last().map(|(count, _)| count).copied();
 
-			let events_after: Vec<_> = events_after.into_iter().map(|(_, pdu)| pdu.to_room_event()).collect();
+			let events_after: Vec<_> = events_after
+				.into_iter()
+				.map(|(_, pdu)| pdu.to_room_event())
+				.collect();
 
 			resp.start = from.stringify();
 			resp.end = next_token.map(|count| count.stringify());
 			resp.chunk = events_after;
 		},
 		ruma::api::Direction::Backward => {
-			services().rooms.timeline.backfill_if_required(&body.room_id, from).await?;
+			services()
+				.rooms
+				.timeline
+				.backfill_if_required(&body.room_id, from)
+				.await?;
 			let events_before: Vec<_> = services()
 				.rooms
 				.timeline
@@ -252,7 +278,10 @@ pub async fn get_message_events_route(
 
 			next_token = events_before.last().map(|(count, _)| count).copied();
 
-			let events_before: Vec<_> = events_before.into_iter().map(|(_, pdu)| pdu.to_room_event()).collect();
+			let events_before: Vec<_> = events_before
+				.into_iter()
+				.map(|(_, pdu)| pdu.to_room_event())
+				.collect();
 
 			resp.start = from.stringify();
 			resp.end = next_token.map(|count| count.stringify());

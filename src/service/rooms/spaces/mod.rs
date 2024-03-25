@@ -148,7 +148,13 @@ impl Arena {
 			)];
 
 			while let Some(parent) = self.parent(parents.last().expect("Has at least one value, as above").0) {
-				parents.push((parent, self.get(parent).expect("It is some, as above").room_id.clone()));
+				parents.push((
+					parent,
+					self.get(parent)
+						.expect("It is some, as above")
+						.room_id
+						.clone(),
+				));
 			}
 
 			// If at max_depth, don't add new rooms
@@ -178,7 +184,10 @@ impl Arena {
 			}
 
 			if self.first_untraversed.is_none()
-				|| parent >= self.first_untraversed.expect("Should have already continued if none")
+				|| parent
+					>= self
+						.first_untraversed
+						.expect("Should have already continued if none")
 			{
 				self.first_untraversed = next_id;
 			}
@@ -187,7 +196,9 @@ impl Arena {
 
 			// This is done as if we use an if-let above, we cannot reference self.nodes
 			// above as then we would have multiple mutable references
-			let node = self.get_mut(parent).expect("Must be some, as inside this block");
+			let node = self
+				.get_mut(parent)
+				.expect("Must be some, as inside this block");
 
 			node.first_child = next_id;
 		}
@@ -324,7 +335,10 @@ impl Service {
 	pub async fn get_federation_hierarchy(
 		&self, room_id: &RoomId, server_name: &ServerName, suggested_only: bool,
 	) -> Result<federation::space::get_hierarchy::v1::Response> {
-		match self.get_summary_and_children(&room_id.to_owned(), suggested_only, Identifier::None).await? {
+		match self
+			.get_summary_and_children(&room_id.to_owned(), suggested_only, Identifier::None)
+			.await?
+		{
 			Some(SummaryAccessibility::Accessible(room)) => {
 				let mut children = Vec::new();
 				let mut inaccessible_children = Vec::new();
@@ -360,7 +374,13 @@ impl Service {
 	async fn get_summary_and_children(
 		&self, current_room: &OwnedRoomId, suggested_only: bool, identifier: Identifier<'_>,
 	) -> Result<Option<SummaryAccessibility>> {
-		if let Some(cached) = self.roomid_spacehierarchy_cache.lock().await.get_mut(&current_room.to_owned()).as_ref() {
+		if let Some(cached) = self
+			.roomid_spacehierarchy_cache
+			.lock()
+			.await
+			.get_mut(&current_room.to_owned())
+			.as_ref()
+		{
 			return Ok(if let Some(cached) = cached {
 				if is_accessable_child(
 					current_room,
@@ -395,7 +415,9 @@ impl Service {
 			// Federation requests should not request information from other
 			// servers
 			} else if let Identifier::UserId(_) = identifier {
-				let server = current_room.server_name().expect("Room IDs should always have a server name");
+				let server = current_room
+					.server_name()
+					.expect("Room IDs should always have a server name");
 				if server == services().globals.server_name() {
 					return Ok(None);
 				}
@@ -473,7 +495,10 @@ impl Service {
 						Some(SummaryAccessibility::Inaccessible)
 					}
 				} else {
-					self.roomid_spacehierarchy_cache.lock().await.insert(current_room.clone(), None);
+					self.roomid_spacehierarchy_cache
+						.lock()
+						.await
+						.insert(current_room.clone(), None);
 
 					None
 				}
@@ -494,10 +519,12 @@ impl Service {
 			.state_accessor
 			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?
 			.map(|s| {
-				serde_json::from_str(s.content.get()).map(|c: RoomJoinRulesEventContent| c.join_rule).map_err(|e| {
-					error!("Invalid room join rule event in database: {}", e);
-					Error::BadDatabase("Invalid room join rule event in database.")
-				})
+				serde_json::from_str(s.content.get())
+					.map(|c: RoomJoinRulesEventContent| c.join_rule)
+					.map_err(|e| {
+						error!("Invalid room join rule event in database: {}", e);
+						Error::BadDatabase("Invalid room join rule event in database.")
+					})
 			})
 			.transpose()?
 			.unwrap_or(JoinRule::Invite);
@@ -534,15 +561,18 @@ impl Service {
 				.try_into()
 				.expect("user count should not be that big"),
 			room_id: room_id.to_owned(),
-			topic: services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomTopic, "")?.map_or(
-				Ok(None),
-				|s| {
-					serde_json::from_str(s.content.get()).map(|c: RoomTopicEventContent| Some(c.topic)).map_err(|_| {
-						error!("Invalid room topic event in database for room {}", room_id);
-						Error::bad_database("Invalid room topic event in database.")
-					})
-				},
-			)?,
+			topic: services()
+				.rooms
+				.state_accessor
+				.room_state_get(room_id, &StateEventType::RoomTopic, "")?
+				.map_or(Ok(None), |s| {
+					serde_json::from_str(s.content.get())
+						.map(|c: RoomTopicEventContent| Some(c.topic))
+						.map_err(|_| {
+							error!("Invalid room topic event in database for room {}", room_id);
+							Error::bad_database("Invalid room topic event in database.")
+						})
+				})?,
 			world_readable: world_readable(room_id)?,
 			guest_can_join: guest_can_join(room_id)?,
 			avatar_url: services()
@@ -588,7 +618,9 @@ impl Service {
 				let mut arena = Arena::new(summary.room_id.clone(), max_depth);
 
 				let mut results = Vec::new();
-				let root = arena.first_untraversed().expect("The node just added is not traversed");
+				let root = arena
+					.first_untraversed()
+					.expect("The node just added is not traversed");
 
 				arena.push(root, get_parent_children(&summary.clone(), suggested_only));
 				results.push(summary_to_chunk(*summary.clone()));
@@ -597,7 +629,10 @@ impl Service {
 					if limit > results.len() {
 						if let Some(SummaryAccessibility::Accessible(summary)) = self
 							.get_summary_and_children(
-								&arena.get(current_room).expect("We added this node, it must exist").room_id,
+								&arena
+									.get(current_room)
+									.expect("We added this node, it must exist")
+									.room_id,
 								suggested_only,
 								Identifier::UserId(sender_user),
 							)
@@ -651,7 +686,11 @@ async fn get_stripped_space_child_events(
 	room_id: &RoomId,
 ) -> Result<Option<Vec<Raw<HierarchySpaceChildEvent>>>, Error> {
 	if let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? {
-		let state = services().rooms.state_accessor.state_full_ids(current_shortstatehash).await?;
+		let state = services()
+			.rooms
+			.state_accessor
+			.state_full_ids(current_shortstatehash)
+			.await?;
 		let mut children_pdus = Vec::new();
 		for (key, id) in state {
 			let (event_type, state_key) = services().rooms.short.get_statekey_from_short(key)?;
@@ -702,13 +741,24 @@ fn is_accessable_child_recurse(
 				let room_id: &RoomId = current_room;
 
 				// Checks if ACLs allow for the server to participate
-				if services().rooms.event_handler.acl_check(server_name, room_id).is_err() {
+				if services()
+					.rooms
+					.event_handler
+					.acl_check(server_name, room_id)
+					.is_err()
+				{
 					return Ok(false);
 				}
 			},
 			Identifier::UserId(user_id) => {
-				if services().rooms.state_cache.is_joined(user_id, current_room)?
-					|| services().rooms.state_cache.is_invited(user_id, current_room)?
+				if services()
+					.rooms
+					.state_cache
+					.is_joined(user_id, current_room)?
+					|| services()
+						.rooms
+						.state_cache
+						.is_invited(user_id, current_room)?
 				{
 					return Ok(true);
 				}
@@ -746,26 +796,28 @@ fn is_accessable_child_recurse(
 
 /// Checks if guests are able to join a given room
 fn guest_can_join(room_id: &RoomId) -> Result<bool, Error> {
-	services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomGuestAccess, "")?.map_or(
-		Ok(false),
-		|s| {
+	services()
+		.rooms
+		.state_accessor
+		.room_state_get(room_id, &StateEventType::RoomGuestAccess, "")?
+		.map_or(Ok(false), |s| {
 			serde_json::from_str(s.content.get())
 				.map(|c: RoomGuestAccessEventContent| c.guest_access == GuestAccess::CanJoin)
 				.map_err(|_| Error::bad_database("Invalid room guest access event in database."))
-		},
-	)
+		})
 }
 
 /// Checks if guests are able to view room content without joining
 fn world_readable(room_id: &RoomId) -> Result<bool, Error> {
-	services().rooms.state_accessor.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?.map_or(
-		Ok(false),
-		|s| {
+	services()
+		.rooms
+		.state_accessor
+		.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
+		.map_or(Ok(false), |s| {
 			serde_json::from_str(s.content.get())
 				.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility == HistoryVisibility::WorldReadable)
 				.map_err(|_| Error::bad_database("Invalid room history visibility event in database."))
-		},
-	)
+		})
 }
 
 /// Returns the join rule for a given room

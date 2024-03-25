@@ -62,7 +62,11 @@ pub(crate) async fn process(command: AppserviceCommand, body: Vec<&str>) -> Resu
 		},
 		AppserviceCommand::Unregister {
 			appservice_identifier,
-		} => match services().appservice.unregister_appservice(&appservice_identifier).await {
+		} => match services()
+			.appservice
+			.unregister_appservice(&appservice_identifier)
+			.await
+		{
 			Ok(()) => Ok(RoomMessageEventContent::text_plain("Appservice unregistered.")),
 			Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
 				"Failed to unregister appservice: {e}"
@@ -70,7 +74,11 @@ pub(crate) async fn process(command: AppserviceCommand, body: Vec<&str>) -> Resu
 		},
 		AppserviceCommand::Show {
 			appservice_identifier,
-		} => match services().appservice.get_registration(&appservice_identifier).await {
+		} => match services()
+			.appservice
+			.get_registration(&appservice_identifier)
+			.await
+		{
 			Some(config) => {
 				let config_str = serde_yaml::to_string(&config).expect("config should've been validated on register");
 				let output = format!("Config for {}:\n\n```yaml\n{}\n```", appservice_identifier, config_str,);

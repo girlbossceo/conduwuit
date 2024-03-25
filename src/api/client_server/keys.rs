@@ -34,19 +34,29 @@ pub async fn upload_keys_route(body: Ruma<upload_keys::v3::Request>) -> Result<u
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
 	for (key_key, key_value) in &body.one_time_keys {
-		services().users.add_one_time_key(sender_user, sender_device, key_key, key_value)?;
+		services()
+			.users
+			.add_one_time_key(sender_user, sender_device, key_key, key_value)?;
 	}
 
 	if let Some(device_keys) = &body.device_keys {
 		// TODO: merge this and the existing event?
 		// This check is needed to assure that signatures are kept
-		if services().users.get_device_keys(sender_user, sender_device)?.is_none() {
-			services().users.add_device_keys(sender_user, sender_device, device_keys)?;
+		if services()
+			.users
+			.get_device_keys(sender_user, sender_device)?
+			.is_none()
+		{
+			services()
+				.users
+				.add_device_keys(sender_user, sender_device, device_keys)?;
 		}
 	}
 
 	Ok(upload_keys::v3::Response {
-		one_time_key_counts: services().users.count_one_time_keys(sender_user, sender_device)?,
+		one_time_key_counts: services()
+			.users
+			.count_one_time_keys(sender_user, sender_device)?,
 	})
 }
 
@@ -104,14 +114,18 @@ pub async fn upload_signing_keys_route(
 	};
 
 	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services().uiaa.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+		let (worked, uiaainfo) = services()
+			.uiaa
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
 	// Success!
 	} else if let Some(json) = body.json_body {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services().uiaa.create(sender_user, sender_device, &uiaainfo, &json)?;
+		services()
+			.uiaa
+			.create(sender_user, sender_device, &uiaainfo, &json)?;
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
@@ -161,7 +175,9 @@ pub async fn upload_signatures_route(
 						.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid signature value."))?
 						.to_owned(),
 				);
-				services().users.sign_key(user_id, key_id, signature, sender_user)?;
+				services()
+					.users
+					.sign_key(user_id, key_id, signature, sender_user)?;
 			}
 		}
 	}
@@ -187,20 +203,37 @@ pub async fn get_key_changes_route(body: Ruma<get_key_changes::v3::Request>) -> 
 			.users
 			.keys_changed(
 				sender_user.as_str(),
-				body.from.parse().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
-				Some(body.to.parse().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?),
+				body.from
+					.parse()
+					.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
+				Some(
+					body.to
+						.parse()
+						.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?,
+				),
 			)
 			.filter_map(Result::ok),
 	);
 
-	for room_id in services().rooms.state_cache.rooms_joined(sender_user).filter_map(Result::ok) {
+	for room_id in services()
+		.rooms
+		.state_cache
+		.rooms_joined(sender_user)
+		.filter_map(Result::ok)
+	{
 		device_list_updates.extend(
 			services()
 				.users
 				.keys_changed(
 					room_id.as_ref(),
-					body.from.parse().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
-					Some(body.to.parse().map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?),
+					body.from
+						.parse()
+						.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
+					Some(
+						body.to
+							.parse()
+							.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?,
+					),
 				)
 				.filter_map(Result::ok),
 		);
@@ -226,7 +259,10 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 		let user_id: &UserId = user_id;
 
 		if user_id.server_name() != services().globals.server_name() {
-			get_over_federation.entry(user_id.server_name()).or_insert_with(Vec::new).push((user_id, device_ids));
+			get_over_federation
+				.entry(user_id.server_name())
+				.or_insert_with(Vec::new)
+				.push((user_id, device_ids));
 			continue;
 		}
 
@@ -251,9 +287,13 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 			for device_id in device_ids {
 				let mut container = BTreeMap::new();
 				if let Some(mut keys) = services().users.get_device_keys(user_id, device_id)? {
-					let metadata = services().users.get_device_metadata(user_id, device_id)?.ok_or(
-						Error::BadRequest(ErrorKind::InvalidParam, "Tried to get keys for nonexistent device."),
-					)?;
+					let metadata = services()
+						.users
+						.get_device_metadata(user_id, device_id)?
+						.ok_or(Error::BadRequest(
+							ErrorKind::InvalidParam,
+							"Tried to get keys for nonexistent device.",
+						))?;
 
 					add_unsigned_device_display_name(&mut keys, metadata, include_display_names)
 						.map_err(|_| Error::bad_database("invalid device keys in database"))?;
@@ -263,11 +303,16 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 			}
 		}
 
-		if let Some(master_key) = services().users.get_master_key(sender_user, user_id, &allowed_signatures)? {
+		if let Some(master_key) = services()
+			.users
+			.get_master_key(sender_user, user_id, &allowed_signatures)?
+		{
 			master_keys.insert(user_id.to_owned(), master_key);
 		}
 		if let Some(self_signing_key) =
-			services().users.get_self_signing_key(sender_user, user_id, &allowed_signatures)?
+			services()
+				.users
+				.get_self_signing_key(sender_user, user_id, &allowed_signatures)?
 		{
 			self_signing_keys.insert(user_id.to_owned(), self_signing_key);
 		}
@@ -281,7 +326,13 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 	let mut failures = BTreeMap::new();
 
 	let back_off = |id| async {
-		match services().globals.bad_query_ratelimiter.write().await.entry(id) {
+		match services()
+			.globals
+			.bad_query_ratelimiter
+			.write()
+			.await
+			.entry(id)
+		{
 			hash_map::Entry::Vacant(e) => {
 				e.insert((Instant::now(), 1));
 			},
@@ -292,7 +343,13 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 	let mut futures: FuturesUnordered<_> = get_over_federation
 		.into_iter()
 		.map(|(server, vec)| async move {
-			if let Some((time, tries)) = services().globals.bad_query_ratelimiter.read().await.get(server) {
+			if let Some((time, tries)) = services()
+				.globals
+				.bad_query_ratelimiter
+				.read()
+				.await
+				.get(server)
+			{
 				// Exponential backoff
 				let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
 				if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
@@ -336,7 +393,9 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 					let (master_key_id, mut master_key) = services().users.parse_master_key(&user, &masterkey)?;
 
 					if let Some(our_master_key) =
-						services().users.get_key(&master_key_id, sender_user, &user, &allowed_signatures)?
+						services()
+							.users
+							.get_key(&master_key_id, sender_user, &user, &allowed_signatures)?
 					{
 						let (_, our_master_key) = services().users.parse_master_key(&user, &our_master_key)?;
 						master_key.signatures.extend(our_master_key.signatures);
@@ -404,12 +463,18 @@ pub(crate) async fn claim_keys_helper(
 
 	for (user_id, map) in one_time_keys_input {
 		if user_id.server_name() != services().globals.server_name() {
-			get_over_federation.entry(user_id.server_name()).or_insert_with(Vec::new).push((user_id, map));
+			get_over_federation
+				.entry(user_id.server_name())
+				.or_insert_with(Vec::new)
+				.push((user_id, map));
 		}
 
 		let mut container = BTreeMap::new();
 		for (device_id, key_algorithm) in map {
-			if let Some(one_time_keys) = services().users.take_one_time_key(user_id, device_id, key_algorithm)? {
+			if let Some(one_time_keys) = services()
+				.users
+				.take_one_time_key(user_id, device_id, key_algorithm)?
+			{
 				let mut c = BTreeMap::new();
 				c.insert(one_time_keys.0, one_time_keys.1);
 				container.insert(device_id.clone(), c);

@@ -11,7 +11,12 @@ impl service::rooms::metadata::Data for KeyValueDatabase {
 		};
 
 		// Look for PDUs in that room.
-		Ok(self.pduid_pdu.iter_from(&prefix, false).next().filter(|(k, _)| k.starts_with(&prefix)).is_some())
+		Ok(self
+			.pduid_pdu
+			.iter_from(&prefix, false)
+			.next()
+			.filter(|(k, _)| k.starts_with(&prefix))
+			.is_some())
 	}
 
 	fn iter_ids<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {

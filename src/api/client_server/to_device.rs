@@ -20,7 +20,11 @@ pub async fn send_event_to_device_route(
 	let sender_device = body.sender_device.as_deref();
 
 	// Check if this is a new transaction id
-	if services().transaction_ids.existing_txnid(sender_user, sender_device, &body.txn_id)?.is_some() {
+	if services()
+		.transaction_ids
+		.existing_txnid(sender_user, sender_device, &body.txn_id)?
+		.is_some()
+	{
 		return Ok(send_event_to_device::v3::Response {});
 	}
 
@@ -79,7 +83,9 @@ pub async fn send_event_to_device_route(
 	}
 
 	// Save transaction id with empty data
-	services().transaction_ids.add_txnid(sender_user, sender_device, &body.txn_id, &[])?;
+	services()
+		.transaction_ids
+		.add_txnid(sender_user, sender_device, &body.txn_id, &[])?;
 
 	Ok(send_event_to_device::v3::Response {})
 }

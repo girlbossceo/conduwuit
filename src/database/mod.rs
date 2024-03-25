@@ -375,7 +375,10 @@ impl KeyValueDatabase {
 			server_signingkeys: builder.open_tree("server_signingkeys")?,
 
 			pdu_cache: Mutex::new(LruCache::new(
-				config.pdu_cache_capacity.try_into().expect("pdu cache capacity fits into usize"),
+				config
+					.pdu_cache_capacity
+					.try_into()
+					.expect("pdu cache capacity fits into usize"),
 			)),
 			auth_chain_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
 			shorteventid_cache: Mutex::new(LruCache::new(
@@ -457,8 +460,11 @@ impl KeyValueDatabase {
 						.argon
 						.hash_password(b"", &salt)
 						.expect("our own password to be properly hashed");
-					let empty_hashed_password =
-						services().globals.argon.verify_password(&password, &empty_pass).is_ok();
+					let empty_hashed_password = services()
+						.globals
+						.argon
+						.verify_password(&password, &empty_pass)
+						.is_ok();
 
 					if empty_hashed_password {
 						db.userid_password.insert(&userid, b"")?;
@@ -526,7 +532,8 @@ impl KeyValueDatabase {
 					key.push(0xFF);
 					key.extend_from_slice(event_type);
 
-					db.roomusertype_roomuserdataid.insert(&key, &roomuserdataid)?;
+					db.roomusertype_roomuserdataid
+						.insert(&key, &roomuserdataid)?;
 				}
 
 				services().globals.bump_database_version(5)?;
@@ -565,16 +572,24 @@ impl KeyValueDatabase {
 					let states_parents = last_roomsstatehash.map_or_else(
 						|| Ok(Vec::new()),
 						|&last_roomsstatehash| {
-							services().rooms.state_compressor.load_shortstatehash_info(last_roomsstatehash)
+							services()
+								.rooms
+								.state_compressor
+								.load_shortstatehash_info(last_roomsstatehash)
 						},
 					)?;
 
 					let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last() {
-						let statediffnew =
-							current_state.difference(&parent_stateinfo.1).copied().collect::<HashSet<_>>();
+						let statediffnew = current_state
+							.difference(&parent_stateinfo.1)
+							.copied()
+							.collect::<HashSet<_>>();
 
-						let statediffremoved =
-							parent_stateinfo.1.difference(&current_state).copied().collect::<HashSet<_>>();
+						let statediffremoved = parent_stateinfo
+							.1
+							.difference(&current_state)
+							.copied()
+							.collect::<HashSet<_>>();
 
 						(statediffnew, statediffremoved)
 					} else {
@@ -634,7 +649,12 @@ impl KeyValueDatabase {
 						let event_id = db.shorteventid_eventid.get(&seventid).unwrap().unwrap();
 						let string = utils::string_from_bytes(&event_id).unwrap();
 						let event_id = <&EventId>::try_from(string.as_str()).unwrap();
-						let pdu = services().rooms.timeline.get_pdu(event_id).unwrap().unwrap();
+						let pdu = services()
+							.rooms
+							.timeline
+							.get_pdu(event_id)
+							.unwrap()
+							.unwrap();
 
 						if Some(&pdu.room_id) != current_room.as_ref() {
 							current_room = Some(pdu.room_id.clone());
@@ -676,7 +696,11 @@ impl KeyValueDatabase {
 					let room_id = parts.next().unwrap();
 					let count = parts.next().unwrap();
 
-					let short_room_id = db.roomid_shortroomid.get(room_id).unwrap().expect("shortroomid should exist");
+					let short_room_id = db
+						.roomid_shortroomid
+						.get(room_id)
+						.unwrap()
+						.expect("shortroomid should exist");
 
 					let mut new_key = short_room_id;
 					new_key.extend_from_slice(count);
@@ -694,7 +718,11 @@ impl KeyValueDatabase {
 					let room_id = parts.next().unwrap();
 					let count = parts.next().unwrap();
 
-					let short_room_id = db.roomid_shortroomid.get(room_id).unwrap().expect("shortroomid should exist");
+					let short_room_id = db
+						.roomid_shortroomid
+						.get(room_id)
+						.unwrap()
+						.expect("shortroomid should exist");
 
 					let mut new_value = short_room_id;
 					new_value.extend_from_slice(count);
@@ -724,8 +752,11 @@ impl KeyValueDatabase {
 						let _pdu_id_room = parts.next().unwrap();
 						let pdu_id_count = parts.next().unwrap();
 
-						let short_room_id =
-							db.roomid_shortroomid.get(room_id).unwrap().expect("shortroomid should exist");
+						let short_room_id = db
+							.roomid_shortroomid
+							.get(room_id)
+							.unwrap()
+							.expect("shortroomid should exist");
 						let mut new_key = short_room_id;
 						new_key.extend_from_slice(word);
 						new_key.push(0xFF);
@@ -765,7 +796,8 @@ impl KeyValueDatabase {
 			if services().globals.database_version()? < 10 {
 				// Add other direction for shortstatekeys
 				for (statekey, shortstatekey) in db.statekey_shortstatekey.iter() {
-					db.shortstatekey_statekey.insert(&shortstatekey, &statekey)?;
+					db.shortstatekey_statekey
+						.insert(&shortstatekey, &statekey)?;
 				}
 
 				// Force E2EE device list updates so we can send them over federation
@@ -779,7 +811,9 @@ impl KeyValueDatabase {
 			}
 
 			if services().globals.database_version()? < 11 {
-				db.db.open_tree("userdevicesessionid_uiaarequest")?.clear()?;
+				db.db
+					.open_tree("userdevicesessionid_uiaarequest")?
+					.clear()?;
 				services().globals.bump_database_version(11)?;
 
 				warn!("Migration: 10 -> 11 finished");
@@ -813,7 +847,9 @@ impl KeyValueDatabase {
 						if rule.is_some() {
 							let mut rule = rule.unwrap().clone();
 							content_rule_transformation[1].clone_into(&mut rule.rule_id);
-							rules_list.content.shift_remove(content_rule_transformation[0]);
+							rules_list
+								.content
+								.shift_remove(content_rule_transformation[0]);
 							rules_list.content.insert(rule);
 						}
 					}
@@ -874,7 +910,10 @@ impl KeyValueDatabase {
 					let mut account_data = serde_json::from_str::<PushRulesEvent>(raw_rules_list.get()).unwrap();
 
 					let user_default_rules = Ruleset::server_default(&user);
-					account_data.content.global.update_with_server_default(user_default_rules);
+					account_data
+						.content
+						.global
+						.update_with_server_default(user_default_rules);
 
 					services().account_data.update(
 						None,
@@ -936,7 +975,10 @@ impl KeyValueDatabase {
 							warn!(
 								"User {} matches the following forbidden username patterns: {}",
 								user_id.to_string(),
-								matches.into_iter().map(|x| &patterns.patterns()[x]).join(", ")
+								matches
+									.into_iter()
+									.map(|x| &patterns.patterns()[x])
+									.join(", ")
 							);
 						}
 					}
@@ -957,7 +999,10 @@ impl KeyValueDatabase {
 									"Room with alias {} ({}) matches the following forbidden room name patterns: {}",
 									room_alias,
 									&room_id,
-									matches.into_iter().map(|x| &patterns.patterns()[x]).join(", ")
+									matches
+										.into_iter()
+										.map(|x| &patterns.patterns()[x])
+										.join(", ")
 								);
 							}
 						}
@@ -971,7 +1016,9 @@ impl KeyValueDatabase {
 				latest_database_version
 			);
 		} else {
-			services().globals.bump_database_version(latest_database_version)?;
+			services()
+				.globals
+				.bump_database_version(latest_database_version)?;
 
 			// Create the admin room and server user on first run
 			services().admin.create_admin_room().await?;
@@ -993,10 +1040,12 @@ impl KeyValueDatabase {
 						"The Conduit account emergency password is set! Please unset it as soon as you finish admin \
 						 account recovery!"
 					);
-					services().admin.send_message(RoomMessageEventContent::text_plain(
-						"The Conduit account emergency password is set! Please unset it as soon as you finish admin \
-						 account recovery!",
-					));
+					services()
+						.admin
+						.send_message(RoomMessageEventContent::text_plain(
+							"The Conduit account emergency password is set! Please unset it as soon as you finish \
+							 admin account recovery!",
+						));
 				}
 			},
 			Err(e) => {
@@ -1047,8 +1096,13 @@ impl KeyValueDatabase {
 	}
 
 	async fn try_handle_updates() -> Result<()> {
-		let response =
-			services().globals.client.default.get("https://pupbrain.dev/check-for-updates/stable").send().await?;
+		let response = services()
+			.globals
+			.client
+			.default
+			.get("https://pupbrain.dev/check-for-updates/stable")
+			.send()
+			.await?;
 
 		let response = serde_json::from_str::<CheckForUpdatesResponse>(&response.text().await?).map_err(|e| {
 			error!("Bad check for updates response: {e}");
@@ -1060,13 +1114,17 @@ impl KeyValueDatabase {
 			last_update_id = last_update_id.max(update.id);
 			if update.id > services().globals.last_check_for_updates_id()? {
 				error!("{}", update.message);
-				services().admin.send_message(RoomMessageEventContent::text_plain(format!(
-					"@room: the following is a message from the conduwuit puppy. it was sent on '{}':\n\n{}",
-					update.date, update.message
-				)));
+				services()
+					.admin
+					.send_message(RoomMessageEventContent::text_plain(format!(
+						"@room: the following is a message from the conduwuit puppy. it was sent on '{}':\n\n{}",
+						update.date, update.message
+					)));
 			}
 		}
-		services().globals.update_check_for_updates_id(last_update_id)?;
+		services()
+			.globals
+			.update_check_for_updates_id(last_update_id)?;
 
 		Ok(())
 	}
@@ -1138,7 +1196,9 @@ fn set_emergency_access() -> Result<bool> {
 	let conduit_user = UserId::parse_with_server_name("conduit", services().globals.server_name())
 		.expect("@conduit:server_name is a valid UserId");
 
-	services().users.set_password(&conduit_user, services().globals.emergency_password().as_deref())?;
+	services()
+		.users
+		.set_password(&conduit_user, services().globals.emergency_password().as_deref())?;
 
 	let (ruleset, res) = match services().globals.emergency_password() {
 		Some(_) => (Ruleset::server_default(&conduit_user), Ok(true)),

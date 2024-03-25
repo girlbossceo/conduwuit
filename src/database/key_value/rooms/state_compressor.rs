@@ -58,6 +58,7 @@ impl service::rooms::state_compressor::Data for KeyValueDatabase {
 			}
 		}
 
-		self.shortstatehash_statediff.insert(&shortstatehash.to_be_bytes(), &value)
+		self.shortstatehash_statediff
+			.insert(&shortstatehash.to_be_bytes(), &value)
 	}
 }

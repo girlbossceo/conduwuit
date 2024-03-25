@@ -23,7 +23,13 @@ impl service::rooms::search::Data for KeyValueDatabase {
 	}
 
 	fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a> {
-		let prefix = services().rooms.short.get_shortroomid(room_id)?.expect("room exists").to_be_bytes().to_vec();
+		let prefix = services()
+			.rooms
+			.short
+			.get_shortroomid(room_id)?
+			.expect("room exists")
+			.to_be_bytes()
+			.to_vec();
 
 		let words: Vec<_> = search_string
 			.split_terminator(|c: char| !c.is_alphanumeric())

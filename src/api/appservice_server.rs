@@ -36,7 +36,11 @@ where
 		"?"
 	};
 
-	parts.path_and_query = Some((old_path_and_query + symbol + "access_token=" + hs_token).parse().unwrap());
+	parts.path_and_query = Some(
+		(old_path_and_query + symbol + "access_token=" + hs_token)
+			.parse()
+			.unwrap(),
+	);
 	*http_request.uri_mut() = parts.try_into().expect("our manipulation is always valid");
 
 	let mut reqwest_request =
@@ -64,7 +68,13 @@ where
 		}
 	}
 
-	let mut response = match services().globals.client.appservice.execute(reqwest_request).await {
+	let mut response = match services()
+		.globals
+		.client
+		.appservice
+		.execute(reqwest_request)
+		.await
+	{
 		Ok(r) => r,
 		Err(e) => {
 			warn!(
@@ -77,10 +87,14 @@ where
 
 	// reqwest::Response -> http::Response conversion
 	let status = response.status();
-	let mut http_response_builder = http::Response::builder().status(status).version(response.version());
+	let mut http_response_builder = http::Response::builder()
+		.status(status)
+		.version(response.version());
 	mem::swap(
 		response.headers_mut(),
-		http_response_builder.headers_mut().expect("http::response::Builder is usable"),
+		http_response_builder
+			.headers_mut()
+			.expect("http::response::Builder is usable"),
 	);
 
 	let body = response.bytes().await.unwrap_or_else(|e| {
@@ -99,7 +113,9 @@ where
 	}
 
 	let response = T::IncomingResponse::try_from_http_response(
-		http_response_builder.body(body).expect("reqwest body is valid http body"),
+		http_response_builder
+			.body(body)
+			.expect("reqwest body is valid http body"),
 	);
 
 	Some(response.map_err(|_| {

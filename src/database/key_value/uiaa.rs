@@ -9,10 +9,13 @@ impl service::uiaa::Data for KeyValueDatabase {
 	fn set_uiaa_request(
 		&self, user_id: &UserId, device_id: &DeviceId, session: &str, request: &CanonicalJsonValue,
 	) -> Result<()> {
-		self.userdevicesessionid_uiaarequest.write().unwrap().insert(
-			(user_id.to_owned(), device_id.to_owned(), session.to_owned()),
-			request.to_owned(),
-		);
+		self.userdevicesessionid_uiaarequest
+			.write()
+			.unwrap()
+			.insert(
+				(user_id.to_owned(), device_id.to_owned(), session.to_owned()),
+				request.to_owned(),
+			);
 
 		Ok(())
 	}
@@ -40,7 +43,8 @@ impl service::uiaa::Data for KeyValueDatabase {
 				&serde_json::to_vec(&uiaainfo).expect("UiaaInfo::to_vec always works"),
 			)?;
 		} else {
-			self.userdevicesessionid_uiaainfo.remove(&userdevicesessionid)?;
+			self.userdevicesessionid_uiaainfo
+				.remove(&userdevicesessionid)?;
 		}
 
 		Ok(())

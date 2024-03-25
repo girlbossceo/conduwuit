@@ -165,7 +165,9 @@ impl Service {
 					.get(
 						None,    // Ignored users are in global account data
 						user_id, // Receiver
-						GlobalAccountDataEventType::IgnoredUserList.to_string().into(),
+						GlobalAccountDataEventType::IgnoredUserList
+							.to_string()
+							.into(),
 					)?
 					.map(|event| {
 						serde_json::from_str::<IgnoredUserListEvent>(event.get()).map_err(|e| {
@@ -175,7 +177,11 @@ impl Service {
 					})
 					.transpose()?
 					.map_or(false, |ignored| {
-						ignored.content.ignored_users.iter().any(|(user, _details)| user == sender)
+						ignored
+							.content
+							.ignored_users
+							.iter()
+							.any(|(user, _details)| user == sender)
 					});
 
 				if is_ignored {

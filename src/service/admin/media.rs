@@ -202,7 +202,10 @@ pub(crate) async fn process(command: MediaCommand, body: Vec<&str>) -> Result<Ro
 		MediaCommand::DeletePastRemoteMedia {
 			duration,
 		} => {
-			let deleted_count = services().media.delete_all_remote_media_at_after_time(duration).await?;
+			let deleted_count = services()
+				.media
+				.delete_all_remote_media_at_after_time(duration)
+				.await?;
 
 			Ok(RoomMessageEventContent::text_plain(format!(
 				"Deleted {} total files.",

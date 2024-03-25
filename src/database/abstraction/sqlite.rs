@@ -68,15 +68,18 @@ impl Engine {
 	fn write_lock(&self) -> MutexGuard<'_, Connection> { self.writer.lock() }
 
 	fn read_lock(&self) -> &Connection {
-		self.read_conn_tls.get_or(|| Self::prepare_conn(&self.path, self.cache_size_per_thread).unwrap())
+		self.read_conn_tls
+			.get_or(|| Self::prepare_conn(&self.path, self.cache_size_per_thread).unwrap())
 	}
 
 	fn read_lock_iterator(&self) -> &Connection {
-		self.read_iterator_conn_tls.get_or(|| Self::prepare_conn(&self.path, self.cache_size_per_thread).unwrap())
+		self.read_iterator_conn_tls
+			.get_or(|| Self::prepare_conn(&self.path, self.cache_size_per_thread).unwrap())
 	}
 
 	pub fn flush_wal(self: &Arc<Self>) -> Result<()> {
-		self.write_lock().pragma_update(Some(Main), "wal_checkpoint", "RESTART")?;
+		self.write_lock()
+			.pragma_update(Some(Main), "wal_checkpoint", "RESTART")?;
 		Ok(())
 	}
 }
@@ -153,7 +156,9 @@ impl SqliteTable {
 
 	pub fn iter_with_guard<'a>(&'a self, guard: &'a Connection) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
 		let statement = Box::leak(Box::new(
-			guard.prepare(&format!("SELECT key, value FROM {} ORDER BY key ASC", &self.name)).unwrap(),
+			guard
+				.prepare(&format!("SELECT key, value FROM {} ORDER BY key ASC", &self.name))
+				.unwrap(),
 		));
 
 		let statement_ref = NonAliasingBox(statement);
@@ -161,7 +166,10 @@ impl SqliteTable {
 		//let name = self.name.clone();
 
 		let iterator = Box::new(
-			statement.query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1)))).unwrap().map(Result::unwrap),
+			statement
+				.query_map([], |row| Ok((row.get_unwrap(0), row.get_unwrap(1))))
+				.unwrap()
+				.map(Result::unwrap),
 		);
 
 		Box::new(PreparedStatementIterator {
@@ -293,7 +301,10 @@ impl KvTree for SqliteTable {
 	}
 
 	fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
-		Box::new(self.iter_from(&prefix, false).take_while(move |(key, _)| key.starts_with(&prefix)))
+		Box::new(
+			self.iter_from(&prefix, false)
+				.take_while(move |(key, _)| key.starts_with(&prefix)),
+		)
 	}
 
 	fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
@@ -302,7 +313,9 @@ impl KvTree for SqliteTable {
 
 	fn clear(&self) -> Result<()> {
 		debug!("clear: running");
-		self.engine.write_lock().execute(format!("DELETE FROM {}", self.name).as_str(), [])?;
+		self.engine
+			.write_lock()
+			.execute(format!("DELETE FROM {}", self.name).as_str(), [])?;
 		debug!("clear: ran");
 		Ok(())
 	}

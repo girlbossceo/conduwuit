@@ -65,9 +65,7 @@ impl Resolver {
 }
 
 impl Resolve for Resolver {
-	fn resolve(&self, name: Name) -> Resolving {
-		resolve_to_reqwest(self.resolver.clone(), name)
-	}
+	fn resolve(&self, name: Name) -> Resolving { resolve_to_reqwest(self.resolver.clone(), name) }
 }
 
 impl Resolve for Hooked {
@@ -78,7 +76,7 @@ impl Resolve for Hooked {
 			.get(name.as_str())
 			.map_or_else(
 				|| resolve_to_reqwest(self.resolver.clone(), name),
-				|(override_name, port)| cached_to_reqwest(override_name, *port)
+				|(override_name, port)| cached_to_reqwest(override_name, *port),
 			)
 	}
 }

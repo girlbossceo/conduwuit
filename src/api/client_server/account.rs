@@ -47,7 +47,11 @@ pub async fn get_register_available_route(
 		return Err(Error::BadRequest(ErrorKind::UserInUse, "Desired user ID is already taken."));
 	}
 
-	if services().globals.forbidden_usernames().is_match(user_id.localpart()) {
+	if services()
+		.globals
+		.forbidden_usernames()
+		.is_match(user_id.localpart())
+	{
 		return Err(Error::BadRequest(ErrorKind::Unknown, "Username is forbidden."));
 	}
 
@@ -129,7 +133,11 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 				return Err(Error::BadRequest(ErrorKind::UserInUse, "Desired user ID is already taken."));
 			}
 
-			if services().globals.forbidden_usernames().is_match(proposed_user_id.localpart()) {
+			if services()
+				.globals
+				.forbidden_usernames()
+				.is_match(proposed_user_id.localpart())
+			{
 				return Err(Error::BadRequest(ErrorKind::Unknown, "Username is forbidden."));
 			}
 
@@ -220,7 +228,10 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 		displayname.push_str(&(" ".to_owned() + services().globals.new_user_displayname_suffix()));
 	}
 
-	services().users.set_displayname(&user_id, Some(displayname.clone())).await?;
+	services()
+		.users
+		.set_displayname(&user_id, Some(displayname.clone()))
+		.await?;
 
 	// Initial account data
 	services().account_data.update(
@@ -258,31 +269,45 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 	let token = utils::random_string(TOKEN_LENGTH);
 
 	// Create device for this account
-	services().users.create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())?;
+	services()
+		.users
+		.create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())?;
 
 	info!("New user \"{}\" registered on this server.", user_id);
 
 	// log in conduit admin channel if a non-guest user registered
 	if !body.from_appservice && !is_guest {
-		services().admin.send_message(RoomMessageEventContent::notice_plain(format!(
-			"New user \"{user_id}\" registered on this server."
-		)));
+		services()
+			.admin
+			.send_message(RoomMessageEventContent::notice_plain(format!(
+				"New user \"{user_id}\" registered on this server."
+			)));
 	}
 
 	// log in conduit admin channel if a guest registered
 	if !body.from_appservice && is_guest {
-		services().admin.send_message(RoomMessageEventContent::notice_plain(format!(
-			"Guest user \"{user_id}\" with device display name `{:?}` registered on this server.",
-			body.initial_device_display_name
-		)));
+		services()
+			.admin
+			.send_message(RoomMessageEventContent::notice_plain(format!(
+				"Guest user \"{user_id}\" with device display name `{:?}` registered on this server.",
+				body.initial_device_display_name
+			)));
 	}
 
 	// If this is the first real user, grant them admin privileges except for guest
 	// users Note: the server user, @conduit:servername, is generated first
 	if !is_guest {
 		if let Some(admin_room) = service::admin::Service::get_admin_room()? {
-			if services().rooms.state_cache.room_joined_count(&admin_room)? == Some(1) {
-				services().admin.make_user_admin(&user_id, displayname).await?;
+			if services()
+				.rooms
+				.state_cache
+				.room_joined_count(&admin_room)?
+				== Some(1)
+			{
+				services()
+					.admin
+					.make_user_admin(&user_id, displayname)
+					.await?;
 
 				warn!("Granting {} admin privileges as the first user", user_id);
 			}
@@ -291,7 +316,11 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 
 	if !services().globals.config.auto_join_rooms.is_empty() {
 		for room in &services().globals.config.auto_join_rooms {
-			if !services().rooms.state_cache.server_in_room(services().globals.server_name(), room)? {
+			if !services()
+				.rooms
+				.state_cache
+				.server_in_room(services().globals.server_name(), room)?
+			{
 				warn!("Skipping room {room} to automatically join as we have never joined before.");
 				continue;
 			}
@@ -359,32 +388,45 @@ pub async fn change_password_route(body: Ruma<change_password::v3::Request>) -> 
 	};
 
 	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services().uiaa.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+		let (worked, uiaainfo) = services()
+			.uiaa
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
 	// Success!
 	} else if let Some(json) = body.json_body {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services().uiaa.create(sender_user, sender_device, &uiaainfo, &json)?;
+		services()
+			.uiaa
+			.create(sender_user, sender_device, &uiaainfo, &json)?;
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
 	}
 
-	services().users.set_password(sender_user, Some(&body.new_password))?;
+	services()
+		.users
+		.set_password(sender_user, Some(&body.new_password))?;
 
 	if body.logout_devices {
 		// Logout all devices except the current one
-		for id in services().users.all_device_ids(sender_user).filter_map(Result::ok).filter(|id| id != sender_device) {
+		for id in services()
+			.users
+			.all_device_ids(sender_user)
+			.filter_map(Result::ok)
+			.filter(|id| id != sender_device)
+		{
 			services().users.remove_device(sender_user, &id)?;
 		}
 	}
 
 	info!("User {} changed their password.", sender_user);
-	services().admin.send_message(RoomMessageEventContent::notice_plain(format!(
-		"User {sender_user} changed their password."
-	)));
+	services()
+		.admin
+		.send_message(RoomMessageEventContent::notice_plain(format!(
+			"User {sender_user} changed their password."
+		)));
 
 	Ok(change_password::v3::Response {})
 }
@@ -431,14 +473,18 @@ pub async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Result<dea
 	};
 
 	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services().uiaa.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+		let (worked, uiaainfo) = services()
+			.uiaa
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
 	// Success!
 	} else if let Some(json) = body.json_body {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services().uiaa.create(sender_user, sender_device, &uiaainfo, &json)?;
+		services()
+			.uiaa
+			.create(sender_user, sender_device, &uiaainfo, &json)?;
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
@@ -451,9 +497,11 @@ pub async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Result<dea
 	services().users.deactivate_account(sender_user)?;
 
 	info!("User {} deactivated their account.", sender_user);
-	services().admin.send_message(RoomMessageEventContent::notice_plain(format!(
-		"User {sender_user} deactivated their account."
-	)));
+	services()
+		.admin
+		.send_message(RoomMessageEventContent::notice_plain(format!(
+			"User {sender_user} deactivated their account."
+		)));
 
 	Ok(deactivate::v3::Response {
 		id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,

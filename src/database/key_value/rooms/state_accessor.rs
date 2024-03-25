@@ -19,7 +19,10 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 		let mut result = HashMap::new();
 		let mut i = 0;
 		for compressed in full_state.iter() {
-			let parsed = services().rooms.state_compressor.parse_compressed_state_event(compressed)?;
+			let parsed = services()
+				.rooms
+				.state_compressor
+				.parse_compressed_state_event(compressed)?;
 			result.insert(parsed.0, parsed.1);
 
 			i += 1;
@@ -43,7 +46,10 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 		let mut result = HashMap::new();
 		let mut i = 0;
 		for compressed in full_state.iter() {
-			let (_, eventid) = services().rooms.state_compressor.parse_compressed_state_event(compressed)?;
+			let (_, eventid) = services()
+				.rooms
+				.state_compressor
+				.parse_compressed_state_event(compressed)?;
 			if let Some(pdu) = services().rooms.timeline.get_pdu(&eventid)? {
 				result.insert(
 					(
@@ -71,7 +77,11 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 	fn state_get_id(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<EventId>>> {
-		let shortstatekey = match services().rooms.short.get_shortstatekey(event_type, state_key)? {
+		let shortstatekey = match services()
+			.rooms
+			.short
+			.get_shortstatekey(event_type, state_key)?
+		{
 			Some(s) => s,
 			None => return Ok(None),
 		};
@@ -82,11 +92,17 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 			.pop()
 			.expect("there is always one layer")
 			.1;
-		Ok(
-			full_state.iter().find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes())).and_then(|compressed| {
-				services().rooms.state_compressor.parse_compressed_state_event(compressed).ok().map(|(_, id)| id)
-			}),
-		)
+		Ok(full_state
+			.iter()
+			.find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
+			.and_then(|compressed| {
+				services()
+					.rooms
+					.state_compressor
+					.parse_compressed_state_event(compressed)
+					.ok()
+					.map(|(_, id)| id)
+			}))
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
@@ -100,15 +116,18 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 
 	/// Returns the state hash for this pdu.
 	fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<Option<u64>> {
-		self.eventid_shorteventid.get(event_id.as_bytes())?.map_or(Ok(None), |shorteventid| {
-			self.shorteventid_shortstatehash
-				.get(&shorteventid)?
-				.map(|bytes| {
-					utils::u64_from_bytes(&bytes)
-						.map_err(|_| Error::bad_database("Invalid shortstatehash bytes in shorteventid_shortstatehash"))
-				})
-				.transpose()
-		})
+		self.eventid_shorteventid
+			.get(event_id.as_bytes())?
+			.map_or(Ok(None), |shorteventid| {
+				self.shorteventid_shortstatehash
+					.get(&shorteventid)?
+					.map(|bytes| {
+						utils::u64_from_bytes(&bytes).map_err(|_| {
+							Error::bad_database("Invalid shortstatehash bytes in shorteventid_shortstatehash")
+						})
+					})
+					.transpose()
+			})
 	}
 
 	/// Returns the full room state.
