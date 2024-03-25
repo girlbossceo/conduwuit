@@ -1,6 +1,7 @@
 use std::{io::Cursor, net::IpAddr, sync::Arc, time::Duration};
 
 use image::io::Reader as ImgReader;
+use ipaddress::IPAddress;
 use reqwest::Url;
 use ruma::api::client::{
 	error::ErrorKind,
@@ -652,6 +653,7 @@ async fn download_html(client: &reqwest::Client, url: &str) -> Result<UrlPreview
 	Ok(data)
 }
 
+// TOOD: re-evaluate if this is needed, because it doesn't seem to work
 pub(crate) fn url_request_allowed(addr: &IpAddr) -> bool {
 	// TODO: make this check ip_range_denylist
 
@@ -664,50 +666,88 @@ pub(crate) fn url_request_allowed(addr: &IpAddr) -> bool {
 	match addr {
 		IpAddr::V4(ip4) => {
 			!(ip4.octets()[0] == 0 // "This network"
-                || ip4.is_private()
-                || (ip4.octets()[0] == 100 && (ip4.octets()[1] & 0b1100_0000 == 0b0100_0000)) // is_shared()
-                || ip4.is_loopback()
-                || ip4.is_link_local()
-                // addresses reserved for future protocols (`192.0.0.0/24`)
-                || (ip4.octets()[0] == 192 && ip4.octets()[1] == 0 && ip4.octets()[2] == 0)
-                || ip4.is_documentation()
-                || (ip4.octets()[0] == 198 && (ip4.octets()[1] & 0xfe) == 18) // is_benchmarking()
-                || (ip4.octets()[0] & 240 == 240 && !ip4.is_broadcast()) // is_reserved()
-                || ip4.is_broadcast())
+				|| ip4.is_private()
+				|| (ip4.octets()[0] == 100 && (ip4.octets()[1] & 0b1100_0000 == 0b0100_0000)) // is_shared()
+				|| ip4.is_loopback()
+				|| ip4.is_link_local()
+				// addresses reserved for future protocols (`192.0.0.0/24`)
+				|| (ip4.octets()[0] == 192 && ip4.octets()[1] == 0 && ip4.octets()[2] == 0)
+				|| ip4.is_documentation()
+				|| (ip4.octets()[0] == 198 && (ip4.octets()[1] & 0xfe) == 18) // is_benchmarking()
+				|| (ip4.octets()[0] & 240 == 240 && !ip4.is_broadcast()) // is_reserved()
+				|| ip4.is_broadcast())
 		},
 		IpAddr::V6(ip6) => {
 			!(ip6.is_unspecified()
-                || ip6.is_loopback()
-                // IPv4-mapped Address (`::ffff:0:0/96`)
-                || matches!(ip6.segments(), [0, 0, 0, 0, 0, 0xffff, _, _])
-                // IPv4-IPv6 Translat. (`64:ff9b:1::/48`)
-                || matches!(ip6.segments(), [0x64, 0xff9b, 1, _, _, _, _, _])
-                // Discard-Only Address Block (`100::/64`)
-                || matches!(ip6.segments(), [0x100, 0, 0, 0, _, _, _, _])
-                // IETF Protocol Assignments (`2001::/23`)
-                || (matches!(ip6.segments(), [0x2001, b, _, _, _, _, _, _] if b < 0x200)
-                    && !(
-                        // Port Control Protocol Anycast (`2001:1::1`)
-                        u128::from_be_bytes(ip6.octets()) == 0x2001_0001_0000_0000_0000_0000_0000_0001
-                        // Traversal Using Relays around NAT Anycast (`2001:1::2`)
-                        || u128::from_be_bytes(ip6.octets()) == 0x2001_0001_0000_0000_0000_0000_0000_0002
-                        // AMT (`2001:3::/32`)
-                        || matches!(ip6.segments(), [0x2001, 3, _, _, _, _, _, _])
-                        // AS112-v6 (`2001:4:112::/48`)
-                        || matches!(ip6.segments(), [0x2001, 4, 0x112, _, _, _, _, _])
-                        // ORCHIDv2 (`2001:20::/28`)
-                        || matches!(ip6.segments(), [0x2001, b, _, _, _, _, _, _] if (0x20..=0x2F).contains(&b))
-                    ))
-                || ((ip6.segments()[0] == 0x2001) && (ip6.segments()[1] == 0xdb8)) // is_documentation()
-                || ((ip6.segments()[0] & 0xfe00) == 0xfc00) // is_unique_local()
-                || ((ip6.segments()[0] & 0xffc0) == 0xfe80)) // is_unicast_link_local
+				|| ip6.is_loopback()
+				// IPv4-mapped Address (`::ffff:0:0/96`)
+				|| matches!(ip6.segments(), [0, 0, 0, 0, 0, 0xffff, _, _])
+				// IPv4-IPv6 Translat. (`64:ff9b:1::/48`)
+				|| matches!(ip6.segments(), [0x64, 0xff9b, 1, _, _, _, _, _])
+				// Discard-Only Address Block (`100::/64`)
+				|| matches!(ip6.segments(), [0x100, 0, 0, 0, _, _, _, _])
+				// IETF Protocol Assignments (`2001::/23`)
+				|| (matches!(ip6.segments(), [0x2001, b, _, _, _, _, _, _] if b < 0x200)
+					&& !(
+						// Port Control Protocol Anycast (`2001:1::1`)
+						u128::from_be_bytes(ip6.octets()) == 0x2001_0001_0000_0000_0000_0000_0000_0001
+						// Traversal Using Relays around NAT Anycast (`2001:1::2`)
+						|| u128::from_be_bytes(ip6.octets()) == 0x2001_0001_0000_0000_0000_0000_0000_0002
+						// AMT (`2001:3::/32`)
+						|| matches!(ip6.segments(), [0x2001, 3, _, _, _, _, _, _])
+						// AS112-v6 (`2001:4:112::/48`)
+						|| matches!(ip6.segments(), [0x2001, 4, 0x112, _, _, _, _, _])
+						// ORCHIDv2 (`2001:20::/28`)
+						|| matches!(ip6.segments(), [0x2001, b, _, _, _, _, _, _] if (0x20..=0x2F).contains(&b))
+					))
+				|| ((ip6.segments()[0] == 0x2001) && (ip6.segments()[1] == 0xdb8)) // is_documentation()
+				|| ((ip6.segments()[0] & 0xfe00) == 0xfc00) // is_unique_local()
+				|| ((ip6.segments()[0] & 0xffc0) == 0xfe80)) // is_unicast_link_local
 		},
 	}
 }
 
 async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
+	if let Ok(ip) = IPAddress::parse(url) {
+		let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
+		let mut cidr_ranges: Vec<IPAddress> = Vec::new();
+
+		for cidr in cidr_ranges_s {
+			cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
+		}
+
+		for cidr in cidr_ranges {
+			if cidr.includes(&ip) {
+				return Err(Error::BadRequest(
+					ErrorKind::Forbidden,
+					"Requesting from this address is forbidden",
+				));
+			}
+		}
+	}
+
 	let client = &services().globals.client.url_preview;
 	let response = client.head(url).send().await?;
+
+	if let Some(remote_addr) = response.remote_addr() {
+		if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
+			let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
+			let mut cidr_ranges: Vec<IPAddress> = Vec::new();
+
+			for cidr in cidr_ranges_s {
+				cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
+			}
+
+			for cidr in cidr_ranges {
+				if cidr.includes(&ip) {
+					return Err(Error::BadRequest(
+						ErrorKind::Forbidden,
+						"Requesting from this address is forbidden",
+					));
+				}
+			}
+		}
+	}
 
 	if !response.remote_addr().map_or(false, |a| url_request_allowed(&a.ip())) {
 		return Err(Error::BadRequest(
