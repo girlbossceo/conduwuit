@@ -1,3 +1,5 @@
 # .git-blame-ignore-revs
 # adds a proper rustfmt.toml and formats the entire codebase
 1d1ac065141181438e744e7d8abd0e45f75a2f91
+# use chain_width 60
+162948313c212193965dece50b816ef0903172ba
