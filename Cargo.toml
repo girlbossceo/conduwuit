@@ -114,7 +114,7 @@ features = ["rc"]
 version = "0.9.33"
 # Used for ruma wrapper
 [dependencies.serde_json]
-version = "1.0.114"
+version = "1.0.115"
 features = ["raw_value"]
 
 
