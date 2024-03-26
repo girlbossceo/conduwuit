@@ -266,6 +266,7 @@ roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}"
 		}
 		if amount > 6 {
 			self.globals.resolver.overrides.write().unwrap().clear();
+			self.globals.resolver.destinations.write().await.clear();
 		}
 		if amount > 7 {
 			self.globals.resolver.resolver.clear_cache();
