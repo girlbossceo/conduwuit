@@ -32,12 +32,19 @@ pub struct Hooked {
 
 impl Resolver {
 	pub(crate) fn new(config: &Config) -> Self {
-		let (conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
+		let (sys_conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
 			.map_err(|e| {
 				error!("Failed to set up hickory dns resolver with system config: {}", e);
 				Error::bad_config("Failed to set up hickory dns resolver with system config.")
 			})
 			.unwrap();
+
+		let mut conf = hickory_resolver::config::ResolverConfig::new();
+		for sys_conf in sys_conf.name_servers() {
+			let mut ns = sys_conf.clone();
+			ns.trust_negative_responses = true;
+			conf.add_name_server(ns);
+		}
 
 		opts.cache_size = config.dns_cache_entries as usize;
 		opts.negative_min_ttl = Some(Duration::from_secs(config.dns_min_ttl_nxdomain));
