@@ -18,7 +18,7 @@ use ruma::{
 	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, UserId,
 };
 use serde::Deserialize;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, trace, warn};
 
 use super::{Ruma, RumaResponse};
 use crate::{services, Error, Result};
@@ -334,9 +334,14 @@ where
 		}
 
 		let http_request = http_request.body(&*body).unwrap();
+		debug!(
+			"{:?} {:?} {:?}",
+			http_request.method(),
+			http_request.uri(),
+			http_request.headers()
+		);
 
-		debug!("{:?}", http_request);
-
+		trace!("{:?} {:?} {:?}", http_request.method(), http_request.uri(), json_body);
 		let body = T::try_from_http_request(http_request, &path_params).map_err(|e| {
 			warn!("try_from_http_request failed: {e:?}\nPath parameters: {path_params:?}",);
 			debug!("JSON body: {:?}", json_body);

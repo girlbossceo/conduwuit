@@ -1307,7 +1307,7 @@ impl Service {
 
 		if server_key_ids.is_empty() {
 			// Nothing to do, can exit early
-			debug!("server_key_ids is empty, not fetching any keys");
+			trace!("server_key_ids is empty, not fetching any keys");
 			return Ok(());
 		}
 
@@ -1566,7 +1566,7 @@ impl Service {
 		};
 
 		if servers.is_empty() {
-			info!("We had all keys cached locally, not fetching any keys from remote servers");
+			trace!("We had all keys cached locally, not fetching any keys from remote servers");
 			return Ok(());
 		}
 
@@ -1605,7 +1605,7 @@ impl Service {
 				.await?;
 		}
 
-		info!("Search for signing keys done");
+		debug!("Search for signing keys done");
 
 		/*if servers.is_empty() {
 			warn!("Failed to find homeserver signing keys for the remaining servers: {servers:?}");
@@ -1722,8 +1722,6 @@ impl Service {
 			}
 		}
 
-		debug!("Loading signing keys for {origin} from our database if available");
-
 		let mut result: BTreeMap<_, _> = services()
 			.globals
 			.signing_keys_for(origin)?
@@ -1732,7 +1730,7 @@ impl Service {
 			.collect();
 
 		if contains_all_ids(&result) {
-			debug!("We have all homeserver signing keys locally for {origin}, not fetching any remotely");
+			trace!("We have all homeserver signing keys locally for {origin}, not fetching any remotely");
 			return Ok(result);
 		}
 
