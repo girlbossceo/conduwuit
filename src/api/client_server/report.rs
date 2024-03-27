@@ -21,14 +21,11 @@ pub async fn report_event_route(body: Ruma<report_content::v3::Request>) -> Resu
 	info!("Received /report request by user {}", sender_user);
 
 	// check if we know about the reported event ID or if it's invalid
-	let pdu = match services().rooms.timeline.get_pdu(&body.event_id)? {
-		Some(pdu) => pdu,
-		_ => {
-			return Err(Error::BadRequest(
-				ErrorKind::NotFound,
-				"Event ID is not known to us or Event ID is invalid",
-			))
-		},
+	let Some(pdu) = services().rooms.timeline.get_pdu(&body.event_id)? else {
+		return Err(Error::BadRequest(
+			ErrorKind::NotFound,
+			"Event ID is not known to us or Event ID is invalid",
+		));
 	};
 
 	// check if the room ID from the URI matches the PDU's room ID

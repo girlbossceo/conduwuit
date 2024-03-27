@@ -11,18 +11,15 @@ impl service::rooms::short::Data for KeyValueDatabase {
 			return Ok(*short);
 		}
 
-		let short = match self.eventid_shorteventid.get(event_id.as_bytes())? {
-			Some(shorteventid) => {
-				utils::u64_from_bytes(&shorteventid).map_err(|_| Error::bad_database("Invalid shorteventid in db."))?
-			},
-			None => {
-				let shorteventid = services().globals.next_count()?;
-				self.eventid_shorteventid
-					.insert(event_id.as_bytes(), &shorteventid.to_be_bytes())?;
-				self.shorteventid_eventid
-					.insert(&shorteventid.to_be_bytes(), event_id.as_bytes())?;
-				shorteventid
-			},
+		let short = if let Some(shorteventid) = self.eventid_shorteventid.get(event_id.as_bytes())? {
+			utils::u64_from_bytes(&shorteventid).map_err(|_| Error::bad_database("Invalid shorteventid in db."))?
+		} else {
+			let shorteventid = services().globals.next_count()?;
+			self.eventid_shorteventid
+				.insert(event_id.as_bytes(), &shorteventid.to_be_bytes())?;
+			self.shorteventid_eventid
+				.insert(&shorteventid.to_be_bytes(), event_id.as_bytes())?;
+			shorteventid
 		};
 
 		self.eventidshort_cache
@@ -79,17 +76,15 @@ impl service::rooms::short::Data for KeyValueDatabase {
 		statekey_vec.push(0xFF);
 		statekey_vec.extend_from_slice(state_key.as_bytes());
 
-		let short = match self.statekey_shortstatekey.get(&statekey_vec)? {
-			Some(shortstatekey) => utils::u64_from_bytes(&shortstatekey)
-				.map_err(|_| Error::bad_database("Invalid shortstatekey in db."))?,
-			None => {
-				let shortstatekey = services().globals.next_count()?;
-				self.statekey_shortstatekey
-					.insert(&statekey_vec, &shortstatekey.to_be_bytes())?;
-				self.shortstatekey_statekey
-					.insert(&shortstatekey.to_be_bytes(), &statekey_vec)?;
-				shortstatekey
-			},
+		let short = if let Some(shortstatekey) = self.statekey_shortstatekey.get(&statekey_vec)? {
+			utils::u64_from_bytes(&shortstatekey).map_err(|_| Error::bad_database("Invalid shortstatekey in db."))?
+		} else {
+			let shortstatekey = services().globals.next_count()?;
+			self.statekey_shortstatekey
+				.insert(&statekey_vec, &shortstatekey.to_be_bytes())?;
+			self.shortstatekey_statekey
+				.insert(&shortstatekey.to_be_bytes(), &statekey_vec)?;
+			shortstatekey
 		};
 
 		self.statekeyshort_cache
@@ -170,18 +165,17 @@ impl service::rooms::short::Data for KeyValueDatabase {
 
 	/// Returns (shortstatehash, already_existed)
 	fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> Result<(u64, bool)> {
-		Ok(match self.statehash_shortstatehash.get(state_hash)? {
-			Some(shortstatehash) => (
+		Ok(if let Some(shortstatehash) = self.statehash_shortstatehash.get(state_hash)? {
+			(
 				utils::u64_from_bytes(&shortstatehash)
 					.map_err(|_| Error::bad_database("Invalid shortstatehash in db."))?,
 				true,
-			),
-			None => {
-				let shortstatehash = services().globals.next_count()?;
-				self.statehash_shortstatehash
-					.insert(state_hash, &shortstatehash.to_be_bytes())?;
-				(shortstatehash, false)
-			},
+			)
+		} else {
+			let shortstatehash = services().globals.next_count()?;
+			self.statehash_shortstatehash
+				.insert(state_hash, &shortstatehash.to_be_bytes())?;
+			(shortstatehash, false)
 		})
 	}
 
@@ -193,16 +187,13 @@ impl service::rooms::short::Data for KeyValueDatabase {
 	}
 
 	fn get_or_create_shortroomid(&self, room_id: &RoomId) -> Result<u64> {
-		Ok(match self.roomid_shortroomid.get(room_id.as_bytes())? {
-			Some(short) => {
-				utils::u64_from_bytes(&short).map_err(|_| Error::bad_database("Invalid shortroomid in db."))?
-			},
-			None => {
-				let short = services().globals.next_count()?;
-				self.roomid_shortroomid
-					.insert(room_id.as_bytes(), &short.to_be_bytes())?;
-				short
-			},
+		Ok(if let Some(short) = self.roomid_shortroomid.get(room_id.as_bytes())? {
+			utils::u64_from_bytes(&short).map_err(|_| Error::bad_database("Invalid shortroomid in db."))?
+		} else {
+			let short = services().globals.next_count()?;
+			self.roomid_shortroomid
+				.insert(room_id.as_bytes(), &short.to_be_bytes())?;
+			short
 		})
 	}
 }

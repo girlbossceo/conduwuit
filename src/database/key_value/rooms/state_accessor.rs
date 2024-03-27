@@ -77,13 +77,12 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 	fn state_get_id(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<EventId>>> {
-		let shortstatekey = match services()
+		let Some(shortstatekey) = services()
 			.rooms
 			.short
 			.get_shortstatekey(event_type, state_key)?
-		{
-			Some(s) => s,
-			None => return Ok(None),
+		else {
+			return Ok(None);
 		};
 		let full_state = services()
 			.rooms

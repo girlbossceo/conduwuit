@@ -214,13 +214,10 @@ impl Service {
 					})
 					.transpose()?;
 
-				let mxc_s = match mxc {
-					Some(mxc) => mxc,
-					None => {
-						return Err(Error::bad_database(
-							"Parsed MXC URL unicode bytes from database but still is None",
-						));
-					},
+				let Some(mxc_s) = mxc else {
+					return Err(Error::bad_database(
+						"Parsed MXC URL unicode bytes from database but still is None",
+					));
 				};
 
 				debug!("Parsed MXC key to URL: {}", mxc_s);

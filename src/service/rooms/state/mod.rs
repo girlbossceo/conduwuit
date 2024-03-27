@@ -4,7 +4,7 @@ use std::{
 	sync::Arc,
 };
 
-pub use data::Data;
+pub(crate) use data::Data;
 use ruma::{
 	api::client::error::ErrorKind,
 	events::{
@@ -43,9 +43,8 @@ impl Service {
 				.ok()
 				.map(|(_, id)| id)
 		}) {
-			let pdu = match services().rooms.timeline.get_pdu_json(&event_id)? {
-				Some(pdu) => pdu,
-				None => continue,
+			let Some(pdu) = services().rooms.timeline.get_pdu_json(&event_id)? else {
+				continue;
 			};
 
 			let pdu: PduEvent = match serde_json::from_str(
@@ -57,19 +56,16 @@ impl Service {
 
 			match pdu.kind {
 				TimelineEventType::RoomMember => {
-					let membership_event = match serde_json::from_str::<RoomMemberEventContent>(pdu.content.get()) {
-						Ok(e) => e,
-						Err(_) => continue,
+					let Ok(membership_event) = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get()) else {
+						continue;
 					};
 
-					let state_key = match pdu.state_key {
-						Some(k) => k,
-						None => continue,
+					let Some(state_key) = pdu.state_key else {
+						continue;
 					};
 
-					let user_id = match UserId::parse(state_key) {
-						Ok(id) => id,
-						Err(_) => continue,
+					let Ok(user_id) = UserId::parse(state_key) else {
+						continue;
 					};
 
 					services()
@@ -355,12 +351,9 @@ impl Service {
 		&self, room_id: &RoomId, kind: &TimelineEventType, sender: &UserId, state_key: Option<&str>,
 		content: &serde_json::value::RawValue,
 	) -> Result<StateMap<Arc<PduEvent>>> {
-		let shortstatehash =
-			if let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? {
-				current_shortstatehash
-			} else {
-				return Ok(HashMap::new());
-			};
+		let Some(shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? else {
+			return Ok(HashMap::new());
+		};
 
 		let auth_events =
 			state_res::auth_types_for_event(kind, sender, state_key, content).expect("content is a valid JSON object");

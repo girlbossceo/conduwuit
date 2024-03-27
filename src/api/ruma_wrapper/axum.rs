@@ -84,82 +84,60 @@ where
 			None
 		};
 
-		let (sender_user, sender_device, sender_servername, from_appservice) = if let Some(info) =
-			appservice_registration
-		{
-			match metadata.authentication {
-				AuthScheme::AccessToken => {
-					let user_id = query_params.user_id.map_or_else(
-						|| {
-							UserId::parse_with_server_name(
-								info.registration.sender_localpart.as_str(),
-								services().globals.server_name(),
-							)
-							.unwrap()
-						},
-						|s| UserId::parse(s).unwrap(),
-					);
+		let (sender_user, sender_device, sender_servername, from_appservice) =
+			if let Some(info) = appservice_registration {
+				match metadata.authentication {
+					AuthScheme::AccessToken => {
+						let user_id = query_params.user_id.map_or_else(
+							|| {
+								UserId::parse_with_server_name(
+									info.registration.sender_localpart.as_str(),
+									services().globals.server_name(),
+								)
+								.unwrap()
+							},
+							|s| UserId::parse(s).unwrap(),
+						);
 
-					debug!("User ID: {:?}", user_id);
+						debug!("User ID: {:?}", user_id);
 
-					if !services().users.exists(&user_id)? {
-						return Err(Error::BadRequest(ErrorKind::Forbidden, "User does not exist."));
-					}
+						if !services().users.exists(&user_id)? {
+							return Err(Error::BadRequest(ErrorKind::Forbidden, "User does not exist."));
+						}
 
-					// TODO: Check if appservice is allowed to be that user
-					(Some(user_id), None, None, true)
-				},
-				AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken => {
-					let user_id = query_params.user_id.map_or_else(
-						|| {
-							UserId::parse_with_server_name(
-								info.registration.sender_localpart.as_str(),
-								services().globals.server_name(),
-							)
-							.unwrap()
-						},
-						|s| UserId::parse(s).unwrap(),
-					);
-
-					debug!("User ID: {:?}", user_id);
-
-					if !services().users.exists(&user_id)? {
-						(None, None, None, true)
-					} else {
 						// TODO: Check if appservice is allowed to be that user
 						(Some(user_id), None, None, true)
-					}
-				},
-				AuthScheme::ServerSignatures | AuthScheme::None => (None, None, None, true),
-			}
-		} else {
-			match metadata.authentication {
-				AuthScheme::AccessToken => {
-					let token = match token {
-						Some(token) => token,
-						_ => return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token.")),
-					};
+					},
+					AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken => {
+						let user_id = query_params.user_id.map_or_else(
+							|| {
+								UserId::parse_with_server_name(
+									info.registration.sender_localpart.as_str(),
+									services().globals.server_name(),
+								)
+								.unwrap()
+							},
+							|s| UserId::parse(s).unwrap(),
+						);
 
-					match services().users.find_from_token(token)? {
-						None => {
-							return Err(Error::BadRequest(
-								ErrorKind::UnknownToken {
-									soft_logout: false,
-								},
-								"Unknown access token.",
-							))
-						},
-						Some((user_id, device_id)) => {
-							(Some(user_id), Some(OwnedDeviceId::from(device_id)), None, false)
-						},
-					}
-				},
-				AuthScheme::AccessTokenOptional => {
-					let token = token.unwrap_or("");
+						debug!("User ID: {:?}", user_id);
 
-					if token.is_empty() {
-						(None, None, None, false)
-					} else {
+						if !services().users.exists(&user_id)? {
+							(None, None, None, true)
+						} else {
+							// TODO: Check if appservice is allowed to be that user
+							(Some(user_id), None, None, true)
+						}
+					},
+					AuthScheme::ServerSignatures | AuthScheme::None => (None, None, None, true),
+				}
+			} else {
+				match metadata.authentication {
+					AuthScheme::AccessToken => {
+						let Some(token) = token else {
+							return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token."));
+						};
+
 						match services().users.find_from_token(token)? {
 							None => {
 								return Err(Error::BadRequest(
@@ -173,112 +151,13 @@ where
 								(Some(user_id), Some(OwnedDeviceId::from(device_id)), None, false)
 							},
 						}
-					}
-				},
-				// treat non-appservice registrations as None authentication
-				AuthScheme::AppserviceToken => (None, None, None, false),
-				AuthScheme::ServerSignatures => {
-					if !services().globals.allow_federation() {
-						return Err(Error::bad_config("Federation is disabled."));
-					}
+					},
+					AuthScheme::AccessTokenOptional => {
+						let token = token.unwrap_or("");
 
-					let TypedHeader(Authorization(x_matrix)) = parts
-						.extract::<TypedHeader<Authorization<XMatrix>>>()
-						.await
-						.map_err(|e| {
-							warn!("Missing or invalid Authorization header: {}", e);
-
-							let msg = match e.reason() {
-								TypedHeaderRejectionReason::Missing => "Missing Authorization header.",
-								TypedHeaderRejectionReason::Error(_) => "Invalid X-Matrix signatures.",
-								_ => "Unknown header-related error",
-							};
-
-							Error::BadRequest(ErrorKind::Forbidden, msg)
-						})?;
-
-					let origin_signatures =
-						BTreeMap::from_iter([(x_matrix.key.clone(), CanonicalJsonValue::String(x_matrix.sig))]);
-
-					let signatures = BTreeMap::from_iter([(
-						x_matrix.origin.as_str().to_owned(),
-						CanonicalJsonValue::Object(origin_signatures),
-					)]);
-
-					let server_destination = services().globals.server_name().as_str().to_owned();
-
-					if let Some(destination) = x_matrix.destination.as_ref() {
-						if destination != &server_destination {
-							return Err(Error::BadRequest(ErrorKind::Forbidden, "Invalid authorization."));
-						}
-					}
-
-					let mut request_map = BTreeMap::from_iter([
-						("method".to_owned(), CanonicalJsonValue::String(parts.method.to_string())),
-						("uri".to_owned(), CanonicalJsonValue::String(parts.uri.to_string())),
-						(
-							"origin".to_owned(),
-							CanonicalJsonValue::String(x_matrix.origin.as_str().to_owned()),
-						),
-						("destination".to_owned(), CanonicalJsonValue::String(server_destination)),
-						("signatures".to_owned(), CanonicalJsonValue::Object(signatures)),
-					]);
-
-					if let Some(json_body) = &json_body {
-						request_map.insert("content".to_owned(), json_body.clone());
-					};
-
-					let keys_result = services()
-						.rooms
-						.event_handler
-						.fetch_signing_keys_for_server(&x_matrix.origin, vec![x_matrix.key.clone()])
-						.await;
-
-					let keys = match keys_result {
-						Ok(b) => b,
-						Err(e) => {
-							warn!("Failed to fetch signing keys: {}", e);
-							return Err(Error::BadRequest(ErrorKind::Forbidden, "Failed to fetch signing keys."));
-						},
-					};
-
-					let pub_key_map = BTreeMap::from_iter([(x_matrix.origin.as_str().to_owned(), keys)]);
-
-					match ruma::signatures::verify_json(&pub_key_map, &request_map) {
-						Ok(()) => (None, None, Some(x_matrix.origin), false),
-						Err(e) => {
-							warn!(
-								"Failed to verify json request from {}: {}\n{:?}",
-								x_matrix.origin, e, request_map
-							);
-
-							if parts.uri.to_string().contains('@') {
-								warn!(
-									"Request uri contained '@' character. Make sure your reverse proxy gives Conduit \
-									 the raw uri (apache: use nocanon)"
-								);
-							}
-
-							return Err(Error::BadRequest(
-								ErrorKind::Forbidden,
-								"Failed to verify X-Matrix signatures.",
-							));
-						},
-					}
-				},
-				AuthScheme::None => match parts.uri.path() {
-					// allow_public_room_directory_without_auth
-					"/_matrix/client/v3/publicRooms" | "/_matrix/client/r0/publicRooms" => {
-						if !services()
-							.globals
-							.config
-							.allow_public_room_directory_without_auth
-						{
-							let token = match token {
-								Some(token) => token,
-								_ => return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token.")),
-							};
-
+						if token.is_empty() {
+							(None, None, None, false)
+						} else {
 							match services().users.find_from_token(token)? {
 								None => {
 									return Err(Error::BadRequest(
@@ -292,14 +171,132 @@ where
 									(Some(user_id), Some(OwnedDeviceId::from(device_id)), None, false)
 								},
 							}
-						} else {
-							(None, None, None, false)
 						}
 					},
-					_ => (None, None, None, false),
-				},
-			}
-		};
+					// treat non-appservice registrations as None authentication
+					AuthScheme::AppserviceToken => (None, None, None, false),
+					AuthScheme::ServerSignatures => {
+						if !services().globals.allow_federation() {
+							return Err(Error::bad_config("Federation is disabled."));
+						}
+
+						let TypedHeader(Authorization(x_matrix)) = parts
+							.extract::<TypedHeader<Authorization<XMatrix>>>()
+							.await
+							.map_err(|e| {
+								warn!("Missing or invalid Authorization header: {}", e);
+
+								let msg = match e.reason() {
+									TypedHeaderRejectionReason::Missing => "Missing Authorization header.",
+									TypedHeaderRejectionReason::Error(_) => "Invalid X-Matrix signatures.",
+									_ => "Unknown header-related error",
+								};
+
+								Error::BadRequest(ErrorKind::Forbidden, msg)
+							})?;
+
+						let origin_signatures =
+							BTreeMap::from_iter([(x_matrix.key.clone(), CanonicalJsonValue::String(x_matrix.sig))]);
+
+						let signatures = BTreeMap::from_iter([(
+							x_matrix.origin.as_str().to_owned(),
+							CanonicalJsonValue::Object(origin_signatures),
+						)]);
+
+						let server_destination = services().globals.server_name().as_str().to_owned();
+
+						if let Some(destination) = x_matrix.destination.as_ref() {
+							if destination != &server_destination {
+								return Err(Error::BadRequest(ErrorKind::Forbidden, "Invalid authorization."));
+							}
+						}
+
+						let mut request_map = BTreeMap::from_iter([
+							("method".to_owned(), CanonicalJsonValue::String(parts.method.to_string())),
+							("uri".to_owned(), CanonicalJsonValue::String(parts.uri.to_string())),
+							(
+								"origin".to_owned(),
+								CanonicalJsonValue::String(x_matrix.origin.as_str().to_owned()),
+							),
+							("destination".to_owned(), CanonicalJsonValue::String(server_destination)),
+							("signatures".to_owned(), CanonicalJsonValue::Object(signatures)),
+						]);
+
+						if let Some(json_body) = &json_body {
+							request_map.insert("content".to_owned(), json_body.clone());
+						};
+
+						let keys_result = services()
+							.rooms
+							.event_handler
+							.fetch_signing_keys_for_server(&x_matrix.origin, vec![x_matrix.key.clone()])
+							.await;
+
+						let keys = match keys_result {
+							Ok(b) => b,
+							Err(e) => {
+								warn!("Failed to fetch signing keys: {}", e);
+								return Err(Error::BadRequest(ErrorKind::Forbidden, "Failed to fetch signing keys."));
+							},
+						};
+
+						let pub_key_map = BTreeMap::from_iter([(x_matrix.origin.as_str().to_owned(), keys)]);
+
+						match ruma::signatures::verify_json(&pub_key_map, &request_map) {
+							Ok(()) => (None, None, Some(x_matrix.origin), false),
+							Err(e) => {
+								warn!(
+									"Failed to verify json request from {}: {}\n{:?}",
+									x_matrix.origin, e, request_map
+								);
+
+								if parts.uri.to_string().contains('@') {
+									warn!(
+										"Request uri contained '@' character. Make sure your reverse proxy gives \
+										 Conduit the raw uri (apache: use nocanon)"
+									);
+								}
+
+								return Err(Error::BadRequest(
+									ErrorKind::Forbidden,
+									"Failed to verify X-Matrix signatures.",
+								));
+							},
+						}
+					},
+					AuthScheme::None => match parts.uri.path() {
+						// allow_public_room_directory_without_auth
+						"/_matrix/client/v3/publicRooms" | "/_matrix/client/r0/publicRooms" => {
+							if !services()
+								.globals
+								.config
+								.allow_public_room_directory_without_auth
+							{
+								let Some(token) = token else {
+									return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token."));
+								};
+
+								match services().users.find_from_token(token)? {
+									None => {
+										return Err(Error::BadRequest(
+											ErrorKind::UnknownToken {
+												soft_logout: false,
+											},
+											"Unknown access token.",
+										))
+									},
+									Some((user_id, device_id)) => {
+										(Some(user_id), Some(OwnedDeviceId::from(device_id)), None, false)
+									},
+								}
+							} else {
+								(None, None, None, false)
+							}
+						},
+						_ => (None, None, None, false),
+					},
+				}
+			};
 
 		let mut http_request = Request::builder().uri(parts.uri).method(parts.method);
 		*http_request.headers_mut().unwrap() = parts.headers;

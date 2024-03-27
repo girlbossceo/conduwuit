@@ -43,7 +43,7 @@ impl<T> Drop for NonAliasingBox<T> {
 	}
 }
 
-pub struct Engine {
+pub(crate) struct Engine {
 	writer: Mutex<Connection>,
 	read_conn_tls: ThreadLocal<Connection>,
 	read_iterator_conn_tls: ThreadLocal<Connection>,

@@ -473,7 +473,7 @@ impl Service {
 }
 
 /// Ensure that a user only sees signatures from themselves and the target user
-pub fn clean_signatures<F: Fn(&UserId) -> bool>(
+pub(crate) fn clean_signatures<F: Fn(&UserId) -> bool>(
 	cross_signing_key: &mut serde_json::Value, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: F,
 ) -> Result<(), Error> {
 	if let Some(signatures) = cross_signing_key

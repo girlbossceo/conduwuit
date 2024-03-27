@@ -788,13 +788,12 @@ async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
 		));
 	}
 
-	let content_type = match response
+	let Some(content_type) = response
 		.headers()
 		.get(reqwest::header::CONTENT_TYPE)
 		.and_then(|x| x.to_str().ok())
-	{
-		Some(ct) => ct,
-		None => return Err(Error::BadRequest(ErrorKind::Unknown, "Unknown Content-Type")),
+	else {
+		return Err(Error::BadRequest(ErrorKind::Unknown, "Unknown Content-Type"));
 	};
 	let data = match content_type {
 		html if html.starts_with("text/html") => download_html(client, url).await?,
