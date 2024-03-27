@@ -113,6 +113,9 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 
 		let mut servers = response.servers;
 
+		// since the room alias server_name responded, insert it into the list
+		servers.push(room_alias.server_name().into());
+
 		// find active servers in room state cache to suggest
 		for extra_servers in services()
 			.rooms
@@ -123,7 +126,14 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 			servers.push(extra_servers);
 		}
 
-		// insert our server as the very first choice if in list
+		servers.sort_unstable();
+		servers.dedup();
+
+		// shuffle list of servers randomly after sort and dedupe
+		servers.shuffle(&mut rand::thread_rng());
+
+		// prefer the very first server to be ourselves if available, else prefer the
+		// room alias server first
 		if let Some(server_index) = servers
 			.clone()
 			.into_iter()
@@ -131,13 +141,14 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 		{
 			servers.remove(server_index);
 			servers.insert(0, services().globals.server_name().to_owned());
+		} else if let Some(alias_server_index) = servers
+			.clone()
+			.into_iter()
+			.position(|server| server == room_alias.server_name())
+		{
+			servers.remove(alias_server_index);
+			servers.insert(0, room_alias.server_name().into());
 		}
-
-		servers.sort_unstable();
-		servers.dedup();
-
-		// shuffle list of servers randomly after sort and dedupe
-		servers.shuffle(&mut rand::thread_rng());
 
 		return Ok(get_alias::v3::Response::new(room_id, servers));
 	}
@@ -191,6 +202,12 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 		servers.push(extra_servers);
 	}
 
+	servers.sort_unstable();
+	servers.dedup();
+
+	// shuffle list of servers randomly after sort and dedupe
+	servers.shuffle(&mut rand::thread_rng());
+
 	// insert our server as the very first choice if in list
 	if let Some(server_index) = servers
 		.clone()
@@ -200,12 +217,6 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 		servers.remove(server_index);
 		servers.insert(0, services().globals.server_name().to_owned());
 	}
-
-	servers.sort_unstable();
-	servers.dedup();
-
-	// shuffle list of servers randomly after sort and dedupe
-	servers.shuffle(&mut rand::thread_rng());
 
 	Ok(get_alias::v3::Response::new(room_id, servers))
 }
