@@ -49,6 +49,7 @@ pub async fn get_relating_events_with_rel_type_and_event_type_route(
 		chunk: res.chunk,
 		next_batch: res.next_batch,
 		prev_batch: res.prev_batch,
+		recursion_depth: None, // TODO
 	})
 }
 
@@ -97,6 +98,7 @@ pub async fn get_relating_events_with_rel_type_route(
 		chunk: res.chunk,
 		next_batch: res.next_batch,
 		prev_batch: res.prev_batch,
+		recursion_depth: None, // TODO
 	})
 }
 
