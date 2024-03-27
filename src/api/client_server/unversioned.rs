@@ -76,6 +76,17 @@ pub async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 
 	Ok(Json(serde_json::json!({
 		"server": server_url,
-		"version": format!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
+		"version": format!("Conduwuit {}", env!("CARGO_PKG_VERSION"))
+	})))
+}
+
+/// # `GET /_conduwuit/server_version`
+///
+/// Conduwuit-specific API to get the server version, results akin to
+/// `/_matrix/federation/v1/version`
+pub async fn conduwuit_server_version() -> Result<impl IntoResponse> {
+	Ok(Json(serde_json::json!({
+		"name": "Conduwuit",
+		"version": env!("CARGO_PKG_VERSION"),
 	})))
 }
