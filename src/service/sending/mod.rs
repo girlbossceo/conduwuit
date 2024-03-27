@@ -112,7 +112,10 @@ impl Service {
 	pub fn start_handler(self: &Arc<Self>) {
 		let self2 = Arc::clone(self);
 		tokio::spawn(async move {
-			self2.handler().await.unwrap();
+			self2
+				.handler()
+				.await
+				.expect("Failed to initialize request sending handler");
 		});
 	}
 

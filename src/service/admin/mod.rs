@@ -107,11 +107,14 @@ impl Service {
 	pub fn start_handler(self: &Arc<Self>) {
 		let self2 = Arc::clone(self);
 		tokio::spawn(async move {
-			self2.handler().await;
+			self2
+				.handler()
+				.await
+				.expect("Failed to initialize admin room handler");
 		});
 	}
 
-	async fn handler(&self) {
+	async fn handler(&self) -> Result<()> {
 		let mut receiver = self.receiver.lock().await;
 		// TODO: Use futures when we have long admin commands
 		//let mut futures = FuturesUnordered::new();
@@ -157,8 +160,7 @@ impl Service {
 						&conduit_user,
 						&conduit_room,
 						&state_lock)
-					  .await
-					  .unwrap(); // TODO: can we remove this unwrap?
+					  .await?;
 
 
 						drop(state_lock);
@@ -166,6 +168,8 @@ impl Service {
 				}
 			}
 		}
+
+		Ok(())
 	}
 
 	pub fn process_message(&self, room_message: String, event_id: Arc<EventId>) {
