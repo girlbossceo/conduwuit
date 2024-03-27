@@ -67,6 +67,8 @@ pub struct Config {
 	pub dns_attempts: u16,
 	#[serde(default = "default_dns_timeout")]
 	pub dns_timeout: u64,
+	#[serde(default)]
+	pub query_all_nameservers: bool,
 	#[serde(default = "default_max_request_size")]
 	pub max_request_size: u32,
 	#[serde(default = "default_max_concurrent_requests")]
@@ -322,6 +324,7 @@ impl fmt::Display for Config {
 			("DNS minimum nxdomain ttl", &self.dns_min_ttl_nxdomain.to_string()),
 			("DNS attempts", &self.dns_attempts.to_string()),
 			("DNS timeout", &self.dns_timeout.to_string()),
+			("Query all nameservers", &self.query_all_nameservers.to_string()),
 			("Maximum request size (bytes)", &self.max_request_size.to_string()),
 			("Maximum concurrent requests", &self.max_concurrent_requests.to_string()),
 			("Request connect timeout", &self.request_conn_timeout.to_string()),
@@ -511,6 +514,10 @@ impl fmt::Display for Config {
 			),
 			("URL preview maximum spider size", &self.url_preview_max_spider_size.to_string()),
 			("URL preview check root domain", &self.url_preview_check_root_domain.to_string()),
+			(
+				"Allow check for updates / announcements check",
+				&self.allow_check_for_updates.to_string(),
+			),
 		];
 
 		let mut msg: String = "Active config values:\n\n".to_owned();

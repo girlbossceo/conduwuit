@@ -40,9 +40,22 @@ impl Resolver {
 			.unwrap();
 
 		let mut conf = hickory_resolver::config::ResolverConfig::new();
+
+		if let Some(domain) = sys_conf.domain() {
+			conf.set_domain(domain.clone());
+		}
+
+		for sys_conf in sys_conf.search() {
+			conf.add_search(sys_conf.clone());
+		}
+
 		for sys_conf in sys_conf.name_servers() {
 			let mut ns = sys_conf.clone();
-			ns.trust_negative_responses = true;
+
+			if config.query_all_nameservers {
+				ns.trust_negative_responses = true;
+			}
+
 			conf.add_name_server(ns);
 		}
 

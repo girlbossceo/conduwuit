@@ -413,6 +413,12 @@ url_preview_check_root_domain = false
 # Number of retries after a timeout.
 #dns_attempts = 5
 
+# Enable to query all nameservers until the domain is found. Referred to as "trust_negative_responses" in hickory_resolver.
+# This can avoid useless DNS queries if the first nameserver responds with NXDOMAIN or an empty NOERROR response.
+#
+# The default is to query one nameserver and stop (false).
+#query_all_nameservers = false
+
 
 
 ### Request Timeouts, Connection Timeouts, and Connection Pooling

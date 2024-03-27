@@ -235,6 +235,8 @@ impl Service<'_> {
 
 	pub fn dns_resolver(&self) -> &TokioAsyncResolver { &self.resolver.resolver }
 
+	pub fn query_all_nameservers(&self) -> bool { self.config.query_all_nameservers }
+
 	pub fn actual_destinations(&self) -> &Arc<RwLock<resolver::WellKnownMap>> { &self.resolver.destinations }
 
 	pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> { self.jwt_decoding_key.as_ref() }
