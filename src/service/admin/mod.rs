@@ -158,7 +158,7 @@ impl Service {
 						&conduit_room,
 						&state_lock)
 					  .await
-					  .unwrap();
+					  .unwrap(); // TODO: can we remove this unwrap?
 
 
 						drop(state_lock);
@@ -232,13 +232,13 @@ impl Service {
 
 	async fn process_admin_command(&self, command: AdminCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 		let reply_message_content = match command {
-			AdminCommand::Appservices(command) => appservice::process(command, body).await.unwrap(),
-			AdminCommand::Media(command) => media::process(command, body).await.unwrap(),
-			AdminCommand::Users(command) => user::process(command, body).await.unwrap(),
-			AdminCommand::Rooms(command) => room::process(command, body).await.unwrap(),
-			AdminCommand::Federation(command) => federation::process(command, body).await.unwrap(),
-			AdminCommand::Server(command) => server::process(command, body).await.unwrap(),
-			AdminCommand::Debug(command) => debug::process(command, body).await.unwrap(),
+			AdminCommand::Appservices(command) => appservice::process(command, body).await?,
+			AdminCommand::Media(command) => media::process(command, body).await?,
+			AdminCommand::Users(command) => user::process(command, body).await?,
+			AdminCommand::Rooms(command) => room::process(command, body).await?,
+			AdminCommand::Federation(command) => federation::process(command, body).await?,
+			AdminCommand::Server(command) => server::process(command, body).await?,
+			AdminCommand::Debug(command) => debug::process(command, body).await?,
 		};
 
 		Ok(reply_message_content)
