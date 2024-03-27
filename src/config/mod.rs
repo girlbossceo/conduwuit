@@ -226,6 +226,9 @@ pub struct Config {
 	#[serde(with = "serde_regex")]
 	pub forbidden_usernames: RegexSet,
 
+	#[serde(default = "default_startup_netburst")]
+	pub startup_netburst: bool,
+
 	#[serde(default)]
 	pub block_non_admin_invites: bool,
 
@@ -518,6 +521,7 @@ impl fmt::Display for Config {
 				"Allow check for updates / announcements check",
 				&self.allow_check_for_updates.to_string(),
 			),
+			("Enable netburst on startup", &self.startup_netburst.to_string()),
 		];
 
 		let mut msg: String = "Active config values:\n\n".to_owned();
@@ -675,3 +679,5 @@ fn default_url_preview_max_spider_size() -> usize {
 }
 
 fn default_new_user_displayname_suffix() -> String { "🏳️‍⚧️".to_owned() }
+
+fn default_startup_netburst() -> bool { true }
