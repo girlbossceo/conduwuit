@@ -91,6 +91,7 @@ impl Service {
 					chunk: events_after,
 					next_batch: next_token.map(|t| t.stringify()),
 					prev_batch: Some(from.stringify()),
+					recursion_depth: None, // TODO
 				})
 			},
 			ruma::api::Direction::Backward => {
@@ -135,6 +136,7 @@ impl Service {
 					chunk: events_before,
 					next_batch: next_token.map(|t| t.stringify()),
 					prev_batch: Some(from.stringify()),
+					recursion_depth: None, // TODO
 				})
 			},
 		}
