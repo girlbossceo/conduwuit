@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 pub use data::Data;
 use ruma::{
-	api::client::relations::get_relating_events,
+	api::{client::relations::get_relating_events, Direction},
 	events::{relation::RelationType, TimelineEventType},
 	EventId, RoomId, UserId,
 };
@@ -42,13 +42,12 @@ impl Service {
 	#[allow(clippy::too_many_arguments)]
 	pub fn paginate_relations_with_filter(
 		&self, sender_user: &UserId, room_id: &RoomId, target: &EventId, filter_event_type: &Option<TimelineEventType>,
-		filter_rel_type: &Option<RelationType>, from: PduCount, to: Option<PduCount>, limit: usize,
+		filter_rel_type: &Option<RelationType>, from: PduCount, dir: Direction, to: Option<PduCount>, limit: usize,
 	) -> Result<get_relating_events::v1::Response> {
 		let next_token;
 
-		//TODO: Fix ruma: match body.dir {
-		match ruma::api::Direction::Backward {
-			ruma::api::Direction::Forward => {
+		match dir {
+			Direction::Forward => {
 				let events_after: Vec<_> = services()
 					.rooms
 					.pdu_metadata
@@ -94,7 +93,7 @@ impl Service {
 					recursion_depth: None, // TODO
 				})
 			},
-			ruma::api::Direction::Backward => {
+			Direction::Backward => {
 				let events_before: Vec<_> = services()
 					.rooms
 					.pdu_metadata

@@ -12,8 +12,7 @@ pub async fn get_relating_events_with_rel_type_and_event_type_route(
 
 	let from = match body.from.clone() {
 		Some(from) => PduCount::try_from_string(&from)?,
-		None => match ruma::api::Direction::Backward {
-			// TODO: fix ruma so `body.dir` exists
+		None => match body.dir {
 			ruma::api::Direction::Forward => PduCount::min(),
 			ruma::api::Direction::Backward => PduCount::max(),
 		},
@@ -41,6 +40,7 @@ pub async fn get_relating_events_with_rel_type_and_event_type_route(
 			&Some(body.event_type.clone()),
 			&Some(body.rel_type.clone()),
 			from,
+			body.dir,
 			to,
 			limit,
 		)?;
@@ -61,8 +61,7 @@ pub async fn get_relating_events_with_rel_type_route(
 
 	let from = match body.from.clone() {
 		Some(from) => PduCount::try_from_string(&from)?,
-		None => match ruma::api::Direction::Backward {
-			// TODO: fix ruma so `body.dir` exists
+		None => match body.dir {
 			ruma::api::Direction::Forward => PduCount::min(),
 			ruma::api::Direction::Backward => PduCount::max(),
 		},
@@ -90,6 +89,7 @@ pub async fn get_relating_events_with_rel_type_route(
 			&None,
 			&Some(body.rel_type.clone()),
 			from,
+			body.dir,
 			to,
 			limit,
 		)?;
@@ -110,8 +110,7 @@ pub async fn get_relating_events_route(
 
 	let from = match body.from.clone() {
 		Some(from) => PduCount::try_from_string(&from)?,
-		None => match ruma::api::Direction::Backward {
-			// TODO: fix ruma so `body.dir` exists
+		None => match body.dir {
 			ruma::api::Direction::Forward => PduCount::min(),
 			ruma::api::Direction::Backward => PduCount::max(),
 		},
@@ -132,5 +131,15 @@ pub async fn get_relating_events_route(
 	services()
 		.rooms
 		.pdu_metadata
-		.paginate_relations_with_filter(sender_user, &body.room_id, &body.event_id, &None, &None, from, to, limit)
+		.paginate_relations_with_filter(
+			sender_user,
+			&body.room_id,
+			&body.event_id,
+			&None,
+			&None,
+			from,
+			body.dir,
+			to,
+			limit,
+		)
 }
