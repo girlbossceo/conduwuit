@@ -243,8 +243,8 @@ features = ["multi-threaded-cf"]
 
 [dependencies.rusqlite]
 git = "https://github.com/rusqlite/rusqlite"
-branch = "master"
-#rev = "def8e9460d8376a5c0c9f4f9846d413a9cd4581a"
+#branch = "master"
+rev = "e00b626e2b1c67347d789fb7f600281705c89381"
 optional = true
 features = ["bundled"]
 
