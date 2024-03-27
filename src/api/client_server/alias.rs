@@ -135,15 +135,13 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 		// prefer the very first server to be ourselves if available, else prefer the
 		// room alias server first
 		if let Some(server_index) = servers
-			.clone()
-			.into_iter()
+			.iter()
 			.position(|server| server == services().globals.server_name())
 		{
 			servers.remove(server_index);
 			servers.insert(0, services().globals.server_name().to_owned());
 		} else if let Some(alias_server_index) = servers
-			.clone()
-			.into_iter()
+			.iter()
 			.position(|server| server == room_alias.server_name())
 		{
 			servers.remove(alias_server_index);
@@ -210,8 +208,7 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 
 	// insert our server as the very first choice if in list
 	if let Some(server_index) = servers
-		.clone()
-		.into_iter()
+		.iter()
 		.position(|server| server == services().globals.server_name())
 	{
 		servers.remove(server_index);
