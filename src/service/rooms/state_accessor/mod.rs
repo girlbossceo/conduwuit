@@ -143,9 +143,8 @@ impl Service {
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip(self, user_id, room_id, event_id))]
 	pub fn user_can_see_event(&self, user_id: &UserId, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
-		let shortstatehash = match self.pdu_shortstatehash(event_id)? {
-			Some(shortstatehash) => shortstatehash,
-			None => return Ok(true),
+		let Some(shortstatehash) = self.pdu_shortstatehash(event_id)? else {
+			return Ok(true);
 		};
 
 		if let Some(visibility) = self

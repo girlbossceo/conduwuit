@@ -429,74 +429,64 @@ async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDe
 				FedDest::Named(host.to_owned(), port.to_owned())
 			} else {
 				debug!("Requesting well known for {destination}");
-				match request_well_known(destination.as_str()).await {
-					Some(delegated_hostname) => {
-						debug!("3: A .well-known file is available");
-						hostname = add_port_to_hostname(&delegated_hostname).into_uri_string();
-						match get_ip_with_port(&delegated_hostname) {
-							Some(host_and_port) => host_and_port, // 3.1: IP literal in .well-known file
-							None => {
-								if let Some(pos) = delegated_hostname.find(':') {
-									debug!("3.2: Hostname with port in .well-known file");
+				if let Some(delegated_hostname) = request_well_known(destination.as_str()).await {
+					debug!("3: A .well-known file is available");
+					hostname = add_port_to_hostname(&delegated_hostname).into_uri_string();
+					match get_ip_with_port(&delegated_hostname) {
+						Some(host_and_port) => host_and_port, // 3.1: IP literal in .well-known file
+						None => {
+							if let Some(pos) = delegated_hostname.find(':') {
+								debug!("3.2: Hostname with port in .well-known file");
 
-									let (host, port) = delegated_hostname.split_at(pos);
-									query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448)).await;
+								let (host, port) = delegated_hostname.split_at(pos);
+								query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448)).await;
 
-									FedDest::Named(host.to_owned(), port.to_owned())
-								} else {
-									debug!("Delegated hostname has no port in this branch");
-									if let Some(hostname_override) = query_srv_record(&delegated_hostname).await {
-										debug!("3.3: SRV lookup successful");
+								FedDest::Named(host.to_owned(), port.to_owned())
+							} else {
+								debug!("Delegated hostname has no port in this branch");
+								if let Some(hostname_override) = query_srv_record(&delegated_hostname).await {
+									debug!("3.3: SRV lookup successful");
 
-										let force_port = hostname_override.port();
-										query_and_cache_override(
-											&delegated_hostname,
-											&hostname_override.hostname(),
-											force_port.unwrap_or(8448),
-										)
-										.await;
+									let force_port = hostname_override.port();
+									query_and_cache_override(
+										&delegated_hostname,
+										&hostname_override.hostname(),
+										force_port.unwrap_or(8448),
+									)
+									.await;
 
-										if let Some(port) = force_port {
-											FedDest::Named(delegated_hostname, format!(":{port}"))
-										} else {
-											add_port_to_hostname(&delegated_hostname)
-										}
+									if let Some(port) = force_port {
+										FedDest::Named(delegated_hostname, format!(":{port}"))
 									} else {
-										debug!("3.4: No SRV records, just use the hostname from .well-known");
-										query_and_cache_override(&delegated_hostname, &delegated_hostname, 8448).await;
 										add_port_to_hostname(&delegated_hostname)
 									}
-								}
-							},
-						}
-					},
-					None => {
-						debug!("4: No .well-known or an error occured");
-						match query_srv_record(&destination_str).await {
-							Some(hostname_override) => {
-								debug!("4: SRV record found");
-
-								let force_port = hostname_override.port();
-								query_and_cache_override(
-									&hostname,
-									&hostname_override.hostname(),
-									force_port.unwrap_or(8448),
-								)
-								.await;
-
-								if let Some(port) = force_port {
-									FedDest::Named(hostname.clone(), format!(":{port}"))
 								} else {
-									add_port_to_hostname(&hostname)
+									debug!("3.4: No SRV records, just use the hostname from .well-known");
+									query_and_cache_override(&delegated_hostname, &delegated_hostname, 8448).await;
+									add_port_to_hostname(&delegated_hostname)
 								}
-							},
-							None => {
-								debug!("5: No SRV record found");
-								query_and_cache_override(&destination_str, &destination_str, 8448).await;
-								add_port_to_hostname(&destination_str)
-							},
+							}
+						},
+					}
+				} else {
+					debug!("4: No .well-known or an error occured");
+					if let Some(hostname_override) = query_srv_record(&destination_str).await {
+						debug!("4: SRV record found");
+
+						let force_port = hostname_override.port();
+						query_and_cache_override(&hostname, &hostname_override.hostname(), force_port.unwrap_or(8448))
+							.await;
+
+						if let Some(port) = force_port {
+							FedDest::Named(hostname.clone(), format!(":{port}"))
+						} else {
+							add_port_to_hostname(&hostname)
 						}
-					},
+					} else {
+						debug!("5: No SRV record found");
+						query_and_cache_override(&destination_str, &destination_str, 8448).await;
+						add_port_to_hostname(&destination_str)
+					}
 				}
 			}
 		},
@@ -776,15 +766,12 @@ pub fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, Canonical
 
 	let room_version_id = services().rooms.state.get_room_version(&room_id)?;
 
-	let (event_id, value) = match gen_event_id_canonical_json(pdu, &room_version_id) {
-		Ok(t) => t,
-		Err(_) => {
-			// Event could not be converted to canonical json
-			return Err(Error::BadRequest(
-				ErrorKind::InvalidParam,
-				"Could not convert event to canonical json.",
-			));
-		},
+	let Ok((event_id, value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
+		// Event could not be converted to canonical json
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Could not convert event to canonical json.",
+		));
 	};
 	Ok((event_id, value, room_id))
 }
@@ -1379,12 +1366,13 @@ pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Re
 
 	Ok(get_room_state::v1::Response {
 		auth_chain: auth_chain_ids
-			.filter_map(|id| match services().rooms.timeline.get_pdu_json(&id).ok()? {
-				Some(json) => Some(PduEvent::convert_to_outgoing_federation_event(json)),
-				None => {
+			.filter_map(|id| {
+				if let Some(json) = services().rooms.timeline.get_pdu_json(&id).ok()? {
+					Some(PduEvent::convert_to_outgoing_federation_event(json))
+				} else {
 					error!("Could not find event json for {id} in db.");
 					None
-				},
+				}
 			})
 			.collect(),
 		pdus,
@@ -1623,15 +1611,12 @@ async fn create_join_event(
 	// We do not add the event_id field to the pdu here because of signature and
 	// hashes checks
 	let room_version_id = services().rooms.state.get_room_version(room_id)?;
-	let (event_id, value) = match gen_event_id_canonical_json(pdu, &room_version_id) {
-		Ok(t) => t,
-		Err(_) => {
-			// Event could not be converted to canonical json
-			return Err(Error::BadRequest(
-				ErrorKind::InvalidParam,
-				"Could not convert event to canonical json.",
-			));
-		},
+	let Ok((event_id, value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
+		// Event could not be converted to canonical json
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Could not convert event to canonical json.",
+		));
 	};
 
 	let origin: OwnedServerName = serde_json::from_value(

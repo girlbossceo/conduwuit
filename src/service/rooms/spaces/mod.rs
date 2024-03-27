@@ -90,7 +90,7 @@ impl Arena {
 
 	/// Returns the first untraversed node, marking it as traversed in the
 	/// process
-	pub fn first_untraversed(&mut self) -> Option<NodeId> {
+	fn first_untraversed(&mut self) -> Option<NodeId> {
 		if self.nodes.is_empty() {
 			None
 		} else if let Some(untraversed) = self.first_untraversed {
@@ -133,7 +133,7 @@ impl Arena {
 	}
 
 	/// Adds all the given nodes as children of the parent node
-	pub fn push(&mut self, parent: NodeId, mut children: Vec<OwnedRoomId>) {
+	fn push(&mut self, parent: NodeId, mut children: Vec<OwnedRoomId>) {
 		if children.is_empty() {
 			self.traverse(parent);
 		} else if self.nodes.get(parent.index).is_some() {
@@ -204,7 +204,7 @@ impl Arena {
 		}
 	}
 
-	pub fn new(root: OwnedRoomId, max_depth: usize) -> Self {
+	fn new(root: OwnedRoomId, max_depth: usize) -> Self {
 		let zero_depth = max_depth == 0;
 
 		Arena {
@@ -229,11 +229,11 @@ impl Arena {
 
 // Note: perhaps use some better form of token rather than just room count
 #[derive(Debug, PartialEq)]
-pub struct PagnationToken {
-	pub skip: UInt,
-	pub limit: UInt,
-	pub max_depth: UInt,
-	pub suggested_only: bool,
+pub(crate) struct PagnationToken {
+	pub(crate) skip: UInt,
+	pub(crate) limit: UInt,
+	pub(crate) max_depth: UInt,
+	pub(crate) suggested_only: bool,
 }
 
 impl FromStr for PagnationToken {

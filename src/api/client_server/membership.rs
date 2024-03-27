@@ -669,17 +669,15 @@ pub(crate) async fn join_room_by_id_helper(
 							"There is a signed event. This room is probably using restricted joins. Adding signature \
 							 to our event"
 						);
-						let (signed_event_id, signed_value) =
-							match gen_event_id_canonical_json(signed_raw, &room_version_id) {
-								Ok(t) => t,
-								Err(_) => {
-									// Event could not be converted to canonical json
-									return Err(Error::BadRequest(
-										ErrorKind::InvalidParam,
-										"Could not convert event to canonical json.",
-									));
-								},
-							};
+						let Ok((signed_event_id, signed_value)) =
+							gen_event_id_canonical_json(signed_raw, &room_version_id)
+						else {
+							// Event could not be converted to canonical json
+							return Err(Error::BadRequest(
+								ErrorKind::InvalidParam,
+								"Could not convert event to canonical json.",
+							));
+						};
 
 						if signed_event_id != event_id {
 							return Err(Error::BadRequest(
@@ -753,9 +751,8 @@ pub(crate) async fn join_room_by_id_helper(
 			.iter()
 			.map(|pdu| validate_and_add_event_id(pdu, &room_version_id, &pub_key_map))
 		{
-			let (event_id, value) = match result.await {
-				Ok(t) => t,
-				Err(_) => continue,
+			let Ok((event_id, value)) = result.await else {
+				continue;
 			};
 
 			let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
@@ -783,9 +780,8 @@ pub(crate) async fn join_room_by_id_helper(
 			.iter()
 			.map(|pdu| validate_and_add_event_id(pdu, &room_version_id, &pub_key_map))
 		{
-			let (event_id, value) = match result.await {
-				Ok(t) => t,
-				Err(_) => continue,
+			let Ok((event_id, value)) = result.await else {
+				continue;
 			};
 
 			services()
@@ -1104,15 +1100,13 @@ pub(crate) async fn join_room_by_id_helper(
 				.await?;
 
 			if let Some(signed_raw) = send_join_response.room_state.event {
-				let (signed_event_id, signed_value) = match gen_event_id_canonical_json(&signed_raw, &room_version_id) {
-					Ok(t) => t,
-					Err(_) => {
-						// Event could not be converted to canonical json
-						return Err(Error::BadRequest(
-							ErrorKind::InvalidParam,
-							"Could not convert event to canonical json.",
-						));
-					},
+				let Ok((signed_event_id, signed_value)) = gen_event_id_canonical_json(&signed_raw, &room_version_id)
+				else {
+					// Event could not be converted to canonical json
+					return Err(Error::BadRequest(
+						ErrorKind::InvalidParam,
+						"Could not convert event to canonical json.",
+					));
 				};
 
 				if signed_event_id != event_id {
@@ -1311,15 +1305,12 @@ pub(crate) async fn invite_helper(
 
 		// We do not add the event_id field to the pdu here because of signature and
 		// hashes checks
-		let (event_id, value) = match gen_event_id_canonical_json(&response.event, &room_version_id) {
-			Ok(t) => t,
-			Err(_) => {
-				// Event could not be converted to canonical json
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"Could not convert event to canonical json.",
-				));
-			},
+		let Ok((event_id, value)) = gen_event_id_canonical_json(&response.event, &room_version_id) else {
+			// Event could not be converted to canonical json
+			return Err(Error::BadRequest(
+				ErrorKind::InvalidParam,
+				"Could not convert event to canonical json.",
+			));
 		};
 
 		if *pdu.event_id != *event_id {

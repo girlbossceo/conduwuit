@@ -119,26 +119,25 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 					 using get_alias_helper to fetch room ID remotely"
 				);
 
-				let room_id = match services().rooms.alias.resolve_local_alias(&room_alias)? {
-					Some(room_id) => room_id,
-					None => {
-						debug!(
-							"We don't have this room alias to a room ID locally, attempting to fetch room ID over \
-							 federation"
-						);
+				let room_id = if let Some(room_id) = services().rooms.alias.resolve_local_alias(&room_alias)? {
+					room_id
+				} else {
+					debug!(
+						"We don't have this room alias to a room ID locally, attempting to fetch room ID over \
+						 federation"
+					);
 
-						match get_alias_helper(room_alias).await {
-							Ok(response) => {
-								debug!("Got federation response fetching room ID for room {room}: {:?}", response);
-								response.room_id
-							},
-							Err(e) => {
-								return Ok(RoomMessageEventContent::text_plain(format!(
-									"Failed to resolve room alias {room} to a room ID: {e}"
-								)));
-							},
-						}
-					},
+					match get_alias_helper(room_alias).await {
+						Ok(response) => {
+							debug!("Got federation response fetching room ID for room {room}: {:?}", response);
+							response.room_id
+						},
+						Err(e) => {
+							return Ok(RoomMessageEventContent::text_plain(format!(
+								"Failed to resolve room alias {room} to a room ID: {e}"
+							)));
+						},
+					}
 				};
 
 				services().rooms.metadata.ban_room(&room_id, true)?;
@@ -352,14 +351,12 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 
 				if disable_federation {
 					return Ok(RoomMessageEventContent::text_plain(format!(
-						"Finished bulk room ban, banned {} total rooms, evicted all users, and disabled incoming \
-						 federation with the room.",
-						room_ban_count
+						"Finished bulk room ban, banned {room_ban_count} total rooms, evicted all users, and disabled \
+						 incoming federation with the room."
 					)));
 				}
 				return Ok(RoomMessageEventContent::text_plain(format!(
-					"Finished bulk room ban, banned {} total rooms and evicted all users.",
-					room_ban_count
+					"Finished bulk room ban, banned {room_ban_count} total rooms and evicted all users."
 				)));
 			}
 
@@ -403,26 +400,25 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 					 using get_alias_helper to fetch room ID remotely"
 				);
 
-				let room_id = match services().rooms.alias.resolve_local_alias(&room_alias)? {
-					Some(room_id) => room_id,
-					None => {
-						debug!(
-							"We don't have this room alias to a room ID locally, attempting to fetch room ID over \
-							 federation"
-						);
+				let room_id = if let Some(room_id) = services().rooms.alias.resolve_local_alias(&room_alias)? {
+					room_id
+				} else {
+					debug!(
+						"We don't have this room alias to a room ID locally, attempting to fetch room ID over \
+						 federation"
+					);
 
-						match get_alias_helper(room_alias).await {
-							Ok(response) => {
-								debug!("Got federation response fetching room ID for room {room}: {:?}", response);
-								response.room_id
-							},
-							Err(e) => {
-								return Ok(RoomMessageEventContent::text_plain(format!(
-									"Failed to resolve room alias {room} to a room ID: {e}"
-								)));
-							},
-						}
-					},
+					match get_alias_helper(room_alias).await {
+						Ok(response) => {
+							debug!("Got federation response fetching room ID for room {room}: {:?}", response);
+							response.room_id
+						},
+						Err(e) => {
+							return Ok(RoomMessageEventContent::text_plain(format!(
+								"Failed to resolve room alias {room} to a room ID: {e}"
+							)));
+						},
+					}
 				};
 
 				services().rooms.metadata.ban_room(&room_id, false)?;
