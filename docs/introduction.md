@@ -1,4 +1,4 @@
-# Conduit
+# Conduwuit
 
 {{#include ../README.md:catchphrase}}
 
@@ -12,6 +12,6 @@ See [differences.md](differences.md)
 
 - [Deployment options](deploying.md)
 
-If you want to connect an Appservice to Conduit, take a look at the [appservices documentation](appservices.md).
+If you want to connect an Appservice to Conduwuit, take a look at the [appservices documentation](appservices.md).
 
 {{#include ../README.md:footer}}
