@@ -967,5 +967,19 @@ mod test {
 
 	#[cfg(unix)]
 	#[test]
-	fn maximize_fd_limit_works() { maximize_fd_limit().unwrap() }
+	/// Tests if `maximize_fd_limit()` actually raised the soft limit to the
+	/// hard limit
+	fn maximize_fd_limit_raises_limit() {
+		use nix::sys::resource::{getrlimit, Resource};
+
+		let res = Resource::RLIMIT_NOFILE;
+
+		let (_, hard_limit) = getrlimit(res).unwrap();
+
+		maximize_fd_limit().unwrap();
+
+		let (soft_limit, _) = getrlimit(res).unwrap();
+
+		assert_eq!(soft_limit, hard_limit);
+	}
 }
