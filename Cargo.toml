@@ -45,7 +45,7 @@ jsonwebtoken = "9.3.0"
 lru-cache = "0.1.2"
 
 # Used for ruma wrapper
-serde_html_form = "0.2.5"
+serde_html_form = "0.2.6"
 
 # used for TURN server authentication
 hmac = "0.12.1"
