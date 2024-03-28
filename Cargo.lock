@@ -1476,9 +1476,9 @@ checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
 
 [[package]]
 name = "memchr"
-version = "2.7.1"
+version = "2.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "523dc4f511e55ab87b694dc30d0f820d60906ef06413f93d4d7a1385599cc149"
+checksum = "6c8640c5d730cb13ebd907d8d04b52f55ac9a2eec55b440c8892f40d56c76c1d"
 
 [[package]]
 name = "mime"
@@ -2356,8 +2356,8 @@ dependencies = [
 
 [[package]]
 name = "rust-librocksdb-sys"
-version = "0.18.2+8.11.3"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=60f783b06b49d2f6fcf1d3dda66c7194e49095d4#60f783b06b49d2f6fcf1d3dda66c7194e49095d4"
+version = "0.19.1+9.0.0"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?branch=master#88d642c6477e58f690c5c86c6376da236852c34f"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -2372,8 +2372,8 @@ dependencies = [
 
 [[package]]
 name = "rust-rocksdb"
-version = "0.22.8"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=60f783b06b49d2f6fcf1d3dda66c7194e49095d4#60f783b06b49d2f6fcf1d3dda66c7194e49095d4"
+version = "0.23.1"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?branch=master#88d642c6477e58f690c5c86c6376da236852c34f"
 dependencies = [
  "libc",
  "rust-librocksdb-sys",

@@ -235,11 +235,11 @@ features = [
 
 [dependencies.rust-rocksdb]
 git = "https://github.com/zaidoon1/rust-rocksdb"
-#branch = "master"
-rev = "60f783b06b49d2f6fcf1d3dda66c7194e49095d4"
+branch = "master"
+#rev = "60f783b06b49d2f6fcf1d3dda66c7194e49095d4"
 optional = true
 default-features = true
-features = ["multi-threaded-cf"]
+features = ["multi-threaded-cf", "zstd"]
 
 [dependencies.rusqlite]
 git = "https://github.com/rusqlite/rusqlite"
