@@ -145,6 +145,8 @@ impl Service {
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, target: &'a EventId, until: PduCount,
 	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
 		let room_id = services().rooms.short.get_or_create_shortroomid(room_id)?;
+		#[allow(unknown_lints)]
+		#[allow(clippy::manual_unwrap_or_default)]
 		let target = match services().rooms.timeline.get_pdu_count(target)? {
 			Some(PduCount::Normal(c)) => c,
 			// TODO: Support backfilled relations
