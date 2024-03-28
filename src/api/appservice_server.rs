@@ -1,9 +1,8 @@
 use std::{fmt::Debug, mem, time::Duration};
 
 use bytes::BytesMut;
-use ipaddress::IPAddress;
 use ruma::api::{appservice::Registration, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken};
-use tracing::{debug, warn};
+use tracing::warn;
 
 use crate::{services, utils, Error, Result};
 
