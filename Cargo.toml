@@ -508,6 +508,8 @@ used_underscore_binding = "warn"
 needless_pass_by_value = "warn"
 too_many_lines = "warn"
 let_underscore_untyped = "warn"
+single_match = "warn"
+single_match_else = "warn"
 
 # some sadness
 missing_errors_doc = "allow"

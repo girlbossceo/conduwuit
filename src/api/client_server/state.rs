@@ -5,15 +5,24 @@ use ruma::{
 		error::ErrorKind,
 		state::{get_state_events, get_state_events_for_key, send_state_event},
 	},
-	events::{room::canonical_alias::RoomCanonicalAliasEventContent, AnyStateEventContent, StateEventType},
+	events::{
+		room::{
+			canonical_alias::RoomCanonicalAliasEventContent,
+			join_rules::{JoinRule, RoomJoinRulesEventContent},
+		},
+		AnyStateEventContent, StateEventType,
+	},
 	serde::Raw,
 	EventId, RoomId, UserId,
 };
 use tracing::{error, log::warn};
 
-use crate::{service::pdu::PduBuilder, services, Error, Result, Ruma, RumaResponse};
+use crate::{
+	service::{self, pdu::PduBuilder},
+	services, Error, Result, Ruma, RumaResponse,
+};
 
-/// # `PUT /_matrix/client/r0/rooms/{roomId}/state/{eventType}/{stateKey}`
+/// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}/{stateKey}`
 ///
 /// Sends a state event into the room.
 ///
@@ -25,6 +34,21 @@ pub async fn send_state_event_for_key_route(
 	body: Ruma<send_state_event::v3::Request>,
 ) -> Result<send_state_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	if body.event_type == StateEventType::RoomJoinRules {
+		if let Some(admin_room_id) = service::admin::Service::get_admin_room()? {
+			if admin_room_id == body.room_id {
+				if let Ok(join_rule) = serde_json::from_str::<RoomJoinRulesEventContent>(body.body.body.json().get()) {
+					if join_rule.join_rule == JoinRule::Public {
+						return Err(Error::BadRequest(
+							ErrorKind::Forbidden,
+							"Admin room is not allowed to be public.",
+						));
+					}
+				}
+			}
+		}
+	}
 
 	let event_id = send_state_event_for_key_helper(
 		sender_user,
@@ -41,7 +65,7 @@ pub async fn send_state_event_for_key_route(
 	})
 }
 
-/// # `PUT /_matrix/client/r0/rooms/{roomId}/state/{eventType}`
+/// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}`
 ///
 /// Sends a state event into the room.
 ///
@@ -57,6 +81,21 @@ pub async fn send_state_event_for_empty_key_route(
 	// Forbid m.room.encryption if encryption is disabled
 	if body.event_type == StateEventType::RoomEncryption && !services().globals.allow_encryption() {
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Encryption has been disabled"));
+	}
+
+	if body.event_type == StateEventType::RoomJoinRules {
+		if let Some(admin_room_id) = service::admin::Service::get_admin_room()? {
+			if admin_room_id == body.room_id {
+				if let Ok(join_rule) = serde_json::from_str::<RoomJoinRulesEventContent>(body.body.body.json().get()) {
+					if join_rule.join_rule == JoinRule::Public {
+						return Err(Error::BadRequest(
+							ErrorKind::Forbidden,
+							"Admin room is not allowed to be public.",
+						));
+					}
+				}
+			}
+		}
 	}
 
 	let event_id = send_state_event_for_key_helper(
@@ -247,7 +286,7 @@ async fn send_state_event_for_key_helper(
 			{
 				return Err(Error::BadRequest(
 					ErrorKind::Forbidden,
-					"You are only allowed to send canonical_alias events when it's aliases already exists",
+					"You are only allowed to send canonical_alias events when its aliases already exist",
 				));
 			}
 		}
