@@ -538,6 +538,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[cfg(feature = "sha256_media")]
 	async fn long_file_names_works() {
 		static DB: MockedKVDatabase = MockedKVDatabase;
 		let media = Service {
