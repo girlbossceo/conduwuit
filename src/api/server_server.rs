@@ -1672,14 +1672,7 @@ async fn create_join_event(
 		.get_auth_chain(room_id, state_ids.values().cloned().collect())
 		.await?;
 
-	let servers = services()
-		.rooms
-		.state_cache
-		.room_servers(room_id)
-		.filter_map(Result::ok)
-		.filter(|server| &**server != services().globals.server_name());
-
-	services().sending.send_pdu(servers, &pdu_id)?;
+	services().sending.send_pdu_room(room_id, &pdu_id)?;
 
 	Ok(create_join_event::v1::RoomState {
 		auth_chain: auth_chain_ids
