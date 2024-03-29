@@ -232,6 +232,11 @@ pub struct Config {
 	#[serde(default)]
 	pub block_non_admin_invites: bool,
 
+	#[serde(default)]
+	pub sentry: bool,
+	#[serde(default)]
+	pub sentry_send_server_name: bool,
+
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)] // this is a catchall, the map shouldn't be zero at runtime
 	pub catchall: BTreeMap<String, IgnoredAny>,
