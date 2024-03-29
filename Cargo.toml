@@ -131,6 +131,11 @@ default-features = false
 features = ["jpeg", "png", "gif", "webp"]
 
 # logging
+[dependencies.log]
+version = "0.4.21"
+default-features = false
+features = ["max_level_trace", "release_max_level_info"]
+
 [dependencies.tracing]
 version = "0.1.40"
 default-features = false
