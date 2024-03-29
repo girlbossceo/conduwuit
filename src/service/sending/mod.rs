@@ -408,44 +408,9 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
-	pub fn send_push_pdu(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
+	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
 		let outgoing_kind = OutgoingKind::Push(user.to_owned(), pushkey);
 		let event = SendingEventType::Pdu(pdu_id.to_owned());
-		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
-		self.sender
-			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
-			.unwrap();
-
-		Ok(())
-	}
-
-	#[tracing::instrument(skip(self, servers, pdu_id))]
-	pub fn send_pdu<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
-		let requests = servers
-			.into_iter()
-			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Pdu(pdu_id.to_owned())))
-			.collect::<Vec<_>>();
-		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(
-			&requests
-				.iter()
-				.map(|(o, e)| (o, e.clone()))
-				.collect::<Vec<_>>(),
-		)?;
-		for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
-			self.sender
-				.send((outgoing_kind.clone(), event, key))
-				.unwrap();
-		}
-
-		Ok(())
-	}
-
-	#[tracing::instrument(skip(self, server, serialized))]
-	pub fn send_reliable_edu(&self, server: &ServerName, serialized: Vec<u8>, id: u64) -> Result<()> {
-		let outgoing_kind = OutgoingKind::Normal(server.to_owned());
-		let event = SendingEventType::Edu(serialized);
 		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
 		self.sender
@@ -468,25 +433,102 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, room_id))]
-	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
-		let servers: HashSet<OwnedServerName> = services()
+	#[tracing::instrument(skip(self, room_id, pdu_id))]
+	pub fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
+		let servers = services()
 			.rooms
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
-			.collect();
+			.filter(|server| &**server != services().globals.server_name());
 
-		self.flush_servers(servers.into_iter())
+		self.send_pdu_servers(servers, pdu_id)
+	}
+
+	#[tracing::instrument(skip(self, servers, pdu_id))]
+	pub fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
+		let requests = servers
+			.into_iter()
+			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Pdu(pdu_id.to_owned())))
+			.collect::<Vec<_>>();
+		let _cork = services().globals.db.cork()?;
+		let keys = self.db.queue_requests(
+			&requests
+				.iter()
+				.map(|(o, e)| (o, e.clone()))
+				.collect::<Vec<_>>(),
+		)?;
+		for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
+			self.sender
+				.send((outgoing_kind.clone(), event, key))
+				.unwrap();
+		}
+
+		Ok(())
+	}
+
+	#[tracing::instrument(skip(self, server, serialized))]
+	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
+		let outgoing_kind = OutgoingKind::Normal(server.to_owned());
+		let event = SendingEventType::Edu(serialized);
+		let _cork = services().globals.db.cork()?;
+		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
+		self.sender
+			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
+			.unwrap();
+
+		Ok(())
+	}
+
+	#[tracing::instrument(skip(self, room_id, serialized))]
+	pub fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
+		let servers = services()
+			.rooms
+			.state_cache
+			.room_servers(room_id)
+			.filter_map(Result::ok)
+			.filter(|server| &**server != services().globals.server_name());
+
+		self.send_edu_servers(servers, serialized)
+	}
+
+	#[tracing::instrument(skip(self, servers, serialized))]
+	pub fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, serialized: Vec<u8>) -> Result<()> {
+		let requests = servers
+			.into_iter()
+			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Edu(serialized.clone())))
+			.collect::<Vec<_>>();
+		let _cork = services().globals.db.cork()?;
+		let keys = self.db.queue_requests(
+			&requests
+				.iter()
+				.map(|(o, e)| (o, e.clone()))
+				.collect::<Vec<_>>(),
+		)?;
+		for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
+			self.sender
+				.send((outgoing_kind.clone(), event, key))
+				.unwrap();
+		}
+
+		Ok(())
+	}
+
+	#[tracing::instrument(skip(self, room_id))]
+	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
+		let servers = services()
+			.rooms
+			.state_cache
+			.room_servers(room_id)
+			.filter_map(Result::ok)
+			.filter(|server| &**server != services().globals.server_name());
+
+		self.flush_servers(servers)
 	}
 
 	#[tracing::instrument(skip(self, servers))]
 	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
-		let requests = servers
-			.into_iter()
-			.filter(|server| server != services().globals.server_name())
-			.map(OutgoingKind::Normal)
-			.collect::<Vec<_>>();
+		let requests = servers.into_iter().map(OutgoingKind::Normal);
 
 		for outgoing_kind in requests {
 			self.sender

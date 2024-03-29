@@ -1348,16 +1348,7 @@ pub(crate) async fn invite_helper(
 				"Could not accept incoming PDU as timeline event.",
 			))?;
 
-		// Bind to variable because of lifetimes
-		let servers = services()
-			.rooms
-			.state_cache
-			.room_servers(room_id)
-			.filter_map(Result::ok)
-			.filter(|server| &**server != services().globals.server_name());
-
-		services().sending.send_pdu(servers, &pdu_id)?;
-
+		services().sending.send_pdu_room(room_id, &pdu_id)?;
 		return Ok(());
 	}
 

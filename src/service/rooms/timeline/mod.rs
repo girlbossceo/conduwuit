@@ -411,7 +411,7 @@ impl Service {
 			}
 
 			for push_key in services().pusher.get_pushkeys(user) {
-				services().sending.send_push_pdu(&pdu_id, user, push_key?)?;
+				services().sending.send_pdu_push(&pdu_id, user, push_key?)?;
 			}
 		}
 
@@ -958,7 +958,9 @@ impl Service {
 		// room_servers() and/or the if statement above
 		servers.remove(services().globals.server_name());
 
-		services().sending.send_pdu(servers.into_iter(), &pdu_id)?;
+		services()
+			.sending
+			.send_pdu_servers(servers.into_iter(), &pdu_id)?;
 
 		Ok(pdu.event_id)
 	}

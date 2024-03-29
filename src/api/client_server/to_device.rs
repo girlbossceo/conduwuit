@@ -37,7 +37,7 @@ pub async fn send_event_to_device_route(
 				messages.insert(target_user_id.clone(), map);
 				let count = services().globals.next_count()?;
 
-				services().sending.send_reliable_edu(
+				services().sending.send_edu_server(
 					target_user_id.server_name(),
 					serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(DirectDeviceContent {
 						sender: sender_user.clone(),
@@ -46,7 +46,6 @@ pub async fn send_event_to_device_route(
 						messages,
 					}))
 					.expect("DirectToDevice EDU can be serialized"),
-					count,
 				)?;
 
 				continue;
