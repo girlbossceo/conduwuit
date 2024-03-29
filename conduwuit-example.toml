@@ -33,6 +33,7 @@
 # trusted_servers = ["matrix.org"]
 
 # Sentry.io crash/panic reporting, performance monitoring/metrics, etc.
+# Conduwuit's Sentry reporting endpoint is o4506996327251968.ingest.us.sentry.io
 #
 # Defaults to false
 #sentry = false
@@ -41,6 +42,13 @@
 #
 # Defaults to false
 #sentry_send_server_name = false
+
+# Performance monitoring/tracing sample rate for Sentry.io
+#
+# Note that too high values may impact performance, and can be disabled by setting it to 0.0
+#
+# Defaults to 0.15
+#sentry_traces_sample_rate = 0.15
 
 
 

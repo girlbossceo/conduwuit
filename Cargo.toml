@@ -174,7 +174,7 @@ features = ["rt-tokio"]
 version = "0.32.2"
 optional = true
 default-features = false
-default = ["backtrace", "contexts", "debug-images", "panic", "transport", "rustls", "tower", "tower-http", "tracing", "reqwest", "log"]
+features = ["backtrace", "contexts", "debug-images", "panic", "rustls", "tower", "tower-http", "tracing", "reqwest", "log"]
 [dependencies.sentry-tracing]
 version = "0.32.2"
 optional = true
