@@ -55,30 +55,17 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-#[tokio::main]
-async fn main() {
+fn main() {
 	let args = clap::parse();
 
 	// Initialize config
-	let raw_config = if Env::var("CONDUIT_CONFIG").is_some() {
+	let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
 		Figment::new()
-			.merge(
-				Toml::file(Env::var("CONDUIT_CONFIG").expect(
-					"The CONDUIT_CONFIG environment variable was set but appears to be invalid. This should be set to \
-					 the path to a valid TOML file, an empty string (for compatibility), or removed/unset entirely.",
-				))
-				.nested(),
-			)
+			.merge(Toml::file(config_file_env).nested())
 			.merge(Env::prefixed("CONDUIT_").global())
-	} else if args.config.is_some() {
+	} else if let Some(config_file_arg) = args.config {
 		Figment::new()
-			.merge(
-				Toml::file(args.config.expect(
-					"conduwuit config commandline argument was specified, but appears to be invalid. This should be \
-					 set to the path of a valid TOML file.",
-				))
-				.nested(),
-			)
+			.merge(Toml::file(config_file_arg).nested())
 			.merge(Env::prefixed("CONDUIT_").global())
 	} else {
 		Figment::new().merge(Env::prefixed("CONDUIT_").global())
@@ -92,13 +79,18 @@ async fn main() {
 		},
 	};
 
+	// don't start if we're listening on both UNIX sockets and TCP at same time
+	if config.is_dual_listening(&raw_config) {
+		return;
+	};
+
 	if config.allow_jaeger {
 		#[cfg(feature = "perf_measurements")]
 		{
 			opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
 			let tracer = opentelemetry_jaeger::new_agent_pipeline()
 				.with_auto_split_batch(true)
-				.with_service_name("conduit")
+				.with_service_name("conduwuit")
 				.install_batch(opentelemetry_sdk::runtime::Tokio)
 				.unwrap();
 			let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
@@ -143,6 +135,29 @@ async fn main() {
 		tracing::subscriber::set_global_default(subscriber).unwrap();
 	}
 
+	#[cfg(feature = "sentry")]
+	if config.sentry {
+		info!("Sentry.io crash reporting and telemetry is enabled, initialising guard");
+
+		let _guard = sentry::init((
+			"https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536",
+			sentry::ClientOptions {
+				release: sentry::release_name!(),
+				server_name: if config.sentry_send_server_name {
+					Some(config.server_name.to_string().into())
+				} else {
+					None
+				},
+				..Default::default()
+			},
+		));
+	}
+
+	if let Err(e) = check_config(&config) {
+		error!("Config check failed: {e}");
+		return;
+	}
+
 	// This is needed for opening lots of file descriptors, which tends to
 	// happen more often when using RocksDB and making lots of federation
 	// connections at startup. The soft limit is usually 1024, and the hard
@@ -153,192 +168,23 @@ async fn main() {
 	#[cfg(unix)]
 	maximize_fd_limit().expect("Unable to increase maximum soft and hard file descriptor limit");
 
-	config.warn_deprecated();
-	config.warn_unknown_key();
+	tokio::runtime::Builder::new_multi_thread()
+		.enable_all()
+		.build()
+		.unwrap()
+		.block_on(async {
+			info!("Loading database");
+			let db_load_time = std::time::Instant::now();
+			if let Err(error) = KeyValueDatabase::load_or_create(config).await {
+				error!(?error, "The database couldn't be loaded or created");
+				return;
+			};
+			info!("Database took {:?} to load, now starting server", db_load_time.elapsed());
 
-	// don't start if we're listening on both UNIX sockets and TCP at same time
-	if config.is_dual_listening(&raw_config) {
-		return;
-	};
-
-	info!("Loading database");
-	let db_load_time = std::time::Instant::now();
-	if let Err(error) = KeyValueDatabase::load_or_create(config).await {
-		error!(?error, "The database couldn't be loaded or created");
-		return;
-	};
-	info!("Database took {:?} to load", db_load_time.elapsed());
-
-	let config = &services().globals.config;
-
-	/* ad-hoc config validation/checks */
-
-	if config.unix_socket_path.is_some() && !cfg!(unix) {
-		error!(
-			"UNIX socket support is only available on *nix platforms. Please remove \"unix_socket_path\" from your \
-			 config."
-		);
-		return;
-	}
-
-	if config.address.is_loopback() && cfg!(unix) {
-		debug!(
-			"Found loopback listening address {}, running checks if we're in a container.",
-			config.address
-		);
-
-		#[cfg(unix)]
-		if Path::new("/proc/vz").exists() /* Guest */ && !Path::new("/proc/bz").exists()
-		/* Host */
-		{
-			error!(
-				"You are detected using OpenVZ with a loopback/localhost listening address of {}. If you are using \
-				 OpenVZ for containers and you use NAT-based networking to communicate with the host and guest, this \
-				 will NOT work. Please change this to \"0.0.0.0\". If this is expected, you can ignore.",
-				config.address
-			);
-		}
-
-		#[cfg(unix)]
-		if Path::new("/.dockerenv").exists() {
-			error!(
-				"You are detected using Docker with a loopback/localhost listening address of {}. If you are using a \
-				 reverse proxy on the host and require communication to conduwuit in the Docker container via \
-				 NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, \
-				 you can ignore.",
-				config.address
-			);
-		}
-
-		#[cfg(unix)]
-		if Path::new("/run/.containerenv").exists() {
-			error!(
-				"You are detected using Podman with a loopback/localhost listening address of {}. If you are using a \
-				 reverse proxy on the host and require communication to conduwuit in the Podman container via \
-				 NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, \
-				 you can ignore.",
-				config.address
-			);
-		}
-	}
-
-	// rocksdb does not allow max_log_files to be 0
-	if config.rocksdb_max_log_files == 0 && cfg!(feature = "rocksdb") {
-		error!("When using RocksDB, rocksdb_max_log_files cannot be 0. Please set a value at least 1.");
-		return;
-	}
-
-	// yeah, unless the user built a debug build hopefully for local testing only
-	if config.server_name == "your.server.name" && !cfg!(debug_assertions) {
-		error!("You must specify a valid server name for production usage of conduwuit.");
-		return;
-	}
-
-	if cfg!(debug_assertions) {
-		info!("Note: conduwuit was built without optimisations (i.e. debug build)");
-	}
-
-	// check if the user specified a registration token as `""`
-	if config.registration_token == Some(String::new()) {
-		error!("Registration token was specified but is empty (\"\")");
-		return;
-	}
-
-	if config.max_request_size < 4096 {
-		error!(?config.max_request_size, "Max request size is less than 4KB. Please increase it.");
-	}
-
-	// check if user specified valid IP CIDR ranges on startup
-	for cidr in services().globals.ip_range_denylist() {
-		_ = ipaddress::IPAddress::parse(cidr).map_err(|e| error!("Error parsing specified IP CIDR range: {e}"));
-	}
-
-	if config.allow_registration
-		&& !config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
-		&& config.registration_token.is_none()
-	{
-		error!(
-			"!! You have `allow_registration` enabled without a token configured in your config which means you are \
-			 allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token).\n
-        If this is not the intended behaviour, please set a registration token with the `registration_token` config \
-			 option.\n
-        For security and safety reasons, conduwuit will shut down. If you are extra sure this is the desired behaviour \
-			 you want, please set the following config option to true:
-        `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`"
-		);
-		return;
-	}
-
-	if config.allow_registration
-		&& config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
-		&& config.registration_token.is_none()
-	{
-		warn!(
-			"Open registration is enabled via setting \
-			 `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` and `allow_registration` to \
-			 true without a registration token configured. You are expected to be aware of the risks now.\n
-        If this is not the desired behaviour, please set a registration token."
-		);
-	}
-
-	if config.allow_outgoing_presence && !config.allow_local_presence {
-		error!("Outgoing presence requires allowing local presence. Please enable \"allow_local_presence\".");
-		return;
-	}
-
-	if config.allow_outgoing_presence {
-		warn!(
-			"! Outgoing federated presence is not spec compliant due to relying on PDUs and EDUs combined.\nOutgoing \
-			 presence will not be very reliable due to this and any issues with federated outgoing presence are very \
-			 likely attributed to this issue.\nIncoming presence and local presence are unaffected."
-		);
-	}
-
-	if config
-		.url_preview_domain_contains_allowlist
-		.contains(&"*".to_owned())
-	{
-		warn!(
-			"All URLs are allowed for URL previews via setting \"url_preview_domain_contains_allowlist\" to \"*\". \
-			 This opens up significant attack surface to your server. You are expected to be aware of the risks by \
-			 doing this."
-		);
-	}
-	if config
-		.url_preview_domain_explicit_allowlist
-		.contains(&"*".to_owned())
-	{
-		warn!(
-			"All URLs are allowed for URL previews via setting \"url_preview_domain_explicit_allowlist\" to \"*\". \
-			 This opens up significant attack surface to your server. You are expected to be aware of the risks by \
-			 doing this."
-		);
-	}
-	if config
-		.url_preview_url_contains_allowlist
-		.contains(&"*".to_owned())
-	{
-		warn!(
-			"All URLs are allowed for URL previews via setting \"url_preview_url_contains_allowlist\" to \"*\". This \
-			 opens up significant attack surface to your server. You are expected to be aware of the risks by doing \
-			 this."
-		);
-	}
-
-	/* end ad-hoc config validation/checks */
-
-	info!("Starting server");
-	if let Err(e) = run_server().await {
-		error!("Critical error starting server: {}", e);
-	};
-
-	// if server runs into critical error and shuts down, shut down the tracer
-	// provider if jaegar is used. awaiting run_server() is a blocking call so
-	// putting this after is fine, but not the other options above.
-	#[cfg(feature = "perf_measurements")]
-	if config.allow_jaeger {
-		opentelemetry::global::shutdown_tracer_provider();
-	}
+			if let Err(e) = run_server().await {
+				error!("Critical error starting server: {e}");
+			};
+		});
 }
 
 async fn run_server() -> io::Result<()> {
@@ -958,6 +804,167 @@ fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
 	setrlimit(res, hard_limit, hard_limit)?;
 
 	debug!("Increased nofile soft limit to {hard_limit}");
+
+	Ok(())
+}
+
+fn check_config(config: &Config) -> Result<()> {
+	config.warn_deprecated();
+	config.warn_unknown_key();
+
+	if config.unix_socket_path.is_some() && !cfg!(unix) {
+		return Err(Error::bad_config(
+			"UNIX socket support is only available on *nix platforms. Please remove \"unix_socket_path\" from your \
+			 config.",
+		));
+	}
+
+	if config.address.is_loopback() && cfg!(unix) {
+		debug!(
+			"Found loopback listening address {}, running checks if we're in a container.",
+			config.address
+		);
+
+		#[cfg(unix)]
+		if Path::new("/proc/vz").exists() /* Guest */ && !Path::new("/proc/bz").exists()
+		/* Host */
+		{
+			error!(
+				"You are detected using OpenVZ with a loopback/localhost listening address of {}. If you are using \
+				 OpenVZ for containers and you use NAT-based networking to communicate with the host and guest, this \
+				 will NOT work. Please change this to \"0.0.0.0\". If this is expected, you can ignore.",
+				config.address
+			);
+		}
+
+		#[cfg(unix)]
+		if Path::new("/.dockerenv").exists() {
+			error!(
+				"You are detected using Docker with a loopback/localhost listening address of {}. If you are using a \
+				 reverse proxy on the host and require communication to conduwuit in the Docker container via \
+				 NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, \
+				 you can ignore.",
+				config.address
+			);
+		}
+
+		#[cfg(unix)]
+		if Path::new("/run/.containerenv").exists() {
+			error!(
+				"You are detected using Podman with a loopback/localhost listening address of {}. If you are using a \
+				 reverse proxy on the host and require communication to conduwuit in the Podman container via \
+				 NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, \
+				 you can ignore.",
+				config.address
+			);
+		}
+	}
+
+	// rocksdb does not allow max_log_files to be 0
+	if config.rocksdb_max_log_files == 0 && cfg!(feature = "rocksdb") {
+		return Err(Error::bad_config(
+			"When using RocksDB, rocksdb_max_log_files cannot be 0. Please set a value at least 1.",
+		));
+	}
+
+	// yeah, unless the user built a debug build hopefully for local testing only
+	if config.server_name == "your.server.name" && !cfg!(debug_assertions) {
+		return Err(Error::bad_config(
+			"You must specify a valid server name for production usage of conduwuit.",
+		));
+	}
+
+	if cfg!(debug_assertions) {
+		info!("Note: conduwuit was built without optimisations (i.e. debug build)");
+	}
+
+	// check if the user specified a registration token as `""`
+	if config.registration_token == Some(String::new()) {
+		return Err(Error::bad_config("Registration token was specified but is empty (\"\")"));
+	}
+
+	if config.max_request_size < 16384 {
+		return Err(Error::bad_config("Max request size is less than 16KB. Please increase it."));
+	}
+
+	// check if user specified valid IP CIDR ranges on startup
+	for cidr in &config.ip_range_denylist {
+		if let Err(e) = ipaddress::IPAddress::parse(cidr) {
+			error!("Error parsing specified IP CIDR range from string: {e}");
+			return Err(Error::bad_config("Error parsing specified IP CIDR ranges from strings"));
+		}
+	}
+
+	if config.allow_registration
+		&& !config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
+		&& config.registration_token.is_none()
+	{
+		return Err(Error::bad_config(
+			"!! You have `allow_registration` enabled without a token configured in your config which means you are \
+			 allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token).\n
+If this is not the intended behaviour, please set a registration token with the `registration_token` config option.\n
+For security and safety reasons, conduwuit will shut down. If you are extra sure this is the desired behaviour you \
+			 want, please set the following config option to true:
+`yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`",
+		));
+	}
+
+	if config.allow_registration
+		&& config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
+		&& config.registration_token.is_none()
+	{
+		warn!(
+			"Open registration is enabled via setting \
+			 `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` and `allow_registration` to \
+			 true without a registration token configured. You are expected to be aware of the risks now.\n
+    If this is not the desired behaviour, please set a registration token."
+		);
+	}
+
+	if config.allow_outgoing_presence && !config.allow_local_presence {
+		return Err(Error::bad_config(
+			"Outgoing presence requires allowing local presence. Please enable \"allow_local_presence\".",
+		));
+	}
+
+	if config.allow_outgoing_presence {
+		warn!(
+			"! Outgoing federated presence is not spec compliant due to relying on PDUs and EDUs combined.\nOutgoing \
+			 presence will not be very reliable due to this and any issues with federated outgoing presence are very \
+			 likely attributed to this issue.\nIncoming presence and local presence are unaffected."
+		);
+	}
+
+	if config
+		.url_preview_domain_contains_allowlist
+		.contains(&"*".to_owned())
+	{
+		warn!(
+			"All URLs are allowed for URL previews via setting \"url_preview_domain_contains_allowlist\" to \"*\". \
+			 This opens up significant attack surface to your server. You are expected to be aware of the risks by \
+			 doing this."
+		);
+	}
+	if config
+		.url_preview_domain_explicit_allowlist
+		.contains(&"*".to_owned())
+	{
+		warn!(
+			"All URLs are allowed for URL previews via setting \"url_preview_domain_explicit_allowlist\" to \"*\". \
+			 This opens up significant attack surface to your server. You are expected to be aware of the risks by \
+			 doing this."
+		);
+	}
+	if config
+		.url_preview_url_contains_allowlist
+		.contains(&"*".to_owned())
+	{
+		warn!(
+			"All URLs are allowed for URL previews via setting \"url_preview_url_contains_allowlist\" to \"*\". This \
+			 opens up significant attack surface to your server. You are expected to be aware of the risks by doing \
+			 this."
+		);
+	}
 
 	Ok(())
 }

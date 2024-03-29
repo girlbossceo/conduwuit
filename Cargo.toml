@@ -169,6 +169,11 @@ version = "0.20.0"
 optional = true
 features = ["rt-tokio"]
 
+# optional sentry metrics for crash/panic reporting
+[dependencies.sentry]
+version = "0.32.2"
+optional = true
+
 # optional jemalloc usage
 [dependencies.tikv-jemallocator]
 version = "0.5.4"
@@ -282,7 +287,7 @@ hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d1496
 
 
 [features]
-default = ["conduit_bin", "backend_rocksdb", "systemd", "element_hacks"]
+default = ["conduit_bin", "backend_rocksdb", "systemd", "element_hacks", "sentry"]
 conduit_bin = ["axum"]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]

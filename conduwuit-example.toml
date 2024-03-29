@@ -32,6 +32,16 @@
 # Defaults to `matrix.org`
 # trusted_servers = ["matrix.org"]
 
+# Sentry.io crash/panic reporting, performance monitoring/metrics, etc.
+#
+# Defaults to false
+#sentry = false
+
+# Report your Conduwuit server_name in Sentry.io crash reports and metrics
+#
+# Defaults to false
+#sentry_send_server_name = false
+
 
 
 ### Database configuration
