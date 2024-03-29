@@ -35,6 +35,8 @@ use ruma::api::{
 	},
 	IncomingRequest,
 };
+#[cfg(feature = "sentry_telemetry")]
+use sentry_tracing::EventFilter;
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
 use tokio::{
@@ -84,6 +86,22 @@ fn main() {
 		return;
 	};
 
+	#[cfg(feature = "sentry_telemetry")]
+	if config.sentry {
+		let _guard = sentry::init((
+			"https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536",
+			sentry::ClientOptions {
+				release: sentry::release_name!(),
+				server_name: if config.sentry_send_server_name {
+					Some(config.server_name.to_string().into())
+				} else {
+					None
+				},
+				..Default::default()
+			},
+		));
+	}
+
 	if config.allow_jaeger {
 		#[cfg(feature = "perf_measurements")]
 		{
@@ -131,26 +149,36 @@ fn main() {
 			},
 		};
 
-		let subscriber = registry.with(filter_layer).with(fmt_layer);
+		#[cfg(feature = "sentry_telemetry")]
+		let sentry_layer = sentry_tracing::layer().event_filter(|md| match md.level() {
+			&Level::ERROR => EventFilter::Event,
+			_ => EventFilter::Ignore,
+		});
+
+		let subscriber;
+
+		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
+		#[cfg(feature = "sentry_telemetry")]
+		{
+			subscriber = registry
+				.with(filter_layer)
+				.with(fmt_layer)
+				.with(sentry_layer);
+		};
+
+		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
+		#[cfg(not(feature = "sentry_telemetry"))]
+		{
+			subscriber = registry.with(filter_layer).with(fmt_layer);
+		};
+
 		tracing::subscriber::set_global_default(subscriber).unwrap();
 	}
 
-	#[cfg(feature = "sentry")]
+	#[cfg(feature = "sentry_telemetry")]
 	if config.sentry {
-		info!("Sentry.io crash reporting and telemetry is enabled, initialising guard");
-
-		let _guard = sentry::init((
-			"https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536",
-			sentry::ClientOptions {
-				release: sentry::release_name!(),
-				server_name: if config.sentry_send_server_name {
-					Some(config.server_name.to_string().into())
-				} else {
-					None
-				},
-				..Default::default()
-			},
-		));
+		// just notifying the user
+		info!("Sentry.io crash reporting and telemetry is enabled");
 	}
 
 	if let Err(e) = check_config(&config) {
@@ -169,7 +197,10 @@ fn main() {
 	maximize_fd_limit().expect("Unable to increase maximum soft and hard file descriptor limit");
 
 	tokio::runtime::Builder::new_multi_thread()
-		.enable_all()
+		.enable_io()
+		.enable_time()
+		.thread_name("conduwuit:worker")
+		.worker_threads(num_cpus::get_physical())
 		.build()
 		.unwrap()
 		.block_on(async {
