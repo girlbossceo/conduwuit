@@ -445,6 +445,7 @@ dependencies = [
  "ipaddress",
  "itertools 0.12.1",
  "jsonwebtoken",
+ "log",
  "lru-cache",
  "nix",
  "num_cpus",

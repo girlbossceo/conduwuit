@@ -226,7 +226,7 @@ pub struct Config {
 	#[serde(with = "serde_regex")]
 	pub forbidden_usernames: RegexSet,
 
-	#[serde(default = "default_startup_netburst")]
+	#[serde(default = "true_fn")]
 	pub startup_netburst: bool,
 
 	#[serde(default)]
@@ -679,5 +679,3 @@ fn default_url_preview_max_spider_size() -> usize {
 }
 
 fn default_new_user_displayname_suffix() -> String { "🏳️‍⚧️".to_owned() }
-
-fn default_startup_netburst() -> bool { true }
