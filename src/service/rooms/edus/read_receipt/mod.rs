@@ -3,7 +3,7 @@ mod data;
 pub use data::Data;
 use ruma::{events::receipt::ReceiptEvent, serde::Raw, OwnedUserId, RoomId, UserId};
 
-use crate::Result;
+use crate::{services, Result};
 
 pub struct Service {
 	pub db: &'static dyn Data,
@@ -12,7 +12,10 @@ pub struct Service {
 impl Service {
 	/// Replaces the previous read receipt.
 	pub fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: ReceiptEvent) -> Result<()> {
-		self.db.readreceipt_update(user_id, room_id, event)
+		self.db.readreceipt_update(user_id, room_id, event)?;
+		services().sending.flush_room(room_id)?;
+
+		Ok(())
 	}
 
 	/// Returns an iterator over the most recent read_receipts in a room that
