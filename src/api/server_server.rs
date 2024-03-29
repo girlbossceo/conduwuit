@@ -623,10 +623,15 @@ pub async fn get_server_version_route(
 		return Err(Error::bad_config("Federation is disabled."));
 	}
 
+	let version = match option_env!("CONDUIT_VERSION_EXTRA") {
+		Some(extra) => format!("{} ({})", env!("CARGO_PKG_VERSION"), extra),
+		None => env!("CARGO_PKG_VERSION").to_owned(),
+	};
+
 	Ok(get_server_version::v1::Response {
 		server: Some(get_server_version::v1::Server {
 			name: Some("Conduwuit".to_owned()),
-			version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+			version: Some(version),
 		}),
 	})
 }
