@@ -83,13 +83,18 @@ impl Client {
 	}
 
 	fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
+		let version = match option_env!("CONDUIT_VERSION_EXTRA") {
+			Some(extra) => format!("{} ({})", env!("CARGO_PKG_VERSION"), extra),
+			None => env!("CARGO_PKG_VERSION").to_owned(),
+		};
+
 		let builder = reqwest::Client::builder()
 			.hickory_dns(true)
 			.timeout(Duration::from_secs(config.request_timeout))
 			.connect_timeout(Duration::from_secs(config.request_conn_timeout))
 			.pool_max_idle_per_host(config.request_idle_per_host.into())
 			.pool_idle_timeout(Duration::from_secs(config.request_idle_timeout))
-			.user_agent("Conduwuit".to_owned() + "/" + env!("CARGO_PKG_VERSION"))
+			.user_agent("Conduwuit".to_owned() + "/" + &version)
 			.redirect(redirect::Policy::limited(6));
 
 		if let Some(proxy) = config.proxy.to_proxy()? {
