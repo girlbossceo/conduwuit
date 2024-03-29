@@ -92,6 +92,7 @@ fn main() {
 			"https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536",
 			sentry::ClientOptions {
 				release: sentry::release_name!(),
+				traces_sample_rate: config.sentry_traces_sample_rate,
 				server_name: if config.sentry_send_server_name {
 					Some(config.server_name.to_string().into())
 				} else {

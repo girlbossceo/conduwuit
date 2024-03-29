@@ -236,6 +236,8 @@ pub struct Config {
 	pub sentry: bool,
 	#[serde(default)]
 	pub sentry_send_server_name: bool,
+	#[serde(default = "default_sentry_traces_sample_rate")]
+	pub sentry_traces_sample_rate: f32,
 
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)] // this is a catchall, the map shouldn't be zero at runtime
@@ -527,6 +529,9 @@ impl fmt::Display for Config {
 				&self.allow_check_for_updates.to_string(),
 			),
 			("Enable netburst on startup", &self.startup_netburst.to_string()),
+			("Sentry.io reporting and tracing", &self.sentry.to_string()),
+			("Sentry.io send server_name in logs", &self.sentry_send_server_name.to_string()),
+			("Sentry.io tracing sample rate", &self.sentry_traces_sample_rate.to_string()),
 		];
 
 		let mut msg: String = "Active config values:\n\n".to_owned();
@@ -684,3 +689,5 @@ fn default_url_preview_max_spider_size() -> usize {
 }
 
 fn default_new_user_displayname_suffix() -> String { "🏳️‍⚧️".to_owned() }
+
+fn default_sentry_traces_sample_rate() -> f32 { 0.15 }
