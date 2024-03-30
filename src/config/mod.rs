@@ -721,7 +721,7 @@ fn default_ip_range_denylist() -> Vec<String> {
 }
 
 fn default_url_preview_max_spider_size() -> usize {
-	1_000_000 // 1MB
+	384_000 // 384KB
 }
 
 fn default_new_user_displayname_suffix() -> String { "🏳️‍⚧️".to_owned() }

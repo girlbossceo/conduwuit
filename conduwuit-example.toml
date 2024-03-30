@@ -236,8 +236,8 @@ url_preview_domain_explicit_allowlist = []
 # Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
 url_preview_url_contains_allowlist = []
 
-# Maximum amount of bytes allowed in a URL preview body size when spidering. Defaults to 1MB (1_000_000 bytes)
-url_preview_max_spider_size = 1_000_000
+# Maximum amount of bytes allowed in a URL preview body size when spidering. Defaults to 384KB (384_000 bytes)
+url_preview_max_spider_size = 384_000
 
 # Option to decide whether you would like to run the domain allowlist checks (contains and explicit) on the root domain or not. Does not apply to URL contains allowlist. Defaults to false.
 # Example: If this is enabled and you have "wikipedia.org" allowed in the explicit and/or contains domain allowlist, it will allow all subdomains under "wikipedia.org" such as "en.m.wikipedia.org" as the root domain is checked and matched.
