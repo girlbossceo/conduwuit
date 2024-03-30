@@ -1065,7 +1065,20 @@ impl Service {
 			return Ok(());
 		}
 
-		let mut servers: Vec<&ServerName> = vec![];
+		let mut servers: Vec<OwnedServerName> = vec![];
+
+		// add server names of any trusted key servers if they're in the room
+		for server in services()
+			.rooms
+			.state_cache
+			.room_servers(room_id)
+			.filter_map(Result::ok)
+			.filter(|server| services().globals.trusted_servers().contains(server))
+		{
+			if server != services().globals.server_name() {
+				servers.push(server);
+			}
+		}
 
 		// add server names from room aliases on the room ID
 		let room_aliases = services()
@@ -1076,7 +1089,7 @@ impl Service {
 		if let Ok(aliases) = &room_aliases {
 			for alias in aliases {
 				if alias.server_name() != services().globals.server_name() {
-					servers.push(alias.server_name());
+					servers.push(alias.server_name().to_owned());
 				}
 			}
 		}
@@ -1084,7 +1097,7 @@ impl Service {
 		// add room ID server name for backfill server
 		if let Some(server) = room_id.server_name() {
 			if server != services().globals.server_name() {
-				servers.push(server);
+				servers.push(server.to_owned());
 			}
 		}
 
@@ -1108,7 +1121,7 @@ impl Service {
 			.collect::<Vec<_>>()
 		{
 			if server != services().globals.server_name() {
-				servers.push(server);
+				servers.push(server.to_owned());
 			}
 		}
 
@@ -1130,7 +1143,7 @@ impl Service {
 			let response = services()
 				.sending
 				.send_federation_request(
-					backfill_server,
+					&backfill_server,
 					federation::backfill::get_backfill::v1::Request {
 						room_id: room_id.to_owned(),
 						v: vec![first_pdu.1.event_id.as_ref().to_owned()],
@@ -1142,7 +1155,7 @@ impl Service {
 				Ok(response) => {
 					let pub_key_map = RwLock::new(BTreeMap::new());
 					for pdu in response.pdus {
-						if let Err(e) = self.backfill_pdu(backfill_server, pdu, &pub_key_map).await {
+						if let Err(e) = self.backfill_pdu(&backfill_server, pdu, &pub_key_map).await {
 							warn!("Failed to add backfilled pdu in room {room_id}: {e}");
 						}
 					}
