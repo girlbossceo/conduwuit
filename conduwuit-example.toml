@@ -538,10 +538,10 @@ url_preview_check_root_domain = false
 # If using outgoing presence, this MUST be enabled.
 #allow_local_presence = false
 
-# Config option to control incoming federated presence updates/requests. Defaults to false.
+# Config option to control incoming federated presence updates/requests. Defaults to true.
 # This option receives presence updates from other servers, but does not send any unless `allow_outgoing_presence` is true.
 # Note that presence on conduwuit is very fast unlike Synapse's.
-#allow_incoming_presence = false
+#allow_incoming_presence = true
 
 # Config option to control outgoing presence updates/requests. Defaults to false.
 # This option sends presence updates to other servers, but does not receive any unless `allow_incoming_presence` is true.
