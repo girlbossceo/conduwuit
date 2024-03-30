@@ -33,10 +33,6 @@ conduwuit is a fork of Conduit which is in beta, meaning you can join and partic
 Matrix rooms, but not all features are supported and you might run into bugs
 from time to time.
 
-There are still a few nice to have features missing that some users may notice:
-
-- Outgoing typing indicators (receiving works)
-
 #### Why does this fork exist? Why don't you contribute back upstream?
 
 I now intend on contributing back as time and mental energy sees fit, but my fork still exists as a way to:
