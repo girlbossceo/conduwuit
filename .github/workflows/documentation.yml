@@ -44,7 +44,7 @@ jobs:
 
       - name: Setup GitHub Pages
         if: github.event_name != 'pull_request'
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
       - name: Install Nix (with flakes and nix-command enabled)
         uses: cachix/install-nix-action@v26
