@@ -32,7 +32,6 @@ RUN sed -i "s/#log = \"warn\"/log = \"debug\"/g" conduit.toml
 RUN sed -i 's/#\strusted_servers\s=\s\["matrix.org"\]/trusted_servers = []/g' conduit.toml
 RUN sed -i 's/# `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` to/yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse = true/g' conduit.toml
 RUN sed -i "s/allow_outgoing_presence = false/allow_outgoing_presence = true/g" conduit.toml
-RUN sed -i "s/allow_incoming_presence = false/allow_incoming_presence = true/g" conduit.toml
 RUN sed -i "s/allow_local_presence = false/allow_local_presence = true/g" conduit.toml
 RUN sed -i "s/address = \"127.0.0.1\"/address = \"0.0.0.0\"/g" conduit.toml
 

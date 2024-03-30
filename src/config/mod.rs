@@ -183,7 +183,7 @@ pub struct Config {
 
 	#[serde(default)]
 	pub allow_local_presence: bool,
-	#[serde(default)]
+	#[serde(default = "true_fn")]
 	pub allow_incoming_presence: bool,
 	#[serde(default)]
 	pub allow_outgoing_presence: bool,
