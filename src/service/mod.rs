@@ -203,6 +203,8 @@ impl Services<'_> {
 			.lock()
 			.await
 			.len();
+		let resolver_overrides_cache = self.globals.resolver.overrides.read().unwrap().len();
+		let resolver_destinations_cache = self.globals.resolver.destinations.read().await.len();
 
 		format!(
 			"\
@@ -211,7 +213,9 @@ server_visibility_cache: {server_visibility_cache}
 user_visibility_cache: {user_visibility_cache}
 stateinfo_cache: {stateinfo_cache}
 lasttimelinecount_cache: {lasttimelinecount_cache}
-roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}"
+roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}
+resolver_overrides_cache: {resolver_overrides_cache}
+resolver_destinations_cache: {resolver_destinations_cache}"
 		)
 	}
 
