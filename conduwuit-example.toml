@@ -563,6 +563,22 @@ url_preview_check_root_domain = false
 # Defaults to true.
 #allow_incoming_read_receipts = true
 
+# Config option to control outgoing typing updates to federation. Defaults to true.
+#allow_outgoing_typing = true
+
+# Config option to control incoming typing updates from federation. Defaults to true.
+#allow_incoming_typing = true
+
+# Config option to control maximum time federation user can indicate typing.
+#typing_federation_timeout_s = 30
+
+# Config option to control minimum time local client can indicate typing. This does not override
+# a client's request to stop typing. It only enforces a minimum value in case of no stop request.
+#typing_client_timeout_min_s = 15
+
+# Config option to control maximum time local client can indicate typing.
+#typing_client_timeout_max_s = 45
+
 
 # Other options not in [global]:
 #
