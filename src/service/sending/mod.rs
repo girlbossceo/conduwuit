@@ -1,5 +1,3 @@
-mod data;
-
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 	fmt::Debug,
@@ -11,10 +9,9 @@ use base64::{engine::general_purpose, Engine as _};
 pub use data::Data;
 use federation::transactions::send_transaction_message;
 use futures_util::{stream::FuturesUnordered, StreamExt};
-use ipaddress::IPAddress;
 use ruma::{
 	api::{
-		appservice::{self, Registration},
+		appservice::Registration,
 		federation::{
 			self,
 			transactions::edu::{
@@ -31,14 +28,25 @@ use tokio::{
 	select,
 	sync::{mpsc, Mutex, Semaphore},
 };
-use tracing::{debug, error, info, warn};
+use tracing::{error, warn};
 
-use crate::{
-	api::{appservice_server, server_server},
-	services,
-	utils::calculate_hash,
-	Config, Error, PduEvent, Result,
-};
+use crate::{services, utils::calculate_hash, Config, Error, PduEvent, Result};
+
+pub mod appservice;
+pub mod data;
+pub mod send;
+pub use send::FedDest;
+
+pub struct Service {
+	db: &'static dyn Data,
+
+	/// The state for a given state hash.
+	pub(super) maximum_requests: Arc<Semaphore>,
+	pub sender: mpsc::UnboundedSender<(OutgoingKind, SendingEventType, Vec<u8>)>,
+	receiver: Mutex<mpsc::UnboundedReceiver<(OutgoingKind, SendingEventType, Vec<u8>)>>,
+	startup_netburst: bool,
+	timeout: u64,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum OutgoingKind {
@@ -83,16 +91,6 @@ pub enum SendingEventType {
 	Flush,        // none
 }
 
-pub struct Service {
-	db: &'static dyn Data,
-
-	/// The state for a given state hash.
-	pub(super) maximum_requests: Arc<Semaphore>,
-	pub sender: mpsc::UnboundedSender<(OutgoingKind, SendingEventType, Vec<u8>)>,
-	receiver: Mutex<mpsc::UnboundedReceiver<(OutgoingKind, SendingEventType, Vec<u8>)>>,
-	startup_netburst: bool,
-}
-
 enum TransactionStatus {
 	Running,
 	Failed(u32, Instant), // number of times failed, time of last failure
@@ -109,6 +107,148 @@ impl Service {
 			maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
 			startup_netburst: config.startup_netburst,
 		})
+	}
+
+	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
+	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
+		let outgoing_kind = OutgoingKind::Push(user.to_owned(), pushkey);
+		let event = SendingEventType::Pdu(pdu_id.to_owned());
+		let _cork = services().globals.db.cork()?;
+		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
+		self.sender
+			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
+			.unwrap();
+
+		Ok(())
+	}
+
+	#[tracing::instrument(skip(self))]
+	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
+		let outgoing_kind = OutgoingKind::Appservice(appservice_id);
+		let event = SendingEventType::Pdu(pdu_id);
+		let _cork = services().globals.db.cork()?;
+		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
+		self.sender
+			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
+			.unwrap();
+
+		Ok(())
+	}
+
+	#[tracing::instrument(skip(self, room_id, pdu_id))]
+	pub fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
+		let servers = services()
+			.rooms
+			.state_cache
+			.room_servers(room_id)
+			.filter_map(Result::ok)
+			.filter(|server| &**server != services().globals.server_name());
+
+		self.send_pdu_servers(servers, pdu_id)
+	}
+
+	#[tracing::instrument(skip(self, servers, pdu_id))]
+	pub fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
+		let requests = servers
+			.into_iter()
+			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Pdu(pdu_id.to_owned())))
+			.collect::<Vec<_>>();
+		let _cork = services().globals.db.cork()?;
+		let keys = self.db.queue_requests(
+			&requests
+				.iter()
+				.map(|(o, e)| (o, e.clone()))
+				.collect::<Vec<_>>(),
+		)?;
+		for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
+			self.sender
+				.send((outgoing_kind.clone(), event, key))
+				.unwrap();
+		}
+
+		Ok(())
+	}
+
+	#[tracing::instrument(skip(self, server, serialized))]
+	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
+		let outgoing_kind = OutgoingKind::Normal(server.to_owned());
+		let event = SendingEventType::Edu(serialized);
+		let _cork = services().globals.db.cork()?;
+		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
+		self.sender
+			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
+			.unwrap();
+
+		Ok(())
+	}
+
+	#[tracing::instrument(skip(self, room_id, serialized))]
+	pub fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
+		let servers = services()
+			.rooms
+			.state_cache
+			.room_servers(room_id)
+			.filter_map(Result::ok)
+			.filter(|server| &**server != services().globals.server_name());
+
+		self.send_edu_servers(servers, serialized)
+	}
+
+	#[tracing::instrument(skip(self, servers, serialized))]
+	pub fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, serialized: Vec<u8>) -> Result<()> {
+		let requests = servers
+			.into_iter()
+			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Edu(serialized.clone())))
+			.collect::<Vec<_>>();
+		let _cork = services().globals.db.cork()?;
+		let keys = self.db.queue_requests(
+			&requests
+				.iter()
+				.map(|(o, e)| (o, e.clone()))
+				.collect::<Vec<_>>(),
+		)?;
+		for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
+			self.sender
+				.send((outgoing_kind.clone(), event, key))
+				.unwrap();
+		}
+
+		Ok(())
+	}
+
+	#[tracing::instrument(skip(self, room_id))]
+	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
+		let servers = services()
+			.rooms
+			.state_cache
+			.room_servers(room_id)
+			.filter_map(Result::ok)
+			.filter(|server| &**server != services().globals.server_name());
+
+		self.flush_servers(servers)
+	}
+
+	#[tracing::instrument(skip(self, servers))]
+	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
+		let requests = servers.into_iter().map(OutgoingKind::Normal);
+
+		for outgoing_kind in requests {
+			self.sender
+				.send((outgoing_kind, SendingEventType::Flush, Vec::<u8>::new()))
+				.unwrap();
+		}
+
+		Ok(())
+	}
+
+	/// Cleanup event data
+	/// Used for instance after we remove an appservice registration
+	#[tracing::instrument(skip(self))]
+	pub fn cleanup_events(&self, appservice_id: String) -> Result<()> {
+		self.db
+			.delete_all_requests_for(&OutgoingKind::Appservice(appservice_id))?;
+
+		Ok(())
 	}
 
 	pub fn start_handler(self: &Arc<Self>) {
@@ -407,148 +547,6 @@ impl Service {
 		Ok((events, max_edu_count))
 	}
 
-	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
-	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
-		let outgoing_kind = OutgoingKind::Push(user.to_owned(), pushkey);
-		let event = SendingEventType::Pdu(pdu_id.to_owned());
-		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
-		self.sender
-			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
-			.unwrap();
-
-		Ok(())
-	}
-
-	#[tracing::instrument(skip(self))]
-	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
-		let outgoing_kind = OutgoingKind::Appservice(appservice_id);
-		let event = SendingEventType::Pdu(pdu_id);
-		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
-		self.sender
-			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
-			.unwrap();
-
-		Ok(())
-	}
-
-	#[tracing::instrument(skip(self, room_id, pdu_id))]
-	pub fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
-		let servers = services()
-			.rooms
-			.state_cache
-			.room_servers(room_id)
-			.filter_map(Result::ok)
-			.filter(|server| &**server != services().globals.server_name());
-
-		self.send_pdu_servers(servers, pdu_id)
-	}
-
-	#[tracing::instrument(skip(self, servers, pdu_id))]
-	pub fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
-		let requests = servers
-			.into_iter()
-			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Pdu(pdu_id.to_owned())))
-			.collect::<Vec<_>>();
-		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(
-			&requests
-				.iter()
-				.map(|(o, e)| (o, e.clone()))
-				.collect::<Vec<_>>(),
-		)?;
-		for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
-			self.sender
-				.send((outgoing_kind.clone(), event, key))
-				.unwrap();
-		}
-
-		Ok(())
-	}
-
-	#[tracing::instrument(skip(self, server, serialized))]
-	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
-		let outgoing_kind = OutgoingKind::Normal(server.to_owned());
-		let event = SendingEventType::Edu(serialized);
-		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
-		self.sender
-			.send((outgoing_kind, event, keys.into_iter().next().unwrap()))
-			.unwrap();
-
-		Ok(())
-	}
-
-	#[tracing::instrument(skip(self, room_id, serialized))]
-	pub fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
-		let servers = services()
-			.rooms
-			.state_cache
-			.room_servers(room_id)
-			.filter_map(Result::ok)
-			.filter(|server| &**server != services().globals.server_name());
-
-		self.send_edu_servers(servers, serialized)
-	}
-
-	#[tracing::instrument(skip(self, servers, serialized))]
-	pub fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, serialized: Vec<u8>) -> Result<()> {
-		let requests = servers
-			.into_iter()
-			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Edu(serialized.clone())))
-			.collect::<Vec<_>>();
-		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(
-			&requests
-				.iter()
-				.map(|(o, e)| (o, e.clone()))
-				.collect::<Vec<_>>(),
-		)?;
-		for ((outgoing_kind, event), key) in requests.into_iter().zip(keys) {
-			self.sender
-				.send((outgoing_kind.clone(), event, key))
-				.unwrap();
-		}
-
-		Ok(())
-	}
-
-	#[tracing::instrument(skip(self, room_id))]
-	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
-		let servers = services()
-			.rooms
-			.state_cache
-			.room_servers(room_id)
-			.filter_map(Result::ok)
-			.filter(|server| &**server != services().globals.server_name());
-
-		self.flush_servers(servers)
-	}
-
-	#[tracing::instrument(skip(self, servers))]
-	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
-		let requests = servers.into_iter().map(OutgoingKind::Normal);
-
-		for outgoing_kind in requests {
-			self.sender
-				.send((outgoing_kind, SendingEventType::Flush, Vec::<u8>::new()))
-				.unwrap();
-		}
-
-		Ok(())
-	}
-
-	/// Cleanup event data
-	/// Used for instance after we remove an appservice registration
-	#[tracing::instrument(skip(self))]
-	pub fn cleanup_events(&self, appservice_id: String) -> Result<()> {
-		self.db
-			.delete_all_requests_for(&OutgoingKind::Appservice(appservice_id))?;
-
-		Ok(())
-	}
-
 	#[tracing::instrument(skip(events, kind))]
 	async fn handle_events(
 		kind: OutgoingKind, events: Vec<SendingEventType>,
@@ -586,7 +584,7 @@ impl Service {
 
 				let permit = services().sending.maximum_requests.acquire().await;
 
-				let response = match appservice_server::send_request(
+				let response = match appservice::send_request(
 					services()
 						.appservice
 						.get_registration(id)
@@ -597,7 +595,7 @@ impl Service {
 								Error::bad_database("[Appservice] Could not load registration from db."),
 							)
 						})?,
-					appservice::event::push_events::v1::Request {
+					ruma::api::appservice::event::push_events::v1::Request {
 						events: pdu_jsons,
 						txn_id: (&*general_purpose::URL_SAFE_NO_PAD.encode(calculate_hash(
 							&events
@@ -737,7 +735,7 @@ impl Service {
 
 				let permit = services().sending.maximum_requests.acquire().await;
 
-				let response = server_server::send_request(
+				let response = send::send_request(
 					server,
 					send_transaction_message::v1::Request {
 						origin: services().globals.server_name().to_owned(),
@@ -814,13 +812,12 @@ impl Service {
 		debug!("Waiting for permit");
 		let permit = self.maximum_requests.acquire().await;
 		debug!("Got permit");
-		let response =
-			tokio::time::timeout(Duration::from_secs(5 * 60), server_server::send_request(destination, request))
-				.await
-				.map_err(|_| {
-					warn!("Timeout after 300 seconds waiting for server response of {destination}");
-					Error::BadServerResponse("Timeout after 300 seconds waiting for server response")
-				})?;
+		let response = tokio::time::timeout(Duration::from_secs(5 * 60), send::send_request(destination, request))
+			.await
+			.map_err(|_| {
+				warn!("Timeout after 300 seconds waiting for server response of {destination}");
+				Error::BadServerResponse("Timeout after 300 seconds waiting for server response")
+			})?;
 		drop(permit);
 
 		response
@@ -837,7 +834,7 @@ impl Service {
 		T: OutgoingRequest + Debug,
 	{
 		let permit = self.maximum_requests.acquire().await;
-		let response = appservice_server::send_request(registration, request).await;
+		let response = appservice::send_request(registration, request).await;
 		drop(permit);
 
 		response
