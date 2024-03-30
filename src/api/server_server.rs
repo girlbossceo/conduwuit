@@ -708,7 +708,7 @@ pub async fn get_public_rooms_filtered_route(
 		.globals
 		.allow_public_room_directory_over_federation()
 	{
-		return Err(Error::bad_config("Room directory is not public."));
+		return Err(Error::BadRequest(ErrorKind::Forbidden, "Room directory is not public"));
 	}
 
 	let response = client_server::get_public_rooms_filtered_helper(
@@ -738,7 +738,7 @@ pub async fn get_public_rooms_route(
 		.globals
 		.allow_public_room_directory_over_federation()
 	{
-		return Err(Error::bad_config("Room directory is not public."));
+		return Err(Error::BadRequest(ErrorKind::Forbidden, "Room directory is not public"));
 	}
 
 	let response = client_server::get_public_rooms_filtered_helper(
