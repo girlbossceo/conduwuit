@@ -35,8 +35,6 @@ use ruma::api::{
 	},
 	IncomingRequest,
 };
-#[cfg(feature = "sentry_telemetry")]
-use sentry_tracing::EventFilter;
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
 use tokio::{
@@ -151,10 +149,7 @@ fn main() {
 		};
 
 		#[cfg(feature = "sentry_telemetry")]
-		let sentry_layer = sentry_tracing::layer().event_filter(|md| match md.level() {
-			&Level::ERROR => EventFilter::Event,
-			_ => EventFilter::Ignore,
-		});
+		let sentry_layer = sentry_tracing::layer();
 
 		let subscriber;
 
