@@ -1,7 +1,7 @@
 use std::{
 	future::Future,
 	pin::Pin,
-	sync::{atomic::AtomicU32, Arc, RwLock},
+	sync::{atomic::AtomicU32, Arc},
 };
 
 use chrono::{DateTime, Utc};
@@ -30,7 +30,6 @@ struct RocksDbEngineTree<'a> {
 	db: Arc<Engine>,
 	name: &'a str,
 	watchers: Watchers,
-	write_lock: RwLock<()>,
 }
 
 fn db_options(
@@ -182,7 +181,6 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			name,
 			db: Arc::clone(self),
 			watchers: Watchers::default(),
-			write_lock: RwLock::new(()),
 		}))
 	}
 
@@ -360,13 +358,10 @@ impl KvTree for RocksDbEngineTree<'_> {
 
 	fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
 		let writeoptions = rust_rocksdb::WriteOptions::default();
-		let lock = self.write_lock.read().unwrap();
 
 		self.db
 			.rocks
 			.put_cf_opt(&self.cf(), key, value, &writeoptions)?;
-
-		drop(lock);
 
 		if !self.db.corked() {
 			self.db.flush()?;
@@ -467,15 +462,11 @@ impl KvTree for RocksDbEngineTree<'_> {
 		readoptions.set_total_order_seek(true);
 		let writeoptions = rust_rocksdb::WriteOptions::default();
 
-		let lock = self.write_lock.write().unwrap();
-
 		let old = self.db.rocks.get_cf_opt(&self.cf(), key, &readoptions)?;
 		let new = utils::increment(old.as_deref());
 		self.db
 			.rocks
 			.put_cf_opt(&self.cf(), key, &new, &writeoptions)?;
-
-		drop(lock);
 
 		if !self.db.corked() {
 			self.db.flush()?;
@@ -491,8 +482,6 @@ impl KvTree for RocksDbEngineTree<'_> {
 
 		let mut batch = WriteBatchWithTransaction::<false>::default();
 
-		let lock = self.write_lock.write().unwrap();
-
 		for key in iter {
 			let old = self.db.rocks.get_cf_opt(&self.cf(), &key, &readoptions)?;
 			let new = utils::increment(old.as_deref());
@@ -500,8 +489,6 @@ impl KvTree for RocksDbEngineTree<'_> {
 		}
 
 		self.db.rocks.write_opt(batch, &writeoptions)?;
-
-		drop(lock);
 
 		if !self.db.corked() {
 			self.db.flush()?;
