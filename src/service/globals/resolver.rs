@@ -13,7 +13,7 @@ use ruma::OwnedServerName;
 use tokio::sync::RwLock;
 use tracing::error;
 
-use crate::{api::server_server::FedDest, Config, Error};
+use crate::{service::sending::FedDest, Config, Error};
 
 pub type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
 pub type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
