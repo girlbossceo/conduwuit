@@ -243,7 +243,12 @@ async fn run_server() -> io::Result<()> {
 	let x_requested_with = HeaderName::from_static("x-requested-with");
 	let x_forwarded_for = HeaderName::from_static("x-forwarded-for");
 
-	let middlewares = ServiceBuilder::new()
+	let base_middlewares = ServiceBuilder::new();
+
+	#[cfg(feature = "sentry_telemetry")]
+	let base_middlewares = base_middlewares.layer(sentry_tower::NewSentryLayer::<http::Request<_>>::new_from_top());
+
+	let middlewares = base_middlewares
 		.sensitive_headers([header::AUTHORIZATION])
 		.sensitive_request_headers([x_forwarded_for].into())
 		.layer(axum::middleware::from_fn(spawn_task))
