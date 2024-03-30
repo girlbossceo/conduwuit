@@ -197,6 +197,10 @@ pub struct Config {
 
 	#[serde(default)]
 	pub zstd_compression: bool,
+	#[serde(default)]
+	pub gzip_compression: bool,
+	#[serde(default)]
+	pub brotli_compression: bool,
 
 	#[serde(default)]
 	pub allow_guest_registration: bool,
@@ -453,8 +457,12 @@ impl fmt::Display for Config {
 				}
 				&lst.into_iter().join(", ")
 			}),
-			#[cfg(feature = "compression-zstd")]
-			("zstd Response Body Compression", &self.zstd_compression.to_string()),
+			#[cfg(feature = "zstd_compression")]
+			("Zstd HTTP Compression", &self.zstd_compression.to_string()),
+			#[cfg(feature = "gzip_compression")]
+			("Gzip HTTP Compression", &self.gzip_compression.to_string()),
+			#[cfg(feature = "brotli_compression")]
+			("Brotli HTTP Compression", &self.brotli_compression.to_string()),
 			#[cfg(feature = "rocksdb")]
 			("RocksDB database log level", &self.rocksdb_log_level),
 			#[cfg(feature = "rocksdb")]
@@ -529,8 +537,11 @@ impl fmt::Display for Config {
 				&self.allow_check_for_updates.to_string(),
 			),
 			("Enable netburst on startup", &self.startup_netburst.to_string()),
+			#[cfg(feature = "sentry_telemetry")]
 			("Sentry.io reporting and tracing", &self.sentry.to_string()),
+			#[cfg(feature = "sentry_telemetry")]
 			("Sentry.io send server_name in logs", &self.sentry_send_server_name.to_string()),
+			#[cfg(feature = "sentry_telemetry")]
 			("Sentry.io tracing sample rate", &self.sentry_traces_sample_rate.to_string()),
 		];
 
