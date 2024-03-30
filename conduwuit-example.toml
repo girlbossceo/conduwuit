@@ -104,10 +104,24 @@ max_request_size = 20_000_000 # in bytes
 
 # Set this to true for conduwuit to compress HTTP response bodies using zstd.
 # This option does nothing if conduwuit was not built with `zstd_compression` feature.
-# Please be aware that enabling HTTP compression may weaken or even defeat TLS.
+# Please be aware that enabling HTTP compression may weaken TLS.
 # Most users should not need to enable this.
 # See https://breachattack.com/ and https://wikipedia.org/wiki/BREACH before deciding to enable this.
 zstd_compression = false
+
+# Set this to true for conduwuit to compress HTTP response bodies using gzip.
+# This option does nothing if conduwuit was not built with `gzip_compression` feature.
+# Please be aware that enabling HTTP compression may weaken TLS.
+# Most users should not need to enable this.
+# See https://breachattack.com/ and https://wikipedia.org/wiki/BREACH before deciding to enable this.
+gzip_compression = false
+
+# Set this to true for conduwuit to compress HTTP response bodies using brotli.
+# This option does nothing if conduwuit was not built with `brotli_compression` feature.
+# Please be aware that enabling HTTP compression may weaken TLS.
+# Most users should not need to enable this.
+# See https://breachattack.com/ and https://wikipedia.org/wiki/BREACH before deciding to enable this.
+brotli_compression = false
 
 # Vector list of IPv4 and IPv6 CIDR ranges / subnets *in quotes* that you do not want conduwuit to send outbound requests to.
 # Defaults to RFC1918, unroutable, loopback, multicast, and testnet addresses for security.

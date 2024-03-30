@@ -88,7 +88,7 @@ impl Client {
 			None => env!("CARGO_PKG_VERSION").to_owned(),
 		};
 
-		let builder = reqwest::Client::builder()
+		let mut builder = reqwest::Client::builder()
 			.hickory_dns(true)
 			.timeout(Duration::from_secs(config.request_timeout))
 			.connect_timeout(Duration::from_secs(config.request_conn_timeout))
@@ -96,6 +96,34 @@ impl Client {
 			.pool_idle_timeout(Duration::from_secs(config.request_idle_timeout))
 			.user_agent("Conduwuit".to_owned() + "/" + &version)
 			.redirect(redirect::Policy::limited(6));
+
+		#[cfg(feature = "gzip_compression")]
+		{
+			builder = if config.gzip_compression {
+				builder.gzip(true)
+			} else {
+				builder.gzip(false).no_gzip()
+			};
+		};
+
+		#[cfg(feature = "brotli_compression")]
+		{
+			builder = if config.brotli_compression {
+				builder.brotli(true)
+			} else {
+				builder.brotli(false).no_brotli()
+			};
+		};
+
+		#[cfg(not(feature = "gzip_compression"))]
+		{
+			builder = builder.no_gzip();
+		}
+
+		#[cfg(not(feature = "brotli_compression"))]
+		{
+			builder = builder.no_brotli();
+		}
 
 		if let Some(proxy) = config.proxy.to_proxy()? {
 			Ok(builder.proxy(proxy))

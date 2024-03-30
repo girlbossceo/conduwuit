@@ -293,23 +293,47 @@ async fn run_server() -> io::Result<()> {
 				.expect("failed to convert max request size"),
 		));
 
-	let app;
+	#[cfg(any(feature = "zstd_compresion", feature = "gzip_compression", feature = "brotli_compression"))]
+	let mut compression_layer = tower_http::compression::CompressionLayer::new();
 
-	#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 	#[cfg(feature = "zstd_compression")]
 	{
-		app = if cfg!(feature = "zstd_compression") && config.zstd_compression {
-			debug!("zstd body compression is enabled");
-			routes()
-				.layer(middlewares.compression())
-				.into_make_service()
+		if config.zstd_compression {
+			compression_layer = compression_layer.zstd(true);
 		} else {
-			routes().layer(middlewares).into_make_service()
-		}
+			compression_layer = compression_layer.no_zstd();
+		};
 	};
 
-	#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-	#[cfg(not(feature = "zstd_compression"))]
+	#[cfg(feature = "gzip_compression")]
+	{
+		if config.gzip_compression {
+			compression_layer = compression_layer.gzip(true);
+		} else {
+			compression_layer = compression_layer.no_gzip();
+		};
+	};
+
+	#[cfg(feature = "brotli_compression")]
+	{
+		if config.brotli_compression {
+			compression_layer = compression_layer.br(true);
+		} else {
+			compression_layer = compression_layer.no_br();
+		};
+	};
+
+	let app;
+
+	#[cfg(any(feature = "zstd_compresion", feature = "gzip_compression", feature = "brotli_compression"))]
+	{
+		app = routes()
+			.layer(compression_layer)
+			.layer(middlewares)
+			.into_make_service();
+	};
+
+	#[cfg(not(any(feature = "zstd_compresion", feature = "gzip_compression", feature = "brotli_compression")))]
 	{
 		app = routes().layer(middlewares).into_make_service();
 	};

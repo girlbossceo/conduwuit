@@ -293,7 +293,7 @@ hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d1496
 
 
 [features]
-default = ["conduit_bin", "backend_rocksdb", "systemd", "element_hacks", "sentry_telemetry"]
+default = ["conduit_bin", "backend_rocksdb", "systemd", "element_hacks", "sentry_telemetry", "gzip_compression", "brotli_compression"]
 conduit_bin = ["axum"]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
@@ -306,7 +306,6 @@ sentry_telemetry = ["sentry", "sentry-tracing", "sentry-tower"]
 gzip_compression = ["tower-http/compression-gzip", "reqwest/gzip"]
 zstd_compression = ["tower-http/compression-zstd"]
 brotli_compression = ["tower-http/compression-br", "reqwest/brotli"]
-#all_compression = ["tower-http/compression-full"] # all compression algos
 
 sha256_media = ["sha2"]
 io_uring = ["rust-rocksdb/io-uring"]
