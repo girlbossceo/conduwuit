@@ -956,17 +956,23 @@ pub async fn send_transaction_message_route(
 				}
 			},
 			Edu::Typing(typing) => {
+				if !services().globals.config.allow_incoming_typing {
+					continue;
+				}
+
 				if services()
 					.rooms
 					.state_cache
 					.is_joined(&typing.user_id, &typing.room_id)?
 				{
 					if typing.typing {
+						let timeout = utils::millis_since_unix_epoch()
+							+ services().globals.config.typing_federation_timeout_s * 1000;
 						services()
 							.rooms
 							.edus
 							.typing
-							.typing_add(&typing.user_id, &typing.room_id, 3000 + utils::millis_since_unix_epoch())
+							.typing_add(&typing.user_id, &typing.room_id, timeout)
 							.await?;
 					} else {
 						services()

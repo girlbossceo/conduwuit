@@ -21,15 +21,16 @@ pub async fn create_typing_event_route(
 	}
 
 	if let Typing::Yes(duration) = body.state {
+		let duration = utils::clamp(
+			duration.as_millis() as u64,
+			services().globals.config.typing_client_timeout_min_s * 1000,
+			services().globals.config.typing_client_timeout_max_s * 1000,
+		);
 		services()
 			.rooms
 			.edus
 			.typing
-			.typing_add(
-				sender_user,
-				&body.room_id,
-				duration.as_millis() as u64 + utils::millis_since_unix_epoch(),
-			)
+			.typing_add(sender_user, &body.room_id, utils::millis_since_unix_epoch() + duration)
 			.await?;
 	} else {
 		services()

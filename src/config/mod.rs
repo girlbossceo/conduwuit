@@ -195,6 +195,17 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub allow_incoming_read_receipts: bool,
 
+	#[serde(default = "true_fn")]
+	pub allow_outgoing_typing: bool,
+	#[serde(default = "true_fn")]
+	pub allow_incoming_typing: bool,
+	#[serde(default = "default_typing_federation_timeout_s")]
+	pub typing_federation_timeout_s: u64,
+	#[serde(default = "default_typing_client_timeout_min_s")]
+	pub typing_client_timeout_min_s: u64,
+	#[serde(default = "default_typing_client_timeout_max_s")]
+	pub typing_client_timeout_max_s: u64,
+
 	#[serde(default)]
 	pub zstd_compression: bool,
 	#[serde(default)]
@@ -390,6 +401,14 @@ impl fmt::Display for Config {
 				"Block non-admin room invites (local and remote, admins can still send and receive invites)",
 				&self.block_non_admin_invites.to_string(),
 			),
+			("Allow outgoing federated typing", &self.allow_outgoing_typing.to_string()),
+			("Allow incoming federated typing", &self.allow_incoming_typing.to_string()),
+			(
+				"Incoming federated typing timeout",
+				&self.typing_federation_timeout_s.to_string(),
+			),
+			("Client typing timeout minimum", &self.typing_client_timeout_min_s.to_string()),
+			("Client typing timeout maxmimum", &self.typing_client_timeout_max_s.to_string()),
 			("Allow device name federation", &self.allow_device_name_federation.to_string()),
 			("Notification push path", &self.notification_push_path),
 			("Allow room creation", &self.allow_room_creation.to_string()),
@@ -638,6 +657,12 @@ fn default_turn_ttl() -> u64 { 60 * 60 * 24 }
 fn default_presence_idle_timeout_s() -> u64 { 2 * 60 }
 
 fn default_presence_offline_timeout_s() -> u64 { 15 * 60 }
+
+fn default_typing_federation_timeout_s() -> u64 { 30 }
+
+fn default_typing_client_timeout_min_s() -> u64 { 15 }
+
+fn default_typing_client_timeout_max_s() -> u64 { 45 }
 
 fn default_rocksdb_recovery_mode() -> u8 { 1 }
 
