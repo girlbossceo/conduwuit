@@ -1,6 +1,7 @@
 pub(crate) mod error;
 
 use std::{
+	cmp,
 	cmp::Ordering,
 	fmt,
 	str::FromStr,
@@ -13,6 +14,8 @@ use ring::digest;
 use ruma::{canonical_json::try_from_json_map, CanonicalJsonError, CanonicalJsonObject, OwnedUserId};
 
 use crate::{services, Error, Result};
+
+pub(crate) fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min), max) }
 
 pub(crate) fn millis_since_unix_epoch() -> u64 {
 	SystemTime::now()
