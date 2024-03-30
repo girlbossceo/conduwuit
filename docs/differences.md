@@ -42,7 +42,6 @@
 - Prevent admin credential commands like reset password and deactivate user from modifying non-local users (https://gitlab.com/famedly/conduit/-/issues/377)
 - Fixed spec compliance issue with room version 8 - 11 joins (https://github.com/matrix-org/synapse/issues/16717 / https://github.com/matrix-org/matrix-spec/issues/1708)
 - Add basic cache eviction for true destinations when requests fail if we use a cached destination (e.g. a server has modified their well-known and we're still connecting to the old destination)
-- Only follow 6 redirects total in our default reqwest ClientBuilder
 - Generate passwords with 25 characters instead of 15
 - Add missing `reason` field to user ban events (`/ban`)
 - For all [`/report`](https://spec.matrix.org/v1.9/client-server-api/#post_matrixclientv3roomsroomidreporteventid) requests: check if the reported event ID belongs to the reported room ID, raise report reasoning character limit to 750, fix broken formatting, make a small delayed random response per spec suggestion on privacy, and check if the sender user is in the reported room.
@@ -85,11 +84,16 @@
 - Config option to disable incoming remote read receipts if desired
 - Extend clear cache admin command to support clearing DNS and TLS name override caches
 - Responsive outgoing read receipt EDU support
-- Federation destination DNS cache support to call *less* of the thread-blocking `getaddrinfo(3)` significantly less, improving federation ping/latency
+- Eliminate all usage of the thread-blocking `getaddrinfo(3)` call upon DNS queries, significantly improving federation latency/ping and cache DNS results using hickory-dns / hickory-resolver
 - Store the sender user with the MXC URL for all media uploads (`/upload`) (not for thumbnails or media requests which are unauthenticated)
 - Perform connection pooling and keepalives where necessary to significantly improve federation performance and latency
 - Implement RocksDB online backups via admin command
 - Implement RocksDB write buffer corking and coalescing in database write-heavy areas
-- Various config options to tweak connection pooling, request timeouts, connection timeouts, etc with good defaults
+- Various config options to tweak connection pooling, request timeouts, connection timeouts, DNS timeouts and settings, etc with good defaults
 - Implement config option to auto join rooms upon registration
 - Overall significant database, Client-Server, and federation performance and latency improvements
+- Outgoing read receipt and private read receipt support (EDU)
+- Outgoing typing indicator support (EDU)
+- **Opt-in** Sentry.io telemetry and metrics, mainly used for crash reporting
+- Add `/_conduwuit/server_version` route to return the version of Conduwuit without relying on the federation API `/_matrix/federation/v1/version`
+- Add configurable RocksDB recovery modes to aid in recovering corrupte RocksDB database
