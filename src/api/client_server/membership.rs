@@ -1169,6 +1169,7 @@ async fn make_join_request(
 
 		if let Err(ref e) = make_join_response {
 			trace!("make_join ErrorKind string: {:?}", e.error_code().to_string());
+
 			// converting to a string is necessary (i think) because ruma is forcing us to
 			// fill in the struct for M_INCOMPATIBLE_ROOM_VERSION
 			if e.error_code()
@@ -1188,6 +1189,15 @@ async fn make_join_request(
 				);
 				make_join_response_and_server =
 					Err(Error::BadServerResponse("Room version is not supported by Conduwuit"));
+				return make_join_response_and_server;
+			}
+
+			if make_join_counter > 50 {
+				warn!(
+					"50 servers failed to provide valid make_join response, assuming no server can assist in joining."
+				);
+				make_join_response_and_server =
+					Err(Error::BadServerResponse("No server available to assist in joining."));
 				return make_join_response_and_server;
 			}
 		}
