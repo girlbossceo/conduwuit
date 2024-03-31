@@ -117,6 +117,8 @@ pub struct Config {
 	#[serde(default)]
 	pub allow_public_room_directory_without_auth: bool,
 	#[serde(default)]
+	pub lockdown_public_room_directory: bool,
+	#[serde(default)]
 	pub allow_device_name_federation: bool,
 	#[serde(default = "true_fn")]
 	pub allow_room_creation: bool,
@@ -419,6 +421,10 @@ impl fmt::Display for Config {
 			(
 				"Allow public room directory without authentication",
 				&self.allow_public_room_directory_without_auth.to_string(),
+			),
+			(
+				"Lockdown public room directory (only allow admins to publish)",
+				&self.lockdown_public_room_directory.to_string(),
 			),
 			(
 				"JWT secret",
