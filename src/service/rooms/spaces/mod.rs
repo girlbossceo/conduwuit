@@ -572,7 +572,8 @@ impl Service {
 							error!("Invalid room topic event in database for room {}", room_id);
 							Error::bad_database("Invalid room topic event in database.")
 						})
-				})?,
+				})
+				.unwrap_or(None),
 			world_readable: world_readable(room_id)?,
 			guest_can_join: guest_can_join(room_id)?,
 			avatar_url: services()
