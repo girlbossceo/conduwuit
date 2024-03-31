@@ -4,7 +4,6 @@ use ruma::{api::client::uiaa::UiaaResponse, CanonicalJsonValue, OwnedDeviceId, O
 
 use crate::Error;
 
-#[cfg(feature = "conduit_bin")]
 mod axum;
 
 /// Extractor for Ruma request structs
