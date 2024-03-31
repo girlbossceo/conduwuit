@@ -1095,7 +1095,7 @@ impl Service {
 							events_all.insert(next_id);
 						},
 						Err(e) => {
-							warn!("Failed to fetch event {} | {e}", next_id);
+							warn!("Failed to fetch event {next_id}: {e}");
 							back_off((*next_id).to_owned()).await;
 						},
 					}
