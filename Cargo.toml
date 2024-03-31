@@ -81,7 +81,6 @@ default-features = false
 version = "0.6.20"
 default-features = false
 features = ["form", "headers", "http1", "http2", "json", "matched-path"]
-optional = true
 
 [dependencies.axum-server]
 version = "0.5.1"
@@ -293,8 +292,7 @@ hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d1496
 
 
 [features]
-default = ["conduit_bin", "backend_rocksdb", "systemd", "element_hacks", "sentry_telemetry", "gzip_compression", "brotli_compression"]
-conduit_bin = ["axum"]
+default = ["backend_rocksdb", "systemd", "element_hacks", "sentry_telemetry", "gzip_compression", "brotli_compression"]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
 rocksdb = ["rust-rocksdb", "num_cpus"]
@@ -328,7 +326,6 @@ element_hacks = []
 [[bin]]
 name = "conduit"
 path = "src/main.rs"
-required-features = ["conduit_bin"]
 
 [lib]
 name = "conduit"
