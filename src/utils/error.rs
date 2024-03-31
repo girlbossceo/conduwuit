@@ -101,7 +101,7 @@ impl Error {
 		if let Self::FederationError(origin, error) = self {
 			let mut error = error.clone();
 			error.body = ErrorBody::Standard {
-				kind: Unknown,
+				kind: error.error_kind().unwrap_or(&Unknown).clone(),
 				message: format!("Answer from {origin}: {error}"),
 			};
 			return RumaResponse(UiaaResponse::MatrixError(error));
@@ -138,7 +138,7 @@ impl Error {
 			_ => (Unknown, StatusCode::INTERNAL_SERVER_ERROR),
 		};
 
-		info!("Returning an error: {}: {}", status_code, message);
+		info!("Returning an error: {status_code}: {message}");
 
 		RumaResponse(UiaaResponse::MatrixError(RumaError {
 			body: ErrorBody::Standard {
@@ -147,6 +147,18 @@ impl Error {
 			},
 			status_code,
 		}))
+	}
+
+	/// Returns the Matrix error code / error kind
+	pub fn error_code(&self) -> ErrorKind {
+		if let Self::FederationError(_, error) = self {
+			return error.error_kind().unwrap_or(&Unknown).clone();
+		}
+
+		match self {
+			Self::BadRequest(kind, _) => kind.clone(),
+			_ => Unknown,
+		}
 	}
 
 	/// Sanitizes public-facing errors that can leak sensitive information.

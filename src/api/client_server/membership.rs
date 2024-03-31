@@ -30,7 +30,7 @@ use ruma::{
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use super::get_alias_helper;
 use crate::{
@@ -1144,11 +1144,14 @@ async fn make_join_request(
 ) -> Result<(federation::membership::prepare_join_event::v1::Response, OwnedServerName)> {
 	let mut make_join_response_and_server = Err(Error::BadServerResponse("No server available to assist in joining."));
 
+	let mut make_join_counter = 0;
+	let mut incompatible_room_version_count = 0;
+
 	for remote_server in servers {
 		if remote_server == services().globals.server_name() {
 			continue;
 		}
-		info!("Asking {remote_server} for make_join");
+		info!("Asking {remote_server} for make_join ({make_join_counter})");
 		let make_join_response = services()
 			.sending
 			.send_federation_request(
@@ -1160,6 +1163,34 @@ async fn make_join_request(
 				},
 			)
 			.await;
+
+		trace!("make_join response: {:?}", make_join_response);
+		make_join_counter += 1;
+
+		if let Err(ref e) = make_join_response {
+			trace!("make_join ErrorKind string: {:?}", e.error_code().to_string());
+			// converting to a string is necessary (i think) because ruma is forcing us to
+			// fill in the struct for M_INCOMPATIBLE_ROOM_VERSION
+			if e.error_code()
+				.to_string()
+				.contains("M_INCOMPATIBLE_ROOM_VERSION")
+				|| e.error_code()
+					.to_string()
+					.contains("M_UNSUPPORTED_ROOM_VERSION")
+			{
+				incompatible_room_version_count += 1;
+			}
+
+			if incompatible_room_version_count > 15 {
+				info!(
+					"15 servers have responded with M_INCOMPATIBLE_ROOM_VERSION or M_UNSUPPORTED_ROOM_VERSION, \
+					 assuming that Conduwuit does not support the room {room_id}: {e}"
+				);
+				make_join_response_and_server =
+					Err(Error::BadServerResponse("Room version is not supported by Conduwuit"));
+				return make_join_response_and_server;
+			}
+		}
 
 		make_join_response_and_server = make_join_response.map(|r| (r, remote_server.clone()));
 
