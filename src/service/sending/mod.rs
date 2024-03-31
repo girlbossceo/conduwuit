@@ -224,17 +224,17 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, destination, request))]
-	pub async fn send_federation_request<T>(&self, destination: &ServerName, request: T) -> Result<T::IncomingResponse>
+	#[tracing::instrument(skip(self, request), name = "request")]
+	pub async fn send_federation_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Debug,
 	{
 		let permit = self.maximum_requests.acquire().await;
 		let timeout = Duration::from_secs(self.timeout);
-		let response = tokio::time::timeout(timeout, send::send_request(destination, request))
+		let response = tokio::time::timeout(timeout, send::send_request(dest, request))
 			.await
 			.map_err(|_| {
-				warn!("Timeout after 300 seconds waiting for server response of {destination}");
+				warn!("Timeout after 300 seconds waiting for server response of {dest}");
 				Error::BadServerResponse("Timeout after 300 seconds waiting for server response")
 			})?;
 		drop(permit);
@@ -269,6 +269,7 @@ impl Service {
 		});
 	}
 
+	#[tracing::instrument(skip(self), name = "sender")]
 	async fn handler(&self) -> Result<()> {
 		let mut receiver = self.receiver.lock().await;
 
@@ -583,7 +584,6 @@ pub fn select_edus_receipts(
 	Ok(true)
 }
 
-#[tracing::instrument(skip(events, kind))]
 async fn handle_events(
 	kind: OutgoingKind, events: Vec<SendingEventType>,
 ) -> Result<OutgoingKind, (OutgoingKind, Error)> {
@@ -743,9 +743,9 @@ async fn handle_events_kind_push(
 	Ok(kind.clone())
 }
 
-#[tracing::instrument(skip(kind, events))]
+#[tracing::instrument(skip(kind, events), name = "")]
 async fn handle_events_kind_normal(
-	kind: &OutgoingKind, server: &OwnedServerName, events: Vec<SendingEventType>,
+	kind: &OutgoingKind, dest: &OwnedServerName, events: Vec<SendingEventType>,
 ) -> Result<OutgoingKind, (OutgoingKind, Error)> {
 	let mut edu_jsons = Vec::new();
 	let mut pdu_jsons = Vec::new();
@@ -761,7 +761,7 @@ async fn handle_events_kind_normal(
 						.get_pdu_json_from_id(pdu_id)
 						.map_err(|e| (kind.clone(), e))?
 						.ok_or_else(|| {
-							error!("event not found: {server} {pdu_id:?}");
+							error!("event not found: {dest} {pdu_id:?}");
 							(
 								kind.clone(),
 								Error::bad_database("[Normal] Event in servernamevent_datas not found in db."),
@@ -784,7 +784,7 @@ async fn handle_events_kind_normal(
 	let permit = services().sending.maximum_requests.acquire().await;
 
 	let response = send::send_request(
-		server,
+		dest,
 		send_transaction_message::v1::Request {
 			origin: services().globals.server_name().to_owned(),
 			pdus: pdu_jsons,
@@ -806,7 +806,7 @@ async fn handle_events_kind_normal(
 	.map(|response| {
 		for pdu in response.pdus {
 			if pdu.1.is_err() {
-				warn!("Failed to send to {}: {:?}", server, pdu);
+				warn!("Failed to send to {}: {:?}", dest, pdu);
 			}
 		}
 		kind.clone()

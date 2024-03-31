@@ -43,6 +43,7 @@ pub enum FedDest {
 	Named(String, String),
 }
 
+#[tracing::instrument(skip_all, name = "send")]
 pub(crate) async fn send_request<T>(destination: &ServerName, request: T) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug,
@@ -100,7 +101,7 @@ where
 	} else {
 		write_destination_to_cache = true;
 
-		let result = find_actual_destination(destination).await;
+		let result = resolve_actual_destination(destination).await;
 
 		(result.0, result.1.into_uri_string())
 	};
@@ -338,7 +339,8 @@ fn add_port_to_hostname(destination_str: &str) -> FedDest {
 /// Implemented according to the specification at <https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names>
 /// Numbers in comments below refer to bullet points in linked section of
 /// specification
-async fn find_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDest) {
+#[tracing::instrument(skip_all, name = "resolve")]
+async fn resolve_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDest) {
 	debug!("Finding actual destination for {destination}");
 	let destination_str = destination.as_str().to_owned();
 	let mut hostname = destination_str.clone();
