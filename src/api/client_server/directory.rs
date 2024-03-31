@@ -102,8 +102,21 @@ pub async fn set_room_visibility_route(
 
 	match &body.visibility {
 		room::Visibility::Public => {
+			if services().globals.config.lockdown_public_room_directory && !services().users.is_admin(sender_user)? {
+				info!(
+					"Non-admin user {sender_user} tried to publish {0} to the room directory while \
+					 \"lockdown_public_room_directory\" is enabled",
+					body.room_id
+				);
+
+				return Err(Error::BadRequest(
+					ErrorKind::Forbidden,
+					"Publishing rooms to the room directory is not allowed",
+				));
+			}
+
 			services().rooms.directory.set_public(&body.room_id)?;
-			info!("{} made {} public", sender_user, body.room_id);
+			info!("{sender_user} made {0} public", body.room_id);
 		},
 		room::Visibility::Private => services().rooms.directory.set_not_public(&body.room_id)?,
 		_ => {

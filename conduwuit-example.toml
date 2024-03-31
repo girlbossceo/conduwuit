@@ -217,6 +217,12 @@ allow_public_room_directory_over_federation = false
 # authentication (access token) through the Client APIs. Set this to false to protect against /publicRooms spiders.
 allow_public_room_directory_without_auth = false
 
+# Set this to true to lock down your server's public room directory and only allow admins to publish rooms to the room directory.
+# Unpublishing is still allowed by all users with this enabled.
+#
+# Defaults to false
+lockdown_public_room_directory = false
+
 # Set this to true to allow federating device display names / allow external users to see your device display name.
 # If federation is disabled entirely (`allow_federation`), this is inherently false. For privacy, this is best disabled.
 allow_device_name_federation = false
