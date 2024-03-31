@@ -145,11 +145,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 		}) => {
 			debug!("Got appservice login type");
 			if !body.from_appservice {
-				info!(
-					"User tried logging in as an appservice, but request body is not from a known/registered \
-					 appservice"
-				);
-				return Err(Error::BadRequest(ErrorKind::Forbidden, "Forbidden login type."));
+				return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing Appservice token."));
 			};
 			let username = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
 				user_id.to_lowercase()
