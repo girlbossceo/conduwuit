@@ -8,7 +8,7 @@ use ruma::{
 		error::ErrorKind,
 		message::{get_message_events, send_message_event},
 	},
-	events::{StateEventType, TimelineEventType},
+	events::{MessageLikeEventType, StateEventType},
 };
 use serde_json::from_str;
 
@@ -44,57 +44,18 @@ pub async fn send_message_event_route(
 	let state_lock = mutex_state.lock().await;
 
 	// Forbid m.room.encrypted if encryption is disabled
-	if TimelineEventType::RoomEncrypted == body.event_type.to_string().into() && !services().globals.allow_encryption()
-	{
+	if MessageLikeEventType::RoomEncrypted == body.event_type && !services().globals.allow_encryption() {
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Encryption has been disabled"));
 	}
 
-	// certain event types require certain fields to be valid in request bodies.
-	// this helps prevent attempting to handle events that we can't deserialise
-	// later so don't waste resources on it.
-	//
-	// see https://spec.matrix.org/v1.9/client-server-api/#events-2 for what's required per event type.
-	match body.event_type.to_string().into() {
-		TimelineEventType::RoomMessage => {
-			let body_field = body.body.body.get_field::<String>("body");
-			let msgtype_field = body.body.body.get_field::<String>("msgtype");
-
-			if body_field.is_err() {
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"'body' field in JSON request is invalid",
-				));
-			}
-
-			if msgtype_field.is_err() {
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"'msgtype' field in JSON request is invalid",
-				));
-			}
-		},
-		TimelineEventType::RoomName => {
-			let name_field = body.body.body.get_field::<String>("name");
-
-			if name_field.is_err() {
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"'name' field in JSON request is invalid",
-				));
-			}
-		},
-		TimelineEventType::RoomTopic => {
-			let topic_field = body.body.body.get_field::<String>("topic");
-
-			if topic_field.is_err() {
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"'topic' field in JSON request is invalid",
-				));
-			}
-		},
-		_ => {}, // event may be custom/experimental or can be empty don't do anything with it
-	};
+	if body.event_type == MessageLikeEventType::CallInvite
+		&& services().rooms.directory.is_public_room(&body.room_id)?
+	{
+		return Err(Error::BadRequest(
+			ErrorKind::Forbidden,
+			"Room call invites are not allowed in public rooms",
+		));
+	}
 
 	// Check if this is a new transaction id
 	if let Some(response) = services()
