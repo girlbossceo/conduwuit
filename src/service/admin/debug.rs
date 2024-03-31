@@ -61,6 +61,13 @@ pub(crate) enum DebugCommand {
 		room_id: Box<RoomId>,
 	},
 
+	/// - Sends a federation request to the remote server's
+	///   `/_matrix/federation/v1/version` endpoint and measures the latency it
+	///   took for the server to respond
+	Ping {
+		server: Box<ServerName>,
+	},
+
 	/// - Forces device lists for all local and remote users to be updated (as
 	///   having new keys available)
 	ForceDeviceListUpdates,
@@ -253,10 +260,10 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 						),
 					));
 				},
-				Err(_) => {
-					return Ok(RoomMessageEventContent::text_plain(
-						"Remote server did not have PDU or failed sending request to remote server.",
-					));
+				Err(e) => {
+					return Ok(RoomMessageEventContent::text_plain(format!(
+						"Remote server did not have PDU or failed sending request to remote server: {e}"
+					)));
 				},
 			}
 		},
@@ -294,6 +301,51 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 					HtmlEscape(&json_text)
 				),
 			));
+		},
+		DebugCommand::Ping {
+			server,
+		} => {
+			if server == services().globals.server_name() {
+				return Ok(RoomMessageEventContent::text_plain(
+					"Not allowed to send federation requests to ourselves.",
+				));
+			}
+
+			let timer = tokio::time::Instant::now();
+
+			match services()
+				.sending
+				.send_federation_request(&server, ruma::api::federation::discovery::get_server_version::v1::Request {})
+				.await
+			{
+				Ok(response) => {
+					let ping_time = timer.elapsed();
+
+					let json_text_res = serde_json::to_string_pretty(&response.server);
+
+					if let Ok(json) = json_text_res {
+						return Ok(RoomMessageEventContent::text_html(
+							format!("Got response which took {ping_time:?} time:\n```json\n{json}\n```"),
+							format!(
+								"<p>Got response which took {ping_time:?} time:</p>\n<pre><code \
+								 class=\"language-json\">{}\n</code></pre>\n",
+								HtmlEscape(&json)
+							),
+						));
+					}
+
+					return Ok(RoomMessageEventContent::text_plain(format!(
+						"Got non-JSON response which took {ping_time:?} time:\n{0:?}",
+						response
+					)));
+				},
+				Err(e) => {
+					error!("Failed sending federation request to specified server from ping debug command: {e}");
+					return Ok(RoomMessageEventContent::text_plain(format!(
+						"Failed sending federation request to specified server:\n\n{e}",
+					)));
+				},
+			}
 		},
 		DebugCommand::ForceDeviceListUpdates => {
 			// Force E2EE device list updates for all users
