@@ -1,7 +1,5 @@
 # Conduwuit for Docker
 
-> **Note:** To run and use Conduit you should probably use it with a Domain or Subdomain behind a reverse proxy (like Nginx, Traefik, Apache, ...) with a Lets Encrypt certificate.
-
 ## Docker
 
 To run conduwuit with Docker you can either build the image yourself or pull it from a registry.
@@ -9,7 +7,7 @@ To run conduwuit with Docker you can either build the image yourself or pull it 
 
 ### Use a registry
 
-OCI images for conduwuit are available in the registries listed below. We recommend using the image tagged as `latest` from GitLab's own registry.
+OCI images for conduwuit are available in the registries listed below.
 
 | Registry        | Image                                                           | Size                          | Notes                  |
 | --------------- | --------------------------------------------------------------- | ----------------------------- | ---------------------- |
@@ -33,7 +31,7 @@ to pull it to your machine.
 
 
 
-### Build using a dockerfile
+### Build using a Dockerfile
 
 The Dockerfile provided by Conduit has two stages, each of which creates an image.
 

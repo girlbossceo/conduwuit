@@ -2,7 +2,7 @@
 
 ## Getting help
 
-If you run into any problems while setting up an Appservice, write an email to `timo@koesters.xyz`, ask us in [#conduit:fachschaften.org](https://matrix.to/#/#conduit:fachschaften.org) or [open an issue on GitLab](https://gitlab.com/famedly/conduit/-/issues/new).
+If you run into any problems while setting up an Appservice: ask us in [#conduwuit:puppygock.gay](https://matrix.to/#/#conduwuit:puppygock.gay) or [open an issue on GitHub](https://github.com/girlbossceo/conduwuit/issues/new).
 
 ## Set up the appservice - general instructions
 
@@ -31,9 +31,9 @@ the room like this:
     ```
 
 You can confirm it worked by sending a message like this:
-`@conduit:your.server.name: list-appservices`
+`@conduit:your.server.name: appservices list`
 
-The @conduit bot should answer with `Appservices (1): your-bridge`
+The `@conduit` bot should answer with `Appservices (1): your-bridge`
 
 Then you are done. Conduit will send messages to the appservices and the
 appservice can send requests to the homeserver. You don't need to restart
@@ -46,9 +46,9 @@ could help.
 
 To remove an appservice go to your admin room and execute
 
-`@conduit:your.server.name: unregister-appservice <name>`
+`@conduit:your.server.name: appservices unregister <name>`
 
-where `<name>` one of the output of `list-appservices`.
+where `<name>` one of the output of `appservices list`.
 
 ### Tested appservices
 
