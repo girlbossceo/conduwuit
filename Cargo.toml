@@ -126,7 +126,7 @@ default-features = false
 
 # Used to generate thumbnails for images
 [dependencies.image]
-version = "0.25.0"
+version = "0.25.1"
 default-features = false
 features = ["jpeg", "png", "gif", "webp"]
 
