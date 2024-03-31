@@ -364,6 +364,14 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 	})
 	.expect("event is valid, we just created it");
 
+	if body.visibility == room::Visibility::Public {
+		power_levels_content["m.call.invite"] = serde_json::to_value(50).expect("50 is valid Value");
+		power_levels_content["events"]["org.matrix.msc3401.call"] =
+			serde_json::to_value(50).expect("50 is valid Value");
+		power_levels_content["events"]["org.matrix.msc3401.call.member"] =
+			serde_json::to_value(50).expect("50 is valid Value");
+	}
+
 	if let Some(power_level_content_override) = &body.power_level_content_override {
 		let json: JsonObject = serde_json::from_str(power_level_content_override.json().get())
 			.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid power_level_content_override."))?;
