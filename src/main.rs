@@ -85,8 +85,11 @@ fn main() {
 	};
 
 	#[cfg(feature = "sentry_telemetry")]
+	let _guard;
+
+	#[cfg(feature = "sentry_telemetry")]
 	if config.sentry {
-		let _guard = sentry::init((
+		_guard = sentry::init((
 			"https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536",
 			sentry::ClientOptions {
 				release: sentry::release_name!(),

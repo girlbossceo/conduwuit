@@ -24,7 +24,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{mpsc, Mutex};
-use tracing::warn;
+use tracing::{error, warn};
 
 use super::pdu::PduBuilder;
 use crate::{
@@ -148,7 +148,7 @@ impl Service {
 							message_content.relates_to = Some(Reply { in_reply_to: InReplyTo { event_id: reply.into() } });
 						}
 
-					services().rooms.timeline.build_and_append_pdu(
+					if let Err(e) = services().rooms.timeline.build_and_append_pdu(
 						PduBuilder {
 						  event_type: TimelineEventType::RoomMessage,
 						  content: to_raw_value(&message_content)
@@ -160,7 +160,25 @@ impl Service {
 						&conduit_user,
 						&conduit_room,
 						&state_lock)
-					  .await?;
+					  .await {
+						error!("Failed to build and append admin room response PDU: \"{e}\"");
+
+						let error_room_message = RoomMessageEventContent::text_plain(format!("Failed to build and append admin room PDU: \"{e}\"\n\nThe original admin command may have finished successfully, but we could not return the output."));
+
+						services().rooms.timeline.build_and_append_pdu(
+							PduBuilder {
+							  event_type: TimelineEventType::RoomMessage,
+							  content: to_raw_value(&error_room_message)
+								  .expect("event is valid, we just created it"),
+							  unsigned: None,
+							  state_key: None,
+							  redacts: None,
+							},
+							&conduit_user,
+							&conduit_room,
+							&state_lock)
+						  .await?;
+					  }
 
 
 						drop(state_lock);
