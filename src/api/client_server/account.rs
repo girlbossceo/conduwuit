@@ -2,7 +2,8 @@ use register::RegistrationKind;
 use ruma::{
 	api::client::{
 		account::{
-			change_password, deactivate, get_3pids, get_username_availability, register,
+			change_password, deactivate, get_3pids, get_username_availability,
+			register::{self, LoginType},
 			request_3pid_management_token_via_email, request_3pid_management_token_via_msisdn, whoami,
 			ThirdPartyIdRemovalStatus,
 		},
@@ -89,6 +90,10 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 			body.username
 		);
 		return Err(Error::BadRequest(ErrorKind::Forbidden, "Registration has been disabled."));
+	}
+
+	if body.body.login_type == Some(LoginType::ApplicationService) && !body.from_appservice {
+		return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing Appservice token."));
 	}
 
 	let is_guest = body.kind == RegistrationKind::Guest;
