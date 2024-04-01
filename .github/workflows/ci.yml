@@ -19,7 +19,6 @@ env:
   # Custom nix binary cache if fork is being used
   ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
   ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
-  DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
 
 permissions:
   packages: write
@@ -182,7 +181,10 @@ jobs:
 
 
       - name: Login to Dockerhub
-        if: github.event_name != 'pull_request'
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+        if: ${{ (github.event_name != 'pull_request') || ((env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '')) }}
         uses: docker/login-action@v3
         with:
           # username is not really a secret
@@ -201,11 +203,13 @@ jobs:
 
 
       - name: Publish to Dockerhub
-        if: github.event_name != 'pull_request'
         env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
           IMAGE_NAME: docker.io/${{ github.repository }}
           IMAGE_SUFFIX_AMD64: amd64
           IMAGE_SUFFIX_ARM64V8: arm64v8
+        if: ${{ (github.event_name != 'pull_request') || ((env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '')) }}
         run: |
           docker load -i oci-image-amd64.tar.gz
           IMAGE_ID_AMD64=$(docker images -q conduit:main)
