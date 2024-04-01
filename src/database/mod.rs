@@ -35,7 +35,7 @@ use tokio::{
 use tracing::{debug, error, info, warn};
 
 use crate::{
-	service::rooms::{edus::presence::presence_handler, timeline::PduCount},
+	service::{presence::presence_handler, rooms::timeline::PduCount},
 	services, utils, Config, Error, PduEvent, Result, Services, SERVICES,
 };
 

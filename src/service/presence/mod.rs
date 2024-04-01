@@ -144,8 +144,6 @@ fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
 
 	for room_id in services().rooms.state_cache.rooms_joined(user_id) {
 		let presence_event = services()
-			.rooms
-			.edus
 			.presence
 			.get_presence(&room_id?, user_id)?;
 
@@ -168,7 +166,7 @@ fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
 
 	if let Some(new_state) = new_state {
 		for room_id in services().rooms.state_cache.rooms_joined(user_id) {
-			services().rooms.edus.presence.set_presence(
+			services().presence.set_presence(
 				&room_id?,
 				user_id,
 				new_state.clone(),

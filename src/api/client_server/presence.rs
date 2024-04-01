@@ -19,7 +19,7 @@ pub async fn set_presence_route(body: Ruma<set_presence::v3::Request>) -> Result
 	for room_id in services().rooms.state_cache.rooms_joined(sender_user) {
 		let room_id = room_id?;
 
-		services().rooms.edus.presence.set_presence(
+		services().presence.set_presence(
 			&room_id,
 			sender_user,
 			body.presence.clone(),
@@ -54,8 +54,6 @@ pub async fn get_presence_route(body: Ruma<get_presence::v3::Request>) -> Result
 		let room_id = room_id?;
 
 		if let Some(presence) = services()
-			.rooms
-			.edus
 			.presence
 			.get_presence(&room_id, sender_user)?
 		{

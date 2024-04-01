@@ -1,7 +1,6 @@
 mod alias;
 mod auth_chain;
 mod directory;
-mod edus;
 mod lazy_load;
 mod metadata;
 mod outlier;

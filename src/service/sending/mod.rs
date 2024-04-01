@@ -484,8 +484,6 @@ pub fn select_edus_presence(
 	// Look for presence updates in this room
 	let mut presence_updates = Vec::new();
 	for (user_id, count, presence_event) in services()
-		.rooms
-		.edus
 		.presence
 		.presence_since(room_id, since)
 	{

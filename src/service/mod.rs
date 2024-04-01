@@ -15,6 +15,7 @@ pub(crate) mod globals;
 pub(crate) mod key_backups;
 pub(crate) mod media;
 pub(crate) mod pdu;
+pub(crate) mod presence;
 pub(crate) mod pusher;
 pub(crate) mod rooms;
 pub(crate) mod sending;
@@ -30,6 +31,7 @@ pub struct Services<'a> {
 	pub uiaa: uiaa::Service,
 	pub users: users::Service,
 	pub account_data: account_data::Service,
+	pub presence: presence::Service,
 	pub admin: Arc<admin::Service>,
 	pub globals: globals::Service<'a>,
 	pub key_backups: key_backups::Service,
@@ -46,6 +48,7 @@ impl Services<'_> {
 			+ uiaa::Data
 			+ users::Data
 			+ account_data::Data
+			+ presence::Data
 			+ globals::Data
 			+ key_backups::Data
 			+ media::Data
@@ -68,11 +71,6 @@ impl Services<'_> {
 				},
 				directory: rooms::directory::Service {
 					db,
-				},
-				edus: rooms::edus::Service {
-					presence: rooms::edus::presence::Service {
-						db,
-					},
 				},
 				event_handler: rooms::event_handler::Service,
 				lazy_loading: rooms::lazy_loading::Service {
@@ -150,6 +148,9 @@ impl Services<'_> {
 				connections: StdMutex::new(BTreeMap::new()),
 			},
 			account_data: account_data::Service {
+				db,
+			},
+			presence: presence::Service {
 				db,
 			},
 			admin: admin::Service::build(),

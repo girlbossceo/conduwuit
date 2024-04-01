@@ -5,13 +5,13 @@ use tracing::error;
 
 use crate::{
 	database::KeyValueDatabase,
-	service::{self, rooms::edus::presence::Presence},
+	service::{self, presence::Presence},
 	services,
 	utils::{self, user_id_from_bytes},
 	Error, Result,
 };
 
-impl service::rooms::edus::presence::Data for KeyValueDatabase {
+impl service::presence::Data for KeyValueDatabase {
 	fn get_presence(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<PresenceEvent>> {
 		let key = presence_key(room_id, user_id);
 
