@@ -173,8 +173,6 @@ async fn sync_helper(
 	// Presence update
 	if services().globals.allow_local_presence() {
 		services()
-			.rooms
-			.edus
 			.presence
 			.ping_presence(&sender_user, body.set_presence)?;
 	}
@@ -531,8 +529,6 @@ async fn process_room_presence_updates(
 ) -> Result<()> {
 	// Take presence updates from this room
 	for (user_id, _, presence_event) in services()
-		.rooms
-		.edus
 		.presence
 		.presence_since(room_id, since)
 	{

@@ -88,8 +88,6 @@ pub async fn set_displayname_route(
 	if services().globals.allow_local_presence() {
 		// Presence update
 		services()
-			.rooms
-			.edus
 			.presence
 			.ping_presence(sender_user, PresenceState::Online)?;
 	}
@@ -229,8 +227,6 @@ pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Re
 	if services().globals.allow_local_presence() {
 		// Presence update
 		services()
-			.rooms
-			.edus
 			.presence
 			.ping_presence(sender_user, PresenceState::Online)?;
 	}

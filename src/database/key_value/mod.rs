@@ -5,6 +5,7 @@ mod globals;
 mod key_backups;
 mod media;
 //mod pdu;
+mod presence;
 mod pusher;
 mod rooms;
 mod sending;

@@ -1,7 +1,6 @@
 pub mod alias;
 pub mod auth_chain;
 pub mod directory;
-pub mod edus;
 pub mod event_handler;
 pub mod lazy_loading;
 pub mod metadata;
@@ -24,7 +23,6 @@ pub trait Data:
 	alias::Data
 	+ auth_chain::Data
 	+ directory::Data
-	+ edus::Data
 	+ lazy_loading::Data
 	+ metadata::Data
 	+ outlier::Data
@@ -46,7 +44,6 @@ pub struct Service {
 	pub alias: alias::Service,
 	pub auth_chain: auth_chain::Service,
 	pub directory: directory::Service,
-	pub edus: edus::Service,
 	pub event_handler: event_handler::Service,
 	pub lazy_loading: lazy_loading::Service,
 	pub metadata: metadata::Service,
