@@ -17,6 +17,7 @@ pub mod state_cache;
 pub mod state_compressor;
 pub mod threads;
 pub mod timeline;
+pub mod typing;
 pub mod user;
 
 pub trait Data:
@@ -60,6 +61,7 @@ pub struct Service {
 	pub state_compressor: state_compressor::Service,
 	pub timeline: timeline::Service,
 	pub threads: threads::Service,
+	pub typing: typing::Service,
 	pub spaces: spaces::Service,
 	pub user: user::Service,
 }

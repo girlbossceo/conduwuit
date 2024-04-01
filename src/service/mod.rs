@@ -73,11 +73,6 @@ impl Services<'_> {
 					presence: rooms::edus::presence::Service {
 						db,
 					},
-					typing: rooms::edus::typing::Service {
-						typing: RwLock::new(BTreeMap::new()),
-						last_typing_update: RwLock::new(BTreeMap::new()),
-						typing_update_sender: broadcast::channel(100).0,
-					},
 				},
 				event_handler: rooms::event_handler::Service,
 				lazy_loading: rooms::lazy_loading::Service {
@@ -129,6 +124,11 @@ impl Services<'_> {
 				},
 				threads: rooms::threads::Service {
 					db,
+				},
+				typing: rooms::typing::Service {
+					typing: RwLock::new(BTreeMap::new()),
+					last_typing_update: RwLock::new(BTreeMap::new()),
+					typing_update_sender: broadcast::channel(100).0,
 				},
 				spaces: rooms::spaces::Service {
 					roomid_spacehierarchy_cache: Mutex::new(LruCache::new(
