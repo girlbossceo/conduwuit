@@ -308,6 +308,18 @@ url_preview_check_root_domain = false
 # No default.
 #auto_join_rooms = []
 
+# Retry failed and incomplete messages to remote servers immediately upon startup. This is called bursting.
+# If this is disabled, said messages may not be delivered until more messages are queued for that server.
+# Do not change this option unless server resources are extremely limited or the scale of the server's
+# deployment is huge. Do not disable this unless you know what you are doing.
+#startup_netburst = true
+
+# Limit the startup netburst to the most recent (default: 50) messages queued for each remote server. All older
+# messages are dropped and not reattempted. The `startup_netburst` option must be enabled for this value to have
+# any effect. Do not change this value unless you know what you are doing. Set this value to -1 to reattempt
+# every message without trimming the queues; this may consume significant disk. Set this value to 0 to drop all
+# messages without any attempt at redelivery.
+#startup_netburst_keep = 50
 
 
 ### Generic database options
