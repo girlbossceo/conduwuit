@@ -296,7 +296,6 @@ impl Service {
 		// appending fails
 		services()
 			.rooms
-			.edus
 			.read_receipt
 			.private_read_set(&pdu.room_id, &pdu.sender, count1)?;
 		services()

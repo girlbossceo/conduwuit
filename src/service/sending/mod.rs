@@ -521,7 +521,6 @@ pub fn select_edus_receipts(
 ) -> Result<bool> {
 	for r in services()
 		.rooms
-		.edus
 		.read_receipt
 		.readreceipts_since(room_id, since)
 	{

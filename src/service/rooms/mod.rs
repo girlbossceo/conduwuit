@@ -7,6 +7,7 @@ pub mod lazy_loading;
 pub mod metadata;
 pub mod outlier;
 pub mod pdu_metadata;
+pub mod read_receipt;
 pub mod search;
 pub mod short;
 pub mod spaces;
@@ -27,6 +28,7 @@ pub trait Data:
 	+ metadata::Data
 	+ outlier::Data
 	+ pdu_metadata::Data
+	+ read_receipt::Data
 	+ search::Data
 	+ short::Data
 	+ state::Data
@@ -49,6 +51,7 @@ pub struct Service {
 	pub metadata: metadata::Service,
 	pub outlier: outlier::Service,
 	pub pdu_metadata: pdu_metadata::Service,
+	pub read_receipt: read_receipt::Service,
 	pub search: search::Service,
 	pub short: short::Service,
 	pub state: state::Service,

@@ -386,7 +386,6 @@ pub async fn send_transaction_message_route(
 							};
 							services()
 								.rooms
-								.edus
 								.read_receipt
 								.readreceipt_update(&user_id, &room_id, event)?;
 						} else {

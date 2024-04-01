@@ -997,7 +997,6 @@ async fn load_joined_room(
 
 	let mut edus: Vec<_> = services()
 		.rooms
-		.edus
 		.read_receipt
 		.readreceipts_since(room_id, since)
 		.filter_map(Result::ok) // Filter out buggy events

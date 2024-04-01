@@ -59,7 +59,6 @@ pub async fn set_read_marker_route(body: Ruma<set_read_marker::v3::Request>) -> 
 		};
 		services()
 			.rooms
-			.edus
 			.read_receipt
 			.private_read_set(&body.room_id, sender_user, count)?;
 	}
@@ -80,7 +79,7 @@ pub async fn set_read_marker_route(body: Ruma<set_read_marker::v3::Request>) -> 
 		let mut receipt_content = BTreeMap::new();
 		receipt_content.insert(event.to_owned(), receipts);
 
-		services().rooms.edus.read_receipt.readreceipt_update(
+		services().rooms.read_receipt.readreceipt_update(
 			sender_user,
 			&body.room_id,
 			ruma::events::receipt::ReceiptEvent {
@@ -138,7 +137,7 @@ pub async fn create_receipt_route(body: Ruma<create_receipt::v3::Request>) -> Re
 			let mut receipt_content = BTreeMap::new();
 			receipt_content.insert(body.event_id.clone(), receipts);
 
-			services().rooms.edus.read_receipt.readreceipt_update(
+			services().rooms.read_receipt.readreceipt_update(
 				sender_user,
 				&body.room_id,
 				ruma::events::receipt::ReceiptEvent {
@@ -164,7 +163,6 @@ pub async fn create_receipt_route(body: Ruma<create_receipt::v3::Request>) -> Re
 			};
 			services()
 				.rooms
-				.edus
 				.read_receipt
 				.private_read_set(&body.room_id, sender_user, count)?;
 		},
