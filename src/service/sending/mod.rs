@@ -45,6 +45,7 @@ pub struct Service {
 	pub sender: mpsc::UnboundedSender<(OutgoingKind, SendingEventType, Vec<u8>)>,
 	receiver: Mutex<mpsc::UnboundedReceiver<(OutgoingKind, SendingEventType, Vec<u8>)>>,
 	startup_netburst: bool,
+	startup_netburst_keep: i64,
 	timeout: u64,
 }
 
@@ -78,6 +79,7 @@ impl Service {
 			receiver: Mutex::new(receiver),
 			maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
 			startup_netburst: config.startup_netburst,
+			startup_netburst_keep: config.startup_netburst_keep,
 			timeout: config.sender_timeout,
 		})
 	}
@@ -284,8 +286,10 @@ impl Service {
 					.entry(outgoing_kind.clone())
 					.or_default();
 
-				if entry.len() > 30 {
-					warn!("Dropping some current events: {:?} {:?} {:?}", key, outgoing_kind, event);
+				if self.startup_netburst_keep >= 0
+					&& entry.len() >= usize::try_from(self.startup_netburst_keep).unwrap()
+				{
+					warn!("Dropping unsent event {:?} {:?}", outgoing_kind, String::from_utf8_lossy(&key),);
 					self.db.delete_active_request(key)?;
 					continue;
 				}

@@ -245,6 +245,8 @@ pub struct Config {
 
 	#[serde(default = "true_fn")]
 	pub startup_netburst: bool,
+	#[serde(default = "default_startup_netburst_keep")]
+	pub startup_netburst_keep: i64,
 
 	#[serde(default)]
 	pub block_non_admin_invites: bool,
@@ -733,3 +735,5 @@ fn default_url_preview_max_spider_size() -> usize {
 fn default_new_user_displayname_suffix() -> String { "🏳️‍⚧️".to_owned() }
 
 fn default_sentry_traces_sample_rate() -> f32 { 0.15 }
+
+fn default_startup_netburst_keep() -> i64 { 50 }
