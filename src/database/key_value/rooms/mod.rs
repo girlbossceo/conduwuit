@@ -6,6 +6,7 @@ mod lazy_load;
 mod metadata;
 mod outlier;
 mod pdu_metadata;
+mod read_receipt;
 mod search;
 mod short;
 mod state;

@@ -1,5 +1,4 @@
 mod presence;
-mod read_receipt;
 
 use crate::{database::KeyValueDatabase, service};
 

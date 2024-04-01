@@ -4,7 +4,7 @@ use ruma::{events::receipt::ReceiptEvent, serde::Raw, CanonicalJsonObject, Owned
 
 use crate::{database::KeyValueDatabase, service, services, utils, Error, Result};
 
-impl service::rooms::edus::read_receipt::Data for KeyValueDatabase {
+impl service::rooms::read_receipt::Data for KeyValueDatabase {
 	fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: ReceiptEvent) -> Result<()> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);

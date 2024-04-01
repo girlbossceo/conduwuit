@@ -73,9 +73,6 @@ impl Services<'_> {
 					presence: rooms::edus::presence::Service {
 						db,
 					},
-					read_receipt: rooms::edus::read_receipt::Service {
-						db,
-					},
 					typing: rooms::edus::typing::Service {
 						typing: RwLock::new(BTreeMap::new()),
 						last_typing_update: RwLock::new(BTreeMap::new()),
@@ -94,6 +91,9 @@ impl Services<'_> {
 					db,
 				},
 				pdu_metadata: rooms::pdu_metadata::Service {
+					db,
+				},
+				read_receipt: rooms::read_receipt::Service {
 					db,
 				},
 				search: rooms::search::Service {
