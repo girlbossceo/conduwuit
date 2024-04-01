@@ -410,14 +410,12 @@ pub async fn send_transaction_message_route(
 							+ services().globals.config.typing_federation_timeout_s * 1000;
 						services()
 							.rooms
-							.edus
 							.typing
 							.typing_add(&typing.user_id, &typing.room_id, timeout)
 							.await?;
 					} else {
 						services()
 							.rooms
-							.edus
 							.typing
 							.typing_remove(&typing.user_id, &typing.room_id)
 							.await?;

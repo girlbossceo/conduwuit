@@ -28,14 +28,12 @@ pub async fn create_typing_event_route(
 		);
 		services()
 			.rooms
-			.edus
 			.typing
 			.typing_add(sender_user, &body.room_id, utils::millis_since_unix_epoch() + duration)
 			.await?;
 	} else {
 		services()
 			.rooms
-			.edus
 			.typing
 			.typing_remove(sender_user, &body.room_id)
 			.await?;

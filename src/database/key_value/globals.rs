@@ -97,7 +97,7 @@ impl service::globals::Data for KeyValueDatabase {
 
 			// EDUs
 			futures.push(Box::pin(async move {
-				let _result = services().rooms.edus.typing.wait_for_update(&room_id).await;
+				let _result = services().rooms.typing.wait_for_update(&room_id).await;
 			}));
 
 			futures.push(self.readreceiptid_readreceipt.watch_prefix(&roomid_prefix));
