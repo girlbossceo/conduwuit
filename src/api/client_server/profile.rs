@@ -86,10 +86,12 @@ pub async fn set_displayname_route(
 			.await;
 	}
 
-	// Presence update
-	services()
-		.presence
-		.ping_presence(sender_user, PresenceState::Online)?;
+	if services().globals.allow_local_presence() {
+		// Presence update
+		services()
+			.presence
+			.ping_presence(sender_user, &PresenceState::Online)?;
+	}
 
 	Ok(set_display_name::v3::Response {})
 }
@@ -224,10 +226,12 @@ pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Re
 			.await;
 	}
 
-	// Presence update
-	services()
-		.presence
-		.ping_presence(sender_user, PresenceState::Online)?;
+	if services().globals.allow_local_presence() {
+		// Presence update
+		services()
+			.presence
+			.ping_presence(sender_user, &PresenceState::Online)?;
+	}
 
 	Ok(set_avatar_url::v3::Response {})
 }
