@@ -1,19 +1,22 @@
 mod data;
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 pub use data::Data;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	events::presence::{PresenceEvent, PresenceEventContent},
 	presence::PresenceState,
-	OwnedUserId, RoomId, UInt, UserId,
+	OwnedUserId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
-use tokio::{sync::mpsc, time::sleep};
-use tracing::debug;
+use tokio::{
+	sync::{mpsc, Mutex},
+	time::sleep,
+};
+use tracing::{debug, error};
 
-use crate::{services, utils, Error, Result};
+use crate::{services, utils, Config, Error, Result};
 
 /// Represents data required to be kept in order to implement the presence
 /// specification.
@@ -22,19 +25,15 @@ pub struct Presence {
 	pub state: PresenceState,
 	pub currently_active: bool,
 	pub last_active_ts: u64,
-	pub last_count: u64,
 	pub status_msg: Option<String>,
 }
 
 impl Presence {
-	pub fn new(
-		state: PresenceState, currently_active: bool, last_active_ts: u64, last_count: u64, status_msg: Option<String>,
-	) -> Self {
+	pub fn new(state: PresenceState, currently_active: bool, last_active_ts: u64, status_msg: Option<String>) -> Self {
 		Self {
 			state,
 			currently_active,
 			last_active_ts,
-			last_count,
 			status_msg,
 		}
 	}
@@ -72,27 +71,94 @@ impl Presence {
 
 pub struct Service {
 	pub db: &'static dyn Data,
+	pub timer_sender: mpsc::UnboundedSender<(OwnedUserId, Duration)>,
+	timer_receiver: Mutex<mpsc::UnboundedReceiver<(OwnedUserId, Duration)>>,
+	timeout_remote_users: bool,
 }
 
 impl Service {
-	/// Returns the latest presence event for the given user in the given room.
-	pub fn get_presence(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<PresenceEvent>> {
-		self.db.get_presence(room_id, user_id)
+	pub fn build(db: &'static dyn Data, config: &Config) -> Arc<Self> {
+		let (timer_sender, timer_receiver) = mpsc::unbounded_channel();
+
+		Arc::new(Self {
+			db,
+			timer_sender,
+			timer_receiver: Mutex::new(timer_receiver),
+			timeout_remote_users: config.presence_timeout_remote_users,
+		})
+	}
+
+	pub fn start_handler(self: &Arc<Self>) {
+		let self_ = Arc::clone(self);
+		tokio::spawn(async move {
+			self_
+				.handler()
+				.await
+				.expect("Failed to start presence handler");
+		});
+	}
+
+	/// Returns the latest presence event for the given user.
+	pub fn get_presence(&self, user_id: &UserId) -> Result<Option<PresenceEvent>> {
+		if let Some((_, presence)) = self.db.get_presence(user_id)? {
+			Ok(Some(presence))
+		} else {
+			Ok(None)
+		}
 	}
 
 	/// Pings the presence of the given user in the given room, setting the
 	/// specified state.
-	pub fn ping_presence(&self, user_id: &UserId, new_state: PresenceState) -> Result<()> {
-		self.db.ping_presence(user_id, new_state)
+	pub fn ping_presence(&self, user_id: &UserId, new_state: &PresenceState) -> Result<()> {
+		let last_presence = self.db.get_presence(user_id)?;
+		let state_changed = match last_presence {
+			None => true,
+			Some((_, ref presence)) => presence.content.presence != *new_state,
+		};
+
+		let last_last_active_ago = match last_presence {
+			None => 0_u64,
+			Some((_, ref presence)) => presence.content.last_active_ago.unwrap_or_default().into(),
+		};
+
+		const REFRESH_TIMEOUT: u64 = 60 * 25 * 1000;
+		if !state_changed && last_last_active_ago < REFRESH_TIMEOUT {
+			return Ok(());
+		}
+
+		let status_msg = match last_presence {
+			Some((_, ref presence)) => presence.content.status_msg.clone(),
+			None => Some(String::new()),
+		};
+
+		let last_active_ago = UInt::new(0);
+		let currently_active = *new_state == PresenceState::Online;
+		self.set_presence(user_id, new_state, Some(currently_active), last_active_ago, status_msg)
 	}
 
 	/// Adds a presence event which will be saved until a new event replaces it.
 	pub fn set_presence(
-		&self, room_id: &RoomId, user_id: &UserId, presence_state: PresenceState, currently_active: Option<bool>,
+		&self, user_id: &UserId, presence_state: &PresenceState, currently_active: Option<bool>,
 		last_active_ago: Option<UInt>, status_msg: Option<String>,
 	) -> Result<()> {
 		self.db
-			.set_presence(room_id, user_id, presence_state, currently_active, last_active_ago, status_msg)
+			.set_presence(user_id, presence_state, currently_active, last_active_ago, status_msg)?;
+
+		if self.timeout_remote_users || user_id.server_name() == services().globals.server_name() {
+			let timeout = match presence_state {
+				PresenceState::Online => services().globals.config.presence_idle_timeout_s,
+				_ => services().globals.config.presence_offline_timeout_s,
+			};
+
+			self.timer_sender
+				.send((user_id.to_owned(), Duration::from_secs(timeout)))
+				.map_err(|e| {
+					error!("Failed to add presence timer: {}", e);
+					Error::bad_database("Failed to add presence timer")
+				})?;
+		}
+
+		Ok(())
 	}
 
 	/// Removes the presence record for the given user from the database.
@@ -100,29 +166,23 @@ impl Service {
 
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
-	pub fn presence_since(
-		&self, room_id: &RoomId, since: u64,
-	) -> Box<dyn Iterator<Item = (OwnedUserId, u64, PresenceEvent)>> {
-		self.db.presence_since(room_id, since)
+	pub fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, PresenceEvent)>> {
+		self.db.presence_since(since)
 	}
-}
 
-pub async fn presence_handler(
-	mut presence_timer_receiver: mpsc::UnboundedReceiver<(OwnedUserId, Duration)>,
-) -> Result<()> {
-	let mut presence_timers = FuturesUnordered::new();
+	async fn handler(&self) -> Result<()> {
+		let mut presence_timers = FuturesUnordered::new();
+		let mut receiver = self.timer_receiver.lock().await;
+		loop {
+			tokio::select! {
+				Some((user_id, timeout)) = receiver.recv() => {
+					debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
+					presence_timers.push(presence_timer(user_id, timeout));
+				}
 
-	loop {
-		debug!("Number of presence timers: {}", presence_timers.len());
-
-		tokio::select! {
-			Some((user_id, timeout)) = presence_timer_receiver.recv() => {
-				debug!("Adding timer for user '{user_id}': Timeout {timeout:?}");
-				presence_timers.push(presence_timer(user_id, timeout));
-			}
-
-			Some(user_id) = presence_timers.next() => {
-				process_presence_timer(&user_id)?;
+				Some(user_id) = presence_timers.next() => {
+					process_presence_timer(&user_id)?;
+				}
 			}
 		}
 	}
@@ -142,16 +202,12 @@ fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
 	let mut last_active_ago = None;
 	let mut status_msg = None;
 
-	for room_id in services().rooms.state_cache.rooms_joined(user_id) {
-		let presence_event = services().presence.get_presence(&room_id?, user_id)?;
+	let presence_event = services().presence.get_presence(user_id)?;
 
-		if let Some(presence_event) = presence_event {
-			presence_state = presence_event.content.presence;
-			last_active_ago = presence_event.content.last_active_ago;
-			status_msg = presence_event.content.status_msg;
-
-			break;
-		}
+	if let Some(presence_event) = presence_event {
+		presence_state = presence_event.content.presence;
+		last_active_ago = presence_event.content.last_active_ago;
+		status_msg = presence_event.content.status_msg;
 	}
 
 	let new_state = match (&presence_state, last_active_ago.map(u64::from)) {
@@ -163,16 +219,9 @@ fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
 	debug!("Processed presence timer for user '{user_id}': Old state = {presence_state}, New state = {new_state:?}");
 
 	if let Some(new_state) = new_state {
-		for room_id in services().rooms.state_cache.rooms_joined(user_id) {
-			services().presence.set_presence(
-				&room_id?,
-				user_id,
-				new_state.clone(),
-				Some(false),
-				last_active_ago,
-				status_msg.clone(),
-			)?;
-		}
+		services()
+			.presence
+			.set_presence(user_id, &new_state, Some(false), last_active_ago, status_msg)?;
 	}
 
 	Ok(())

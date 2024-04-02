@@ -31,7 +31,7 @@ pub struct Services<'a> {
 	pub uiaa: uiaa::Service,
 	pub users: users::Service,
 	pub account_data: account_data::Service,
-	pub presence: presence::Service,
+	pub presence: Arc<presence::Service>,
 	pub admin: Arc<admin::Service>,
 	pub globals: globals::Service<'a>,
 	pub key_backups: key_backups::Service,
@@ -155,9 +155,7 @@ impl Services<'_> {
 			account_data: account_data::Service {
 				db,
 			},
-			presence: presence::Service {
-				db,
-			},
+			presence: presence::Service::build(db, config),
 			admin: admin::Service::build(),
 			key_backups: key_backups::Service {
 				db,

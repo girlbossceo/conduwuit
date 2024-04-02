@@ -28,16 +28,10 @@ use ruma::{
 use serde::Deserialize;
 #[cfg(unix)]
 use tokio::signal::unix::{signal, SignalKind};
-use tokio::{
-	sync::mpsc,
-	time::{interval, Instant},
-};
+use tokio::time::{interval, Instant};
 use tracing::{debug, error, info, warn};
 
-use crate::{
-	service::{presence::presence_handler, rooms::timeline::PduCount},
-	services, utils, Config, Error, PduEvent, Result, Services, SERVICES,
-};
+use crate::{service::rooms::timeline::PduCount, services, utils, Config, Error, PduEvent, Result, Services, SERVICES};
 
 pub struct KeyValueDatabase {
 	db: Arc<dyn KeyValueDatabaseEngine>,
@@ -65,8 +59,9 @@ pub struct KeyValueDatabase {
 	pub(super) userid_usersigningkeyid: Arc<dyn KvTree>,
 
 	pub(super) userfilterid_filter: Arc<dyn KvTree>, // UserFilterId = UserId + FilterId
-
-	pub(super) todeviceid_events: Arc<dyn KvTree>, // ToDeviceId = UserId + DeviceId + Count
+	pub(super) todeviceid_events: Arc<dyn KvTree>,   // ToDeviceId = UserId + DeviceId + Count
+	pub(super) userid_presenceid: Arc<dyn KvTree>,   // UserId => Count
+	pub(super) presenceid_presence: Arc<dyn KvTree>, // Count + UserId => Presence
 
 	//pub uiaa: uiaa::Uiaa,
 	pub(super) userdevicesessionid_uiaainfo: Arc<dyn KvTree>, // User-interactive authentication
@@ -77,7 +72,6 @@ pub struct KeyValueDatabase {
 	pub(super) readreceiptid_readreceipt: Arc<dyn KvTree>, // ReadReceiptId = RoomId + Count + UserId
 	pub(super) roomuserid_privateread: Arc<dyn KvTree>,    // RoomUserId = Room + User, PrivateRead = Count
 	pub(super) roomuserid_lastprivatereadupdate: Arc<dyn KvTree>, // LastPrivateReadUpdate = Count
-	pub(super) roomuserid_presence: Arc<dyn KvTree>,
 
 	//pub rooms: rooms::Rooms,
 	pub(super) pduid_pdu: Arc<dyn KvTree>, // PduId = ShortRoomId + Count
@@ -185,7 +179,6 @@ pub struct KeyValueDatabase {
 	pub(super) our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
 	pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
 	pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
-	pub(super) presence_timer_sender: Arc<Option<mpsc::UnboundedSender<(OwnedUserId, Duration)>>>,
 }
 
 #[derive(Deserialize)]
@@ -275,14 +268,6 @@ impl KeyValueDatabase {
 			},
 		};
 
-		let presence_sender = if config.allow_local_presence {
-			let (presence_sender, presence_receiver) = mpsc::unbounded_channel();
-			Self::start_presence_handler(presence_receiver).await;
-			Some(presence_sender)
-		} else {
-			None
-		};
-
 		let db_raw = Box::new(Self {
 			db: builder.clone(),
 			userid_password: builder.open_tree("userid_password")?,
@@ -302,13 +287,14 @@ impl KeyValueDatabase {
 			userid_usersigningkeyid: builder.open_tree("userid_usersigningkeyid")?,
 			userfilterid_filter: builder.open_tree("userfilterid_filter")?,
 			todeviceid_events: builder.open_tree("todeviceid_events")?,
+			userid_presenceid: builder.open_tree("userid_presenceid")?,
+			presenceid_presence: builder.open_tree("presenceid_presence")?,
 
 			userdevicesessionid_uiaainfo: builder.open_tree("userdevicesessionid_uiaainfo")?,
 			userdevicesessionid_uiaarequest: RwLock::new(BTreeMap::new()),
 			readreceiptid_readreceipt: builder.open_tree("readreceiptid_readreceipt")?,
 			roomuserid_privateread: builder.open_tree("roomuserid_privateread")?, // "Private" read receipt
 			roomuserid_lastprivatereadupdate: builder.open_tree("roomuserid_lastprivatereadupdate")?,
-			roomuserid_presence: builder.open_tree("roomuserid_presence")?,
 			pduid_pdu: builder.open_tree("pduid_pdu")?,
 			eventid_pduid: builder.open_tree("eventid_pduid")?,
 			roomid_pduleaves: builder.open_tree("roomid_pduleaves")?,
@@ -404,7 +390,6 @@ impl KeyValueDatabase {
 			our_real_users_cache: RwLock::new(HashMap::new()),
 			appservice_in_room_cache: RwLock::new(HashMap::new()),
 			lasttimelinecount_cache: Mutex::new(HashMap::new()),
-			presence_timer_sender: Arc::new(presence_sender),
 		});
 
 		let db = Box::leak(db_raw);
@@ -1059,6 +1044,10 @@ impl KeyValueDatabase {
 
 		services().sending.start_handler();
 
+		if config.allow_local_presence {
+			services().presence.start_handler();
+		}
+
 		Self::start_cleanup_task().await;
 		if services().globals.allow_check_for_updates() {
 			Self::start_check_for_updates_task().await;
@@ -1177,15 +1166,6 @@ impl KeyValueDatabase {
 				}
 
 				Self::perform_cleanup();
-			}
-		});
-	}
-
-	async fn start_presence_handler(presence_timer_receiver: mpsc::UnboundedReceiver<(OwnedUserId, Duration)>) {
-		tokio::spawn(async move {
-			match presence_handler(presence_timer_receiver).await {
-				Ok(()) => warn!("Presence maintenance task finished"),
-				Err(e) => error!("Presence maintenance task finished with error: {e}"),
 			}
 		});
 	}

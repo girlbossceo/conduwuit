@@ -16,18 +16,9 @@ pub async fn set_presence_route(body: Ruma<set_presence::v3::Request>) -> Result
 	}
 
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	for room_id in services().rooms.state_cache.rooms_joined(sender_user) {
-		let room_id = room_id?;
-
-		services().presence.set_presence(
-			&room_id,
-			sender_user,
-			body.presence.clone(),
-			None,
-			None,
-			body.status_msg.clone(),
-		)?;
-	}
+	services()
+		.presence
+		.set_presence(sender_user, &body.presence, None, None, body.status_msg.clone())?;
 
 	Ok(set_presence::v3::Response {})
 }
@@ -46,14 +37,12 @@ pub async fn get_presence_route(body: Ruma<get_presence::v3::Request>) -> Result
 
 	let mut presence_event = None;
 
-	for room_id in services()
+	for _room_id in services()
 		.rooms
 		.user
 		.get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])?
 	{
-		let room_id = room_id?;
-
-		if let Some(presence) = services().presence.get_presence(&room_id, sender_user)? {
+		if let Some(presence) = services().presence.get_presence(sender_user)? {
 			presence_event = Some(presence);
 			break;
 		}

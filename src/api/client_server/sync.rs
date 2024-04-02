@@ -171,9 +171,11 @@ async fn sync_helper(
 	// bool = caching allowed
 ) -> Result<(sync_events::v3::Response, bool), Error> {
 	// Presence update
-	services()
-		.presence
-		.ping_presence(&sender_user, body.set_presence)?;
+	if services().globals.allow_local_presence() {
+		services()
+			.presence
+			.ping_presence(&sender_user, &body.set_presence)?;
+	}
 
 	// Setup watchers, so if there's no response, we can wait for them
 	let watcher = services().globals.watch(&sender_user, &sender_device);
@@ -222,6 +224,10 @@ async fn sync_helper(
 			.filter_map(Result::ok),
 	);
 
+	if services().globals.allow_local_presence() {
+		process_presence_updates(&mut presence_updates, since, &sender_user).await?;
+	}
+
 	let all_joined_rooms = services()
 		.rooms
 		.state_cache
@@ -251,10 +257,6 @@ async fn sync_helper(
 		{
 			if !joined_room.is_empty() {
 				joined_rooms.insert(room_id.clone(), joined_room);
-			}
-
-			if services().globals.allow_local_presence() {
-				process_room_presence_updates(&mut presence_updates, &room_id, since).await?;
 			}
 		}
 	}
@@ -522,11 +524,19 @@ async fn sync_helper(
 	}
 }
 
-async fn process_room_presence_updates(
-	presence_updates: &mut HashMap<OwnedUserId, PresenceEvent>, room_id: &RoomId, since: u64,
+async fn process_presence_updates(
+	presence_updates: &mut HashMap<OwnedUserId, PresenceEvent>, since: u64, syncing_user: &OwnedUserId,
 ) -> Result<()> {
-	// Take presence updates from this room
-	for (user_id, _, presence_event) in services().presence.presence_since(room_id, since) {
+	// Take presence updates
+	for (user_id, _, presence_event) in services().presence.presence_since(since) {
+		if !services()
+			.rooms
+			.state_cache
+			.user_sees_user(syncing_user, &user_id)?
+		{
+			continue;
+		}
+
 		match presence_updates.entry(user_id) {
 			Entry::Vacant(slot) => {
 				slot.insert(presence_event);
