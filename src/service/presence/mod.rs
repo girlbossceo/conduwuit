@@ -143,9 +143,7 @@ fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
 	let mut status_msg = None;
 
 	for room_id in services().rooms.state_cache.rooms_joined(user_id) {
-		let presence_event = services()
-			.presence
-			.get_presence(&room_id?, user_id)?;
+		let presence_event = services().presence.get_presence(&room_id?, user_id)?;
 
 		if let Some(presence_event) = presence_event {
 			presence_state = presence_event.content.presence;

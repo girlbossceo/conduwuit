@@ -528,10 +528,7 @@ async fn process_room_presence_updates(
 	presence_updates: &mut HashMap<OwnedUserId, PresenceEvent>, room_id: &RoomId, since: u64,
 ) -> Result<()> {
 	// Take presence updates from this room
-	for (user_id, _, presence_event) in services()
-		.presence
-		.presence_since(room_id, since)
-	{
+	for (user_id, _, presence_event) in services().presence.presence_since(room_id, since) {
 		match presence_updates.entry(user_id) {
 			Entry::Vacant(slot) => {
 				slot.insert(presence_event);

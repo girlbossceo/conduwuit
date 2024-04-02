@@ -53,10 +53,7 @@ pub async fn get_presence_route(body: Ruma<get_presence::v3::Request>) -> Result
 	{
 		let room_id = room_id?;
 
-		if let Some(presence) = services()
-			.presence
-			.get_presence(&room_id, sender_user)?
-		{
+		if let Some(presence) = services().presence.get_presence(&room_id, sender_user)? {
 			presence_event = Some(presence);
 			break;
 		}

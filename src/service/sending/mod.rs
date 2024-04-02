@@ -250,7 +250,7 @@ impl Service {
 	/// registration file
 	pub async fn send_appservice_request<T>(
 		&self, registration: Registration, request: T,
-	) -> Option<Result<T::IncomingResponse>>
+	) -> Result<Option<T::IncomingResponse>>
 	where
 		T: OutgoingRequest + Debug,
 	{
@@ -487,10 +487,7 @@ pub fn select_edus_presence(
 
 	// Look for presence updates in this room
 	let mut presence_updates = Vec::new();
-	for (user_id, count, presence_event) in services()
-		.presence
-		.presence_since(room_id, since)
-	{
+	for (user_id, count, presence_event) in services().presence.presence_since(room_id, since) {
 		if count > *max_edu_count {
 			*max_edu_count = count;
 		}
@@ -655,10 +652,8 @@ async fn handle_events_kind_appservice(
 	)
 	.await
 	{
-		None => Ok(kind.clone()),
-		Some(op_resp) => op_resp
-			.map(|_response| kind.clone())
-			.map_err(|e| (kind.clone(), e)),
+		Ok(_) => Ok(kind.clone()),
+		Err(e) => Err((kind.clone(), e)),
 	};
 
 	drop(permit);
