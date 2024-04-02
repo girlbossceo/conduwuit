@@ -525,6 +525,7 @@ single_match = "warn"
 single_match_else = "warn"
 explicit_deref_methods = "warn"
 explicit_iter_loop = "warn"
+manual_let_else = "warn"
 
 # some sadness
 missing_errors_doc = "allow"
