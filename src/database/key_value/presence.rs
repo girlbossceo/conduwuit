@@ -1,7 +1,5 @@
-use std::time::Duration;
-
-use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, RoomId, UInt, UserId};
-use tracing::error;
+use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
+use tracing::debug;
 
 use crate::{
 	database::KeyValueDatabase,
@@ -12,149 +10,98 @@ use crate::{
 };
 
 impl service::presence::Data for KeyValueDatabase {
-	fn get_presence(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<PresenceEvent>> {
-		let key = presence_key(room_id, user_id);
+	fn get_presence(&self, user_id: &UserId) -> Result<Option<(u64, PresenceEvent)>> {
+		if let Some(count_bytes) = self.userid_presenceid.get(user_id.as_bytes())? {
+			let count = utils::u64_from_bytes(&count_bytes)
+				.map_err(|_e| Error::bad_database("No 'count' bytes in presence key"))?;
 
-		self.roomuserid_presence
-			.get(&key)?
-			.map(|presence_bytes| -> Result<PresenceEvent> {
-				Presence::from_json_bytes(&presence_bytes)?.to_presence_event(user_id)
-			})
-			.transpose()
-	}
-
-	fn ping_presence(&self, user_id: &UserId, new_state: PresenceState) -> Result<()> {
-		let Some(ref tx) = *self.presence_timer_sender else {
-			return Ok(());
-		};
-
-		let now = utils::millis_since_unix_epoch();
-		let mut state_changed = false;
-
-		for room_id in services().rooms.state_cache.rooms_joined(user_id) {
-			let key = presence_key(&room_id?, user_id);
-
-			let presence_bytes = self.roomuserid_presence.get(&key)?;
-
-			if let Some(presence_bytes) = presence_bytes {
-				let presence = Presence::from_json_bytes(&presence_bytes)?;
-				if presence.state != new_state {
-					state_changed = true;
-					break;
-				}
-			}
-		}
-
-		let count = if state_changed {
-			services().globals.next_count()?
+			let key = presenceid_key(count, user_id);
+			self.presenceid_presence
+				.get(&key)?
+				.map(|presence_bytes| -> Result<(u64, PresenceEvent)> {
+					Ok((count, Presence::from_json_bytes(&presence_bytes)?.to_presence_event(user_id)?))
+				})
+				.transpose()
 		} else {
-			services().globals.current_count()?
-		};
-
-		for room_id in services().rooms.state_cache.rooms_joined(user_id) {
-			let key = presence_key(&room_id?, user_id);
-
-			let presence_bytes = self.roomuserid_presence.get(&key)?;
-
-			let new_presence = match presence_bytes {
-				Some(presence_bytes) => {
-					let mut presence = Presence::from_json_bytes(&presence_bytes)?;
-					presence.state = new_state.clone();
-					presence.currently_active = presence.state == PresenceState::Online;
-					presence.last_active_ts = now;
-					presence.last_count = count;
-
-					presence
-				},
-				None => Presence::new(new_state.clone(), new_state == PresenceState::Online, now, count, None),
-			};
-
-			self.roomuserid_presence
-				.insert(&key, &new_presence.to_json_bytes()?)?;
+			Ok(None)
 		}
-
-		let timeout = match new_state {
-			PresenceState::Online => services().globals.config.presence_idle_timeout_s,
-			_ => services().globals.config.presence_offline_timeout_s,
-		};
-
-		tx.send((user_id.to_owned(), Duration::from_secs(timeout)))
-			.map_err(|e| {
-				error!("Failed to add presence timer: {}", e);
-				Error::bad_database("Failed to add presence timer")
-			})
 	}
 
 	fn set_presence(
-		&self, room_id: &RoomId, user_id: &UserId, presence_state: PresenceState, currently_active: Option<bool>,
+		&self, user_id: &UserId, presence_state: &PresenceState, currently_active: Option<bool>,
 		last_active_ago: Option<UInt>, status_msg: Option<String>,
 	) -> Result<()> {
-		let Some(ref tx) = *self.presence_timer_sender else {
-			return Ok(());
+		let last_presence = self.get_presence(user_id)?;
+		let state_changed = match last_presence {
+			None => true,
+			Some(ref presence) => presence.1.content.presence != *presence_state,
 		};
 
 		let now = utils::millis_since_unix_epoch();
-		let last_active_ts = match last_active_ago {
-			Some(last_active_ago) => now.saturating_sub(last_active_ago.into()),
-			None => now,
+		let last_last_active_ts = match last_presence {
+			None => 0,
+			Some((_, ref presence)) => now.saturating_sub(presence.content.last_active_ago.unwrap_or_default().into()),
 		};
 
-		let key = presence_key(room_id, user_id);
+		let last_active_ts = match last_active_ago {
+			None => now,
+			Some(last_active_ago) => now.saturating_sub(last_active_ago.into()),
+		};
+
+		// tighten for state flicker?
+		if !state_changed && last_active_ts <= last_last_active_ts {
+			debug!(
+				"presence spam {:?} last_active_ts:{:?} <= {:?}",
+				user_id, last_active_ts, last_last_active_ts
+			);
+			return Ok(());
+		}
 
 		let presence = Presence::new(
-			presence_state,
+			presence_state.to_owned(),
 			currently_active.unwrap_or(false),
 			last_active_ts,
-			services().globals.next_count()?,
 			status_msg,
 		);
+		let count = services().globals.next_count()?;
+		let key = presenceid_key(count, user_id);
 
-		let timeout = match presence.state {
-			PresenceState::Online => services().globals.config.presence_idle_timeout_s,
-			_ => services().globals.config.presence_offline_timeout_s,
-		};
-
-		tx.send((user_id.to_owned(), Duration::from_secs(timeout)))
-			.map_err(|e| {
-				error!("Failed to add presence timer: {}", e);
-				Error::bad_database("Failed to add presence timer")
-			})?;
-
-		self.roomuserid_presence
+		self.presenceid_presence
 			.insert(&key, &presence.to_json_bytes()?)?;
+
+		self.userid_presenceid
+			.insert(user_id.as_bytes(), &count.to_be_bytes())?;
+
+		if let Some((last_count, _)) = last_presence {
+			let key = presenceid_key(last_count, user_id);
+			self.presenceid_presence.remove(&key)?;
+		}
 
 		Ok(())
 	}
 
 	fn remove_presence(&self, user_id: &UserId) -> Result<()> {
-		for room_id in services().rooms.state_cache.rooms_joined(user_id) {
-			let key = presence_key(&room_id?, user_id);
-
-			self.roomuserid_presence.remove(&key)?;
+		if let Some(count_bytes) = self.userid_presenceid.get(user_id.as_bytes())? {
+			let count = utils::u64_from_bytes(&count_bytes)
+				.map_err(|_e| Error::bad_database("No 'count' bytes in presence key"))?;
+			let key = presenceid_key(count, user_id);
+			self.presenceid_presence.remove(&key)?;
+			self.userid_presenceid.remove(user_id.as_bytes())?;
 		}
 
 		Ok(())
 	}
 
-	fn presence_since<'a>(
-		&'a self, room_id: &RoomId, since: u64,
-	) -> Box<dyn Iterator<Item = (OwnedUserId, u64, PresenceEvent)> + 'a> {
-		let prefix = [room_id.as_bytes(), &[0xFF]].concat();
-
+	fn presence_since<'a>(&'a self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, PresenceEvent)> + 'a> {
 		Box::new(
-			self.roomuserid_presence
-				.scan_prefix(prefix)
+			self.presenceid_presence
+				.iter()
 				.flat_map(|(key, presence_bytes)| -> Result<(OwnedUserId, u64, PresenceEvent)> {
-					let user_id = user_id_from_bytes(
-						key.rsplit(|byte| *byte == 0xFF)
-							.next()
-							.ok_or_else(|| Error::bad_database("No UserID bytes in presence key"))?,
-					)?;
-
+					let (count, user_id) = presenceid_parse(&key)?;
 					let presence = Presence::from_json_bytes(&presence_bytes)?;
 					let presence_event = presence.to_presence_event(&user_id)?;
 
-					Ok((user_id, presence.last_count, presence_event))
+					Ok((user_id, count, presence_event))
 				})
 				.filter(move |(_, count, _)| *count > since),
 		)
@@ -162,6 +109,15 @@ impl service::presence::Data for KeyValueDatabase {
 }
 
 #[inline]
-fn presence_key(room_id: &RoomId, user_id: &UserId) -> Vec<u8> {
-	[room_id.as_bytes(), &[0xFF], user_id.as_bytes()].concat()
+fn presenceid_key(count: u64, user_id: &UserId) -> Vec<u8> {
+	[count.to_be_bytes().to_vec(), user_id.as_bytes().to_vec()].concat()
+}
+
+#[inline]
+fn presenceid_parse(key: &[u8]) -> Result<(u64, OwnedUserId)> {
+	let (count, user_id) = key.split_at(8);
+	let user_id = user_id_from_bytes(user_id)?;
+	let count = utils::u64_from_bytes(count).unwrap();
+
+	Ok((count, user_id))
 }

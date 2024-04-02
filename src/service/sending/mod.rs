@@ -1,4 +1,5 @@
 use std::{
+	cmp,
 	collections::{BTreeMap, HashMap, HashSet},
 	fmt::Debug,
 	sync::Arc,
@@ -413,7 +414,7 @@ impl Service {
 					// Fail if a request has failed recently (exponential backoff)
 					const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
 					let mut min_elapsed_duration = Duration::from_secs(self.timeout) * (*tries) * (*tries);
-					min_elapsed_duration = std::cmp::min(min_elapsed_duration, MAX_DURATION);
+					min_elapsed_duration = cmp::min(min_elapsed_duration, MAX_DURATION);
 					if time.elapsed() < min_elapsed_duration {
 						allow = false;
 					} else {
@@ -448,9 +449,6 @@ impl Service {
 					.filter_map(Result::ok)
 					.filter(|user_id| user_id.server_name() == services().globals.server_name()),
 			);
-			if !select_edus_presence(&room_id, since, &mut max_edu_count, &mut events)? {
-				break;
-			}
 			if !select_edus_receipts(&room_id, since, &mut max_edu_count, &mut events)? {
 				break;
 			}
@@ -472,26 +470,33 @@ impl Service {
 			events.push(serde_json::to_vec(&edu).expect("json can be serialized"));
 		}
 
+		if services().globals.allow_outgoing_presence() {
+			select_edus_presence(server_name, since, &mut max_edu_count, &mut events)?;
+		}
+
 		Ok((events, max_edu_count))
 	}
 }
 
-/// Look for presence [in this room] <--- XXX
-#[tracing::instrument(skip(room_id, since, max_edu_count, events))]
+/// Look for presence
+#[tracing::instrument(skip(server_name, since, max_edu_count, events))]
 pub fn select_edus_presence(
-	room_id: &RoomId, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
+	server_name: &ServerName, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
 ) -> Result<bool> {
-	if !services().globals.allow_outgoing_presence() {
-		return Ok(true);
-	}
-
-	// Look for presence updates in this room
+	// Look for presence updates for this server
 	let mut presence_updates = Vec::new();
-	for (user_id, count, presence_event) in services().presence.presence_since(room_id, since) {
-		if count > *max_edu_count {
-			*max_edu_count = count;
-		}
+	for (user_id, count, presence_event) in services().presence.presence_since(since) {
+		*max_edu_count = cmp::max(count, *max_edu_count);
+
 		if user_id.server_name() != services().globals.server_name() {
+			continue;
+		}
+
+		if !services()
+			.rooms
+			.state_cache
+			.server_sees_user(server_name, &user_id)?
+		{
 			continue;
 		}
 
@@ -524,10 +529,8 @@ pub fn select_edus_receipts(
 		.readreceipts_since(room_id, since)
 	{
 		let (user_id, count, read_receipt) = r?;
+		*max_edu_count = cmp::max(count, *max_edu_count);
 
-		if count > *max_edu_count {
-			*max_edu_count = count;
-		}
 		if user_id.server_name() != services().globals.server_name() {
 			continue;
 		}

@@ -338,16 +338,13 @@ pub async fn send_transaction_message_route(
 				}
 
 				for update in presence.push {
-					for room_id in services().rooms.state_cache.rooms_joined(&update.user_id) {
-						services().presence.set_presence(
-							&room_id?,
-							&update.user_id,
-							update.presence.clone(),
-							Some(update.currently_active),
-							Some(update.last_active_ago),
-							update.status_msg.clone(),
-						)?;
-					}
+					services().presence.set_presence(
+						&update.user_id,
+						&update.presence,
+						Some(update.currently_active),
+						Some(update.last_active_ago),
+						update.status_msg.clone(),
+					)?;
 				}
 			},
 			Edu::Receipt(receipt) => {
