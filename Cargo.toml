@@ -388,7 +388,6 @@ incremental = false
 opt-level = 3
 overflow-checks = true
 strip = "symbols"
-panic = "abort"
 control-flow-guard = true # Windows only
 debug = 0
 
@@ -397,6 +396,7 @@ debug = 0
 inherits = "release"
 lto = 'fat'
 codegen-units = 1
+panic = "abort"
 
 # For releases also try to max optimizations for dependencies:
 [profile.release-high-perf.build-override]
