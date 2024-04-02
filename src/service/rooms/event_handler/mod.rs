@@ -1445,7 +1445,7 @@ impl Service {
 	) -> Result<()> {
 		for server in services().globals.trusted_servers() {
 			info!("Asking batch signing keys from trusted server {}", server);
-			if let Ok(keys) = services()
+			match services()
 				.sending
 				.send_federation_request(
 					server,
@@ -1455,35 +1455,39 @@ impl Service {
 				)
 				.await
 			{
-				debug!("Got signing keys: {:?}", keys);
-				let mut pkm = pub_key_map.write().await;
-				for k in keys.server_keys {
-					let k = match k.deserialize() {
-						Ok(key) => key,
-						Err(e) => {
-							warn!("Received error {e} while fetching keys from trusted server {server}");
-							warn!("{}", k.into_json());
-							continue;
-						},
-					};
+				Ok(keys) => {
+					debug!("Got signing keys: {:?}", keys);
+					let mut pkm = pub_key_map.write().await;
+					for k in keys.server_keys {
+						let k = match k.deserialize() {
+							Ok(key) => key,
+							Err(e) => {
+								warn!("Received error {e} while fetching keys from trusted server {server}");
+								warn!("{}", k.into_json());
+								continue;
+							},
+						};
 
-					// TODO: Check signature from trusted server?
-					servers.remove(&k.server_name);
+						// TODO: Check signature from trusted server?
+						servers.remove(&k.server_name);
 
-					let result = services()
-						.globals
-						.add_signing_key(&k.server_name, k.clone())?
-						.into_iter()
-						.map(|(k, v)| (k.to_string(), v.key))
-						.collect::<BTreeMap<_, _>>();
+						let result = services()
+							.globals
+							.add_signing_key(&k.server_name, k.clone())?
+							.into_iter()
+							.map(|(k, v)| (k.to_string(), v.key))
+							.collect::<BTreeMap<_, _>>();
 
-					pkm.insert(k.server_name.to_string(), result);
-				}
-			} else {
-				warn!(
-					"Failed sending batched key request to trusted key server {server} for the remote servers \
-					 {servers:?}"
-				);
+						pkm.insert(k.server_name.to_string(), result);
+					}
+				},
+				Err(e) => {
+					warn!(
+						"Failed sending batched key request to trusted key server {server} for the remote servers \
+						 {:?}: {e}",
+						servers
+					);
+				},
 			}
 		}
 
