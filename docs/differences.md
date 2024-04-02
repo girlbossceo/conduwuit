@@ -97,3 +97,9 @@
 - **Opt-in** Sentry.io telemetry and metrics, mainly used for crash reporting
 - Add `/_conduwuit/server_version` route to return the version of Conduwuit without relying on the federation API `/_matrix/federation/v1/version`
 - Add configurable RocksDB recovery modes to aid in recovering corrupte RocksDB database
+- Config option to forbid publishing rooms to the room directory (`lockdown_public_room_directory`) except for admins
+- Don't allow `m.call.invite` events to be sent in public rooms (prevents calling the entire room)
+- On new public room creations, only allow moderators to send `m.call.invite`, `org.matrix.msc3401.call`, and `org.matrix.msc3401.call.member` events
+- Stop sending `make_join` requests on room joins if 15 servers respond with `M_UNSUPPORTED_ROOM_VERSION` or `M_INVALID_ROOM_VERSION`
+- Stop sending `make_join` requests if 50 servers cannot provide `make_join` for us
+- Admin debug command to send a federation request/ping to a server's `/_matrix/federation/v1/version` endpoint and measures the latency it took
