@@ -27,7 +27,7 @@ use ruma::{
 	OwnedRoomId, RoomId, ServerName, UInt, UserId,
 };
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 use crate::{services, Error, Result};
 
