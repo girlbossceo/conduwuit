@@ -61,7 +61,7 @@ impl service::uiaa::Data for KeyValueDatabase {
 			&self
 				.userdevicesessionid_uiaainfo
 				.get(&userdevicesessionid)?
-				.ok_or(Error::BadRequest(ErrorKind::Forbidden, "UIAA session does not exist."))?,
+				.ok_or(Error::BadRequest(ErrorKind::forbidden(), "UIAA session does not exist."))?,
 		)
 		.map_err(|_| Error::bad_database("UiaaInfo in userdeviceid_uiaainfo is invalid."))
 	}

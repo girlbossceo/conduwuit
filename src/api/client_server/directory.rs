@@ -110,7 +110,7 @@ pub async fn set_room_visibility_route(
 				);
 
 				return Err(Error::BadRequest(
-					ErrorKind::Forbidden,
+					ErrorKind::forbidden(),
 					"Publishing rooms to the room directory is not allowed",
 				));
 			}

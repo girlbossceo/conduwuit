@@ -79,7 +79,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 				user_id.to_lowercase()
 			} else {
 				warn!("Bad login type: {:?}", &body.login_info);
-				return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
+				return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));
 			};
 
 			let user_id = UserId::parse_with_server_name(username, services().globals.server_name()).map_err(|e| {
@@ -90,7 +90,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 			let hash = services()
 				.users
 				.password_hash(&user_id)?
-				.ok_or(Error::BadRequest(ErrorKind::Forbidden, "Wrong username or password."))?;
+				.ok_or(Error::BadRequest(ErrorKind::forbidden(), "Wrong username or password."))?;
 
 			if hash.is_empty() {
 				return Err(Error::BadRequest(ErrorKind::UserDeactivated, "The user has been deactivated"));
@@ -108,7 +108,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 				.is_ok();
 
 			if !hash_matches {
-				return Err(Error::BadRequest(ErrorKind::Forbidden, "Wrong username or password."));
+				return Err(Error::BadRequest(ErrorKind::forbidden(), "Wrong username or password."));
 			}
 
 			user_id
@@ -158,7 +158,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 				);
 				user_id.to_lowercase()
 			} else {
-				return Err(Error::BadRequest(ErrorKind::Forbidden, "Bad login type."));
+				return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));
 			};
 
 			UserId::parse_with_server_name(username, services().globals.server_name()).map_err(|e| {

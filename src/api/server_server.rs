@@ -149,7 +149,7 @@ pub async fn get_public_rooms_filtered_route(
 		.globals
 		.allow_public_room_directory_over_federation()
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Room directory is not public"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room directory is not public"));
 	}
 
 	let response = client_server::get_public_rooms_filtered_helper(
@@ -179,7 +179,7 @@ pub async fn get_public_rooms_route(
 		.globals
 		.allow_public_room_directory_over_federation()
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Room directory is not public"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room directory is not public"));
 	}
 
 	let response = client_server::get_public_rooms_filtered_helper(
@@ -541,7 +541,7 @@ pub async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_e
 		.state_cache
 		.server_in_room(sender_servername, room_id)?
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room"));
 	}
 
 	if !services()
@@ -549,7 +549,7 @@ pub async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_e
 		.state_accessor
 		.server_can_see_event(sender_servername, room_id, &body.event_id)?
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not allowed to see event."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not allowed to see event."));
 	}
 
 	Ok(get_event::v1::Response {
@@ -576,7 +576,7 @@ pub async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result
 		.state_cache
 		.server_in_room(sender_servername, &body.room_id)?
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
 
 	services()
@@ -639,7 +639,7 @@ pub async fn get_missing_events_route(
 		.state_cache
 		.server_in_room(sender_servername, &body.room_id)?
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room"));
 	}
 
 	services()
@@ -722,7 +722,7 @@ pub async fn get_event_authorization_route(
 		.state_cache
 		.server_in_room(sender_servername, &body.room_id)?
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
 
 	services()
@@ -775,7 +775,7 @@ pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Re
 		.state_cache
 		.server_in_room(sender_servername, &body.room_id)?
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
 
 	services()
@@ -844,7 +844,7 @@ pub async fn get_room_state_ids_route(
 		.state_cache
 		.server_in_room(sender_servername, &body.room_id)?
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Server is not in room."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
 
 	services()
@@ -1253,7 +1253,7 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 			&sender_servername, &body.room_id
 		);
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"This room is banned on this homeserver.",
 		));
 	}
@@ -1265,7 +1265,7 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 			&sender_servername, &body.room_id
 		);
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"This server does not allow room invites.",
 		));
 	}
