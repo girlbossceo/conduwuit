@@ -310,6 +310,7 @@ pub async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_use
 							.unwrap_or_default(),
 						blurhash: services().users.blurhash(&body.user_id).unwrap_or_default(),
 						reason: body.reason.clone(),
+						join_authorized_via_users_server: None,
 						..event
 					})
 					.map_err(|_| Error::bad_database("Invalid member event in database."))
@@ -368,6 +369,7 @@ pub async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Result<unb
 
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
+	event.join_authorized_via_users_server = None;
 
 	let mutex_state = Arc::clone(
 		services()
