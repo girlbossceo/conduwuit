@@ -142,13 +142,17 @@ impl Service {
 
 	/// Whether a user's power level is sufficient to invite other users
 	pub fn user_can_invite(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-		self.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
-			.map_or(Ok(false), |pdu_event| {
-				serde_json::from_str(pdu_event.content.get()).map(|content: RoomPowerLevelsEventContent| {
-					content.users.get(user_id).unwrap_or(&content.users_default) >= &content.invite
+		if services().rooms.state_cache.is_joined(user_id, room_id)? {
+			self.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
+				.map_or(Ok(false), |pdu_event| {
+					serde_json::from_str(pdu_event.content.get()).map(|content: RoomPowerLevelsEventContent| {
+						content.users.get(user_id).unwrap_or(&content.users_default) >= &content.invite
+					})
 				})
-			})
-			.map_err(|_| Error::bad_database("Invalid history visibility event in database."))
+				.map_err(|_| Error::bad_database("Invalid history visibility event in database."))
+		} else {
+			Ok(false)
+		}
 	}
 
 	/// Whether a user is allowed to see an event, based on
