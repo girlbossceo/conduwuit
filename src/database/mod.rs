@@ -185,7 +185,7 @@ pub struct KeyValueDatabase {
 	pub(super) our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
 	pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
 	pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
-	pub(super) presence_timer_sender: Arc<mpsc::UnboundedSender<(OwnedUserId, Duration)>>,
+	pub(super) presence_timer_sender: Arc<Option<mpsc::UnboundedSender<(OwnedUserId, Duration)>>>,
 }
 
 #[derive(Deserialize)]
@@ -275,7 +275,13 @@ impl KeyValueDatabase {
 			},
 		};
 
-		let (presence_sender, presence_receiver) = mpsc::unbounded_channel();
+		let presence_sender = if services().globals.allow_local_presence() {
+			let (presence_sender, presence_receiver) = mpsc::unbounded_channel();
+			Self::start_presence_handler(presence_receiver).await;
+			Some(presence_sender)
+		} else {
+			None
+		};
 
 		let db_raw = Box::new(Self {
 			db: builder.clone(),
@@ -1058,9 +1064,6 @@ impl KeyValueDatabase {
 		Self::start_cleanup_task().await;
 		if services().globals.allow_check_for_updates() {
 			Self::start_check_for_updates_task().await;
-		}
-		if services().globals.allow_local_presence() {
-			Self::start_presence_handler(presence_receiver).await;
 		}
 
 		Ok(())

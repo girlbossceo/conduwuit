@@ -24,6 +24,10 @@ impl service::presence::Data for KeyValueDatabase {
 	}
 
 	fn ping_presence(&self, user_id: &UserId, new_state: PresenceState) -> Result<()> {
+		let Some(ref tx) = *self.presence_timer_sender else {
+			return Ok(());
+		};
+
 		let now = utils::millis_since_unix_epoch();
 		let mut state_changed = false;
 
@@ -74,8 +78,7 @@ impl service::presence::Data for KeyValueDatabase {
 			_ => services().globals.config.presence_offline_timeout_s,
 		};
 
-		self.presence_timer_sender
-			.send((user_id.to_owned(), Duration::from_secs(timeout)))
+		tx.send((user_id.to_owned(), Duration::from_secs(timeout)))
 			.map_err(|e| {
 				error!("Failed to add presence timer: {}", e);
 				Error::bad_database("Failed to add presence timer")
@@ -86,6 +89,10 @@ impl service::presence::Data for KeyValueDatabase {
 		&self, room_id: &RoomId, user_id: &UserId, presence_state: PresenceState, currently_active: Option<bool>,
 		last_active_ago: Option<UInt>, status_msg: Option<String>,
 	) -> Result<()> {
+		let Some(ref tx) = *self.presence_timer_sender else {
+			return Ok(());
+		};
+
 		let now = utils::millis_since_unix_epoch();
 		let last_active_ts = match last_active_ago {
 			Some(last_active_ago) => now.saturating_sub(last_active_ago.into()),
@@ -107,8 +114,7 @@ impl service::presence::Data for KeyValueDatabase {
 			_ => services().globals.config.presence_offline_timeout_s,
 		};
 
-		self.presence_timer_sender
-			.send((user_id.to_owned(), Duration::from_secs(timeout)))
+		tx.send((user_id.to_owned(), Duration::from_secs(timeout)))
 			.map_err(|e| {
 				error!("Failed to add presence timer: {}", e);
 				Error::bad_database("Failed to add presence timer")
