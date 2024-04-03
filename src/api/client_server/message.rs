@@ -45,14 +45,14 @@ pub async fn send_message_event_route(
 
 	// Forbid m.room.encrypted if encryption is disabled
 	if MessageLikeEventType::RoomEncrypted == body.event_type && !services().globals.allow_encryption() {
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Encryption has been disabled"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Encryption has been disabled"));
 	}
 
 	if body.event_type == MessageLikeEventType::CallInvite
 		&& services().rooms.directory.is_public_room(&body.room_id)?
 	{
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"Room call invites are not allowed in public rooms",
 		));
 	}

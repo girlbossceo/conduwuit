@@ -51,7 +51,7 @@ pub async fn join_room_by_id_route(body: Ruma<join_room_by_id::v3::Request>) -> 
 
 	if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(sender_user)? {
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"This room is banned on this homeserver.",
 		));
 	}
@@ -108,7 +108,7 @@ pub async fn join_room_by_id_or_alias_route(
 		Ok(room_id) => {
 			if services().rooms.metadata.is_banned(&room_id)? && !services().users.is_admin(sender_user)? {
 				return Err(Error::BadRequest(
-					ErrorKind::Forbidden,
+					ErrorKind::forbidden(),
 					"This room is banned on this homeserver.",
 				));
 			}
@@ -144,7 +144,7 @@ pub async fn join_room_by_id_or_alias_route(
 
 			if services().rooms.metadata.is_banned(&response.room_id)? && !services().users.is_admin(sender_user)? {
 				return Err(Error::BadRequest(
-					ErrorKind::Forbidden,
+					ErrorKind::forbidden(),
 					"This room is banned on this homeserver.",
 				));
 			}
@@ -192,7 +192,7 @@ pub async fn invite_user_route(body: Ruma<invite_user::v3::Request>) -> Result<i
 			&body.room_id
 		);
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"Invites are not allowed on this server.",
 		));
 	}
@@ -203,7 +203,7 @@ pub async fn invite_user_route(body: Ruma<invite_user::v3::Request>) -> Result<i
 			&sender_user, &body.room_id
 		);
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"This room is banned on this homeserver.",
 		));
 	}
@@ -455,7 +455,7 @@ pub async fn get_member_events_route(
 		.user_can_see_state_events(sender_user, &body.room_id)?
 	{
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"You don't have permission to view this room.",
 		));
 	}
@@ -488,7 +488,7 @@ pub async fn joined_members_route(body: Ruma<joined_members::v3::Request>) -> Re
 		.user_can_see_state_events(sender_user, &body.room_id)?
 	{
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"You don't have permission to view this room.",
 		));
 	}
@@ -1276,7 +1276,7 @@ pub(crate) async fn invite_helper(
 	if !services().users.is_admin(user_id)? && services().globals.block_non_admin_invites() {
 		info!("User {sender_user} is not an admin and attempted to send an invite to room {room_id}");
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"Invites are not allowed on this server.",
 		));
 	}
@@ -1399,7 +1399,7 @@ pub(crate) async fn invite_helper(
 		.is_joined(sender_user, room_id)?
 	{
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"You don't have permission to view this room.",
 		));
 	}

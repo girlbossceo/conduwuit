@@ -56,7 +56,7 @@ pub async fn get_media_preview_route(
 ) -> Result<get_media_preview::v3::Response> {
 	let url = &body.url;
 	if !url_preview_allowed(url) {
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "URL is not allowed to be previewed"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "URL is not allowed to be previewed"));
 	}
 
 	match get_url_preview(url).await {
@@ -100,7 +100,7 @@ pub async fn get_media_preview_v1_route(
 ) -> Result<RumaResponse<get_media_preview::v3::Response>> {
 	let url = &body.url;
 	if !url_preview_allowed(url) {
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "URL is not allowed to be previewed"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "URL is not allowed to be previewed"));
 	}
 
 	match get_url_preview(url).await {
@@ -748,7 +748,7 @@ async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
 		for cidr in cidr_ranges {
 			if cidr.includes(&ip) {
 				return Err(Error::BadRequest(
-					ErrorKind::Forbidden,
+					ErrorKind::forbidden(),
 					"Requesting from this address is forbidden",
 				));
 			}
@@ -770,7 +770,7 @@ async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
 			for cidr in cidr_ranges {
 				if cidr.includes(&ip) {
 					return Err(Error::BadRequest(
-						ErrorKind::Forbidden,
+						ErrorKind::forbidden(),
 						"Requesting from this address is forbidden",
 					));
 				}
@@ -783,7 +783,7 @@ async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
 		.map_or(false, |a| url_request_allowed(&a.ip()))
 	{
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"Requesting from this address is forbidden",
 		));
 	}

@@ -549,7 +549,7 @@ impl Service {
 		if !is_accessable_child(current_room, &join_rule.clone().into(), identifier, &allowed_room_ids)? {
 			debug!("User is not allowed to see room {room_id}");
 			// This error will be caught later
-			return Err(Error::BadRequest(ErrorKind::Forbidden, "User is not allowed to see the room"));
+			return Err(Error::BadRequest(ErrorKind::forbidden(), "User is not allowed to see the room"));
 		}
 
 		let join_rule = join_rule.into();
@@ -698,9 +698,9 @@ impl Service {
 				})
 			},
 			Some(SummaryAccessibility::Inaccessible) => {
-				Err(Error::BadRequest(ErrorKind::Forbidden, "The requested room is inaccessible"))
+				Err(Error::BadRequest(ErrorKind::forbidden(), "The requested room is inaccessible"))
 			},
-			None => Err(Error::BadRequest(ErrorKind::Forbidden, "The requested room was not found")),
+			None => Err(Error::BadRequest(ErrorKind::forbidden(), "The requested room was not found")),
 		}
 	}
 }

@@ -48,7 +48,7 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 		.user_can_see_event(sender_user, &room_id, &body.event_id)?
 	{
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"You don't have permission to view this event.",
 		));
 	}

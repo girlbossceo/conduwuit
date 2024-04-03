@@ -94,7 +94,7 @@ impl Service {
 				 event ID {event_id}"
 			);
 			return Err(Error::BadRequest(
-				ErrorKind::Forbidden,
+				ErrorKind::forbidden(),
 				"Federation of this room is currently disabled on this server.",
 			));
 		}
@@ -163,7 +163,7 @@ impl Service {
 					 event ID {event_id}"
 				);
 				return Err(Error::BadRequest(
-					ErrorKind::Forbidden,
+					ErrorKind::forbidden(),
 					"Federation of this room is currently disabled on this server.",
 				));
 			}
@@ -1645,7 +1645,7 @@ impl Service {
 			Ok(())
 		} else {
 			info!("Server {} was denied by room ACL in {}", server_name, room_id);
-			Err(Error::BadRequest(ErrorKind::Forbidden, "Server was denied by room ACL"))
+			Err(Error::BadRequest(ErrorKind::forbidden(), "Server was denied by room ACL"))
 		}
 	}
 

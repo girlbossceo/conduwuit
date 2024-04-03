@@ -51,7 +51,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	if !services().globals.allow_room_creation() && !&body.from_appservice && !services().users.is_admin(sender_user)? {
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Room creation has been disabled."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room creation has been disabled."));
 	}
 
 	let room_id: OwnedRoomId;
@@ -597,7 +597,7 @@ pub async fn get_room_event_route(body: Ruma<get_room_event::v3::Request>) -> Re
 		.user_can_see_event(sender_user, &event.room_id, &body.event_id)?
 	{
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"You don't have permission to view this event.",
 		));
 	}
@@ -625,7 +625,7 @@ pub async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<
 		.user_can_see_state_events(sender_user, &body.room_id)?
 	{
 		return Err(Error::BadRequest(
-			ErrorKind::Forbidden,
+			ErrorKind::forbidden(),
 			"You don't have permission to view this room.",
 		));
 	}

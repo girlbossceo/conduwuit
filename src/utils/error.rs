@@ -116,7 +116,9 @@ impl Error {
 					WrongRoomKeysVersion {
 						..
 					}
-					| Forbidden
+					| Forbidden {
+						..
+					}
 					| GuestAccessForbidden
 					| ThreepidAuthFailed
 					| UserDeactivated
