@@ -51,7 +51,7 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 				.is_joined(sender_user, room_id)?
 			{
 				return Err(Error::BadRequest(
-					ErrorKind::Forbidden,
+					ErrorKind::forbidden(),
 					"You don't have permission to view this room.",
 				));
 			}
@@ -76,7 +76,7 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 				room_states.insert(room_id.clone(), room_state);
 			} else {
 				return Err(Error::BadRequest(
-					ErrorKind::Forbidden,
+					ErrorKind::forbidden(),
 					"You don't have permission to view this room.",
 				));
 			}
@@ -92,7 +92,7 @@ pub async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Resu
 			.is_joined(sender_user, room_id)?
 		{
 			return Err(Error::BadRequest(
-				ErrorKind::Forbidden,
+				ErrorKind::forbidden(),
 				"You don't have permission to view this room.",
 			));
 		}

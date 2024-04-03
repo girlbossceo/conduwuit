@@ -89,7 +89,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 			 {:?}",
 			body.username
 		);
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Registration has been disabled."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Registration has been disabled."));
 	}
 
 	if body.body.login_type == Some(LoginType::ApplicationService) && !body.from_appservice {
@@ -121,7 +121,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 			 registration. Guest's initial device name: {:?}",
 			body.initial_device_display_name
 		);
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Registration temporarily disabled."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Registration temporarily disabled."));
 	}
 
 	let user_id = match (&body.username, is_guest) {

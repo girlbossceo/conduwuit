@@ -12,7 +12,7 @@ use crate::{services, Error, Result, Ruma};
 /// Sets the presence state of the sender user.
 pub async fn set_presence_route(body: Ruma<set_presence::v3::Request>) -> Result<set_presence::v3::Response> {
 	if !services().globals.allow_local_presence() {
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Presence is disabled on this server"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Presence is disabled on this server"));
 	}
 
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -39,7 +39,7 @@ pub async fn set_presence_route(body: Ruma<set_presence::v3::Request>) -> Result
 /// - Only works if you share a room with the user
 pub async fn get_presence_route(body: Ruma<get_presence::v3::Request>) -> Result<get_presence::v3::Response> {
 	if !services().globals.allow_local_presence() {
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "Presence is disabled on this server"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Presence is disabled on this server"));
 	}
 
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");

@@ -102,7 +102,7 @@ where
 						debug!("User ID: {:?}", user_id);
 
 						if !services().users.exists(&user_id)? {
-							return Err(Error::BadRequest(ErrorKind::Forbidden, "User does not exist."));
+							return Err(Error::BadRequest(ErrorKind::forbidden(), "User does not exist."));
 						}
 
 						// TODO: Check if appservice is allowed to be that user
@@ -192,7 +192,7 @@ where
 									_ => "Unknown header-related error",
 								};
 
-								Error::BadRequest(ErrorKind::Forbidden, msg)
+								Error::BadRequest(ErrorKind::forbidden(), msg)
 							})?;
 
 						let origin_signatures =
@@ -207,7 +207,7 @@ where
 
 						if let Some(destination) = x_matrix.destination.as_ref() {
 							if destination != &server_destination {
-								return Err(Error::BadRequest(ErrorKind::Forbidden, "Invalid authorization."));
+								return Err(Error::BadRequest(ErrorKind::forbidden(), "Invalid authorization."));
 							}
 						}
 
@@ -236,7 +236,7 @@ where
 							Ok(b) => b,
 							Err(e) => {
 								warn!("Failed to fetch signing keys: {}", e);
-								return Err(Error::BadRequest(ErrorKind::Forbidden, "Failed to fetch signing keys."));
+								return Err(Error::BadRequest(ErrorKind::forbidden(), "Failed to fetch signing keys."));
 							},
 						};
 
@@ -258,7 +258,7 @@ where
 								}
 
 								return Err(Error::BadRequest(
-									ErrorKind::Forbidden,
+									ErrorKind::forbidden(),
 									"Failed to verify X-Matrix signatures.",
 								));
 							},

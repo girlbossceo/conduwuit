@@ -17,7 +17,7 @@ pub async fn create_typing_event_route(
 		.state_cache
 		.is_joined(sender_user, &body.room_id)?
 	{
-		return Err(Error::BadRequest(ErrorKind::Forbidden, "You are not in this room."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "You are not in this room."));
 	}
 
 	if let Typing::Yes(duration) = body.state {
