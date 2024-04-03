@@ -171,11 +171,9 @@ async fn sync_helper(
 	// bool = caching allowed
 ) -> Result<(sync_events::v3::Response, bool), Error> {
 	// Presence update
-	if services().globals.allow_local_presence() {
-		services()
-			.presence
-			.ping_presence(&sender_user, body.set_presence)?;
-	}
+	services()
+		.presence
+		.ping_presence(&sender_user, body.set_presence)?;
 
 	// Setup watchers, so if there's no response, we can wait for them
 	let watcher = services().globals.watch(&sender_user, &sender_device);
