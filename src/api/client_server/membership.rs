@@ -20,7 +20,6 @@ use ruma::{
 		room::{
 			join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent},
 			member::{MembershipState, RoomMemberEventContent},
-			power_levels::RoomPowerLevelsEventContent,
 		},
 		StateEventType, TimelineEventType,
 	},
@@ -880,11 +879,6 @@ pub(crate) async fn join_room_by_id_helper(
 				.rooms
 				.state_accessor
 				.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
-		let power_levels_event =
-			services()
-				.rooms
-				.state_accessor
-				.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?;
 
 		let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
 			.as_ref()
@@ -892,15 +886,6 @@ pub(crate) async fn join_room_by_id_helper(
 				serde_json::from_str(join_rules_event.content.get()).map_err(|e| {
 					warn!("Invalid join rules event: {}", e);
 					Error::bad_database("Invalid join rules event in db.")
-				})
-			})
-			.transpose()?;
-		let power_levels_event_content: Option<RoomPowerLevelsEventContent> = power_levels_event
-			.as_ref()
-			.map(|power_levels_event| {
-				serde_json::from_str(power_levels_event.content.get()).map_err(|e| {
-					warn!("Invalid power levels event: {}", e);
-					Error::bad_database("Invalid power levels event in db.")
 				})
 			})
 			.transpose()?;
@@ -919,51 +904,30 @@ pub(crate) async fn join_room_by_id_helper(
 			_ => Vec::new(),
 		};
 
-		let authorized_user = restriction_rooms
-			.iter()
-			.find_map(|restriction_room_id| {
-				if !services()
+		let authorized_user = restriction_rooms.iter().find_map(|restriction_room_id| {
+			if !services()
+				.rooms
+				.state_cache
+				.is_invited(sender_user, restriction_room_id)
+				.unwrap_or(true)
+			{
+				services()
 					.rooms
 					.state_cache
-					.is_joined(sender_user, restriction_room_id)
-					.ok()?
-				{
-					return None;
-				}
-				let authorized_user = power_levels_event_content
-					.as_ref()
-					.and_then(|c| {
-						c.users
-							.iter()
-							.filter(|(uid, i)| {
-								uid.server_name() == services().globals.server_name()
-									&& **i > ruma::int!(0) && services()
-									.rooms
-									.state_cache
-									.is_joined(uid, restriction_room_id)
-									.unwrap_or(false)
-							})
-							.max_by_key(|(_, i)| *i)
-							.map(|(u, _)| u.to_owned())
+					.room_members(restriction_room_id)
+					.filter_map(Result::ok)
+					.find(|user| {
+						user.server_name() == services().globals.server_name()
+							&& services()
+								.rooms
+								.state_accessor
+								.user_can_invite(user, restriction_room_id)
+								.unwrap_or(false)
 					})
-					.or_else(|| {
-						services()
-							.rooms
-							.state_cache
-							.room_members(restriction_room_id)
-							.filter_map(Result::ok)
-							.find(|uid| {
-								uid.server_name() == services().globals.server_name()
-									&& services()
-										.rooms
-										.state_accessor
-										.user_can_invite(uid, restriction_room_id)
-										.unwrap_or(false)
-							})
-					});
-				Some(authorized_user)
-			})
-			.flatten();
+			} else {
+				None
+			}
+		});
 
 		let event = RoomMemberEventContent {
 			membership: MembershipState::Join,
