@@ -279,7 +279,7 @@ where
 				}
 
 				response.map_err(|e| {
-					warn!("Invalid 200 response from {} on: {} {}", &destination, url, e);
+					info!("Invalid 200 response from {} on: {} {}", &destination, url, e);
 					Error::BadServerResponse("Server returned bad 200 response.")
 				})
 			} else {
