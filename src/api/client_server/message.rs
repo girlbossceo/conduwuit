@@ -261,18 +261,16 @@ pub async fn get_message_events_route(
 		}
 	}
 
-	// TODO: enable again when we are sure clients can handle it
-	/*
-	if let Some(next_token) = next_token {
-		services().rooms.lazy_loading.lazy_load_mark_sent(
-			sender_user,
-			sender_device,
-			&body.room_id,
-			lazy_loaded,
-			next_token,
-		).await;
+	// remove the feature check when we are sure clients like element can handle it
+	if !cfg!(feature = "element_hacks") {
+		if let Some(next_token) = next_token {
+			services()
+				.rooms
+				.lazy_loading
+				.lazy_load_mark_sent(sender_user, sender_device, &body.room_id, lazy_loaded, next_token)
+				.await;
+		}
 	}
-	*/
 
 	Ok(resp)
 }
