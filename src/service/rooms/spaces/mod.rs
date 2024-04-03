@@ -422,7 +422,7 @@ impl Service {
 					return Ok(None);
 				}
 
-				info!("Asking {server} for /hierarchy");
+				debug!("Asking {server} for /hierarchy");
 				if let Ok(response) = services()
 					.sending
 					.send_federation_request(
@@ -434,7 +434,7 @@ impl Service {
 					)
 					.await
 				{
-					info!("Got response from {server} for /hierarchy\n{response:?}");
+					debug!("Got response from {server} for /hierarchy\n{response:?}");
 					let summary = response.room.clone();
 
 					self.roomid_spacehierarchy_cache.lock().await.insert(
