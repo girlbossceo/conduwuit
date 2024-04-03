@@ -945,14 +945,19 @@ pub(crate) async fn join_room_by_id_helper(
 							.map(|(u, _)| u.to_owned())
 					})
 					.or_else(|| {
-						// TODO: Check here if user is actually allowed to invite. Currently the auth
-						// check will just fail in this case.
 						services()
 							.rooms
 							.state_cache
 							.room_members(restriction_room_id)
 							.filter_map(Result::ok)
-							.find(|uid| uid.server_name() == services().globals.server_name())
+							.find(|uid| {
+								uid.server_name() == services().globals.server_name()
+									&& services()
+										.rooms
+										.state_accessor
+										.user_can_invite(uid, restriction_room_id)
+										.unwrap_or(false)
+							})
 					});
 				Some(authorized_user)
 			})
