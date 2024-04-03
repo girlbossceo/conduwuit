@@ -275,7 +275,7 @@ impl KeyValueDatabase {
 			},
 		};
 
-		let presence_sender = if services().globals.allow_local_presence() {
+		let presence_sender = if config.allow_local_presence {
 			let (presence_sender, presence_receiver) = mpsc::unbounded_channel();
 			Self::start_presence_handler(presence_receiver).await;
 			Some(presence_sender)
