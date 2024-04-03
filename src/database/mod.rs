@@ -415,8 +415,8 @@ impl KeyValueDatabase {
 		// Matrix resource ownership is based on the server name; changing it
 		// requires recreating the database from scratch.
 		if services().users.count()? > 0 {
-			let conduit_user = UserId::parse_with_server_name("conduit", services().globals.server_name())
-				.expect("@conduit:server_name is valid");
+			let conduit_user =
+				UserId::parse_with_server_name("conduit", &config.server_name).expect("@conduit:server_name is valid");
 
 			if !services().users.exists(&conduit_user)? {
 				error!("The {} server user does not exist, and the database is not new.", conduit_user);
@@ -511,7 +511,7 @@ impl KeyValueDatabase {
 					for room in services().rooms.state_cache.rooms_joined(&our_user) {
 						for user in services().rooms.state_cache.room_members(&room?) {
 							let user = user?;
-							if user.server_name() != services().globals.server_name() {
+							if user.server_name() != config.server_name {
 								info!(?user, "Migration: creating user");
 								services().users.create(&user, None)?;
 							}
@@ -827,8 +827,7 @@ impl KeyValueDatabase {
 
 			if services().globals.database_version()? < 12 {
 				for username in services().users.list_local_users()? {
-					let user = match UserId::parse_with_server_name(username.clone(), services().globals.server_name())
-					{
+					let user = match UserId::parse_with_server_name(username.clone(), &config.server_name) {
 						Ok(u) => u,
 						Err(e) => {
 							warn!("Invalid username {username}: {e}");
@@ -898,8 +897,7 @@ impl KeyValueDatabase {
 			// updated.
 			if services().globals.database_version()? < 13 {
 				for username in services().users.list_local_users()? {
-					let user = match UserId::parse_with_server_name(username.clone(), services().globals.server_name())
-					{
+					let user = match UserId::parse_with_server_name(username.clone(), &config.server_name) {
 						Ok(u) => u,
 						Err(e) => {
 							warn!("Invalid username {username}: {e}");
@@ -967,14 +965,14 @@ impl KeyValueDatabase {
 			);
 
 			{
-				let patterns = &services().globals.config.forbidden_usernames;
+				let patterns = &config.forbidden_usernames;
 				if !patterns.is_empty() {
 					for user_id in services()
 						.users
 						.iter()
 						.filter_map(Result::ok)
 						.filter(|user| !services().users.is_deactivated(user).unwrap_or(true))
-						.filter(|user| user.server_name() == services().globals.server_name())
+						.filter(|user| user.server_name() == config.server_name)
 					{
 						let matches = patterns.matches(user_id.localpart());
 						if matches.matched_any() {
@@ -992,7 +990,7 @@ impl KeyValueDatabase {
 			}
 
 			{
-				let patterns = &services().globals.config.forbidden_alias_names;
+				let patterns = &config.forbidden_alias_names;
 				if !patterns.is_empty() {
 					for address in services().rooms.metadata.iter_ids() {
 						let room_id = address?;
@@ -1018,8 +1016,7 @@ impl KeyValueDatabase {
 
 			info!(
 				"Loaded {} database with version {}",
-				services().globals.config.database_backend,
-				latest_database_version
+				config.database_backend, latest_database_version
 			);
 		} else {
 			services()
@@ -1031,8 +1028,7 @@ impl KeyValueDatabase {
 
 			warn!(
 				"Created new {} database with version {}",
-				services().globals.config.database_backend,
-				latest_database_version
+				config.database_backend, latest_database_version
 			);
 		}
 
