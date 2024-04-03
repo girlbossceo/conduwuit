@@ -42,6 +42,7 @@ pub async fn set_displayname_route(
 					event_type: TimelineEventType::RoomMember,
 					content: to_raw_value(&RoomMemberEventContent {
 						displayname: body.displayname.clone(),
+						join_authorized_via_users_server: None,
 						..serde_json::from_str(
 							services()
 								.rooms
@@ -179,6 +180,7 @@ pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Re
 					event_type: TimelineEventType::RoomMember,
 					content: to_raw_value(&RoomMemberEventContent {
 						avatar_url: body.avatar_url.clone(),
+						join_authorized_via_users_server: None,
 						..serde_json::from_str(
 							services()
 								.rooms
