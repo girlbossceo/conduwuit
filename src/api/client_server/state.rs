@@ -35,21 +35,6 @@ pub async fn send_state_event_for_key_route(
 ) -> Result<send_state_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if body.event_type == StateEventType::RoomJoinRules {
-		if let Some(admin_room_id) = service::admin::Service::get_admin_room()? {
-			if admin_room_id == body.room_id {
-				if let Ok(join_rule) = serde_json::from_str::<RoomJoinRulesEventContent>(body.body.body.json().get()) {
-					if join_rule.join_rule == JoinRule::Public {
-						return Err(Error::BadRequest(
-							ErrorKind::forbidden(),
-							"Admin room is not allowed to be public.",
-						));
-					}
-				}
-			}
-		}
-	}
-
 	let event_id = send_state_event_for_key_helper(
 		sender_user,
 		&body.room_id,
@@ -77,26 +62,6 @@ pub async fn send_state_event_for_empty_key_route(
 	body: Ruma<send_state_event::v3::Request>,
 ) -> Result<RumaResponse<send_state_event::v3::Response>> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	// Forbid m.room.encryption if encryption is disabled
-	if body.event_type == StateEventType::RoomEncryption && !services().globals.allow_encryption() {
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Encryption has been disabled"));
-	}
-
-	if body.event_type == StateEventType::RoomJoinRules {
-		if let Some(admin_room_id) = service::admin::Service::get_admin_room()? {
-			if admin_room_id == body.room_id {
-				if let Ok(join_rule) = serde_json::from_str::<RoomJoinRulesEventContent>(body.body.body.json().get()) {
-					if join_rule.join_rule == JoinRule::Public {
-						return Err(Error::BadRequest(
-							ErrorKind::forbidden(),
-							"Admin room is not allowed to be public.",
-						));
-					}
-				}
-			}
-		}
-	}
 
 	let event_id = send_state_event_for_key_helper(
 		sender_user,
@@ -264,32 +229,55 @@ pub async fn get_state_events_for_empty_key_route(
 async fn send_state_event_for_key_helper(
 	sender: &UserId, room_id: &RoomId, event_type: &StateEventType, json: &Raw<AnyStateEventContent>, state_key: String,
 ) -> Result<Arc<EventId>> {
-	let sender_user = sender;
-
-	// TODO: Review this check, error if event is unparsable, use event type, allow
-	// alias if it previously existed
-	if let Ok(canonical_alias) = serde_json::from_str::<RoomCanonicalAliasEventContent>(json.json().get()) {
-		let mut aliases = canonical_alias.alt_aliases.clone();
-
-		if let Some(alias) = canonical_alias.alias {
-			aliases.push(alias);
-		}
-
-		for alias in aliases {
-			if alias.server_name() != services().globals.server_name()
-				|| services()
-					.rooms
-					.alias
-					.resolve_local_alias(&alias)?
-					.filter(|room| room == room_id) // Make sure it's the right room
-					.is_none()
-			{
-				return Err(Error::BadRequest(
-					ErrorKind::forbidden(),
-					"You are only allowed to send canonical_alias events when its aliases already exist",
-				));
+	match *event_type {
+		// Forbid m.room.encryption if encryption is disabled
+		StateEventType::RoomEncryption => {
+			if !services().globals.allow_encryption() {
+				return Err(Error::BadRequest(ErrorKind::forbidden(), "Encryption has been disabled"));
 			}
-		}
+		},
+		// admin room is a sensitive room, it should not ever be made public
+		StateEventType::RoomJoinRules => {
+			if let Some(admin_room_id) = service::admin::Service::get_admin_room()? {
+				if admin_room_id == room_id {
+					if let Ok(join_rule) = serde_json::from_str::<RoomJoinRulesEventContent>(json.json().get()) {
+						if join_rule.join_rule == JoinRule::Public {
+							return Err(Error::BadRequest(
+								ErrorKind::forbidden(),
+								"Admin room is not allowed to be public.",
+							));
+						}
+					}
+				}
+			}
+		},
+		// TODO: allow alias if it previously existed
+		StateEventType::RoomCanonicalAlias => {
+			if let Ok(canonical_alias) = serde_json::from_str::<RoomCanonicalAliasEventContent>(json.json().get()) {
+				let mut aliases = canonical_alias.alt_aliases.clone();
+
+				if let Some(alias) = canonical_alias.alias {
+					aliases.push(alias);
+				}
+
+				for alias in aliases {
+					if alias.server_name() != services().globals.server_name()
+						|| services()
+                        .rooms
+                        .alias
+                        .resolve_local_alias(&alias)?
+                        .filter(|room| room == room_id) // Make sure it's the right room
+                        .is_none()
+					{
+						return Err(Error::BadRequest(
+							ErrorKind::forbidden(),
+							"You are only allowed to send canonical_alias events when its aliases already exist",
+						));
+					}
+				}
+			}
+		},
+		_ => {},
 	}
 
 	let mutex_state = Arc::clone(
@@ -314,7 +302,7 @@ async fn send_state_event_for_key_helper(
 				state_key: Some(state_key),
 				redacts: None,
 			},
-			sender_user,
+			sender,
 			room_id,
 			&state_lock,
 		)
