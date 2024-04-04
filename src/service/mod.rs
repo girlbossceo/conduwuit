@@ -68,6 +68,8 @@ impl Services<'_> {
 				},
 				auth_chain: rooms::auth_chain::Service {
 					db,
+					shorteventid_cache_capacity: (f64::from(config.shorteventid_cache_capacity)
+						* config.conduit_cache_capacity_modifier) as usize,
 				},
 				directory: rooms::directory::Service {
 					db,
@@ -101,10 +103,12 @@ impl Services<'_> {
 				state_accessor: rooms::state_accessor::Service {
 					db,
 					server_visibility_cache: StdMutex::new(LruCache::new(
-						(100.0 * config.conduit_cache_capacity_modifier) as usize,
+						(f64::from(config.server_visibility_cache_capacity) * config.conduit_cache_capacity_modifier)
+							as usize,
 					)),
 					user_visibility_cache: StdMutex::new(LruCache::new(
-						(100.0 * config.conduit_cache_capacity_modifier) as usize,
+						(f64::from(config.user_visibility_cache_capacity) * config.conduit_cache_capacity_modifier)
+							as usize,
 					)),
 				},
 				state_cache: rooms::state_cache::Service {
@@ -113,7 +117,7 @@ impl Services<'_> {
 				state_compressor: rooms::state_compressor::Service {
 					db,
 					stateinfo_cache: StdMutex::new(LruCache::new(
-						(100.0 * config.conduit_cache_capacity_modifier) as usize,
+						(f64::from(config.stateinfo_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 					)),
 				},
 				timeline: rooms::timeline::Service {
@@ -130,7 +134,8 @@ impl Services<'_> {
 				},
 				spaces: rooms::spaces::Service {
 					roomid_spacehierarchy_cache: Mutex::new(LruCache::new(
-						(100.0 * config.conduit_cache_capacity_modifier) as usize,
+						(f64::from(config.roomid_spacehierarchy_cache_capacity)
+							* config.conduit_cache_capacity_modifier) as usize,
 					)),
 				},
 				user: rooms::user::Service {
