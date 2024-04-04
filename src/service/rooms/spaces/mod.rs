@@ -939,10 +939,10 @@ mod tests {
 
 	use super::*;
 
-	fn first(arena: &mut Arena, room_id: OwnedRoomId) {
+	fn first(arena: &mut Arena, room_id: &OwnedRoomId) {
 		let first_untrav = arena.first_untraversed().unwrap();
 
-		assert_eq!(arena.get(first_untrav).unwrap().room_id, room_id);
+		assert_eq!(arena.get(first_untrav).unwrap().room_id, *room_id);
 	}
 
 	#[test]
@@ -977,8 +977,8 @@ mod tests {
 			],
 		);
 
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room2:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room2:example.org"));
 
 		arena.push(
 			subspace2,
@@ -987,8 +987,8 @@ mod tests {
 				(owned_room_id!("!room4:example.org"), vec![]),
 			],
 		);
-		first(&mut arena, owned_room_id!("!room3:example.org"));
-		first(&mut arena, owned_room_id!("!room4:example.org"));
+		first(&mut arena, &owned_room_id!("!room3:example.org"));
+		first(&mut arena, &owned_room_id!("!room4:example.org"));
 
 		let foo_node = NodeId {
 			index: 1,
@@ -1017,7 +1017,7 @@ mod tests {
 		let room1 = arena.first_untraversed().unwrap();
 		arena.push(room1, vec![]);
 
-		first(&mut arena, owned_room_id!("!room2:example.org"));
+		first(&mut arena, &owned_room_id!("!room2:example.org"));
 		assert!(arena.first_untraversed().is_none());
 	}
 
@@ -1059,9 +1059,9 @@ mod tests {
 			],
 		);
 
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room3:example.org"));
-		first(&mut arena, owned_room_id!("!room5:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room3:example.org"));
+		first(&mut arena, &owned_room_id!("!room5:example.org"));
 
 		let subspace2 = arena.first_untraversed().unwrap();
 
@@ -1075,9 +1075,9 @@ mod tests {
 			],
 		);
 
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room2:example.org"));
-		first(&mut arena, owned_room_id!("!foo:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room2:example.org"));
+		first(&mut arena, &owned_room_id!("!foo:example.org"));
 
 		assert_eq!(arena.first_untraversed(), None);
 	}
@@ -1190,7 +1190,7 @@ mod tests {
 	fn invalid_pagnation_tokens() {
 		fn token_is_err(token: &str) {
 			let token: Result<PagnationToken> = PagnationToken::from_str(token);
-			assert!(token.is_err());
+			token.unwrap_err();
 		}
 
 		token_is_err("231_2_noabool");
@@ -1286,10 +1286,10 @@ mod tests {
 		);
 
 		assert_eq!(arena.nodes.len(), 7);
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!room1:example.org"));
-		first(&mut arena, owned_room_id!("!subspace2:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!room1:example.org"));
+		first(&mut arena, &owned_room_id!("!subspace2:example.org"));
 		assert!(arena.first_untraversed().is_none());
 	}
 }
