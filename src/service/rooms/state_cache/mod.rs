@@ -238,6 +238,31 @@ impl Service {
 		self.db.server_rooms(server)
 	}
 
+	/// Returns true if server can see user by sharing at least one room.
+	#[tracing::instrument(skip(self))]
+	pub fn server_sees_user(&self, server: &ServerName, user_id: &UserId) -> Result<bool> {
+		Ok(self
+			.server_rooms(server)
+			.filter_map(std::result::Result::ok)
+			.any(|room_id: OwnedRoomId| self.is_joined(user_id, &room_id).unwrap_or(false)))
+	}
+
+	/// Returns true if user_a and user_b share at least one room.
+	#[tracing::instrument(skip(self))]
+	pub fn user_sees_user(&self, user_a: &UserId, user_b: &UserId) -> Result<bool> {
+		// Minimize number of point-queries by iterating user with least nr rooms
+		let (a, b) = if self.rooms_joined(user_a).count() < self.rooms_joined(user_b).count() {
+			(user_a, user_b)
+		} else {
+			(user_b, user_a)
+		};
+
+		Ok(self
+			.rooms_joined(a)
+			.filter_map(std::result::Result::ok)
+			.any(|room_id| self.is_joined(b, &room_id).unwrap_or(false)))
+	}
+
 	/// Returns an iterator over all joined members of a room.
 	#[tracing::instrument(skip(self))]
 	pub fn room_members<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
