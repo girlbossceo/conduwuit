@@ -386,18 +386,20 @@ impl KeyValueDatabase {
 					.try_into()
 					.expect("pdu cache capacity fits into usize"),
 			)),
-			auth_chain_cache: Mutex::new(LruCache::new((100_000.0 * config.conduit_cache_capacity_modifier) as usize)),
+			auth_chain_cache: Mutex::new(LruCache::new(
+				(f64::from(config.auth_chain_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
+			)),
 			shorteventid_cache: Mutex::new(LruCache::new(
-				(100_000.0 * config.conduit_cache_capacity_modifier) as usize,
+				(f64::from(config.shorteventid_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),
 			eventidshort_cache: Mutex::new(LruCache::new(
-				(100_000.0 * config.conduit_cache_capacity_modifier) as usize,
+				(f64::from(config.eventidshort_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),
 			shortstatekey_cache: Mutex::new(LruCache::new(
-				(100_000.0 * config.conduit_cache_capacity_modifier) as usize,
+				(f64::from(config.shortstatekey_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),
 			statekeyshort_cache: Mutex::new(LruCache::new(
-				(100_000.0 * config.conduit_cache_capacity_modifier) as usize,
+				(f64::from(config.statekeyshort_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),
 			our_real_users_cache: RwLock::new(HashMap::new()),
 			appservice_in_room_cache: RwLock::new(HashMap::new()),

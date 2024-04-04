@@ -51,10 +51,30 @@ pub struct Config {
 	pub new_user_displayname_suffix: String,
 	#[serde(default)]
 	pub allow_check_for_updates: bool,
-	#[serde(default = "default_conduit_cache_capacity_modifier")]
-	pub conduit_cache_capacity_modifier: f64,
+
 	#[serde(default = "default_pdu_cache_capacity")]
 	pub pdu_cache_capacity: u32,
+	#[serde(default = "default_conduit_cache_capacity_modifier")]
+	pub conduit_cache_capacity_modifier: f64,
+	#[serde(default = "default_auth_chain_cache_capacity")]
+	pub auth_chain_cache_capacity: u32,
+	#[serde(default = "default_shorteventid_cache_capacity")]
+	pub shorteventid_cache_capacity: u32,
+	#[serde(default = "default_eventidshort_cache_capacity")]
+	pub eventidshort_cache_capacity: u32,
+	#[serde(default = "default_shortstatekey_cache_capacity")]
+	pub shortstatekey_cache_capacity: u32,
+	#[serde(default = "default_statekeyshort_cache_capacity")]
+	pub statekeyshort_cache_capacity: u32,
+	#[serde(default = "default_server_visibility_cache_capacity")]
+	pub server_visibility_cache_capacity: u32,
+	#[serde(default = "default_user_visibility_cache_capacity")]
+	pub user_visibility_cache_capacity: u32,
+	#[serde(default = "default_stateinfo_cache_capacity")]
+	pub stateinfo_cache_capacity: u32,
+	#[serde(default = "default_roomid_spacehierarchy_cache_capacity")]
+	pub roomid_spacehierarchy_cache_capacity: u32,
+
 	#[serde(default = "default_cleanup_second_interval")]
 	pub cleanup_second_interval: u32,
 	#[serde(default = "default_dns_cache_entries")]
@@ -347,6 +367,24 @@ impl fmt::Display for Config {
 			("Database cache capacity (MB)", &self.db_cache_capacity_mb.to_string()),
 			("Cache capacity modifier", &self.conduit_cache_capacity_modifier.to_string()),
 			("PDU cache capacity", &self.pdu_cache_capacity.to_string()),
+			("Auth chain cache capacity", &self.auth_chain_cache_capacity.to_string()),
+			("Short eventid cache capacity", &self.shorteventid_cache_capacity.to_string()),
+			("Eventid short cache capacity", &self.eventidshort_cache_capacity.to_string()),
+			("Short statekey cache capacity", &self.shortstatekey_cache_capacity.to_string()),
+			("Statekey short cache capacity", &self.statekeyshort_cache_capacity.to_string()),
+			(
+				"Server visibility cache capacity",
+				&self.server_visibility_cache_capacity.to_string(),
+			),
+			(
+				"User visibility cache capacity",
+				&self.user_visibility_cache_capacity.to_string(),
+			),
+			("Stateinfo cache capacity", &self.stateinfo_cache_capacity.to_string()),
+			(
+				"Roomid space hierarchy cache capacity",
+				&self.roomid_spacehierarchy_cache_capacity.to_string(),
+			),
 			("Cleanup interval in seconds", &self.cleanup_second_interval.to_string()),
 			("DNS cache entry limit", &self.dns_cache_entries.to_string()),
 			("DNS minimum ttl", &self.dns_min_ttl.to_string()),
@@ -600,9 +638,27 @@ fn default_database_backend() -> String { "rocksdb".to_owned() }
 
 fn default_db_cache_capacity_mb() -> f64 { 256.0 }
 
+fn default_pdu_cache_capacity() -> u32 { 150_000 }
+
 fn default_conduit_cache_capacity_modifier() -> f64 { 1.0 }
 
-fn default_pdu_cache_capacity() -> u32 { 150_000 }
+fn default_auth_chain_cache_capacity() -> u32 { 100_000 }
+
+fn default_shorteventid_cache_capacity() -> u32 { 500_000 }
+
+fn default_eventidshort_cache_capacity() -> u32 { 100_000 }
+
+fn default_shortstatekey_cache_capacity() -> u32 { 100_000 }
+
+fn default_statekeyshort_cache_capacity() -> u32 { 100_000 }
+
+fn default_server_visibility_cache_capacity() -> u32 { 100 }
+
+fn default_user_visibility_cache_capacity() -> u32 { 100 }
+
+fn default_stateinfo_cache_capacity() -> u32 { 100 }
+
+fn default_roomid_spacehierarchy_cache_capacity() -> u32 { 100 }
 
 fn default_cleanup_second_interval() -> u32 {
 	1800 // every 30 minutes
