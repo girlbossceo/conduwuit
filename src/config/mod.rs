@@ -1,12 +1,18 @@
 use std::{
 	collections::BTreeMap,
 	fmt::{self, Write as _},
-	net::{IpAddr, Ipv4Addr},
+	net::{IpAddr, Ipv4Addr, SocketAddr},
 	path::PathBuf,
 };
 
-use either::Either;
-use figment::Figment;
+use either::{
+	Either,
+	Either::{Left, Right},
+};
+use figment::{
+	providers::{Env, Format, Toml},
+	Figment,
+};
 use itertools::Itertools;
 use regex::RegexSet;
 use ruma::{OwnedRoomId, OwnedServerName, RoomVersionId};
@@ -14,7 +20,9 @@ use serde::{de::IgnoredAny, Deserialize};
 use tracing::{debug, error, warn};
 
 use self::proxy::ProxyConfig;
+use crate::utils::error::Error;
 
+mod check;
 mod proxy;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -299,6 +307,35 @@ pub struct TlsConfig {
 const DEPRECATED_KEYS: &[&str] = &["cache_capacity"];
 
 impl Config {
+	/// Initialize config
+	pub fn new(path: Option<PathBuf>) -> Result<Self, Error> {
+		let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
+			Figment::new()
+				.merge(Toml::file(config_file_env).nested())
+				.merge(Env::prefixed("CONDUIT_").global())
+		} else if let Some(config_file_arg) = path {
+			Figment::new()
+				.merge(Toml::file(config_file_arg).nested())
+				.merge(Env::prefixed("CONDUIT_").global())
+		} else {
+			Figment::new().merge(Env::prefixed("CONDUIT_").global())
+		};
+
+		let config = match raw_config.extract::<Config>() {
+			Err(e) => return Err(Error::BadConfig(format!("{e}"))),
+			Ok(config) => config,
+		};
+
+		check::check(&config)?;
+
+		// don't start if we're listening on both UNIX sockets and TCP at same time
+		if config.is_dual_listening(&raw_config) {
+			return Err(Error::bad_config("dual listening on UNIX and TCP sockets not allowed."));
+		};
+
+		Ok(config)
+	}
+
 	/// Iterates over all the keys in the config file and warns if there is a
 	/// deprecated key specified
 	pub fn warn_deprecated(&self) {
@@ -336,7 +373,7 @@ impl Config {
 
 	/// Checks the presence of the `address` and `unix_socket_path` keys in the
 	/// raw_config, exiting the process if both keys were detected.
-	pub fn is_dual_listening(&self, raw_config: &Figment) -> bool {
+	fn is_dual_listening(&self, raw_config: &Figment) -> bool {
 		let check_address = raw_config.find_value("address");
 		let check_unix_socket = raw_config.find_value("unix_socket_path");
 
@@ -348,6 +385,27 @@ impl Config {
 		}
 
 		false
+	}
+
+	#[must_use]
+	pub fn get_bind_addrs(&self) -> Vec<SocketAddr> {
+		match &self.port.ports {
+			Left(port) => {
+				// Left is only 1 value, so make a vec with 1 value only
+				let port_vec = [port];
+
+				port_vec
+					.iter()
+					.copied()
+					.map(|port| SocketAddr::from((self.address, *port)))
+					.collect::<Vec<_>>()
+			},
+			Right(ports) => ports
+				.iter()
+				.copied()
+				.map(|port| SocketAddr::from((self.address, port)))
+				.collect::<Vec<_>>(),
+		}
 	}
 }
 
@@ -628,7 +686,7 @@ fn default_address() -> IpAddr { Ipv4Addr::LOCALHOST.into() }
 
 fn default_port() -> ListeningPort {
 	ListeningPort {
-		ports: Either::Left(8008),
+		ports: Left(8008),
 	}
 }
 
