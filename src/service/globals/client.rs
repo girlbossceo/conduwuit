@@ -118,12 +118,12 @@ impl Client {
 		#[cfg(not(feature = "gzip_compression"))]
 		{
 			builder = builder.no_gzip();
-		}
+		};
 
 		#[cfg(not(feature = "brotli_compression"))]
 		{
 			builder = builder.no_brotli();
-		}
+		};
 
 		if let Some(proxy) = config.proxy.to_proxy()? {
 			Ok(builder.proxy(proxy))

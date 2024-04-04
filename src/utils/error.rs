@@ -19,7 +19,7 @@ use crate::RumaResponse;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Error, Debug)]
+#[derive(Error)]
 pub enum Error {
 	#[cfg(feature = "sqlite")]
 	#[error("There was a problem with the connection to the sqlite database: {source}")]
@@ -55,10 +55,10 @@ pub enum Error {
 		#[from]
 		source: std::io::Error,
 	},
+	#[error("There was a problem with your configuration file: {0}")]
+	BadConfig(String),
 	#[error("{0}")]
 	BadServerResponse(&'static str),
-	#[error("{0}")]
-	BadConfig(&'static str),
 	#[error("{0}")]
 	/// Don't create this directly. Use Error::bad_database instead.
 	BadDatabase(&'static str),
@@ -78,6 +78,8 @@ pub enum Error {
 	InconsistentRoomState(&'static str, ruma::OwnedRoomId),
 	#[error("{0}")]
 	AdminCommand(&'static str),
+	#[error("{0}")]
+	Error(String),
 }
 
 impl Error {
@@ -86,9 +88,9 @@ impl Error {
 		Self::BadDatabase(message)
 	}
 
-	pub fn bad_config(message: &'static str) -> Self {
+	pub fn bad_config(message: &str) -> Self {
 		error!("BadConfig: {}", message);
-		Self::BadConfig(message)
+		Self::BadConfig(message.to_owned())
 	}
 }
 
@@ -196,4 +198,8 @@ impl From<Infallible> for Error {
 
 impl axum::response::IntoResponse for Error {
 	fn into_response(self) -> axum::response::Response { self.to_response().into_response() }
+}
+
+impl std::fmt::Debug for Error {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self) }
 }

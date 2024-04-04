@@ -238,7 +238,7 @@ impl KeyValueDatabase {
 			debug!("Database path does not exist, assuming this is a new setup and creating it");
 			fs::create_dir_all(&config.database_path).map_err(|e| {
 				error!("Failed to create database path: {e}");
-				Error::BadConfig(
+				Error::bad_config(
 					"Database folder doesn't exists and couldn't be created (e.g. due to missing permissions). Please \
 					 create the database folder yourself or allow conduwuit the permissions to create directories and \
 					 files.",
@@ -250,19 +250,19 @@ impl KeyValueDatabase {
 			"sqlite" => {
 				debug!("Got sqlite database backend");
 				#[cfg(not(feature = "sqlite"))]
-				return Err(Error::BadConfig("Database backend not found."));
+				return Err(Error::bad_config("Database backend not found."));
 				#[cfg(feature = "sqlite")]
 				Arc::new(Arc::<abstraction::sqlite::Engine>::open(&config)?)
 			},
 			"rocksdb" => {
 				debug!("Got rocksdb database backend");
 				#[cfg(not(feature = "rocksdb"))]
-				return Err(Error::BadConfig("Database backend not found."));
+				return Err(Error::bad_config("Database backend not found."));
 				#[cfg(feature = "rocksdb")]
 				Arc::new(Arc::<abstraction::rocksdb::Engine>::open(&config)?)
 			},
 			_ => {
-				return Err(Error::BadConfig(
+				return Err(Error::bad_config(
 					"Database backend not found. sqlite (not recommended) and rocksdb are the only supported backends.",
 				));
 			},
