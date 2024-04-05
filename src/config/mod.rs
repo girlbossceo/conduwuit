@@ -211,11 +211,11 @@ pub struct Config {
 	#[serde(default = "default_notification_push_path")]
 	pub notification_push_path: String,
 
-	#[serde(default)]
+	#[serde(default = "true_fn")]
 	pub allow_local_presence: bool,
 	#[serde(default = "true_fn")]
 	pub allow_incoming_presence: bool,
-	#[serde(default)]
+	#[serde(default = "true_fn")]
 	pub allow_outgoing_presence: bool,
 	#[serde(default = "default_presence_idle_timeout_s")]
 	pub presence_idle_timeout_s: u64,
