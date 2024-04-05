@@ -951,14 +951,7 @@ pub async fn create_join_event_template_route(
 					.state_cache
 					.room_members(&body.room_id)
 					.filter_map(Result::ok)
-					.find(|user| {
-						user.server_name() == services().globals.server_name()
-							&& services()
-								.rooms
-								.state_accessor
-								.user_can_invite(&body.room_id, user, &body.user_id)
-								.unwrap_or(false)
-					})
+					.find(|user| user.server_name() == services().globals.server_name())
 			} else {
 				None
 			}

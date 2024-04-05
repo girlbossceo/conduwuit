@@ -954,14 +954,7 @@ pub(crate) async fn join_room_by_id_helper(
 				.state_cache
 				.room_members(room_id)
 				.filter_map(Result::ok)
-				.find(|auth_user| {
-					auth_user.server_name() == services().globals.server_name()
-						&& services()
-							.rooms
-							.state_accessor
-							.user_can_invite(room_id, auth_user, sender_user)
-							.unwrap_or(false)
-				})
+				.find(|auth_user| auth_user.server_name() == services().globals.server_name())
 		} else {
 			None
 		};
