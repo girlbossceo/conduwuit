@@ -13,15 +13,15 @@ use ruma::{
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			member::{MembershipState, RoomMemberEventContent},
 			name::RoomNameEventContent,
-			power_levels::RoomPowerLevelsEventContent,
 		},
 		StateEventType,
 	},
 	EventId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
-use tracing::error;
+use serde_json::value::to_raw_value;
+use tracing::{error, warn};
 
-use crate::{services, Error, PduEvent, Result};
+use crate::{service::pdu::PduBuilder, services, Error, PduEvent, Result};
 
 pub struct Service {
 	pub db: &'static dyn Data,
@@ -140,19 +140,45 @@ impl Service {
 		Ok(visibility)
 	}
 
-	/// Whether a user's power level is sufficient to invite other users
-	pub fn user_can_invite(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-		if services().rooms.state_cache.is_joined(user_id, room_id)? {
-			self.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
-				.map_or(Ok(false), |pdu_event| {
-					serde_json::from_str(pdu_event.content.get()).map(|content: RoomPowerLevelsEventContent| {
-						content.users.get(user_id).unwrap_or(&content.users_default) >= &content.invite
-					})
+	pub async fn user_can_invite(&self, room_id: &RoomId, sender: &UserId, state_key: &UserId) -> Result<bool> {
+		let content = self
+			.room_state_get(room_id, &StateEventType::RoomMember, state_key.as_str())?
+			.map(|prev| {
+				serde_json::from_str(prev.content.get()).map(|mut content: RoomMemberEventContent| {
+					content.membership = MembershipState::Invite;
+					content.join_authorized_via_users_server = None;
+					content
 				})
-				.map_err(|_| Error::bad_database("Invalid history visibility event in database."))
-		} else {
-			Ok(false)
-		}
+			})
+			.transpose()
+			.map_err(|_| Error::BadDatabase("Incorrect state event type stored"))?
+			.unwrap_or(RoomMemberEventContent::new(MembershipState::Invite));
+		let content = to_raw_value(&content).expect("Event content always serializes");
+
+		let new_event = PduBuilder {
+			event_type: ruma::events::TimelineEventType::RoomMember,
+			content,
+			unsigned: None,
+			state_key: Some(state_key.into()),
+			redacts: None,
+		};
+
+		let mutex_state = Arc::clone(
+			services()
+				.globals
+				.roomid_mutex_state
+				.write()
+				.await
+				.entry(room_id.to_owned())
+				.or_default(),
+		);
+		let state_lock = mutex_state.lock().await;
+
+		services()
+			.rooms
+			.timeline
+			.create_hash_and_sign_event(new_event, sender, room_id, &state_lock)
+			.map(|_| true)
 	}
 
 	/// Whether a user is allowed to see an event, based on
