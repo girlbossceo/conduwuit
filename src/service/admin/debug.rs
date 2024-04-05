@@ -349,7 +349,7 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 		},
 		DebugCommand::ForceDeviceListUpdates => {
 			// Force E2EE device list updates for all users
-			for user_id in services().users.iter().filter_map(std::result::Result::ok) {
+			for user_id in services().users.iter().filter_map(Result::ok) {
 				services().users.mark_device_key_update(&user_id)?;
 			}
 			RoomMessageEventContent::text_plain("Marked all devices for all users as having new keys to update")

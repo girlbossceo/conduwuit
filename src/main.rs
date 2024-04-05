@@ -1,8 +1,8 @@
 #[cfg(unix)]
 use std::fs::Permissions; // not unix specific, just only for UNIX sockets stuff and *nix container checks
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt as _;
-// not unix specific, just only for UNIX sockets stuff and *nix container checks
+use std::os::unix::fs::PermissionsExt as _; /* not unix specific, just only for UNIX sockets stuff and *nix
+                                             * container checks */
 use std::{io, net::SocketAddr, sync::atomic, time::Duration};
 
 use axum::{
@@ -313,7 +313,7 @@ async fn build(server: &Server) -> io::Result<axum::routing::IntoMakeService<Rou
 
 async fn request_spawn<B: Send + 'static>(
 	req: http::Request<B>, next: axum::middleware::Next<B>,
-) -> std::result::Result<axum::response::Response, StatusCode> {
+) -> Result<axum::response::Response, StatusCode> {
 	if services().globals.shutdown.load(atomic::Ordering::Relaxed) {
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
 	}
@@ -324,7 +324,7 @@ async fn request_spawn<B: Send + 'static>(
 
 async fn request_handler<B: Send + 'static>(
 	req: http::Request<B>, next: axum::middleware::Next<B>,
-) -> std::result::Result<axum::response::Response, StatusCode> {
+) -> Result<axum::response::Response, StatusCode> {
 	let method = req.method().clone();
 	let uri = req.uri().clone();
 	let inner = next.run(req).await;

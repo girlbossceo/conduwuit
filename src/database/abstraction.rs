@@ -45,7 +45,7 @@ pub(crate) trait KvTree: Send + Sync {
 	#[cfg(feature = "rocksdb")]
 	fn multi_get(
 		&self, _iter: Vec<(&Arc<rust_rocksdb::BoundColumnFamily<'_>>, Vec<u8>)>,
-	) -> Vec<std::result::Result<Option<Vec<u8>>, rust_rocksdb::Error>> {
+	) -> Vec<Result<Option<Vec<u8>>, rust_rocksdb::Error>> {
 		unimplemented!()
 	}
 

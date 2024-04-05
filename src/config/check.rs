@@ -1,4 +1,3 @@
-// not unix specific, just only for UNIX sockets stuff and *nix container checks
 #[cfg(unix)]
 use std::path::Path; // not unix specific, just only for UNIX sockets stuff and *nix container checks
 
