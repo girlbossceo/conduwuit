@@ -349,7 +349,7 @@ impl KvTree for RocksDbEngineTree<'_> {
 
 	fn multi_get(
 		&self, iter: Vec<(&Arc<rust_rocksdb::BoundColumnFamily<'_>>, Vec<u8>)>,
-	) -> Vec<std::result::Result<Option<Vec<u8>>, rust_rocksdb::Error>> {
+	) -> Vec<Result<Option<Vec<u8>>, rust_rocksdb::Error>> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
 

@@ -243,7 +243,7 @@ impl Service {
 	pub fn server_sees_user(&self, server: &ServerName, user_id: &UserId) -> Result<bool> {
 		Ok(self
 			.server_rooms(server)
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.any(|room_id: OwnedRoomId| self.is_joined(user_id, &room_id).unwrap_or(false)))
 	}
 
@@ -259,7 +259,7 @@ impl Service {
 
 		Ok(self
 			.rooms_joined(a)
-			.filter_map(std::result::Result::ok)
+			.filter_map(Result::ok)
 			.any(|room_id| self.is_joined(b, &room_id).unwrap_or(false)))
 	}
 
