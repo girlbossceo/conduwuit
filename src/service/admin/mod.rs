@@ -231,7 +231,7 @@ impl Service {
 	}
 
 	// Parse chat messages from the admin room into an AdminCommand object
-	fn parse_admin_command(&self, command_line: &str) -> std::result::Result<AdminCommand, String> {
+	fn parse_admin_command(&self, command_line: &str) -> Result<AdminCommand, String> {
 		// Note: argv[0] is `@conduit:servername:`, which is treated as the main command
 		let mut argv = command_line.split_whitespace().collect::<Vec<_>>();
 
