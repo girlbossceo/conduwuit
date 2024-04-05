@@ -40,8 +40,9 @@ pub async fn get_supported_versions_route(
 			("org.matrix.e2e_cross_signing".to_owned(), true),
 			("org.matrix.msc2285.stable".to_owned(), true),
 			("org.matrix.msc2836".to_owned(), true),
-			("org.matrix.msc3827".to_owned(), true),
 			("org.matrix.msc2946".to_owned(), true),
+			("org.matrix.msc3827".to_owned(), true),
+			("org.matrix.msc3026.busy_presence".to_owned(), true),
 		]),
 	};
 
