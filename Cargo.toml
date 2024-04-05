@@ -171,7 +171,18 @@ features = ["rt-tokio"]
 version = "0.32.2"
 optional = true
 default-features = false
-features = ["backtrace", "contexts", "debug-images", "panic", "rustls", "tower", "tower-http", "tracing", "reqwest", "log"]
+features = [
+    "backtrace",
+    "contexts",
+    "debug-images",
+    "panic",
+    "rustls",
+    "tower",
+    "tower-http",
+    "tracing",
+    "reqwest",
+    "log",
+]
 [dependencies.sentry-tracing]
 version = "0.32.2"
 optional = true
@@ -229,6 +240,7 @@ features = ["env", "toml"]
 git = "https://github.com/girlbossceo/ruma"
 #rev = "c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 branch = "conduwuit-changes"
+#path = "../ruma/crates/ruma"
 features = [
     "compat",
     "rand",
@@ -242,9 +254,10 @@ features = [
     "unstable-exhaustive-types",
     "ring-compat",
     "unstable-unspecified",
-    "unstable-msc2870",
-    "unstable-msc3061",
     "unstable-msc2867",
+    "unstable-msc2870",
+    "unstable-msc3026",
+    "unstable-msc3061",
     "unstable-extensible-events",
 ]
 
@@ -292,7 +305,14 @@ hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d1496
 
 
 [features]
-default = ["backend_rocksdb", "systemd", "element_hacks", "sentry_telemetry", "gzip_compression", "brotli_compression"]
+default = [
+    "backend_rocksdb",
+    "systemd",
+    "element_hacks",
+    "sentry_telemetry",
+    "gzip_compression",
+    "brotli_compression",
+]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
 rocksdb = ["rust-rocksdb", "num_cpus"]
