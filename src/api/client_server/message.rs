@@ -6,15 +6,17 @@ use std::{
 use ruma::{
 	api::client::{
 		error::ErrorKind,
+		filter::{RoomEventFilter, UrlFilter},
 		message::{get_message_events, send_message_event},
 	},
 	events::{MessageLikeEventType, StateEventType},
+	RoomId, UserId,
 };
-use serde_json::from_str;
+use serde_json::{from_str, Value};
 
 use crate::{
 	service::{pdu::PduBuilder, rooms::timeline::PduCount},
-	services, utils, Error, Result, Ruma,
+	services, utils, Error, PduEvent, Result, Ruma,
 };
 
 /// # `PUT /_matrix/client/v3/rooms/{roomId}/send/{eventType}/{txnId}`
@@ -156,16 +158,11 @@ pub async fn get_message_events_route(
 				.rooms
 				.timeline
 				.pdus_after(sender_user, &body.room_id, from)?
-				.take(limit)
 				.filter_map(Result::ok) // Filter out buggy events
-				.filter(|(_, pdu)| {
-					services()
-						.rooms
-						.state_accessor
-						.user_can_see_event(sender_user, &body.room_id, &pdu.event_id)
-						.unwrap_or(false)
-				})
+				.filter(|(_, pdu)| contains_url_filter(pdu, &body.filter))
+				.filter(|(_, pdu)| visibility_filter(pdu, sender_user, &body.room_id))
 				.take_while(|&(k, _)| Some(k) != to) // Stop at `to`
+				.take(limit)
 				.collect();
 
 			for (_, event) in &events_after {
@@ -207,16 +204,11 @@ pub async fn get_message_events_route(
 				.rooms
 				.timeline
 				.pdus_until(sender_user, &body.room_id, from)?
-				.take(limit)
 				.filter_map(Result::ok) // Filter out buggy events
-				.filter(|(_, pdu)| {
-					services()
-						.rooms
-						.state_accessor
-						.user_can_see_event(sender_user, &body.room_id, &pdu.event_id)
-						.unwrap_or(false)
-				})
+				.filter(|(_, pdu)| contains_url_filter(pdu, &body.filter))
+				.filter(|(_, pdu)| visibility_filter(pdu, sender_user, &body.room_id))
 				.take_while(|&(k, _)| Some(k) != to) // Stop at `to`
+				.take(limit)
 				.collect();
 
 			for (_, event) in &events_before {
@@ -273,4 +265,25 @@ pub async fn get_message_events_route(
 	}
 
 	Ok(resp)
+}
+
+fn visibility_filter(pdu: &PduEvent, user_id: &UserId, room_id: &RoomId) -> bool {
+	services()
+		.rooms
+		.state_accessor
+		.user_can_see_event(user_id, room_id, &pdu.event_id)
+		.unwrap_or(false)
+}
+
+fn contains_url_filter(pdu: &PduEvent, filter: &RoomEventFilter) -> bool {
+	if filter.url_filter.is_none() {
+		return true;
+	}
+
+	let content: Value = from_str(pdu.content.get()).unwrap();
+	match filter.url_filter {
+		Some(UrlFilter::EventsWithoutUrl) => !content["url"].is_string(),
+		Some(UrlFilter::EventsWithUrl) => content["url"].is_string(),
+		None => true,
+	}
 }
