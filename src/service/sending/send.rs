@@ -44,7 +44,9 @@ pub enum FedDest {
 }
 
 #[tracing::instrument(skip_all, name = "send")]
-pub(crate) async fn send_request<T>(destination: &ServerName, request: T) -> Result<T::IncomingResponse>
+pub(crate) async fn send_request<T>(
+	client: &reqwest::Client, destination: &ServerName, request: T,
+) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug,
 {
@@ -202,12 +204,7 @@ where
 	}
 
 	debug!("Sending request to {destination} at {url}");
-	let response = services()
-		.globals
-		.client
-		.federation
-		.execute(reqwest_request)
-		.await;
+	let response = client.execute(reqwest_request).await;
 	debug!("Received response from {destination} at {url}");
 
 	match response {
