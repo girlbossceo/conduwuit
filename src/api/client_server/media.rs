@@ -281,6 +281,7 @@ pub async fn get_content_route(body: Ruma<get_content::v3::Request>) -> Result<g
 			content_type,
 			content_disposition,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
 		})
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
 		let remote_content_response = get_remote_content(
@@ -325,6 +326,7 @@ pub async fn get_content_v1_route(
 			content_type,
 			content_disposition,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
 		}
 		.into())
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
@@ -366,6 +368,7 @@ pub async fn get_content_as_filename_route(
 			content_type,
 			content_disposition: Some(format!("inline; filename={}", body.filename)),
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
 		})
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
 		let remote_content_response = get_remote_content(
@@ -382,6 +385,7 @@ pub async fn get_content_as_filename_route(
 			content_type: remote_content_response.content_type,
 			file: remote_content_response.file,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
 		})
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
@@ -416,6 +420,7 @@ pub async fn get_content_as_filename_v1_route(
 			content_type,
 			content_disposition: Some(format!("inline; filename={}", body.filename)),
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
 		}
 		.into())
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
@@ -433,6 +438,7 @@ pub async fn get_content_as_filename_v1_route(
 			content_type: remote_content_response.content_type,
 			file: remote_content_response.file,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
 		}
 		.into())
 	} else {
@@ -474,6 +480,7 @@ pub async fn get_content_thumbnail_route(
 			file,
 			content_type,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
 		})
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
 		// we'll lie to the client and say the blocked server's media was not found and
@@ -564,6 +571,7 @@ pub async fn get_content_thumbnail_v1_route(
 			file,
 			content_type,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
+			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
 		}
 		.into())
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
