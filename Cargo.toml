@@ -527,6 +527,8 @@ explicit_deref_methods = "warn"
 explicit_iter_loop = "warn"
 manual_let_else = "warn"
 trivially_copy_pass_by_ref = "warn"
+wildcard_imports = "warn"
+checked_conversions = "warn"
 
 # some sadness
 missing_errors_doc = "allow"
