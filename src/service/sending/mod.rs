@@ -234,7 +234,8 @@ impl Service {
 	{
 		let permit = self.maximum_requests.acquire().await;
 		let timeout = Duration::from_secs(self.timeout);
-		let response = tokio::time::timeout(timeout, send::send_request(dest, request))
+		let client = &services().globals.client.federation;
+		let response = tokio::time::timeout(timeout, send::send_request(client, dest, request))
 			.await
 			.map_err(|_| {
 				warn!("Timeout after 300 seconds waiting for server response of {dest}");
@@ -781,8 +782,9 @@ async fn handle_events_kind_normal(
 	}
 
 	let permit = services().sending.maximum_requests.acquire().await;
-
+	let client = &services().globals.client.sender;
 	let response = send::send_request(
+		client,
 		dest,
 		send_transaction_message::v1::Request {
 			origin: services().globals.server_name().to_owned(),
