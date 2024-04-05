@@ -110,6 +110,8 @@ impl Service {
 	/// Pings the presence of the given user in the given room, setting the
 	/// specified state.
 	pub fn ping_presence(&self, user_id: &UserId, new_state: &PresenceState) -> Result<()> {
+		const REFRESH_TIMEOUT: u64 = 60 * 25 * 1000;
+
 		let last_presence = self.db.get_presence(user_id)?;
 		let state_changed = match last_presence {
 			None => true,
@@ -121,7 +123,6 @@ impl Service {
 			Some((_, ref presence)) => presence.content.last_active_ago.unwrap_or_default().into(),
 		};
 
-		const REFRESH_TIMEOUT: u64 = 60 * 25 * 1000;
 		if !state_changed && last_last_active_ago < REFRESH_TIMEOUT {
 			return Ok(());
 		}
