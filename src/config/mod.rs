@@ -15,7 +15,9 @@ use figment::{
 };
 use itertools::Itertools;
 use regex::RegexSet;
-use ruma::{OwnedRoomId, OwnedServerName, RoomVersionId};
+use ruma::{
+	api::client::discovery::discover_support::ContactRole, OwnedRoomId, OwnedServerName, OwnedUserId, RoomVersionId,
+};
 use serde::{de::IgnoredAny, Deserialize};
 use tracing::{debug, error, warn};
 
@@ -253,6 +255,11 @@ pub struct Config {
 
 	#[serde(default = "default_ip_range_denylist")]
 	pub ip_range_denylist: Vec<String>,
+
+	pub well_known_support_page: Option<String>,
+	pub well_known_support_role: Option<ContactRole>,
+	pub well_known_support_email: Option<String>,
+	pub well_known_support_mxid: Option<OwnedUserId>,
 
 	#[serde(default = "Vec::new")]
 	pub url_preview_domain_contains_allowlist: Vec<String>,

@@ -1,7 +1,13 @@
 use std::collections::BTreeMap;
 
 use axum::{response::IntoResponse, Json};
-use ruma::api::client::{discovery::get_supported_versions, error::ErrorKind};
+use ruma::api::client::{
+	discovery::{
+		discover_support::{self, Contact},
+		get_supported_versions,
+	},
+	error::ErrorKind,
+};
 
 use crate::{services, Error, Result, Ruma};
 
@@ -60,6 +66,51 @@ pub async fn well_known_client_route() -> Result<impl IntoResponse> {
 		"m.homeserver": {"base_url": client_url},
 		"org.matrix.msc3575.proxy": {"url": client_url}
 	})))
+}
+
+/// # `GET /.well-known/matrix/support`
+///
+/// Server support contact and support page of a homeserver's domain.
+pub async fn well_known_support(_body: Ruma<discover_support::Request>) -> Result<discover_support::Response> {
+	let support_page = services().globals.well_known_support_page().clone();
+
+	let role = services().globals.well_known_support_role().clone();
+
+	// support page or role must be either defined for this to be valid
+	if support_page.is_none() && role.is_none() {
+		return Err(Error::BadRequest(ErrorKind::NotFound, "Not found."));
+	}
+
+	let email_address = services().globals.well_known_support_email().clone();
+	let matrix_id = services().globals.well_known_support_mxid().clone();
+
+	// if a role is specified, an email address or matrix id is required
+	if role.is_some() && (email_address.is_none() && matrix_id.is_none()) {
+		return Err(Error::BadRequest(ErrorKind::NotFound, "Not found."));
+	}
+
+	// TOOD: support defining multiple contacts in the config
+	let mut contacts: Vec<Contact> = vec![];
+
+	if let Some(role) = role {
+		let contact = Contact {
+			role,
+			email_address,
+			matrix_id,
+		};
+
+		contacts.push(contact);
+	}
+
+	// support page or role+contacts must be either defined for this to be valid
+	if contacts.is_empty() && support_page.is_none() {
+		return Err(Error::BadRequest(ErrorKind::NotFound, "Not found."));
+	}
+
+	Ok(discover_support::Response {
+		contacts,
+		support_page,
+	})
 }
 
 /// # `GET /client/server.json`

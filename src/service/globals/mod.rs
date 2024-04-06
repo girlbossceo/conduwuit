@@ -17,7 +17,7 @@ use hickory_resolver::TokioAsyncResolver;
 use regex::RegexSet;
 use ruma::{
 	api::{
-		client::sync::sync_events,
+		client::{discovery::discover_support::ContactRole, sync::sync_events},
 		federation::discovery::{ServerSigningKeys, VerifyKey},
 	},
 	serde::Base64,
@@ -306,6 +306,14 @@ impl Service<'_> {
 	pub fn prevent_media_downloads_from(&self) -> &[OwnedServerName] { &self.config.prevent_media_downloads_from }
 
 	pub fn ip_range_denylist(&self) -> &[String] { &self.config.ip_range_denylist }
+
+	pub fn well_known_support_page(&self) -> &Option<String> { &self.config.well_known_support_page }
+
+	pub fn well_known_support_role(&self) -> &Option<ContactRole> { &self.config.well_known_support_role }
+
+	pub fn well_known_support_email(&self) -> &Option<String> { &self.config.well_known_support_email }
+
+	pub fn well_known_support_mxid(&self) -> &Option<OwnedUserId> { &self.config.well_known_support_mxid }
 
 	pub fn block_non_admin_invites(&self) -> bool { self.config.block_non_admin_invites }
 
