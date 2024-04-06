@@ -10,7 +10,7 @@ use ruma::{
 };
 
 use crate::{
-	database::{abstraction::Cork, KeyValueDatabase},
+	database::{Cork, KeyValueDatabase},
 	service, services, utils, Error, Result,
 };
 
