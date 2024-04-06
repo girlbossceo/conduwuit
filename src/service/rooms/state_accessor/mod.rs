@@ -18,9 +18,11 @@ use ruma::{
 	},
 	EventId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
+use serde_json::value::to_raw_value;
+use tokio::sync::MutexGuard;
 use tracing::{error, warn};
 
-use crate::{services, Error, PduEvent, Result};
+use crate::{service::pdu::PduBuilder, services, Error, PduEvent, Result};
 
 pub struct Service {
 	pub db: &'static dyn Data,
@@ -268,5 +270,26 @@ impl Service {
 				serde_json::from_str(s.content.get())
 					.map_err(|_| Error::bad_database("Invalid room member event in database."))
 			})
+	}
+
+	pub async fn user_can_invite(
+		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &MutexGuard<'_, ()>,
+	) -> Result<bool> {
+		let content = to_raw_value(&RoomMemberEventContent::new(MembershipState::Invite))
+			.expect("Event content always serializes");
+
+		let new_event = PduBuilder {
+			event_type: ruma::events::TimelineEventType::RoomMember,
+			content,
+			unsigned: None,
+			state_key: Some(target_user.into()),
+			redacts: None,
+		};
+
+		Ok(services()
+			.rooms
+			.timeline
+			.create_hash_and_sign_event(new_event, sender, room_id, state_lock)
+			.is_ok())
 	}
 }
