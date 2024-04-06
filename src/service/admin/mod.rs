@@ -91,7 +91,7 @@ pub enum AdminRoomEvent {
 }
 
 pub struct Service {
-	pub sender: loole::Sender<AdminRoomEvent>, //mpsc::UnboundedSender<AdminRoomEvent>,
+	pub sender: loole::Sender<AdminRoomEvent>,
 	receiver: Mutex<loole::Receiver<AdminRoomEvent>>,
 }
 

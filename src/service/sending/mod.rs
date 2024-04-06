@@ -27,7 +27,7 @@ use ruma::{
 };
 use tokio::{
 	select,
-	sync::{mpsc, Mutex, Semaphore},
+	sync::{Mutex, Semaphore},
 };
 use tracing::{error, warn};
 
@@ -43,8 +43,8 @@ pub struct Service {
 
 	/// The state for a given state hash.
 	pub(super) maximum_requests: Arc<Semaphore>,
-	pub sender: mpsc::UnboundedSender<(OutgoingKind, SendingEventType, Vec<u8>)>,
-	receiver: Mutex<mpsc::UnboundedReceiver<(OutgoingKind, SendingEventType, Vec<u8>)>>,
+	pub sender: loole::Sender<(OutgoingKind, SendingEventType, Vec<u8>)>,
+	receiver: Mutex<loole::Receiver<(OutgoingKind, SendingEventType, Vec<u8>)>>,
 	startup_netburst: bool,
 	startup_netburst_keep: i64,
 	timeout: u64,
@@ -73,7 +73,7 @@ enum TransactionStatus {
 
 impl Service {
 	pub fn build(db: &'static dyn Data, config: &Config) -> Arc<Self> {
-		let (sender, receiver) = mpsc::unbounded_channel();
+		let (sender, receiver) = loole::unbounded();
 		Arc::new(Self {
 			db,
 			sender,
@@ -275,7 +275,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self), name = "sender")]
 	async fn handler(&self) -> Result<()> {
-		let mut receiver = self.receiver.lock().await;
+		let receiver = self.receiver.lock().await;
 
 		let mut futures = FuturesUnordered::new();
 		let mut current_transaction_status = HashMap::<OutgoingKind, TransactionStatus>::new();
@@ -306,7 +306,7 @@ impl Service {
 		}
 
 		loop {
-			select! {
+			tokio::select! {
 				Some(response) = futures.next() => {
 					match response {
 						Ok(outgoing_kind) => {
@@ -343,13 +343,17 @@ impl Service {
 						}
 					};
 				},
-				Some((outgoing_kind, event, key)) = receiver.recv() => {
-					if let Ok(Some(events)) = self.select_events(
-						&outgoing_kind,
-						vec![(event, key)],
-						&mut current_transaction_status,
-					) {
-						futures.push(handle_events(outgoing_kind, events));
+
+				event = receiver.recv_async() => {
+					// TODO: Error handling for this
+					if let Ok((outgoing_kind, event, key)) = event {
+						if let Ok(Some(events)) = self.select_events(
+							&outgoing_kind,
+							vec![(event, key)],
+							&mut current_transaction_status,
+						) {
+							futures.push(handle_events(outgoing_kind, events));
+						}
 					}
 				}
 			}

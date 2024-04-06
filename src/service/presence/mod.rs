@@ -10,10 +10,7 @@ use ruma::{
 	OwnedUserId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
-use tokio::{
-	sync::{mpsc, Mutex},
-	time::sleep,
-};
+use tokio::{sync::Mutex, time::sleep};
 use tracing::{debug, error};
 
 use crate::{services, utils, Config, Error, Result};
@@ -71,14 +68,14 @@ impl Presence {
 
 pub struct Service {
 	pub db: &'static dyn Data,
-	pub timer_sender: mpsc::UnboundedSender<(OwnedUserId, Duration)>,
-	timer_receiver: Mutex<mpsc::UnboundedReceiver<(OwnedUserId, Duration)>>,
+	pub timer_sender: loole::Sender<(OwnedUserId, Duration)>,
+	timer_receiver: Mutex<loole::Receiver<(OwnedUserId, Duration)>>,
 	timeout_remote_users: bool,
 }
 
 impl Service {
 	pub fn build(db: &'static dyn Data, config: &Config) -> Arc<Self> {
-		let (timer_sender, timer_receiver) = mpsc::unbounded_channel();
+		let (timer_sender, timer_receiver) = loole::unbounded();
 
 		Arc::new(Self {
 			db,
@@ -176,9 +173,18 @@ impl Service {
 		let mut receiver = self.timer_receiver.lock().await;
 		loop {
 			tokio::select! {
-				Some((user_id, timeout)) = receiver.recv() => {
-					debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
-					presence_timers.push(presence_timer(user_id, timeout));
+				event = receiver.recv_async() => {
+
+					match event {
+						Ok((user_id, timeout)) => {
+							debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
+							presence_timers.push(presence_timer(user_id, timeout));
+						}
+						Err(e) => {
+							// TODO: Handle error better? I have no idea what to do here.
+							error!("Failed to receive presence timer: {}", e);
+						}
+					}
 				}
 
 				Some(user_id) = presence_timers.next() => {
