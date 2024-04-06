@@ -917,7 +917,7 @@ pub async fn create_join_event_template_route(
 		.as_ref()
 		.map(|join_rules_event| {
 			serde_json::from_str(join_rules_event.content.get()).map_err(|e| {
-				warn!("Invalid join rules event: {e}");
+				warn!("Invalid join rules event: {}", e);
 				Error::bad_database("Invalid join rules event in db.")
 			})
 		})
@@ -940,20 +940,56 @@ pub async fn create_join_event_template_route(
 						.state_cache
 						.is_joined(&body.user_id, &m.room_id)
 						.unwrap_or(false)
-				}) && services()
-				.rooms
-				.state_cache
-				.is_left(&body.user_id, &body.room_id)
-				.unwrap_or(true)
-			{
-				services()
+				}) {
+				if services()
 					.rooms
 					.state_cache
-					.room_members(&body.room_id)
-					.filter_map(Result::ok)
-					.find(|user| user.server_name() == services().globals.server_name())
+					.is_left(&body.user_id, &body.room_id)
+					.unwrap_or(true)
+				{
+					let members: Vec<_> = services()
+						.rooms
+						.state_cache
+						.room_members(&body.room_id)
+						.filter_map(Result::ok)
+						.filter(|user| user.server_name() == services().globals.server_name())
+						.collect();
+
+					let mut auth_user = None;
+
+					for user in members {
+						if services()
+							.rooms
+							.state_accessor
+							.user_can_invite(&body.room_id, &user, &body.user_id, &state_lock)
+							.await
+							.unwrap_or(false)
+						{
+							auth_user = Some(user);
+							break;
+						}
+					}
+					if auth_user.is_some() {
+						auth_user
+					} else {
+						return Err(Error::BadRequest(
+							ErrorKind::UnableToGrantJoin,
+							"No user on this server is able to assist in joining.",
+						));
+					}
+				} else {
+					// If the user has any state other than leave, either:
+					// - the auth_check will deny them (ban, knock - (until/unless MSC4123 is
+					//   merged))
+					// - they are able to join via other methods (invite)
+					// - they are already in the room (join)
+					None
+				}
 			} else {
-				None
+				return Err(Error::BadRequest(
+					ErrorKind::UnableToAuthorizeJoin,
+					"User is not known to be in any required room.",
+				));
 			}
 		} else {
 			None
@@ -1054,6 +1090,7 @@ async fn create_join_event(
 	// We do not add the event_id field to the pdu here because of signature and
 	// hashes checks
 	let room_version_id = services().rooms.state.get_room_version(room_id)?;
+
 	let Ok((event_id, mut value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
 		// Event could not be converted to canonical json
 		return Err(Error::BadRequest(
@@ -1068,7 +1105,10 @@ async fn create_join_event(
 		&mut value,
 		&room_version_id,
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event."))?;
+	.map_err(|e| {
+		warn!("Failed to sign event: {e}");
+		Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event.")
+	})?;
 
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
