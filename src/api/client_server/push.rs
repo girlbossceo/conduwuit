@@ -7,12 +7,12 @@ use ruma::{
 		},
 	},
 	events::{push_rules::PushRulesEvent, GlobalAccountDataEventType},
-	push::{InsertPushRuleError, RemovePushRuleError},
+	push::{InsertPushRuleError, RemovePushRuleError, Ruleset},
 };
 
 use crate::{services, Error, Result, Ruma};
 
-/// # `GET /_matrix/client/r0/pushrules`
+/// # `GET /_matrix/client/r0/pushrules/`
 ///
 /// Retrieves the push rules event for this user.
 pub async fn get_pushrules_all_route(
@@ -20,18 +20,36 @@ pub async fn get_pushrules_all_route(
 ) -> Result<get_pushrules_all::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event = services()
-		.account_data
-		.get(None, sender_user, GlobalAccountDataEventType::PushRules.to_string().into())?
-		.ok_or(Error::BadRequest(ErrorKind::NotFound, "PushRules event not found."))?;
+	let event =
+		services()
+			.account_data
+			.get(None, sender_user, GlobalAccountDataEventType::PushRules.to_string().into())?;
 
-	let account_data = serde_json::from_str::<PushRulesEvent>(event.get())
-		.map_err(|_| Error::bad_database("Invalid account data event in db."))?
-		.content;
+	if let Some(event) = event {
+		let account_data = serde_json::from_str::<PushRulesEvent>(event.get())
+			.map_err(|_| Error::bad_database("Invalid account data event in db."))?
+			.content;
 
-	Ok(get_pushrules_all::v3::Response {
-		global: account_data.global,
-	})
+		Ok(get_pushrules_all::v3::Response {
+			global: account_data.global,
+		})
+	} else {
+		services().account_data.update(
+			None,
+			sender_user,
+			GlobalAccountDataEventType::PushRules.to_string().into(),
+			&serde_json::to_value(PushRulesEvent {
+				content: ruma::events::push_rules::PushRulesEventContent {
+					global: Ruleset::server_default(sender_user),
+				},
+			})
+			.expect("to json always works"),
+		)?;
+
+		Ok(get_pushrules_all::v3::Response {
+			global: Ruleset::server_default(sender_user),
+		})
+	}
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
