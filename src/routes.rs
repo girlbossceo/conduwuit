@@ -206,6 +206,7 @@ pub fn routes() -> Router {
 		.ruma_route(server_server::get_keys_route)
 		.ruma_route(server_server::claim_keys_route)
         .ruma_route(server_server::get_hierarchy_route)
+        .ruma_route(client_server::well_known_support)
         .route("/_conduwuit/server_version", get(client_server::conduwuit_server_version))
 		.route("/_matrix/client/r0/rooms/:room_id/initialSync", get(initial_sync))
 		.route("/_matrix/client/v3/rooms/:room_id/initialSync", get(initial_sync))

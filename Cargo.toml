@@ -258,6 +258,7 @@ features = [
     "unstable-msc2870",
     "unstable-msc3026",
     "unstable-msc3061",
+    "unstable-msc4121",
     "unstable-extensible-events",
 ]
 

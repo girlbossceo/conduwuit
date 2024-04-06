@@ -51,7 +51,6 @@
 #sentry_traces_sample_rate = 0.15
 
 
-
 ### Database configuration
 
 # This is the only directory where conduwuit will save its data, including media
@@ -61,7 +60,6 @@ database_path = "/var/lib/matrix-conduit/"
 # will perform significantly worse than rocksdb as it is not intended to be used the
 # way it is by conduwuit. sqlite only exists for historical reasons.
 database_backend = "rocksdb"
-
 
 
 ### Network
@@ -75,7 +73,7 @@ port = 6167
 
 # default address (IPv4 or IPv6) conduwuit will listen on. Generally you want this to be
 # localhost (127.0.0.1 / ::1). If you are using Docker or a container NAT networking setup, you
-# likely need this to be 0.0.0.0. 
+# likely need this to be 0.0.0.0.
 address = "127.0.0.1"
 
 # How many requests conduwuit sends to other servers at the same time concurrently. Default is 500
@@ -151,7 +149,6 @@ ip_range_denylist = [
     "ff00::/8",
     "fec0::/10",
 ]
-
 
 
 ### Moderation / Privacy / Security
@@ -250,6 +247,13 @@ url_preview_max_spider_size = 384_000
 # Useful if the domain contains allowlist is still too broad for you but you still want to allow all the subdomains under a root domain.
 url_preview_check_root_domain = false
 
+# A single contact and/or support page for /.well-known/matrix/support
+# All options here are strings. Currently only supports 1 single contact.
+# No default.
+#well_known_support_page = ""
+#well_known_support_role = ""
+#well_known_support_email = ""
+#well_known_support_mxid = ""
 
 
 ### Misc
@@ -342,7 +346,6 @@ url_preview_check_root_domain = false
 #
 # Defaults to 30 minutes (1800 seconds) to avoid IO amplification from too frequent cleanups
 #cleanup_second_interval = 1800
-
 
 
 ### RocksDB options
@@ -439,7 +442,6 @@ url_preview_check_root_domain = false
 #rocksdb_recovery_mode = 1
 
 
-
 ### Domain Name Resolution and Caching
 
 # Maximum entries stored in DNS memory-cache. The size of an entry may vary so please take care if
@@ -468,7 +470,6 @@ url_preview_check_root_domain = false
 #
 # The default is to query one nameserver and stop (false).
 #query_all_nameservers = false
-
 
 
 ### Request Timeouts, Connection Timeouts, and Connection Pooling
@@ -548,7 +549,6 @@ url_preview_check_root_domain = false
 #pusher_idle_timeout = 15
 
 
-
 ### Presence / Typing Indicators / Read Receipts
 
 # Config option to control local (your server only) presence updates/requests. Defaults to true.
@@ -595,7 +595,6 @@ url_preview_check_root_domain = false
 
 # Config option to control maximum time local client can indicate typing.
 #typing_client_timeout_max_s = 45
-
 
 
 # Other options not in [global]:
