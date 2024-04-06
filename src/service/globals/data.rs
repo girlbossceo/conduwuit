@@ -7,7 +7,7 @@ use ruma::{
 	DeviceId, OwnedServerSigningKeyId, ServerName, UserId,
 };
 
-use crate::{database::abstraction::Cork, Result};
+use crate::{database::Cork, Result};
 
 #[async_trait]
 pub trait Data: Send + Sync {
