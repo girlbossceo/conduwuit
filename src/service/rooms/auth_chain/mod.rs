@@ -25,7 +25,6 @@ impl Service {
 		self.db.cache_auth_chain(key, auth_chain)
 	}
 
-	#[tracing::instrument(skip(self, starting_events))]
 	pub async fn get_auth_chain<'a>(
 		&self, room_id: &RoomId, starting_events: Vec<Arc<EventId>>,
 	) -> Result<impl Iterator<Item = Arc<EventId>> + 'a> {
