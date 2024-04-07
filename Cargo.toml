@@ -70,6 +70,9 @@ cyborgtime = "2.1.1"
 bytes = "1.6.0"
 http = "0.2.12"
 
+# used to replace the channels of the tokio runtime
+loole = "0.3.0"
+
 # standard date and time tools
 [dependencies.chrono]
 version = "0.4.37"

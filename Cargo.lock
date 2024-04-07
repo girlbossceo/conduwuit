@@ -484,6 +484,7 @@ dependencies = [
  "itertools 0.12.1",
  "jsonwebtoken",
  "log",
+ "loole",
  "lru-cache",
  "nix",
  "num_cpus",
@@ -1478,6 +1479,12 @@ name = "log"
 version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
+
+[[package]]
+name = "loole"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6725f0feab07fcf90f6de5417c06d7fef976fa6e5912fa9e21cb5e4dc6ae5da"
 
 [[package]]
 name = "lru-cache"

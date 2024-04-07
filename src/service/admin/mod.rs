@@ -23,7 +23,7 @@ use ruma::{
 	EventId, MxcUri, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tracing::{error, warn};
 
 use super::pdu::PduBuilder;
@@ -91,13 +91,13 @@ pub enum AdminRoomEvent {
 }
 
 pub struct Service {
-	pub sender: mpsc::UnboundedSender<AdminRoomEvent>,
-	receiver: Mutex<mpsc::UnboundedReceiver<AdminRoomEvent>>,
+	pub sender: loole::Sender<AdminRoomEvent>,
+	receiver: Mutex<loole::Receiver<AdminRoomEvent>>,
 }
 
 impl Service {
 	pub fn build() -> Arc<Self> {
-		let (sender, receiver) = mpsc::unbounded_channel();
+		let (sender, receiver) = loole::unbounded();
 		Arc::new(Self {
 			sender,
 			receiver: Mutex::new(receiver),
@@ -115,7 +115,7 @@ impl Service {
 	}
 
 	async fn handler(&self) -> Result<()> {
-		let mut receiver = self.receiver.lock().await;
+		let receiver = self.receiver.lock().await;
 		// TODO: Use futures when we have long admin commands
 		//let mut futures = FuturesUnordered::new();
 
@@ -125,63 +125,72 @@ impl Service {
 		if let Ok(Some(conduit_room)) = Self::get_admin_room() {
 			loop {
 				tokio::select! {
-					Some(event) = receiver.recv() => {
-						let (mut message_content, reply) = match event {
-							AdminRoomEvent::SendMessage(content) => (content, None),
-							AdminRoomEvent::ProcessMessage(room_message, reply_id) => {
-								(self.process_admin_message(room_message).await, Some(reply_id))
+						event = receiver.recv_async() => {
+							match event {
+								Ok(event) => {
+									let (mut message_content, reply) = match event {
+										AdminRoomEvent::SendMessage(content) => (content, None),
+										AdminRoomEvent::ProcessMessage(room_message, reply_id) => {
+											(self.process_admin_message(room_message).await, Some(reply_id))
+										}
+									};
+
+									let mutex_state = Arc::clone(
+										services().globals
+											.roomid_mutex_state
+											.write()
+											.await
+											.entry(conduit_room.clone())
+											.or_default(),
+									);
+
+									let state_lock = mutex_state.lock().await;
+
+									if let Some(reply) = reply {
+										message_content.relates_to = Some(Reply { in_reply_to: InReplyTo { event_id: reply.into() } });
+									}
+
+									if let Err(e) = services().rooms.timeline.build_and_append_pdu(
+										PduBuilder {
+										  event_type: TimelineEventType::RoomMessage,
+										  content: to_raw_value(&message_content)
+											  .expect("event is valid, we just created it"),
+										  unsigned: None,
+										  state_key: None,
+										  redacts: None,
+										},
+										&conduit_user,
+										&conduit_room,
+										&state_lock)
+									  .await {
+										error!("Failed to build and append admin room response PDU: \"{e}\"");
+
+										let error_room_message = RoomMessageEventContent::text_plain(format!("Failed to build and append admin room PDU: \"{e}\"\n\nThe original admin command may have finished successfully, but we could not return the output."));
+
+										services().rooms.timeline.build_and_append_pdu(
+											PduBuilder {
+											  event_type: TimelineEventType::RoomMessage,
+											  content: to_raw_value(&error_room_message)
+												  .expect("event is valid, we just created it"),
+											  unsigned: None,
+											  state_key: None,
+											  redacts: None,
+											},
+											&conduit_user,
+											&conduit_room,
+											&state_lock)
+										  .await?;
+									}
+									drop(state_lock);
 							}
-						};
+							Err(_) => {
+								// TODO: Handle error, Im too unfamiliar with the codebase to know what to do here
 
-						let mutex_state = Arc::clone(
-							services().globals
-								.roomid_mutex_state
-								.write()
-								.await
-								.entry(conduit_room.clone())
-								.or_default(),
-						);
 
-						let state_lock = mutex_state.lock().await;
+								// recv_async returns an error if all senders have been dropped. If the channel is empty, the returned future will yield to the async runtime.
 
-						if let Some(reply) = reply {
-							message_content.relates_to = Some(Reply { in_reply_to: InReplyTo { event_id: reply.into() } });
+							}
 						}
-
-					if let Err(e) = services().rooms.timeline.build_and_append_pdu(
-						PduBuilder {
-						  event_type: TimelineEventType::RoomMessage,
-						  content: to_raw_value(&message_content)
-							  .expect("event is valid, we just created it"),
-						  unsigned: None,
-						  state_key: None,
-						  redacts: None,
-						},
-						&conduit_user,
-						&conduit_room,
-						&state_lock)
-					  .await {
-						error!("Failed to build and append admin room response PDU: \"{e}\"");
-
-						let error_room_message = RoomMessageEventContent::text_plain(format!("Failed to build and append admin room PDU: \"{e}\"\n\nThe original admin command may have finished successfully, but we could not return the output."));
-
-						services().rooms.timeline.build_and_append_pdu(
-							PduBuilder {
-							  event_type: TimelineEventType::RoomMessage,
-							  content: to_raw_value(&error_room_message)
-								  .expect("event is valid, we just created it"),
-							  unsigned: None,
-							  state_key: None,
-							  redacts: None,
-							},
-							&conduit_user,
-							&conduit_room,
-							&state_lock)
-						  .await?;
-					  }
-
-
-						drop(state_lock);
 					}
 				}
 			}
