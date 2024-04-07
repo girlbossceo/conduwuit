@@ -38,7 +38,7 @@ use tower_http::{
 	ServiceBuilderExt as _,
 };
 use tracing::{debug, error, info, warn, Level};
-use tracing_subscriber::{prelude::*, EnvFilter};
+use tracing_subscriber::{prelude::*, reload, EnvFilter, Registry};
 
 mod routes;
 
@@ -50,6 +50,8 @@ struct Server {
 	config: Config,
 
 	runtime: tokio::runtime::Runtime,
+
+	tracing_reload_handle: reload::Handle<EnvFilter, Registry>,
 
 	#[cfg(feature = "sentry_telemetry")]
 	_sentry_guard: Option<sentry::ClientInitGuard>,
@@ -267,7 +269,7 @@ async fn stop(_server: &Server) -> io::Result<()> {
 /// Async initializations
 async fn start(server: &Server) -> Result<(), Error> {
 	let db_load_time = std::time::Instant::now();
-	KeyValueDatabase::load_or_create(server.config.clone()).await?;
+	KeyValueDatabase::load_or_create(server.config.clone(), server.tracing_reload_handle.clone()).await?;
 	info!("Database took {:?} to load", db_load_time.elapsed());
 
 	Ok(())
@@ -427,15 +429,24 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 		None
 	};
 
-	if config.allow_jaeger {
-		#[cfg(feature = "perf_measurements")]
-		init_tracing_jaeger(&config);
-	} else if config.tracing_flame {
-		#[cfg(feature = "perf_measurements")]
-		init_tracing_flame(&config);
-	} else {
-		init_tracing_sub(&config);
-	}
+	let tracing_reload_handle;
+
+	#[cfg(feature = "perf_measurements")]
+	{
+		tracing_reload_handle = if config.allow_jaeger {
+			init_tracing_jaeger(&config)
+		} else if config.tracing_flame {
+			#[cfg(feature = "perf_measurements")]
+			init_tracing_flame(&config)
+		} else {
+			init_tracing_sub(&config)
+		};
+	};
+
+	#[cfg(not(feature = "perf_measurements"))]
+	{
+		tracing_reload_handle = init_tracing_sub(&config);
+	};
 
 	info!(
 		server_name = ?config.server_name,
@@ -459,6 +470,8 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 			.build()
 			.unwrap(),
 
+		tracing_reload_handle,
+
 		#[cfg(feature = "sentry_telemetry")]
 		_sentry_guard: sentry_guard,
 	})
@@ -481,8 +494,8 @@ fn init_sentry(config: &Config) -> sentry::ClientInitGuard {
 	))
 }
 
-fn init_tracing_sub(config: &Config) {
-	let registry = tracing_subscriber::Registry::default();
+fn init_tracing_sub(config: &Config) -> reload::Handle<EnvFilter, Registry> {
+	let registry = Registry::default();
 	let fmt_layer = tracing_subscriber::fmt::Layer::new();
 	let filter_layer = match EnvFilter::try_new(&config.log) {
 		Ok(s) => s,
@@ -491,6 +504,8 @@ fn init_tracing_sub(config: &Config) {
 			EnvFilter::try_new("warn").unwrap()
 		},
 	};
+
+	let (reload_filter, reload_handle) = reload::Layer::new(filter_layer);
 
 	#[cfg(feature = "sentry_telemetry")]
 	let sentry_layer = sentry_tracing::layer();
@@ -501,7 +516,7 @@ fn init_tracing_sub(config: &Config) {
 	#[cfg(feature = "sentry_telemetry")]
 	{
 		subscriber = registry
-			.with(filter_layer)
+			.with(reload_filter)
 			.with(fmt_layer)
 			.with(sentry_layer);
 	};
@@ -509,14 +524,16 @@ fn init_tracing_sub(config: &Config) {
 	#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
 	#[cfg(not(feature = "sentry_telemetry"))]
 	{
-		subscriber = registry.with(filter_layer).with(fmt_layer);
+		subscriber = registry.with(reload_filter).with(fmt_layer);
 	};
 
 	tracing::subscriber::set_global_default(subscriber).unwrap();
+
+	reload_handle
 }
 
 #[cfg(feature = "perf_measurements")]
-fn init_tracing_jaeger(config: &Config) {
+fn init_tracing_jaeger(config: &Config) -> reload::Handle<EnvFilter, Registry> {
 	opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
 	let tracer = opentelemetry_jaeger::new_agent_pipeline()
 		.with_auto_split_batch(true)
@@ -533,22 +550,30 @@ fn init_tracing_jaeger(config: &Config) {
 		},
 	};
 
-	let subscriber = tracing_subscriber::Registry::default()
-		.with(filter_layer)
-		.with(telemetry);
+	let (reload_filter, reload_handle) = reload::Layer::new(filter_layer);
+
+	let subscriber = Registry::default().with(reload_filter).with(telemetry);
+
 	tracing::subscriber::set_global_default(subscriber).unwrap();
+
+	reload_handle
 }
 
 #[cfg(feature = "perf_measurements")]
-fn init_tracing_flame(_config: &Config) {
-	let registry = tracing_subscriber::Registry::default();
+fn init_tracing_flame(_config: &Config) -> reload::Handle<EnvFilter, Registry> {
+	let registry = Registry::default();
 	let (flame_layer, _guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
 	let flame_layer = flame_layer.with_empty_samples(false);
 
 	let filter_layer = EnvFilter::new("trace,h2=off");
 
-	let subscriber = registry.with(filter_layer).with(flame_layer);
+	let (reload_filter, reload_handle) = reload::Layer::new(filter_layer);
+
+	let subscriber = registry.with(reload_filter).with(flame_layer);
+
 	tracing::subscriber::set_global_default(subscriber).unwrap();
+
+	reload_handle
 }
 
 // This is needed for opening lots of file descriptors, which tends to

@@ -26,6 +26,7 @@ use ruma::{
 };
 use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock, Semaphore};
 use tracing::{error, info};
+use tracing_subscriber::{EnvFilter, Registry};
 
 use crate::{services, Config, Result};
 
@@ -42,6 +43,7 @@ type SyncHandle = (
 pub struct Service<'a> {
 	pub db: &'static dyn Data,
 
+	pub tracing_reload_handle: tracing_subscriber::reload::Handle<EnvFilter, Registry>,
 	pub config: Config,
 	keypair: Arc<ruma::signatures::Ed25519KeyPair>,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
@@ -94,7 +96,10 @@ impl Default for RotationHandler {
 }
 
 impl Service<'_> {
-	pub fn load(db: &'static dyn Data, config: &Config) -> Result<Self> {
+	pub fn load(
+		db: &'static dyn Data, config: &Config,
+		tracing_reload_handle: tracing_subscriber::reload::Handle<EnvFilter, Registry>,
+	) -> Result<Self> {
 		let keypair = db.load_keypair();
 
 		let keypair = match keypair {
@@ -135,7 +140,9 @@ impl Service<'_> {
 			argon2::Version::default(),
 			argon2::Params::new(19456, 2, 1, None).expect("valid parameters"),
 		);
+
 		let mut s = Self {
+			tracing_reload_handle,
 			db,
 			config: config.clone(),
 			keypair: Arc::new(keypair),
