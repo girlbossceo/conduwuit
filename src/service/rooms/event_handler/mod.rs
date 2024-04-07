@@ -78,6 +78,7 @@ impl Service {
 	///     room, if not soft fail it
 	// We use some AsyncRecursiveType hacks here so we can call this async funtion
 	// recursively
+	#[tracing::instrument(skip(self, origin, value, is_timeline_event, pub_key_map), name = "pdu")]
 	pub(crate) async fn handle_incoming_pdu<'a>(
 		&self, origin: &'a ServerName, event_id: &'a EventId, room_id: &'a RoomId,
 		value: BTreeMap<String, CanonicalJsonValue>, is_timeline_event: bool,
@@ -453,7 +454,8 @@ impl Service {
 			return Err(Error::BadRequest(ErrorKind::InvalidParam, "Event has been soft failed"));
 		}
 
-		info!("Upgrading {} to timeline pdu", incoming_pdu.event_id);
+		debug!("Upgrading {} to timeline pdu", incoming_pdu.event_id);
+		let timer = tokio::time::Instant::now();
 
 		let create_event_content: RoomCreateEventContent =
 			serde_json::from_str(create_event.content.get()).map_err(|e| {
@@ -872,7 +874,11 @@ impl Service {
 			)
 			.await?;
 
-		debug!("Appended incoming pdu");
+		let elapsed = timer.elapsed();
+		debug!(
+			elapsed = ?elapsed,
+			"Appended incoming pdu",
+		);
 
 		// Event has passed all auth/stateres checks
 		drop(state_lock);
@@ -978,7 +984,6 @@ impl Service {
 	/// b. Look at outlier pdu tree
 	/// c. Ask origin server over federation
 	/// d. TODO: Ask other servers over federation?
-	#[tracing::instrument(skip_all)]
 	pub(crate) fn fetch_and_handle_outliers<'a>(
 		&'a self, origin: &'a ServerName, events: &'a [Arc<EventId>], create_event: &'a PduEvent, room_id: &'a RoomId,
 		room_version_id: &'a RoomVersionId, pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
@@ -1105,7 +1110,6 @@ impl Service {
 
 			// We go through all the signatures we see on the PDUs and their unresolved
 			// dependencies and fetch the corresponding signing keys
-			info!("fetch_required_signing_keys for {}", origin);
 			self.fetch_required_signing_keys(
 				events_with_auth_events
 					.iter()
@@ -1265,7 +1269,6 @@ impl Service {
 		Ok((sorted, eventid_info))
 	}
 
-	#[tracing::instrument(skip_all)]
 	pub(crate) async fn fetch_required_signing_keys<'a, E>(
 		&'a self, events: E, pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()>
@@ -1301,7 +1304,7 @@ impl Service {
 			return Ok(());
 		}
 
-		info!(
+		debug!(
 			"Fetch keys for {}",
 			server_key_ids
 				.keys()
