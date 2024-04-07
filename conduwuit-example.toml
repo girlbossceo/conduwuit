@@ -441,6 +441,11 @@ url_preview_check_root_domain = false
 # Defaults to 1 (TolerateCorruptedTailRecords)
 #rocksdb_recovery_mode = 1
 
+# Controls whether memory buffers are written to storage at the fixed interval set by `cleanup_period_interval`
+# even when they are not full. Setting this will increase load on the storage backplane and is never advised
+# under normal circumstances.
+#rocksdb_periodic_cleanup = false
+
 
 ### Domain Name Resolution and Caching
 
