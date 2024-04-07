@@ -157,16 +157,25 @@ impl service::globals::Data for KeyValueDatabase {
 		let appservice_in_room_cache = self.appservice_in_room_cache.read().unwrap().len();
 		let lasttimelinecount_cache = self.lasttimelinecount_cache.lock().unwrap().len();
 
+		let max_pdu_cache = self.pdu_cache.lock().unwrap().capacity();
+		let max_shorteventid_cache = self.shorteventid_cache.lock().unwrap().capacity();
+		let max_auth_chain_cache = self.auth_chain_cache.lock().unwrap().capacity();
+		let max_eventidshort_cache = self.eventidshort_cache.lock().unwrap().capacity();
+		let max_statekeyshort_cache = self.statekeyshort_cache.lock().unwrap().capacity();
+		let max_our_real_users_cache = self.our_real_users_cache.read().unwrap().capacity();
+		let max_appservice_in_room_cache = self.appservice_in_room_cache.read().unwrap().capacity();
+		let max_lasttimelinecount_cache = self.lasttimelinecount_cache.lock().unwrap().capacity();
+
 		let mut response = format!(
 			"\
-pdu_cache: {pdu_cache}
-shorteventid_cache: {shorteventid_cache}
-auth_chain_cache: {auth_chain_cache}
-eventidshort_cache: {eventidshort_cache}
-statekeyshort_cache: {statekeyshort_cache}
-our_real_users_cache: {our_real_users_cache}
-appservice_in_room_cache: {appservice_in_room_cache}
-lasttimelinecount_cache: {lasttimelinecount_cache}\n"
+pdu_cache: {pdu_cache} / {max_pdu_cache}
+shorteventid_cache: {shorteventid_cache} / {max_shorteventid_cache}
+auth_chain_cache: {auth_chain_cache} / {max_auth_chain_cache}
+eventidshort_cache: {eventidshort_cache} / {max_eventidshort_cache}
+statekeyshort_cache: {statekeyshort_cache} / {max_statekeyshort_cache}
+our_real_users_cache: {our_real_users_cache} / {max_our_real_users_cache}
+appservice_in_room_cache: {appservice_in_room_cache} / {max_appservice_in_room_cache}
+lasttimelinecount_cache: {lasttimelinecount_cache} / {max_lasttimelinecount_cache}\n\n"
 		);
 		if let Ok(db_stats) = self.db.memory_usage() {
 			response += &db_stats;
