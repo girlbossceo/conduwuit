@@ -4,7 +4,7 @@ use image::io::Reader as ImgReader;
 use ipaddress::IPAddress;
 use reqwest::Url;
 use ruma::api::client::{
-	error::ErrorKind,
+	error::{ErrorKind, RetryAfter},
 	media::{
 		create_content, get_content, get_content_as_filename, get_content_thumbnail, get_media_config,
 		get_media_preview,
@@ -65,7 +65,7 @@ pub async fn get_media_preview_route(
 				error!("Failed to convert UrlPreviewData into a serde json value: {}", e);
 				Error::BadRequest(
 					ErrorKind::LimitExceeded {
-						retry_after_ms: Some(Duration::from_secs(5)),
+						retry_after: Some(RetryAfter::Delay(Duration::from_secs(5))),
 					},
 					"Failed to generate a URL preview, try again later.",
 				)
@@ -80,7 +80,7 @@ pub async fn get_media_preview_route(
 			// the only response codes in the preview_url spec page are 200 and 429.
 			Err(Error::BadRequest(
 				ErrorKind::LimitExceeded {
-					retry_after_ms: Some(Duration::from_secs(5)),
+					retry_after: Some(RetryAfter::Delay(Duration::from_secs(5))),
 				},
 				"Failed to generate a URL preview, try again later.",
 			))
@@ -109,7 +109,7 @@ pub async fn get_media_preview_v1_route(
 				error!("Failed to convert UrlPreviewData into a serde json value: {}", e);
 				Error::BadRequest(
 					ErrorKind::LimitExceeded {
-						retry_after_ms: Some(Duration::from_secs(5)),
+						retry_after: Some(RetryAfter::Delay(Duration::from_secs(5))),
 					},
 					"Failed to generate a URL preview, try again later.",
 				)
@@ -124,7 +124,7 @@ pub async fn get_media_preview_v1_route(
 			// the only response codes in the preview_url spec page are 200 and 429.
 			Err(Error::BadRequest(
 				ErrorKind::LimitExceeded {
-					retry_after_ms: Some(Duration::from_secs(5)),
+					retry_after: Some(RetryAfter::Delay(Duration::from_secs(5))),
 				},
 				"Failed to generate a URL preview, try again later.",
 			))
