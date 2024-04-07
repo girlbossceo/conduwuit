@@ -545,6 +545,10 @@ impl KeyValueDatabase {
 	}
 
 	fn perform_cleanup() {
+		if !services().globals.config.rocksdb_periodic_cleanup {
+			return;
+		}
+
 		let start = Instant::now();
 		if let Err(e) = services().globals.cleanup() {
 			error!(target: "database-cleanup", "Ran into an error during cleanup: {}", e);
