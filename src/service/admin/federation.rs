@@ -1,10 +1,10 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
 use clap::Subcommand;
-use ruma::{events::room::message::RoomMessageEventContent, RoomId};
+use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName};
 use tokio::sync::RwLock;
 
-use crate::{services, Result};
+use crate::{services, utils::HtmlEscape, Result};
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
@@ -33,6 +33,19 @@ pub(crate) enum FederationCommand {
 	/// This command needs a JSON blob provided in a Markdown code block below
 	/// the command.
 	VerifyJson,
+
+	/// - Fetch `/.well-known/matrix/support` from the specified server
+	///
+	/// Despite the name, this is not a federation endpoint and does not go
+	/// through the federation / server resolution process as per-spec this is
+	/// supposed to be served at the server_name.
+	///
+	/// Respecting homeservers put this file here for listing administration,
+	/// moderation, and security inquiries. This command provides a way to
+	/// easily fetch that information.
+	FetchSupportWellKnown {
+		server_name: Box<ServerName>,
+	},
 }
 
 pub(crate) async fn process(command: FederationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -109,6 +122,51 @@ pub(crate) async fn process(command: FederationCommand, body: Vec<&str>) -> Resu
 					"Expected code block in command body. Add --help for details.",
 				))
 			}
+		},
+		FederationCommand::FetchSupportWellKnown {
+			server_name,
+		} => {
+			let response = services()
+				.globals
+				.client
+				.default
+				.get(format!("https://{server_name}/.well-known/matrix/support"))
+				.send()
+				.await?;
+
+			let text = response.text().await?;
+
+			if text.is_empty() {
+				return Ok(RoomMessageEventContent::text_plain("Response text/body is empty."));
+			}
+
+			if text.len() > 1500 {
+				return Ok(RoomMessageEventContent::text_plain(
+					"Response text/body is over 1500 characters, assuming no support well-known.",
+				));
+			}
+
+			let json: serde_json::Value = match serde_json::from_str(&text) {
+				Ok(json) => json,
+				Err(_) => {
+					return Ok(RoomMessageEventContent::text_plain("Response text/body is not valid JSON."));
+				},
+			};
+
+			let pretty_json: String = match serde_json::to_string_pretty(&json) {
+				Ok(json) => json,
+				Err(_) => {
+					return Ok(RoomMessageEventContent::text_plain("Response text/body is not valid JSON."));
+				},
+			};
+
+			Ok(RoomMessageEventContent::text_html(
+				format!("Got JSON response:\n\n```json\n{pretty_json}\n```"),
+				format!(
+					"<p>Got JSON response:</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
+					HtmlEscape(&pretty_json)
+				),
+			))
 		},
 	}
 }
