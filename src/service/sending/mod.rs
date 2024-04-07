@@ -342,7 +342,6 @@ impl Service {
 				},
 
 				event = receiver.recv_async() => {
-					// TODO: Error handling for this
 					if let Ok((outgoing_kind, event, key)) = event {
 						if let Ok(Some(events)) = self.select_events(
 							&outgoing_kind,

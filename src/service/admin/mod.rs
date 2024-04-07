@@ -183,12 +183,9 @@ impl Service {
 									}
 									drop(state_lock);
 							}
-							Err(_) => {
-								// TODO: Handle error, Im too unfamiliar with the codebase to know what to do here
-
-
-								// recv_async returns an error if all senders have been dropped. If the channel is empty, the returned future will yield to the async runtime.
-
+							Err(e) => {
+								 // generally shouldn't happen
+								 error!("Failed to receive admin room event from channel: {e}");
 							}
 						}
 					}

@@ -181,8 +181,8 @@ impl Service {
 							presence_timers.push(presence_timer(user_id, timeout));
 						}
 						Err(e) => {
-							// TODO: Handle error better? I have no idea what to do here.
-							error!("Failed to receive presence timer: {}", e);
+							// generally shouldn't happen
+							error!("Failed to receive presence timer through channel: {e}");
 						}
 					}
 				}
