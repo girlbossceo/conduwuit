@@ -56,6 +56,10 @@ impl Services<'_> {
 			+ 'static,
 	>(
 		db: &'static D, config: &Config,
+		tracing_reload_handle: tracing_subscriber::reload::Handle<
+			tracing_subscriber::EnvFilter,
+			tracing_subscriber::Registry,
+		>,
 	) -> Result<Self> {
 		Ok(Self {
 			appservice: appservice::Service::build(db)?,
@@ -166,7 +170,7 @@ impl Services<'_> {
 			},
 			sending: sending::Service::build(db, config),
 
-			globals: globals::Service::load(db, config)?,
+			globals: globals::Service::load(db, config, tracing_reload_handle)?,
 		})
 	}
 

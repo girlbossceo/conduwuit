@@ -206,7 +206,13 @@ struct CheckForUpdatesResponse {
 impl KeyValueDatabase {
 	/// Load an existing database or create a new one.
 	#[allow(clippy::too_many_lines)]
-	pub async fn load_or_create(config: Config) -> Result<()> {
+	pub async fn load_or_create(
+		config: Config,
+		tracing_reload_handler: tracing_subscriber::reload::Handle<
+			tracing_subscriber::EnvFilter,
+			tracing_subscriber::Registry,
+		>,
+	) -> Result<()> {
 		Self::check_db_setup(&config)?;
 
 		if !Path::new(&config.database_path).exists() {
@@ -369,7 +375,7 @@ impl KeyValueDatabase {
 
 		let db = Box::leak(db_raw);
 
-		let services_raw = Box::new(Services::build(db, &config)?);
+		let services_raw = Box::new(Services::build(db, &config, tracing_reload_handler)?);
 
 		// This is the first and only time we initialize the SERVICE static
 		*SERVICES.write().unwrap() = Some(Box::leak(services_raw));

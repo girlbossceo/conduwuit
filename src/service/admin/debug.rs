@@ -7,6 +7,7 @@ use ruma::{
 };
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+use tracing_subscriber::EnvFilter;
 
 use crate::{api::server_server::parse_incoming_pdu, services, utils::HtmlEscape, Error, PduEvent, Result};
 
@@ -71,6 +72,18 @@ pub(crate) enum DebugCommand {
 	/// - Forces device lists for all local and remote users to be updated (as
 	///   having new keys available)
 	ForceDeviceListUpdates,
+
+	/// - Change tracing log level/filter on the fly
+	///
+	/// This accepts the same format as the `log` config option.
+	ChangeLogLevel {
+		/// Log level/filter
+		filter: Option<String>,
+
+		/// Resets the log level/filter to the one in your config
+		#[arg(short, long)]
+		reset: bool,
+	},
 }
 
 pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -353,6 +366,67 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 				services().users.mark_device_key_update(&user_id)?;
 			}
 			RoomMessageEventContent::text_plain("Marked all devices for all users as having new keys to update")
+		},
+		DebugCommand::ChangeLogLevel {
+			filter,
+			reset,
+		} => {
+			if reset {
+				let old_filter_layer = match EnvFilter::try_new(&services().globals.config.log) {
+					Ok(s) => s,
+					Err(e) => {
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"Log level from config appears to be invalid now: {e}"
+						)));
+					},
+				};
+
+				match services()
+					.globals
+					.tracing_reload_handle
+					.modify(|filter| *filter = old_filter_layer)
+				{
+					Ok(()) => {
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"Successfully changed log level back to config value {}",
+							services().globals.config.log
+						)));
+					},
+					Err(e) => {
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"Failed to modify and reload the global tracing log level: {e}"
+						)));
+					},
+				}
+			}
+
+			if let Some(filter) = filter {
+				let new_filter_layer = match EnvFilter::try_new(filter) {
+					Ok(s) => s,
+					Err(e) => {
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"Invalid log level filter specified: {e}"
+						)));
+					},
+				};
+
+				match services()
+					.globals
+					.tracing_reload_handle
+					.modify(|filter| *filter = new_filter_layer)
+				{
+					Ok(()) => {
+						return Ok(RoomMessageEventContent::text_plain("Successfully changed log level"));
+					},
+					Err(e) => {
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"Failed to modify and reload the global tracing log level: {e}"
+						)));
+					},
+				}
+			}
+
+			return Ok(RoomMessageEventContent::text_plain("No log level was specified."));
 		},
 	})
 }
