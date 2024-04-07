@@ -211,6 +211,8 @@ pub struct Config {
 	pub rocksdb_repair: bool,
 	#[serde(default)]
 	pub rocksdb_read_only: bool,
+	#[serde(default)]
+	pub rocksdb_periodic_cleanup: bool,
 
 	pub emergency_password: Option<String>,
 
@@ -635,6 +637,7 @@ impl fmt::Display for Config {
 			("RocksDB Recovery Mode", &self.rocksdb_recovery_mode.to_string()),
 			("RocksDB Repair Mode", &self.rocksdb_repair.to_string()),
 			("RocksDB Read-only Mode", &self.rocksdb_read_only.to_string()),
+			("RocksDB Periodic Cleanup", &self.rocksdb_periodic_cleanup.to_string()),
 			("Prevent Media Downloads From", {
 				let mut lst = vec![];
 				for domain in &self.prevent_media_downloads_from {
