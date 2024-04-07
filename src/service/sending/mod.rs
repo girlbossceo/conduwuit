@@ -25,10 +25,7 @@ use ruma::{
 	events::{push_rules::PushRulesEvent, receipt::ReceiptType, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType},
 	push, uint, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedUserId, RoomId, ServerName, UInt, UserId,
 };
-use tokio::{
-	select,
-	sync::{Mutex, Semaphore},
-};
+use tokio::sync::{Mutex, Semaphore};
 use tracing::{error, warn};
 
 use crate::{services, utils::calculate_hash, Config, Error, PduEvent, Result};

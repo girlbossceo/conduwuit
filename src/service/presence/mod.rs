@@ -170,7 +170,7 @@ impl Service {
 
 	async fn handler(&self) -> Result<()> {
 		let mut presence_timers = FuturesUnordered::new();
-		let mut receiver = self.timer_receiver.lock().await;
+		let receiver = self.timer_receiver.lock().await;
 		loop {
 			tokio::select! {
 				event = receiver.recv_async() => {
