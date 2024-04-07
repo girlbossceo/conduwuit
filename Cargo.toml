@@ -316,6 +316,7 @@ default = [
     "sentry_telemetry",
     "gzip_compression",
     "brotli_compression",
+    "zstd_compression",
 ]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
