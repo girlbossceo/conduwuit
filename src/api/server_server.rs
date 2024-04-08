@@ -9,6 +9,7 @@ use std::{
 
 use axum::{response::IntoResponse, Json};
 use get_profile_information::v1::ProfileField;
+use rand::seq::SliceRandom;
 use ruma::{
 	api::{
 		client::error::ErrorKind,
@@ -1423,9 +1424,30 @@ pub async fn get_room_information_route(
 		.resolve_local_alias(&body.room_alias)?
 		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Room alias not found."))?;
 
+	let mut servers: Vec<OwnedServerName> = services()
+		.rooms
+		.state_cache
+		.room_servers(&room_id)
+		.filter_map(Result::ok)
+		.collect::<Vec<_>>();
+
+	servers.sort_unstable();
+	servers.dedup();
+
+	servers.shuffle(&mut rand::thread_rng());
+
+	// insert our server as the very first choice if in list
+	if let Some(server_index) = servers
+		.iter()
+		.position(|server| server == services().globals.server_name())
+	{
+		servers.remove(server_index);
+		servers.insert(0, services().globals.server_name().to_owned());
+	}
+
 	Ok(get_room_information::v1::Response {
 		room_id,
-		servers: vec![services().globals.server_name().to_owned()], // TODO: add more than just us
+		servers,
 	})
 }
 
