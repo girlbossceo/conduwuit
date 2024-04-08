@@ -15,15 +15,6 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<HashSet<u64>>>> {
-		self.db.get_cached_eventid_authchain(key)
-	}
-
-	#[tracing::instrument(skip(self))]
-	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<HashSet<u64>>) -> Result<()> {
-		self.db.cache_auth_chain(key, auth_chain)
-	}
-
 	pub async fn get_auth_chain<'a>(
 		&self, room_id: &RoomId, starting_events: Vec<Arc<EventId>>,
 	) -> Result<impl Iterator<Item = Arc<EventId>> + 'a> {
@@ -81,7 +72,7 @@ impl Service {
 					services()
 						.rooms
 						.auth_chain
-						.cache_auth_chain(vec![sevent_id], Arc::clone(&auth_chain))?;
+						.cache_auth_chain(vec![sevent_id], &auth_chain)?;
 					debug!(
 						event_id = ?event_id,
 						chain_length = ?auth_chain.len(),
@@ -105,7 +96,7 @@ impl Service {
 			services()
 				.rooms
 				.auth_chain
-				.cache_auth_chain(chunk_key, Arc::clone(&chunk_cache))?;
+				.cache_auth_chain(chunk_key, &chunk_cache)?;
 			full_auth_chain.extend(chunk_cache.iter());
 		}
 
@@ -153,5 +144,15 @@ impl Service {
 		}
 
 		Ok(found)
+	}
+
+	pub fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
+		self.db.get_cached_eventid_authchain(key)
+	}
+
+	#[tracing::instrument(skip(self))]
+	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<u64>) -> Result<()> {
+		self.db
+			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())
 	}
 }

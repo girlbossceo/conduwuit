@@ -1,9 +1,9 @@
-use std::{collections::HashSet, mem::size_of, sync::Arc};
+use std::{mem::size_of, sync::Arc};
 
 use crate::{database::KeyValueDatabase, service, utils, Result};
 
 impl service::rooms::auth_chain::Data for KeyValueDatabase {
-	fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<HashSet<u64>>>> {
+	fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
 		// Check RAM cache
 		if let Some(result) = self.auth_chain_cache.lock().unwrap().get_mut(key) {
 			return Ok(Some(Arc::clone(result)));
@@ -19,12 +19,10 @@ impl service::rooms::auth_chain::Data for KeyValueDatabase {
 					chain
 						.chunks_exact(size_of::<u64>())
 						.map(|chunk| utils::u64_from_bytes(chunk).expect("byte length is correct"))
-						.collect()
+						.collect::<Arc<[u64]>>()
 				});
 
 			if let Some(chain) = chain {
-				let chain = Arc::new(chain);
-
 				// Cache in RAM
 				self.auth_chain_cache
 					.lock()
@@ -38,7 +36,7 @@ impl service::rooms::auth_chain::Data for KeyValueDatabase {
 		Ok(None)
 	}
 
-	fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<HashSet<u64>>) -> Result<()> {
+	fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<[u64]>) -> Result<()> {
 		// Only persist single events in db
 		if key.len() == 1 {
 			self.shorteventid_authchain.insert(

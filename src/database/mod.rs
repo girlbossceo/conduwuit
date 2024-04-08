@@ -181,7 +181,7 @@ pub struct KeyValueDatabase {
 	//pub pusher: pusher::PushData,
 	pub(super) senderkey_pusher: Arc<dyn KvTree>,
 
-	pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<HashSet<u64>>>>,
+	pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<[u64]>>>,
 	pub(super) our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
 	pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
 	pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
