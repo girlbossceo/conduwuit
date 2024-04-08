@@ -619,7 +619,7 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 		}
 
 		info!(
-			"Loaded {} database with version {}",
+			"Loaded {} database with schema version {}",
 			config.database_backend, latest_database_version
 		);
 	} else {

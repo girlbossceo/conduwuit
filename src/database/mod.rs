@@ -28,10 +28,10 @@ use lru_cache::LruCache;
 use ruma::{
 	events::{
 		push_rules::PushRulesEventContent, room::message::RoomMessageEventContent, GlobalAccountDataEvent,
-		GlobalAccountDataEventType, StateEventType,
+		GlobalAccountDataEventType,
 	},
 	push::Ruleset,
-	CanonicalJsonValue, EventId, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, UserId,
+	CanonicalJsonValue, OwnedDeviceId, OwnedRoomId, OwnedUserId, UserId,
 };
 use serde::Deserialize;
 #[cfg(unix)]
@@ -40,8 +40,8 @@ use tokio::time::{interval, Instant};
 use tracing::{debug, error, warn};
 
 use crate::{
-	database::migrations::migrations, service::rooms::timeline::PduCount, services, Config, Error, PduEvent, Result,
-	Services, SERVICES,
+	database::migrations::migrations, service::rooms::timeline::PduCount, services, Config, Error, Result, Services,
+	SERVICES,
 };
 
 pub struct KeyValueDatabase {
@@ -181,12 +181,7 @@ pub struct KeyValueDatabase {
 	//pub pusher: pusher::PushData,
 	pub(super) senderkey_pusher: Arc<dyn KvTree>,
 
-	pub(super) pdu_cache: Mutex<LruCache<OwnedEventId, Arc<PduEvent>>>,
-	pub(super) shorteventid_cache: Mutex<LruCache<u64, Arc<EventId>>>,
 	pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<HashSet<u64>>>>,
-	pub(super) eventidshort_cache: Mutex<LruCache<OwnedEventId, u64>>,
-	pub(super) statekeyshort_cache: Mutex<LruCache<(StateEventType, String), u64>>,
-	pub(super) shortstatekey_cache: Mutex<LruCache<u64, (StateEventType, String)>>,
 	pub(super) our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
 	pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
 	pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
@@ -347,26 +342,8 @@ impl KeyValueDatabase {
 			global: builder.open_tree("global")?,
 			server_signingkeys: builder.open_tree("server_signingkeys")?,
 
-			pdu_cache: Mutex::new(LruCache::new(
-				config
-					.pdu_cache_capacity
-					.try_into()
-					.expect("pdu cache capacity fits into usize"),
-			)),
 			auth_chain_cache: Mutex::new(LruCache::new(
 				(f64::from(config.auth_chain_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
-			shorteventid_cache: Mutex::new(LruCache::new(
-				(f64::from(config.shorteventid_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
-			eventidshort_cache: Mutex::new(LruCache::new(
-				(f64::from(config.eventidshort_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
-			shortstatekey_cache: Mutex::new(LruCache::new(
-				(f64::from(config.shortstatekey_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
-			statekeyshort_cache: Mutex::new(LruCache::new(
-				(f64::from(config.statekeyshort_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),
 			our_real_users_cache: RwLock::new(HashMap::new()),
 			appservice_in_room_cache: RwLock::new(HashMap::new()),

@@ -7,10 +7,6 @@ use crate::{database::KeyValueDatabase, service, services, utils, Error, Result}
 
 impl service::rooms::short::Data for KeyValueDatabase {
 	fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64> {
-		if let Some(short) = self.eventidshort_cache.lock().unwrap().get_mut(event_id) {
-			return Ok(*short);
-		}
-
 		let short = if let Some(shorteventid) = self.eventid_shorteventid.get(event_id.as_bytes())? {
 			utils::u64_from_bytes(&shorteventid).map_err(|_| Error::bad_database("Invalid shorteventid in db."))?
 		} else {
@@ -22,24 +18,10 @@ impl service::rooms::short::Data for KeyValueDatabase {
 			shorteventid
 		};
 
-		self.eventidshort_cache
-			.lock()
-			.unwrap()
-			.insert(event_id.to_owned(), short);
-
 		Ok(short)
 	}
 
 	fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<Option<u64>> {
-		if let Some(short) = self
-			.statekeyshort_cache
-			.lock()
-			.unwrap()
-			.get_mut(&(event_type.clone(), state_key.to_owned()))
-		{
-			return Ok(Some(*short));
-		}
-
 		let mut statekey_vec = event_type.to_string().as_bytes().to_vec();
 		statekey_vec.push(0xFF);
 		statekey_vec.extend_from_slice(state_key.as_bytes());
@@ -52,26 +34,10 @@ impl service::rooms::short::Data for KeyValueDatabase {
 			})
 			.transpose()?;
 
-		if let Some(s) = short {
-			self.statekeyshort_cache
-				.lock()
-				.unwrap()
-				.insert((event_type.clone(), state_key.to_owned()), s);
-		}
-
 		Ok(short)
 	}
 
 	fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<u64> {
-		if let Some(short) = self
-			.statekeyshort_cache
-			.lock()
-			.unwrap()
-			.get_mut(&(event_type.clone(), state_key.to_owned()))
-		{
-			return Ok(*short);
-		}
-
 		let mut statekey_vec = event_type.to_string().as_bytes().to_vec();
 		statekey_vec.push(0xFF);
 		statekey_vec.extend_from_slice(state_key.as_bytes());
@@ -87,24 +53,10 @@ impl service::rooms::short::Data for KeyValueDatabase {
 			shortstatekey
 		};
 
-		self.statekeyshort_cache
-			.lock()
-			.unwrap()
-			.insert((event_type.clone(), state_key.to_owned()), short);
-
 		Ok(short)
 	}
 
 	fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<EventId>> {
-		if let Some(id) = self
-			.shorteventid_cache
-			.lock()
-			.unwrap()
-			.get_mut(&shorteventid)
-		{
-			return Ok(Arc::clone(id));
-		}
-
 		let bytes = self
 			.shorteventid_eventid
 			.get(&shorteventid.to_be_bytes())?
@@ -116,24 +68,10 @@ impl service::rooms::short::Data for KeyValueDatabase {
 		)
 		.map_err(|_| Error::bad_database("EventId in shorteventid_eventid is invalid."))?;
 
-		self.shorteventid_cache
-			.lock()
-			.unwrap()
-			.insert(shorteventid, Arc::clone(&event_id));
-
 		Ok(event_id)
 	}
 
 	fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
-		if let Some(id) = self
-			.shortstatekey_cache
-			.lock()
-			.unwrap()
-			.get_mut(&shortstatekey)
-		{
-			return Ok(id.clone());
-		}
-
 		let bytes = self
 			.shortstatekey_statekey
 			.get(&shortstatekey.to_be_bytes())?
@@ -154,11 +92,6 @@ impl service::rooms::short::Data for KeyValueDatabase {
 			.map_err(|_| Error::bad_database("Statekey in shortstatekey_statekey is invalid unicode."))?;
 
 		let result = (event_type, state_key);
-
-		self.shortstatekey_cache
-			.lock()
-			.unwrap()
-			.insert(shortstatekey, result.clone());
 
 		Ok(result)
 	}

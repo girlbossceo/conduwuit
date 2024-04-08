@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::collections::HashMap;
+
 use rust_rocksdb::{
 	BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env, LogLevel, Options,
 	UniversalCompactOptions, UniversalCompactionStopStyle,
@@ -43,6 +45,7 @@ pub(crate) fn db_options(config: &Config, env: &Env, row_cache: &Cache, col_cach
 	// Blocks
 	let mut table_opts = table_options(config);
 	table_opts.set_block_cache(col_cache);
+	opts.set_block_based_table_factory(&table_opts);
 	opts.set_row_cache(row_cache);
 
 	// Buffers
@@ -75,7 +78,6 @@ pub(crate) fn db_options(config: &Config, env: &Env, row_cache: &Cache, col_cach
 		4_u8..=u8::MAX => unimplemented!(),
 	});
 
-	opts.set_block_based_table_factory(&table_opts);
 	opts.set_env(env);
 	opts
 }
@@ -83,7 +85,8 @@ pub(crate) fn db_options(config: &Config, env: &Env, row_cache: &Cache, col_cach
 /// Adjust options for the specific column by name. Provide the result of
 /// db_options() as the argument to this function and use the return value in
 /// the arguments to open the specific column.
-pub(crate) fn cf_options(name: &str, mut opts: Options, config: &Config) -> Options {
+pub(crate) fn cf_options(cfg: &Config, name: &str, mut opts: Options, cache: &mut HashMap<String, Cache>) -> Options {
+	// Columns with non-default compaction options
 	match name {
 		"backupid_algorithm"
 		| "backupid_etag"
@@ -94,7 +97,52 @@ pub(crate) fn cf_options(name: &str, mut opts: Options, config: &Config) -> Opti
 		| "shortstatekey_statekey"
 		| "shortstatehash_statediff"
 		| "userdevicetxnid_response"
-		| "userfilterid_filter" => set_for_sequential_small_uc(&mut opts, config),
+		| "userfilterid_filter" => set_for_sequential_small_uc(&mut opts, cfg),
+		&_ => {},
+	}
+
+	// Columns with non-default table/cache configs
+	match name {
+		"shorteventid_eventid" => set_table_with_new_cache(
+			&mut opts,
+			cfg,
+			cache,
+			name,
+			cache_size(cfg, cfg.shorteventid_cache_capacity, 64),
+		),
+
+		"eventid_shorteventid" => set_table_with_new_cache(
+			&mut opts,
+			cfg,
+			cache,
+			name,
+			cache_size(cfg, cfg.eventidshort_cache_capacity, 64),
+		),
+
+		"shorteventid_authchain" => {
+			set_table_with_new_cache(&mut opts, cfg, cache, name, cache_size(cfg, cfg.auth_chain_cache_capacity, 192));
+		},
+
+		"shortstatekey_statekey" => set_table_with_new_cache(
+			&mut opts,
+			cfg,
+			cache,
+			name,
+			cache_size(cfg, cfg.shortstatekey_cache_capacity, 1024),
+		),
+
+		"statekey_shortstatekey" => set_table_with_new_cache(
+			&mut opts,
+			cfg,
+			cache,
+			name,
+			cache_size(cfg, cfg.statekeyshort_cache_capacity, 1024),
+		),
+
+		"pduid_pdu" => set_table_with_new_cache(&mut opts, cfg, cache, name, cfg.pdu_cache_capacity as usize * 1536),
+
+		"eventid_outlierpdu" => set_table_with_shared_cache(&mut opts, cfg, cache, name, "pduid_pdu"),
+
 		&_ => {},
 	}
 
@@ -218,6 +266,31 @@ fn uc_options(_config: &Config) -> UniversalCompactOptions {
 	opts.set_max_merge_width(16);
 
 	opts
+}
+
+fn set_table_with_new_cache(
+	opts: &mut Options, config: &Config, cache: &mut HashMap<String, Cache>, name: &str, size: usize,
+) {
+	cache.insert(name.to_owned(), Cache::new_lru_cache(size));
+	set_table_with_shared_cache(opts, config, cache, name, name);
+}
+
+fn set_table_with_shared_cache(
+	opts: &mut Options, config: &Config, cache: &HashMap<String, Cache>, _name: &str, cache_name: &str,
+) {
+	let mut table = table_options(config);
+	table.set_block_cache(
+		cache
+			.get(cache_name)
+			.expect("existing cache to share with this column"),
+	);
+	opts.set_block_based_table_factory(&table);
+}
+
+fn cache_size(config: &Config, base_size: u32, entity_size: usize) -> usize {
+	let ents = f64::from(base_size) * config.conduit_cache_capacity_modifier;
+
+	ents as usize * entity_size
 }
 
 fn table_options(_config: &Config) -> BlockBasedOptions {
