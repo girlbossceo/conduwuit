@@ -151,6 +151,8 @@ pub struct Config {
 	#[serde(default)]
 	pub allow_device_name_federation: bool,
 	#[serde(default = "true_fn")]
+	pub allow_profile_lookup_federation_requests: bool,
+	#[serde(default = "true_fn")]
 	pub allow_room_creation: bool,
 	#[serde(default = "true_fn")]
 	pub allow_unstable_room_versions: bool,
@@ -525,6 +527,10 @@ impl fmt::Display for Config {
 			("Client typing timeout minimum", &self.typing_client_timeout_min_s.to_string()),
 			("Client typing timeout maxmimum", &self.typing_client_timeout_max_s.to_string()),
 			("Allow device name federation", &self.allow_device_name_federation.to_string()),
+			(
+				"Allow incoming profile lookup federation requests",
+				&self.allow_profile_lookup_federation_requests.to_string(),
+			),
 			("Notification push path", &self.notification_push_path),
 			("Allow room creation", &self.allow_room_creation.to_string()),
 			(

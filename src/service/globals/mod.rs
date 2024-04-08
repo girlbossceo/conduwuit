@@ -260,6 +260,10 @@ impl Service<'_> {
 
 	pub fn auto_join_rooms(&self) -> &[OwnedRoomId] { &self.config.auto_join_rooms }
 
+	pub fn allow_profile_lookup_federation_requests(&self) -> bool {
+		self.config.allow_profile_lookup_federation_requests
+	}
+
 	pub fn notification_push_path(&self) -> &String { &self.config.notification_push_path }
 
 	pub fn emergency_password(&self) -> &Option<String> { &self.config.emergency_password }

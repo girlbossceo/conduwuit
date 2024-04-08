@@ -255,6 +255,14 @@ url_preview_check_root_domain = false
 #well_known_support_email = ""
 #well_known_support_mxid = ""
 
+# Config option to allow or disallow incoming federation requests that obtain the profiles
+# of our local users from `/_matrix/federation/v1/query/profile`
+#
+# This is inherently false if `allow_federation` is disabled
+#
+# Defaults to true
+allow_profile_lookup_federation_requests = true
+
 
 ### Misc
 
