@@ -148,31 +148,19 @@ impl service::globals::Data for KeyValueDatabase {
 	fn cork_and_sync(&self) -> Result<Cork> { Ok(Cork::new(&self.db, true, true)) }
 
 	fn memory_usage(&self) -> String {
-		let pdu_cache = self.pdu_cache.lock().unwrap().len();
-		let shorteventid_cache = self.shorteventid_cache.lock().unwrap().len();
 		let auth_chain_cache = self.auth_chain_cache.lock().unwrap().len();
-		let eventidshort_cache = self.eventidshort_cache.lock().unwrap().len();
-		let statekeyshort_cache = self.statekeyshort_cache.lock().unwrap().len();
 		let our_real_users_cache = self.our_real_users_cache.read().unwrap().len();
 		let appservice_in_room_cache = self.appservice_in_room_cache.read().unwrap().len();
 		let lasttimelinecount_cache = self.lasttimelinecount_cache.lock().unwrap().len();
 
-		let max_pdu_cache = self.pdu_cache.lock().unwrap().capacity();
-		let max_shorteventid_cache = self.shorteventid_cache.lock().unwrap().capacity();
 		let max_auth_chain_cache = self.auth_chain_cache.lock().unwrap().capacity();
-		let max_eventidshort_cache = self.eventidshort_cache.lock().unwrap().capacity();
-		let max_statekeyshort_cache = self.statekeyshort_cache.lock().unwrap().capacity();
 		let max_our_real_users_cache = self.our_real_users_cache.read().unwrap().capacity();
 		let max_appservice_in_room_cache = self.appservice_in_room_cache.read().unwrap().capacity();
 		let max_lasttimelinecount_cache = self.lasttimelinecount_cache.lock().unwrap().capacity();
 
 		let mut response = format!(
 			"\
-pdu_cache: {pdu_cache} / {max_pdu_cache}
-shorteventid_cache: {shorteventid_cache} / {max_shorteventid_cache}
 auth_chain_cache: {auth_chain_cache} / {max_auth_chain_cache}
-eventidshort_cache: {eventidshort_cache} / {max_eventidshort_cache}
-statekeyshort_cache: {statekeyshort_cache} / {max_statekeyshort_cache}
 our_real_users_cache: {our_real_users_cache} / {max_our_real_users_cache}
 appservice_in_room_cache: {appservice_in_room_cache} / {max_appservice_in_room_cache}
 lasttimelinecount_cache: {lasttimelinecount_cache} / {max_lasttimelinecount_cache}\n\n"
@@ -185,35 +173,19 @@ lasttimelinecount_cache: {lasttimelinecount_cache} / {max_lasttimelinecount_cach
 	}
 
 	fn clear_caches(&self, amount: u32) {
-		if amount > 0 {
-			let c = &mut *self.pdu_cache.lock().unwrap();
-			*c = LruCache::new(c.capacity());
-		}
 		if amount > 1 {
-			let c = &mut *self.shorteventid_cache.lock().unwrap();
-			*c = LruCache::new(c.capacity());
-		}
-		if amount > 2 {
 			let c = &mut *self.auth_chain_cache.lock().unwrap();
 			*c = LruCache::new(c.capacity());
 		}
-		if amount > 3 {
-			let c = &mut *self.eventidshort_cache.lock().unwrap();
-			*c = LruCache::new(c.capacity());
-		}
-		if amount > 4 {
-			let c = &mut *self.statekeyshort_cache.lock().unwrap();
-			*c = LruCache::new(c.capacity());
-		}
-		if amount > 5 {
+		if amount > 2 {
 			let c = &mut *self.our_real_users_cache.write().unwrap();
 			*c = HashMap::new();
 		}
-		if amount > 6 {
+		if amount > 3 {
 			let c = &mut *self.appservice_in_room_cache.write().unwrap();
 			*c = HashMap::new();
 		}
-		if amount > 7 {
+		if amount > 4 {
 			let c = &mut *self.lasttimelinecount_cache.lock().unwrap();
 			*c = HashMap::new();
 		}

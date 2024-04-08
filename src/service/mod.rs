@@ -72,8 +72,6 @@ impl Services<'_> {
 				},
 				auth_chain: rooms::auth_chain::Service {
 					db,
-					shorteventid_cache_capacity: (f64::from(config.shorteventid_cache_capacity)
-						* config.conduit_cache_capacity_modifier) as usize,
 				},
 				directory: rooms::directory::Service {
 					db,

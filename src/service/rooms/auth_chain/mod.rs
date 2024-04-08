@@ -12,7 +12,6 @@ use crate::{services, Error, Result};
 
 pub struct Service {
 	pub db: &'static dyn Data,
-	pub(crate) shorteventid_cache_capacity: usize,
 }
 
 impl Service {
@@ -116,15 +115,6 @@ impl Service {
 			misses = ?misses,
 			"Auth chain stats",
 		);
-
-		if full_auth_chain.len() > self.shorteventid_cache_capacity {
-			warn!(
-				"Room {room_id} requires cache size of {} but it is set to {}. Increase 'shorteventid_cache_capacity' \
-				 in your config file.",
-				full_auth_chain.len(),
-				self.shorteventid_cache_capacity,
-			);
-		}
 
 		Ok(full_auth_chain
 			.into_iter()

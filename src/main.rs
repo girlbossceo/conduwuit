@@ -268,9 +268,7 @@ async fn stop(_server: &Server) -> io::Result<()> {
 
 /// Async initializations
 async fn start(server: &Server) -> Result<(), Error> {
-	let db_load_time = std::time::Instant::now();
 	KeyValueDatabase::load_or_create(server.config.clone(), server.tracing_reload_handle.clone()).await?;
-	info!("Database took {:?} to load", db_load_time.elapsed());
 
 	Ok(())
 }
