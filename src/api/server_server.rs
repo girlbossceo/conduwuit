@@ -1429,7 +1429,7 @@ pub async fn get_room_information_route(
 		.state_cache
 		.room_servers(&room_id)
 		.filter_map(Result::ok)
-		.collect::<Vec<_>>();
+		.collect();
 
 	servers.sort_unstable();
 	servers.dedup();
