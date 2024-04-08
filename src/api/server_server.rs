@@ -1425,16 +1425,27 @@ pub async fn get_room_information_route(
 
 	Ok(get_room_information::v1::Response {
 		room_id,
-		servers: vec![services().globals.server_name().to_owned()],
+		servers: vec![services().globals.server_name().to_owned()], // TODO: add more than just us
 	})
 }
 
 /// # `GET /_matrix/federation/v1/query/profile`
 ///
+///
 /// Gets information on a profile.
 pub async fn get_profile_information_route(
 	body: Ruma<get_profile_information::v1::Request>,
 ) -> Result<get_profile_information::v1::Response> {
+	if !services()
+		.globals
+		.allow_profile_lookup_federation_requests()
+	{
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"Profile lookup over federation is not allowed on this homeserver.",
+		));
+	}
+
 	if body.user_id.server_name() != services().globals.server_name() {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
