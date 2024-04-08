@@ -117,14 +117,13 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 		servers.push(room_alias.server_name().into());
 
 		// find active servers in room state cache to suggest
-		for extra_servers in services()
-			.rooms
-			.state_cache
-			.room_servers(&room_id)
-			.filter_map(Result::ok)
-		{
-			servers.push(extra_servers);
-		}
+		servers.extend(
+			services()
+				.rooms
+				.state_cache
+				.room_servers(&room_id)
+				.filter_map(Result::ok),
+		);
 
 		servers.sort_unstable();
 		servers.dedup();
@@ -186,17 +185,13 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room with alias not found."));
 	};
 
-	let mut servers: Vec<OwnedServerName> = Vec::new();
-
 	// find active servers in room state cache to suggest
-	for extra_servers in services()
+	let mut servers: Vec<OwnedServerName> = services()
 		.rooms
 		.state_cache
 		.room_servers(&room_id)
 		.filter_map(Result::ok)
-	{
-		servers.push(extra_servers);
-	}
+		.collect();
 
 	servers.sort_unstable();
 	servers.dedup();

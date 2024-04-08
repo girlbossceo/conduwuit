@@ -55,26 +55,20 @@ pub async fn join_room_by_id_route(body: Ruma<join_room_by_id::v3::Request>) -> 
 		));
 	}
 
-	let mut servers = Vec::new(); // There is no body.server_name for /roomId/join
-	servers.extend(
-		services()
-			.rooms
-			.state_cache
-			.invite_state(sender_user, &body.room_id)?
-			.unwrap_or_default()
-			.iter()
-			.filter_map(|event| serde_json::from_str(event.json().get()).ok())
-			.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-			.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
-			.filter_map(|sender| UserId::parse(sender).ok())
-			.map(|user| user.server_name().to_owned()),
-	);
+	// There is no body.server_name for /roomId/join
+	let mut servers = services()
+		.rooms
+		.state_cache
+		.invite_state(sender_user, &body.room_id)?
+		.unwrap_or_default()
+		.iter()
+		.filter_map(|event| serde_json::from_str(event.json().get()).ok())
+		.filter_map(|event: serde_json::Value| event.get("sender").cloned())
+		.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
+		.filter_map(|sender| UserId::parse(sender).ok())
+		.map(|user| user.server_name().to_owned())
+		.collect::<Vec<_>>();
 
-	// server names being permanently attached to room IDs may be potentally removed
-	// in the future (see MSC4051). for future compatibility with this, and just
-	// because it makes sense, we shouldn't fail if the room ID doesn't have a
-	// server name with it and just use at least the server name from the initial
-	// invite above
 	if let Some(server) = body.room_id.server_name() {
 		servers.push(server.into());
 	}
@@ -113,6 +107,7 @@ pub async fn join_room_by_id_or_alias_route(
 			}
 
 			let mut servers = body.server_name.clone();
+
 			servers.extend(
 				services()
 					.rooms
@@ -127,11 +122,6 @@ pub async fn join_room_by_id_or_alias_route(
 					.map(|user| user.server_name().to_owned()),
 			);
 
-			// server names being permanently attached to room IDs may be potentally removed
-			// in the future (see MSC4051). for future compatibility with this, and just
-			// because it makes sense, we shouldn't fail if the room ID doesn't have a
-			// server name with it and just use at least the server name from the initial
-			// invite above
 			if let Some(server) = room_id.server_name() {
 				servers.push(server.into());
 			}

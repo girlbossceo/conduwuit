@@ -1069,17 +1069,15 @@ impl Service {
 		let mut servers: Vec<OwnedServerName> = vec![];
 
 		// add server names of any trusted key servers if they're in the room
-		for server in services()
-			.rooms
-			.state_cache
-			.room_servers(room_id)
-			.filter_map(Result::ok)
-			.filter(|server| services().globals.trusted_servers().contains(server))
-		{
-			if server != services().globals.server_name() {
-				servers.push(server);
-			}
-		}
+		servers.extend(
+			services()
+				.rooms
+				.state_cache
+				.room_servers(room_id)
+				.filter_map(Result::ok)
+				.filter(|server| services().globals.trusted_servers().contains(server))
+				.filter(|server| server != services().globals.server_name()),
+		);
 
 		// add server names from room aliases on the room ID
 		let room_aliases = services()
@@ -1114,17 +1112,15 @@ impl Service {
 			.unwrap_or_default();
 
 		// add server names of the list of admins in the room for backfill server
-		for server in power_levels
-			.users
-			.iter()
-			.filter(|(_, level)| **level > power_levels.users_default)
-			.map(|(user_id, _)| user_id.server_name())
-			.collect::<Vec<_>>()
-		{
-			if server != services().globals.server_name() {
-				servers.push(server.to_owned());
-			}
-		}
+		servers.extend(
+			power_levels
+				.users
+				.iter()
+				.filter(|(_, level)| **level > power_levels.users_default)
+				.map(|(user_id, _)| user_id.server_name())
+				.filter(|server| server != &services().globals.server_name())
+				.map(ToOwned::to_owned),
+		);
 
 		// don't backfill from ourselves (might be noop if we checked it above already)
 		if let Some(server_index) = servers
