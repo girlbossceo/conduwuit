@@ -89,10 +89,6 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
 	fn get_pdu(&self, event_id: &EventId) -> Result<Option<Arc<PduEvent>>> {
-		if let Some(p) = self.pdu_cache.lock().unwrap().get_mut(event_id) {
-			return Ok(Some(Arc::clone(p)));
-		}
-
 		if let Some(pdu) = self
 			.get_non_outlier_pdu(event_id)?
 			.map_or_else(
@@ -106,10 +102,6 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 			)?
 			.map(Arc::new)
 		{
-			self.pdu_cache
-				.lock()
-				.unwrap()
-				.insert(event_id.to_owned(), Arc::clone(&pdu));
 			Ok(Some(pdu))
 		} else {
 			Ok(None)
@@ -166,7 +158,7 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 	}
 
 	/// Removes a pdu and creates a new one with the same id.
-	fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, pdu: &PduEvent) -> Result<()> {
+	fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, _pdu: &PduEvent) -> Result<()> {
 		if self.pduid_pdu.get(pdu_id)?.is_some() {
 			self.pduid_pdu.insert(
 				pdu_id,
@@ -175,11 +167,6 @@ impl service::rooms::timeline::Data for KeyValueDatabase {
 		} else {
 			return Err(Error::BadRequest(ErrorKind::NotFound, "PDU does not exist."));
 		}
-
-		self.pdu_cache
-			.lock()
-			.unwrap()
-			.remove(&(*pdu.event_id).to_owned());
 
 		Ok(())
 	}

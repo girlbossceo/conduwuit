@@ -1,9 +1,12 @@
-use std::sync::{atomic::AtomicU32, Arc};
+use std::{
+	collections::HashMap,
+	sync::{atomic::AtomicU32, Arc},
+};
 
 use chrono::{DateTime, Utc};
 use rust_rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
-	DBWithThreadMode as Db, MultiThreaded,
+	Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode as Db, Env, MultiThreaded, Options,
 };
 use tracing::{debug, error, info, warn};
 
@@ -20,11 +23,11 @@ use super::watchers;
 
 pub(crate) struct Engine {
 	rocks: Db<MultiThreaded>,
-	row_cache: rust_rocksdb::Cache,
-	col_cache: rust_rocksdb::Cache,
+	row_cache: Cache,
+	col_cache: HashMap<String, Cache>,
 	old_cfs: Vec<String>,
-	opts: rust_rocksdb::Options,
-	env: rust_rocksdb::Env,
+	opts: Options,
+	env: Env,
 	config: Config,
 	corks: AtomicU32,
 }
@@ -32,14 +35,17 @@ pub(crate) struct Engine {
 impl KeyValueDatabaseEngine for Arc<Engine> {
 	fn open(config: &Config) -> Result<Self> {
 		let cache_capacity_bytes = config.db_cache_capacity_mb * 1024.0 * 1024.0;
-		let row_cache_capacity_bytes = (cache_capacity_bytes * 0.25) as usize;
-		let col_cache_capacity_bytes = (cache_capacity_bytes * 0.75) as usize;
+		let row_cache_capacity_bytes = (cache_capacity_bytes * 0.50) as usize;
+		let col_cache_capacity_bytes = (cache_capacity_bytes * 0.50) as usize;
 
-		let db_env = rust_rocksdb::Env::new()?;
-		let row_cache = rust_rocksdb::Cache::new_lru_cache(row_cache_capacity_bytes);
-		let col_cache = rust_rocksdb::Cache::new_lru_cache(col_cache_capacity_bytes);
-		let db_opts = db_options(config, &db_env, &row_cache, &col_cache);
+		let mut col_cache = HashMap::new();
+		col_cache.insert("primary".to_owned(), Cache::new_lru_cache(col_cache_capacity_bytes));
 
+		let db_env = Env::new()?;
+		let row_cache = Cache::new_lru_cache(row_cache_capacity_bytes);
+		let db_opts = db_options(config, &db_env, &row_cache, col_cache.get("primary").expect("cache"));
+
+		let load_time = std::time::Instant::now();
 		if config.rocksdb_repair {
 			warn!("Starting database repair. This may take a long time...");
 			if let Err(e) = Db::<MultiThreaded>::repair(&db_opts, &config.database_path) {
@@ -53,7 +59,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		debug!("Opening {} column family descriptors in database", cfs.len());
 		let cfds = cfs
 			.iter()
-			.map(|name| rust_rocksdb::ColumnFamilyDescriptor::new(name, cf_options(name, db_opts.clone(), config)))
+			.map(|name| ColumnFamilyDescriptor::new(name, cf_options(config, name, db_opts.clone(), &mut col_cache)))
 			.collect::<Vec<_>>();
 
 		debug!("Opening database...");
@@ -63,7 +69,11 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			Db::<MultiThreaded>::open_cf_descriptors(&db_opts, &config.database_path, cfds)?
 		};
 
-		info!("Opened database at sequence number {}", db.latest_sequence_number());
+		info!(
+			"Opened database at sequence number {} in {:?}",
+			db.latest_sequence_number(),
+			load_time.elapsed()
+		);
 		Ok(Arc::new(Engine {
 			rocks: db,
 			row_cache,
@@ -91,13 +101,13 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	}
 
 	fn flush(&self) -> Result<()> {
-		rust_rocksdb::DBCommon::flush_wal(&self.rocks, false)?;
+		DBCommon::flush_wal(&self.rocks, false)?;
 
 		Ok(())
 	}
 
 	fn sync(&self) -> Result<()> {
-		rust_rocksdb::DBCommon::flush_wal(&self.rocks, true)?;
+		DBCommon::flush_wal(&self.rocks, true)?;
 
 		Ok(())
 	}
@@ -119,31 +129,34 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	}
 
 	fn memory_usage(&self) -> Result<String> {
-		let stats = rust_rocksdb::perf::get_memory_usage_stats(
-			Some(&[&self.rocks]),
-			Some(&[&self.row_cache, &self.col_cache]),
-		)?;
-		Ok(format!(
-			"Approximate memory usage of all the mem-tables: {:.3} MB\nApproximate memory usage of un-flushed \
-			 mem-tables: {:.3} MB\nApproximate memory usage of all the table readers: {:.3} MB\nApproximate memory \
-			 usage by cache: {:.3} MB\nApproximate memory usage by row cache: {:.3} MB pinned: {:.3} MB\nApproximate \
-			 memory usage by column cache: {:.3} MB pinned: {:.3} MB\n",
-			stats.mem_table_total as f64 / 1024.0 / 1024.0,
-			stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
-			stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
-			stats.cache_total as f64 / 1024.0 / 1024.0,
-			self.row_cache.get_usage() as f64 / 1024.0 / 1024.0,
-			self.row_cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
-			self.col_cache.get_usage() as f64 / 1024.0 / 1024.0,
-			self.col_cache.get_pinned_usage() as f64 / 1024.0 / 1024.0,
-		))
+		let mut res = String::new();
+		let stats = rust_rocksdb::perf::get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.row_cache]))?;
+		_ = std::fmt::write(
+			&mut res,
+			format_args!(
+				"Memory buffers: {:.2} MiB\nPending write: {:.2} MiB\nTable readers: {:.2} MiB\nRow cache: {:.2} MiB\n",
+				stats.mem_table_total as f64 / 1024.0 / 1024.0,
+				stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
+				stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
+				self.row_cache.get_usage() as f64 / 1024.0 / 1024.0,
+			),
+		);
+
+		for (name, cache) in &self.col_cache {
+			_ = std::fmt::write(
+				&mut res,
+				format_args!("{} cache: {:.2} MiB\n", name, cache.get_usage() as f64 / 1024.0 / 1024.0,),
+			);
+		}
+
+		Ok(res)
 	}
 
 	fn cleanup(&self) -> Result<()> {
 		debug!("Running flush_opt");
 		let flushoptions = rust_rocksdb::FlushOptions::default();
 
-		rust_rocksdb::DBCommon::flush_opt(&self.rocks, &flushoptions)?;
+		DBCommon::flush_opt(&self.rocks, &flushoptions)?;
 
 		Ok(())
 	}
