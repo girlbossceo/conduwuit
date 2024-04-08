@@ -138,8 +138,7 @@ impl Service {
 							.short
 							.get_or_create_shorteventid(auth_event)?;
 
-						if !found.contains(&sauthevent) {
-							found.insert(sauthevent);
+						if found.insert(sauthevent) {
 							todo.push(auth_event.clone());
 						}
 					}
