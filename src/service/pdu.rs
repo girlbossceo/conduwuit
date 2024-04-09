@@ -32,6 +32,8 @@ pub struct PduEvent {
 	pub event_id: Arc<EventId>,
 	pub room_id: OwnedRoomId,
 	pub sender: OwnedUserId,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub origin: Option<String>,
 	pub origin_server_ts: UInt,
 	#[serde(rename = "type")]
 	pub kind: TimelineEventType,
