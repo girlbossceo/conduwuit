@@ -329,9 +329,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.15.4"
+version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ff69b9dd49fd426c69a0db9fc04dd934cdb6645ff000864d98f7e2af8830eaa"
+checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "bytemuck"
@@ -364,9 +364,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.91"
+version = "1.0.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd97381a8cc6493395a5afc4c691c1084b3768db713b73aa215217aa245d153"
+checksum = "2678b2e3449475e95b0aa6f9b506a28e61b3dc8996592b983695e8ebb58a8b41"
 dependencies = [
  "jobserver",
  "libc",
@@ -914,9 +914,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.13"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a06fddc2749e0528d2813f95e050e87e52c8cbbae56223b9babf73b3e53b0cc6"
+checksum = "94b22e06ecb0110981051723910cbf0b5f5e09a2062dd7663334ee79a9d1286c"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -1916,11 +1916,11 @@ dependencies = [
 
 [[package]]
 name = "pem"
-version = "3.0.3"
+version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b8fcc794035347fb64beda2d3b462595dd2753e3f268d89c5aae77e8cf2c310"
+checksum = "8e459365e590736a54c3fa561947c84837534b8e9af6fc5bf781307e82658fae"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.0",
  "serde",
 ]
 
@@ -2257,7 +2257,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.9.4"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "assign",
  "js_int",
@@ -2277,7 +2277,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2289,7 +2289,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.17.4"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "as_variant",
  "assign",
@@ -2311,7 +2311,7 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.12.1"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "as_variant",
  "base64 0.21.7",
@@ -2341,7 +2341,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.27.11"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "as_variant",
  "indexmap",
@@ -2363,7 +2363,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2375,7 +2375,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.9.3"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "js_int",
  "thiserror",
@@ -2384,7 +2384,7 @@ dependencies = [
 [[package]]
 name = "ruma-identity-service-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2394,7 +2394,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.12.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "once_cell",
  "proc-macro-crate",
@@ -2409,7 +2409,7 @@ dependencies = [
 [[package]]
 name = "ruma-push-gateway-api"
 version = "0.8.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2421,7 +2421,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.14.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "base64 0.21.7",
  "ed25519-dalek",
@@ -2437,7 +2437,7 @@ dependencies = [
 [[package]]
 name = "ruma-state-res"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#580eefe1c6bcf6d86092840fe0b67862374bc806"
+source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#23535bc153c989b95549c7c9c317ccc18688b4f7"
 dependencies = [
  "itertools 0.11.0",
  "js_int",
