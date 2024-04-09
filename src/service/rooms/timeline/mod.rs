@@ -719,6 +719,7 @@ impl Service {
 			event_id: ruma::event_id!("$thiswillbefilledinlater").into(),
 			room_id: room_id.to_owned(),
 			sender: sender.to_owned(),
+			origin: None,
 			origin_server_ts: utils::millis_since_unix_epoch()
 				.try_into()
 				.expect("time is valid"),
