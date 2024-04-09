@@ -55,9 +55,7 @@ pub(crate) fn db_options(config: &Config, env: &Env, row_cache: &Cache, col_cach
 
 	// Files
 	opts.set_max_total_wal_size(96 * 1024 * 1024);
-	opts.set_level_zero_file_num_compaction_trigger(2);
 	set_level_defaults(&mut opts, config);
-	opts.set_ttl(14 * 24 * 60 * 60);
 
 	// Compression
 	set_compression_defaults(&mut opts, config);
@@ -191,7 +189,6 @@ fn set_for_random_small_uc(opts: &mut Options, config: &Config) {
 	set_for_random_small(opts, config);
 	opts.set_universal_compaction_options(&uco);
 	opts.set_compaction_style(DBCompactionStyle::Universal);
-	opts.set_level_zero_file_num_compaction_trigger(1);
 }
 
 fn set_for_sequential_small_uc(opts: &mut Options, config: &Config) {
@@ -199,23 +196,26 @@ fn set_for_sequential_small_uc(opts: &mut Options, config: &Config) {
 	set_for_sequential_small(opts, config);
 	opts.set_universal_compaction_options(&uco);
 	opts.set_compaction_style(DBCompactionStyle::Universal);
-	opts.set_level_zero_file_num_compaction_trigger(1);
 }
 
 fn set_for_random_small(opts: &mut Options, config: &Config) {
 	set_for_random(opts, config);
 
-	opts.set_write_buffer_size(1024 * 1024);
-	opts.set_target_file_size_base(65536);
-	opts.set_max_bytes_for_level_base(131072);
+	opts.set_write_buffer_size(1024 * 128);
+	opts.set_target_file_size_base(1024 * 128);
+	opts.set_target_file_size_multiplier(2);
+	opts.set_max_bytes_for_level_base(1024 * 512);
+	opts.set_max_bytes_for_level_multiplier(2.0);
 }
 
 fn set_for_sequential_small(opts: &mut Options, config: &Config) {
 	set_for_random(opts, config);
 
-	opts.set_write_buffer_size(1024 * 1024);
-	opts.set_target_file_size_base(65536);
-	opts.set_max_bytes_for_level_base(131072);
+	opts.set_write_buffer_size(1024 * 512);
+	opts.set_target_file_size_base(1024 * 512);
+	opts.set_target_file_size_multiplier(2);
+	opts.set_max_bytes_for_level_base(1024 * 1024);
+	opts.set_max_bytes_for_level_multiplier(2.0);
 }
 
 fn set_for_random(opts: &mut Options, config: &Config) {
@@ -246,12 +246,16 @@ fn set_for_sequential(opts: &mut Options, config: &Config) {
 }
 
 fn set_level_defaults(opts: &mut Options, _config: &Config) {
+	opts.set_level_zero_file_num_compaction_trigger(2);
+
 	opts.set_target_file_size_base(1024 * 1024);
 	opts.set_target_file_size_multiplier(2);
 
 	opts.set_level_compaction_dynamic_level_bytes(false);
-	opts.set_max_bytes_for_level_base(8 * 1024 * 1024);
+	opts.set_max_bytes_for_level_base(16 * 1024 * 1024);
 	opts.set_max_bytes_for_level_multiplier(2.0);
+
+	opts.set_ttl(21 * 24 * 60 * 60);
 }
 
 fn uc_options(_config: &Config) -> UniversalCompactOptions {
