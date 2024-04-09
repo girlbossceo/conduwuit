@@ -304,6 +304,7 @@ async fn sync_helper(
 			let event = PduEvent {
 				event_id: EventId::new(services().globals.server_name()).into(),
 				sender: sender_user.clone(),
+				origin: None,
 				origin_server_ts: utils::millis_since_unix_epoch()
 					.try_into()
 					.expect("Timestamp is valid js_int value"),
