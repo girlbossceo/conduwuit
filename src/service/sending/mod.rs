@@ -35,6 +35,8 @@ pub mod data;
 pub mod send;
 pub use send::FedDest;
 
+const SELECT_EDU_LIMIT: usize = 16;
+
 pub struct Service {
 	db: &'static dyn Data,
 
@@ -514,6 +516,10 @@ pub fn select_edus_presence(
 				.unwrap_or_else(|| uint!(0)),
 			status_msg: presence_event.content.status_msg,
 		});
+
+		if presence_updates.len() >= SELECT_EDU_LIMIT {
+			break;
+		}
 	}
 
 	let presence_content = Edu::Presence(PresenceContent::new(presence_updates));
@@ -581,7 +587,7 @@ pub fn select_edus_receipts(
 
 		events.push(serde_json::to_vec(&federation_event).expect("json can be serialized"));
 
-		if events.len() >= 20 {
+		if events.len() >= SELECT_EDU_LIMIT {
 			return Ok(false);
 		}
 	}
