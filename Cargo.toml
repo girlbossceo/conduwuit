@@ -308,6 +308,10 @@ hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d1496
     "server",
 ] } # unix socket support
 
+[target.'cfg(all(not(target_env = "msvc"), not(target_os = "macos"), target_os = "linux"))'.dependencies]
+hardened_malloc-rs = { optional = true, features = ["static", "clang", "light"], path = "../hardened_malloc-rs", default-features = false }
+#hardened_malloc-rs = { version = "0.1", optional = true, features = ["static", "clang", "light"], default-features = false }
+
 
 [features]
 default = [
@@ -342,6 +346,8 @@ perf_measurements = [
     "opentelemetry_sdk",
     "opentelemetry-jaeger",
 ]
+
+hardened_malloc = ["hardened_malloc-rs"]
 
 # client/server interopability hacks
 #

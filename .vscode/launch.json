@@ -23,11 +23,11 @@
             "args": [],
             "env": {
                 "RUST_BACKTRACE": "1",
-                "CONDUIT_CONFIG": "",
-                "CONDUIT_SERVER_NAME": "localhost",
-                "CONDUIT_DATABASE_PATH": "/tmp",
+                "CONDUIT_DATABASE_PATH": "/tmp/awawawa",
                 "CONDUIT_ADDRESS": "0.0.0.0",
-                "CONDUIT_PORT": "6167"
+                "CONDUIT_PORT": "55551",
+                "CONDUIT_SERVER_NAME": "your.server.name",
+                "CONDUIT_LOG": "debug"
             },
             "cwd": "${workspaceFolder}"
         }

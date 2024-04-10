@@ -46,6 +46,13 @@ mod routes;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+#[cfg(all(not(target_env = "msvc"), not(target_os = "macos"), feature = "hardened_malloc", target_os = "linux"))]
+use hardened_malloc_rs::HardenedMalloc;
+
+#[cfg(all(not(target_env = "msvc"), not(target_os = "macos"), feature = "hardened_malloc", target_os = "linux"))]
+#[global_allocator]
+static GLOBAL: HardenedMalloc = HardenedMalloc;
+
 struct Server {
 	config: Config,
 
