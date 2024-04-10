@@ -303,7 +303,6 @@ fn table_options(_config: &Config) -> BlockBasedOptions {
 	opts.set_block_size(4 * 1024);
 	opts.set_metadata_block_size(4 * 1024);
 
-	opts.set_bloom_filter(9.6, true);
 	opts.set_optimize_filters_for_memory(true);
 	opts.set_cache_index_and_filter_blocks(true);
 	opts.set_pin_top_level_index_and_filter(true);
