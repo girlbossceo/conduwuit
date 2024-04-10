@@ -23,13 +23,27 @@ impl KvTree for RocksDbEngineTree<'_> {
 		Ok(self.db.rocks.get_cf_opt(&self.cf(), key, &readoptions)?)
 	}
 
-	fn multi_get(
-		&self, iter: Vec<(&Arc<rust_rocksdb::BoundColumnFamily<'_>>, Vec<u8>)>,
-	) -> Vec<Result<Option<Vec<u8>>, rust_rocksdb::Error>> {
+	fn multi_get(&self, keys: &[&[u8]]) -> Result<Vec<Option<Vec<u8>>>> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
 
-		self.db.rocks.multi_get_cf_opt(iter, &readoptions)
+		// Optimization can be `true` if key vector is pre-sorted **by the column
+		// comparator**.
+		const SORTED: bool = false;
+
+		let mut ret: Vec<Option<Vec<u8>>> = Vec::with_capacity(keys.len());
+		for res in self
+			.db
+			.rocks
+			.batched_multi_get_cf_opt(&self.cf(), keys, SORTED, &readoptions)
+		{
+			match res? {
+				Some(res) => ret.push(Some((*res).to_vec())),
+				None => ret.push(None),
+			}
+		}
+
+		Ok(ret)
 	}
 
 	fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
