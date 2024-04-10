@@ -21,6 +21,38 @@ impl service::rooms::short::Data for KeyValueDatabase {
 		Ok(short)
 	}
 
+	fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Result<Vec<u64>> {
+		let mut ret: Vec<u64> = Vec::with_capacity(event_ids.len());
+		let keys = event_ids
+			.iter()
+			.map(|id| id.as_bytes())
+			.collect::<Vec<&[u8]>>();
+		for (i, short) in self
+			.eventid_shorteventid
+			.multi_get(&keys)?
+			.iter()
+			.enumerate()
+		{
+			match short {
+				Some(short) => ret.push(
+					utils::u64_from_bytes(short).map_err(|_| Error::bad_database("Invalid shorteventid in db."))?,
+				),
+				None => {
+					let short = services().globals.next_count()?;
+					self.eventid_shorteventid
+						.insert(keys[i], &short.to_be_bytes())?;
+					self.shorteventid_eventid
+						.insert(&short.to_be_bytes(), keys[i])?;
+
+					debug_assert!(ret.len() == i, "position of result must match input");
+					ret.push(short);
+				},
+			}
+		}
+
+		Ok(ret)
+	}
+
 	fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<Option<u64>> {
 		let mut statekey_vec = event_type.to_string().as_bytes().to_vec();
 		statekey_vec.push(0xFF);

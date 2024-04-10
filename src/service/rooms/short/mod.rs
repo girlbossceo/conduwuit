@@ -15,6 +15,10 @@ impl Service {
 		self.db.get_or_create_shorteventid(event_id)
 	}
 
+	pub fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Result<Vec<u64>> {
+		self.db.multi_get_or_create_shorteventid(event_ids)
+	}
+
 	pub fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<Option<u64>> {
 		self.db.get_shortstatekey(event_type, state_key)
 	}
