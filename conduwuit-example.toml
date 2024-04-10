@@ -589,6 +589,10 @@ allow_profile_lookup_federation_requests = true
 # Defaults to true.
 #allow_incoming_read_receipts = true
 
+# Config option to control whether we should send read receipts to remote servers.
+# Defaults to true.
+#allow_outgoing_read_receipts = true
+
 # Config option to control outgoing typing updates to federation. Defaults to true.
 #allow_outgoing_typing = true
 

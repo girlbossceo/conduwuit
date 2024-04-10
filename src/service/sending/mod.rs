@@ -450,7 +450,10 @@ impl Service {
 					.filter_map(Result::ok)
 					.filter(|user_id| user_id.server_name() == services().globals.server_name()),
 			);
-			if !select_edus_receipts(&room_id, since, &mut max_edu_count, &mut events)? {
+
+			if services().globals.allow_outgoing_read_receipts()
+				&& !select_edus_receipts(&room_id, since, &mut max_edu_count, &mut events)?
+			{
 				break;
 			}
 		}

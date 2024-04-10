@@ -239,6 +239,8 @@ pub struct Config {
 
 	#[serde(default = "true_fn")]
 	pub allow_incoming_read_receipts: bool,
+	#[serde(default = "true_fn")]
+	pub allow_outgoing_read_receipts: bool,
 
 	#[serde(default = "true_fn")]
 	pub allow_outgoing_typing: bool,
@@ -541,6 +543,10 @@ impl fmt::Display for Config {
 			(
 				"Allow incoming remote read receipts",
 				&self.allow_incoming_read_receipts.to_string(),
+			),
+			(
+				"Allow outgoing remote read receipts",
+				&self.allow_outgoing_read_receipts.to_string(),
 			),
 			(
 				"Block non-admin room invites (local and remote, admins can still send and receive invites)",
