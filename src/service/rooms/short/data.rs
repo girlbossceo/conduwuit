@@ -7,6 +7,8 @@ use crate::Result;
 pub trait Data: Send + Sync {
 	fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64>;
 
+	fn multi_get_or_create_shorteventid(&self, event_id: &[&EventId]) -> Result<Vec<u64>>;
+
 	fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<Option<u64>>;
 
 	fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<u64>;
