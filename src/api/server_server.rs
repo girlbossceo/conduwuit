@@ -734,7 +734,7 @@ pub async fn get_event_authorization_route(
 	let auth_chain_ids = services()
 		.rooms
 		.auth_chain
-		.get_auth_chain(room_id, vec![Arc::from(&*body.event_id)])
+		.event_ids_iter(room_id, vec![Arc::from(&*body.event_id)])
 		.await?;
 
 	Ok(get_event_authorization::v1::Response {
@@ -794,7 +794,7 @@ pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Re
 	let auth_chain_ids = services()
 		.rooms
 		.auth_chain
-		.get_auth_chain(&body.room_id, vec![Arc::from(&*body.event_id)])
+		.event_ids_iter(&body.room_id, vec![Arc::from(&*body.event_id)])
 		.await?;
 
 	Ok(get_room_state::v1::Response {
@@ -854,7 +854,7 @@ pub async fn get_room_state_ids_route(
 	let auth_chain_ids = services()
 		.rooms
 		.auth_chain
-		.get_auth_chain(&body.room_id, vec![Arc::from(&*body.event_id)])
+		.event_ids_iter(&body.room_id, vec![Arc::from(&*body.event_id)])
 		.await?;
 
 	Ok(get_room_state_ids::v1::Response {
@@ -1142,7 +1142,7 @@ async fn create_join_event(
 	let auth_chain_ids = services()
 		.rooms
 		.auth_chain
-		.get_auth_chain(room_id, state_ids.values().cloned().collect())
+		.event_ids_iter(room_id, state_ids.values().cloned().collect())
 		.await?;
 
 	services().sending.send_pdu_room(room_id, &pdu_id)?;
