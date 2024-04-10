@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 use crate::Result;
 
@@ -6,11 +6,13 @@ pub(crate) trait KvTree: Send + Sync {
 	fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
 
 	#[allow(dead_code)]
-	#[cfg(feature = "rocksdb")]
-	fn multi_get(
-		&self, _iter: Vec<(&Arc<rust_rocksdb::BoundColumnFamily<'_>>, Vec<u8>)>,
-	) -> Vec<Result<Option<Vec<u8>>, rust_rocksdb::Error>> {
-		unimplemented!()
+	fn multi_get(&self, keys: &[&[u8]]) -> Result<Vec<Option<Vec<u8>>>> {
+		let mut ret: Vec<Option<Vec<u8>>> = Vec::with_capacity(keys.len());
+		for key in keys {
+			ret.push(self.get(key)?);
+		}
+
+		Ok(ret)
 	}
 
 	fn insert(&self, key: &[u8], value: &[u8]) -> Result<()>;
