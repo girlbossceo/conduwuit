@@ -474,6 +474,7 @@ dependencies = [
  "either",
  "figment",
  "futures-util",
+ "hardened_malloc-rs",
  "hickory-resolver",
  "hmac",
  "http 0.2.12",
@@ -965,6 +966,10 @@ dependencies = [
  "tokio-util",
  "tracing",
 ]
+
+[[package]]
+name = "hardened_malloc-rs"
+version = "0.1.0+12"
 
 [[package]]
 name = "hashbrown"
