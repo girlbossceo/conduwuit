@@ -299,6 +299,8 @@ impl Service<'_> {
 
 	pub fn allow_incoming_read_receipts(&self) -> bool { self.config.allow_incoming_read_receipts }
 
+	pub fn allow_outgoing_read_receipts(&self) -> bool { self.config.allow_outgoing_read_receipts }
+
 	pub fn rocksdb_log_level(&self) -> &String { &self.config.rocksdb_log_level }
 
 	pub fn rocksdb_max_log_file_size(&self) -> usize { self.config.rocksdb_max_log_file_size }
