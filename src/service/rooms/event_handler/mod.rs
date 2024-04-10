@@ -578,7 +578,7 @@ impl Service {
 						services()
 							.rooms
 							.auth_chain
-							.get_auth_chain(room_id, starting_events)
+							.event_ids_iter(room_id, starting_events)
 							.await?
 							.collect(),
 					);
@@ -909,7 +909,7 @@ impl Service {
 				services()
 					.rooms
 					.auth_chain
-					.get_auth_chain(room_id, state.iter().map(|(_, id)| id.clone()).collect())
+					.event_ids_iter(room_id, state.iter().map(|(_, id)| id.clone()).collect())
 					.await?
 					.collect(),
 			);

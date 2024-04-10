@@ -104,7 +104,7 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 				let count = services()
 					.rooms
 					.auth_chain
-					.get_auth_chain(room_id, vec![event_id])
+					.event_ids_iter(room_id, vec![event_id])
 					.await?
 					.count();
 				let elapsed = start.elapsed();
