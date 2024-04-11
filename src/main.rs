@@ -24,8 +24,6 @@ use ruma::api::client::{
 	error::{Error as RumaError, ErrorBody, ErrorKind},
 	uiaa::UiaaResponse,
 };
-#[cfg(all(not(target_env = "msvc"), feature = "jemalloc", not(feature = "hardened_malloc")))]
-use tikv_jemallocator::Jemalloc;
 use tokio::{
 	signal,
 	sync::oneshot::{self, Sender},
@@ -44,16 +42,7 @@ mod routes;
 
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc", not(feature = "hardened_malloc")))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
-
-#[cfg(all(
-	not(target_env = "msvc"),
-	not(target_os = "macos"),
-	not(feature = "jemalloc"),
-	feature = "hardened_malloc",
-	target_os = "linux"
-))]
-use hardened_malloc_rs::HardenedMalloc;
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[cfg(all(
 	not(target_env = "msvc"),
@@ -63,7 +52,7 @@ use hardened_malloc_rs::HardenedMalloc;
 	not(feature = "jemalloc")
 ))]
 #[global_allocator]
-static GLOBAL: HardenedMalloc = HardenedMalloc;
+static GLOBAL: hardened_malloc_rs::HardenedMalloc = hardened_malloc_rs::HardenedMalloc;
 
 struct Server {
 	config: Config,
