@@ -118,6 +118,48 @@ jobs:
           path: target/debian/*.deb
           if-no-files-found: error
 
+      - name: Build static-x86_64-unknown-linux-musl-jemalloc and Create static deb-x86_64-unknown-linux-musl-jemalloc
+        run: |
+          ./bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl-jemalloc
+          mkdir -p target/release
+          cp -v -f result/bin/conduit target/release
+          direnv exec . cargo deb --no-build
+
+      - name: Upload artifact static-x86_64-unknown-linux-musl-jemalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-x86_64-unknown-linux-musl-jemalloc
+          path: result/bin/conduit
+          if-no-files-found: error
+
+      - name: Upload artifact deb-x86_64-unknown-linux-musl-jemalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-unknown-linux-musl-jemalloc.deb
+          path: target/debian/*.deb
+          if-no-files-found: error
+
+      - name: Build static-x86_64-unknown-linux-musl-hmalloc and Create static deb-x86_64-unknown-linux-musl-hmalloc
+        run: |
+          ./bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl-hmalloc
+          mkdir -p target/release
+          cp -v -f result/bin/conduit target/release
+          direnv exec . cargo deb --no-build
+
+      - name: Upload artifact static-x86_64-unknown-linux-musl-hmalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-x86_64-unknown-linux-musl-hmalloc
+          path: result/bin/conduit
+          if-no-files-found: error
+
+      - name: Upload artifact deb-x86_64-unknown-linux-musl-hmalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-unknown-linux-musl-hmalloc.deb
+          path: target/debian/*.deb
+          if-no-files-found: error
+
 
       - name: Build static-aarch64-unknown-linux-musl
         run: |
@@ -127,6 +169,28 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: static-aarch64-unknown-linux-musl
+          path: result/bin/conduit
+          if-no-files-found: error
+
+      - name: Build static-aarch64-unknown-linux-musl-jemalloc
+        run: |
+          ./bin/nix-build-and-cache .#static-aarch64-unknown-linux-musl-jemalloc
+
+      - name: Upload artifact static-aarch64-unknown-linux-musl-jemalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-aarch64-unknown-linux-musl-jemalloc
+          path: result/bin/conduit
+          if-no-files-found: error
+
+      - name: Build static-aarch64-unknown-linux-musl-hmalloc
+        run: |
+          ./bin/nix-build-and-cache .#static-aarch64-unknown-linux-musl-hmalloc
+
+      - name: Upload artifact static-aarch64-unknown-linux-musl-hmalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-aarch64-unknown-linux-musl-hmalloc
           path: result/bin/conduit
           if-no-files-found: error
 
@@ -145,6 +209,34 @@ jobs:
           # don't compress again
           compression-level: 0
 
+      - name: Build oci-image-x86_64-unknown-linux-gnu-jemalloc
+        run: |
+          ./bin/nix-build-and-cache .#oci-image-jemalloc
+          cp -v -f result oci-image-amd64.tar.gz
+
+      - name: Upload artifact oci-image-x86_64-unknown-linux-gnu-jemalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-image-x86_64-unknown-linux-gnu-jemalloc
+          path: oci-image-amd64.tar.gz
+          if-no-files-found: error
+          # don't compress again
+          compression-level: 0
+
+      - name: Build oci-image-x86_64-unknown-linux-gnu-hmalloc
+        run: |
+          ./bin/nix-build-and-cache .#oci-image-hmalloc
+          cp -v -f result oci-image-amd64.tar.gz
+
+      - name: Upload artifact oci-image-x86_64-unknown-linux-gnu-hmalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-image-x86_64-unknown-linux-gnu-hmalloc
+          path: oci-image-amd64.tar.gz
+          if-no-files-found: error
+          # don't compress again
+          compression-level: 0
+
 
       - name: Build oci-image-aarch64-unknown-linux-musl
         run: |
@@ -155,6 +247,34 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: oci-image-aarch64-unknown-linux-musl
+          path: oci-image-arm64v8.tar.gz
+          if-no-files-found: error
+          # don't compress again
+          compression-level: 0
+
+      - name: Build oci-image-aarch64-unknown-linux-musl-jemalloc
+        run: |
+          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-jemalloc
+          cp -v -f result oci-image-arm64v8.tar.gz
+
+      - name: Upload artifact oci-image-aarch64-unknown-linux-musl-jemalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-image-aarch64-unknown-linux-musl-jemalloc
+          path: oci-image-arm64v8.tar.gz
+          if-no-files-found: error
+          # don't compress again
+          compression-level: 0
+
+      - name: Build oci-image-aarch64-unknown-linux-musl-hmalloc
+        run: |
+          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-hmalloc
+          cp -v -f result oci-image-arm64v8.tar.gz
+
+      - name: Upload artifact oci-image-aarch64-unknown-linux-musl-hmalloc
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-image-aarch64-unknown-linux-musl-hmalloc
           path: oci-image-arm64v8.tar.gz
           if-no-files-found: error
           # don't compress again
