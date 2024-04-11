@@ -7,7 +7,7 @@ authors = [
     "timokoesters <timo@koesters.xyz>",
 ]
 homepage = "https://puppygock.gay/conduwuit"
-repository = "https://gitlab.com/girlbossceo/conduwuit"
+repository = "https://github.com/girlbossceo/conduwuit"
 readme = "README.md"
 version = "0.7.0+conduwuit-0.1.14"
 edition = "2021"
@@ -113,7 +113,7 @@ version = "1.0.197"
 features = ["rc"]
 # Used for appservice registration files
 [dependencies.serde_yaml]
-version = "0.9.33"
+version = "0.9.34"
 # Used for ruma wrapper
 [dependencies.serde_json]
 version = "1.0.115"
@@ -232,7 +232,7 @@ default-features = false
 
 # Used for reading the configuration from conduit.toml & environment variables
 [dependencies.figment]
-version = "0.10.15"
+version = "0.10.16"
 features = ["env", "toml"]
 
 # Used for matrix spec type definitions and helpers
