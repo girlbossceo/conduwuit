@@ -74,6 +74,8 @@
 
       env = pkgs: {
         CONDUIT_VERSION_EXTRA = self.shortRev or self.dirtyShortRev;
+        # Debian makes builds reproducible through using the HEAD commit's date
+        TIMESTAMP = self.lastModified;
         ROCKSDB_INCLUDE_DIR = "${rocksdb' pkgs}/include";
         ROCKSDB_LIB_DIR = "${rocksdb' pkgs}/lib";
       }
@@ -233,6 +235,7 @@
         pkgs.dockerTools.buildImage {
           name = package.pname;
           tag = "main";
+          created = "${env.TIMESTAMP}";
           copyToRoot = [
             pkgs.dockerTools.caCertificates
           ];
@@ -253,6 +256,7 @@
           pkgs.dockerTools.buildImage {
             name = "${package.pname}-jemalloc";
             tag = "main";
+            created = "${env.TIMESTAMP}";
             copyToRoot = [
               pkgs.dockerTools.caCertificates
             ];
@@ -271,8 +275,9 @@
 
           mkOciImageHMalloc = pkgs: packageHMalloc:
             pkgs.dockerTools.buildImage {
-            name = "${package.pname}-hmalloc";
+              name = "${package.pname}-hmalloc";
               tag = "main";
+              created = "${env.TIMESTAMP}";
               copyToRoot = [
                 pkgs.dockerTools.caCertificates
               ];
