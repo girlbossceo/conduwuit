@@ -59,15 +59,21 @@ pub async fn join_room_by_id_route(body: Ruma<join_room_by_id::v3::Request>) -> 
 	let mut servers = services()
 		.rooms
 		.state_cache
-		.invite_state(sender_user, &body.room_id)?
-		.unwrap_or_default()
-		.iter()
-		.filter_map(|event| serde_json::from_str(event.json().get()).ok())
-		.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-		.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
-		.filter_map(|sender| UserId::parse(sender).ok())
-		.map(|user| user.server_name().to_owned())
-		.collect::<Vec<_>>();
+		.servers_invite_via(&body.room_id)?
+		.unwrap_or(
+			services()
+				.rooms
+				.state_cache
+				.invite_state(sender_user, &body.room_id)?
+				.unwrap_or_default()
+				.iter()
+				.filter_map(|event| serde_json::from_str(event.json().get()).ok())
+				.filter_map(|event: serde_json::Value| event.get("sender").cloned())
+				.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
+				.filter_map(|sender| UserId::parse(sender).ok())
+				.map(|user| user.server_name().to_owned())
+				.collect::<Vec<_>>(),
+		);
 
 	if let Some(server) = body.room_id.server_name() {
 		servers.push(server.into());
@@ -112,14 +118,21 @@ pub async fn join_room_by_id_or_alias_route(
 				services()
 					.rooms
 					.state_cache
-					.invite_state(sender_user, &room_id)?
-					.unwrap_or_default()
-					.iter()
-					.filter_map(|event| serde_json::from_str(event.json().get()).ok())
-					.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-					.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
-					.filter_map(|sender| UserId::parse(sender).ok())
-					.map(|user| user.server_name().to_owned()),
+					.servers_invite_via(&room_id)?
+					.unwrap_or(
+						services()
+							.rooms
+							.state_cache
+							.invite_state(sender_user, &room_id)?
+							.unwrap_or_default()
+							.iter()
+							.filter_map(|event| serde_json::from_str(event.json().get()).ok())
+							.filter_map(|event: serde_json::Value| event.get("sender").cloned())
+							.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
+							.filter_map(|sender| UserId::parse(sender).ok())
+							.map(|user| user.server_name().to_owned())
+							.collect(),
+					),
 			);
 
 			if let Some(server) = room_id.server_name() {
@@ -1328,6 +1341,7 @@ pub(crate) async fn invite_helper(
 					room_version: room_version_id.clone(),
 					event: PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
 					invite_room_state,
+					via: services().rooms.state_cache.servers_route_via(room_id).ok(),
 				},
 			)
 			.await?;
@@ -1483,18 +1497,15 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 			.map_or_else(|| services().rooms.state_cache.left_state(user_id, room_id), |s| Ok(Some(s)))?;
 
 		// We always drop the invite, we can't rely on other servers
-		services()
-			.rooms
-			.state_cache
-			.update_membership(
-				room_id,
-				user_id,
-				RoomMemberEventContent::new(MembershipState::Leave),
-				user_id,
-				last_state,
-				true,
-			)
-			.await?;
+		services().rooms.state_cache.update_membership(
+			room_id,
+			user_id,
+			RoomMemberEventContent::new(MembershipState::Leave),
+			user_id,
+			last_state,
+			None,
+			true,
+		)?;
 	} else {
 		let mutex_state = Arc::clone(
 			services()
@@ -1518,18 +1529,15 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 			None => {
 				error!("Trying to leave a room you are not a member of.");
 
-				services()
-					.rooms
-					.state_cache
-					.update_membership(
-						room_id,
-						user_id,
-						RoomMemberEventContent::new(MembershipState::Leave),
-						user_id,
-						None,
-						true,
-					)
-					.await?;
+				services().rooms.state_cache.update_membership(
+					room_id,
+					user_id,
+					RoomMemberEventContent::new(MembershipState::Leave),
+					user_id,
+					None,
+					None,
+					true,
+				)?;
 				return Ok(());
 			},
 			Some(e) => e,
@@ -1573,14 +1581,21 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		.invite_state(user_id, room_id)?
 		.ok_or(Error::BadRequest(ErrorKind::BadState, "User is not invited."))?;
 
-	let servers: HashSet<_> = invite_state
-		.iter()
-		.filter_map(|event| serde_json::from_str(event.json().get()).ok())
-		.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-		.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
-		.filter_map(|sender| UserId::parse(sender).ok())
-		.map(|user| user.server_name().to_owned())
-		.collect();
+	let servers: HashSet<OwnedServerName> = services()
+		.rooms
+		.state_cache
+		.servers_invite_via(room_id)?
+		.map_or(
+			invite_state
+				.iter()
+				.filter_map(|event| serde_json::from_str(event.json().get()).ok())
+				.filter_map(|event: serde_json::Value| event.get("sender").cloned())
+				.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
+				.filter_map(|sender| UserId::parse(sender).ok())
+				.map(|user| user.server_name().to_owned())
+				.collect::<HashSet<OwnedServerName>>(),
+			HashSet::from_iter,
+		);
 
 	for remote_server in servers {
 		let make_leave_response = services()

@@ -481,11 +481,15 @@ impl Service {
 
 					// Update our membership info, we do this here incase a user is invited
 					// and immediately leaves we need the DB to record the invite event for auth
-					services()
-						.rooms
-						.state_cache
-						.update_membership(&pdu.room_id, &target_user_id, content, &pdu.sender, invite_state, true)
-						.await?;
+					services().rooms.state_cache.update_membership(
+						&pdu.room_id,
+						&target_user_id,
+						content,
+						&pdu.sender,
+						invite_state,
+						None,
+						true,
+					)?;
 				}
 			},
 			TimelineEventType::RoomMessage => {
