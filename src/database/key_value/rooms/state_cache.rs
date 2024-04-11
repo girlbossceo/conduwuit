@@ -1,5 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
+use itertools::Itertools;
 use ruma::{
 	events::{AnyStrippedStateEvent, AnySyncStateEvent},
 	serde::Raw,
@@ -25,7 +26,11 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 	}
 
 	fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
-		let mut roomuser_id = room_id.as_bytes().to_vec();
+		let roomid = room_id.as_bytes().to_vec();
+		let mut roomid_prefix = room_id.as_bytes().to_vec();
+		roomid_prefix.push(0xFF);
+
+		let mut roomuser_id = roomid_prefix.clone();
 		roomuser_id.push(0xFF);
 		roomuser_id.extend_from_slice(user_id.as_bytes());
 
@@ -40,11 +45,24 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 		self.userroomid_leftstate.remove(&userroom_id)?;
 		self.roomuserid_leftcount.remove(&roomuser_id)?;
 
+		if self
+			.roomuserid_joined
+			.scan_prefix(roomid_prefix.clone())
+			.count() == 0
+			&& self
+				.roomuserid_invitecount
+				.scan_prefix(roomid_prefix)
+				.count() == 0
+		{
+			self.roomid_inviteviaservers.remove(&roomid)?;
+		}
+
 		Ok(())
 	}
 
 	fn mark_as_invited(
 		&self, user_id: &UserId, room_id: &RoomId, last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
+		invite_via: Option<Vec<OwnedServerName>>,
 	) -> Result<()> {
 		let mut roomuser_id = room_id.as_bytes().to_vec();
 		roomuser_id.push(0xFF);
@@ -65,12 +83,31 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 		self.userroomid_leftstate.remove(&userroom_id)?;
 		self.roomuserid_leftcount.remove(&roomuser_id)?;
 
+		if let Some(servers) = invite_via {
+			let mut prev_servers = self.servers_invite_via(room_id)?.unwrap_or(Vec::new());
+			#[allow(clippy::redundant_clone)] // this is a necessary clone?
+			prev_servers.append(servers.clone().as_mut());
+			let servers = prev_servers.iter().rev().unique().rev().collect_vec();
+
+			let servers = servers
+				.iter()
+				.map(|server| server.as_bytes())
+				.collect_vec()
+				.join(&[0xFF][..]);
+
+			self.roomid_inviteviaservers
+				.insert(room_id.as_bytes(), &servers)?;
+		}
+
 		Ok(())
 	}
 
 	fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
-		let mut roomuser_id = room_id.as_bytes().to_vec();
-		roomuser_id.push(0xFF);
+		let roomid = room_id.as_bytes().to_vec();
+		let mut roomid_prefix = room_id.as_bytes().to_vec();
+		roomid_prefix.push(0xFF);
+
+		let mut roomuser_id = roomid_prefix.clone();
 		roomuser_id.extend_from_slice(user_id.as_bytes());
 
 		let mut userroom_id = user_id.as_bytes().to_vec();
@@ -87,6 +124,18 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 		self.roomuserid_joined.remove(&roomuser_id)?;
 		self.userroomid_invitestate.remove(&userroom_id)?;
 		self.roomuserid_invitecount.remove(&roomuser_id)?;
+
+		if self
+			.roomuserid_joined
+			.scan_prefix(roomid_prefix.clone())
+			.count() == 0
+			&& self
+				.roomuserid_invitecount
+				.scan_prefix(roomid_prefix)
+				.count() == 0
+		{
+			self.roomid_inviteviaservers.remove(&roomid)?;
+		}
 
 		Ok(())
 	}
@@ -536,5 +585,39 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
 		Ok(self.userroomid_leftstate.get(&userroom_id)?.is_some())
+	}
+
+	#[tracing::instrument(skip(self))]
+	fn servers_invite_via(&self, room_id: &RoomId) -> Result<Option<Vec<OwnedServerName>>> {
+		let room_id = room_id.as_bytes().to_vec();
+
+		self.roomid_inviteviaservers
+			.get(&room_id)?
+			.map(|servers| {
+				let state = serde_json::from_slice(&servers)
+					.map_err(|_| Error::bad_database("Invalid state in userroomid_leftstate."))?;
+
+				Ok(state)
+			})
+			.transpose()
+	}
+
+	#[tracing::instrument(skip(self))]
+	fn add_servers_invite_via(&self, room_id: &RoomId, servers: &[OwnedServerName]) -> Result<()> {
+		let mut prev_servers = self.servers_invite_via(room_id)?.unwrap_or(Vec::new());
+		prev_servers.append(servers.to_owned().as_mut());
+
+		let servers = prev_servers.iter().rev().unique().rev().collect_vec();
+
+		let servers = servers
+			.iter()
+			.map(|server| server.as_bytes())
+			.collect_vec()
+			.join(&[0xFF][..]);
+
+		self.roomid_inviteviaservers
+			.insert(room_id.as_bytes(), &servers)?;
+
+		Ok(())
 	}
 }

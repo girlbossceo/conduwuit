@@ -51,6 +51,8 @@ pub struct KeyValueDatabase {
 	pub(super) global: Arc<dyn KvTree>,
 	pub(super) server_signingkeys: Arc<dyn KvTree>,
 
+	pub(super) roomid_inviteviaservers: Arc<dyn KvTree>,
+
 	//pub users: users::Users,
 	pub(super) userid_password: Arc<dyn KvTree>,
 	pub(super) userid_displayname: Arc<dyn KvTree>,
@@ -341,6 +343,8 @@ impl KeyValueDatabase {
 			senderkey_pusher: builder.open_tree("senderkey_pusher")?,
 			global: builder.open_tree("global")?,
 			server_signingkeys: builder.open_tree("server_signingkeys")?,
+
+			roomid_inviteviaservers: builder.open_tree("roomid_inviteviaservers")?,
 
 			auth_chain_cache: Mutex::new(LruCache::new(
 				(f64::from(config.auth_chain_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,

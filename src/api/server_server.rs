@@ -1253,6 +1253,12 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 		));
 	}
 
+	if let Some(via) = &body.via {
+		if via.is_empty() {
+			return Err(Error::BadRequest(ErrorKind::InvalidParam, "via field must not be empty."));
+		}
+	}
+
 	let mut signed_event = utils::to_canonical_object(&body.event).map_err(|e| {
 		error!("Failed to convert invite event to canonical JSON: {}", e);
 		Error::BadRequest(ErrorKind::InvalidParam, "Invite event is invalid.")
@@ -1339,18 +1345,15 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 		.state_cache
 		.server_in_room(services().globals.server_name(), &body.room_id)?
 	{
-		services()
-			.rooms
-			.state_cache
-			.update_membership(
-				&body.room_id,
-				&invited_user,
-				RoomMemberEventContent::new(MembershipState::Invite),
-				&sender,
-				Some(invite_state),
-				true,
-			)
-			.await?;
+		services().rooms.state_cache.update_membership(
+			&body.room_id,
+			&invited_user,
+			RoomMemberEventContent::new(MembershipState::Invite),
+			&sender,
+			Some(invite_state),
+			body.via.clone(),
+			true,
+		)?;
 	}
 
 	Ok(create_invite::v2::Response {

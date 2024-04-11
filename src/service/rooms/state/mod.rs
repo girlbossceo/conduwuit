@@ -68,11 +68,15 @@ impl Service {
 						continue;
 					};
 
-					services()
-						.rooms
-						.state_cache
-						.update_membership(room_id, &user_id, membership_event, &pdu.sender, None, false)
-						.await?;
+					services().rooms.state_cache.update_membership(
+						room_id,
+						&user_id,
+						membership_event,
+						&pdu.sender,
+						None,
+						None,
+						false,
+					)?;
 				},
 				TimelineEventType::SpaceChild => {
 					services()

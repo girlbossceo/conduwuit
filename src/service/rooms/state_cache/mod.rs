@@ -1,6 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 pub use data::Data;
+use itertools::Itertools;
 use ruma::{
 	events::{
 		direct::DirectEvent,
@@ -8,13 +9,15 @@ use ruma::{
 		room::{
 			create::RoomCreateEventContent,
 			member::{MembershipState, RoomMemberEventContent},
+			power_levels::RoomPowerLevelsEventContent,
 		},
 		AnyStrippedStateEvent, AnySyncStateEvent, GlobalAccountDataEventType, RoomAccountDataEventType, StateEventType,
 	},
+	int,
 	serde::Raw,
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
-use tracing::warn;
+use tracing::{error, warn};
 
 use crate::{service::appservice::RegistrationInfo, services, Error, Result};
 
@@ -27,9 +30,11 @@ pub struct Service {
 impl Service {
 	/// Update current membership data.
 	#[tracing::instrument(skip(self, last_state))]
-	pub async fn update_membership(
+	#[allow(clippy::too_many_arguments)]
+	pub fn update_membership(
 		&self, room_id: &RoomId, user_id: &UserId, membership_event: RoomMemberEventContent, sender: &UserId,
-		last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>, update_joined_count: bool,
+		last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>, invite_via: Option<Vec<OwnedServerName>>,
+		update_joined_count: bool,
 	) -> Result<()> {
 		let membership = membership_event.membership;
 
@@ -188,7 +193,8 @@ impl Service {
 					return Ok(());
 				}
 
-				self.db.mark_as_invited(user_id, room_id, last_state)?;
+				self.db
+					.mark_as_invited(user_id, room_id, last_state, invite_via)?;
 			},
 			MembershipState::Leave | MembershipState::Ban => {
 				self.db.mark_as_left(user_id, room_id)?;
@@ -344,4 +350,63 @@ impl Service {
 
 	#[tracing::instrument(skip(self))]
 	pub fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> { self.db.is_left(user_id, room_id) }
+
+	#[tracing::instrument(skip(self))]
+	pub fn servers_invite_via(&self, room_id: &RoomId) -> Result<Option<Vec<OwnedServerName>>> {
+		self.db.servers_invite_via(room_id)
+	}
+
+	/// Gets up to three servers that are likely to be in the room in the
+	/// distant future.
+	///
+	/// See https://spec.matrix.org/v1.10/appendices/#routing
+	#[tracing::instrument(skip(self))]
+	pub fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
+		let most_powerful_user_server = services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
+			.map(|pdu| {
+				serde_json::from_str(pdu.content.get()).map(|conent: RoomPowerLevelsEventContent| {
+					conent
+						.users
+						.iter()
+						.max_by_key(|(_, power)| *power)
+						.and_then(|x| {
+							if x.1 >= &int!(50) {
+								Some(x)
+							} else {
+								None
+							}
+						})
+						.map(|(user, _power)| user.server_name().to_owned())
+				})
+			})
+			.transpose()
+			.map_err(|e| {
+				error!("Invalid power levels event content in database: {e}");
+				Error::bad_database("Invalid power levels event content in database")
+			})?
+			.flatten();
+
+		let mut servers: Vec<OwnedServerName> = services()
+			.rooms
+			.state_cache
+			.room_members(room_id)
+			.filter_map(Result::ok)
+			.counts_by(|user| user.server_name().to_owned())
+			.iter()
+			.sorted_by_key(|(_, users)| *users)
+			.map(|(server, _)| server.to_owned())
+			.rev()
+			.take(3)
+			.collect_vec();
+
+		if let Some(server) = most_powerful_user_server {
+			servers.insert(0, server);
+			servers.truncate(3);
+		}
+
+		Ok(servers)
+	}
 }
