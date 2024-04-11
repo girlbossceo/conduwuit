@@ -125,15 +125,11 @@ impl Service<'_> {
 			RoomVersionId::V8,
 			RoomVersionId::V9,
 			RoomVersionId::V10,
-		];
-		// Experimental, partially supported room versions
-		let unstable_room_versions = vec![
-			RoomVersionId::V2,
-			RoomVersionId::V3,
-			RoomVersionId::V4,
-			RoomVersionId::V5,
 			RoomVersionId::V11,
 		];
+		// Experimental, partially supported room versions
+		let unstable_room_versions = vec![RoomVersionId::V2, RoomVersionId::V3, RoomVersionId::V4, RoomVersionId::V5];
+
 		// 19456 Kib blocks, iterations = 2, parallelism = 1 for more info https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
 		let argon = Argon2::new(
 			argon2::Algorithm::Argon2id,
