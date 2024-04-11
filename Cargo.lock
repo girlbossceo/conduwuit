@@ -2482,6 +2482,7 @@ dependencies = [
  "libz-sys",
  "lz4-sys",
  "pkg-config",
+ "tikv-jemalloc-sys",
  "zstd-sys",
 ]
 

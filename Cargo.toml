@@ -326,12 +326,11 @@ default = [
     "gzip_compression",
     "brotli_compression",
     "zstd_compression",
-    "hardened_malloc",
 ]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
 rocksdb = ["rust-rocksdb", "num_cpus"]
-jemalloc = ["tikv-jemalloc-ctl", "tikv-jemallocator"]
+jemalloc = ["tikv-jemalloc-ctl", "tikv-jemallocator", "rust-rocksdb/jemalloc"]
 sqlite = ["rusqlite", "parking_lot", "thread_local", "num_cpus"]
 systemd = ["sd-notify"]
 sentry_telemetry = ["sentry", "sentry-tracing", "sentry-tower"]

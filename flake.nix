@@ -41,7 +41,7 @@
         let
           version = "9.0.0";
         in
-        pkgs.rocksdb.overrideAttrs (old: {
+        (pkgs.rocksdb.overrideAttrs (old: {
           inherit version;
           src = pkgs.fetchFromGitHub {
             owner = "girlbossceo";
@@ -49,7 +49,7 @@
             rev = "449768a833b79c267c584b5ab1d50e73db6faf9d";
             hash = "sha256-MjmGfAlZ5WC2+hFH6nEUprqBjO8xiTQh2HJIqQ5mIg8=";
           };
-        });
+        }));
 
       # Nix-accessible `Cargo.toml`
       cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
@@ -185,6 +185,50 @@
         meta.mainProgram = cargoToml.package.name;
       };
 
+      packageJemalloc = pkgs: builder pkgs {
+        src = nix-filter {
+          root = ./.;
+          include = [
+            "src"
+            "Cargo.toml"
+            "Cargo.lock"
+          ];
+        };
+
+        rocksdb' = pkgs.rocksdb.override { enableJemalloc = true; };
+
+        # This is redundant with CI
+        doCheck = false;
+
+        env = env pkgs;
+        nativeBuildInputs = nativeBuildInputs pkgs;
+
+        meta.mainProgram = cargoToml.package.name;
+
+        buildFeatures = [ "jemalloc" ];
+      };
+
+      packageHMalloc = pkgs: builder pkgs {
+        src = nix-filter {
+          root = ./.;
+          include = [
+            "src"
+            "Cargo.toml"
+            "Cargo.lock"
+          ];
+        };
+
+        # This is redundant with CI
+        doCheck = false;
+
+        env = env pkgs;
+        nativeBuildInputs = nativeBuildInputs pkgs;
+
+        meta.mainProgram = cargoToml.package.name;
+
+        buildFeatures = [ "hardened_malloc" ];
+      };
+
       mkOciImage = pkgs: package:
         pkgs.dockerTools.buildImage {
           name = package.pname;
@@ -204,11 +248,55 @@
             ];
           };
         };
+
+        mkOciImageJemalloc = pkgs: packageJemalloc:
+          pkgs.dockerTools.buildImage {
+            name = "${package.pname}-jemalloc";
+            tag = "main";
+            copyToRoot = [
+              pkgs.dockerTools.caCertificates
+            ];
+            config = {
+              # Use the `tini` init system so that signals (e.g. ctrl+c/SIGINT)
+              # are handled as expected
+              Entrypoint = [
+                "${pkgs.lib.getExe' pkgs.tini "tini"}"
+                "--"
+              ];
+              Cmd = [
+                "${pkgs.lib.getExe package}"
+              ];
+            };
+          };
+
+          mkOciImageHMalloc = pkgs: packageHMalloc:
+            pkgs.dockerTools.buildImage {
+            name = "${package.pname}-hmalloc";
+              tag = "main";
+              copyToRoot = [
+                pkgs.dockerTools.caCertificates
+              ];
+              config = {
+                # Use the `tini` init system so that signals (e.g. ctrl+c/SIGINT)
+                # are handled as expected
+                Entrypoint = [
+                  "${pkgs.lib.getExe' pkgs.tini "tini"}"
+                  "--"
+                ];
+                Cmd = [
+                  "${pkgs.lib.getExe package}"
+                ];
+              };
+            };
     in
     {
       packages = {
         default = package pkgsHost;
+        jemalloc = packageJemalloc pkgsHost;
+        hmalloc = packageHMalloc pkgsHost;
         oci-image = mkOciImage pkgsHost self.packages.${system}.default;
+        oci-image-jemalloc = mkOciImageJemalloc pkgsHost self.packages.${system}.default;
+        oci-image-hmalloc = mkOciImageHMalloc pkgsHost self.packages.${system}.default;
 
         book =
           let
@@ -261,6 +349,18 @@
                   value = package pkgsCrossStatic;
                 }
 
+                # An output for a statically-linked binary with jemalloc
+                {
+                  name = "${binaryName}-jemalloc";
+                  value = packageJemalloc pkgsCrossStatic;
+                }
+
+                # An output for a statically-linked binary with hardened_malloc
+                {
+                  name = "${binaryName}-hmalloc";
+                  value = packageHMalloc pkgsCrossStatic;
+                }
+
                 # An output for an OCI image based on that binary
                 {
                   name = "oci-image-${crossSystem}";
@@ -268,11 +368,31 @@
                     pkgsCrossStatic
                     self.packages.${system}.${binaryName};
                 }
+
+                # An output for an OCI image based on that binary with jemalloc
+                {
+                  name = "oci-image-${crossSystem}-jemalloc";
+                  value = mkOciImageJemalloc
+                    pkgsCrossStatic
+                    self.packages.${system}.${binaryName};
+                }
+
+                # An output for an OCI image based on that binary with hardened_malloc
+                {
+                  name = "oci-image-${crossSystem}-hmalloc";
+                  value = mkOciImageHMalloc
+                    pkgsCrossStatic
+                    self.packages.${system}.${binaryName};
+                }
               ]
             )
             [
               "x86_64-unknown-linux-musl"
+              "x86_64-unknown-linux-musl-jemalloc"
+              "x86_64-unknown-linux-musl-hmalloc"
               "aarch64-unknown-linux-musl"
+              "aarch64-unknown-linux-musl-jemalloc"
+              "aarch64-unknown-linux-musl-hmalloc"
             ]
           )
         );
