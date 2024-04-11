@@ -24,7 +24,7 @@ use ruma::api::client::{
 	error::{Error as RumaError, ErrorBody, ErrorKind},
 	uiaa::UiaaResponse,
 };
-#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
+#[cfg(all(not(target_env = "msvc"), feature = "jemalloc", not(feature = "hardened_malloc")))]
 use tikv_jemallocator::Jemalloc;
 use tokio::{
 	signal,
@@ -42,14 +42,26 @@ use tracing_subscriber::{prelude::*, reload, EnvFilter, Registry};
 
 mod routes;
 
-#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
+#[cfg(all(not(target_env = "msvc"), feature = "jemalloc", not(feature = "hardened_malloc")))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-#[cfg(all(not(target_env = "msvc"), not(target_os = "macos"), feature = "hardened_malloc", target_os = "linux"))]
+#[cfg(all(
+	not(target_env = "msvc"),
+	not(target_os = "macos"),
+	not(feature = "jemalloc"),
+	feature = "hardened_malloc",
+	target_os = "linux"
+))]
 use hardened_malloc_rs::HardenedMalloc;
 
-#[cfg(all(not(target_env = "msvc"), not(target_os = "macos"), feature = "hardened_malloc", target_os = "linux"))]
+#[cfg(all(
+	not(target_env = "msvc"),
+	not(target_os = "macos"),
+	feature = "hardened_malloc",
+	target_os = "linux",
+	not(feature = "jemalloc")
+))]
 #[global_allocator]
 static GLOBAL: HardenedMalloc = HardenedMalloc;
 

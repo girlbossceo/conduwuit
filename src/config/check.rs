@@ -9,6 +9,13 @@ pub fn check(config: &Config) -> Result<(), Error> {
 	config.warn_deprecated();
 	config.warn_unknown_key();
 
+	if cfg!(feature = "hardened_malloc") && cfg!(feature = "jemalloc") {
+		warn!(
+			"hardened_malloc and jemalloc were built together, this causes neither to be used. Conduwuit will still \
+			 function, but consider rebuilding and pick one as this is now no-op."
+		);
+	}
+
 	if config.unix_socket_path.is_some() && !cfg!(unix) {
 		return Err(Error::bad_config(
 			"UNIX socket support is only available on *nix platforms. Please remove \"unix_socket_path\" from your \
