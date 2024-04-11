@@ -18,13 +18,13 @@ use ruma::{
 			encrypted::Relation,
 			member::{MembershipState, RoomMemberEventContent},
 			power_levels::RoomPowerLevelsEventContent,
+			redaction::RoomRedactionEventContent,
 		},
 		GlobalAccountDataEventType, StateEventType, TimelineEventType,
 	},
 	push::{Action, Ruleset, Tweak},
 	serde::Base64,
-	state_res,
-	state_res::{Event, RoomVersion},
+	state_res::{self, Event, RoomVersion},
 	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
 	RoomId, RoomVersionId, ServerName, UserId,
 };
@@ -314,12 +314,7 @@ impl Service {
 		if pdu.kind == TimelineEventType::RoomRedaction
 			&& services().rooms.state.get_room_version(&pdu.room_id)? == RoomVersionId::V11
 		{
-			#[derive(Deserialize)]
-			struct Redaction {
-				redacts: Option<OwnedEventId>,
-			}
-
-			let content = serde_json::from_str::<Redaction>(pdu.content.get())
+			let content = serde_json::from_str::<RoomRedactionEventContent>(pdu.content.get())
 				.map_err(|_| Error::bad_database("Invalid content in redaction pdu."))?;
 
 			if let Some(redact_id) = &content.redacts {
@@ -436,14 +431,11 @@ impl Service {
 						}
 					},
 					RoomVersionId::V11 => {
-						#[derive(Deserialize)]
-						struct Redaction {
-							redacts: Option<OwnedEventId>,
-						}
-						let content = serde_json::from_str::<Redaction>(pdu.content.get()).map_err(|e| {
-							warn!("Invalid content in redaction pdu: {e}");
-							Error::bad_database("Invalid content in redaction pdu.")
-						})?;
+						let content =
+							serde_json::from_str::<RoomRedactionEventContent>(pdu.content.get()).map_err(|e| {
+								warn!("Invalid content in redaction pdu: {e}");
+								Error::bad_database("Invalid content in redaction pdu.")
+							})?;
 						if let Some(redact_id) = &content.redacts {
 							self.redact_pdu(redact_id, pdu)?;
 						}
@@ -664,12 +656,8 @@ impl Service {
 			.get_room_version(room_id)
 			.or_else(|_| {
 				if event_type == TimelineEventType::RoomCreate {
-					#[derive(Deserialize)]
-					struct RoomCreate {
-						room_version: RoomVersionId,
-					}
-					let content =
-						serde_json::from_str::<RoomCreate>(content.get()).expect("Invalid content in RoomCreate pdu.");
+					let content = serde_json::from_str::<RoomCreateEventContent>(content.get())
+						.expect("Invalid content in RoomCreate pdu.");
 					Ok(content.room_version)
 				} else {
 					Err(Error::InconsistentRoomState(
@@ -841,18 +829,13 @@ impl Service {
 						));
 					},
 					TimelineEventType::RoomMember => {
-						#[derive(Deserialize)]
-						struct ExtractMembership {
-							membership: MembershipState,
-						}
-
 						let target = pdu
 							.state_key()
 							.filter(|v| v.starts_with('@'))
 							.unwrap_or(sender.as_str());
 						let server_name = services().globals.server_name();
 						let server_user = format!("@conduit:{server_name}");
-						let content = serde_json::from_str::<ExtractMembership>(pdu.content.get())
+						let content = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
 							.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
 						if content.membership == MembershipState::Leave {
