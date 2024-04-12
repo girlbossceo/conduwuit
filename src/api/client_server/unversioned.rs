@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use axum::{response::IntoResponse, Json};
 use ruma::api::client::{
 	discovery::{
+		discover_homeserver::{self, HomeserverInfo, SlidingSyncProxyInfo},
 		discover_support::{self, Contact},
 		get_supported_versions,
 	},
@@ -57,23 +58,35 @@ pub async fn get_supported_versions_route(
 }
 
 /// # `GET /.well-known/matrix/client`
-pub async fn well_known_client_route() -> Result<impl IntoResponse> {
+///
+/// Returns the .well-known URL if it is configured, otherwise returns 404.
+pub async fn well_known_client(_body: Ruma<discover_homeserver::Request>) -> Result<discover_homeserver::Response> {
 	let client_url = match services().globals.well_known_client() {
-		Some(url) => url.clone(),
+		Some(url) => url.to_string(),
 		None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
 	};
 
-	Ok(Json(serde_json::json!({
-		"m.homeserver": {"base_url": client_url},
-		"org.matrix.msc3575.proxy": {"url": client_url}
-	})))
+	Ok(discover_homeserver::Response {
+		homeserver: HomeserverInfo {
+			base_url: client_url.clone(),
+		},
+		identity_server: None,
+		sliding_sync_proxy: Some(SlidingSyncProxyInfo {
+			url: client_url,
+		}),
+		tile_server: None,
+	})
 }
 
 /// # `GET /.well-known/matrix/support`
 ///
 /// Server support contact and support page of a homeserver's domain.
 pub async fn well_known_support(_body: Ruma<discover_support::Request>) -> Result<discover_support::Response> {
-	let support_page = services().globals.well_known_support_page().clone();
+	let support_page = services()
+		.globals
+		.well_known_support_page()
+		.as_ref()
+		.map(ToString::to_string);
 
 	let role = services().globals.well_known_support_role().clone();
 
@@ -120,9 +133,9 @@ pub async fn well_known_support(_body: Ruma<discover_support::Request>) -> Resul
 /// Web as a non-standard health check.
 pub async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 	let server_url = match services().globals.well_known_client() {
-		Some(url) => url.clone(),
+		Some(url) => url.to_string(),
 		None => match services().globals.well_known_server() {
-			Some(url) => url.clone(),
+			Some(url) => url.to_string(),
 			None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
 		},
 	};

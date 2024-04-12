@@ -18,7 +18,7 @@ use ruma::{
 			backfill::get_backfill,
 			device::get_devices::{self, v1::UserDevice},
 			directory::{get_public_rooms, get_public_rooms_filtered},
-			discovery::{get_server_keys, get_server_version, ServerSigningKeys, VerifyKey},
+			discovery::{discover_homeserver, get_server_keys, get_server_version, ServerSigningKeys, VerifyKey},
 			event::{get_event, get_missing_events, get_room_state, get_room_state_ids},
 			keys::{claim_keys, get_keys},
 			membership::{create_invite, create_join_event, prepare_join_event},
@@ -1559,19 +1559,19 @@ pub async fn claim_keys_route(body: Ruma<claim_keys::v1::Request>) -> Result<cla
 }
 
 /// # `GET /.well-known/matrix/server`
-pub async fn well_known_server_route() -> Result<impl IntoResponse> {
+///
+/// Returns the .well-known URL if it is configured, otherwise returns 404.
+pub async fn well_known_server(_body: Ruma<discover_homeserver::Request>) -> Result<discover_homeserver::Response> {
 	if !services().globals.allow_federation() {
 		return Err(Error::bad_config("Federation is disabled."));
 	}
 
-	let server_url = match services().globals.well_known_server() {
-		Some(url) => url.clone(),
-		None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
-	};
-
-	Ok(Json(serde_json::json!({
-		"m.server": server_url
-	})))
+	Ok(discover_homeserver::Response {
+		server: match services().globals.well_known_server() {
+			Some(server_name) => server_name.to_owned(),
+			None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
+		},
+	})
 }
 
 /// # `GET /_matrix/federation/v1/hierarchy/{roomId}`

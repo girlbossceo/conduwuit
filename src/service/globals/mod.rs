@@ -27,6 +27,7 @@ use ruma::{
 use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock, Semaphore};
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, Registry};
+use url::Url;
 
 use crate::{services, Config, Result};
 
@@ -314,13 +315,13 @@ impl Service<'_> {
 
 	pub fn ip_range_denylist(&self) -> &[String] { &self.config.ip_range_denylist }
 
-	pub fn well_known_support_page(&self) -> &Option<String> { &self.config.well_known_support_page }
+	pub fn well_known_support_page(&self) -> &Option<Url> { &self.config.well_known.support_page }
 
-	pub fn well_known_support_role(&self) -> &Option<ContactRole> { &self.config.well_known_support_role }
+	pub fn well_known_support_role(&self) -> &Option<ContactRole> { &self.config.well_known.support_role }
 
-	pub fn well_known_support_email(&self) -> &Option<String> { &self.config.well_known_support_email }
+	pub fn well_known_support_email(&self) -> &Option<String> { &self.config.well_known.support_email }
 
-	pub fn well_known_support_mxid(&self) -> &Option<OwnedUserId> { &self.config.well_known_support_mxid }
+	pub fn well_known_support_mxid(&self) -> &Option<OwnedUserId> { &self.config.well_known.support_mxid }
 
 	pub fn block_non_admin_invites(&self) -> bool { self.config.block_non_admin_invites }
 
@@ -401,9 +402,9 @@ impl Service<'_> {
 		r
 	}
 
-	pub fn well_known_client(&self) -> &Option<String> { &self.config.well_known_client }
+	pub fn well_known_client(&self) -> &Option<Url> { &self.config.well_known.client }
 
-	pub fn well_known_server(&self) -> &Option<String> { &self.config.well_known_server }
+	pub fn well_known_server(&self) -> &Option<OwnedServerName> { &self.config.well_known.server }
 
 	pub fn unix_socket_path(&self) -> &Option<PathBuf> { &self.config.unix_socket_path }
 

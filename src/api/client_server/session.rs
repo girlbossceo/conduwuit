@@ -199,15 +199,13 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 	}
 
 	// send client well-known if specified so the client knows to reconfigure itself
-	let client_discovery_info = DiscoveryInfo::new(HomeserverInfo::new(
-		services()
-			.globals
-			.well_known_client()
-			.to_owned()
-			.unwrap_or_default(),
-	));
+	let client_discovery_info: Option<DiscoveryInfo> = services()
+		.globals
+		.well_known_client()
+		.as_ref()
+		.map(|server| DiscoveryInfo::new(HomeserverInfo::new(server.to_string())));
 
-	info!("{} logged in", user_id);
+	info!("{user_id} logged in");
 
 	// home_server is deprecated but apparently must still be sent despite it being
 	// deprecated over 6 years ago. initially i thought this macro was unnecessary,
@@ -217,13 +215,7 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 		user_id,
 		access_token: token,
 		device_id,
-		well_known: {
-			if client_discovery_info.homeserver.base_url.as_str() == "" {
-				None
-			} else {
-				Some(client_discovery_info)
-			}
-		},
+		well_known: client_discovery_info,
 		expires_in: None,
 		home_server: Some(services().globals.server_name().to_owned()),
 		refresh_token: None,

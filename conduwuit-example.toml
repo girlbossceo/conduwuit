@@ -2,6 +2,8 @@
 #  This is the official example config for conduwuit.
 #  If you use it for your server, you will need to adjust it to your own needs.
 #  At the very least, change the server_name field!
+#
+#  This documentation can also be found at https://conduwuit.puppyirl.gay/configuration.html
 # =============================================================================
 
 [global]
@@ -247,14 +249,6 @@ url_preview_max_spider_size = 384_000
 # Useful if the domain contains allowlist is still too broad for you but you still want to allow all the subdomains under a root domain.
 url_preview_check_root_domain = false
 
-# A single contact and/or support page for /.well-known/matrix/support
-# All options here are strings. Currently only supports 1 single contact.
-# No default.
-#well_known_support_page = ""
-#well_known_support_role = ""
-#well_known_support_email = ""
-#well_known_support_mxid = ""
-
 # Config option to allow or disallow incoming federation requests that obtain the profiles
 # of our local users from `/_matrix/federation/v1/query/profile`
 #
@@ -280,12 +274,6 @@ allow_profile_lookup_federation_requests = true
 # endpoint, it is simply an announcement check endpoint.
 # Defaults to false.
 #allow_check_for_updates = false
-
-# If you are using delegation via well-known files and you cannot serve them from your reverse proxy, you can
-# uncomment these to serve them directly from conduwuit. This requires proxying all requests to conduwuit, not just `/_matrix` to work.
-#well_known_server = "matrix.example.com:443"
-#well_known_client = "https://matrix.example.com"
-# Note that whatever you put will show up in the well-known JSON values.
 
 # Set to false to disable users from joining or creating room versions that aren't 100% officially supported by conduwuit.
 # conduwuit officially supports room versions 6 - 10. conduwuit has experimental/unstable support for 3 - 5, and 11.
@@ -623,3 +611,20 @@ allow_profile_lookup_federation_requests = true
 # This config option is only available if conduwuit was built with `axum_dual_protocol` feature (not default feature)
 # Defaults to false
 #dual_protocol = false
+
+
+# If you are using delegation via well-known files and you cannot serve them from your reverse proxy, you can
+# uncomment these to serve them directly from conduwuit. This requires proxying all requests to conduwuit, not just `/_matrix` to work.
+#
+#[global.well_known]
+#server = "matrix.example.com:443"
+#client = "https://matrix.example.com"
+#
+# A single contact and/or support page for /.well-known/matrix/support
+# All options here are strings. Currently only supports 1 single contact.
+# No default.
+#
+#well_known_support_page = ""
+#well_known_support_role = ""
+#well_known_support_email = ""
+#well_known_support_mxid = ""

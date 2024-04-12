@@ -20,6 +20,7 @@ use ruma::{
 };
 use serde::{de::IgnoredAny, Deserialize};
 use tracing::{debug, error, warn};
+use url::Url;
 
 use self::proxy::ProxyConfig;
 use crate::utils::error::Error;
@@ -158,8 +159,7 @@ pub struct Config {
 	pub allow_unstable_room_versions: bool,
 	#[serde(default = "default_default_room_version")]
 	pub default_room_version: RoomVersionId,
-	pub well_known_client: Option<String>,
-	pub well_known_server: Option<String>,
+	pub well_known: WellKnownConfig,
 	#[serde(default)]
 	pub allow_jaeger: bool,
 	#[serde(default)]
@@ -264,11 +264,6 @@ pub struct Config {
 	#[serde(default = "default_ip_range_denylist")]
 	pub ip_range_denylist: Vec<String>,
 
-	pub well_known_support_page: Option<String>,
-	pub well_known_support_role: Option<ContactRole>,
-	pub well_known_support_email: Option<String>,
-	pub well_known_support_mxid: Option<OwnedUserId>,
-
 	#[serde(default = "Vec::new")]
 	pub url_preview_domain_contains_allowlist: Vec<String>,
 	#[serde(default = "Vec::new")]
@@ -319,7 +314,25 @@ pub struct TlsConfig {
 	pub dual_protocol: bool,
 }
 
-const DEPRECATED_KEYS: &[&str] = &["cache_capacity"];
+#[derive(Clone, Debug, Deserialize)]
+pub struct WellKnownConfig {
+	pub client: Option<Url>,
+	pub server: Option<OwnedServerName>,
+	pub support_page: Option<Url>,
+	pub support_role: Option<ContactRole>,
+	pub support_email: Option<String>,
+	pub support_mxid: Option<OwnedUserId>,
+}
+
+const DEPRECATED_KEYS: &[&str] = &[
+	"cache_capacity",
+	"well_known_client",
+	"well_known_server",
+	"well_known_support_page",
+	"well_known_support_role",
+	"well_known_support_email",
+	"well_known_support_mxid",
+];
 
 impl Config {
 	/// Initialize config
@@ -367,8 +380,8 @@ impl Config {
 
 		if was_deprecated {
 			warn!(
-				"Read conduit documentation and check your configuration if any new configuration parameters should \
-				 be adjusted"
+				"Read conduwuit config documentation at https://conduwuit.puppyirl.gay/configuration.html and check \
+				 your configuration if any new configuration parameters should be adjusted"
 			);
 		}
 	}
@@ -690,6 +703,46 @@ impl fmt::Display for Config {
 			("Sentry.io send server_name in logs", &self.sentry_send_server_name.to_string()),
 			#[cfg(feature = "sentry_telemetry")]
 			("Sentry.io tracing sample rate", &self.sentry_traces_sample_rate.to_string()),
+			(
+				"Well-known server name",
+				&if let Some(server) = &self.well_known.server {
+					server.to_string()
+				} else {
+					String::new()
+				},
+			),
+			(
+				"Well-known support email",
+				&if let Some(support_email) = &self.well_known.support_email {
+					support_email.to_string()
+				} else {
+					String::new()
+				},
+			),
+			(
+				"Well-known support Matrix ID",
+				&if let Some(support_mxid) = &self.well_known.support_mxid {
+					support_mxid.to_string()
+				} else {
+					String::new()
+				},
+			),
+			(
+				"Well-known support role",
+				&if let Some(support_role) = &self.well_known.support_role {
+					support_role.to_string()
+				} else {
+					String::new()
+				},
+			),
+			(
+				"Well-known support page/URL",
+				&if let Some(support_page) = &self.well_known.support_page {
+					support_page.to_string()
+				} else {
+					String::new()
+				},
+			),
 		];
 
 		let mut msg: String = "Active config values:\n\n".to_owned();
