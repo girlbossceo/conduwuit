@@ -159,6 +159,7 @@ pub struct Config {
 	pub allow_unstable_room_versions: bool,
 	#[serde(default = "default_default_room_version")]
 	pub default_room_version: RoomVersionId,
+	#[serde(default)]
 	pub well_known: WellKnownConfig,
 	#[serde(default)]
 	pub allow_jaeger: bool,
@@ -314,7 +315,7 @@ pub struct TlsConfig {
 	pub dual_protocol: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Default)]
 pub struct WellKnownConfig {
 	pub client: Option<Url>,
 	pub server: Option<OwnedServerName>,
