@@ -50,22 +50,19 @@ where
 
 	let url = reqwest_request.url().clone();
 
-	let mut response = match services()
+	let mut response = services()
 		.globals
 		.client
 		.appservice
 		.execute(reqwest_request)
 		.await
-	{
-		Ok(r) => r,
-		Err(e) => {
+		.map_err(|e| {
 			warn!(
 				"Could not send request to appservice {} at {}: {}",
 				registration.id, destination, e
 			);
-			return Err(e.into());
-		},
-	};
+			e
+		})?;
 
 	// reqwest::Response -> http::Response conversion
 	let status = response.status();
