@@ -131,18 +131,22 @@ pub async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<g
 		}
 	}
 
-	let shortstatehash = match services().rooms.state_accessor.pdu_shortstatehash(
-		events_after
-			.last()
-			.map_or(&*body.event_id, |(_, e)| &*e.event_id),
-	)? {
-		Some(s) => s,
-		None => services()
-			.rooms
-			.state
-			.get_room_shortstatehash(&room_id)?
-			.expect("All rooms have state"),
-	};
+	let shortstatehash = services()
+		.rooms
+		.state_accessor
+		.pdu_shortstatehash(
+			events_after
+				.last()
+				.map_or(&*body.event_id, |(_, e)| &*e.event_id),
+		)?
+		.map_or(
+			services()
+				.rooms
+				.state
+				.get_room_shortstatehash(&room_id)?
+				.expect("All rooms have state"),
+			|hash| hash,
+		);
 
 	let state_ids = services()
 		.rooms
