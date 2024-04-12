@@ -265,6 +265,7 @@ where
 						}
 					},
 					AuthScheme::None => match parts.uri.path() {
+						// TOOD: can we do a better check here?
 						// allow_public_room_directory_without_auth
 						"/_matrix/client/v3/publicRooms" | "/_matrix/client/r0/publicRooms" => {
 							if !services()
