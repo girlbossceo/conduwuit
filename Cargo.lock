@@ -522,6 +522,7 @@ dependencies = [
  "tracing-flame",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "url",
  "webpage",
 ]
 
