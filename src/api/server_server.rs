@@ -33,7 +33,7 @@ use ruma::{
 		},
 		OutgoingResponse,
 	},
-	directory::{Filter, RoomNetwork},
+	directory::Filter,
 	events::{
 		receipt::{ReceiptEvent, ReceiptEventContent, ReceiptType},
 		room::{
@@ -162,7 +162,11 @@ pub async fn get_public_rooms_filtered_route(
 		&body.filter,
 		&body.room_network,
 	)
-	.await?;
+	.await
+	.map_err(|e| {
+		warn!("Failed to return our /publicRooms: {e}");
+		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
+	})?;
 
 	Ok(get_public_rooms_filtered::v1::Response {
 		chunk: response.chunk,
@@ -190,9 +194,13 @@ pub async fn get_public_rooms_route(
 		body.limit,
 		body.since.as_deref(),
 		&Filter::default(),
-		&RoomNetwork::Matrix,
+		&body.room_network,
 	)
-	.await?;
+	.await
+	.map_err(|e| {
+		warn!("Failed to return our /publicRooms: {e}");
+		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
+	})?;
 
 	Ok(get_public_rooms::v1::Response {
 		chunk: response.chunk,

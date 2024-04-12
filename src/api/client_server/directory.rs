@@ -34,15 +34,7 @@ use crate::{services, Error, Result, Ruma};
 pub async fn get_public_rooms_filtered_route(
 	body: Ruma<get_public_rooms_filtered::v3::Request>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
-	if !services()
-		.globals
-		.config
-		.allow_public_room_directory_without_auth
-	{
-		let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	}
-
-	get_public_rooms_filtered_helper(
+	let response = get_public_rooms_filtered_helper(
 		body.server.as_deref(),
 		body.limit,
 		body.since.as_deref(),
@@ -50,6 +42,12 @@ pub async fn get_public_rooms_filtered_route(
 		&body.room_network,
 	)
 	.await
+	.map_err(|e| {
+		warn!("Failed to return our /publicRooms: {e}");
+		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
+	})?;
+
+	Ok(response)
 }
 
 /// # `GET /_matrix/client/v3/publicRooms`
@@ -60,14 +58,6 @@ pub async fn get_public_rooms_filtered_route(
 pub async fn get_public_rooms_route(
 	body: Ruma<get_public_rooms::v3::Request>,
 ) -> Result<get_public_rooms::v3::Response> {
-	if !services()
-		.globals
-		.config
-		.allow_public_room_directory_without_auth
-	{
-		let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	}
-
 	let response = get_public_rooms_filtered_helper(
 		body.server.as_deref(),
 		body.limit,
@@ -75,7 +65,11 @@ pub async fn get_public_rooms_route(
 		&Filter::default(),
 		&RoomNetwork::Matrix,
 	)
-	.await?;
+	.await
+	.map_err(|e| {
+		warn!("Failed to return our /publicRooms: {e}");
+		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
+	})?;
 
 	Ok(get_public_rooms::v3::Response {
 		chunk: response.chunk,
