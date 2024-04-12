@@ -624,7 +624,7 @@ allow_profile_lookup_federation_requests = true
 # All options here are strings. Currently only supports 1 single contact.
 # No default.
 #
-#well_known_support_page = ""
-#well_known_support_role = ""
-#well_known_support_email = ""
-#well_known_support_mxid = ""
+#support_page = ""
+#support_role = ""
+#support_email = ""
+#support_mxid = ""
