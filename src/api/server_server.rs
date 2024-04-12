@@ -63,10 +63,6 @@ use crate::{
 pub async fn get_server_version_route(
 	_body: Ruma<get_server_version::v1::Request>,
 ) -> Result<get_server_version::v1::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let version = match option_env!("CONDUIT_VERSION_EXTRA") {
 		Some(extra) => format!("{} ({})", env!("CARGO_PKG_VERSION"), extra),
 		None => env!("CARGO_PKG_VERSION").to_owned(),
@@ -90,10 +86,6 @@ pub async fn get_server_version_route(
 // Response type for this endpoint is Json because we need to calculate a
 // signature for the response
 pub async fn get_server_keys_route() -> Result<impl IntoResponse> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	let mut verify_keys: BTreeMap<OwnedServerSigningKeyId, VerifyKey> = BTreeMap::new();
 	verify_keys.insert(
 		format!("ed25519:{}", services().globals.keypair().version())
@@ -1756,10 +1748,6 @@ pub async fn claim_keys_route(body: Ruma<claim_keys::v1::Request>) -> Result<cla
 ///
 /// Returns the .well-known URL if it is configured, otherwise returns 404.
 pub async fn well_known_server(_body: Ruma<discover_homeserver::Request>) -> Result<discover_homeserver::Response> {
-	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
-	}
-
 	Ok(discover_homeserver::Response {
 		server: match services().globals.well_known_server() {
 			Some(server_name) => server_name.to_owned(),

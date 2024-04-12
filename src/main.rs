@@ -308,7 +308,7 @@ async fn build(server: &Server) -> io::Result<axum::routing::IntoMakeService<Rou
 
 	#[cfg(any(feature = "zstd_compression", feature = "gzip_compression", feature = "brotli_compression"))]
 	{
-		Ok(routes::routes()
+		Ok(routes::routes(&server.config)
 			.layer(compression_layer(server))
 			.layer(middlewares)
 			.into_make_service())

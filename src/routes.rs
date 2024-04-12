@@ -3,19 +3,19 @@ use std::future::Future;
 use axum::{
 	extract::FromRequestParts,
 	response::IntoResponse,
-	routing::{get, on, post, MethodFilter},
+	routing::{any, get, on, post, MethodFilter},
 	Router,
 };
 use conduit::{
 	api::{client_server, server_server},
-	Error, Result, Ruma, RumaResponse,
+	Config, Error, Result, Ruma, RumaResponse,
 };
 use http::{Method, Uri};
 use ruma::api::{client::error::ErrorKind, IncomingRequest};
 use tracing::{info, warn};
 
-pub fn routes() -> Router {
-	Router::new()
+pub fn routes(config: &Config) -> Router {
+	let router = Router::new()
 		.ruma_route(client_server::get_supported_versions_route)
 		.ruma_route(client_server::get_register_available_route)
 		.ruma_route(client_server::register_route)
@@ -181,41 +181,50 @@ pub fn routes() -> Router {
 		.ruma_route(client_server::get_relating_events_with_rel_type_route)
 		.ruma_route(client_server::get_relating_events_route)
 		.ruma_route(client_server::get_hierarchy_route)
-		.ruma_route(server_server::get_server_version_route)
-		.route("/_matrix/key/v2/server", get(server_server::get_server_keys_route))
-		.route(
-			"/_matrix/key/v2/server/:key_id",
-			get(server_server::get_server_keys_deprecated_route),
-		)
-		.ruma_route(server_server::get_public_rooms_route)
-		.ruma_route(server_server::get_public_rooms_filtered_route)
-		.ruma_route(server_server::send_transaction_message_route)
-		.ruma_route(server_server::get_event_route)
-		.ruma_route(server_server::get_backfill_route)
-		.ruma_route(server_server::get_missing_events_route)
-		.ruma_route(server_server::get_event_authorization_route)
-		.ruma_route(server_server::get_room_state_route)
-		.ruma_route(server_server::get_room_state_ids_route)
-		.ruma_route(server_server::create_join_event_template_route)
-		.ruma_route(server_server::create_join_event_v1_route)
-		.ruma_route(server_server::create_join_event_v2_route)
-		.ruma_route(server_server::create_invite_route)
-		.ruma_route(server_server::get_devices_route)
-		.ruma_route(server_server::get_room_information_route)
-		.ruma_route(server_server::get_profile_information_route)
-		.ruma_route(server_server::get_keys_route)
-		.ruma_route(server_server::claim_keys_route)
-        .ruma_route(server_server::get_hierarchy_route)
         .ruma_route(client_server::get_mutual_rooms_route)
         .ruma_route(client_server::well_known_support)
         .ruma_route(client_server::well_known_client)
-        .ruma_route(server_server::well_known_server)
         .route("/_conduwuit/server_version", get(client_server::conduwuit_server_version))
 		.route("/_matrix/client/r0/rooms/:room_id/initialSync", get(initial_sync))
 		.route("/_matrix/client/v3/rooms/:room_id/initialSync", get(initial_sync))
 		.route("/client/server.json", get(client_server::syncv3_client_server_json))
 		.route("/", get(it_works))
-		.fallback(not_found)
+		.fallback(not_found);
+
+	if config.allow_federation {
+		router
+			.ruma_route(server_server::get_server_version_route)
+			.route("/_matrix/key/v2/server", get(server_server::get_server_keys_route))
+			.route(
+				"/_matrix/key/v2/server/:key_id",
+				get(server_server::get_server_keys_deprecated_route),
+			)
+			.ruma_route(server_server::get_public_rooms_route)
+			.ruma_route(server_server::get_public_rooms_filtered_route)
+			.ruma_route(server_server::send_transaction_message_route)
+			.ruma_route(server_server::get_event_route)
+			.ruma_route(server_server::get_backfill_route)
+			.ruma_route(server_server::get_missing_events_route)
+			.ruma_route(server_server::get_event_authorization_route)
+			.ruma_route(server_server::get_room_state_route)
+			.ruma_route(server_server::get_room_state_ids_route)
+			.ruma_route(server_server::create_join_event_template_route)
+			.ruma_route(server_server::create_join_event_v1_route)
+			.ruma_route(server_server::create_join_event_v2_route)
+			.ruma_route(server_server::create_invite_route)
+			.ruma_route(server_server::get_devices_route)
+			.ruma_route(server_server::get_room_information_route)
+			.ruma_route(server_server::get_profile_information_route)
+			.ruma_route(server_server::get_keys_route)
+			.ruma_route(server_server::claim_keys_route)
+			.ruma_route(server_server::get_hierarchy_route)
+			.ruma_route(server_server::well_known_server)
+	} else {
+		router
+			.route("/_matrix/federation/*path", any(federation_disabled))
+			.route("/.well-known/matrix/server", any(federation_disabled))
+			.route("/_matrix/key/*path", any(federation_disabled))
+	}
 }
 
 async fn not_found(uri: Uri) -> impl IntoResponse {
@@ -233,6 +242,8 @@ async fn initial_sync(_uri: Uri) -> impl IntoResponse {
 }
 
 async fn it_works() -> &'static str { "hewwo from conduwuit woof!" }
+
+async fn federation_disabled() -> impl IntoResponse { Error::bad_config("Federation is disabled.") }
 
 trait RouterExt {
 	fn ruma_route<H, T>(self, handler: H) -> Self
