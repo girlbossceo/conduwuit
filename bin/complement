@@ -17,7 +17,7 @@ env \
     -C "$(git rev-parse --show-toplevel)" \
     docker build \
         --tag "$OCI_IMAGE" \
-        --file complement/Dockerfile \
+        --file tests/complement/Dockerfile \
         .
 
 # It's okay (likely, even) that `go test` exits nonzero
