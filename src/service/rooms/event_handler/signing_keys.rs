@@ -34,9 +34,7 @@ impl super::Service {
 		E: IntoIterator<Item = &'a BTreeMap<String, CanonicalJsonValue>>,
 	{
 		let mut server_key_ids = HashMap::new();
-
 		for event in events {
-			debug!("Fetching keys for event: {event:?}");
 			for (signature_server, signature) in event
 				.get("signatures")
 				.ok_or(Error::BadServerResponse("No signatures in server response pdu."))?
@@ -62,7 +60,7 @@ impl super::Service {
 			return Ok(());
 		}
 
-		debug!(
+		trace!(
 			"Fetch keys for {}",
 			server_key_ids
 				.keys()
@@ -76,8 +74,7 @@ impl super::Service {
 			.map(|(signature_server, signature_ids)| async {
 				let fetch_res = self
 					.fetch_signing_keys_for_server(
-						signature_server.as_str().try_into().map_err(|e| {
-							info!("Invalid servername in signatures of server response pdu: {e}");
+						signature_server.as_str().try_into().map_err(|_| {
 							(
 								signature_server.clone(),
 								Error::BadServerResponse("Invalid servername in signatures of server response pdu."),
@@ -169,10 +166,8 @@ impl super::Service {
 			let contains_all_ids =
 				|keys: &BTreeMap<String, Base64>| signature_ids.iter().all(|id| keys.contains_key(id));
 
-			let origin = <&ServerName>::try_from(signature_server.as_str()).map_err(|e| {
-				info!("Invalid servername in signatures of server response pdu: {e}");
-				Error::BadServerResponse("Invalid servername in signatures of server response pdu.")
-			})?;
+			let origin = <&ServerName>::try_from(signature_server.as_str())
+				.map_err(|_| Error::BadServerResponse("Invalid servername in signatures of server response pdu."))?;
 
 			if servers.contains_key(origin) || pub_key_map.contains_key(origin.as_str()) {
 				continue;
@@ -205,7 +200,7 @@ impl super::Service {
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()> {
 		for server in services().globals.trusted_servers() {
-			info!("Asking batch signing keys from trusted server {}", server);
+			debug!("Asking batch signing keys from trusted server {}", server);
 			match services()
 				.sending
 				.send_federation_request(
@@ -261,7 +256,7 @@ impl super::Service {
 		&self, servers: BTreeMap<OwnedServerName, BTreeMap<OwnedServerSigningKeyId, QueryCriteria>>,
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()> {
-		info!("Asking individual servers for signing keys: {servers:?}");
+		debug!("Asking individual servers for signing keys: {servers:?}");
 		let mut futures: FuturesUnordered<_> = servers
 			.into_keys()
 			.map(|server| async move {
@@ -278,7 +273,7 @@ impl super::Service {
 		while let Some(result) = futures.next().await {
 			debug!("Received new Future result");
 			if let (Ok(get_keys_response), origin) = result {
-				info!("Result is from {origin}");
+				debug!("Result is from {origin}");
 				if let Ok(key) = get_keys_response.server_key.deserialize() {
 					let result: BTreeMap<_, _> = services()
 						.globals
@@ -335,26 +330,26 @@ impl super::Service {
 				.await?;
 
 			if servers.is_empty() {
-				info!("Trusted server supplied all signing keys, no more keys to fetch");
+				debug!("Trusted server supplied all signing keys, no more keys to fetch");
 				return Ok(());
 			}
 
-			info!("Remaining servers left that the notary/trusted servers did not provide: {servers:?}");
+			debug!("Remaining servers left that the notary/trusted servers did not provide: {servers:?}");
 
 			self.request_signing_keys(servers.clone(), pub_key_map)
 				.await?;
 		} else {
-			info!("query_trusted_key_servers_first is set to false, querying individual homeservers first");
+			debug!("query_trusted_key_servers_first is set to false, querying individual homeservers first");
 
 			self.request_signing_keys(servers.clone(), pub_key_map)
 				.await?;
 
 			if servers.is_empty() {
-				info!("Individual homeservers supplied all signing keys, no more keys to fetch");
+				debug!("Individual homeservers supplied all signing keys, no more keys to fetch");
 				return Ok(());
 			}
 
-			info!("Remaining servers left the individual homeservers did not provide: {servers:?}");
+			debug!("Remaining servers left the individual homeservers did not provide: {servers:?}");
 
 			self.batch_request_signing_keys(servers.clone(), pub_key_map)
 				.await?;

@@ -49,7 +49,7 @@ use ruma::{
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
 	api::client_server::{self, claim_keys_helper, get_keys_helper},
@@ -247,6 +247,7 @@ pub async fn send_transaction_message_route(
 	// maybe) all of the auth events that it references.
 	// let mut auth_cache = EventMap::new();
 
+	let txn_start_time = Instant::now();
 	let mut parsed_pdus = Vec::with_capacity(body.pdus.len());
 	for pdu in &body.pdus {
 		parsed_pdus.push(match parse_incoming_pdu(pdu) {
@@ -261,6 +262,15 @@ pub async fn send_transaction_message_route(
 		// and hashes checks
 	}
 
+	trace!(
+		pdus = ?parsed_pdus.len(),
+		edus = ?body.edus.len(),
+		elapsed = ?txn_start_time.elapsed(),
+		id = ?body.transaction_id,
+		origin =?body.origin,
+		"Starting txn",
+	);
+
 	// We go through all the signatures we see on the PDUs and fetch the
 	// corresponding signing keys
 	let pub_key_map = RwLock::new(BTreeMap::new());
@@ -273,10 +283,16 @@ pub async fn send_transaction_message_route(
 			.unwrap_or_else(|e| {
 				warn!("Could not fetch all signatures for PDUs from {}: {:?}", sender_servername, e);
 			});
+
+		debug!(
+			elapsed = ?txn_start_time.elapsed(),
+			"Fetched signing keys"
+		);
 	}
 
 	let mut resolved_map = BTreeMap::new();
 	for (event_id, value, room_id) in parsed_pdus {
+		let pdu_start_time = Instant::now();
 		let mutex = Arc::clone(
 			services()
 				.globals
@@ -287,7 +303,6 @@ pub async fn send_transaction_message_route(
 				.or_default(),
 		);
 		let mutex_lock = mutex.lock().await;
-		let start_time = Instant::now();
 		resolved_map.insert(
 			event_id.clone(),
 			services()
@@ -300,8 +315,9 @@ pub async fn send_transaction_message_route(
 		drop(mutex_lock);
 
 		debug!(
-			elapsed = ?start_time.elapsed(),
-			"Handled PDU {event_id}"
+			pdu_elapsed = ?pdu_start_time.elapsed(),
+			txn_elapsed = ?txn_start_time.elapsed(),
+			"Finished PDU {event_id}",
 		);
 	}
 
@@ -482,6 +498,15 @@ pub async fn send_transaction_message_route(
 			Edu::_Custom(_) => {},
 		}
 	}
+
+	debug!(
+		pdus = ?body.pdus.len(),
+		edus = ?body.edus.len(),
+		elapsed = ?txn_start_time.elapsed(),
+		id = ?body.transaction_id,
+		origin =?body.origin,
+		"Finished txn",
+	);
 
 	Ok(send_transaction_message::v1::Response {
 		pdus: resolved_map

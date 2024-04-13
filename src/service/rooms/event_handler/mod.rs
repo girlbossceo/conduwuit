@@ -411,7 +411,7 @@ impl Service {
 				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed"));
 			}
 
-			debug!("Validation successful.");
+			trace!("Validation successful.");
 
 			// 7. Persist the event as an outlier.
 			services()
@@ -419,7 +419,7 @@ impl Service {
 				.outlier
 				.add_pdu_outlier(&incoming_pdu.event_id, &val)?;
 
-			debug!("Added pdu as outlier.");
+			trace!("Added pdu as outlier.");
 
 			Ok((Arc::new(incoming_pdu), val))
 		})
@@ -526,14 +526,14 @@ impl Service {
 				.or_default(),
 		);
 
-		debug!("Locking the room");
+		trace!("Locking the room");
 		let state_lock = mutex_state.lock().await;
 
 		// Now we calculate the set of extremities this room has after the incoming
 		// event has been applied. We start with the previous extremities (aka leaves)
-		debug!("Calculating extremities");
+		trace!("Calculating extremities");
 		let mut extremities = services().rooms.state.get_forward_extremities(room_id)?;
-		debug!("Calculated {} extremities", extremities.len());
+		trace!("Calculated {} extremities", extremities.len());
 
 		// Remove any forward extremities that are referenced by this incoming event's
 		// prev_events
@@ -623,7 +623,7 @@ impl Service {
 			return Err(Error::BadRequest(ErrorKind::InvalidParam, "Event has been soft failed"));
 		}
 
-		debug!("Appending pdu to timeline");
+		trace!("Appending pdu to timeline");
 		extremities.insert(incoming_pdu.event_id.clone());
 
 		// Now that the event has passed all auth it is added into the timeline.
