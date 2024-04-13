@@ -12,7 +12,7 @@ use axum::{
 	BoxError, RequestExt, RequestPartsExt,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use http::{Request, StatusCode};
+use http::{uri::PathAndQuery, Request, StatusCode};
 use ruma::{
 	api::{client::error::ErrorKind, AuthScheme, IncomingRequest, OutgoingResponse},
 	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
@@ -203,9 +203,17 @@ where
 					}
 				}
 
+				let signature_uri = CanonicalJsonValue::String(
+					parts
+						.uri
+						.path_and_query()
+						.unwrap_or(&PathAndQuery::from_static("/"))
+						.to_string(),
+				);
+
 				let mut request_map = BTreeMap::from_iter([
 					("method".to_owned(), CanonicalJsonValue::String(parts.method.to_string())),
-					("uri".to_owned(), CanonicalJsonValue::String(parts.uri.to_string())),
+					("uri".to_owned(), signature_uri),
 					(
 						"origin".to_owned(),
 						CanonicalJsonValue::String(x_matrix.origin.as_str().to_owned()),
