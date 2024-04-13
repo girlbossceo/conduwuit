@@ -359,7 +359,7 @@ impl Service {
 	/// Gets up to three servers that are likely to be in the room in the
 	/// distant future.
 	///
-	/// See https://spec.matrix.org/v1.10/appendices/#routing
+	/// See <https://spec.matrix.org/v1.10/appendices/#routing>
 	#[tracing::instrument(skip(self))]
 	pub fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
 		let most_powerful_user_server = services()
