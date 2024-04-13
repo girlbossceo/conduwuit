@@ -1,3 +1,5 @@
+#### **Note: This list is not up to date. There are rapidly more and more improvements, fixes, changes, etc being made that it is becoming more difficult to maintain this list. I recommend that you give Conduwuit a try and see the differences for yourself. If you have any concerns, feel free to join the Conduwuit Matrix room and ask any pre-usage questions.**
+
 ### list of features, bug fixes, etc that conduwuit does that upstream does not:
 
 - GitLab CI ported to GitHub Actions
@@ -9,18 +11,15 @@
 - Attempts and interest in removing extreme and unnecessary panics/unwraps/expects that can lead to denial of service or such (upstream and upstream contributors want this unusual behaviour for some reason)
 - Merged and cleaned up upstream MRs that have been sitting for 6-12 months
 - Configurable RocksDB logging (`LOG` files) with proper defaults (rotate, max size, verbosity, etc) to stop LOG files from accumulating so much
-- Federated presence support and configurable local presence (via upstream MR)
 - Concurrency support for key fetching for faster remote room joins and room joins that will error less frequently (via upstream MR)
 - Room version 11 support (via upstream MR)
-- Config option to allow guest registrations
 - Explicit startup error/warning if your configuration allows open registration without a token or such like Synapse
 - Improved RocksDB defaults to use new features that help with performance significantly, uses settings tailored to SSDs, various ways to tweak RocksDB, and a conduwuit setting to tell RocksDB to use settings that are tailored to HDDs or slow spinning rust storage.
-- Updated Ruma to latest commit where possible, and add some unstable MSCs (some still require an implementation though)
 - Revamped admin room infrastructure and commands (via upstream MR)
 - Admin room commands to delete room aliases and unpublish rooms from our room directory (via upstream MR)
 - Make spaces/hierarchy cache use cache_capacity_modifier instead of hardcoded small value
-- Add *optional* feature flag to use SHA256 key names for media instead of base64 to overcome filesystem file name length limitations (OS error file name too long) (via upstream MR) 
-- Add *optional* feature flag to enable zstd HTTP body compression
+- Add *optional* feature flag to use SHA256 key names for media instead of base64 to overcome filesystem file name length limitations (OS error file name too long) (via upstream MR)
+- Add feature flags and config options to enable/build with zstd, brotli, and/or gzip HTTP body compression (response and request)
 - Add support for querying both Matrix SRV records, the deprecated `_matrix` record and `_matrix-fed` record if necessary
 - Add config option for device name federation with a privacy-friendly default (disabled)
 - Add config option for requiring authentication to the `/publicRooms` endpoint (room directory) with a default enabled for privacy
@@ -32,7 +31,6 @@
 - Add debug admin command to force update user device lists (could potentially resolve some E2EE flukes) (`ForceDeviceListUpdates`)
 - Declare various missing Matrix versions and features at `/_matrix/client/versions`
 - Add support for serving server and client well-known files from conduwuit using `well_known_client` and `well_known_server` options
-- Add non-standard sliding sync proxy health check (?) endpoint at `/client/server.json` that some clients such as Element Web query using the `well_known_client` or `well_known_server` config options
 - Send a User-Agent on all of our requests (`conduwuit/0.7.0-alpha+conduwuit-0.1.1`) which strangely was not done upstream since forever. Some providers consider no User-Agent suspicious and block said requests.
 - Safer and cleaner shutdowns on both database side as we run cleanup on shutdown and exits database loop better (no potential hanging issues in database loop), overall cleaner shutdown logic
 - Allow HEAD HTTP requests in CORS for clients (despite not being explicity mentioned in Matrix spec, HTTP spec says all HEAD requests need to behave the same as GET requests, Synapse supports HEAD requests)
@@ -56,10 +54,8 @@
 - Assume well-knowns are broken if they exceed past 10000 characters.
 - Basic validation/checks on user-specified room aliases and custom room ID creations
 - Warn on unknown config options specified
-- Add support for preventing certain room alias names and usernames using regex (via upstream MR) and extended to custom room IDs
 - URL preview support (via upstream MR) with various improvements
-- Increased graceful shutdown timeout from a low 60 seconds to 180 seconds to avoid killing connections and let the remaining ones finish processing, and ask systemd for more time to shutdown if needed to prevent systemd's default [`TimeoutStopSec=`](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html#TimeoutStopSec=) of 90 seconds from killing conduwuit
-- Bumped default max_concurrent_requests to 500
+- Increased graceful shutdown timeout from a low 60 seconds to 180 seconds to avoid killing connections and let the remaining ones finish processing
 - Query parameter `?format=event|content` for returning either the room state event's content (default) for the full room state event on ` /_matrix/client/v3/rooms/{roomId}/state/{eventType}[/{stateKey}]` requests (see https://github.com/matrix-org/matrix-spec/issues/1047)
 - Add admin commands for banning (blocking) room IDs from our local users joining (admins are always allowed) and evicts all our local users from that room, in addition to bulk room banning support, and blocks room invites (remote and local) to the banned room, as a moderation feature
 - Add admin command to delete media via a specific MXC. This deletes the MXC from our database, and the file locally.
@@ -80,7 +76,6 @@
 - Admin debug command to fetch a PDU from a remote server and inserts it into our database/timeline
 - Update rusqlite/sqlite (not that you should be using it)
 - Disable update check by default as it's not useful for conduwuit
-- Declare various missing server capabilities at `/_matrix/client/v3/capabilities` which also fixes FluffyChat password resets, and other clients that expose basic features based on this endpoint's response
 - Config option to disable incoming remote read receipts if desired
 - Extend clear cache admin command to support clearing DNS and TLS name override caches
 - Responsive outgoing read receipt EDU support
@@ -94,6 +89,7 @@
 - Overall significant database, Client-Server, and federation performance and latency improvements
 - Outgoing read receipt and private read receipt support (EDU)
 - Outgoing typing indicator support (EDU)
+- Outgoing and local presence support (EDU)
 - **Opt-in** Sentry.io telemetry and metrics, mainly used for crash reporting
 - Add `/_conduwuit/server_version` route to return the version of Conduwuit without relying on the federation API `/_matrix/federation/v1/version`
 - Add configurable RocksDB recovery modes to aid in recovering corrupte RocksDB database
@@ -103,3 +99,11 @@
 - Stop sending `make_join` requests on room joins if 15 servers respond with `M_UNSUPPORTED_ROOM_VERSION` or `M_INVALID_ROOM_VERSION`
 - Stop sending `make_join` requests if 50 servers cannot provide `make_join` for us
 - Admin debug command to send a federation request/ping to a server's `/_matrix/federation/v1/version` endpoint and measures the latency it took
+- Implement building Conduwuit with jemalloc or hardened_malloc light variant, and produce CI builds with jemalloc or hardened_malloc, for performance and/or security
+- Significant RocksDB tuning and improvements tailored to maximising Conduwuit performance with RocksDB
+- Implement unstable MSC2666 support for querying mutual rooms with a user
+- Add admin command to fetch a server's `/.well-known/matrix/support` file
+- Send `Cache-Control` response header with immutable and 1 year cache length for all media requests to instruct clients to cache media, and reduce server load from media requests that could be otherwise cached
+- Forbid the admin room from being made public
+- Fix admin room handler to not panic/crash if the admin room command response fails (e.g. too large message)
+- Implement `include_state` search criteria support for `/search` requests (response now can include room states)
