@@ -538,9 +538,7 @@ impl Service {
 		// Remove any forward extremities that are referenced by this incoming event's
 		// prev_events
 		for prev_event in &incoming_pdu.prev_events {
-			if extremities.contains(prev_event) {
-				extremities.remove(prev_event);
-			}
+			extremities.remove(prev_event);
 		}
 
 		// Only keep those extremities were not referenced yet
