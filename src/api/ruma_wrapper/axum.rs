@@ -95,6 +95,33 @@ where
 			Token::None
 		};
 
+		if metadata.authentication == AuthScheme::None {
+			match parts.uri.path() {
+				// TODO: can we check this better?
+				"/_matrix/client/v3/publicRooms" | "/_matrix/client/r0/publicRooms" => {
+					if !services()
+						.globals
+						.config
+						.allow_public_room_directory_without_auth
+					{
+						match token {
+							Token::Appservice(_) | Token::User(_) => {
+								// we should have validated the token above
+								// already
+							},
+							Token::None | Token::Invalid => {
+								return Err(Error::BadRequest(
+									ErrorKind::MissingToken,
+									"Missing or invalid access token.",
+								));
+							},
+						}
+					}
+				},
+				_ => {},
+			};
+		}
+
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&body).ok();
 
 		let (sender_user, sender_device, sender_servername, from_appservice) = match (metadata.authentication, token) {
