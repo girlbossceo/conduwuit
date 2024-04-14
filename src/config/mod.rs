@@ -190,6 +190,8 @@ pub struct Config {
 
 	#[serde(default = "default_rocksdb_log_level")]
 	pub rocksdb_log_level: String,
+	#[serde(default)]
+	pub rocksdb_log_stderr: bool,
 	#[serde(default = "default_rocksdb_max_log_file_size")]
 	pub rocksdb_max_log_file_size: usize,
 	#[serde(default = "default_rocksdb_log_time_to_roll")]
@@ -634,14 +636,16 @@ impl fmt::Display for Config {
 			#[cfg(feature = "brotli_compression")]
 			("Brotli HTTP Compression", &self.brotli_compression.to_string()),
 			#[cfg(feature = "rocksdb")]
-			("RocksDB database log level", &self.rocksdb_log_level),
+			("RocksDB database LOG level", &self.rocksdb_log_level),
 			#[cfg(feature = "rocksdb")]
-			("RocksDB database log time-to-roll", &self.rocksdb_log_time_to_roll.to_string()),
+			("RocksDB database LOG to stderr", &self.rocksdb_log_stderr.to_string()),
+			#[cfg(feature = "rocksdb")]
+			("RocksDB database LOG time-to-roll", &self.rocksdb_log_time_to_roll.to_string()),
 			#[cfg(feature = "rocksdb")]
 			("RocksDB Max LOG Files", &self.rocksdb_max_log_files.to_string()),
 			#[cfg(feature = "rocksdb")]
 			(
-				"RocksDB database max log file size",
+				"RocksDB database max LOG file size",
 				&self.rocksdb_max_log_file_size.to_string(),
 			),
 			#[cfg(feature = "rocksdb")]
