@@ -136,9 +136,14 @@ impl Service {
 
 	/// Adds a presence event which will be saved until a new event replaces it.
 	pub fn set_presence(
-		&self, user_id: &UserId, presence_state: &PresenceState, currently_active: Option<bool>,
-		last_active_ago: Option<UInt>, status_msg: Option<String>,
+		&self, user_id: &UserId, state: &PresenceState, currently_active: Option<bool>, last_active_ago: Option<UInt>,
+		status_msg: Option<String>,
 	) -> Result<()> {
+		let presence_state = match state.as_str() {
+			"" => &PresenceState::Offline, // default an empty string to 'offline'
+			&_ => state,
+		};
+
 		self.db
 			.set_presence(user_id, presence_state, currently_active, last_active_ago, status_msg)?;
 
