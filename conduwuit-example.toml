@@ -159,6 +159,10 @@ ip_range_denylist = [
 # For private homeservers, this is best at false.
 allow_guest_registration = false
 
+# Set to true to log guest registrations in the admin room.
+# Defaults to false as it may be noisy or unnecessary.
+log_guest_registrations = false
+
 # Vector list of servers that conduwuit will refuse to download remote media from.
 # No default.
 # prevent_media_downloads_from = ["example.com", "example.local"]

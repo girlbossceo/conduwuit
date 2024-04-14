@@ -290,7 +290,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 	}
 
 	// log in conduit admin channel if a guest registered
-	if !body.from_appservice && is_guest {
+	if !body.from_appservice && is_guest && services().globals.log_guest_registrations() {
 		services()
 			.admin
 			.send_message(RoomMessageEventContent::notice_plain(format!(

@@ -209,6 +209,8 @@ impl Service<'_> {
 
 	pub fn allow_guest_registration(&self) -> bool { self.config.allow_guest_registration }
 
+	pub fn log_guest_registrations(&self) -> bool { self.config.log_guest_registrations }
+
 	pub fn allow_encryption(&self) -> bool { self.config.allow_encryption }
 
 	pub fn allow_federation(&self) -> bool { self.config.allow_federation }
