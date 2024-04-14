@@ -860,7 +860,14 @@ fn default_max_fetch_prev_events() -> u16 { 100_u16 }
 
 fn default_trusted_servers() -> Vec<OwnedServerName> { vec![OwnedServerName::try_from("matrix.org").unwrap()] }
 
-fn default_log() -> String { "warn,state_res=warn".to_owned() }
+fn default_log() -> String {
+	// do debug logging by default for debug builds
+	if cfg!(debug_assertions) {
+		"debug".to_owned()
+	} else {
+		"warn,ruma_state_res=warn".to_owned()
+	}
+}
 
 fn default_notification_push_path() -> String { "/_matrix/push/v1/notify".to_owned() }
 
