@@ -360,6 +360,7 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 
 	let mut power_levels_content = serde_json::to_value(RoomPowerLevelsEventContent {
 		users,
+		state_default: int!(100),
 		..Default::default()
 	})
 	.expect("event is valid, we just created it");
