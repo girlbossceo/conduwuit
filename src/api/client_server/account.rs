@@ -291,12 +291,32 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 
 	// log in conduit admin channel if a guest registered
 	if !body.from_appservice && is_guest && services().globals.log_guest_registrations() {
-		services()
-			.admin
-			.send_message(RoomMessageEventContent::notice_plain(format!(
-				"Guest user \"{user_id}\" with device display name `{:?}` registered on this server.",
-				body.initial_device_display_name
-			)));
+		if let Some(device_display_name) = &body.initial_device_display_name {
+			if body
+				.initial_device_display_name
+				.as_ref()
+				.is_some_and(|device_display_name| !device_display_name.is_empty())
+			{
+				services()
+					.admin
+					.send_message(RoomMessageEventContent::notice_plain(format!(
+						"Guest user \"{user_id}\" with device display name `{device_display_name}` registered on this \
+						 server."
+					)));
+			} else {
+				services()
+					.admin
+					.send_message(RoomMessageEventContent::notice_plain(format!(
+						"Guest user \"{user_id}\" with no device display name registered on this server.",
+					)));
+			}
+		} else {
+			services()
+				.admin
+				.send_message(RoomMessageEventContent::notice_plain(format!(
+					"Guest user \"{user_id}\" with no device display name registered on this server.",
+				)));
+		}
 	}
 
 	// If this is the first real user, grant them admin privileges except for guest
