@@ -161,6 +161,10 @@ fn set_logging_defaults(opts: &mut Options, config: &Config) {
 	opts.set_log_file_time_to_roll(config.rocksdb_log_time_to_roll);
 	opts.set_keep_log_file_num(config.rocksdb_max_log_files);
 	opts.set_stats_dump_period_sec(0);
+
+	if config.rocksdb_log_stderr {
+		opts.set_stderr_logger(rocksdb_log_level, "rocksdb");
+	}
 }
 
 fn set_compression_defaults(opts: &mut Options, config: &Config) {
