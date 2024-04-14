@@ -31,7 +31,7 @@ use ruma::{
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::{Mutex, MutexGuard, RwLock};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use super::state_compressor::CompressedStateEvent;
 use crate::{
@@ -1156,7 +1156,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, pdu))]
+	#[tracing::instrument(skip(self, pdu, pub_key_map))]
 	pub async fn backfill_pdu(
 		&self, origin: &ServerName, pdu: Box<RawJsonValue>,
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
@@ -1241,7 +1241,7 @@ impl Service {
 		}
 		drop(mutex_lock);
 
-		info!("Prepended backfill pdu");
+		debug!("Prepended backfill pdu");
 		Ok(())
 	}
 }

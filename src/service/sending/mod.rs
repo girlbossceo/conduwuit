@@ -822,7 +822,7 @@ async fn handle_events_kind_normal(
 	.map(|response| {
 		for pdu in response.pdus {
 			if pdu.1.is_err() {
-				warn!("Failed to send to {}: {:?}", dest, pdu);
+				warn!("error for {} from remote: {:?}", pdu.0, pdu.1);
 			}
 		}
 		kind.clone()

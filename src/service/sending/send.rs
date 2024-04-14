@@ -15,7 +15,7 @@ use ruma::{
 	},
 	OwnedServerName, ServerName,
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, trace, warn};
 
 use crate::{services, Error, Result};
 
@@ -59,7 +59,7 @@ where
 	}
 
 	if destination.is_ip_literal() || IPAddress::is_valid(destination.host()) {
-		info!(
+		debug!(
 			"Destination {} is an IP literal, checking against IP range denylist.",
 			destination
 		);
@@ -83,10 +83,10 @@ where
 			}
 		}
 
-		info!("IP literal {} is allowed.", destination);
+		debug!("IP literal {} is allowed.", destination);
 	}
 
-	debug!("Preparing to send request to {destination}");
+	trace!("Preparing to send request to {destination}");
 
 	let mut write_destination_to_cache = false;
 
@@ -182,11 +182,11 @@ where
 	}
 
 	let reqwest_request = reqwest::Request::try_from(http_request)?;
-
+	let method = reqwest_request.method().clone();
 	let url = reqwest_request.url().clone();
 
 	if let Some(url_host) = url.host_str() {
-		debug!("Checking request URL for IP");
+		trace!("Checking request URL for IP");
 		if let Ok(ip) = IPAddress::parse(url_host) {
 			let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
 			let mut cidr_ranges: Vec<IPAddress> = Vec::new();
@@ -203,15 +203,15 @@ where
 		}
 	}
 
-	debug!("Sending request to {destination} at {url}");
+	debug!("Sending request {} {}", method, url);
 	let response = client.execute(reqwest_request).await;
-	debug!("Received response from {destination} at {url}");
+	trace!("Received resonse {} {}", method, url);
 
 	match response {
 		Ok(mut response) => {
 			// reqwest::Response -> http::Response conversion
 
-			debug!("Checking response destination's IP");
+			trace!("Checking response destination's IP");
 			if let Some(remote_addr) = response.remote_addr() {
 				if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
 					let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
@@ -240,18 +240,15 @@ where
 					.expect("http::response::Builder is usable"),
 			);
 
-			debug!("Getting response bytes from {destination}");
+			trace!("Waiting for response body");
 			let body = response.bytes().await.unwrap_or_else(|e| {
-				info!("server error {}", e);
+				debug!("server error {}", e);
 				Vec::new().into()
 			}); // TODO: handle timeout
-			debug!("Got response bytes from {destination}");
 
 			if !status.is_success() {
 				debug!(
-					"Response not successful\n{} {}: {}",
-					url,
-					status,
+					"Got {status:?} for {method} {url}: {}",
 					String::from_utf8_lossy(&body)
 						.lines()
 						.collect::<Vec<_>>()
@@ -264,7 +261,7 @@ where
 				.expect("reqwest body is valid http body");
 
 			if status.is_success() {
-				debug!("Parsing response bytes from {destination}");
+				debug!("Got {status:?} for {method} {url}");
 				let response = T::IncomingResponse::try_from_http_response(http_response);
 				if response.is_ok() && write_destination_to_cache {
 					services()
@@ -276,11 +273,10 @@ where
 				}
 
 				response.map_err(|e| {
-					info!("Invalid 200 response from {} on: {} {}", &destination, url, e);
+					debug!("Invalid 200 response for {} {}", url, e);
 					Error::BadServerResponse("Server returned bad 200 response.")
 				})
 			} else {
-				debug!("Returning error from {destination}");
 				Err(Error::FederationError(
 					destination.to_owned(),
 					RumaError::from_http_response(http_response),
@@ -306,7 +302,7 @@ where
 					e.url()
 				);
 			} else {
-				info!("Could not send request to {} at {}: {}", destination, actual_destination_str, e);
+				debug!("Could not send request to {} at {}: {}", destination, actual_destination_str, e);
 			}
 
 			Err(e.into())
@@ -338,7 +334,7 @@ fn add_port_to_hostname(destination_str: &str) -> FedDest {
 /// specification
 #[tracing::instrument(skip_all, name = "resolve")]
 async fn resolve_actual_destination(destination: &'_ ServerName) -> (FedDest, FedDest) {
-	debug!("Finding actual destination for {destination}");
+	trace!("Finding actual destination for {destination}");
 	let destination_str = destination.as_str().to_owned();
 	let mut hostname = destination_str.clone();
 	let actual_destination = match get_ip_with_port(&destination_str) {
@@ -355,7 +351,7 @@ async fn resolve_actual_destination(destination: &'_ ServerName) -> (FedDest, Fe
 
 				FedDest::Named(host.to_owned(), port.to_owned())
 			} else {
-				debug!("Requesting well known for {destination}");
+				trace!("Requesting well known for {destination}");
 				if let Some(delegated_hostname) = request_well_known(destination.as_str()).await {
 					debug!("3: A .well-known file is available");
 					hostname = add_port_to_hostname(&delegated_hostname).into_uri_string();
@@ -370,7 +366,7 @@ async fn resolve_actual_destination(destination: &'_ ServerName) -> (FedDest, Fe
 
 								FedDest::Named(host.to_owned(), port.to_owned())
 							} else {
-								debug!("Delegated hostname has no port in this branch");
+								trace!("Delegated hostname has no port in this branch");
 								if let Some(hostname_override) = query_srv_record(&delegated_hostname).await {
 									debug!("3.3: SRV lookup successful");
 
@@ -396,9 +392,9 @@ async fn resolve_actual_destination(destination: &'_ ServerName) -> (FedDest, Fe
 						},
 					}
 				} else {
-					debug!("4: No .well-known or an error occured");
+					trace!("4: No .well-known or an error occured");
 					if let Some(hostname_override) = query_srv_record(&destination_str).await {
-						debug!("4: SRV record found");
+						debug!("4: No .well-known; SRV record found");
 
 						let force_port = hostname_override.port();
 						query_and_cache_override(&hostname, &hostname_override.hostname(), force_port.unwrap_or(8448))
@@ -410,7 +406,7 @@ async fn resolve_actual_destination(destination: &'_ ServerName) -> (FedDest, Fe
 							add_port_to_hostname(&hostname)
 						}
 					} else {
-						debug!("5: No SRV record found");
+						debug!("4: No .well-known; 5: No SRV record found");
 						query_and_cache_override(&destination_str, &destination_str, 8448).await;
 						add_port_to_hostname(&destination_str)
 					}
@@ -444,7 +440,7 @@ async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u1
 		.await
 	{
 		Ok(override_ip) => {
-			debug!("Caching result of {:?} overriding {:?}", hostname, overname);
+			trace!("Caching result of {:?} overriding {:?}", hostname, overname);
 
 			services()
 				.globals
@@ -485,7 +481,7 @@ async fn query_srv_record(hostname: &'_ str) -> Option<FedDest> {
 
 	lookup_srv(&first_hostname)
 		.or_else(|_| {
-			debug!("Querying deprecated _matrix SRV record for host {:?}", hostname);
+			trace!("Querying deprecated _matrix SRV record for host {:?}", hostname);
 			lookup_srv(&second_hostname)
 		})
 		.and_then(|srv_lookup| async move { Ok(handle_successful_srv(&srv_lookup)) })
@@ -513,18 +509,15 @@ async fn request_well_known(destination: &str) -> Option<String> {
 		.get(&format!("https://{destination}/.well-known/matrix/server"))
 		.send()
 		.await;
-	debug!("Got well known response");
-	debug!("Well known response: {:?}", response);
 
+	trace!("Well known response: {:?}", response);
 	if let Err(e) = &response {
 		debug!("Well known error: {e:?}");
 		return None;
 	}
 
 	let text = response.ok()?.text().await;
-
-	debug!("Got well known response text");
-	debug!("Well known response text: {:?}", text);
+	trace!("Well known response text: {:?}", text);
 
 	if text.as_ref().ok()?.len() > 10000 {
 		debug!(
@@ -535,7 +528,7 @@ async fn request_well_known(destination: &str) -> Option<String> {
 	}
 
 	let body: serde_json::Value = serde_json::from_str(&text.ok()?).ok()?;
-	debug!("serde_json body of well known text: {}", body);
+	trace!("serde_json body of well known text: {}", body);
 
 	Some(body.get("m.server")?.as_str()?.to_owned())
 }
