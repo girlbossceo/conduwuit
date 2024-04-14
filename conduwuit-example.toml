@@ -156,12 +156,16 @@ ip_range_denylist = [
 ### Moderation / Privacy / Security
 
 # Set to true to allow user type "guest" registrations. Element attempts to register guest users automatically.
-# For private homeservers, this is best at false.
+# Defaults to false
 allow_guest_registration = false
 
 # Set to true to log guest registrations in the admin room.
 # Defaults to false as it may be noisy or unnecessary.
 log_guest_registrations = false
+
+# Set to true to allow guest registrations/users to auto join any rooms specified in `auto_join_rooms`
+# Defaults to false
+allow_guests_auto_join_rooms = false
 
 # Vector list of servers that conduwuit will refuse to download remote media from.
 # No default.

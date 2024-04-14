@@ -319,7 +319,9 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 		}
 	}
 
-	if !services().globals.config.auto_join_rooms.is_empty() {
+	if !services().globals.config.auto_join_rooms.is_empty() && !is_guest
+		|| (services().globals.allow_guests_auto_join_rooms() && is_guest)
+	{
 		for room in &services().globals.config.auto_join_rooms {
 			if !services()
 				.rooms
@@ -331,7 +333,7 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 			}
 
 			if let Some(room_id_server_name) = room.server_name() {
-				match join_room_by_id_helper(
+				if let Err(e) = join_room_by_id_helper(
 					Some(&user_id),
 					room,
 					Some("Automatically joining this room upon registration".to_owned()),
@@ -340,13 +342,10 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 				)
 				.await
 				{
-					Ok(_) => {
-						info!("Automatically joined room {room} for user {user_id}");
-					},
-					Err(e) => {
-						// don't return this error so we don't fail registrations
-						error!("Failed to automatically join room {room} for user {user_id}: {e}");
-					},
+					// don't return this error so we don't fail registrations
+					error!("Failed to automatically join room {room} for user {user_id}: {e}");
+				} else {
+					info!("Automatically joined room {room} for user {user_id}");
 				};
 			}
 		}

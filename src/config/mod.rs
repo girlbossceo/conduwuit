@@ -260,6 +260,8 @@ pub struct Config {
 	pub allow_guest_registration: bool,
 	#[serde(default)]
 	pub log_guest_registrations: bool,
+	#[serde(default)]
+	pub allow_guests_auto_join_rooms: bool,
 
 	#[serde(default = "Vec::new")]
 	pub prevent_media_downloads_from: Vec<OwnedServerName>,
@@ -514,6 +516,10 @@ impl fmt::Display for Config {
 			(
 				"Log guest registrations in admin room",
 				&self.log_guest_registrations.to_string(),
+			),
+			(
+				"Allow guests to auto join rooms",
+				&self.allow_guests_auto_join_rooms.to_string(),
 			),
 			("New user display name suffix", &self.new_user_displayname_suffix),
 			("Allow encryption", &self.allow_encryption.to_string()),
