@@ -9,7 +9,7 @@ use ruma::{
 	OwnedServerName,
 };
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::{debug, error};
 use ErrorKind::{
 	Forbidden, GuestAccessForbidden, LimitExceeded, MissingToken, NotFound, ThreepidAuthFailed, ThreepidDenied,
 	TooLarge, Unauthorized, Unknown, UnknownToken, Unrecognized, UserDeactivated, WrongRoomKeysVersion,
@@ -110,7 +110,6 @@ impl Error {
 		}
 
 		let message = format!("{self}");
-
 		let (kind, status_code) = match self {
 			Self::BadRequest(kind, _) => (
 				kind.clone(),
@@ -142,8 +141,7 @@ impl Error {
 			_ => (Unknown, StatusCode::INTERNAL_SERVER_ERROR),
 		};
 
-		info!("Returning an error: {status_code}: {message}");
-
+		debug!("Returning an error: {status_code}: {message}");
 		RumaResponse(UiaaResponse::MatrixError(RumaError {
 			body: ErrorBody::Standard {
 				kind,
