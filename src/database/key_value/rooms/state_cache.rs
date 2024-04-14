@@ -6,6 +6,7 @@ use ruma::{
 	serde::Raw,
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
+use tracing::error;
 
 use crate::{
 	database::KeyValueDatabase,
@@ -589,13 +590,16 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 
 	#[tracing::instrument(skip(self))]
 	fn servers_invite_via(&self, room_id: &RoomId) -> Result<Option<Vec<OwnedServerName>>> {
-		let room_id = room_id.as_bytes().to_vec();
+		let mut key = room_id.as_bytes().to_vec();
+		key.push(0xFF);
 
 		self.roomid_inviteviaservers
-			.get(&room_id)?
+			.get(&key)?
 			.map(|servers| {
-				let state = serde_json::from_slice(&servers)
-					.map_err(|_| Error::bad_database("Invalid state in userroomid_leftstate."))?;
+				let state = serde_json::from_slice(&servers).map_err(|e| {
+					error!("Invalid state in userroomid_leftstate: {e}");
+					Error::bad_database("Invalid state in userroomid_leftstate.")
+				})?;
 
 				Ok(state)
 			})

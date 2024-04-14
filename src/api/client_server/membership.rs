@@ -1597,6 +1597,8 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 			HashSet::from_iter,
 		);
 
+	debug!("servers in remote_leave_room: {servers:?}");
+
 	for remote_server in servers {
 		let make_leave_response = services()
 			.sending
