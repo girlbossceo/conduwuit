@@ -1,0 +1,284 @@
+{
+  "Action": "pass",
+  "Test": "TestACLs"
+}
+{
+  "Action": "pass",
+  "Test": "TestCannotSendNonJoinViaSendJoinV1/event_with_mismatched_state_key"
+}
+{
+  "Action": "pass",
+  "Test": "TestCannotSendNonJoinViaSendJoinV1/invite_event"
+}
+{
+  "Action": "pass",
+  "Test": "TestCannotSendNonJoinViaSendJoinV1/knock_event"
+}
+{
+  "Action": "pass",
+  "Test": "TestCannotSendNonJoinViaSendJoinV1/non-state_membership_event"
+}
+{
+  "Action": "pass",
+  "Test": "TestCannotSendNonJoinViaSendJoinV2/event_with_mismatched_state_key"
+}
+{
+  "Action": "pass",
+  "Test": "TestCannotSendNonJoinViaSendJoinV2/invite_event"
+}
+{
+  "Action": "pass",
+  "Test": "TestCannotSendNonJoinViaSendJoinV2/knock_event"
+}
+{
+  "Action": "pass",
+  "Test": "TestCannotSendNonJoinViaSendJoinV2/non-state_membership_event"
+}
+{
+  "Action": "pass",
+  "Test": "TestFederatedClientSpaces"
+}
+{
+  "Action": "pass",
+  "Test": "TestFederationRedactSendsWithoutEvent"
+}
+{
+  "Action": "pass",
+  "Test": "TestFederationRoomsInvite/Parallel/Invited_user_can_reject_invite_over_federation_for_empty_room"
+}
+{
+  "Action": "pass",
+  "Test": "TestInboundFederationKeys"
+}
+{
+  "Action": "pass",
+  "Test": "TestInboundFederationProfile"
+}
+{
+  "Action": "pass",
+  "Test": "TestInboundFederationProfile/Inbound_federation_can_query_profile_data"
+}
+{
+  "Action": "pass",
+  "Test": "TestInboundFederationProfile/Non-numeric_ports_in_server_names_are_rejected"
+}
+{
+  "Action": "pass",
+  "Test": "TestIsDirectFlagFederation"
+}
+{
+  "Action": "pass",
+  "Test": "TestIsDirectFlagLocal"
+}
+{
+  "Action": "pass",
+  "Test": "TestJoinFederatedRoomFailOver"
+}
+{
+  "Action": "pass",
+  "Test": "TestJoinFederatedRoomWithUnverifiableEvents"
+}
+{
+  "Action": "pass",
+  "Test": "TestJoinFederatedRoomWithUnverifiableEvents//send_join_response_missing_signatures_shouldn't_block_room_join"
+}
+{
+  "Action": "pass",
+  "Test": "TestJoinFederatedRoomWithUnverifiableEvents//send_join_response_with_bad_signatures_shouldn't_block_room_join"
+}
+{
+  "Action": "pass",
+  "Test": "TestJoinFederatedRoomWithUnverifiableEvents//send_join_response_with_state_with_unverifiable_auth_events_shouldn't_block_room_join"
+}
+{
+  "Action": "pass",
+  "Test": "TestJoinFederatedRoomWithUnverifiableEvents//send_join_response_with_unobtainable_keys_shouldn't_block_room_join"
+}
+{
+  "Action": "pass",
+  "Test": "TestJoinViaRoomIDAndServerName"
+}
+{
+  "Action": "pass",
+  "Test": "TestKnocking/Attempting_to_join_a_room_with_join_rule_'knock'_without_an_invite_should_fail"
+}
+{
+  "Action": "pass",
+  "Test": "TestKnocking/Attempting_to_join_a_room_with_join_rule_'knock'_without_an_invite_should_fail#01"
+}
+{
+  "Action": "pass",
+  "Test": "TestKnocking/A_user_in_the_room_can_accept_a_knock"
+}
+{
+  "Action": "pass",
+  "Test": "TestKnocking/A_user_in_the_room_can_accept_a_knock#01"
+}
+{
+  "Action": "pass",
+  "Test": "TestKnocking/Change_the_join_rule_of_a_room_from_'invite'_to_'knock'"
+}
+{
+  "Action": "pass",
+  "Test": "TestKnocking/Change_the_join_rule_of_a_room_from_'invite'_to_'knock'#01"
+}
+{
+  "Action": "pass",
+  "Test": "TestKnockingInMSC3787Room/Change_the_join_rule_of_a_room_from_'invite'_to_'knock'"
+}
+{
+  "Action": "pass",
+  "Test": "TestKnockingInMSC3787Room/Change_the_join_rule_of_a_room_from_'invite'_to_'knock'#01"
+}
+{
+  "Action": "pass",
+  "Test": "TestMediaFilenames/Parallel/ASCII/Can_download_file_'ascii'"
+}
+{
+  "Action": "pass",
+  "Test": "TestMediaFilenames/Parallel/ASCII/Can_download_specifying_a_different_ASCII_file_name"
+}
+{
+  "Action": "pass",
+  "Test": "TestMediaFilenames/Parallel/ASCII/Can_upload_with_ASCII_file_name"
+}
+{
+  "Action": "pass",
+  "Test": "TestMediaFilenames/Parallel/Unicode/Can_upload_with_Unicode_file_name"
+}
+{
+  "Action": "pass",
+  "Test": "TestMediaWithoutFileName"
+}
+{
+  "Action": "pass",
+  "Test": "TestMediaWithoutFileName/parallel"
+}
+{
+  "Action": "pass",
+  "Test": "TestMediaWithoutFileName/parallel/Can_download_without_a_file_name_locally"
+}
+{
+  "Action": "pass",
+  "Test": "TestMediaWithoutFileName/parallel/Can_download_without_a_file_name_over_federation"
+}
+{
+  "Action": "pass",
+  "Test": "TestMediaWithoutFileName/parallel/Can_upload_without_a_file_name"
+}
+{
+  "Action": "pass",
+  "Test": "TestOutboundFederationProfile"
+}
+{
+  "Action": "pass",
+  "Test": "TestOutboundFederationProfile/Outbound_federation_can_query_profile_data"
+}
+{
+  "Action": "pass",
+  "Test": "TestOutboundFederationSend"
+}
+{
+  "Action": "pass",
+  "Test": "TestRemoteAliasRequestsUnderstandUnicode"
+}
+{
+  "Action": "pass",
+  "Test": "TestRemotePngThumbnail"
+}
+{
+  "Action": "pass",
+  "Test": "TestRemoteTyping"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsLocalJoinInMSC3787Room/Join_should_fail_initially"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsLocalJoinInMSC3787Room/Join_should_fail_when_left_allowed_room"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsLocalJoinInMSC3787Room/Join_should_fail_with_mangled_join_rules"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsLocalJoinInMSC3787Room/Join_should_succeed_when_invited"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsLocalJoin/Join_should_fail_initially"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsLocalJoin/Join_should_fail_when_left_allowed_room"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsLocalJoin/Join_should_fail_with_mangled_join_rules"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsLocalJoin/Join_should_succeed_when_invited"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsRemoteJoinInMSC3787Room/Join_should_fail_initially"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsRemoteJoinInMSC3787Room/Join_should_fail_when_left_allowed_room"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsRemoteJoinInMSC3787Room/Join_should_fail_with_mangled_join_rules"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsRemoteJoinInMSC3787Room/Join_should_succeed_when_invited"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsRemoteJoin/Join_should_fail_initially"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsRemoteJoin/Join_should_fail_when_left_allowed_room"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsRemoteJoin/Join_should_fail_with_mangled_join_rules"
+}
+{
+  "Action": "pass",
+  "Test": "TestRestrictedRoomsRemoteJoin/Join_should_succeed_when_invited"
+}
+{
+  "Action": "pass",
+  "Test": "TestToDeviceMessagesOverFederation/good_connectivity"
+}
+{
+  "Action": "pass",
+  "Test": "TestUnknownEndpoints/Client-server_endpoints"
+}
+{
+  "Action": "pass",
+  "Test": "TestUnknownEndpoints/Media_endpoints"
+}
+{
+  "Action": "pass",
+  "Test": "TestUnknownEndpoints/Server-server_endpoints"
+}
+{
+  "Action": "pass",
+  "Test": "TestUnknownEndpoints/Unknown_prefix"
+}
+{
+  "Action": "pass",
+  "Test": "TestUserAppearsInChangedDeviceListOnJoinOverFederation"
+}
+{
+  "Action": "pass",
+  "Test": "TestWriteMDirectAccountData"
+}
