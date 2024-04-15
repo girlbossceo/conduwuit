@@ -360,13 +360,23 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 
 	let mut power_levels_content = serde_json::to_value(RoomPowerLevelsEventContent {
 		users,
-		state_default: int!(100),
 		..Default::default()
 	})
 	.expect("event is valid, we just created it");
 
+	// secure proper defaults of sensitive/dangerous permissions that moderators
+	// (power level 50) should not have easy access to
+	power_levels_content["events"]["m.room.power_levels"] = serde_json::to_value(100).expect("100 is valid Value");
+	power_levels_content["events"]["m.room.server_acl"] = serde_json::to_value(100).expect("100 is valid Value");
+	power_levels_content["events"]["m.room.tombstone"] = serde_json::to_value(100).expect("100 is valid Value");
+	power_levels_content["events"]["m.room.encryption"] = serde_json::to_value(100).expect("100 is valid Value");
+	power_levels_content["events"]["m.room.history_visibility"] =
+		serde_json::to_value(100).expect("100 is valid Value");
+
+	// synapse does this too. clients do not expose these permissions. it prevents
+	// default users from calling public rooms, for obvious reasons.
 	if body.visibility == room::Visibility::Public {
-		power_levels_content["m.call.invite"] = serde_json::to_value(50).expect("50 is valid Value");
+		power_levels_content["events"]["m.call.invite"] = serde_json::to_value(50).expect("50 is valid Value");
 		power_levels_content["events"]["org.matrix.msc3401.call"] =
 			serde_json::to_value(50).expect("50 is valid Value");
 		power_levels_content["events"]["org.matrix.msc3401.call.member"] =
