@@ -217,7 +217,7 @@ default-features = false
 
 # to support multiple variations of setting a config option
 [dependencies.either]
-version = "1.10.0"
+version = "1.11.0"
 features = ["serde"]
 
 # to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
