@@ -125,7 +125,6 @@ where
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&body).ok();
 
 		let (sender_user, sender_device, sender_servername, from_appservice) = match (metadata.authentication, token) {
-			(AuthScheme::None, Token::Invalid) => (None, None, None, false),
 			(_, Token::Invalid) => {
 				return Err(Error::BadRequest(
 					ErrorKind::UnknownToken {
@@ -134,13 +133,7 @@ where
 					"Unknown access token.",
 				))
 			},
-			(
-				AuthScheme::AccessToken
-				| AuthScheme::AppserviceToken
-				| AuthScheme::AccessTokenOptional
-				| AuthScheme::None,
-				Token::Appservice(info),
-			) => {
+			(AuthScheme::AccessToken | AuthScheme::AccessTokenOptional, Token::Appservice(info)) => {
 				let user_id = query_params
 					.user_id
 					.map_or_else(
@@ -160,6 +153,7 @@ where
 				// TODO: Check if appservice is allowed to be that user
 				(Some(user_id), None, None, true)
 			},
+			(AuthScheme::None | AuthScheme::AppserviceToken, Token::Appservice(_)) => (None, None, None, true),
 			(AuthScheme::AccessToken, Token::None) => {
 				return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token."));
 			},
