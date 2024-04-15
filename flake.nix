@@ -198,7 +198,7 @@
           name = package.pname;
           tag = "main";
           # Debian makes builds reproducible through using the HEAD commit's date
-          created = self.lastModifiedDate;
+          created = builtins.substring 0 8 self.lastModifiedDate;
           copyToRoot = [
             pkgs.dockerTools.caCertificates
           ];
