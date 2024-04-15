@@ -277,6 +277,10 @@ impl Service<'_> {
 		&self.config.url_preview_domain_explicit_allowlist
 	}
 
+	pub fn url_preview_domain_explicit_denylist(&self) -> &Vec<String> {
+		&self.config.url_preview_domain_explicit_denylist
+	}
+
 	pub fn url_preview_url_contains_allowlist(&self) -> &Vec<String> { &self.config.url_preview_url_contains_allowlist }
 
 	pub fn url_preview_max_spider_size(&self) -> usize { self.config.url_preview_max_spider_size }

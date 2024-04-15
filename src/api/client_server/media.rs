@@ -800,6 +800,7 @@ fn url_preview_allowed(url_str: &str) -> bool {
 
 	let allowlist_domain_contains = services().globals.url_preview_domain_contains_allowlist();
 	let allowlist_domain_explicit = services().globals.url_preview_domain_explicit_allowlist();
+	let denylist_domain_explicit = services().globals.url_preview_domain_explicit_denylist();
 	let allowlist_url_contains = services().globals.url_preview_url_contains_allowlist();
 
 	if allowlist_domain_contains.contains(&"*".to_owned())
@@ -811,8 +812,16 @@ fn url_preview_allowed(url_str: &str) -> bool {
 	}
 
 	if !host.is_empty() {
+		if denylist_domain_explicit.contains(&host) {
+			debug!(
+				"Host {} is not allowed by url_preview_domain_explicit_denylist (check 1/4)",
+				&host
+			);
+			return false;
+		}
+
 		if allowlist_domain_explicit.contains(&host) {
-			debug!("Host {} is allowed by url_preview_domain_explicit_allowlist (check 1/3)", &host);
+			debug!("Host {} is allowed by url_preview_domain_explicit_allowlist (check 2/4)", &host);
 			return true;
 		}
 
@@ -820,7 +829,7 @@ fn url_preview_allowed(url_str: &str) -> bool {
 			.iter()
 			.any(|domain_s| domain_s.contains(&host.clone()))
 		{
-			debug!("Host {} is allowed by url_preview_domain_contains_allowlist (check 2/3)", &host);
+			debug!("Host {} is allowed by url_preview_domain_contains_allowlist (check 3/4)", &host);
 			return true;
 		}
 
@@ -828,7 +837,7 @@ fn url_preview_allowed(url_str: &str) -> bool {
 			.iter()
 			.any(|url_s| url.to_string().contains(&url_s.to_string()))
 		{
-			debug!("URL {} is allowed by url_preview_url_contains_allowlist (check 3/3)", &host);
+			debug!("URL {} is allowed by url_preview_url_contains_allowlist (check 4/4)", &host);
 			return true;
 		}
 
@@ -838,9 +847,17 @@ fn url_preview_allowed(url_str: &str) -> bool {
 			match host.split_once('.') {
 				None => return false,
 				Some((_, root_domain)) => {
+					if denylist_domain_explicit.contains(&root_domain.to_owned()) {
+						debug!(
+							"Root domain {} is not allowed by url_preview_domain_explicit_denylist (check 1/3)",
+							&root_domain
+						);
+						return true;
+					}
+
 					if allowlist_domain_explicit.contains(&root_domain.to_owned()) {
 						debug!(
-							"Root domain {} is allowed by url_preview_domain_explicit_allowlist (check 1/3)",
+							"Root domain {} is allowed by url_preview_domain_explicit_allowlist (check 2/3)",
 							&root_domain
 						);
 						return true;
@@ -851,7 +868,7 @@ fn url_preview_allowed(url_str: &str) -> bool {
 						.any(|domain_s| domain_s.contains(&root_domain.to_owned()))
 					{
 						debug!(
-							"Root domain {} is allowed by url_preview_domain_contains_allowlist (check 2/3)",
+							"Root domain {} is allowed by url_preview_domain_contains_allowlist (check 3/3)",
 							&root_domain
 						);
 						return true;
