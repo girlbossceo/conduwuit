@@ -211,6 +211,10 @@ impl Services<'_> {
 			.len();
 		let resolver_overrides_cache = self.globals.resolver.overrides.read().unwrap().len();
 		let resolver_destinations_cache = self.globals.resolver.destinations.read().await.len();
+		let servername_ratelimiter = self.globals.servername_ratelimiter.read().await.len();
+		let bad_event_ratelimiter = self.globals.bad_event_ratelimiter.read().await.len();
+		let bad_query_ratelimiter = self.globals.bad_query_ratelimiter.read().await.len();
+		let bad_signature_ratelimiter = self.globals.bad_signature_ratelimiter.read().await.len();
 
 		format!(
 			"\
@@ -221,7 +225,12 @@ stateinfo_cache: {stateinfo_cache}
 lasttimelinecount_cache: {lasttimelinecount_cache}
 roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}
 resolver_overrides_cache: {resolver_overrides_cache}
-resolver_destinations_cache: {resolver_destinations_cache}"
+resolver_destinations_cache: {resolver_destinations_cache}
+servername_ratelimiter: {servername_ratelimiter}
+bad_event_ratelimiter: {bad_event_ratelimiter}
+bad_query_ratelimiter: {bad_query_ratelimiter}
+bad_signature_ratelimiter: {bad_signature_ratelimiter}
+"
 		)
 	}
 
@@ -280,6 +289,18 @@ resolver_destinations_cache: {resolver_destinations_cache}"
 		}
 		if amount > 7 {
 			self.globals.resolver.resolver.clear_cache();
+		}
+		if amount > 8 {
+			self.globals.servername_ratelimiter.write().await.clear();
+		}
+		if amount > 9 {
+			self.globals.bad_event_ratelimiter.write().await.clear();
+		}
+		if amount > 10 {
+			self.globals.bad_query_ratelimiter.write().await.clear();
+		}
+		if amount > 11 {
+			self.globals.bad_signature_ratelimiter.write().await.clear();
 		}
 	}
 }
