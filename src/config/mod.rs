@@ -278,6 +278,8 @@ pub struct Config {
 	#[serde(default = "Vec::new")]
 	pub url_preview_domain_explicit_allowlist: Vec<String>,
 	#[serde(default = "Vec::new")]
+	pub url_preview_domain_explicit_denylist: Vec<String>,
+	#[serde(default = "Vec::new")]
 	pub url_preview_url_contains_allowlist: Vec<String>,
 	#[serde(default = "default_url_preview_max_spider_size")]
 	pub url_preview_max_spider_size: usize,
@@ -708,6 +710,10 @@ impl fmt::Display for Config {
 			(
 				"URL preview domain explicit allowlist",
 				&self.url_preview_domain_explicit_allowlist.join(", "),
+			),
+			(
+				"URL preview domain explicit denylist",
+				&self.url_preview_domain_explicit_denylist.join(", "),
 			),
 			(
 				"URL preview URL contains allowlist",

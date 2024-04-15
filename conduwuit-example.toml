@@ -240,7 +240,7 @@ allow_device_name_federation = false
 url_preview_domain_contains_allowlist = []
 
 # Vector list of explicit domains allowed to send requests to for URL previews. Defaults to none.
-# Note: This is an *explicit* match, not a ccontains match. Putting "google.com" will match "https://google.com", "http://google.com", but not "https://mymaliciousdomainexamplegoogle.com"
+# Note: This is an *explicit* match, not a contains match. Putting "google.com" will match "https://google.com", "http://google.com", but not "https://mymaliciousdomainexamplegoogle.com"
 # Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
 url_preview_domain_explicit_allowlist = []
 
@@ -248,6 +248,11 @@ url_preview_domain_explicit_allowlist = []
 # Note that this is a *contains* match, not an explicit match. Putting "google.com" will match "https://google.com/", "https://google.com/url?q=https://mymaliciousdomainexample.com", and "https://mymaliciousdomainexample.com/hi/google.com"
 # Setting this to "*" will allow all URL previews. Please note that this opens up significant attack surface to your server, you are expected to be aware of the risks by doing so.
 url_preview_url_contains_allowlist = []
+
+# Vector list of explicit domains not allowed to send requests to for URL previews. Defaults to none.
+# Note: This is an *explicit* match, not a contains match. Putting "google.com" will match "https://google.com", "http://google.com", but not "https://mymaliciousdomainexamplegoogle.com"
+# The denylist is checked first before allowlist. Setting this to "*" will not do anything.
+url_preview_domain_explicit_denylist = []
 
 # Maximum amount of bytes allowed in a URL preview body size when spidering. Defaults to 384KB (384_000 bytes)
 url_preview_max_spider_size = 384_000
