@@ -494,7 +494,10 @@ impl Service {
 		.map_err(|_e| Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed."))?;
 
 		if !check_result {
-			return Err(Error::bad_database("Event has failed auth check with state at the event."));
+			return Err(Error::BadRequest(
+				ErrorKind::InvalidParam,
+				"Event has failed auth check with state at the event.",
+			));
 		}
 
 		debug!("Gathering auth events");
