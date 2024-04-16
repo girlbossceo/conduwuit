@@ -323,6 +323,12 @@ impl Service<'_> {
 
 	pub fn prevent_media_downloads_from(&self) -> &[OwnedServerName] { &self.config.prevent_media_downloads_from }
 
+	pub fn forbidden_remote_server_names(&self) -> &[OwnedServerName] { &self.config.forbidden_remote_server_names }
+
+	pub fn forbidden_remote_room_directory_server_names(&self) -> &[OwnedServerName] {
+		&self.config.forbidden_remote_room_directory_server_names
+	}
+
 	pub fn ip_range_denylist(&self) -> &[String] { &self.config.ip_range_denylist }
 
 	pub fn well_known_support_page(&self) -> &Option<Url> { &self.config.well_known.support_page }

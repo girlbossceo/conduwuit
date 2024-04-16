@@ -269,6 +269,10 @@ pub struct Config {
 
 	#[serde(default = "Vec::new")]
 	pub prevent_media_downloads_from: Vec<OwnedServerName>,
+	#[serde(default = "Vec::new")]
+	pub forbidden_remote_server_names: Vec<OwnedServerName>,
+	#[serde(default = "Vec::new")]
+	pub forbidden_remote_room_directory_server_names: Vec<OwnedServerName>,
 
 	#[serde(default = "default_ip_range_denylist")]
 	pub ip_range_denylist: Vec<String>,
@@ -685,6 +689,20 @@ impl fmt::Display for Config {
 			("Prevent Media Downloads From", {
 				let mut lst = vec![];
 				for domain in &self.prevent_media_downloads_from {
+					lst.push(domain.host());
+				}
+				&lst.join(", ")
+			}),
+			("Forbidden Remote Server Names (\"Global\" ACLs)", {
+				let mut lst = vec![];
+				for domain in &self.forbidden_remote_server_names {
+					lst.push(domain.host());
+				}
+				&lst.join(", ")
+			}),
+			("Forbidden Remote Room Directory Server Names", {
+				let mut lst = vec![];
+				for domain in &self.forbidden_remote_room_directory_server_names {
 					lst.push(domain.host());
 				}
 				&lst.join(", ")
