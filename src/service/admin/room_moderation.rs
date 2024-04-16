@@ -4,7 +4,7 @@ use clap::Subcommand;
 use ruma::{
 	events::room::message::RoomMessageEventContent, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{
 	api::client_server::{get_alias_helper, leave_room},
@@ -261,7 +261,7 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 									Err(e) => {
 										if force {
 											// ignore rooms we failed to parse if we're force banning
-											error!(
+											warn!(
 												"Error parsing room \"{room}\" during bulk room banning, ignoring \
 												 error and logging here: {e}"
 											);
@@ -301,10 +301,10 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 													response.room_id
 												},
 												Err(e) => {
+													// don't fail if force blocking
 													if force {
-														format!(
-															"Failed to resolve room alias {room} to a room ID: {e}"
-														);
+														warn!("Failed to resolve room alias {room} to a room ID: {e}");
+														continue;
 													}
 
 													return Ok(RoomMessageEventContent::text_plain(format!(
