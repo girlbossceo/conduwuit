@@ -176,7 +176,7 @@ features = ["rt-tokio"]
 
 # optional sentry metrics for crash/panic reporting
 [dependencies.sentry]
-version = "0.32.2"
+version = "0.32.3"
 optional = true
 default-features = false
 features = [
@@ -192,10 +192,10 @@ features = [
     "log",
 ]
 [dependencies.sentry-tracing]
-version = "0.32.2"
+version = "0.32.3"
 optional = true
 [dependencies.sentry-tower]
-version = "0.32.2"
+version = "0.32.3"
 optional = true
 
 # optional jemalloc usage
