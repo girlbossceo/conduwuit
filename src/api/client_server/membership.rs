@@ -55,6 +55,26 @@ pub async fn join_room_by_id_route(body: Ruma<join_room_by_id::v3::Request>) -> 
 		));
 	}
 
+	if let Some(server) = body.room_id.server_name() {
+		if services()
+			.globals
+			.config
+			.forbidden_remote_server_names
+			.contains(&server.to_owned())
+			&& !services().users.is_admin(sender_user)?
+		{
+			warn!(
+				"User {sender_user} tried joining room ID {} which has a server name that is globally forbidden. \
+				 Rejecting.",
+				body.room_id
+			);
+			return Err(Error::BadRequest(
+				ErrorKind::forbidden(),
+				"This remote server is banned on this homeserver.",
+			));
+		}
+	}
+
 	// There is no body.server_name for /roomId/join
 	let mut servers = services()
 		.rooms
@@ -112,6 +132,25 @@ pub async fn join_room_by_id_or_alias_route(
 				));
 			}
 
+			if let Some(server) = room_id.server_name() {
+				if services()
+					.globals
+					.config
+					.forbidden_remote_server_names
+					.contains(&server.to_owned())
+					&& !services().users.is_admin(sender_user)?
+				{
+					warn!(
+						"User {sender_user} tried joining room ID {room_id} which has a server name that is globally \
+						 forbidden. Rejecting.",
+					);
+					return Err(Error::BadRequest(
+						ErrorKind::forbidden(),
+						"This remote server is banned on this homeserver.",
+					));
+				}
+			}
+
 			let mut servers = body.server_name.clone();
 
 			servers.extend(
@@ -136,19 +175,57 @@ pub async fn join_room_by_id_or_alias_route(
 			);
 
 			if let Some(server) = room_id.server_name() {
-				servers.push(server.into());
+				servers.push(server.to_owned());
 			}
 
 			(servers, room_id)
 		},
 		Err(room_alias) => {
-			let response = get_alias_helper(room_alias).await?;
+			let response = get_alias_helper(room_alias.clone()).await?;
 
 			if services().rooms.metadata.is_banned(&response.room_id)? && !services().users.is_admin(sender_user)? {
 				return Err(Error::BadRequest(
 					ErrorKind::forbidden(),
 					"This room is banned on this homeserver.",
 				));
+			}
+
+			if services()
+				.globals
+				.config
+				.forbidden_remote_server_names
+				.contains(&room_alias.server_name().to_owned())
+				&& !services().users.is_admin(sender_user)?
+			{
+				warn!(
+					"User {sender_user} tried joining room alias {} with room ID {} which has a server name that is \
+					 globally forbidden. Rejecting.",
+					&room_alias, &response.room_id
+				);
+				return Err(Error::BadRequest(
+					ErrorKind::forbidden(),
+					"This remote server is banned on this homeserver.",
+				));
+			}
+
+			if let Some(server) = response.room_id.server_name() {
+				if services()
+					.globals
+					.config
+					.forbidden_remote_server_names
+					.contains(&server.to_owned())
+					&& !services().users.is_admin(sender_user)?
+				{
+					warn!(
+						"User {sender_user} tried joining room alias {} with room ID {} which has a server name that \
+						 is globally forbidden. Rejecting.",
+						&room_alias, &response.room_id
+					);
+					return Err(Error::BadRequest(
+						ErrorKind::forbidden(),
+						"This remote server is banned on this homeserver.",
+					));
+				}
 			}
 
 			(response.servers, response.room_id)
@@ -208,6 +285,20 @@ pub async fn invite_user_route(body: Ruma<invite_user::v3::Request>) -> Result<i
 			ErrorKind::forbidden(),
 			"This room is banned on this homeserver.",
 		));
+	}
+
+	if let Some(server) = body.room_id.server_name() {
+		if services()
+			.globals
+			.config
+			.forbidden_remote_server_names
+			.contains(&server.to_owned())
+		{
+			return Err(Error::BadRequest(
+				ErrorKind::forbidden(),
+				"Server is banned on this homeserver.",
+			));
+		}
 	}
 
 	if let invite_user::v3::InvitationRecipient::UserId {

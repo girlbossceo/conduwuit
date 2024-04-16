@@ -908,6 +908,37 @@ pub async fn create_join_event_template_route(
 		.event_handler
 		.acl_check(sender_servername, &body.room_id)?;
 
+	if services()
+		.globals
+		.config
+		.forbidden_remote_server_names
+		.contains(sender_servername)
+	{
+		warn!(
+			"Server {sender_servername} for remote user {} tried joining room ID {} which has a server name that is \
+			 globally forbidden. Rejecting.",
+			&body.user_id, &body.room_id,
+		);
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"Server is banned on this homeserver.",
+		));
+	}
+
+	if let Some(server) = body.room_id.server_name() {
+		if services()
+			.globals
+			.config
+			.forbidden_remote_server_names
+			.contains(&server.to_owned())
+		{
+			return Err(Error::BadRequest(
+				ErrorKind::forbidden(),
+				"Server is banned on this homeserver.",
+			));
+		}
+	}
+
 	let mutex_state = Arc::clone(
 		services()
 			.globals
@@ -1201,6 +1232,42 @@ pub async fn create_join_event_v1_route(
 		.as_ref()
 		.expect("server is authenticated");
 
+	if services()
+		.globals
+		.config
+		.forbidden_remote_server_names
+		.contains(sender_servername)
+	{
+		warn!(
+			"Server {sender_servername} tried joining room ID {} who has a server name that is globally forbidden. \
+			 Rejecting.",
+			&body.room_id,
+		);
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"Server is banned on this homeserver.",
+		));
+	}
+
+	if let Some(server) = body.room_id.server_name() {
+		if services()
+			.globals
+			.config
+			.forbidden_remote_server_names
+			.contains(&server.to_owned())
+		{
+			warn!(
+				"Server {sender_servername} tried joining room ID {} which has a server name that is globally \
+				 forbidden. Rejecting.",
+				&body.room_id,
+			);
+			return Err(Error::BadRequest(
+				ErrorKind::forbidden(),
+				"Server is banned on this homeserver.",
+			));
+		}
+	}
+
 	let room_state = create_join_event(sender_servername, &body.room_id, &body.pdu).await?;
 
 	Ok(create_join_event::v1::Response {
@@ -1218,6 +1285,37 @@ pub async fn create_join_event_v2_route(
 		.sender_servername
 		.as_ref()
 		.expect("server is authenticated");
+
+	if services()
+		.globals
+		.config
+		.forbidden_remote_server_names
+		.contains(sender_servername)
+	{
+		warn!(
+			"Server {sender_servername} tried joining room ID {} who has a server name that is globally forbidden. \
+			 Rejecting.",
+			&body.room_id,
+		);
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"Server is banned on this homeserver.",
+		));
+	}
+
+	if let Some(server) = body.room_id.server_name() {
+		if services()
+			.globals
+			.config
+			.forbidden_remote_server_names
+			.contains(&server.to_owned())
+		{
+			return Err(Error::BadRequest(
+				ErrorKind::forbidden(),
+				"Server is banned on this homeserver.",
+			));
+		}
+	}
 
 	let create_join_event::v1::RoomState {
 		auth_chain,
@@ -1445,6 +1543,40 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 				room_version: body.room_version.clone(),
 			},
 			"Server does not support this room version.",
+		));
+	}
+
+	if let Some(server) = body.room_id.server_name() {
+		if services()
+			.globals
+			.config
+			.forbidden_remote_server_names
+			.contains(&server.to_owned())
+		{
+			warn!(
+				"Received federated/remote invite from banned server {sender_servername} for room ID {}. Rejecting.",
+				body.room_id
+			);
+			return Err(Error::BadRequest(
+				ErrorKind::forbidden(),
+				"Server is banned on this homeserver.",
+			));
+		}
+	}
+
+	if services()
+		.globals
+		.config
+		.forbidden_remote_server_names
+		.contains(&sender_servername.to_owned())
+	{
+		warn!(
+			"Received federated/remote invite from banned server {sender_servername} for room ID {}. Rejecting.",
+			body.room_id
+		);
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"Server is banned on this homeserver.",
 		));
 	}
 

@@ -34,6 +34,19 @@ use crate::{services, Error, Result, Ruma};
 pub async fn get_public_rooms_filtered_route(
 	body: Ruma<get_public_rooms_filtered::v3::Request>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
+	if let Some(server) = &body.server {
+		if services()
+			.globals
+			.forbidden_remote_room_directory_server_names()
+			.contains(server)
+		{
+			return Err(Error::BadRequest(
+				ErrorKind::forbidden(),
+				"Server is banned on this homeserver.",
+			));
+		}
+	}
+
 	let response = get_public_rooms_filtered_helper(
 		body.server.as_deref(),
 		body.limit,
@@ -58,6 +71,19 @@ pub async fn get_public_rooms_filtered_route(
 pub async fn get_public_rooms_route(
 	body: Ruma<get_public_rooms::v3::Request>,
 ) -> Result<get_public_rooms::v3::Response> {
+	if let Some(server) = &body.server {
+		if services()
+			.globals
+			.forbidden_remote_room_directory_server_names()
+			.contains(server)
+		{
+			return Err(Error::BadRequest(
+				ErrorKind::forbidden(),
+				"Server is banned on this homeserver.",
+			));
+		}
+	}
+
 	let response = get_public_rooms_filtered_helper(
 		body.server.as_deref(),
 		body.limit,
