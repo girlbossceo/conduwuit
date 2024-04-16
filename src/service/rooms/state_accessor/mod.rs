@@ -107,8 +107,15 @@ impl Service {
 			.map_or(Ok(HistoryVisibility::Shared), |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
-					.map_err(|_| Error::bad_database("Invalid history visibility event in database."))
-			})?;
+					.map_err(|e| {
+						error!(
+							"Invalid history visibility event in database for room {room_id}, assuming is \"shared\": \
+							 {e}"
+						);
+						Error::bad_database("Invalid history visibility event in database.")
+					})
+			})
+			.unwrap_or(HistoryVisibility::Shared);
 
 		let mut current_server_members = services()
 			.rooms
@@ -165,8 +172,15 @@ impl Service {
 			.map_or(Ok(HistoryVisibility::Shared), |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
-					.map_err(|_| Error::bad_database("Invalid history visibility event in database."))
-			})?;
+					.map_err(|e| {
+						error!(
+							"Invalid history visibility event in database for room {room_id}, assuming is \"shared\": \
+							 {e}"
+						);
+						Error::bad_database("Invalid history visibility event in database.")
+					})
+			})
+			.unwrap_or(HistoryVisibility::Shared);
 
 		let visibility = match history_visibility {
 			HistoryVisibility::WorldReadable => true,
@@ -205,10 +219,14 @@ impl Service {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
 					.map_err(|e| {
-						error!("Invalid history visibility event in database for room {}: {e}", &room_id);
+						error!(
+							"Invalid history visibility event in database for room {room_id}, assuming is \"shared\": \
+							 {e}"
+						);
 						Error::bad_database("Invalid history visibility event in database.")
 					})
-			})?;
+			})
+			.unwrap_or(HistoryVisibility::Shared);
 
 		Ok(currently_member || history_visibility == HistoryVisibility::WorldReadable)
 	}

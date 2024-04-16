@@ -254,8 +254,8 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 					.map_or(Ok(None), |s| {
 						serde_json::from_str(s.content.get())
 							.map(|c: RoomTopicEventContent| Some(c.topic))
-							.map_err(|_| {
-								error!("Invalid room topic event in database for room {}", room_id);
+							.map_err(|e| {
+								error!("Invalid room topic event in database for room {room_id}: {e}");
 								Error::bad_database("Invalid room topic event in database.")
 							})
 					})
@@ -271,11 +271,10 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 							})
                             .map_err(|e| {
                                 error!(
-                                    "Invalid room history visibility event in database for room {}: {e}",
-                                    &room_id
+                                    "Invalid room history visibility event in database for room {room_id}, assuming is \"shared\": {e}",
                                 );
                                 Error::bad_database("Invalid room history visibility event in database.")
-                            })})?,
+                            })}).unwrap_or(false),
 				guest_can_join: services()
 					.rooms
 					.state_accessor

@@ -832,15 +832,22 @@ fn guest_can_join(room_id: &RoomId) -> Result<bool, Error> {
 
 /// Checks if guests are able to view room content without joining
 fn world_readable(room_id: &RoomId) -> Result<bool, Error> {
-	services()
+	Ok(services()
 		.rooms
 		.state_accessor
 		.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
 		.map_or(Ok(false), |s| {
 			serde_json::from_str(s.content.get())
 				.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility == HistoryVisibility::WorldReadable)
-				.map_err(|_| Error::bad_database("Invalid room history visibility event in database."))
+				.map_err(|e| {
+					error!(
+						"Invalid room history visibility event in database for room {room_id}, assuming is \
+						 \"shared\": {e} "
+					);
+					Error::bad_database("Invalid room history visibility event in database.")
+				})
 		})
+		.unwrap_or(false))
 }
 
 /// Returns the join rule for a given room
