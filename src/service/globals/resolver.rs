@@ -64,6 +64,7 @@ impl Resolver {
 		opts.positive_max_ttl = Some(Duration::from_secs(60 * 60 * 24 * 7));
 		opts.timeout = Duration::from_secs(config.dns_timeout);
 		opts.attempts = config.dns_attempts as usize;
+		opts.try_tcp_on_error = config.dns_tcp_fallback;
 		opts.num_concurrent_reqs = 1;
 		opts.shuffle_dns_servers = true;
 		opts.rotate = true;

@@ -491,6 +491,9 @@ allow_profile_lookup_federation_requests = true
 # Number of retries after a timeout.
 #dns_attempts = 5
 
+# Fallback to TCP on DNS errors. Set this to false if unsupported by nameserver.
+#dns_tcp_fallback = true
+
 # Enable to query all nameservers until the domain is found. Referred to as "trust_negative_responses" in hickory_resolver.
 # This can avoid useless DNS queries if the first nameserver responds with NXDOMAIN or an empty NOERROR response.
 #
