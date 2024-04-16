@@ -28,7 +28,7 @@ use ruma::{
 use tokio::sync::{Mutex, Semaphore};
 use tracing::{error, warn};
 
-use crate::{services, utils::calculate_hash, Config, Error, PduEvent, Result};
+use crate::{service::presence::Presence, services, utils::calculate_hash, Config, Error, PduEvent, Result};
 
 pub mod appservice;
 pub mod data;
@@ -493,7 +493,7 @@ pub fn select_edus_presence(
 ) -> Result<bool> {
 	// Look for presence updates for this server
 	let mut presence_updates = Vec::new();
-	for (user_id, count, presence_event) in services().presence.presence_since(since) {
+	for (user_id, count, presence_bytes) in services().presence.presence_since(since) {
 		*max_edu_count = cmp::max(count, *max_edu_count);
 
 		if user_id.server_name() != services().globals.server_name() {
@@ -508,6 +508,7 @@ pub fn select_edus_presence(
 			continue;
 		}
 
+		let presence_event = Presence::from_json_bytes_to_event(&presence_bytes, &user_id)?;
 		presence_updates.push(PresenceUpdate {
 			user_id,
 			presence: presence_event.content.presence,

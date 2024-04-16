@@ -17,5 +17,5 @@ pub trait Data: Send + Sync {
 
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
-	fn presence_since<'a>(&'a self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, PresenceEvent)> + 'a>;
+	fn presence_since<'a>(&'a self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + 'a>;
 }
