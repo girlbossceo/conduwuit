@@ -339,8 +339,9 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 		}
 	}
 
-	if !services().globals.config.auto_join_rooms.is_empty() && !is_guest
-		|| (services().globals.allow_guests_auto_join_rooms() && is_guest)
+	if !body.from_appservice
+		&& !services().globals.config.auto_join_rooms.is_empty()
+		&& (services().globals.allow_guests_auto_join_rooms() || !is_guest)
 	{
 		for room in &services().globals.config.auto_join_rooms {
 			if !services()
