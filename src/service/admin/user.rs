@@ -1,7 +1,8 @@
 use std::{fmt::Write as _, sync::Arc};
 
 use clap::Subcommand;
-use ruma::{events::room::message::RoomMessageEventContent, UserId};
+use itertools::Itertools;
+use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, UserId};
 use tracing::{error, info, warn};
 
 use crate::{
@@ -188,6 +189,16 @@ pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 				)));
 			}
 
+			// don't deactivate the conduit service account
+			if user_id
+				== UserId::parse_with_server_name("conduit", services().globals.server_name())
+					.expect("conduit user exists")
+			{
+				return Ok(RoomMessageEventContent::text_plain(
+					"Not allowed to deactivate the Conduit service account.",
+				));
+			}
+
 			if services().users.exists(&user_id)? {
 				RoomMessageEventContent::text_plain(format!("Making {user_id} leave all rooms before deactivation..."));
 
@@ -294,6 +305,19 @@ pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 						continue;
 					}
 
+					// don't deactivate the conduit service account
+					if user_id
+						== UserId::parse_with_server_name("conduit", services().globals.server_name())
+							.expect("conduit user exists")
+					{
+						continue;
+					}
+
+					// user does not exist on our server
+					if !services().users.exists(user_id)? {
+						continue;
+					}
+
 					if services().users.deactivate_account(user_id).is_ok() {
 						deactivation_count += 1;
 					}
@@ -330,12 +354,19 @@ pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 				return Ok(RoomMessageEventContent::text_plain("User does not belong to our server."));
 			}
 
-			let mut rooms = vec![]; // room ID, members joined, room name
-
-			for room_id in services().rooms.state_cache.rooms_joined(&user_id) {
-				let room_id = room_id?;
-				rooms.push(get_room_info(&room_id));
+			if !services().users.exists(&user_id)? {
+				return Ok(RoomMessageEventContent::text_plain("User does not exist on this server."));
 			}
+
+			let mut rooms: Vec<(OwnedRoomId, u64, String)> = services()
+				.rooms
+				.state_cache
+				.rooms_joined(&user_id)
+				.filter_map(Result::ok)
+				.map(|room_id| get_room_info(&room_id))
+				.sorted_unstable()
+				.dedup()
+				.collect();
 
 			if rooms.is_empty() {
 				return Ok(RoomMessageEventContent::text_plain("User is not in any rooms."));
