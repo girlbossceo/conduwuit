@@ -288,8 +288,8 @@ allow_profile_lookup_federation_requests = true
 # For release builds, the tracing crate is configured to only implement levels higher than error to avoid unnecessary overhead in the compiled binary from trace macros.
 # For debug builds, this restriction is not applied.
 #
-# Defaults to "warn"
-#log = "warn"
+# Defaults to "info"
+#log = "info"
 
 # controls whether encrypted rooms and events are allowed (default true)
 #allow_encryption = false

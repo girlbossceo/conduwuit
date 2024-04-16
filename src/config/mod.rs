@@ -902,7 +902,7 @@ fn default_log() -> String {
 	if cfg!(debug_assertions) {
 		"debug".to_owned()
 	} else {
-		"warn,ruma_state_res=warn".to_owned()
+		"info".to_owned()
 	}
 }
 
