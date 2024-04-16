@@ -98,6 +98,8 @@ pub struct Config {
 	pub dns_attempts: u16,
 	#[serde(default = "default_dns_timeout")]
 	pub dns_timeout: u64,
+	#[serde(default = "true_fn")]
+	pub dns_tcp_fallback: bool,
 	#[serde(default)]
 	pub query_all_nameservers: bool,
 	#[serde(default = "default_max_request_size")]
@@ -494,6 +496,7 @@ impl fmt::Display for Config {
 			("DNS minimum nxdomain ttl", &self.dns_min_ttl_nxdomain.to_string()),
 			("DNS attempts", &self.dns_attempts.to_string()),
 			("DNS timeout", &self.dns_timeout.to_string()),
+			("DNS fallback to TCP", &self.dns_tcp_fallback.to_string()),
 			("Query all nameservers", &self.query_all_nameservers.to_string()),
 			("Maximum request size (bytes)", &self.max_request_size.to_string()),
 			("Maximum concurrent requests", &self.max_concurrent_requests.to_string()),
