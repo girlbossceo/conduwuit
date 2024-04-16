@@ -52,9 +52,7 @@ impl Resolver {
 		for sys_conf in sys_conf.name_servers() {
 			let mut ns = sys_conf.clone();
 
-			if config.query_all_nameservers {
-				ns.trust_negative_responses = true;
-			}
+			ns.trust_negative_responses = !config.query_all_nameservers;
 
 			conf.add_name_server(ns);
 		}
