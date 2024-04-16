@@ -35,6 +35,11 @@ impl Presence {
 		}
 	}
 
+	pub fn from_json_bytes_to_event(bytes: &[u8], user_id: &UserId) -> Result<PresenceEvent> {
+		let presence = Self::from_json_bytes(bytes)?;
+		presence.to_presence_event(user_id)
+	}
+
 	pub fn from_json_bytes(bytes: &[u8]) -> Result<Self> {
 		serde_json::from_slice(bytes).map_err(|_| Error::bad_database("Invalid presence data in database"))
 	}
@@ -169,7 +174,7 @@ impl Service {
 
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
-	pub fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, PresenceEvent)>> {
+	pub fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)>> {
 		self.db.presence_since(since)
 	}
 

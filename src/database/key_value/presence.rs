@@ -92,16 +92,13 @@ impl service::presence::Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn presence_since<'a>(&'a self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, PresenceEvent)> + 'a> {
+	fn presence_since<'a>(&'a self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + 'a> {
 		Box::new(
 			self.presenceid_presence
 				.iter()
-				.flat_map(|(key, presence_bytes)| -> Result<(OwnedUserId, u64, PresenceEvent)> {
+				.flat_map(|(key, presence_bytes)| -> Result<(OwnedUserId, u64, Vec<u8>)> {
 					let (count, user_id) = presenceid_parse(&key)?;
-					let presence = Presence::from_json_bytes(&presence_bytes)?;
-					let presence_event = presence.to_presence_event(&user_id)?;
-
-					Ok((user_id, count, presence_event))
+					Ok((user_id, count, presence_bytes))
 				})
 				.filter(move |(_, count, _)| *count > since),
 		)
