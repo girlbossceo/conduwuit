@@ -477,19 +477,19 @@ allow_profile_lookup_federation_requests = true
 
 # Minimum time-to-live in seconds for entries in the DNS cache. The default may appear high to most
 # administrators; this is by design. Only decrease this if you are using an external DNS cache.
-#dns_min_ttl = 60 * 90
+#dns_min_ttl = 10800
 
 # Minimum time-to-live in seconds for NXDOMAIN entries in the DNS cache. This value is critical for
 # the server to federate efficiently. NXDOMAIN's are assumed to not be returning to the federation
 # and aggressively cached rather than constantly rechecked.
-#dns_min_ttl_nxdomain = 60 * 60 * 24 * 3
+#dns_min_ttl_nxdomain = 86400
 
 # The number of seconds to wait for a reply to a DNS query. Please note that recursive queries can
 # take up to several seconds for some domains, so this value should not be too low.
-#dns_timeout = 5
+#dns_timeout = 10
 
 # Number of retries after a timeout.
-#dns_attempts = 5
+#dns_attempts = 10
 
 # Fallback to TCP on DNS errors. Set this to false if unsupported by nameserver.
 #dns_tcp_fallback = true
@@ -498,7 +498,7 @@ allow_profile_lookup_federation_requests = true
 # This can avoid useless DNS queries if the first nameserver responds with NXDOMAIN or an empty NOERROR response.
 #
 # The default is to query one nameserver and stop (false).
-#query_all_nameservers = false
+#query_all_nameservers = true
 
 
 ### Request Timeouts, Connection Timeouts, and Connection Pooling
