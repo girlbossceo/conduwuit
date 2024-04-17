@@ -378,7 +378,7 @@ jobs:
           docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
           docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
           # Tag "main" as latest (stable branch)
-          if [[ -n "$GITHUB_REF_NAME" = "main" ]]; then
+          if [[ "$GITHUB_REF_NAME" = "main" ]]; then
             docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
             docker manifest push $IMAGE_NAME:latest
           fi
