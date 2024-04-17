@@ -350,9 +350,7 @@ impl Service {
 							vec![(event, key)],
 							&mut current_transaction_status,
 						) {
-							if !events.is_empty() {
-								futures.push(handle_events(outgoing_kind, events));
-							}
+							futures.push(handle_events(outgoing_kind, events));
 						}
 					}
 				}
@@ -601,7 +599,6 @@ pub fn select_edus_receipts(
 async fn handle_events(
 	kind: OutgoingKind, events: Vec<SendingEventType>,
 ) -> Result<OutgoingKind, (OutgoingKind, Error)> {
-	debug_assert!(!events.is_empty(), "sending empty transaction");
 	match kind {
 		OutgoingKind::Appservice(ref id) => handle_events_kind_appservice(&kind, id, events).await,
 		OutgoingKind::Push(ref userid, ref pushkey) => handle_events_kind_push(&kind, userid, pushkey, events).await,
@@ -642,7 +639,6 @@ async fn handle_events_kind_appservice(
 
 	let permit = services().sending.maximum_requests.acquire().await;
 
-	debug_assert!(!pdu_jsons.is_empty(), "sending empty transaction");
 	let response = match appservice::send_request(
 		services()
 			.appservice
@@ -797,7 +793,6 @@ async fn handle_events_kind_normal(
 
 	let permit = services().sending.maximum_requests.acquire().await;
 	let client = &services().globals.client.sender;
-	debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty transaction");
 	let response = send::send_request(
 		client,
 		dest,
