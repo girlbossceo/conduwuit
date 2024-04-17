@@ -198,7 +198,7 @@ jobs:
 
       - name: Build oci-image-x86_64-unknown-linux-gnu
         run: |
-          ./bin/nix-build-and-cache .#oci-image ${{ github.ref_name }}
+          ./bin/nix-build-and-cache .#oci-image "${{ github.ref_name }}"
           cp -v -f result oci-image-amd64.tar.gz
 
       - name: Upload artifact oci-image-x86_64-unknown-linux-gnu
@@ -212,7 +212,7 @@ jobs:
 
       - name: Build oci-image-x86_64-unknown-linux-gnu-jemalloc
         run: |
-          ./bin/nix-build-and-cache .#oci-image-jemalloc ${{ github.ref_name }}
+          ./bin/nix-build-and-cache .#oci-image-jemalloc "${{ github.ref_name }}"
           cp -v -f result oci-image-amd64.tar.gz
 
       - name: Upload artifact oci-image-x86_64-unknown-linux-gnu-jemalloc
@@ -226,7 +226,7 @@ jobs:
 
       - name: Build oci-image-x86_64-unknown-linux-gnu-hmalloc
         run: |
-          ./bin/nix-build-and-cache .#oci-image-hmalloc ${{ github.ref_name }}
+          ./bin/nix-build-and-cache .#oci-image-hmalloc "${{ github.ref_name }}"
           cp -v -f result oci-image-amd64.tar.gz
 
       - name: Upload artifact oci-image-x86_64-unknown-linux-gnu-hmalloc
@@ -241,7 +241,7 @@ jobs:
 
       - name: Build oci-image-aarch64-unknown-linux-musl
         run: |
-          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl ${{ github.ref_name }}
+          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl "${{ github.ref_name }}"
           cp -v -f result oci-image-arm64v8.tar.gz
 
       - name: Upload artifact oci-image-aarch64-unknown-linux-musl
@@ -255,7 +255,7 @@ jobs:
 
       - name: Build oci-image-aarch64-unknown-linux-musl-jemalloc
         run: |
-          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-jemalloc ${{ github.ref_name }}
+          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-jemalloc "${{ github.ref_name }}"
           cp -v -f result oci-image-arm64v8.tar.gz
 
       - name: Upload artifact oci-image-aarch64-unknown-linux-musl-jemalloc
@@ -269,7 +269,7 @@ jobs:
 
       - name: Build oci-image-aarch64-unknown-linux-musl-hmalloc
         run: |
-          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-hmalloc ${{ github.ref_name }}
+          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-hmalloc "${{ github.ref_name }}"
           cp -v -f result oci-image-arm64v8.tar.gz
 
       - name: Upload artifact oci-image-aarch64-unknown-linux-musl-hmalloc
