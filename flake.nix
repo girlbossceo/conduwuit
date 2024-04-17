@@ -194,10 +194,12 @@
       };
 
       mkOciImage = pkgs: package: allocator: tag:
-        pkgs.dockerTools.buildImage {
+        pkgs.dockerTools.buildLayeredImage {
           name = package.pname;
           tag = "${tag}";
-          copyToRoot = [
+          # Debian makes builds reproducible through using the HEAD commit's date
+          created = "@${toString self.lastModified}";
+          contents = [
             pkgs.dockerTools.caCertificates
           ];
           config = {
