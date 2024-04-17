@@ -220,7 +220,7 @@
         default = mkPackage pkgsHost null;
         jemalloc = mkPackage pkgsHost "jemalloc";
         hmalloc = mkPackage pkgsHost "hmalloc";
-        oci-image = mkOciImage pkgsHost self.packages.${system}.default null null;
+        oci-image = mkOciImage pkgsHost self.packages.${system}.default null;
         oci-image-jemalloc = mkOciImage pkgsHost self.packages.${system}.default "jemalloc" null;
         oci-image-hmalloc = mkOciImage pkgsHost self.packages.${system}.default "hmalloc" null;
 
