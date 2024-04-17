@@ -100,7 +100,7 @@ pub struct Config {
 	pub dns_timeout: u64,
 	#[serde(default = "true_fn")]
 	pub dns_tcp_fallback: bool,
-	#[serde(default)]
+	#[serde(default = "true_fn")]
 	pub query_all_nameservers: bool,
 	#[serde(default = "default_max_request_size")]
 	pub max_request_size: u32,
@@ -851,13 +851,13 @@ fn default_cleanup_second_interval() -> u32 {
 
 fn default_dns_cache_entries() -> u32 { 12288 }
 
-fn default_dns_min_ttl() -> u64 { 60 * 90 }
+fn default_dns_min_ttl() -> u64 { 60 * 180 }
 
-fn default_dns_min_ttl_nxdomain() -> u64 { 60 * 60 * 24 * 3 }
+fn default_dns_min_ttl_nxdomain() -> u64 { 60 * 60 * 24 }
 
-fn default_dns_attempts() -> u16 { 5 }
+fn default_dns_attempts() -> u16 { 10 }
 
-fn default_dns_timeout() -> u64 { 5 }
+fn default_dns_timeout() -> u64 { 10 }
 
 fn default_max_request_size() -> u32 {
 	20 * 1024 * 1024 // Default to 20 MB
