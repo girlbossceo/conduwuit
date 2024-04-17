@@ -193,10 +193,10 @@
         meta.mainProgram = cargoToml.package.name;
       };
 
-      mkOciImage = pkgs: package: allocator: tag:
+      mkOciImage = pkgs: package: allocator:
         pkgs.dockerTools.buildLayeredImage {
           name = package.pname;
-          tag = "${tag}";
+          tag = "main";
           # Debian makes builds reproducible through using the HEAD commit's date
           created = "@${toString self.lastModified}";
           contents = [
