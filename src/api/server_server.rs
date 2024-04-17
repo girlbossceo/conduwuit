@@ -1554,7 +1554,8 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 			.contains(&server.to_owned())
 		{
 			warn!(
-				"Received federated/remote invite from server {sender_servername} for room ID {} which has a banned server name. Rejecting.",
+				"Received federated/remote invite from server {sender_servername} for room ID {} which has a banned \
+				 server name. Rejecting.",
 				body.room_id
 			);
 			return Err(Error::BadRequest(
