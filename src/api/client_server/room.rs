@@ -50,7 +50,10 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().globals.allow_room_creation() && !&body.from_appservice && !services().users.is_admin(sender_user)? {
+	if !services().globals.allow_room_creation()
+		&& body.appservice_info.is_none()
+		&& !services().users.is_admin(sender_user)?
+	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room creation has been disabled."));
 	}
 
@@ -183,6 +186,16 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 				Ok(Some(alias))
 			}
 		})?;
+
+	if let Some(ref alias) = alias {
+		if let Some(ref info) = body.appservice_info {
+			if !info.aliases.is_match(alias.as_str()) {
+				return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
+			}
+		} else if services().appservice.is_exclusive_alias(alias).await {
+			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
+		}
+	}
 
 	let room_version = match body.room_version.clone() {
 		Some(room_version) => {
