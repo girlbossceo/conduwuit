@@ -1024,7 +1024,10 @@ pub(crate) async fn join_room_by_id_helper(
 
 		let restriction_rooms = match join_rules_event_content {
 			Some(RoomJoinRulesEventContent {
-				join_rule: JoinRule::Restricted(restricted) | JoinRule::KnockRestricted(restricted),
+				join_rule: JoinRule::Restricted(restricted),
+			})
+			| Some(RoomJoinRulesEventContent {
+				join_rule: JoinRule::KnockRestricted(restricted),
 			}) => restricted
 				.allow
 				.into_iter()
@@ -1036,22 +1039,36 @@ pub(crate) async fn join_room_by_id_helper(
 			_ => Vec::new(),
 		};
 
-		let authorized_user = if restriction_rooms.iter().any(|restriction_room_id| {
+		let local_members = services()
+			.rooms
+			.state_cache
+			.room_members(room_id)
+			.filter_map(Result::ok)
+			.filter(|user| user.server_name() == services().globals.server_name())
+			.collect::<Vec<OwnedUserId>>();
+
+		let mut authorized_user: Option<OwnedUserId> = None;
+
+		if restriction_rooms.iter().any(|restriction_room_id| {
 			services()
 				.rooms
 				.state_cache
 				.is_joined(sender_user, restriction_room_id)
 				.unwrap_or(false)
 		}) {
-			services()
-				.rooms
-				.state_cache
-				.room_members(room_id)
-				.filter_map(Result::ok)
-				.find(|auth_user| auth_user.server_name() == services().globals.server_name())
-		} else {
-			None
-		};
+			for user in local_members {
+				if services()
+					.rooms
+					.state_accessor
+					.user_can_invite(room_id, &user, sender_user, &state_lock)
+					.await
+					.unwrap_or(false)
+				{
+					authorized_user = Some(user);
+					break;
+				}
+			}
+		}
 
 		let event = RoomMemberEventContent {
 			membership: MembershipState::Join,
