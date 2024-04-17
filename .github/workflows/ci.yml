@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - dev
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -197,7 +198,7 @@ jobs:
 
       - name: Build oci-image-x86_64-unknown-linux-gnu
         run: |
-          ./bin/nix-build-and-cache .#oci-image
+          ./bin/nix-build-and-cache .#oci-image ${{ github.ref_name }}
           cp -v -f result oci-image-amd64.tar.gz
 
       - name: Upload artifact oci-image-x86_64-unknown-linux-gnu
@@ -211,7 +212,7 @@ jobs:
 
       - name: Build oci-image-x86_64-unknown-linux-gnu-jemalloc
         run: |
-          ./bin/nix-build-and-cache .#oci-image-jemalloc
+          ./bin/nix-build-and-cache .#oci-image-jemalloc ${{ github.ref_name }}
           cp -v -f result oci-image-amd64.tar.gz
 
       - name: Upload artifact oci-image-x86_64-unknown-linux-gnu-jemalloc
@@ -225,7 +226,7 @@ jobs:
 
       - name: Build oci-image-x86_64-unknown-linux-gnu-hmalloc
         run: |
-          ./bin/nix-build-and-cache .#oci-image-hmalloc
+          ./bin/nix-build-and-cache .#oci-image-hmalloc ${{ github.ref_name }}
           cp -v -f result oci-image-amd64.tar.gz
 
       - name: Upload artifact oci-image-x86_64-unknown-linux-gnu-hmalloc
@@ -240,7 +241,7 @@ jobs:
 
       - name: Build oci-image-aarch64-unknown-linux-musl
         run: |
-          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl
+          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl ${{ github.ref_name }}
           cp -v -f result oci-image-arm64v8.tar.gz
 
       - name: Upload artifact oci-image-aarch64-unknown-linux-musl
@@ -254,7 +255,7 @@ jobs:
 
       - name: Build oci-image-aarch64-unknown-linux-musl-jemalloc
         run: |
-          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-jemalloc
+          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-jemalloc ${{ github.ref_name }}
           cp -v -f result oci-image-arm64v8.tar.gz
 
       - name: Upload artifact oci-image-aarch64-unknown-linux-musl-jemalloc
@@ -268,7 +269,7 @@ jobs:
 
       - name: Build oci-image-aarch64-unknown-linux-musl-hmalloc
         run: |
-          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-hmalloc
+          ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-hmalloc ${{ github.ref_name }}
           cp -v -f result oci-image-arm64v8.tar.gz
 
       - name: Upload artifact oci-image-aarch64-unknown-linux-musl-hmalloc
@@ -347,8 +348,8 @@ jobs:
           # Tag and push the git ref
           docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
           docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
-          # Tag git tags as 'latest'
-          if [[ -n "$GITHUB_REF_NAME" ]]; then
+          # Tag "main" as latest (stable branch)
+          if [[ "$GITHUB_REF_NAME" = "main" ]]; then
             docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
             docker manifest push $IMAGE_NAME:latest
           fi
@@ -376,8 +377,8 @@ jobs:
           # Tag and push the git ref
           docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
           docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
-          # Tag git tags as 'latest'
-          if [[ -n "$GITHUB_REF_NAME" ]]; then
+          # Tag "main" as latest (stable branch)
+          if [[ -n "$GITHUB_REF_NAME" = "main" ]]; then
             docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
             docker manifest push $IMAGE_NAME:latest
           fi

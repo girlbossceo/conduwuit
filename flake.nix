@@ -193,10 +193,10 @@
         meta.mainProgram = cargoToml.package.name;
       };
 
-      mkOciImage = pkgs: package: allocator:
+      mkOciImage = pkgs: package: allocator: tag:
         pkgs.dockerTools.buildImage {
           name = package.pname;
-          tag = "main";
+          tag = "${tag}";
           copyToRoot = [
             pkgs.dockerTools.caCertificates
           ];
@@ -218,9 +218,9 @@
         default = mkPackage pkgsHost null;
         jemalloc = mkPackage pkgsHost "jemalloc";
         hmalloc = mkPackage pkgsHost "hmalloc";
-        oci-image = mkOciImage pkgsHost self.packages.${system}.default null;
-        oci-image-jemalloc = mkOciImage pkgsHost self.packages.${system}.default "jemalloc";
-        oci-image-hmalloc = mkOciImage pkgsHost self.packages.${system}.default "hmalloc";
+        oci-image = mkOciImage pkgsHost self.packages.${system}.default null null;
+        oci-image-jemalloc = mkOciImage pkgsHost self.packages.${system}.default "jemalloc" null;
+        oci-image-hmalloc = mkOciImage pkgsHost self.packages.${system}.default "hmalloc" null;
 
         book =
           let
