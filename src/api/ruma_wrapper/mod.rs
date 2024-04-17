@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use ruma::{api::client::uiaa::UiaaResponse, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId};
 
-use crate::Error;
+use crate::{service::appservice::RegistrationInfo, Error};
 
 mod axum;
 
@@ -14,7 +14,7 @@ pub struct Ruma<T> {
 	pub sender_servername: Option<OwnedServerName>,
 	// This is None when body is not a valid string
 	pub json_body: Option<CanonicalJsonValue>,
-	pub from_appservice: bool,
+	pub appservice_info: Option<RegistrationInfo>,
 }
 
 impl<T> Deref for Ruma<T> {

@@ -29,6 +29,18 @@ pub async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result
 		return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias is forbidden."));
 	}
 
+	if let Some(ref info) = body.appservice_info {
+		if !info.aliases.is_match(body.room_alias.as_str()) {
+			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
+		}
+	} else if services()
+		.appservice
+		.is_exclusive_alias(&body.room_alias)
+		.await
+	{
+		return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
+	}
+
 	if services()
 		.rooms
 		.alias
@@ -71,6 +83,18 @@ pub async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result
 		.is_none()
 	{
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Alias does not exist."));
+	}
+
+	if let Some(ref info) = body.appservice_info {
+		if !info.aliases.is_match(body.room_alias.as_str()) {
+			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
+		}
+	} else if services()
+		.appservice
+		.is_exclusive_alias(&body.room_alias)
+		.await
+	{
+		return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
 	}
 
 	if services()

@@ -66,26 +66,22 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 			..
 		}) => {
 			debug!("Got password login type");
-			let username = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
-				debug!("Using username from identifier field");
-				user_id.to_lowercase()
-			} else if let Some(user_id) = user {
-				warn!(
-					"User \"{}\" is attempting to login with the deprecated \"user\" field at \
-					 \"/_matrix/client/v3/login\". conduwuit implements this deprecated behaviour, but this is \
-					 destined to be removed in a future Matrix release.",
-					user_id
-				);
-				user_id.to_lowercase()
+			let user_id = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
+				UserId::parse_with_server_name(user_id.to_lowercase(), services().globals.server_name())
+			} else if let Some(user) = user {
+				UserId::parse(user)
 			} else {
 				warn!("Bad login type: {:?}", &body.login_info);
 				return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));
-			};
-
-			let user_id = UserId::parse_with_server_name(username, services().globals.server_name()).map_err(|e| {
-				warn!("Failed to parse username from user logging in: {}", e);
+			}
+			.map_err(|e| {
+				warn!("Failed to parse username from user logging in: {e}");
 				Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
 			})?;
+
+			if services().appservice.is_exclusive_user_id(&user_id).await {
+				return Err(Error::BadRequest(ErrorKind::Exclusive, "User ID reserved by appservice."));
+			}
 
 			let hash = services()
 				.users
@@ -121,16 +117,23 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 				let token =
 					jsonwebtoken::decode::<Claims>(token, jwt_decoding_key, &jsonwebtoken::Validation::default())
 						.map_err(|e| {
-							warn!("Failed to parse JWT token from user logging in: {}", e);
+							warn!("Failed to parse JWT token from user logging in: {e}");
 							Error::BadRequest(ErrorKind::InvalidUsername, "Token is invalid.")
 						})?;
 
 				let username = token.claims.sub.to_lowercase();
 
-				UserId::parse_with_server_name(username, services().globals.server_name()).map_err(|e| {
-					warn!("Failed to parse username from user logging in: {}", e);
-					Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
-				})?
+				let user_id =
+					UserId::parse_with_server_name(username, services().globals.server_name()).map_err(|e| {
+						warn!("Failed to parse username from user logging in: {e}");
+						Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
+					})?;
+
+				if services().appservice.is_exclusive_user_id(&user_id).await {
+					return Err(Error::BadRequest(ErrorKind::Exclusive, "User ID reserved by appservice."));
+				}
+
+				user_id
 			} else {
 				return Err(Error::BadRequest(
 					ErrorKind::Unknown,
@@ -144,27 +147,28 @@ pub async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Re
 			user,
 		}) => {
 			debug!("Got appservice login type");
-			if !body.from_appservice {
-				return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing Appservice token."));
-			};
-			let username = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
-				user_id.to_lowercase()
-			} else if let Some(user_id) = user {
-				warn!(
-					"Appservice \"{}\" is attempting to login with the deprecated \"user\" field at \
-					 \"/_matrix/client/v3/login\". conduwuit implements this deprecated behaviour, but this is \
-					 destined to be removed in a future Matrix release.",
-					user_id
-				);
-				user_id.to_lowercase()
+			let user_id = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
+				UserId::parse_with_server_name(user_id.to_lowercase(), services().globals.server_name())
+			} else if let Some(user) = user {
+				UserId::parse(user)
 			} else {
+				warn!("Bad login type: {:?}", &body.login_info);
 				return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));
-			};
-
-			UserId::parse_with_server_name(username, services().globals.server_name()).map_err(|e| {
-				warn!("Failed to parse username from appservice logging in: {}", e);
+			}
+			.map_err(|e| {
+				warn!("Failed to parse username from appservice logging in: {e}");
 				Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
-			})?
+			})?;
+
+			if let Some(ref info) = body.appservice_info {
+				if !info.is_user_match(&user_id) {
+					return Err(Error::BadRequest(ErrorKind::Exclusive, "User is not in namespace."));
+				}
+			} else {
+				return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing appservice token."));
+			}
+
+			user_id
 		},
 		_ => {
 			warn!("Unsupported or unknown login type: {:?}", &body.login_info);

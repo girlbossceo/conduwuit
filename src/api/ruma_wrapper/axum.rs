@@ -124,7 +124,7 @@ where
 
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&body).ok();
 
-		let (sender_user, sender_device, sender_servername, from_appservice) = match (metadata.authentication, token) {
+		let (sender_user, sender_device, sender_servername, appservice_info) = match (metadata.authentication, token) {
 			(_, Token::Invalid) => {
 				return Err(Error::BadRequest(
 					ErrorKind::UnknownToken {
@@ -146,21 +146,27 @@ where
 						UserId::parse,
 					)
 					.map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
+
+				if !info.is_user_match(&user_id) {
+					return Err(Error::BadRequest(ErrorKind::Exclusive, "User is not in namespace."));
+				}
+
 				if !services().users.exists(&user_id)? {
 					return Err(Error::BadRequest(ErrorKind::forbidden(), "User does not exist."));
 				}
 
-				// TODO: Check if appservice is allowed to be that user
-				(Some(user_id), None, None, true)
+				(Some(user_id), None, None, Some(*info))
 			},
-			(AuthScheme::None | AuthScheme::AppserviceToken, Token::Appservice(_)) => (None, None, None, true),
+			(AuthScheme::None | AuthScheme::AppserviceToken, Token::Appservice(info)) => {
+				(None, None, None, Some(*info))
+			},
 			(AuthScheme::AccessToken, Token::None) => {
 				return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token."));
 			},
 			(
 				AuthScheme::AccessToken | AuthScheme::AccessTokenOptional | AuthScheme::None,
 				Token::User((user_id, device_id)),
-			) => (Some(user_id), Some(device_id), None, false),
+			) => (Some(user_id), Some(device_id), None, None),
 			(AuthScheme::ServerSignatures, Token::None) => {
 				if !services().globals.allow_federation() {
 					return Err(Error::bad_config("Federation is disabled."));
@@ -234,7 +240,7 @@ where
 				let pub_key_map = BTreeMap::from_iter([(x_matrix.origin.as_str().to_owned(), keys)]);
 
 				match ruma::signatures::verify_json(&pub_key_map, &request_map) {
-					Ok(()) => (None, None, Some(x_matrix.origin), false),
+					Ok(()) => (None, None, Some(x_matrix.origin), None),
 					Err(e) => {
 						warn!("Failed to verify json request from {}: {e}\n{request_map:?}", x_matrix.origin);
 
@@ -253,7 +259,7 @@ where
 				}
 			},
 			(AuthScheme::None | AuthScheme::AppserviceToken | AuthScheme::AccessTokenOptional, Token::None) => {
-				(None, None, None, false)
+				(None, None, None, None)
 			},
 			(AuthScheme::ServerSignatures, Token::Appservice(_) | Token::User(_)) => {
 				return Err(Error::BadRequest(
@@ -322,7 +328,7 @@ where
 			sender_device,
 			sender_servername,
 			json_body,
-			from_appservice,
+			appservice_info,
 		})
 	}
 }
