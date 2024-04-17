@@ -117,12 +117,6 @@ jobs:
           ]
 
     steps:
-      - name: Download build environment
-        uses: actions/download-artifact@v4
-        with:
-          name: build-environment
-
-
       - name: Perform continuous integration
         run: direnv exec . engage
 
@@ -170,11 +164,6 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     steps:
-    - name: Download build environment
-      uses: actions/download-artifact@v4
-      with:
-        name: build-environment
-
     - name: Extract metadata for Dockerhub
       env:
         REGISTRY: registry.hub.docker.com
