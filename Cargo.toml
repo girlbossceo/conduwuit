@@ -275,6 +275,10 @@ features = [
     "unstable-extensible-events",
 ]
 
+[dependencies.ruma-identifiers-validation]
+git = "https://github.com/girlbossceo/ruma"
+branch = "conduwuit-changes"
+
 [dependencies.hickory-resolver]
 version = "0.24.1"
 default-features = false

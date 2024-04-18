@@ -536,6 +536,7 @@ dependencies = [
  "reqwest",
  "ring",
  "ruma",
+ "ruma-identifiers-validation",
  "rusqlite",
  "rust-rocksdb",
  "sd-notify",
