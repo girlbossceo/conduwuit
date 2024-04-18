@@ -40,15 +40,15 @@
 
       rocksdb' = pkgs:
         let
-          version = "9.0.0";
+          version = "9.1.0";
         in
         (pkgs.rocksdb.overrideAttrs (old: {
           inherit version;
           src = pkgs.fetchFromGitHub {
             owner = "girlbossceo";
             repo = "rocksdb";
-            rev = "449768a833b79c267c584b5ab1d50e73db6faf9d";
-            hash = "sha256-MjmGfAlZ5WC2+hFH6nEUprqBjO8xiTQh2HJIqQ5mIg8=";
+            rev = "44f612d06c57ded8bcda2da87dfdd09546961b43";
+            hash = "sha256-sw0F/EKbT20cYWaLBDPdmLaEDx/9Fhfjzp39U0JmBRE";
           };
         }));
 
