@@ -273,7 +273,7 @@ features = [
 
 [dependencies.hickory-resolver]
 git = "https://github.com/hickory-dns/hickory-dns"
-rev = "94ac564c3f677e038f7255ddb762e9301d0f2c5d"
+rev = "76a4b84216fa4984eafd4c4ceb5f0892ae3edbbf"
 
 [dependencies.rust-rocksdb]
 git = "https://github.com/zaidoon1/rust-rocksdb"
