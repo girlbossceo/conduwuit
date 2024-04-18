@@ -29,9 +29,6 @@ base64 = "0.22.0"
 # Used when hashing the state
 ring = "0.17.8"
 
-# Used when querying the SRV record of other servers
-hickory-resolver = "0.24.0"
-
 # Used to find matching events for appservices
 regex = "1.10.4"
 
@@ -107,9 +104,11 @@ version = "0.14"
 features = ["server", "http1", "http2"]
 
 [dependencies.reqwest]
-version = "0.11.27"
+#version = "0.11.27"
+git = "https://github.com/girlbossceo/reqwest"
+rev = "319335e000fdea2e3d01f44245c8a21864d0c1c3"
 default-features = false
-features = ["rustls-tls-native-roots", "socks", "trust-dns"]
+features = ["rustls-tls-native-roots", "socks", "hickory-dns"]
 
 # all the serde stuff
 # Used for pdu definition
@@ -271,6 +270,10 @@ features = [
     "unstable-msc4125",
     "unstable-extensible-events",
 ]
+
+[dependencies.hickory-resolver]
+git = "https://github.com/hickory-dns/hickory-dns"
+rev = "94ac564c3f677e038f7255ddb762e9301d0f2c5d"
 
 [dependencies.rust-rocksdb]
 git = "https://github.com/zaidoon1/rust-rocksdb"
