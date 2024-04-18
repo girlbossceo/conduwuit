@@ -237,7 +237,7 @@ default-features = false
 
 # Used for reading the configuration from conduit.toml & environment variables
 [dependencies.figment]
-version = "0.10.17"
+version = "0.10.18"
 features = ["env", "toml"]
 
 # Used for matrix spec type definitions and helpers
