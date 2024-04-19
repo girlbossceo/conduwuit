@@ -30,6 +30,7 @@ jobs:
     name: CI, Tests, Artifacts, and Publish
     runs-on: ubuntu-latest
     strategy:
+      max-parallel: 4
       matrix:
         target: [
           "static-x86_64-unknown-linux-musl",
