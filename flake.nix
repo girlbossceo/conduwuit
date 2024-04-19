@@ -197,7 +197,7 @@
         CARGO_PROFILE = profile;
       };
 
-      mkOciImage = pkgs: package: allocator:
+      mkOciImage = pkgs: package:
         pkgs.dockerTools.buildLayeredImage {
           name = package.pname;
           tag = "main";
@@ -209,10 +209,10 @@
           config = {
             # Use the `tini` init system so that signals (e.g. ctrl+c/SIGINT)
             # are handled as expected
-            Entrypoint = [
+            Entrypoint = if !pkgs.stdenv.isDarwin then [
               "${pkgs.lib.getExe' pkgs.tini "tini"}"
               "--"
-            ];
+            ] else [];
             Cmd = [
               "${pkgs.lib.getExe package}"
             ];
@@ -290,10 +290,10 @@
                   ''
               ];
 
-              Entrypoint = [
+              Entrypoint = if !pkgs.stdenv.isDarwin then [
                 "${pkgs.lib.getExe' pkgs.tini "tini"}"
                 "--"
-              ];
+              ] else [];
 
               Env = [
                 "SSL_CERT_FILE=/complement/ca/ca.crt"
@@ -314,9 +314,9 @@
         default = mkPackage pkgsHost null "" "release";
         jemalloc = mkPackage pkgsHost "jemalloc" "" "release";
         hmalloc = mkPackage pkgsHost "hmalloc" "" "release";
-        oci-image = mkOciImage pkgsHost self.packages.${system}.default null;
-        oci-image-jemalloc = mkOciImage pkgsHost self.packages.${system}.default "jemalloc";
-        oci-image-hmalloc = mkOciImage pkgsHost self.packages.${system}.default "hmalloc";
+        oci-image = mkOciImage pkgsHost self.packages.${system}.default;
+        oci-image-jemalloc = mkOciImage pkgsHost self.packages.${system}.default;
+        oci-image-hmalloc = mkOciImage pkgsHost self.packages.${system}.default;
 
         book =
           let
@@ -388,8 +388,7 @@
                   name = "oci-image-${crossSystem}";
                   value = mkOciImage
                     pkgsCrossStatic
-                    self.packages.${system}.${binaryName}
-                    null;
+                    self.packages.${system}.${binaryName};
                 }
 
                 # An output for an OCI image based on that binary with jemalloc
@@ -397,8 +396,7 @@
                   name = "oci-image-${crossSystem}-jemalloc";
                   value = mkOciImage
                     pkgsCrossStatic
-                    self.packages.${system}.${binaryName}
-                    "jemalloc";
+                    self.packages.${system}.${binaryName};
                 }
 
                 # An output for an OCI image based on that binary with hardened_malloc
@@ -406,18 +404,13 @@
                   name = "oci-image-${crossSystem}-hmalloc";
                   value = mkOciImage
                     pkgsCrossStatic
-                    self.packages.${system}.${binaryName}
-                    "hmalloc";
+                    self.packages.${system}.${binaryName};
                 }
               ]
             )
             [
               "x86_64-unknown-linux-musl"
-              "x86_64-unknown-linux-musl-jemalloc"
-              "x86_64-unknown-linux-musl-hmalloc"
               "aarch64-unknown-linux-musl"
-              "aarch64-unknown-linux-musl-jemalloc"
-              "aarch64-unknown-linux-musl-hmalloc"
             ]
           )
         );
