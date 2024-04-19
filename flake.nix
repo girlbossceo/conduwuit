@@ -315,8 +315,8 @@
         jemalloc = mkPackage pkgsHost "jemalloc" "" "release";
         hmalloc = mkPackage pkgsHost "hmalloc" "" "release";
         oci-image = mkOciImage pkgsHost self.packages.${system}.default;
-        oci-image-jemalloc = mkOciImage pkgsHost self.packages.${system}.default;
-        oci-image-hmalloc = mkOciImage pkgsHost self.packages.${system}.default;
+        oci-image-jemalloc = mkOciImage pkgsHost self.packages.${system}.jemalloc;
+        oci-image-hmalloc = mkOciImage pkgsHost self.packages.${system}.hmalloc;
 
         book =
           let
