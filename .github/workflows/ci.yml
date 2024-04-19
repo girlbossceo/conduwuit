@@ -26,11 +26,84 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
-    name: CI, Tests, Artifacts, and Publish
+  tests:
+    name: CI and Tests
     runs-on: ubuntu-latest
+
+    steps:
+    - name: Sync repository
+      uses: actions/checkout@v4
+
+    - name: Install Nix (with flakes and nix-command enabled)
+      uses: cachix/install-nix-action@v26
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+
+        # Add `nix-community`, Crane, upstream Conduit, and conduwuit binary caches
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          extra-substituters = https://nix-community.cachix.org
+          extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
+          extra-substituters = https://crane.cachix.org
+          extra-trusted-public-keys = crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=
+          extra-substituters = https://nix.computer.surgery/conduit
+          extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo=
+          extra-substituters = https://attic.kennel.juneis.dog/conduit
+          extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
+          extra-substituters = https://attic.kennel.juneis.dog/conduwuit
+          extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+
+    - name: Add alternative Nix binary caches if specified
+      if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+      run: |
+        echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
+        echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
+
+    - name: Pop/push Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@main
+
+    - name: Configure `nix-direnv`
+      run: |
+        echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
+
+    - name: Install `direnv` and `nix-direnv`
+      run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
+
+    - name: Pop/push downloaded crate cache
+      uses: actions/cache@v4
+      with:
+        key: downloaded-crates
+        path: ~/.cargo
+
+    - name: Pop/push compiled crate cache
+      uses: actions/cache@v4
+      with:
+        key: compiled-crates-${{runner.os}}
+        path: target
+
+    # Do this to shorten the logs for the real CI step
+    - name: Populate `/nix/store`
+      run: nix develop --command true
+
+    - name: Allow direnv
+      run: direnv allow
+
+    - name: Cache x86_64 inputs for devShell
+      run: |
+        ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
+
+
+    - name: Perform continuous integration
+      run: direnv exec . engage
+
+
+
+  build-static:
+    name: Static Artifacts
+    runs-on: ubuntu-latest
+    needs: tests
     strategy:
-      max-parallel: 4
+      max-parallel: 3
       matrix:
         target: [
           "static-x86_64-unknown-linux-musl",
@@ -40,6 +113,100 @@ jobs:
           "static-aarch64-unknown-linux-musl-jemalloc",
           "static-aarch64-unknown-linux-musl-hmalloc",
           ]
+
+    steps:
+    - name: Sync repository
+      uses: actions/checkout@v4
+
+    - name: Install Nix (with flakes and nix-command enabled)
+      uses: cachix/install-nix-action@v26
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+
+        # Add `nix-community`, Crane, upstream Conduit, and conduwuit binary caches
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          extra-substituters = https://nix-community.cachix.org
+          extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
+          extra-substituters = https://crane.cachix.org
+          extra-trusted-public-keys = crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=
+          extra-substituters = https://nix.computer.surgery/conduit
+          extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo=
+          extra-substituters = https://attic.kennel.juneis.dog/conduit
+          extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
+          extra-substituters = https://attic.kennel.juneis.dog/conduwuit
+          extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+
+    - name: Add alternative Nix binary caches if specified
+      if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+      run: |
+        echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
+        echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
+
+    - name: Pop/push Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@main
+
+    - name: Configure `nix-direnv`
+      run: |
+        echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
+
+    - name: Install `direnv` and `nix-direnv`
+      run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
+
+    - name: Pop/push downloaded crate cache
+      uses: actions/cache@v4
+      with:
+        key: downloaded-crates
+        path: ~/.cargo
+
+    - name: Pop/push compiled crate cache
+      uses: actions/cache@v4
+      with:
+        key: compiled-crates-${{runner.os}}
+        path: target
+
+    # Do this to shorten the logs for the real CI step
+    - name: Populate `/nix/store`
+      run: nix develop --command true
+
+    - name: Allow direnv
+      run: direnv allow
+
+    - name: Cache x86_64 inputs for devShell
+      run: |
+        ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
+
+
+    - name: Build static artifacts
+      run: |
+        ./bin/nix-build-and-cache .#${{ matrix.target }}
+        mkdir -p target/release
+        cp -v -f result/bin/conduit target/release
+        direnv exec . cargo deb --no-build --output target/debian/${{ matrix.target }}.deb
+
+    - name: Upload static artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.target }}
+        path: result/bin/conduit
+        if-no-files-found: error
+
+    - name: Upload static deb artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.target }}.deb
+        path: target/debian/${{ matrix.target }}.deb
+        if-no-files-found: error
+
+
+
+  build-oci:
+    name: OCI Artifacts and Publish
+    runs-on: ubuntu-latest
+    needs: tests
+    strategy:
+      max-parallel: 3
+      matrix:
         oci-target: [
           "x86_64-unknown-linux-gnu",
           "x86_64-unknown-linux-musl",
@@ -111,32 +278,6 @@ jobs:
     - name: Cache x86_64 inputs for devShell
       run: |
         ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
-
-
-    - name: Perform continuous integration
-      run: direnv exec . engage
-
-
-    - name: Build static artifacts
-      run: |
-        ./bin/nix-build-and-cache .#${{ matrix.target }}
-        mkdir -p target/release
-        cp -v -f result/bin/conduit target/release
-        direnv exec . cargo deb --no-build --output target/debian/${{ matrix.target }}.deb
-
-    - name: Upload static artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.target }}
-        path: result/bin/conduit
-        if-no-files-found: error
-
-    - name: Upload static deb artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.target }}.deb
-        path: target/debian/${{ matrix.target }}.deb
-        if-no-files-found: error
 
 
     - name: Build OCI images
