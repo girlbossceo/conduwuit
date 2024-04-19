@@ -45,10 +45,10 @@
         (pkgs.rocksdb.overrideAttrs (old: {
           inherit version;
           src = pkgs.fetchFromGitHub {
-            owner = "girlbossceo";
+            owner = "facebook";
             repo = "rocksdb";
-            rev = "44f612d06c57ded8bcda2da87dfdd09546961b43";
-            hash = "sha256-sw0F/EKbT20cYWaLBDPdmLaEDx/9Fhfjzp39U0JmBRE";
+            rev = "bcf88d48ce8aa8b536aee4dd305533b3b83cf435";
+            hash = "sha256-vRPyrXkXVVhP56n5FVYef8zbIsnnanQSpElmQLZ7mh8";
           };
         }));
 
