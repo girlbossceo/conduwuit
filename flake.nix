@@ -167,7 +167,7 @@
         )
       );
 
-      mkPackage = pkgs: allocator: builder pkgs {
+      mkPackage = pkgs: allocator: cargoArgs: profile: builder pkgs {
         src = nix-filter {
           root = ./.;
           include = [
@@ -190,7 +190,11 @@
         env = env pkgs;
         nativeBuildInputs = nativeBuildInputs pkgs;
 
+        cargoExtraArgs = cargoArgs;
+
         meta.mainProgram = cargoToml.package.name;
+
+        CARGO_PROFILE = profile;
       };
 
       mkOciImage = pkgs: package: allocator:
@@ -214,12 +218,102 @@
             ];
           };
         };
+
+        createComplementRuntime = pkgs: image: let
+          complement = pkgs.fetchFromGitHub {
+            owner = "matrix-org";
+            repo = "complement";
+            rev = "d73c81a091604b0fc5b6b0617dcac58c25763f57";
+            hash = "sha256-hom/Lt0gZzLWqFhUJG0X2i88CAMIILInO5w0tPj6G3s";
+          };
+
+          script = pkgs.writeShellScriptBin "run.sh"
+            ''
+            export PATH=${pkgs.lib.makeBinPath [ pkgs.olm pkgs.gcc ]}
+            ${pkgs.lib.getExe pkgs.docker} load < ${image}
+            set +o pipefail
+            /usr/bin/env -C "${complement}" COMPLEMENT_BASE_IMAGE="complement-conduit:dev" ${pkgs.lib.getExe pkgs.go} test -json ${complement}/tests | ${pkgs.toybox}/bin/tee $1
+            set -o pipefail
+
+            # Post-process the results into an easy-to-compare format
+            ${pkgs.coreutils}/bin/cat "$1" | ${pkgs.lib.getExe pkgs.jq} -c '
+            select(
+              (.Action == "pass" or .Action == "fail" or .Action == "skip")
+              and .Test != null
+            ) | {Action: .Action, Test: .Test}
+            ' | ${pkgs.coreutils}/bin/sort > "$2"
+            '';
+
+        in script;
+
+        createComplementImage = pkgs: let
+
+          conduwuit = mkPackage pkgs "jemalloc" "--features=axum_dual_protocol" "dev";
+
+          in pkgs.dockerTools.buildImage {
+            name = "complement-conduit";
+            tag = "dev";
+
+            copyToRoot = pkgs.stdenv.mkDerivation {
+
+              name = "complement_data";
+              src = nix-filter {
+                root = ./.;
+                include = [
+                  "tests/complement/conduwuit-complement.toml"
+                  "tests/complement/v3.ext"
+                ];
+              };
+              phases = [ "unpackPhase" "installPhase" ];
+              installPhase = ''
+                mkdir -p $out/conduwuit/data
+                cp $src/tests/complement/conduwuit-complement.toml $out/conduwuit/conduit.toml
+                cp $src/tests/complement/v3.ext $out/v3.ext
+              '';
+
+            };
+
+            config = {
+
+              Cmd = [
+                  "${pkgs.bash}/bin/sh"
+                  "-c"
+                  ''
+                  echo "Starting server as $SERVER_NAME" &&
+                  export CONDUIT_SERVER_NAME=$SERVER_NAME CONDUIT_WELL_KNOWN_SERVER="$SERVER_NAME:8448" CONDUIT_WELL_KNOWN_SERVER="$SERVER_NAME:8008" &&
+                  ${pkgs.lib.getExe pkgs.openssl} genrsa -out /conduwuit/private_key.key 2048 &&
+                  ${pkgs.lib.getExe pkgs.openssl} req -new -sha256 -key /conduwuit/private_key.key -subj "/C=US/ST=CA/O=MyOrg, Inc./CN=$SERVER_NAME" -out /conduwuit/signing_request.csr &&
+                  echo "DNS.1 = $SERVER_NAME" >> /v3.ext &&
+                  echo "IP.1 = $(${pkgs.lib.getExe pkgs.gawk} 'END{print $1}' /etc/hosts)" >> /v3.ext &&
+                  ${pkgs.lib.getExe pkgs.openssl} x509 -req -extfile /v3.ext -in /conduwuit/signing_request.csr -CA /complement/ca/ca.crt -CAkey /complement/ca/ca.key -CAcreateserial -out /conduwuit/certificate.crt -days 1 -sha256 &&
+                  ${pkgs.lib.getExe conduwuit}
+                  ''
+              ];
+
+              Entrypoint = [
+                "${pkgs.lib.getExe' pkgs.tini "tini"}"
+                "--"
+              ];
+
+              Env = [
+                "SSL_CERT_FILE=/complement/ca/ca.crt"
+                "SERVER_NAME=localhost"
+                "CONDUIT_CONFIG=/conduwuit/conduit.toml"
+              ];
+
+              ExposedPorts = {
+                "8008/tcp" = {};
+                "8448/tcp" = {};
+              };
+
+            };
+        };
     in
     {
       packages = {
-        default = mkPackage pkgsHost null;
-        jemalloc = mkPackage pkgsHost "jemalloc";
-        hmalloc = mkPackage pkgsHost "hmalloc";
+        default = mkPackage pkgsHost null "" "release";
+        jemalloc = mkPackage pkgsHost "jemalloc" "" "release";
+        hmalloc = mkPackage pkgsHost "hmalloc" "" "release";
         oci-image = mkOciImage pkgsHost self.packages.${system}.default null;
         oci-image-jemalloc = mkOciImage pkgsHost self.packages.${system}.default "jemalloc";
         oci-image-hmalloc = mkOciImage pkgsHost self.packages.${system}.default "hmalloc";
@@ -252,6 +346,8 @@
               mv public $out
             '';
           };
+          complement-image = createComplementImage pkgsHost;
+          complement-runtime = createComplementRuntime pkgsHost self.outputs.packages.${system}.complement-image;
       }
       //
       builtins.listToAttrs
@@ -272,19 +368,19 @@
                 # An output for a statically-linked binary
                 {
                   name = binaryName;
-                  value = mkPackage pkgsCrossStatic null;
+                  value = mkPackage pkgsCrossStatic null "" "release";
                 }
 
                 # An output for a statically-linked binary with jemalloc
                 {
                   name = "${binaryName}-jemalloc";
-                  value = mkPackage pkgsCrossStatic "jemalloc";
+                  value = mkPackage pkgsCrossStatic "jemalloc" "" "release";
                 }
 
                 # An output for a statically-linked binary with hardened_malloc
                 {
                   name = "${binaryName}-hmalloc";
-                  value = mkPackage pkgsCrossStatic "hmalloc";
+                  value = mkPackage pkgsCrossStatic "hmalloc" "" "release";
                 }
 
                 # An output for an OCI image based on that binary

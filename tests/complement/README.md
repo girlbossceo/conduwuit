@@ -4,13 +4,12 @@
 
 Have a look at [its repository](https://github.com/matrix-org/complement).
 
-## How do I use it with Conduit?
+## How do I use it with conduwuit?
 
-The script at [`../bin/complement`](../bin/complement) has automation for this.
-It takes a few command line arguments:
+For reproducible results, Complement support in conduwuit uses Nix to run and generate an image.
 
-- Path to Complement's source code
-- A `.jsonl` file to write test logs to
-- A `.jsonl` file to write test results to
+After installing Nix, you can run either:
 
-Example: `./bin/complement "../complement" "logs.jsonl" "results.jsonl"`
+- `nix run #.complement-runtime -- ./path/to/logs.jsonl ./path/to/results.jsonl` to build a Complement image, run the tests, and output the logs and results to the specified paths.
+
+- `nix run #.complement-image` to just build a Complement image
