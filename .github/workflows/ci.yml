@@ -371,7 +371,7 @@ jobs:
         docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
         docker push $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
         # Tag the multi-arch image
-        docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-$${{ env.TARGET_NAME }}
+        docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
         docker manifest push $IMAGE_NAME:$GITHUB_SHA
         # Tag and push the git ref
         docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
