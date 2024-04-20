@@ -108,10 +108,8 @@ jobs:
         target: [
           "x86_64-unknown-linux-musl",
           "x86_64-unknown-linux-musl-jemalloc",
-          "x86_64-unknown-linux-musl-hmalloc",
           "aarch64-unknown-linux-musl",
           "aarch64-unknown-linux-musl-jemalloc",
-          "aarch64-unknown-linux-musl-hmalloc",
           ]
 
     steps:
@@ -211,10 +209,8 @@ jobs:
           #"x86_64-unknown-linux-gnu",
           "x86_64-unknown-linux-musl",
           "x86_64-unknown-linux-musl-jemalloc",
-          "x86_64-unknown-linux-musl-hmalloc",
           "aarch64-unknown-linux-musl",
           "aarch64-unknown-linux-musl-jemalloc",
-          "aarch64-unknown-linux-musl-hmalloc",
           ]
 
     steps:
