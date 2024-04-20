@@ -347,11 +347,21 @@ jobs:
 
         # Tag and push the architecture specific images
         if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
-          docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
-          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
+            docker push $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
+          else
+            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+            docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          fi
         elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
-          docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
-          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+            docker push $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+          else
+            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+            docker push $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+          fi
         fi
 
         # Tag and push the architecture specific git ref
@@ -407,11 +417,21 @@ jobs:
 
         # Tag and push the architecture specific images
         if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
-          docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
-          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
+            docker push $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
+          else
+            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+            docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          fi
         elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
-          docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
-          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+            docker push $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+          else
+            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+            docker push $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+          fi
         fi
 
         # Tag and push the architecture specific git ref
