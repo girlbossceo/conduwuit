@@ -23,7 +23,7 @@ pub(crate) enum Globals {
 }
 
 /// All the getters and iterators from src/database/key_value/globals.rs
-pub(crate) async fn globals(subcommand: Globals) -> Result<RoomMessageEventContent> {
+pub(super) async fn globals(subcommand: Globals) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		Globals::DatabaseVersion => {
 			let timer = tokio::time::Instant::now();

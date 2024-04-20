@@ -22,7 +22,7 @@ pub(crate) enum Presence {
 }
 
 /// All the getters and iterators in key_value/presence.rs
-pub(crate) async fn presence(subcommand: Presence) -> Result<RoomMessageEventContent> {
+pub(super) async fn presence(subcommand: Presence) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		Presence::GetPresence {
 			user_id,

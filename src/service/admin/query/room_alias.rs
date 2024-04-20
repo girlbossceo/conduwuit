@@ -23,7 +23,7 @@ pub(crate) enum RoomAlias {
 }
 
 /// All the getters and iterators in src/database/key_value/rooms/alias.rs
-pub(crate) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEventContent> {
+pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		RoomAlias::ResolveLocalAlias {
 			alias,

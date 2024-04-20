@@ -1,8 +1,13 @@
 use clap::Subcommand;
-use ruma::{EventId, RoomId, ServerName};
+use ruma::{events::room::message::RoomMessageEventContent, EventId, RoomId, ServerName};
 
-#[allow(clippy::module_inception)]
-pub(crate) mod debug;
+use self::debug_commands::{
+	change_log_level, force_device_list_updates, get_auth_chain, get_pdu, get_remote_pdu, get_room_state, parse_pdu,
+	ping,
+};
+use crate::Result;
+
+pub(crate) mod debug_commands;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
@@ -77,4 +82,31 @@ pub(crate) enum DebugCommand {
 		#[arg(short, long)]
 		reset: bool,
 	},
+}
+
+pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	Ok(match command {
+		DebugCommand::GetAuthChain {
+			event_id,
+		} => get_auth_chain(body, event_id).await?,
+		DebugCommand::ParsePdu => parse_pdu(body).await?,
+		DebugCommand::GetPdu {
+			event_id,
+		} => get_pdu(body, event_id).await?,
+		DebugCommand::GetRemotePdu {
+			event_id,
+			server,
+		} => get_remote_pdu(body, event_id, server).await?,
+		DebugCommand::GetRoomState {
+			room_id,
+		} => get_room_state(body, room_id).await?,
+		DebugCommand::Ping {
+			server,
+		} => ping(body, server).await?,
+		DebugCommand::ForceDeviceListUpdates => force_device_list_updates(body).await?,
+		DebugCommand::ChangeLogLevel {
+			filter,
+			reset,
+		} => change_log_level(body, filter, reset).await?,
+	})
 }

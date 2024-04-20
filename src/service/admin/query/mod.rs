@@ -44,11 +44,11 @@ pub(crate) enum QueryCommand {
 /// Processes admin query commands
 #[allow(non_snake_case)]
 pub(crate) async fn process(command: QueryCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	match command {
-		QueryCommand::AccountData(AccountData) => account_data(AccountData).await,
-		QueryCommand::Appservice(Appservice) => appservice(Appservice).await,
-		QueryCommand::Presence(Presence) => presence(Presence).await,
-		QueryCommand::RoomAlias(RoomAlias) => room_alias(RoomAlias).await,
-		QueryCommand::Globals(Globals) => globals(Globals).await,
-	}
+	Ok(match command {
+		QueryCommand::AccountData(AccountData) => account_data(AccountData).await?,
+		QueryCommand::Appservice(Appservice) => appservice(Appservice).await?,
+		QueryCommand::Presence(Presence) => presence(Presence).await?,
+		QueryCommand::RoomAlias(RoomAlias) => room_alias(RoomAlias).await?,
+		QueryCommand::Globals(Globals) => globals(Globals).await?,
+	})
 }

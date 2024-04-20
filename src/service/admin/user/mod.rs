@@ -1,8 +1,10 @@
-#[allow(clippy::module_inception)]
-pub(crate) mod user;
+pub(crate) mod user_commands;
 
 use clap::Subcommand;
-use ruma::UserId;
+use ruma::{events::room::message::RoomMessageEventContent, UserId};
+
+use self::user_commands::{create, deactivate, deactivate_all, list, list_joined_rooms, reset_password};
+use crate::Result;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
@@ -18,7 +20,7 @@ pub(crate) enum UserCommand {
 	/// - Reset user password
 	ResetPassword {
 		/// Username of the user for whom the password should be reset
-		username: String,
+		username: Box<UserId>,
 	},
 
 	/// - Deactivate a user
@@ -60,4 +62,28 @@ pub(crate) enum UserCommand {
 	ListJoinedRooms {
 		user_id: Box<UserId>,
 	},
+}
+
+pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	Ok(match command {
+		UserCommand::List => list(body).await?,
+		UserCommand::Create {
+			username,
+			password,
+		} => create(body, username, password).await?,
+		UserCommand::Deactivate {
+			leave_rooms,
+			user_id,
+		} => deactivate(body, leave_rooms, user_id).await?,
+		UserCommand::ResetPassword {
+			username,
+		} => reset_password(body, username).await?,
+		UserCommand::DeactivateAll {
+			leave_rooms,
+			force,
+		} => deactivate_all(body, leave_rooms, force).await?,
+		UserCommand::ListJoinedRooms {
+			user_id,
+		} => list_joined_rooms(body, user_id).await?,
+	})
 }
