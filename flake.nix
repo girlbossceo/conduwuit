@@ -394,7 +394,7 @@
                   name = "oci-image-${crossSystem}-jemalloc";
                   value = mkOciImage
                     pkgsCrossStatic
-                    self.packages.${system}.${binaryName};
+                    self.packages.${system}."${binaryName}-jemalloc";
                 }
 
                 # An output for an OCI image based on that binary with hardened_malloc
@@ -402,7 +402,7 @@
                   name = "oci-image-${crossSystem}-hmalloc";
                   value = mkOciImage
                     pkgsCrossStatic
-                    self.packages.${system}.${binaryName};
+                    self.packages.${system}."${binaryName}-hmalloc";
                 }
               ]
             )
