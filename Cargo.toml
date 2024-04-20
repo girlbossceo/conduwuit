@@ -321,7 +321,7 @@ sd-notify = { version = "0.4.1", optional = true }    # systemd is only availabl
 [target.'cfg(all(not(target_env = "msvc"), target_os = "linux"))'.dependencies]
 hardened_malloc-rs = { version = "0.1", optional = true, features = [
     "static",
-    "clang",
+    "gcc",
     "light",
 ], default-features = false }
 #hardened_malloc-rs = { optional = true, features = ["static","clang","light"], path = "../hardened_malloc-rs", default-features = false }
