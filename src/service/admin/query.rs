@@ -101,6 +101,7 @@ async fn account_data(subcommand: AccountData) -> Result<RoomMessageEventContent
 			let timer = tokio::time::Instant::now();
 			let results = services()
 				.account_data
+				.db
 				.changes_since(room_id.as_deref(), &user_id, since)?;
 			let query_time = timer.elapsed();
 
@@ -120,6 +121,7 @@ async fn account_data(subcommand: AccountData) -> Result<RoomMessageEventContent
 			let timer = tokio::time::Instant::now();
 			let results = services()
 				.account_data
+				.db
 				.get(room_id.as_deref(), &user_id, kind)?;
 			let query_time = timer.elapsed();
 
@@ -143,8 +145,8 @@ async fn appservice(subcommand: Appservice) -> Result<RoomMessageEventContent> {
 			let timer = tokio::time::Instant::now();
 			let results = services()
 				.appservice
-				.get_registration(appservice_id.as_ref())
-				.await;
+				.db
+				.get_registration(appservice_id.as_ref())?;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
@@ -165,7 +167,7 @@ async fn presence(subcommand: Presence) -> Result<RoomMessageEventContent> {
 			user_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services().presence.get_presence(&user_id)?;
+			let results = services().presence.db.get_presence(&user_id)?;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
@@ -180,7 +182,7 @@ async fn presence(subcommand: Presence) -> Result<RoomMessageEventContent> {
 			since,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services().presence.presence_since(since);
+			let results = services().presence.db.presence_since(since);
 			let query_time = timer.elapsed();
 
 			let presence_since: Vec<(_, _, _)> = results.collect();
