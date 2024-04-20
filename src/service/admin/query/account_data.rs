@@ -32,7 +32,7 @@ pub(crate) enum AccountData {
 }
 
 /// All the getters and iterators from src/database/key_value/account_data.rs
-pub(crate) async fn account_data(subcommand: AccountData) -> Result<RoomMessageEventContent> {
+pub(super) async fn account_data(subcommand: AccountData) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		AccountData::ChangesSince {
 			user_id,

@@ -280,11 +280,11 @@ impl Service {
 		let reply_message_content = match command {
 			AdminCommand::Appservices(command) => appservice::process(command, body).await?,
 			AdminCommand::Media(command) => media::process(command, body).await?,
-			AdminCommand::Users(command) => user::user::process(command, body).await?,
+			AdminCommand::Users(command) => user::process(command, body).await?,
 			AdminCommand::Rooms(command) => room::process(command, body).await?,
 			AdminCommand::Federation(command) => federation::process(command, body).await?,
 			AdminCommand::Server(command) => server::process(command, body).await?,
-			AdminCommand::Debug(command) => debug::debug::process(command, body).await?,
+			AdminCommand::Debug(command) => debug::process(command, body).await?,
 			AdminCommand::Query(command) => query::process(command, body).await?,
 		};
 
