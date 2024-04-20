@@ -21,7 +21,7 @@ rust-version = "1.75.0"
 rand = "0.8.5"
 
 # Used for conduit::Error type
-thiserror = "1.0.58"
+thiserror = "1.0.59"
 
 # Used to encode server public key
 base64 = "0.22.0"
