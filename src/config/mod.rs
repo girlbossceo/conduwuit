@@ -112,20 +112,22 @@ pub struct Config {
 	pub request_conn_timeout: u64,
 	#[serde(default = "default_request_timeout")]
 	pub request_timeout: u64,
-	#[serde(default = "default_request_idle_per_host")]
-	pub request_idle_per_host: u16,
+	#[serde(default = "default_request_total_timeout")]
+	pub request_total_timeout: u64,
 	#[serde(default = "default_request_idle_timeout")]
 	pub request_idle_timeout: u64,
+	#[serde(default = "default_request_idle_per_host")]
+	pub request_idle_per_host: u16,
 	#[serde(default = "default_well_known_conn_timeout")]
 	pub well_known_conn_timeout: u64,
 	#[serde(default = "default_well_known_timeout")]
 	pub well_known_timeout: u64,
 	#[serde(default = "default_federation_timeout")]
 	pub federation_timeout: u64,
-	#[serde(default = "default_federation_idle_per_host")]
-	pub federation_idle_per_host: u16,
 	#[serde(default = "default_federation_idle_timeout")]
 	pub federation_idle_timeout: u64,
+	#[serde(default = "default_federation_idle_per_host")]
+	pub federation_idle_per_host: u16,
 	#[serde(default = "default_sender_timeout")]
 	pub sender_timeout: u64,
 	#[serde(default = "default_sender_idle_timeout")]
@@ -502,6 +504,7 @@ impl fmt::Display for Config {
 			("Maximum concurrent requests", &self.max_concurrent_requests.to_string()),
 			("Request connect timeout", &self.request_conn_timeout.to_string()),
 			("Request timeout", &self.request_timeout.to_string()),
+			("Request total timeout", &self.request_total_timeout.to_string()),
 			("Idle connections per host", &self.request_idle_per_host.to_string()),
 			("Request pool idle timeout", &self.request_idle_timeout.to_string()),
 			("Well_known connect timeout", &self.well_known_conn_timeout.to_string()),
@@ -869,9 +872,11 @@ fn default_request_conn_timeout() -> u64 { 10 }
 
 fn default_request_timeout() -> u64 { 35 }
 
-fn default_request_idle_per_host() -> u16 { 1 }
+fn default_request_total_timeout() -> u64 { 320 }
 
 fn default_request_idle_timeout() -> u64 { 5 }
+
+fn default_request_idle_per_host() -> u16 { 1 }
 
 fn default_well_known_conn_timeout() -> u64 { 6 }
 
@@ -879,9 +884,9 @@ fn default_well_known_timeout() -> u64 { 10 }
 
 fn default_federation_timeout() -> u64 { 300 }
 
-fn default_federation_idle_per_host() -> u16 { 1 }
-
 fn default_federation_idle_timeout() -> u64 { 25 }
+
+fn default_federation_idle_per_host() -> u16 { 1 }
 
 fn default_sender_timeout() -> u64 { 180 }
 
