@@ -306,7 +306,6 @@ optional = true
 # used only by rusqlite and rust-rocksdb
 [dependencies.num_cpus]
 version = "1.16.0"
-optional = true
 
 [dependencies.tokio]
 version = "1.37.0"
@@ -319,7 +318,7 @@ sd-notify = { version = "0.4.1", optional = true }    # systemd is only availabl
 
 
 [target.'cfg(all(not(target_env = "msvc"), target_os = "linux"))'.dependencies]
-hardened_malloc-rs = { version = "0.1", optional = true, features = [
+hardened_malloc-rs = { version = "0.1.2", optional = true, features = [
     "static",
     "gcc",
     "light",
@@ -339,9 +338,9 @@ default = [
 ]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
-rocksdb = ["rust-rocksdb", "num_cpus"]
+rocksdb = ["rust-rocksdb"]
 jemalloc = ["tikv-jemalloc-ctl", "tikv-jemallocator", "rust-rocksdb/jemalloc"]
-sqlite = ["rusqlite", "parking_lot", "thread_local", "num_cpus"]
+sqlite = ["rusqlite", "parking_lot", "thread_local"]
 systemd = ["sd-notify"]
 sentry_telemetry = ["sentry", "sentry-tracing", "sentry-tower"]
 
@@ -441,7 +440,7 @@ debug = 0
 [profile.release-debuginfo]
 inherits = "release"
 strip = "none"
-debug = "limited"
+debug = "full"
 
 
 # high performance release profile which uses fat LTO across all crates, 1 codegen unit, max opt-level, and optimises across all crates

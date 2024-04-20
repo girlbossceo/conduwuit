@@ -1000,9 +1000,9 @@ dependencies = [
 
 [[package]]
 name = "hardened_malloc-rs"
-version = "0.1.1+12"
+version = "0.1.2+12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40505dfce340c2deec648b3b413c1f484b5b21f2aedb69e3ae68272a5f35d430"
+checksum = "647deb1583b14d160f85f3ff626f20b6edd366e3852c9843b06077388f794cb6"
 
 [[package]]
 name = "hashbrown"
