@@ -66,12 +66,14 @@
       builder = pkgs:
         ((crane.mkLib pkgs).overrideToolchain toolchain).buildPackage;
 
-      nativeBuildInputs = pkgs: [
+      nativeBuildInputs = pkgs: let
+        darwin = if pkgs.stdenv.isDarwin then [ pkgs.libiconv ] else [];
+      in [
         # bindgen needs the build platform's libclang. Apparently due to
         # "splicing weirdness", pkgs.rustPlatform.bindgenHook on its own doesn't
         # quite do the right thing here.
         pkgs.pkgsBuildHost.rustPlatform.bindgenHook
-      ];
+      ] ++ darwin;
 
       env = pkgs: {
         CONDUIT_VERSION_EXTRA = self.shortRev or self.dirtyShortRev;
