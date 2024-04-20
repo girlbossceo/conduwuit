@@ -26,12 +26,11 @@ use serde_json::value::to_raw_value;
 use tokio::sync::Mutex;
 use tracing::{error, warn};
 
-use self::query::QueryCommand;
 use super::pdu::PduBuilder;
 use crate::{
 	service::admin::{
 		appservice::AppserviceCommand, debug::DebugCommand, federation::FederationCommand, media::MediaCommand,
-		room::RoomCommand, server::ServerCommand, user::UserCommand,
+		query::QueryCommand, room::RoomCommand, server::ServerCommand, user::UserCommand,
 	},
 	services, Error, Result,
 };
