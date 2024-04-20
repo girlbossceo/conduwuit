@@ -180,7 +180,7 @@ jobs:
         ./bin/nix-build-and-cache .#static-${{ matrix.target }}
         mkdir -p target/release
         cp -v -f result/bin/conduit target/release
-        direnv exec . cargo deb --no-build --target=${{ matrix.target }} --output target/debian/${{ matrix.target }}.deb
+        direnv exec . cargo deb --no-build --no-strip --output target/debian/${{ matrix.target }}.deb
 
     - name: Upload static artifacts
       uses: actions/upload-artifact@v4
@@ -336,58 +336,48 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+        TARGET_NAME: ${{ matrix.oci-target }}
         IMAGE_NAME: docker.io/${{ github.repository }}
-        IMAGE_SUFFIX_AMD64: amd64
-        IMAGE_SUFFIX_ARM64V8: arm64v8
       if: ${{ (github.event_name != 'pull_request') && (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
       run: |
-        docker load -i oci-image-amd64.tar.gz
-        IMAGE_ID_AMD64=$(docker images -q conduit:main)
-        docker load -i oci-image-arm64v8.tar.gz
-        IMAGE_ID_ARM64V8=$(docker images -q conduit:main)
+        docker load -i oci-image-${{ matrix.oci-target }}.tar.gz
+        IMAGE_ID=$(docker images -q conduit:main)
 
         # Tag and push the architecture specific images
-        docker tag $IMAGE_ID_AMD64 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
-        docker tag $IMAGE_ID_ARM64V8 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
-        docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
-        docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+        docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
+        docker push $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
         # Tag the multi-arch image
-        docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+        docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
         docker manifest push $IMAGE_NAME:$GITHUB_SHA
         # Tag and push the git ref
-        docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+        docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
         docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
         # Tag "main" as latest (stable branch)
         if [[ "$GITHUB_REF_NAME" = "main" ]]; then
-          docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
           docker manifest push $IMAGE_NAME:latest
         fi
 
     - name: Publish to GitHub Container Registry
       if: github.event_name != 'pull_request'
       env:
+        TARGET_NAME: ${{ matrix.oci-target }}
         IMAGE_NAME: ghcr.io/${{ github.repository }}
-        IMAGE_SUFFIX_AMD64: amd64
-        IMAGE_SUFFIX_ARM64V8: arm64v8
       run: |
-        docker load -i oci-image-amd64.tar.gz
-        IMAGE_ID_AMD64=$(docker images -q conduit:main)
-        docker load -i oci-image-arm64v8.tar.gz
-        IMAGE_ID_ARM64V8=$(docker images -q conduit:main)
+        docker load -i oci-image-${{ matrix.oci-target }}.tar.gz
+        IMAGE_ID=$(docker images -q conduit:main)
 
         # Tag and push the architecture specific images
-        docker tag $IMAGE_ID_AMD64 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
-        docker tag $IMAGE_ID_ARM64V8 $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
-        docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
-        docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+        docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
+        docker push $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
         # Tag the multi-arch image
-        docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+        docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-$${{ env.TARGET_NAME }}
         docker manifest push $IMAGE_NAME:$GITHUB_SHA
         # Tag and push the git ref
-        docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+        docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
         docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
         # Tag "main" as latest (stable branch)
         if [[ "$GITHUB_REF_NAME" = "main" ]]; then
-          docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
           docker manifest push $IMAGE_NAME:latest
         fi
