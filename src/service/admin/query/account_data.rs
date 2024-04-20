@@ -1,35 +1,7 @@
-use clap::Subcommand;
-use ruma::{
-	events::{room::message::RoomMessageEventContent, RoomAccountDataEventType},
-	RoomId, UserId,
-};
+use ruma::events::room::message::RoomMessageEventContent;
 
+use super::AccountData;
 use crate::{services, Result};
-
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
-/// All the getters and iterators from src/database/key_value/account_data.rs
-pub(crate) enum AccountData {
-	/// - Returns all changes to the account data that happened after `since`.
-	ChangesSince {
-		/// Full user ID
-		user_id: Box<UserId>,
-		/// UNIX timestamp since (u64)
-		since: u64,
-		/// Optional room ID of the account data
-		room_id: Option<Box<RoomId>>,
-	},
-
-	/// - Searches the account data for a specific kind.
-	Get {
-		/// Full user ID
-		user_id: Box<UserId>,
-		/// Account data event type
-		kind: RoomAccountDataEventType,
-		/// Optional room ID of the account data
-		room_id: Option<Box<RoomId>>,
-	},
-}
 
 /// All the getters and iterators from src/database/key_value/account_data.rs
 pub(super) async fn account_data(subcommand: AccountData) -> Result<RoomMessageEventContent> {

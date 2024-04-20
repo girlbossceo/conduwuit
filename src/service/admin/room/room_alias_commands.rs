@@ -1,45 +1,9 @@
 use std::fmt::Write as _;
 
-use clap::Subcommand;
-use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId, RoomId};
+use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId};
 
+use super::RoomAliasCommand;
 use crate::{service::admin::escape_html, services, Result};
-
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
-pub(crate) enum RoomAliasCommand {
-	/// - Make an alias point to a room.
-	Set {
-		#[arg(short, long)]
-		/// Set the alias even if a room is already using it
-		force: bool,
-
-		/// The room id to set the alias on
-		room_id: Box<RoomId>,
-
-		/// The alias localpart to use (`alias`, not `#alias:servername.tld`)
-		room_alias_localpart: String,
-	},
-
-	/// - Remove an alias
-	Remove {
-		/// The alias localpart to remove (`alias`, not `#alias:servername.tld`)
-		room_alias_localpart: String,
-	},
-
-	/// - Show which room is using an alias
-	Which {
-		/// The alias localpart to look up (`alias`, not
-		/// `#alias:servername.tld`)
-		room_alias_localpart: String,
-	},
-
-	/// - List aliases currently being used
-	List {
-		/// If set, only list the aliases for this room
-		room_id: Option<Box<RoomId>>,
-	},
-}
 
 pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
