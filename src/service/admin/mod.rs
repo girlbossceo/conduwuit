@@ -30,7 +30,7 @@ use super::pdu::PduBuilder;
 use crate::{
 	service::admin::{
 		appservice::AppserviceCommand, debug::DebugCommand, federation::FederationCommand, media::MediaCommand,
-		query::QueryCommand, room::RoomCommand, server::ServerCommand, user::UserCommand,
+		query::query::QueryCommand, room::RoomCommand, server::ServerCommand, user::UserCommand,
 	},
 	services, Error, Result,
 };
@@ -284,7 +284,7 @@ impl Service {
 			AdminCommand::Federation(command) => federation::process(command, body).await?,
 			AdminCommand::Server(command) => server::process(command, body).await?,
 			AdminCommand::Debug(command) => debug::process(command, body).await?,
-			AdminCommand::Query(command) => query::process(command, body).await?,
+			AdminCommand::Query(command) => query::query::process(command, body).await?,
 		};
 
 		Ok(reply_message_content)
