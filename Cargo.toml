@@ -41,16 +41,12 @@ itertools = "0.12.1"
 # jwt jsonwebtokens
 jsonwebtoken = "9.3.0"
 
-lru-cache = "0.1.2"
-
 # Used for ruma wrapper
 serde_html_form = "0.2.6"
 
 # used for TURN server authentication
 hmac = "0.12.1"
 sha-1 = "0.10.1"
-
-async-trait = "0.1.80"
 
 # used for checking if an IP is in specific subnets / CIDR ranges easier
 ipaddress = "0.1.3"
@@ -67,13 +63,20 @@ cyborgtime = "2.1.1"
 # all the web/HTTP dependencies
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 bytes = "1.6.0"
-http = "0.2.12"
+http = "1.1.0"
+http-body-util = "0.1.1"
 
 # used to replace the channels of the tokio runtime
 loole = "0.3.0"
 
 # Validating urls in config, was already a transitive dependency
 url = { version = "2", features = ["serde"] }
+
+async-trait = "0.1.80"
+
+lru-cache = "0.1.2"
+
+proc-macro2 = "=1.0.79"
 
 # standard date and time tools
 [dependencies.chrono]
@@ -83,12 +86,17 @@ default-features = false
 
 # Web framework
 [dependencies.axum]
-version = "0.6.20"
+version = "0.7.5"
 default-features = false
-features = ["form", "headers", "http1", "http2", "json", "matched-path"]
+features = ["form", "http1", "http2", "json", "matched-path"]
+
+[dependencies.axum-extra]
+version = "0.9.3"
+default-features = false
+features = ["typed-header"]
 
 [dependencies.axum-server]
-version = "0.5.1"
+version = "0.6.0"
 features = ["tls-rustls"]
 
 [dependencies.tower]
@@ -96,17 +104,18 @@ version = "0.4.13"
 features = ["util"]
 
 [dependencies.tower-http]
-version = "0.4.4"
+version = "0.5.2"
 features = ["add-extension", "cors", "sensitive-headers", "trace", "util"]
 
 [dependencies.hyper]
-version = "0.14"
+version = "1.3.1"
 features = ["server", "http1", "http2"]
 
+[dependencies.hyper-util]
+version = "0.1.3"
+
 [dependencies.reqwest]
-#version = "0.11.27"
-git = "https://github.com/girlbossceo/reqwest"
-rev = "319335e000fdea2e3d01f44245c8a21864d0c1c3"
+version = "0.12.4"
 default-features = false
 features = ["rustls-tls-native-roots", "socks", "hickory-dns"]
 
@@ -240,14 +249,9 @@ version = "0.10.17"
 features = ["env", "toml"]
 
 # Used for matrix spec type definitions and helpers
-#ruma = { version = "0.4.0", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-pre-spec", "unstable-exhaustive-types"] }
-#ruma = { git = "https://github.com/ruma/ruma", rev = "4d9f754657a099df8e61533787b8eebd12946435", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified", "unstable-msc2870", "unstable-msc3061", "unstable-msc2867", "unstable-extensible-events"] }
-#ruma = { path = "../ruma/crates/ruma", features = ["compat", "rand", "appservice-api-c", "client-api", "federation-api", "push-gateway-api-c", "state-res", "unstable-msc2448", "unstable-msc3575", "unstable-exhaustive-types", "ring-compat", "unstable-unspecified" ] }
 [dependencies.ruma]
 git = "https://github.com/girlbossceo/ruma"
-#rev = "c988b5ff158ede9c10aeffc76ad5e31604f19ddb"
 branch = "conduwuit-changes"
-#path = "../ruma/crates/ruma"
 features = [
     "compat",
     "rand",
@@ -272,13 +276,12 @@ features = [
 ]
 
 [dependencies.hickory-resolver]
-git = "https://github.com/hickory-dns/hickory-dns"
-rev = "76a4b84216fa4984eafd4c4ceb5f0892ae3edbbf"
+version = "0.24.1"
+default-features = false
 
 [dependencies.rust-rocksdb]
 git = "https://github.com/zaidoon1/rust-rocksdb"
 branch = "master"
-#rev = "7814116b2d7d0e218b2e349d2f41a276f22bea82"
 optional = true
 default-features = true
 features = ["multi-threaded-cf", "zstd"]
@@ -313,9 +316,6 @@ features = ["fs", "macros", "sync", "signal"]
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.28.0", features = ["resource"] }
 sd-notify = { version = "0.4.1", optional = true } # systemd is only available/relevant on *nix platforms
-hyperlocal = { git = "https://github.com/softprops/hyperlocal", rev = "2ee4d149644600d326559af0d2b235c945b05c04", features = [
-    "server",
-] } # unix socket support
 
 [target.'cfg(all(not(target_env = "msvc"), not(target_os = "macos"), target_os = "linux"))'.dependencies]
 hardened_malloc-rs = { version = "0.1", optional = true, features = [
