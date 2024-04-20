@@ -43,13 +43,7 @@ mod routes;
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-#[cfg(all(
-	not(target_env = "msvc"),
-	not(target_os = "macos"),
-	feature = "hardened_malloc",
-	target_os = "linux",
-	not(feature = "jemalloc")
-))]
+#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os = "linux", not(feature = "jemalloc")))]
 #[global_allocator]
 static GLOBAL: hardened_malloc_rs::HardenedMalloc = hardened_malloc_rs::HardenedMalloc;
 
