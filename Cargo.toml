@@ -437,6 +437,13 @@ strip = "symbols"
 control-flow-guard = true # Windows only
 debug = 0
 
+# release profile with debug symbols
+[profile.release-debuginfo]
+inherits = "release"
+strip = "none"
+debug = "limited"
+
+
 # high performance release profile which uses fat LTO across all crates, 1 codegen unit, max opt-level, and optimises across all crates
 [profile.release-high-perf]
 inherits = "release"
