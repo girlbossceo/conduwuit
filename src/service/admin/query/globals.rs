@@ -1,26 +1,7 @@
-use clap::Subcommand;
-use ruma::{events::room::message::RoomMessageEventContent, ServerName};
+use ruma::events::room::message::RoomMessageEventContent;
 
+use super::Globals;
 use crate::{services, Result};
-
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
-/// All the getters and iterators from src/database/key_value/globals.rs
-pub(crate) enum Globals {
-	DatabaseVersion,
-
-	CurrentCount,
-
-	LastCheckForUpdatesId,
-
-	LoadKeypair,
-
-	/// - This returns an empty `Ok(BTreeMap<..>)` when there are no keys found
-	///   for the server.
-	SigningKeysFor {
-		origin: Box<ServerName>,
-	},
-}
 
 /// All the getters and iterators from src/database/key_value/globals.rs
 pub(super) async fn globals(subcommand: Globals) -> Result<RoomMessageEventContent> {

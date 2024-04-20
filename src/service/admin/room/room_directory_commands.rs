@@ -1,54 +1,36 @@
 use std::fmt::Write as _;
 
-use clap::Subcommand;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId};
 
+use super::RoomDirectoryCommand;
 use crate::{
-	service::admin::{
-		escape_html, get_room_info, room_alias, room_alias::RoomAliasCommand, room_directory,
-		room_directory::RoomDirectoryCommand, room_moderation, room_moderation::RoomModerationCommand, PAGE_SIZE,
-	},
+	service::admin::{escape_html, get_room_info, PAGE_SIZE},
 	services, Result,
 };
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
-pub(crate) enum RoomCommand {
-	/// - List all rooms the server knows about
-	List {
-		page: Option<usize>,
-	},
-
-	#[command(subcommand)]
-	/// - Manage moderation of remote or local rooms
-	Moderation(RoomModerationCommand),
-
-	#[command(subcommand)]
-	/// - Manage rooms' aliases
-	Alias(RoomAliasCommand),
-
-	#[command(subcommand)]
-	/// - Manage the room directory
-	Directory(RoomDirectoryCommand),
-}
-
-pub(crate) async fn process(command: RoomCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn process(command: RoomDirectoryCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
-		RoomCommand::Alias(command) => room_alias::process(command, body).await,
-
-		RoomCommand::Directory(command) => room_directory::process(command, body).await,
-
-		RoomCommand::Moderation(command) => room_moderation::process(command, body).await,
-
-		RoomCommand::List {
+		RoomDirectoryCommand::Publish {
+			room_id,
+		} => match services().rooms.directory.set_public(&room_id) {
+			Ok(()) => Ok(RoomMessageEventContent::text_plain("Room published")),
+			Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to update room: {err}"))),
+		},
+		RoomDirectoryCommand::Unpublish {
+			room_id,
+		} => match services().rooms.directory.set_not_public(&room_id) {
+			Ok(()) => Ok(RoomMessageEventContent::text_plain("Room unpublished")),
+			Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to update room: {err}"))),
+		},
+		RoomDirectoryCommand::List {
 			page,
 		} => {
 			// TODO: i know there's a way to do this with clap, but i can't seem to find it
 			let page = page.unwrap_or(1);
 			let mut rooms = services()
 				.rooms
-				.metadata
-				.iter_ids()
+				.directory
+				.public_rooms()
 				.filter_map(Result::ok)
 				.map(|id: OwnedRoomId| get_room_info(&id))
 				.collect::<Vec<_>>();
@@ -74,7 +56,7 @@ pub(crate) async fn process(command: RoomCommand, body: Vec<&str>) -> Result<Roo
 					.join("\n")
 			);
 			let output_html = format!(
-				"<table><caption>Room list - page \
+				"<table><caption>Room directory - page \
 				 {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
 				rooms
 					.iter()
@@ -84,7 +66,7 @@ pub(crate) async fn process(command: RoomCommand, body: Vec<&str>) -> Result<Roo
 							"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
 							escape_html(id.as_ref()),
 							members,
-							escape_html(name)
+							escape_html(name.as_ref())
 						)
 						.unwrap();
 						output

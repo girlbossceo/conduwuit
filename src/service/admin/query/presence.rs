@@ -1,25 +1,7 @@
-use clap::Subcommand;
-use ruma::{events::room::message::RoomMessageEventContent, UserId};
+use ruma::events::room::message::RoomMessageEventContent;
 
+use super::Presence;
 use crate::{services, Result};
-
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
-/// All the getters and iterators from src/database/key_value/presence.rs
-pub(crate) enum Presence {
-	/// - Returns the latest presence event for the given user.
-	GetPresence {
-		/// Full user ID
-		user_id: Box<UserId>,
-	},
-
-	/// - Iterator of the most recent presence updates that happened after the
-	///   event with id `since`.
-	PresenceSince {
-		/// UNIX timestamp since (u64)
-		since: u64,
-	},
-}
 
 /// All the getters and iterators in key_value/presence.rs
 pub(super) async fn presence(subcommand: Presence) -> Result<RoomMessageEventContent> {

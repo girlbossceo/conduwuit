@@ -42,9 +42,6 @@ pub(crate) mod fsck;
 pub(crate) mod media;
 pub(crate) mod query;
 pub(crate) mod room;
-pub(crate) mod room_alias;
-pub(crate) mod room_directory;
-pub(crate) mod room_moderation;
 pub(crate) mod server;
 pub(crate) mod user;
 

@@ -1,74 +1,16 @@
 use std::fmt::Write as _;
 
-use clap::Subcommand;
 use ruma::{
 	events::room::message::RoomMessageEventContent, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId,
 };
 use tracing::{debug, error, info, warn};
 
+use super::RoomModerationCommand;
 use crate::{
 	api::client_server::{get_alias_helper, leave_room},
 	service::admin::{escape_html, Service},
 	services, Result,
 };
-
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
-pub(crate) enum RoomModerationCommand {
-	/// - Bans a room from local users joining and evicts all our local users
-	///   from the room. Also blocks any invites (local and remote) for the
-	///   banned room.
-	///
-	/// Server admins (users in the conduwuit admin room) will not be evicted
-	/// and server admins can still join the room. To evict admins too, use
-	/// --force (also ignores errors) To disable incoming federation of the
-	/// room, use --disable-federation
-	BanRoom {
-		#[arg(short, long)]
-		/// Evicts admins out of the room and ignores any potential errors when
-		/// making our local users leave the room
-		force: bool,
-
-		#[arg(long)]
-		/// Disables incoming federation of the room after banning and evicting
-		/// users
-		disable_federation: bool,
-
-		/// The room in the format of `!roomid:example.com` or a room alias in
-		/// the format of `#roomalias:example.com`
-		room: Box<RoomOrAliasId>,
-	},
-
-	/// - Bans a list of rooms (room IDs and room aliases) from a newline
-	///   delimited codeblock similar to `user deactivate-all`
-	BanListOfRooms {
-		#[arg(short, long)]
-		/// Evicts admins out of the room and ignores any potential errors when
-		/// making our local users leave the room
-		force: bool,
-
-		#[arg(long)]
-		/// Disables incoming federation of the room after banning and evicting
-		/// users
-		disable_federation: bool,
-	},
-
-	/// - Unbans a room to allow local users to join again
-	///
-	/// To re-enable incoming federation of the room, use --enable-federation
-	UnbanRoom {
-		#[arg(long)]
-		/// Enables incoming federation of the room after unbanning
-		enable_federation: bool,
-
-		/// The room in the format of `!roomid:example.com` or a room alias in
-		/// the format of `#roomalias:example.com`
-		room: Box<RoomOrAliasId>,
-	},
-
-	/// - List of all rooms we have banned
-	ListBannedRooms,
-}
 
 pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {

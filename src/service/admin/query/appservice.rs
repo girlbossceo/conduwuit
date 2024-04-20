@@ -1,18 +1,7 @@
-use clap::Subcommand;
 use ruma::events::room::message::RoomMessageEventContent;
 
+use super::Appservice;
 use crate::{services, Result};
-
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
-/// All the getters and iterators from src/database/key_value/appservice.rs
-pub(crate) enum Appservice {
-	/// - Gets the appservice registration info/details from the ID as a string
-	GetRegistration {
-		/// Appservice registration ID
-		appservice_id: Box<str>,
-	},
-}
 
 /// All the getters and iterators from src/database/key_value/appservice.rs
 pub(super) async fn appservice(subcommand: Appservice) -> Result<RoomMessageEventContent> {
