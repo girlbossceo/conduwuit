@@ -26,6 +26,7 @@ use serde_json::value::to_raw_value;
 use tokio::sync::Mutex;
 use tracing::{error, warn};
 
+use self::query::QueryCommand;
 use super::pdu::PduBuilder;
 use crate::{
 	service::admin::{
@@ -39,6 +40,7 @@ pub(crate) mod appservice;
 pub(crate) mod debug;
 pub(crate) mod federation;
 pub(crate) mod media;
+pub(crate) mod query;
 pub(crate) mod room;
 pub(crate) mod room_alias;
 pub(crate) mod room_directory;
@@ -77,11 +79,12 @@ enum AdminCommand {
 	Media(MediaCommand),
 
 	#[command(subcommand)]
-	// TODO: should i split out debug commands to a separate thing? the
-	// debug commands seem like they could fit in the other categories fine
-	// this is more like a "miscellaneous" category than a debug one
 	/// - Commands for debugging things
 	Debug(DebugCommand),
+
+	#[command(subcommand)]
+	/// - Query all the database getters and iterators
+	Query(QueryCommand),
 }
 
 #[derive(Debug)]
@@ -249,10 +252,25 @@ impl Service {
 		}
 
 		// Backwards compatibility with `register_appservice`-style commands
-		let command_with_dashes;
+		let command_with_dashes_argv1;
 		if argv.len() > 1 && argv[1].contains('_') {
-			command_with_dashes = argv[1].replace('_', "-");
-			argv[1] = &command_with_dashes;
+			command_with_dashes_argv1 = argv[1].replace('_', "-");
+			argv[1] = &command_with_dashes_argv1;
+		}
+
+		// Backwards compatibility with `register_appservice`-style commands
+		let command_with_dashes_argv2;
+		if argv.len() > 2 && argv[2].contains('_') {
+			command_with_dashes_argv2 = argv[2].replace('_', "-");
+			argv[2] = &command_with_dashes_argv2;
+		}
+
+		// if the user is using the `query` command (argv[1]), replace the database
+		// function/table calls with underscores to match the codebase
+		let command_with_dashes_argv3;
+		if argv.len() > 3 && argv[1].eq("query") {
+			command_with_dashes_argv3 = argv[3].replace('_', "-");
+			argv[3] = &command_with_dashes_argv3;
 		}
 
 		AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
@@ -267,6 +285,7 @@ impl Service {
 			AdminCommand::Federation(command) => federation::process(command, body).await?,
 			AdminCommand::Server(command) => server::process(command, body).await?,
 			AdminCommand::Debug(command) => debug::process(command, body).await?,
+			AdminCommand::Query(command) => query::process(command, body).await?,
 		};
 
 		Ok(reply_message_content)
