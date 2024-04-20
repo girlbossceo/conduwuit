@@ -417,8 +417,8 @@ jobs:
         # Tag and push the architecture specific git ref
         if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
           if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
-          docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
-          docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
+            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
           else
             docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
             docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME

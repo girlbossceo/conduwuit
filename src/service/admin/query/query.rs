@@ -4,7 +4,9 @@ use ruma::events::room::message::RoomMessageEventContent;
 use super::{
 	account_data::{account_data, AccountData},
 	appservice::{appservice, Appservice},
+	globals::{globals, Globals},
 	presence::{presence, Presence},
+	room_alias::{room_alias, RoomAlias},
 };
 use crate::Result;
 
@@ -23,6 +25,14 @@ pub(crate) enum QueryCommand {
 	/// - presence.rs iterators and getters
 	#[command(subcommand)]
 	Presence(Presence),
+
+	/// - rooms/alias.rs iterators and getters
+	#[command(subcommand)]
+	RoomAlias(RoomAlias),
+
+	/// - globals.rs iterators and getters
+	#[command(subcommand)]
+	Globals(Globals),
 }
 
 /// Processes admin query commands
@@ -32,5 +42,7 @@ pub(crate) async fn process(command: QueryCommand, _body: Vec<&str>) -> Result<R
 		QueryCommand::AccountData(AccountData) => account_data(AccountData).await,
 		QueryCommand::Appservice(Appservice) => appservice(Appservice).await,
 		QueryCommand::Presence(Presence) => presence(Presence).await,
+		QueryCommand::RoomAlias(RoomAlias) => room_alias(RoomAlias).await,
+		QueryCommand::Globals(Globals) => globals(Globals).await,
 	}
 }

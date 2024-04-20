@@ -9,7 +9,6 @@ use crate::{services, Result};
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/account_data.rs
-/// via services()
 pub(crate) enum AccountData {
 	/// - Returns all changes to the account data that happened after `since`.
 	ChangesSince {
@@ -32,7 +31,7 @@ pub(crate) enum AccountData {
 	},
 }
 
-/// All the getters and iterators in key_value/account_data.rs via services()
+/// All the getters and iterators from src/database/key_value/account_data.rs
 pub(crate) async fn account_data(subcommand: AccountData) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		AccountData::ChangesSince {
