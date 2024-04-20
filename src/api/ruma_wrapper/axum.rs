@@ -41,8 +41,6 @@ struct QueryParams {
 	user_id: Option<String>,
 }
 
-const MAX_BODY_SIZE: usize = 1024 * 1024 * 128; //TODO: conf?
-
 #[async_trait]
 impl<T, S> FromRequest<S, axum::body::Body> for Ruma<T>
 where
@@ -54,9 +52,17 @@ where
 	async fn from_request(req: Request<axum::body::Body>, _state: &S) -> Result<Self, Self::Rejection> {
 		let limited = req.with_limited_body();
 		let (mut parts, body) = limited.into_parts();
-		let mut body = axum::body::to_bytes(body, MAX_BODY_SIZE)
-			.await
-			.map_err(|_| Error::BadRequest(ErrorKind::MissingToken, "Missing token."))?;
+		let mut body = axum::body::to_bytes(
+			body,
+			services()
+				.globals
+				.config
+				.max_request_size
+				.try_into()
+				.expect("failed to convert max request size"),
+		)
+		.await
+		.map_err(|_| Error::BadRequest(ErrorKind::MissingToken, "Missing token."))?;
 
 		let metadata = T::METADATA;
 		let auth_header: Option<TypedHeader<Authorization<Bearer>>> = parts.extract().await?;
