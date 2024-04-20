@@ -204,7 +204,7 @@ async fn run_unix_socket_server(
 	#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
 	#[cfg(feature = "systemd")]
 	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
-	let bind = tokio::net::UnixListener::bind(&path)?;
+	let bind = tokio::net::UnixListener::bind(path)?;
 	info!("Listening at {:?}", path);
 
 	Ok(())
