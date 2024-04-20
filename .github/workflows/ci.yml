@@ -334,6 +334,8 @@ jobs:
 
     - name: Publish to Dockerhub
       env:
+        IMAGE_SUFFIX_AMD64: amd64
+        IMAGE_SUFFIX_ARM64V8: arm64v8
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
         TARGET_NAME: ${{ matrix.oci-target }}
@@ -344,40 +346,110 @@ jobs:
         IMAGE_ID=$(docker images -q conduit:main)
 
         # Tag and push the architecture specific images
-        docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-        docker push $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-        # Tag the multi-arch image
-        docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-        docker manifest push $IMAGE_NAME:$GITHUB_SHA
-        # Tag and push the git ref
-        docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-        docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
-        # Tag "main" as latest (stable branch)
+        if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
+          docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+        elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
+          docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+        fi
+
+        # Tag and push the architecture specific git ref
+        if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
+          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+          docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
+          docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          else
+            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          fi
+        elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
+          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          else
+            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          fi
+        fi
+
+        # Tag "main" as latest (stable branch) architecture specific
         if [[ "$GITHUB_REF_NAME" = "main" ]]; then
-          docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-          docker manifest push $IMAGE_NAME:latest
+          if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
+            if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
+              docker manifest push $IMAGE_NAME:latest
+            else
+              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+              docker manifest push $IMAGE_NAME:latest
+            fi
+          elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
+            if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+              docker manifest push $IMAGE_NAME:latest
+            else
+              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+              docker manifest push $IMAGE_NAME:latest
+            fi
+          fi
         fi
 
     - name: Publish to GitHub Container Registry
-      if: github.event_name != 'pull_request'
       env:
+        IMAGE_SUFFIX_AMD64: amd64
+        IMAGE_SUFFIX_ARM64V8: arm64v8
         TARGET_NAME: ${{ matrix.oci-target }}
         IMAGE_NAME: ghcr.io/${{ github.repository }}
+      if: github.event_name != 'pull_request'
       run: |
         docker load -i oci-image-${{ matrix.oci-target }}.tar.gz
         IMAGE_ID=$(docker images -q conduit:main)
 
         # Tag and push the architecture specific images
-        docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-        docker push $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-        # Tag the multi-arch image
-        docker manifest create $IMAGE_NAME:$GITHUB_SHA --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-        docker manifest push $IMAGE_NAME:$GITHUB_SHA
-        # Tag and push the git ref
-        docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-        docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
-        # Tag "main" as latest (stable branch)
+        if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
+          docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+        elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
+          docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+          docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+        fi
+
+        # Tag and push the architecture specific git ref
+        if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
+          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+          docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
+          docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          else
+            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          fi
+        elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
+          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          else
+            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
+          fi
+        fi
+
+        # Tag "main" as latest (stable branch) architecture specific
         if [[ "$GITHUB_REF_NAME" = "main" ]]; then
-          docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-${{ env.TARGET_NAME }}
-          docker manifest push $IMAGE_NAME:latest
+          if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
+            if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
+              docker manifest push $IMAGE_NAME:latest
+            else
+              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+              docker manifest push $IMAGE_NAME:latest
+            fi
+          elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
+            if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
+              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+              docker manifest push $IMAGE_NAME:latest
+            else
+              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
+              docker manifest push $IMAGE_NAME:latest
+            fi
+          fi
         fi
