@@ -177,11 +177,6 @@
           ];
         };
 
-        buildFeatures = [ ]
-          ++ (if allocator == "jemalloc" then [ "jemalloc" ] else [ ])
-          ++ (if allocator == "hmalloc" then [ "hardened_malloc" ] else [ ])
-        ;
-
         rocksdb' = (if allocator == "jemalloc" then (pkgs.rocksdb.override { enableJemalloc = true; }) else (rocksdb' pkgs));
 
         # This is redundant with CI
@@ -190,7 +185,10 @@
         env = env pkgs;
         nativeBuildInputs = nativeBuildInputs pkgs;
 
-        cargoExtraArgs = cargoArgs;
+        cargoExtraArgs = cargoArgs
+          + (if allocator == "jemalloc" then " --features jemalloc" else "")
+          + (if allocator == "hmalloc" then " --features hardened_malloc" else "")
+        ;
 
         meta.mainProgram = cargoToml.package.name;
 
