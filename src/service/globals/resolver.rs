@@ -7,8 +7,7 @@ use std::{
 };
 
 use hickory_resolver::TokioAsyncResolver;
-use hyper::client::connect::dns::Name;
-use reqwest::dns::{Addrs, Resolve, Resolving};
+use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use ruma::OwnedServerName;
 use tokio::sync::RwLock;
 use tracing::error;

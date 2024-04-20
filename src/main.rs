@@ -19,7 +19,6 @@ use http::{
 	Method, StatusCode,
 };
 #[cfg(unix)]
-use hyperlocal::SocketIncoming;
 use ruma::api::client::{
 	error::{Error as RumaError, ErrorBody, ErrorKind},
 	uiaa::UiaaResponse,
@@ -186,6 +185,7 @@ async fn run_tls_server(
 }
 
 #[cfg(unix)]
+#[allow(unused_variables)]
 async fn run_unix_socket_server(
 	server: &Server, app: axum::routing::IntoMakeService<Router>, rx: oneshot::Receiver<()>,
 ) -> io::Result<()> {
@@ -203,25 +203,15 @@ async fn run_unix_socket_server(
 
 	let socket_perms = server.config.unix_socket_perms.to_string();
 	let octal_perms = u32::from_str_radix(&socket_perms, 8).unwrap();
-
-	let listener = tokio::net::UnixListener::bind(path.clone())?;
-	tokio::fs::set_permissions(path, Permissions::from_mode(octal_perms))
+	tokio::fs::set_permissions(&path, Permissions::from_mode(octal_perms))
 		.await
 		.unwrap();
-	let socket = SocketIncoming::from_listener(listener);
 
 	#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
 	#[cfg(feature = "systemd")]
 	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+	let bind = tokio::net::UnixListener::bind(&path)?;
 	info!("Listening at {:?}", path);
-	let server = hyper::Server::builder(socket).serve(app);
-	let graceful = server.with_graceful_shutdown(async {
-		rx.await.ok();
-	});
-
-	if let Err(e) = graceful.await {
-		error!("Server error: {:?}", e);
-	}
 
 	Ok(())
 }
@@ -319,8 +309,8 @@ async fn build(server: &Server) -> io::Result<axum::routing::IntoMakeService<Rou
 	}
 }
 
-async fn request_spawn<B: Send + 'static>(
-	req: http::Request<B>, next: axum::middleware::Next<B>,
+async fn request_spawn(
+	req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<axum::response::Response, StatusCode> {
 	if services().globals.shutdown.load(atomic::Ordering::Relaxed) {
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
@@ -330,8 +320,8 @@ async fn request_spawn<B: Send + 'static>(
 		.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-async fn request_handler<B: Send + 'static>(
-	req: http::Request<B>, next: axum::middleware::Next<B>,
+async fn request_handler(
+	req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<axum::response::Response, StatusCode> {
 	let method = req.method().clone();
 	let uri = req.uri().clone();
