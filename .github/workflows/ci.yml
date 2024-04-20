@@ -290,146 +290,72 @@ jobs:
         # don't compress again
         compression-level: 0
 
-
-    - name: Extract metadata for Dockerhub
-      env:
-        REGISTRY: registry.hub.docker.com
-        IMAGE_NAME: ${{ github.repository }}
-      id: meta-dockerhub
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-    - name: Extract metadata for GitHub Container Registry
-      env:
-        REGISTRY: ghcr.io
-        IMAGE_NAME: ${{ github.repository }}
-      id: meta-ghcr
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-
-    - name: Login to Dockerhub
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
-      if: ${{ (github.event_name != 'pull_request') && (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
-      uses: docker/login-action@v3
-      with:
-        # username is not really a secret
-        username: ${{ vars.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Login to GitHub Container Registry
-      if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
-      env:
-        REGISTRY: ghcr.io
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-
-    - name: Publish to Dockerhub
-      env:
-        IMAGE_SUFFIX_AMD64: amd64
-        IMAGE_SUFFIX_ARM64V8: arm64v8
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
-        TARGET_NAME: ${{ matrix.oci-target }}
-        IMAGE_NAME: docker.io/${{ github.repository }}
-      if: ${{ (github.event_name != 'pull_request') && (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
-      run: |
-        docker load -i oci-image-${{ matrix.oci-target }}.tar.gz
-        IMAGE_ID=$(docker images -q conduit:main)
-        TAG_SUFFIX=${{ matrix.oci-target }}
-        TAG_SUFFIX=${TAG_SUFFIX//-jemalloc/}
-        TAG_SUFFIX=${TAG_SUFFIX//unknown-linux-musl/}
-        TAG_SUFFIX=${TAG_SUFFIX//aarch64/arm64v8}
-        TAG_SUFFIX=${TAG_SUFFIX//x86_64/amd64}
-
-        # Tag and push the architecture-specific images
-        docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$TAG_SUFFIX
-        docker push $IMAGE_NAME:$GITHUB_SHA-$TAG_SUFFIX
-
-        # Create and push the architecture-specific git ref
-        docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$TAG_SUFFIX
-        docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
-
-        # Tag "main" as latest (stable branch) architecture specific
-        if [[ "$GITHUB_REF_NAME" == "main" ]]; then
-          docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$TAG_SUFFIX
-          docker manifest push $IMAGE_NAME:latest
-        fi
-
-    - name: Publish to GitHub Container Registry
-      env:
-        IMAGE_SUFFIX_AMD64: amd64
-        IMAGE_SUFFIX_ARM64V8: arm64v8
-        TARGET_NAME: ${{ matrix.oci-target }}
-        IMAGE_NAME: ghcr.io/${{ github.repository }}
-      if: github.event_name != 'pull_request'
-      run: |
-        docker load -i oci-image-${{ matrix.oci-target }}.tar.gz
-        IMAGE_ID=$(docker images -q conduit:main)
-
-        # Tag and push the architecture specific images
-        if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
-          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
-            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
-            docker push $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
-          else
-            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
-            docker push $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
+  create-and-push-manifest:
+    name: Create and Push Docker Manifest
+    runs-on: ubuntu-latest
+    needs: build-oci
+  
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+  
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+  
+      - name: Load OCI Images
+        run: |
+          docker load -i oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
+          docker load -i oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz
+  
+      - name: Create and Push Manifest to Docker Hub
+        run: |
+          DOCKER_IMAGE_NAME="docker.io/${{ github.repository }}"
+          BRANCH_NAME="${{ github.ref_name }}"
+          SHA_TAG="${BRANCH_NAME}-${{ github.sha }}"
+          BRANCH_TAG=$BRANCH_NAME
+      
+          if [ "$BRANCH_NAME" == "main" ]; then
+            BRANCH_TAG="latest"
           fi
-        elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
-          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
-            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
-            docker push $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
-          else
-            docker tag $IMAGE_ID $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
-            docker push $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
+      
+          # Create and push SHA specific manifest
+          docker manifest create $DOCKER_IMAGE_NAME:$SHA_TAG \
+            --amend $DOCKER_IMAGE_NAME:${{ github.sha }}-x86_64-jemalloc \
+            --amend $DOCKER_IMAGE_NAME:${{ github.sha }}-aarch64-jemalloc
+          docker manifest push $DOCKER_IMAGE_NAME:$SHA_TAG
+      
+          # Update and push branch or latest manifest
+          docker manifest create $DOCKER_IMAGE_NAME:$BRANCH_TAG \
+            --amend $DOCKER_IMAGE_NAME:${{ github.sha }}-x86_64-jemalloc \
+            --amend $DOCKER_IMAGE_NAME:${{ github.sha }}-aarch64-jemalloc
+          docker manifest push $DOCKER_IMAGE_NAME:$BRANCH_TAG
+      
+      - name: Create and Push Manifest to GitHub Container Registry
+        run: |
+          GHCR_IMAGE_NAME="ghcr.io/${{ github.repository }}"
+          BRANCH_NAME="${{ github.ref_name }}"
+          SHA_TAG="${BRANCH_NAME}-${{ github.sha }}"
+          BRANCH_TAG=$BRANCH_NAME
+      
+          if [ "$BRANCH_NAME" == "main" ]; then
+            BRANCH_TAG="latest"
           fi
-        fi
-
-        # Tag and push the architecture specific git ref
-        if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
-          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
-            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
-            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
-          else
-            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
-            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
-          fi
-        elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
-          if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
-            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
-            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
-          else
-            docker manifest create $IMAGE_NAME:$GITHUB_REF_NAME --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
-            docker manifest push $IMAGE_NAME:$GITHUB_REF_NAME
-          fi
-        fi
-
-        # Tag "main" as latest (stable branch) architecture specific
-        if [[ "$GITHUB_REF_NAME" = "main" ]]; then
-          if [[ "$TARGET_NAME" = *"x86_64"* ]]; then
-            if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
-              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_AMD64
-              docker manifest push $IMAGE_NAME:latest
-            else
-              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_AMD64
-              docker manifest push $IMAGE_NAME:latest
-            fi
-          elif [[ "$TARGET_NAME" = *"aarch64"* ]]; then
-            if [[ "$TARGET_NAME" = *"jemalloc"* ]]; then
-              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-jemalloc-$IMAGE_SUFFIX_ARM64V8
-              docker manifest push $IMAGE_NAME:latest
-            else
-              docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$GITHUB_SHA-$IMAGE_SUFFIX_ARM64V8
-              docker manifest push $IMAGE_NAME:latest
-            fi
-          fi
-        fi
+      
+          # Create and push SHA specific manifest
+          docker manifest create $GHCR_IMAGE_NAME:$SHA_TAG \
+            --amend $GHCR_IMAGE_NAME:${{ github.sha }}-x86_64-jemalloc \
+            --amend $GHCR_IMAGE_NAME:${{ github.sha }}-aarch64-jemalloc
+          docker manifest push $GHCR_IMAGE_NAME:$SHA_TAG
+      
+          # Update and push branch or latest manifest
+          docker manifest create $GHCR_IMAGE_NAME:$BRANCH_TAG \
+            --amend $GHCR_IMAGE_NAME:${{ github.sha }}-x86_64-jemalloc \
+            --amend $GHCR_IMAGE_NAME:${{ github.sha }}-aarch64-jemalloc
+          docker manifest push $GHCR_IMAGE_NAME:$BRANCH_TAG
