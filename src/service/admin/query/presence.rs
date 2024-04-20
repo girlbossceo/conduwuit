@@ -5,8 +5,7 @@ use crate::{services, Result};
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-/// All the getters and iterators from src/database/key_value/presence.rs via
-/// services()
+/// All the getters and iterators from src/database/key_value/presence.rs
 pub(crate) enum Presence {
 	/// - Returns the latest presence event for the given user.
 	GetPresence {
@@ -14,15 +13,15 @@ pub(crate) enum Presence {
 		user_id: Box<UserId>,
 	},
 
-	/// - Returns the most recent presence updates that happened after the event
-	///   with id `since`.
+	/// - Iterator of the most recent presence updates that happened after the
+	///   event with id `since`.
 	PresenceSince {
 		/// UNIX timestamp since (u64)
 		since: u64,
 	},
 }
 
-/// All the getters and iterators in key_value/presence.rs via services()
+/// All the getters and iterators in key_value/presence.rs
 pub(crate) async fn presence(subcommand: Presence) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		Presence::GetPresence {

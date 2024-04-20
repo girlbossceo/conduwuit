@@ -5,8 +5,7 @@ use crate::{services, Result};
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-/// All the getters and iterators from src/database/key_value/appservice.rs via
-/// services()
+/// All the getters and iterators from src/database/key_value/appservice.rs
 pub(crate) enum Appservice {
 	/// - Gets the appservice registration info/details from the ID as a string
 	GetRegistration {
@@ -15,7 +14,7 @@ pub(crate) enum Appservice {
 	},
 }
 
-/// All the getters and iterators in key_value/appservice.rs via services()
+/// All the getters and iterators from src/database/key_value/appservice.rs
 pub(crate) async fn appservice(subcommand: Appservice) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		Appservice::GetRegistration {
