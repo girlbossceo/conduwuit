@@ -1,7 +1,7 @@
 pub(crate) mod user_commands;
 
 use clap::Subcommand;
-use ruma::{events::room::message::RoomMessageEventContent, UserId};
+use ruma::events::room::message::RoomMessageEventContent;
 
 use self::user_commands::{create, deactivate, deactivate_all, list, list_joined_rooms, reset_password};
 use crate::Result;
@@ -20,7 +20,7 @@ pub(crate) enum UserCommand {
 	/// - Reset user password
 	ResetPassword {
 		/// Username of the user for whom the password should be reset
-		username: Box<UserId>,
+		username: String,
 	},
 
 	/// - Deactivate a user
@@ -30,7 +30,7 @@ pub(crate) enum UserCommand {
 	Deactivate {
 		#[arg(short, long)]
 		leave_rooms: bool,
-		user_id: Box<UserId>,
+		user_id: String,
 	},
 
 	/// - Deactivate a list of users
@@ -60,7 +60,7 @@ pub(crate) enum UserCommand {
 	/// - Lists all the rooms (local and remote) that the specified user is
 	///   joined in
 	ListJoinedRooms {
-		user_id: Box<UserId>,
+		user_id: String,
 	},
 }
 
