@@ -23,7 +23,6 @@
     }: flake-utils.lib.eachDefaultSystem (system:
     let
       pkgsHost = nixpkgs.legacyPackages.${system};
-      allocator = null;
 
       rocksdb' = pkgs: (pkgs.rocksdb.overrideAttrs (old: {
         version = "9.1.0";
