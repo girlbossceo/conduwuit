@@ -22,10 +22,10 @@ use serde::{de::IgnoredAny, Deserialize};
 use tracing::{debug, error, warn};
 use url::Url;
 
-use self::proxy::ProxyConfig;
+use self::{check::check, proxy::ProxyConfig};
 use crate::utils::error::Error;
 
-mod check;
+pub(crate) mod check;
 mod proxy;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -371,8 +371,6 @@ impl Config {
 			Ok(config) => config,
 		};
 
-		check::check(&config)?;
-
 		// don't start if we're listening on both UNIX sockets and TCP at same time
 		if config.is_dual_listening(&raw_config) {
 			return Err(Error::bad_config("dual listening on UNIX and TCP sockets not allowed."));
@@ -452,6 +450,8 @@ impl Config {
 				.collect::<Vec<_>>(),
 		}
 	}
+
+	pub fn check(&self) -> Result<(), Error> { check(self) }
 }
 
 impl fmt::Display for Config {
