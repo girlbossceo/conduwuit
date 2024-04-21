@@ -38,7 +38,7 @@ pub use send::FedDest;
 const SELECT_EDU_LIMIT: usize = 16;
 
 pub struct Service {
-	db: &'static dyn Data,
+	pub db: &'static dyn Data,
 
 	/// The state for a given state hash.
 	pub(super) maximum_requests: Arc<Semaphore>,
