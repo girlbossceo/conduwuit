@@ -103,6 +103,18 @@ pub(super) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<
 pub(super) async fn get_remote_pdu_list(
 	body: Vec<&str>, server: Box<ServerName>, force: bool,
 ) -> Result<RoomMessageEventContent> {
+	if !services().globals.config.allow_federation {
+		return Ok(RoomMessageEventContent::text_plain(
+			"Federation is disabled on this homeserver.",
+		));
+	}
+
+	if server == services().globals.server_name() {
+		return Ok(RoomMessageEventContent::text_plain(
+			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for fetching local PDUs.",
+		));
+	}
+
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
 		let list = body
 			.clone()
