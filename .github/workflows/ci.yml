@@ -294,66 +294,71 @@ jobs:
     name: Create and Push Docker Manifest
     runs-on: ubuntu-latest
     needs: build-oci
-  
+
     steps:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+        if: ${{ (github.event_name != 'pull_request') && (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
+          # username is not really a secret
+          username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-  
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-  
+
       - name: Load OCI Images
         run: |
           docker load -i oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
           docker load -i oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz
-  
+
       - name: Create and Push Manifest to Docker Hub
         run: |
           DOCKER_IMAGE_NAME="docker.io/${{ github.repository }}"
           BRANCH_NAME="${{ github.ref_name }}"
           SHA_TAG="${BRANCH_NAME}-${{ github.sha }}"
           BRANCH_TAG=$BRANCH_NAME
-      
+
           if [ "$BRANCH_NAME" == "main" ]; then
             BRANCH_TAG="latest"
           fi
-      
+
           # Create and push SHA specific manifest
           docker manifest create $DOCKER_IMAGE_NAME:$SHA_TAG \
             --amend $DOCKER_IMAGE_NAME:${{ github.sha }}-x86_64-jemalloc \
             --amend $DOCKER_IMAGE_NAME:${{ github.sha }}-aarch64-jemalloc
           docker manifest push $DOCKER_IMAGE_NAME:$SHA_TAG
-      
+
           # Update and push branch or latest manifest
           docker manifest create $DOCKER_IMAGE_NAME:$BRANCH_TAG \
             --amend $DOCKER_IMAGE_NAME:${{ github.sha }}-x86_64-jemalloc \
             --amend $DOCKER_IMAGE_NAME:${{ github.sha }}-aarch64-jemalloc
           docker manifest push $DOCKER_IMAGE_NAME:$BRANCH_TAG
-      
+
       - name: Create and Push Manifest to GitHub Container Registry
         run: |
           GHCR_IMAGE_NAME="ghcr.io/${{ github.repository }}"
           BRANCH_NAME="${{ github.ref_name }}"
           SHA_TAG="${BRANCH_NAME}-${{ github.sha }}"
           BRANCH_TAG=$BRANCH_NAME
-      
+
           if [ "$BRANCH_NAME" == "main" ]; then
             BRANCH_TAG="latest"
           fi
-      
+
           # Create and push SHA specific manifest
           docker manifest create $GHCR_IMAGE_NAME:$SHA_TAG \
             --amend $GHCR_IMAGE_NAME:${{ github.sha }}-x86_64-jemalloc \
             --amend $GHCR_IMAGE_NAME:${{ github.sha }}-aarch64-jemalloc
           docker manifest push $GHCR_IMAGE_NAME:$SHA_TAG
-      
+
           # Update and push branch or latest manifest
           docker manifest create $GHCR_IMAGE_NAME:$BRANCH_TAG \
             --amend $GHCR_IMAGE_NAME:${{ github.sha }}-x86_64-jemalloc \
