@@ -30,6 +30,7 @@ use tokio::{
 };
 use tower::ServiceBuilder;
 use tower_http::{
+	catch_panic::CatchPanicLayer,
 	cors::{self, CorsLayer},
 	trace::{DefaultOnFailure, TraceLayer},
 	ServiceBuilderExt as _,
@@ -76,7 +77,7 @@ async fn async_main(server: &Server) -> Result<(), Error> {
 	if let Err(error) = run(server).await {
 		error!("Critical error running server: {error}");
 		return Err(Error::Error(format!("{error}")));
-	};
+	}
 
 	if let Err(error) = stop(server).await {
 		error!("Critical error stopping server: {error}");
@@ -274,6 +275,7 @@ async fn build(server: &Server) -> io::Result<axum::routing::IntoMakeService<Rou
 	let middlewares = base_middlewares
 		.sensitive_headers([header::AUTHORIZATION])
 		.sensitive_request_headers([x_forwarded_for].into())
+		.layer(CatchPanicLayer::new())
 		.layer(axum::middleware::from_fn(request_spawn))
 		.layer(
 			TraceLayer::new_for_http()
@@ -437,6 +439,8 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 	{
 		tracing_reload_handle = init_tracing_sub(&config);
 	};
+
+	config.check()?;
 
 	info!(
 		server_name = ?config.server_name,
