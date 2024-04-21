@@ -100,6 +100,32 @@ pub(super) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<
 	}
 }
 
+pub(super) async fn get_remote_pdu_list(
+	body: Vec<&str>, server: Box<ServerName>, force: bool,
+) -> Result<RoomMessageEventContent> {
+	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
+		let list = body
+			.clone()
+			.drain(1..body.len() - 1)
+			.filter_map(|pdu| EventId::parse(pdu).ok())
+			.collect::<Vec<_>>();
+
+		for pdu in list {
+			if force {
+				_ = get_remote_pdu(Vec::new(), Box::from(pdu), server.clone()).await;
+			} else {
+				get_remote_pdu(Vec::new(), Box::from(pdu), server.clone()).await?;
+			}
+		}
+
+		return Ok(RoomMessageEventContent::text_plain("Fetched list of remote PDUs."));
+	}
+
+	Ok(RoomMessageEventContent::text_plain(
+		"Expected code block in command body. Add --help for details.",
+	))
+}
+
 pub(super) async fn get_remote_pdu(
 	_body: Vec<&str>, event_id: Box<EventId>, server: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {

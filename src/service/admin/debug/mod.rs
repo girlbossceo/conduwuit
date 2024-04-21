@@ -2,8 +2,8 @@ use clap::Subcommand;
 use ruma::{events::room::message::RoomMessageEventContent, EventId, RoomId, ServerName};
 
 use self::debug_commands::{
-	change_log_level, force_device_list_updates, get_auth_chain, get_pdu, get_remote_pdu, get_room_state, parse_pdu,
-	ping, sign_json, verify_json,
+	change_log_level, force_device_list_updates, get_auth_chain, get_pdu, get_remote_pdu, get_remote_pdu_list,
+	get_room_state, parse_pdu, ping, sign_json, verify_json,
 };
 use crate::Result;
 
@@ -43,6 +43,18 @@ pub(crate) enum DebugCommand {
 		/// Argument for us to attempt to fetch the event from the
 		/// specified remote server.
 		server: Box<ServerName>,
+	},
+
+	/// Same as `get-remote-pdu` but accepts a codeblock newline delimited list
+	/// of PDUs and a single server to fetch from
+	GetRemotePduList {
+		/// Argument for us to attempt to fetch all the events from the
+		/// specified remote server.
+		server: Box<ServerName>,
+
+		/// If set, ignores errors, else stops at the first error/failure.
+		#[arg(short, long)]
+		force: bool,
 	},
 
 	/// - Gets all the room state events for the specified room.
@@ -122,5 +134,9 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 		} => change_log_level(body, filter, reset).await?,
 		DebugCommand::SignJson => sign_json(body).await?,
 		DebugCommand::VerifyJson => verify_json(body).await?,
+		DebugCommand::GetRemotePduList {
+			server,
+			force,
+		} => get_remote_pdu_list(body, server, force).await?,
 	})
 }
