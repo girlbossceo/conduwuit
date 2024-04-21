@@ -1,7 +1,6 @@
-use std::{collections::BTreeMap, fmt::Write as _};
+use std::fmt::Write as _;
 
 use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName};
-use tokio::sync::RwLock;
 
 use crate::{services, utils::HtmlEscape, Result};
 
@@ -24,59 +23,6 @@ pub(super) async fn incoming_federeation(_body: Vec<&str>) -> Result<RoomMessage
 		let _ = writeln!(msg, "{} {}: {}m{}s", r, e, elapsed.as_secs() / 60, elapsed.as_secs() % 60);
 	}
 	Ok(RoomMessageEventContent::text_plain(&msg))
-}
-
-pub(super) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
-		let string = body[1..body.len() - 1].join("\n");
-		match serde_json::from_str(&string) {
-			Ok(mut value) => {
-				ruma::signatures::sign_json(
-					services().globals.server_name().as_str(),
-					services().globals.keypair(),
-					&mut value,
-				)
-				.expect("our request json is what ruma expects");
-				let json_text = serde_json::to_string_pretty(&value).expect("canonical json is valid json");
-				Ok(RoomMessageEventContent::text_plain(json_text))
-			},
-			Err(e) => Ok(RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))),
-		}
-	} else {
-		Ok(RoomMessageEventContent::text_plain(
-			"Expected code block in command body. Add --help for details.",
-		))
-	}
-}
-
-pub(super) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
-		let string = body[1..body.len() - 1].join("\n");
-		match serde_json::from_str(&string) {
-			Ok(value) => {
-				let pub_key_map = RwLock::new(BTreeMap::new());
-
-				services()
-					.rooms
-					.event_handler
-					.fetch_required_signing_keys([&value], &pub_key_map)
-					.await?;
-
-				let pub_key_map = pub_key_map.read().await;
-				match ruma::signatures::verify_json(&pub_key_map, &value) {
-					Ok(()) => Ok(RoomMessageEventContent::text_plain("Signature correct")),
-					Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
-						"Signature verification failed: {e}"
-					))),
-				}
-			},
-			Err(e) => Ok(RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))),
-		}
-	} else {
-		Ok(RoomMessageEventContent::text_plain(
-			"Expected code block in command body. Add --help for details.",
-		))
-	}
 }
 
 pub(super) async fn fetch_support_well_known(

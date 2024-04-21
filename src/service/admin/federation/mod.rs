@@ -1,9 +1,7 @@
 use clap::Subcommand;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName};
 
-use self::federation_commands::{
-	disable_room, enable_room, fetch_support_well_known, incoming_federeation, sign_json, verify_json,
-};
+use self::federation_commands::{disable_room, enable_room, fetch_support_well_known, incoming_federeation};
 use crate::Result;
 
 pub(crate) mod federation_commands;
@@ -23,18 +21,6 @@ pub(crate) enum FederationCommand {
 	EnableRoom {
 		room_id: Box<RoomId>,
 	},
-
-	/// - Verify json signatures
-	///
-	/// This command needs a JSON blob provided in a Markdown code block below
-	/// the command.
-	SignJson,
-
-	/// - Verify json signatures
-	///
-	/// This command needs a JSON blob provided in a Markdown code block below
-	/// the command.
-	VerifyJson,
 
 	/// - Fetch `/.well-known/matrix/support` from the specified server
 	///
@@ -59,8 +45,6 @@ pub(crate) async fn process(command: FederationCommand, body: Vec<&str>) -> Resu
 			room_id,
 		} => enable_room(body, room_id).await?,
 		FederationCommand::IncomingFederation => incoming_federeation(body).await?,
-		FederationCommand::SignJson => sign_json(body).await?,
-		FederationCommand::VerifyJson => verify_json(body).await?,
 		FederationCommand::FetchSupportWellKnown {
 			server_name,
 		} => fetch_support_well_known(body, server_name).await?,
