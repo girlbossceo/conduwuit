@@ -35,7 +35,7 @@ use tower_http::{
 	trace::{DefaultOnFailure, TraceLayer},
 	ServiceBuilderExt as _,
 };
-use tracing::{debug, error, info, level_filters::LevelFilter, warn, Level};
+use tracing::{debug, error, info, warn, Level};
 use tracing_subscriber::{prelude::*, reload, EnvFilter, Registry};
 
 mod routes;
@@ -593,32 +593,20 @@ fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
 
 #[allow(clippy::needless_pass_by_value)]
 fn catch_panic_layer(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_util::Full<bytes::Bytes>> {
-	let details = if cfg!(debug_assertions) || LevelFilter::current() == LevelFilter::TRACE {
-		if let Some(s) = err.downcast_ref::<String>() {
-			s.clone()
-		} else if let Some(s) = err.downcast_ref::<&str>() {
-			s.to_string()
-		} else {
-			"Unknown internal server error occurred.".to_owned()
-		}
+	let details = if let Some(s) = err.downcast_ref::<String>() {
+		s.clone()
+	} else if let Some(s) = err.downcast_ref::<&str>() {
+		s.to_string()
 	} else {
-		"Internal server error occurred.".to_owned()
+		"Unknown internal server error occurred.".to_owned()
 	};
 
-	let body = if cfg!(debug_assertions) || LevelFilter::current() == LevelFilter::TRACE {
-		serde_json::json!({
-			"errcode": "M_UNKNOWN",
-			"error": "M_UNKNOWN: Internal server error occurred",
-			"details": details,
-		})
-		.to_string()
-	} else {
-		serde_json::json!({
-			"errcode": "M_UNKNOWN",
-			"error": "M_UNKNOWN: Internal server error occurred",
-		})
-		.to_string()
-	};
+	let body = serde_json::json!({
+		"errcode": "M_UNKNOWN",
+		"error": "M_UNKNOWN: Internal server error occurred",
+		"details": details,
+	})
+	.to_string();
 
 	http::Response::builder()
 		.status(StatusCode::INTERNAL_SERVER_ERROR)
