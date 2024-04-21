@@ -21,5 +21,20 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 				),
 			))
 		},
+		Sending::GetLatestEduCount {
+			server_name,
+		} => {
+			let timer = tokio::time::Instant::now();
+			let results = services().sending.db.get_latest_educount(&server_name);
+			let query_time = timer.elapsed();
+
+			Ok(RoomMessageEventContent::text_html(
+				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
+				format!(
+					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
+					results
+				),
+			))
+		},
 	}
 }
