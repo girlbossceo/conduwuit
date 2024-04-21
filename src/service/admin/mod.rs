@@ -26,6 +26,7 @@ use serde_json::value::to_raw_value;
 use tokio::sync::Mutex;
 use tracing::{error, warn};
 
+use self::fsck::FsckCommand;
 use super::pdu::PduBuilder;
 use crate::{
 	service::admin::{
@@ -82,6 +83,10 @@ enum AdminCommand {
 	#[command(subcommand)]
 	/// - Query all the database getters and iterators
 	Query(QueryCommand),
+
+	#[command(subcommand)]
+	/// - Query all the database getters and iterators
+	Fsck(FsckCommand),
 }
 
 #[derive(Debug)]
@@ -283,6 +288,7 @@ impl Service {
 			AdminCommand::Server(command) => server::process(command, body).await?,
 			AdminCommand::Debug(command) => debug::process(command, body).await?,
 			AdminCommand::Query(command) => query::process(command, body).await?,
+			AdminCommand::Fsck(command) => fsck::process(command, body).await?,
 		};
 
 		Ok(reply_message_content)

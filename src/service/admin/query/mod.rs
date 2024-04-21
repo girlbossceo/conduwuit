@@ -4,6 +4,7 @@ pub(crate) mod globals;
 pub(crate) mod presence;
 pub(crate) mod room_alias;
 pub(crate) mod sending;
+pub(crate) mod users;
 
 use clap::Subcommand;
 use ruma::{
@@ -13,7 +14,7 @@ use ruma::{
 
 use self::{
 	account_data::account_data, appservice::appservice, globals::globals, presence::presence, room_alias::room_alias,
-	sending::sending,
+	sending::sending, users::users,
 };
 use crate::Result;
 
@@ -41,9 +42,13 @@ pub(crate) enum QueryCommand {
 	#[command(subcommand)]
 	Globals(Globals),
 
-	/// - globals.rs iterators and getters
+	/// - sending.rs iterators and getters
 	#[command(subcommand)]
 	Sending(Sending),
+
+	/// - users.rs iterators and getters
+	#[command(subcommand)]
+	Users(Users),
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -149,6 +154,13 @@ pub(crate) enum Sending {
 	},
 }
 
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+/// All the getters and iterators from src/database/key_value/users.rs
+pub(crate) enum Users {
+	Iter,
+}
+
 /// Processes admin query commands
 pub(crate) async fn process(command: QueryCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
@@ -158,5 +170,6 @@ pub(crate) async fn process(command: QueryCommand, _body: Vec<&str>) -> Result<R
 		QueryCommand::RoomAlias(command) => room_alias(command).await?,
 		QueryCommand::Globals(command) => globals(command).await?,
 		QueryCommand::Sending(command) => sending(command).await?,
+		QueryCommand::Users(command) => users(command).await?,
 	})
 }
