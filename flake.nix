@@ -11,18 +11,10 @@
     rocksdb = { url = "github:facebook/rocksdb?ref=v9.1.0"; flake = false; };
   };
 
-  outputs =
-    { self
-    , nixpkgs
-    , flake-utils
-    , nix-filter
-
-    , fenix
-    , crane
-    , ...
-    }: flake-utils.lib.eachDefaultSystem (system:
+  outputs = inputs:
+    inputs.flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgsHost = nixpkgs.legacyPackages.${system};
+      pkgsHost = inputs.nixpkgs.legacyPackages.${system};
 
       rocksdb' = pkgs: (pkgs.rocksdb.overrideAttrs (old: {
         version = "9.1.0";
@@ -33,7 +25,7 @@
       cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 
       # The Rust toolchain to use
-      toolchain = fenix.packages.${system}.fromToolchainFile {
+      toolchain = inputs.fenix.packages.${system}.fromToolchainFile {
         file = ./rust-toolchain.toml;
 
         # See also `rust-toolchain.toml`
@@ -41,7 +33,7 @@
       };
 
       builder = pkgs:
-        ((crane.mkLib pkgs).overrideToolchain toolchain).buildPackage;
+        ((inputs.crane.mkLib pkgs).overrideToolchain toolchain).buildPackage;
 
       nativeBuildInputs = pkgs: let
         darwin = if pkgs.stdenv.isDarwin then [ pkgs.libiconv ] else [];
@@ -53,7 +45,7 @@
       ] ++ darwin;
 
       env = pkgs: {
-        CONDUIT_VERSION_EXTRA = self.shortRev or self.dirtyShortRev;
+        CONDUIT_VERSION_EXTRA = inputs.self.shortRev or inputs.self.dirtyShortRev;
         ROCKSDB_INCLUDE_DIR = "${rocksdb' pkgs}/include";
         ROCKSDB_LIB_DIR = "${rocksdb' pkgs}/lib";
       }
@@ -147,7 +139,7 @@
       );
 
       mkPackage = pkgs: allocator: cargoArgs: profile: builder pkgs {
-        src = nix-filter {
+        src = inputs.nix-filter {
           root = ./.;
           include = [
             "src"
@@ -179,7 +171,7 @@
           name = package.pname;
           tag = "main";
           # Debian makes builds reproducible through using the HEAD commit's date
-          created = "@${toString self.lastModified}";
+          created = "@${toString inputs.self.lastModified}";
           contents = [
             pkgs.dockerTools.caCertificates
           ];
@@ -227,7 +219,7 @@
             copyToRoot = pkgs.stdenv.mkDerivation {
 
               name = "complement_data";
-              src = nix-filter {
+              src = inputs.nix-filter {
                 root = ./.;
                 include = [
                   "tests/complement/conduwuit-complement.toml"
@@ -284,19 +276,21 @@
         default = mkPackage pkgsHost null "" "release";
         jemalloc = mkPackage pkgsHost "jemalloc" "" "release";
         hmalloc = mkPackage pkgsHost "hmalloc" "" "release";
-        oci-image = mkOciImage pkgsHost self.packages.${system}.default;
-        oci-image-jemalloc = mkOciImage pkgsHost self.packages.${system}.jemalloc;
-        oci-image-hmalloc = mkOciImage pkgsHost self.packages.${system}.hmalloc;
+        oci-image = mkOciImage pkgsHost inputs.self.packages.${system}.default;
+        oci-image-jemalloc =
+          mkOciImage pkgsHost inputs.self.packages.${system}.jemalloc;
+        oci-image-hmalloc =
+          mkOciImage pkgsHost inputs.self.packages.${system}.hmalloc;
 
         book =
           let
-            package = self.packages.${system}.default;
+            package = inputs.self.packages.${system}.default;
           in
           pkgsHost.stdenv.mkDerivation {
             pname = "${package.pname}-book";
             version = package.version;
 
-            src = nix-filter {
+            src = inputs.nix-filter {
               root = ./.;
               include = [
                 "book.toml"
@@ -317,7 +311,7 @@
             '';
           };
           complement-image = createComplementImage pkgsHost;
-          complement-runtime = createComplementRuntime pkgsHost self.outputs.packages.${system}.complement-image;
+          complement-runtime = createComplementRuntime pkgsHost inputs.self.outputs.packages.${system}.complement-image;
       }
       //
       builtins.listToAttrs
@@ -327,7 +321,7 @@
               let
                 binaryName = "static-${crossSystem}";
                 pkgsCrossStatic =
-                  (import nixpkgs {
+                  (import inputs.nixpkgs {
                     inherit system;
                     crossSystem = {
                       config = crossSystem;
@@ -358,7 +352,7 @@
                   name = "oci-image-${crossSystem}";
                   value = mkOciImage
                     pkgsCrossStatic
-                    self.packages.${system}.${binaryName};
+                    inputs.self.packages.${system}.${binaryName};
                 }
 
                 # An output for an OCI image based on that binary with jemalloc
@@ -366,7 +360,7 @@
                   name = "oci-image-${crossSystem}-jemalloc";
                   value = mkOciImage
                     pkgsCrossStatic
-                    self.packages.${system}."${binaryName}-jemalloc";
+                    inputs.self.packages.${system}."${binaryName}-jemalloc";
                 }
 
                 # An output for an OCI image based on that binary with hardened_malloc
@@ -374,7 +368,7 @@
                   name = "oci-image-${crossSystem}-hmalloc";
                   value = mkOciImage
                     pkgsCrossStatic
-                    self.packages.${system}."${binaryName}-hmalloc";
+                    inputs.self.packages.${system}."${binaryName}-hmalloc";
                 }
               ]
             )
@@ -399,7 +393,7 @@
           #
           # This needs to come before `toolchain` in this list, otherwise
           # `$PATH` will have stable rustfmt instead.
-          fenix.packages.${system}.latest.rustfmt
+          inputs.fenix.packages.${system}.latest.rustfmt
 
           toolchain
         ] ++ (with pkgsHost; [
