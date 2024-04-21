@@ -143,6 +143,10 @@ pub(crate) enum Globals {
 /// All the getters and iterators from src/database/key_value/sending.rs
 pub(crate) enum Sending {
 	ActiveRequests,
+
+	GetLatestEduCount {
+		server_name: Box<ServerName>,
+	},
 }
 
 /// Processes admin query commands
