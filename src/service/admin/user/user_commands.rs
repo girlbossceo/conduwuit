@@ -25,6 +25,7 @@ pub(super) async fn create(
 	_body: Vec<&str>, username: String, password: Option<String>,
 ) -> Result<RoomMessageEventContent> {
 	let password = password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
+
 	// Validate user id
 	let user_id =
 		match UserId::parse_with_server_name(username.as_str().to_lowercase(), services().globals.server_name()) {
@@ -35,11 +36,13 @@ pub(super) async fn create(
 				)))
 			},
 		};
+
 	if user_id.is_historical() {
 		return Ok(RoomMessageEventContent::text_plain(format!(
 			"Userid {user_id} is not allowed due to historical"
 		)));
 	}
+
 	if services().users.exists(&user_id)? {
 		return Ok(RoomMessageEventContent::text_plain(format!("Userid {user_id} already exists")));
 	}
@@ -117,9 +120,18 @@ pub(super) async fn create(
 }
 
 pub(super) async fn deactivate(
-	_body: Vec<&str>, leave_rooms: bool, user_id: Box<UserId>,
+	_body: Vec<&str>, leave_rooms: bool, user_id: String,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = Arc::<UserId>::from(user_id);
+	// Validate user id
+	let user_id =
+		match UserId::parse_with_server_name(user_id.as_str().to_lowercase(), services().globals.server_name()) {
+			Ok(id) => Arc::<UserId>::from(id),
+			Err(e) => {
+				return Ok(RoomMessageEventContent::text_plain(format!(
+					"The supplied username is not a valid username: {e}"
+				)))
+			},
+		};
 
 	// check if user belongs to our server
 	if user_id.server_name() != services().globals.server_name() {
@@ -156,10 +168,11 @@ pub(super) async fn deactivate(
 	}
 }
 
-pub(super) async fn reset_password(_body: Vec<&str>, username: Box<UserId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn reset_password(_body: Vec<&str>, username: String) -> Result<RoomMessageEventContent> {
+	// Validate user id
 	let user_id =
 		match UserId::parse_with_server_name(username.as_str().to_lowercase(), services().globals.server_name()) {
-			Ok(id) => id,
+			Ok(id) => Arc::<UserId>::from(id),
 			Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"The supplied username is not a valid username: {e}"
@@ -279,7 +292,18 @@ pub(super) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bo
 	}
 }
 
-pub(super) async fn list_joined_rooms(_body: Vec<&str>, user_id: Box<UserId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
+	// Validate user id
+	let user_id =
+		match UserId::parse_with_server_name(user_id.as_str().to_lowercase(), services().globals.server_name()) {
+			Ok(id) => Arc::<UserId>::from(id),
+			Err(e) => {
+				return Ok(RoomMessageEventContent::text_plain(format!(
+					"The supplied username is not a valid username: {e}"
+				)))
+			},
+		};
+
 	if user_id.server_name() != services().globals.server_name() {
 		return Ok(RoomMessageEventContent::text_plain("User does not belong to our server."));
 	}
