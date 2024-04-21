@@ -3,7 +3,7 @@ use ruma::{events::room::message::RoomMessageEventContent, EventId, RoomId, Serv
 
 use self::debug_commands::{
 	change_log_level, force_device_list_updates, get_auth_chain, get_pdu, get_remote_pdu, get_room_state, parse_pdu,
-	ping,
+	ping, sign_json, verify_json,
 };
 use crate::Result;
 
@@ -82,6 +82,18 @@ pub(crate) enum DebugCommand {
 		#[arg(short, long)]
 		reset: bool,
 	},
+
+	/// - Verify json signatures
+	///
+	/// This command needs a JSON blob provided in a Markdown code block below
+	/// the command.
+	SignJson,
+
+	/// - Verify json signatures
+	///
+	/// This command needs a JSON blob provided in a Markdown code block below
+	/// the command.
+	VerifyJson,
 }
 
 pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -108,5 +120,7 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 			filter,
 			reset,
 		} => change_log_level(body, filter, reset).await?,
+		DebugCommand::SignJson => sign_json(body).await?,
+		DebugCommand::VerifyJson => verify_json(body).await?,
 	})
 }
