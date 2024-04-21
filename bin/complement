@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Path to Complement's source code
+#
+# The `COMPLEMENT_SRC` environment variable is set in the Nix dev shell, which
+# points to a store path containing the Complement source code. It's likely you
+# want to just pass that as the first argument to use it here.
+COMPLEMENT_SRC="$1"
+
+# A `.jsonl` file to write test logs to
+LOG_FILE="$2"
+
+# A `.jsonl` file to write test results to
+RESULTS_FILE="$3"
+
+OCI_IMAGE="complement-conduit:dev"
+
+pushd "$(git rev-parse --show-toplevel)" > /dev/null
+nix build .#complement
+docker load < result
+popd > /dev/null
+
+# It's okay (likely, even) that `go test` exits nonzero
+set +o pipefail
+env \
+    -C "$COMPLEMENT_SRC" \
+    COMPLEMENT_BASE_IMAGE="$OCI_IMAGE" \
+    go test -timeout 1h -json ./tests | tee "$LOG_FILE"
+set -o pipefail
+
+# Post-process the results into an easy-to-compare format
+cat "$LOG_FILE" | jq -c '
+    select(
+        (.Action == "pass" or .Action == "fail" or .Action == "skip")
+        and .Test != null
+    ) | {Action: .Action, Test: .Test}
+    ' | sort > "$RESULTS_FILE"

@@ -1,0 +1,19 @@
+[global]
+address = "0.0.0.0"
+allow_device_name_federation = true
+allow_guest_registration = true
+allow_public_room_directory_over_federation = true
+allow_public_room_directory_without_auth = true
+allow_registration = true
+allow_unstable_room_versions = true
+database_backend = "rocksdb"
+database_path = "/database"
+log = "trace"
+port = [8008, 8448]
+trusted_servers = []
+yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse = true
+
+[global.tls]
+certs = "/certificate.crt"
+dual_protocol = true
+key = "/private_key.key"
