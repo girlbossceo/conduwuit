@@ -44,7 +44,6 @@ pub(crate) struct Service {
 	receiver: Mutex<loole::Receiver<Msg>>,
 	startup_netburst: bool,
 	startup_netburst_keep: i64,
-	timeout: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -95,7 +94,6 @@ impl Service {
 			maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
 			startup_netburst: config.startup_netburst,
 			startup_netburst_keep: config.startup_netburst_keep,
-			timeout: config.sender_timeout,
 		})
 	}
 
@@ -246,17 +244,10 @@ impl Service {
 	where
 		T: OutgoingRequest + Debug,
 	{
-		let permit = self.maximum_requests.acquire().await;
-		let timeout = Duration::from_secs(self.timeout);
 		let client = &services().globals.client.federation;
-		let response = tokio::time::timeout(timeout, send::send(client, dest, request))
-			.await
-			.map_err(|_| {
-				warn!("Timeout after 300 seconds waiting for server response of {dest}");
-				Error::BadServerResponse("Timeout after 300 seconds waiting for server response")
-			})?;
+		let permit = self.maximum_requests.acquire().await;
+		let response = send::send(client, dest, request).await;
 		drop(permit);
-
 		response
 	}
 
