@@ -164,8 +164,6 @@ pub(crate) async fn get_alias_helper(
 					if response.is_ok() {
 						break;
 					}
-
-					continue;
 				}
 			}
 		}
