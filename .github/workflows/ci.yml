@@ -61,20 +61,15 @@ jobs:
             - name: Populate `/nix/store`
               run: nix develop --command true
 
-            - name: Package `/nix/store` for Artifact
+            - name: Package build environment for Artifact
               run: |
-                  tar -czf nix-store.tar.gz /nix/store
+                  sudo tar -czf environment.tar.gz /nix/store ~/.cargo /etc/nix/nix.conf $HOME/.direnvrc
 
-            # Store the build environment in an artifact
-            - name: Cache build environment
+            - name: Store build environment
               uses: actions/upload-artifact@v4
               with:
                   name: build-environment
-                  path: |
-                      nix-store.tar.gz
-                      ~/.cargo
-                      $HOME/.direnvrc
-                      /etc/nix/nix.conf
+                  path: environment.tar.gz
 
     build_and_package:
         needs: setup
@@ -92,31 +87,20 @@ jobs:
                     ]
 
         steps:
-            - name: Download Build Environment
+            - name: Download build environment
               uses: actions/download-artifact@v4
               with:
                   name: build-environment
 
-            - name: Extract Nix Store Archive
+            - name: Extract build environment
               run: |
-                  mkdir -p ${{ github.workspace }}/nix-store
-                  tar -xzf nix-store.tar.gz -C ${{ github.workspace }}/nix-store
-
-            - name: Move Nix Store to Proper Location
-              run: |
-                  sudo rsync -a ${{ github.workspace }}/nix-store/ /nix/store/
-                  sudo chown -R root:root /nix/store
-                  sudo restorecon -Rv /nix/store  # If SELinux is enforcing
+                  tar -xzf nix-store.tar.gz -C /
 
             - name: Sync repository
               uses: actions/checkout@v4
 
-            - name: Reuse Build Environment
+            - name: Reuse build environment
               run: |
-                  # Ensure the nix configuration is correct
-                  sudo cp -R /etc/nix/nix.conf /etc/nix/nix.conf.bak
-                  sudo cp -R nix.conf /etc/nix/nix.conf
-                  # Source direnv
                   source $HOME/.direnvrc
                   direnv allow
  
