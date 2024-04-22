@@ -288,7 +288,7 @@ jobs:
         name: Create and Push Docker Manifest
         runs-on: ubuntu-latest
         needs: build-oci
-
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         steps:
             - name: Download OCI Images Artifacts
               uses: actions/download-artifact@v4
