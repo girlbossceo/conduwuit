@@ -409,9 +409,10 @@ impl Service {
 			.and_modify(|e| match e {
 				TransactionStatus::Failed(tries, time) => {
 					// Fail if a request has failed recently (exponential backoff)
-					const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-					let mut min_elapsed_duration = Duration::from_secs(self.timeout) * (*tries) * (*tries);
-					min_elapsed_duration = cmp::min(min_elapsed_duration, MAX_DURATION);
+					let min_duration = Duration::from_secs(services().globals.config.sender_retry_backoff_limit);
+					let max_duration = Duration::from_secs(services().globals.config.sender_timeout);
+					let min_elapsed_duration = min_duration * (*tries) * (*tries);
+					let min_elapsed_duration = cmp::min(min_elapsed_duration, max_duration);
 					if time.elapsed() < min_elapsed_duration {
 						allow = false;
 					} else {

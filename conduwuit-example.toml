@@ -580,6 +580,11 @@ allow_profile_lookup_federation_requests = true
 # Defaults to 180 seconds
 #sender_idle_timeout = 180
 
+# Federation sender transaction retry backoff limit
+#
+# Defaults to 86400 seconds
+#sender_retry_backoff_limit = 86400
+
 # Appservice URL request connection timeout
 #
 # Defaults to 120 seconds
