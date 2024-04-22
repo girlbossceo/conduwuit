@@ -147,7 +147,52 @@ pub(crate) enum Globals {
 #[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/sending.rs
 pub(crate) enum Sending {
+	/// - Queries database for all `servercurrentevent_data`
 	ActiveRequests,
+
+	/// - Queries database for `servercurrentevent_data` but for a specific
+	///   destination
+	///
+	/// This command takes only *one* format of these arguments:
+	///
+	/// appservice_id
+	/// server_name
+	/// user_id AND push_key
+	///
+	/// See src/service/sending/mod.rs for the definition of the `Destination`
+	/// enum
+	ActiveRequestsFor {
+		#[arg(short, long)]
+		appservice_id: Option<String>,
+		#[arg(short, long)]
+		server_name: Option<Box<ServerName>>,
+		#[arg(short, long)]
+		user_id: Option<Box<UserId>>,
+		#[arg(short, long)]
+		push_key: Option<String>,
+	},
+
+	/// - Queries database for `servernameevent_data` which are the queued up
+	///   requests that will eventually be sent
+	///
+	/// This command takes only *one* format of these arguments:
+	///
+	/// appservice_id
+	/// server_name
+	/// user_id AND push_key
+	///
+	/// See src/service/sending/mod.rs for the definition of the `Destination`
+	/// enum
+	QueuedRequests {
+		#[arg(short, long)]
+		appservice_id: Option<String>,
+		#[arg(short, long)]
+		server_name: Option<Box<ServerName>>,
+		#[arg(short, long)]
+		user_id: Option<Box<UserId>>,
+		#[arg(short, long)]
+		push_key: Option<String>,
+	},
 
 	GetLatestEduCount {
 		server_name: Box<ServerName>,

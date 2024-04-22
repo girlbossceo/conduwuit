@@ -42,15 +42,15 @@ pub struct Service {
 
 	/// The state for a given state hash.
 	pub(super) maximum_requests: Arc<Semaphore>,
-	pub sender: loole::Sender<(OutgoingKind, SendingEventType, Vec<u8>)>,
-	receiver: Mutex<loole::Receiver<(OutgoingKind, SendingEventType, Vec<u8>)>>,
+	pub sender: loole::Sender<(Destination, SendingEventType, Vec<u8>)>,
+	receiver: Mutex<loole::Receiver<(Destination, SendingEventType, Vec<u8>)>>,
 	startup_netburst: bool,
 	startup_netburst_keep: i64,
 	timeout: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum OutgoingKind {
+pub enum Destination {
 	Appservice(String),
 	Push(OwnedUserId, String), // user and pushkey
 	Normal(OwnedServerName),
@@ -86,7 +86,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
 	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
-		let outgoing_kind = OutgoingKind::Push(user.to_owned(), pushkey);
+		let outgoing_kind = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEventType::Pdu(pdu_id.to_owned());
 		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
@@ -99,7 +99,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self))]
 	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
-		let outgoing_kind = OutgoingKind::Appservice(appservice_id);
+		let outgoing_kind = Destination::Appservice(appservice_id);
 		let event = SendingEventType::Pdu(pdu_id);
 		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
@@ -126,7 +126,7 @@ impl Service {
 	pub fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
 		let requests = servers
 			.into_iter()
-			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Pdu(pdu_id.to_owned())))
+			.map(|server| (Destination::Normal(server), SendingEventType::Pdu(pdu_id.to_owned())))
 			.collect::<Vec<_>>();
 		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(
@@ -146,7 +146,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self, server, serialized))]
 	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
-		let outgoing_kind = OutgoingKind::Normal(server.to_owned());
+		let outgoing_kind = Destination::Normal(server.to_owned());
 		let event = SendingEventType::Edu(serialized);
 		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(&[(&outgoing_kind, event.clone())])?;
@@ -173,7 +173,7 @@ impl Service {
 	pub fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, serialized: Vec<u8>) -> Result<()> {
 		let requests = servers
 			.into_iter()
-			.map(|server| (OutgoingKind::Normal(server), SendingEventType::Edu(serialized.clone())))
+			.map(|server| (Destination::Normal(server), SendingEventType::Edu(serialized.clone())))
 			.collect::<Vec<_>>();
 		let _cork = services().globals.db.cork()?;
 		let keys = self.db.queue_requests(
@@ -205,7 +205,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self, servers))]
 	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
-		let requests = servers.into_iter().map(OutgoingKind::Normal);
+		let requests = servers.into_iter().map(Destination::Normal);
 
 		for outgoing_kind in requests {
 			self.sender
@@ -221,7 +221,7 @@ impl Service {
 	#[tracing::instrument(skip(self))]
 	pub fn cleanup_events(&self, appservice_id: String) -> Result<()> {
 		self.db
-			.delete_all_requests_for(&OutgoingKind::Appservice(appservice_id))?;
+			.delete_all_requests_for(&Destination::Appservice(appservice_id))?;
 
 		Ok(())
 	}
@@ -277,11 +277,11 @@ impl Service {
 		let receiver = self.receiver.lock().await;
 
 		let mut futures = FuturesUnordered::new();
-		let mut current_transaction_status = HashMap::<OutgoingKind, TransactionStatus>::new();
+		let mut current_transaction_status = HashMap::<Destination, TransactionStatus>::new();
 
 		// Retry requests we could not finish yet
 		if self.startup_netburst {
-			let mut initial_transactions = HashMap::<OutgoingKind, Vec<SendingEventType>>::new();
+			let mut initial_transactions = HashMap::<Destination, Vec<SendingEventType>>::new();
 			for (key, outgoing_kind, event) in self.db.active_requests().filter_map(Result::ok) {
 				let entry = initial_transactions
 					.entry(outgoing_kind.clone())
@@ -361,9 +361,9 @@ impl Service {
 	#[tracing::instrument(skip(self, outgoing_kind, new_events, current_transaction_status))]
 	fn select_events(
 		&self,
-		outgoing_kind: &OutgoingKind,
+		outgoing_kind: &Destination,
 		new_events: Vec<(SendingEventType, Vec<u8>)>, // Events we want to send: event and full key
-		current_transaction_status: &mut HashMap<OutgoingKind, TransactionStatus>,
+		current_transaction_status: &mut HashMap<Destination, TransactionStatus>,
 	) -> Result<Option<Vec<SendingEventType>>> {
 		let (allow, retry) = self.select_events_current(outgoing_kind.clone(), current_transaction_status)?;
 
@@ -395,7 +395,7 @@ impl Service {
 		}
 
 		// Add EDU's into the transaction
-		if let OutgoingKind::Normal(server_name) = outgoing_kind {
+		if let Destination::Normal(server_name) = outgoing_kind {
 			if let Ok((select_edus, last_count)) = self.select_edus(server_name) {
 				events.extend(select_edus.into_iter().map(SendingEventType::Edu));
 				self.db.set_latest_educount(server_name, last_count)?;
@@ -407,7 +407,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self, outgoing_kind, current_transaction_status))]
 	fn select_events_current(
-		&self, outgoing_kind: OutgoingKind, current_transaction_status: &mut HashMap<OutgoingKind, TransactionStatus>,
+		&self, outgoing_kind: Destination, current_transaction_status: &mut HashMap<Destination, TransactionStatus>,
 	) -> Result<(bool, bool)> {
 		let (mut allow, mut retry) = (true, false);
 		current_transaction_status
@@ -596,20 +596,18 @@ pub fn select_edus_receipts(
 	Ok(true)
 }
 
-async fn handle_events(
-	kind: OutgoingKind, events: Vec<SendingEventType>,
-) -> Result<OutgoingKind, (OutgoingKind, Error)> {
+async fn handle_events(kind: Destination, events: Vec<SendingEventType>) -> Result<Destination, (Destination, Error)> {
 	match kind {
-		OutgoingKind::Appservice(ref id) => handle_events_kind_appservice(&kind, id, events).await,
-		OutgoingKind::Push(ref userid, ref pushkey) => handle_events_kind_push(&kind, userid, pushkey, events).await,
-		OutgoingKind::Normal(ref server) => handle_events_kind_normal(&kind, server, events).await,
+		Destination::Appservice(ref id) => handle_events_kind_appservice(&kind, id, events).await,
+		Destination::Push(ref userid, ref pushkey) => handle_events_kind_push(&kind, userid, pushkey, events).await,
+		Destination::Normal(ref server) => handle_events_kind_normal(&kind, server, events).await,
 	}
 }
 
 #[tracing::instrument(skip(kind, events))]
 async fn handle_events_kind_appservice(
-	kind: &OutgoingKind, id: &String, events: Vec<SendingEventType>,
-) -> Result<OutgoingKind, (OutgoingKind, Error)> {
+	kind: &Destination, id: &String, events: Vec<SendingEventType>,
+) -> Result<Destination, (Destination, Error)> {
 	let mut pdu_jsons = Vec::new();
 
 	for event in &events {
@@ -677,8 +675,8 @@ async fn handle_events_kind_appservice(
 
 #[tracing::instrument(skip(kind, events))]
 async fn handle_events_kind_push(
-	kind: &OutgoingKind, userid: &OwnedUserId, pushkey: &String, events: Vec<SendingEventType>,
-) -> Result<OutgoingKind, (OutgoingKind, Error)> {
+	kind: &Destination, userid: &OwnedUserId, pushkey: &String, events: Vec<SendingEventType>,
+) -> Result<Destination, (Destination, Error)> {
 	let mut pdus = Vec::new();
 
 	for event in &events {
@@ -755,8 +753,8 @@ async fn handle_events_kind_push(
 
 #[tracing::instrument(skip(kind, events), name = "")]
 async fn handle_events_kind_normal(
-	kind: &OutgoingKind, dest: &OwnedServerName, events: Vec<SendingEventType>,
-) -> Result<OutgoingKind, (OutgoingKind, Error)> {
+	kind: &Destination, dest: &OwnedServerName, events: Vec<SendingEventType>,
+) -> Result<Destination, (Destination, Error)> {
 	let mut edu_jsons = Vec::new();
 	let mut pdu_jsons = Vec::new();
 
@@ -829,23 +827,23 @@ async fn handle_events_kind_normal(
 	response
 }
 
-impl OutgoingKind {
+impl Destination {
 	#[tracing::instrument(skip(self))]
 	pub fn get_prefix(&self) -> Vec<u8> {
 		let mut prefix = match self {
-			OutgoingKind::Appservice(server) => {
+			Destination::Appservice(server) => {
 				let mut p = b"+".to_vec();
 				p.extend_from_slice(server.as_bytes());
 				p
 			},
-			OutgoingKind::Push(user, pushkey) => {
+			Destination::Push(user, pushkey) => {
 				let mut p = b"$".to_vec();
 				p.extend_from_slice(user.as_bytes());
 				p.push(0xFF);
 				p.extend_from_slice(pushkey.as_bytes());
 				p
 			},
-			OutgoingKind::Normal(server) => {
+			Destination::Normal(server) => {
 				let mut p = Vec::new();
 				p.extend_from_slice(server.as_bytes());
 				p
