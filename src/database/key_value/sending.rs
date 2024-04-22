@@ -21,9 +21,9 @@ impl service::sending::Data for KeyValueDatabase {
 	}
 
 	fn active_requests_for<'a>(
-		&'a self, outgoing_kind: &Destination,
+		&'a self, destination: &Destination,
 	) -> Box<dyn Iterator<Item = Result<(Vec<u8>, SendingEventType)>> + 'a> {
-		let prefix = outgoing_kind.get_prefix();
+		let prefix = destination.get_prefix();
 		Box::new(
 			self.servercurrentevent_data
 				.scan_prefix(prefix)
@@ -33,8 +33,8 @@ impl service::sending::Data for KeyValueDatabase {
 
 	fn delete_active_request(&self, key: Vec<u8>) -> Result<()> { self.servercurrentevent_data.remove(&key) }
 
-	fn delete_all_active_requests_for(&self, outgoing_kind: &Destination) -> Result<()> {
-		let prefix = outgoing_kind.get_prefix();
+	fn delete_all_active_requests_for(&self, destination: &Destination) -> Result<()> {
+		let prefix = destination.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix) {
 			self.servercurrentevent_data.remove(&key)?;
 		}
@@ -42,8 +42,8 @@ impl service::sending::Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn delete_all_requests_for(&self, outgoing_kind: &Destination) -> Result<()> {
-		let prefix = outgoing_kind.get_prefix();
+	fn delete_all_requests_for(&self, destination: &Destination) -> Result<()> {
+		let prefix = destination.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix.clone()) {
 			self.servercurrentevent_data.remove(&key).unwrap();
 		}
@@ -58,8 +58,8 @@ impl service::sending::Data for KeyValueDatabase {
 	fn queue_requests(&self, requests: &[(&Destination, SendingEventType)]) -> Result<Vec<Vec<u8>>> {
 		let mut batch = Vec::new();
 		let mut keys = Vec::new();
-		for (outgoing_kind, event) in requests {
-			let mut key = outgoing_kind.get_prefix();
+		for (destination, event) in requests {
+			let mut key = destination.get_prefix();
 			if let SendingEventType::Pdu(value) = &event {
 				key.extend_from_slice(value);
 			} else {
@@ -79,9 +79,9 @@ impl service::sending::Data for KeyValueDatabase {
 	}
 
 	fn queued_requests<'a>(
-		&'a self, outgoing_kind: &Destination,
+		&'a self, destination: &Destination,
 	) -> Box<dyn Iterator<Item = Result<(SendingEventType, Vec<u8>)>> + 'a> {
-		let prefix = outgoing_kind.get_prefix();
+		let prefix = destination.get_prefix();
 		return Box::new(
 			self.servernameevent_data
 				.scan_prefix(prefix)
