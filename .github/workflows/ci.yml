@@ -62,7 +62,6 @@ jobs:
             - name: Configure `nix-direnv`
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
-                  direnv allow
 
             - name: Install `direnv` and `nix-direnv`
               run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
