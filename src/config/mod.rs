@@ -88,6 +88,7 @@ pub struct Config {
 
 	#[serde(default = "default_cleanup_second_interval")]
 	pub cleanup_second_interval: u32,
+
 	#[serde(default = "default_dns_cache_entries")]
 	pub dns_cache_entries: u32,
 	#[serde(default = "default_dns_min_ttl")]
@@ -102,12 +103,14 @@ pub struct Config {
 	pub dns_tcp_fallback: bool,
 	#[serde(default = "true_fn")]
 	pub query_all_nameservers: bool,
+
 	#[serde(default = "default_max_request_size")]
 	pub max_request_size: u32,
 	#[serde(default = "default_max_concurrent_requests")]
 	pub max_concurrent_requests: u16,
 	#[serde(default = "default_max_fetch_prev_events")]
 	pub max_fetch_prev_events: u16,
+
 	#[serde(default = "default_request_conn_timeout")]
 	pub request_conn_timeout: u64,
 	#[serde(default = "default_request_timeout")]
@@ -132,12 +135,15 @@ pub struct Config {
 	pub sender_timeout: u64,
 	#[serde(default = "default_sender_idle_timeout")]
 	pub sender_idle_timeout: u64,
+	#[serde(default = "default_sender_retry_backoff_limit")]
+	pub sender_retry_backoff_limit: u64,
 	#[serde(default = "default_appservice_timeout")]
 	pub appservice_timeout: u64,
 	#[serde(default = "default_appservice_idle_timeout")]
 	pub appservice_idle_timeout: u64,
 	#[serde(default = "default_pusher_idle_timeout")]
 	pub pusher_idle_timeout: u64,
+
 	#[serde(default)]
 	pub allow_registration: bool,
 	#[serde(default)]
@@ -502,6 +508,7 @@ impl fmt::Display for Config {
 			("Query all nameservers", &self.query_all_nameservers.to_string()),
 			("Maximum request size (bytes)", &self.max_request_size.to_string()),
 			("Maximum concurrent requests", &self.max_concurrent_requests.to_string()),
+			("Sender retry backoff limit", &self.sender_retry_backoff_limit.to_string()),
 			("Request connect timeout", &self.request_conn_timeout.to_string()),
 			("Request timeout", &self.request_timeout.to_string()),
 			("Request total timeout", &self.request_total_timeout.to_string()),
@@ -891,6 +898,8 @@ fn default_federation_idle_per_host() -> u16 { 1 }
 fn default_sender_timeout() -> u64 { 180 }
 
 fn default_sender_idle_timeout() -> u64 { 180 }
+
+fn default_sender_retry_backoff_limit() -> u64 { 86400 }
 
 fn default_appservice_timeout() -> u64 { 120 }
 
