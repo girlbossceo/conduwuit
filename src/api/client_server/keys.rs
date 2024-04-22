@@ -17,7 +17,7 @@ use ruma::{
 	DeviceKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
 };
 use serde_json::json;
-use tracing::{debug, error};
+use tracing::debug;
 
 use super::SESSION_ID_LENGTH;
 use crate::{services, utils, Error, Result, Ruma};
@@ -368,23 +368,16 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 			for (user_id, keys) in vec {
 				device_keys_input_fed.insert(user_id.to_owned(), keys.clone());
 			}
-			(
-				server,
-				tokio::time::timeout(
-					Duration::from_secs(90),
-					services().sending.send_federation_request(
-						server,
-						federation::keys::get_keys::v1::Request {
-							device_keys: device_keys_input_fed,
-						},
-					),
-				)
-				.await
-				.map_err(|e| {
-					error!("get_keys_helper query took too long: {e}");
-					Error::BadServerResponse("get_keys_helper query took too long")
-				}),
-			)
+
+			let request = federation::keys::get_keys::v1::Request {
+				device_keys: device_keys_input_fed,
+			};
+			let response = services()
+				.sending
+				.send_federation_request(server, request)
+				.await;
+
+			(server, Ok(response))
 		})
 		.collect();
 
@@ -408,7 +401,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 					false, /* Dont notify. A notification would trigger another key request resulting in an
 					       * endless loop */
 				)?;
-				master_keys.insert(user, raw);
+				master_keys.insert(user.clone(), raw);
 			}
 
 			self_signing_keys.extend(response.self_signing_keys);
