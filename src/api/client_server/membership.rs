@@ -198,7 +198,7 @@ pub async fn join_room_by_id_or_alias_route(
 				));
 			}
 
-			let response = get_alias_helper(room_alias.clone()).await?;
+			let response = get_alias_helper(room_alias.clone(), Some(body.server_name.clone())).await?;
 
 			if services().rooms.metadata.is_banned(&response.room_id)? && !services().users.is_admin(sender_user)? {
 				return Err(Error::BadRequest(
