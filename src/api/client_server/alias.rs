@@ -161,11 +161,11 @@ pub(crate) async fn get_alias_helper(
 						)
 						.await;
 
-					if response.is_err() {
-						continue;
+					if response.is_ok() {
+						break;
 					}
 
-					break;
+					continue;
 				}
 			}
 		}
