@@ -1,14 +1,23 @@
+/// Log event at given level in debug-mode (when debug-assertions are enabled).
+/// In release mode it becomes DEBUG level, and possibly subject to elision.
+#[macro_export]
+macro_rules! debug_event {
+	( $level:expr, $($x:tt)+ ) => {
+		if cfg!(debug_assertions) {
+			tracing::event!( $level, $($x)+ );
+		} else {
+			tracing::debug!( $($x)+ );
+		}
+	}
+}
+
 /// Log message at the ERROR level in debug-mode (when debug-assertions are
 /// enabled). In release mode it becomes DEBUG level, and possibly subject to
 /// elision.
 #[macro_export]
 macro_rules! debug_error {
 	( $($x:tt)+ ) => {
-		if cfg!(debug_assertions) {
-			error!( $($x)+ );
-		} else {
-			debug!( $($x)+ );
-		}
+		$crate::debug_event!(tracing::Level::ERROR, $($x)+ );
 	}
 }
 
@@ -18,11 +27,7 @@ macro_rules! debug_error {
 #[macro_export]
 macro_rules! debug_warn {
 	( $($x:tt)+ ) => {
-		if cfg!(debug_assertions) {
-			warn!( $($x)+ );
-		} else {
-			debug!( $($x)+ );
-		}
+		$crate::debug_event!(tracing::Level::WARN, $($x)+ );
 	}
 }
 
@@ -32,10 +37,6 @@ macro_rules! debug_warn {
 #[macro_export]
 macro_rules! debug_info {
 	( $($x:tt)+ ) => {
-		if cfg!(debug_assertions) {
-			info!( $($x)+ );
-		} else {
-			debug!( $($x)+ );
-		}
+		$crate::debug_event!(tracing::Level::INFO, $($x)+ );
 	}
 }

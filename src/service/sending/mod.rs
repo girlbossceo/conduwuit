@@ -272,7 +272,7 @@ impl Service {
 		});
 	}
 
-	#[tracing::instrument(skip(self), name = "sender")]
+	#[tracing::instrument(skip_all, name = "sender")]
 	async fn handler(&self) -> Result<()> {
 		let receiver = self.receiver.lock().await;
 
