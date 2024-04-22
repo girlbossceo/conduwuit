@@ -151,12 +151,7 @@ pub(crate) async fn get_alias_helper(
 			);
 		}
 
-		if response.as_ref().is_ok_and(|resp| resp.servers.is_empty()) {
-			debug_warn!(
-				"Server {} responded with room aliases, but was empty? Response: {response:?}",
-				room_alias.server_name()
-			);
-
+		if response.as_ref().is_ok_and(|resp| resp.servers.is_empty()) || response.as_ref().is_err() {
 			if let Some(servers) = servers {
 				for server in servers {
 					response = services()
