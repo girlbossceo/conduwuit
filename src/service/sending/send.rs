@@ -14,9 +14,9 @@ use ruma::{
 	},
 	OwnedServerName, ServerName,
 };
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, trace};
 
-use crate::{debug_error, debug_warn, services, Error, Result};
+use crate::{debug_error, debug_info, debug_warn, services, Error, Result};
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -300,6 +300,7 @@ async fn resolve_actual_destination(destination: &'_ ServerName) -> Result<(FedD
 	Ok((actual_destination, hostname.into_uri_string()))
 }
 
+#[tracing::instrument(skip_all, name = "well-known")]
 async fn request_well_known(destination: &str) -> Result<Option<String>> {
 	if !services()
 		.globals
@@ -320,22 +321,22 @@ async fn request_well_known(destination: &str) -> Result<Option<String>> {
 		.send()
 		.await;
 
-	trace!("Well known response: {:?}", response);
+	trace!("response: {:?}", response);
 	if let Err(e) = &response {
-		debug!("Well known error: {e:?}");
+		debug!("error: {e:?}");
 		return Ok(None);
 	}
 
 	let response = response?;
 	if !response.status().is_success() {
-		debug!("Well known response not 2XX");
+		debug!("response not 2XX");
 		return Ok(None);
 	}
 
 	let text = response.text().await?;
-	trace!("Well known response text: {:?}", text);
+	trace!("response text: {:?}", text);
 	if text.len() >= 12288 {
-		debug!("Well known response contains junk");
+		debug_warn!("response contains junk");
 		return Ok(None);
 	}
 
@@ -348,13 +349,15 @@ async fn request_well_known(destination: &str) -> Result<Option<String>> {
 		.unwrap_or_default();
 
 	if ruma_identifiers_validation::server_name::validate(m_server).is_err() {
-		debug!("Well known response content missing or invalid");
+		debug_error!("response content missing or invalid");
 		return Ok(None);
 	}
 
+	debug_info!("{:?} found at {:?}", destination, m_server);
 	Ok(Some(m_server.to_owned()))
 }
 
+#[tracing::instrument(skip_all, name = "ip")]
 async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u16) -> Result<()> {
 	match services()
 		.globals
@@ -362,8 +365,11 @@ async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u1
 		.lookup_ip(hostname.to_owned())
 		.await
 	{
+		Err(e) => handle_resolve_error(&e),
 		Ok(override_ip) => {
-			trace!("Caching result of {:?} overriding {:?}", hostname, overname);
+			if hostname != overname {
+				debug_info!("{:?} overriden by {:?}", overname, hostname);
+			}
 			services()
 				.globals
 				.resolver
@@ -374,13 +380,10 @@ async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u1
 
 			Ok(())
 		},
-		Err(e) => {
-			debug!("Got {:?} for {:?} to override {:?}", e.kind(), hostname, overname);
-			handle_resolve_error(&e)
-		},
 	}
 }
 
+#[tracing::instrument(skip_all, name = "srv")]
 async fn query_srv_record(hostname: &'_ str) -> Result<Option<FedDest>> {
 	fn handle_successful_srv(srv: &SrvLookup) -> Option<FedDest> {
 		srv.iter().next().map(|result| {
@@ -421,11 +424,11 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 		ResolveErrorKind::Io {
 			..
 		} => {
-			debug_error!("DNS IO error: {e}");
+			error!("{e}");
 			Err(Error::Error(e.to_string()))
 		},
 		_ => {
-			debug!("DNS protocol error: {e}");
+			debug_error!("{e}");
 			Ok(())
 		},
 	}
@@ -514,19 +517,17 @@ fn validate_destination(destination: &ServerName) -> Result<()> {
 		validate_destination_ip_literal(destination)?;
 	}
 
-	trace!("Destination ServerName is valid");
 	Ok(())
 }
 
 fn validate_destination_ip_literal(destination: &ServerName) -> Result<()> {
+	trace!("Destination is an IP literal, checking against IP range denylist.",);
 	debug_assert!(
 		destination.is_ip_literal() || !IPAddress::is_valid(destination.host()),
 		"Destination is not an IP literal."
 	);
-	debug!("Destination is an IP literal, checking against IP range denylist.",);
-
 	let ip = IPAddress::parse(destination.host()).map_err(|e| {
-		debug_warn!("Failed to parse IP literal from string: {}", e);
+		debug_error!("Failed to parse IP literal from string: {}", e);
 		Error::BadServerResponse("Invalid IP address")
 	})?;
 
@@ -558,6 +559,7 @@ fn add_port_to_hostname(destination_str: &str) -> FedDest {
 		None => (destination_str, ":8448"),
 		Some(pos) => destination_str.split_at(pos),
 	};
+
 	FedDest::Named(host.to_owned(), port.to_owned())
 }
 

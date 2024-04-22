@@ -30,7 +30,7 @@ use ruma::{
 	OwnedRoomId, OwnedServerName, RoomId, ServerName, UInt, UserId,
 };
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 use crate::{debug_info, services, Error, Result};
 

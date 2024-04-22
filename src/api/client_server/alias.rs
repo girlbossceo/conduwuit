@@ -10,7 +10,7 @@ use ruma::{
 	},
 	OwnedRoomAliasId, OwnedServerName,
 };
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 use crate::{debug_info, debug_warn, services, Error, Result, Ruma};
 
