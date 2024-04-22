@@ -536,17 +536,8 @@ fn validate_destination_ip_literal(destination: &ServerName) -> Result<()> {
 }
 
 fn validate_ip(ip: &IPAddress) -> Result<()> {
-	let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
-	let mut cidr_ranges: Vec<IPAddress> = Vec::new();
-	for cidr in cidr_ranges_s {
-		cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
-	}
-
-	trace!("List of pushed CIDR ranges: {:?}", cidr_ranges);
-	for cidr in cidr_ranges {
-		if cidr.includes(ip) {
-			return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
-		}
+	if !services().globals.valid_cidr_range(ip) {
+		return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
 	}
 
 	Ok(())
