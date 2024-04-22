@@ -161,6 +161,7 @@
         ]
         ++ (with pkgsHost; [
           engage
+          cargo-audit
 
           # Needed for producing Debian packages
           cargo-deb
