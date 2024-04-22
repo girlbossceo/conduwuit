@@ -4,7 +4,7 @@ use crate::{
 	database::KeyValueDatabase,
 	service::{
 		self,
-		sending::{OutgoingKind, SendingEventType},
+		sending::{Destination, SendingEventType},
 	},
 	services, utils, Error, Result,
 };
@@ -12,7 +12,7 @@ use crate::{
 impl service::sending::Data for KeyValueDatabase {
 	fn active_requests<'a>(
 		&'a self,
-	) -> Box<dyn Iterator<Item = Result<(Vec<u8>, OutgoingKind, SendingEventType)>> + 'a> {
+	) -> Box<dyn Iterator<Item = Result<(Vec<u8>, Destination, SendingEventType)>> + 'a> {
 		Box::new(
 			self.servercurrentevent_data
 				.iter()
@@ -21,7 +21,7 @@ impl service::sending::Data for KeyValueDatabase {
 	}
 
 	fn active_requests_for<'a>(
-		&'a self, outgoing_kind: &OutgoingKind,
+		&'a self, outgoing_kind: &Destination,
 	) -> Box<dyn Iterator<Item = Result<(Vec<u8>, SendingEventType)>> + 'a> {
 		let prefix = outgoing_kind.get_prefix();
 		Box::new(
@@ -33,7 +33,7 @@ impl service::sending::Data for KeyValueDatabase {
 
 	fn delete_active_request(&self, key: Vec<u8>) -> Result<()> { self.servercurrentevent_data.remove(&key) }
 
-	fn delete_all_active_requests_for(&self, outgoing_kind: &OutgoingKind) -> Result<()> {
+	fn delete_all_active_requests_for(&self, outgoing_kind: &Destination) -> Result<()> {
 		let prefix = outgoing_kind.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix) {
 			self.servercurrentevent_data.remove(&key)?;
@@ -42,7 +42,7 @@ impl service::sending::Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn delete_all_requests_for(&self, outgoing_kind: &OutgoingKind) -> Result<()> {
+	fn delete_all_requests_for(&self, outgoing_kind: &Destination) -> Result<()> {
 		let prefix = outgoing_kind.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix.clone()) {
 			self.servercurrentevent_data.remove(&key).unwrap();
@@ -55,7 +55,7 @@ impl service::sending::Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn queue_requests(&self, requests: &[(&OutgoingKind, SendingEventType)]) -> Result<Vec<Vec<u8>>> {
+	fn queue_requests(&self, requests: &[(&Destination, SendingEventType)]) -> Result<Vec<Vec<u8>>> {
 		let mut batch = Vec::new();
 		let mut keys = Vec::new();
 		for (outgoing_kind, event) in requests {
@@ -79,7 +79,7 @@ impl service::sending::Data for KeyValueDatabase {
 	}
 
 	fn queued_requests<'a>(
-		&'a self, outgoing_kind: &OutgoingKind,
+		&'a self, outgoing_kind: &Destination,
 	) -> Box<dyn Iterator<Item = Result<(SendingEventType, Vec<u8>)>> + 'a> {
 		let prefix = outgoing_kind.get_prefix();
 		return Box::new(
@@ -122,7 +122,7 @@ impl service::sending::Data for KeyValueDatabase {
 }
 
 #[tracing::instrument(skip(key))]
-fn parse_servercurrentevent(key: &[u8], value: Vec<u8>) -> Result<(OutgoingKind, SendingEventType)> {
+fn parse_servercurrentevent(key: &[u8], value: Vec<u8>) -> Result<(Destination, SendingEventType)> {
 	// Appservices start with a plus
 	Ok::<_, Error>(if key.starts_with(b"+") {
 		let mut parts = key[1..].splitn(2, |&b| b == 0xFF);
@@ -136,7 +136,7 @@ fn parse_servercurrentevent(key: &[u8], value: Vec<u8>) -> Result<(OutgoingKind,
 			.map_err(|_| Error::bad_database("Invalid server bytes in server_currenttransaction"))?;
 
 		(
-			OutgoingKind::Appservice(server),
+			Destination::Appservice(server),
 			if value.is_empty() {
 				SendingEventType::Pdu(event.to_vec())
 			} else {
@@ -163,7 +163,7 @@ fn parse_servercurrentevent(key: &[u8], value: Vec<u8>) -> Result<(OutgoingKind,
 			.ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
 
 		(
-			OutgoingKind::Push(user_id, pushkey_string),
+			Destination::Push(user_id, pushkey_string),
 			if value.is_empty() {
 				SendingEventType::Pdu(event.to_vec())
 			} else {
@@ -183,7 +183,7 @@ fn parse_servercurrentevent(key: &[u8], value: Vec<u8>) -> Result<(OutgoingKind,
 			.map_err(|_| Error::bad_database("Invalid server bytes in server_currenttransaction"))?;
 
 		(
-			OutgoingKind::Normal(
+			Destination::Normal(
 				ServerName::parse(server)
 					.map_err(|_| Error::bad_database("Invalid server string in server_currenttransaction"))?,
 			),
