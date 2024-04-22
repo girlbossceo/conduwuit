@@ -71,7 +71,7 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 						 federation"
 					);
 
-					match get_alias_helper(room_alias).await {
+					match get_alias_helper(room_alias, None).await {
 						Ok(response) => {
 							debug!("Got federation response fetching room ID for room {room}: {:?}", response);
 							response.room_id
@@ -233,7 +233,7 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 												 fetch room ID over federation"
 											);
 
-											match get_alias_helper(room_alias).await {
+											match get_alias_helper(room_alias, None).await {
 												Ok(response) => {
 													debug!(
 														"Got federation response fetching room ID for room {room}: \
@@ -432,7 +432,7 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 						 federation"
 					);
 
-					match get_alias_helper(room_alias).await {
+					match get_alias_helper(room_alias, None).await {
 						Ok(response) => {
 							debug!("Got federation response fetching room ID for room {room}: {:?}", response);
 							response.room_id
