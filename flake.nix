@@ -1,6 +1,7 @@
 {
   inputs = {
     attic.url = "github:zhaofengli/attic?ref=main";
+    complement = { url = "github:matrix-org/complement"; flake = false; };
     crane = { url = "github:ipetkov/crane?ref=master"; inputs.nixpkgs.follows = "nixpkgs"; };
     fenix = { url = "github:nix-community/fenix"; inputs.nixpkgs.follows = "nixpkgs"; };
     flake-compat = { url = "github:edolstra/flake-compat"; flake = false; };
@@ -197,19 +198,12 @@
         };
 
         createComplementRuntime = pkgs: image: let
-          complement = pkgs.fetchFromGitHub {
-            owner = "matrix-org";
-            repo = "complement";
-            rev = "d73c81a091604b0fc5b6b0617dcac58c25763f57";
-            hash = "sha256-hom/Lt0gZzLWqFhUJG0X2i88CAMIILInO5w0tPj6G3s";
-          };
-
           script = pkgs.writeShellScriptBin "run.sh"
             ''
             export PATH=${pkgs.lib.makeBinPath [ pkgs.olm pkgs.gcc ]}
             ${pkgs.lib.getExe pkgs.docker} load < ${image}
             set +o pipefail
-            /usr/bin/env -C "${complement}" COMPLEMENT_BASE_IMAGE="complement-conduit:dev" ${pkgs.lib.getExe pkgs.go} test -json ${complement}/tests | ${pkgs.toybox}/bin/tee $1
+            /usr/bin/env -C "${inputs.complement}" COMPLEMENT_BASE_IMAGE="complement-conduit:dev" ${pkgs.lib.getExe pkgs.go} test -json ${inputs.complement}/tests | ${pkgs.toybox}/bin/tee $1
             set -o pipefail
 
             # Post-process the results into an easy-to-compare format
