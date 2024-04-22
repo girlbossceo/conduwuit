@@ -99,7 +99,14 @@ jobs:
 
             - name: Extract Nix Store Archive
               run: |
-                  tar -xzf nix-store.tar.gz -C /
+                  mkdir -p ${{ github.workspace }}/nix-store
+                  tar -xzf nix-store.tar.gz -C ${{ github.workspace }}/nix-store
+
+            - name: Move Nix Store to Proper Location
+              run: |
+                  sudo rsync -a ${{ github.workspace }}/nix-store/ /nix/store/
+                  sudo chown -R root:root /nix/store
+                  sudo restorecon -Rv /nix/store  # If SELinux is enforcing
 
             - name: Sync repository
               uses: actions/checkout@v4
