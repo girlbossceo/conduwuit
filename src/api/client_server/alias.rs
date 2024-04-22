@@ -10,9 +10,9 @@ use ruma::{
 	},
 	OwnedRoomAliasId, OwnedServerName,
 };
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
-use crate::{debug_info, services, Error, Result, Ruma};
+use crate::{debug_info, debug_warn, services, Error, Result, Ruma};
 
 /// # `PUT /_matrix/client/v3/directory/room/{roomAlias}`
 ///
@@ -125,6 +125,7 @@ pub async fn get_alias_route(body: Ruma<get_alias::v3::Request>) -> Result<get_a
 pub(crate) async fn get_alias_helper(
 	room_alias: OwnedRoomAliasId, servers: Option<Vec<OwnedServerName>>,
 ) -> Result<get_alias::v3::Response> {
+	debug!("get_alias_helper servers: {servers:?}");
 	if room_alias.server_name() != services().globals.server_name()
 		&& (!servers
 			.as_ref()
@@ -141,6 +142,8 @@ pub(crate) async fn get_alias_helper(
 			)
 			.await;
 
+		debug_info!("room alias server_name get_alias_helper response: {response:?}");
+
 		if let Err(ref e) = response {
 			debug_info!(
 				"Server {} of the original room alias failed to assist in resolving room alias: {e}",
@@ -148,8 +151,13 @@ pub(crate) async fn get_alias_helper(
 			);
 		}
 
-		if let Some(servers) = servers {
-			if !servers.is_empty() {
+		if response.as_ref().is_ok_and(|resp| resp.servers.is_empty()) {
+			debug_warn!(
+				"Server {} responded with room aliases, but was empty? Response: {response:?}",
+				room_alias.server_name()
+			);
+
+			if let Some(servers) = servers {
 				for server in servers {
 					response = services()
 						.sending
@@ -160,9 +168,15 @@ pub(crate) async fn get_alias_helper(
 							},
 						)
 						.await;
+					debug_info!("Got response from server {server} for room aliases: {response:?}");
 
-					if response.is_ok() {
-						break;
+					if let Ok(ref response) = response {
+						if !response.servers.is_empty() {
+							break;
+						}
+						debug_warn!(
+							"Server {server} responded with room aliases, but was empty? Response: {response:?}"
+						);
 					}
 				}
 			}
