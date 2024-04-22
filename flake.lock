@@ -214,6 +214,23 @@
         "type": "github"
       }
     },
+    "rocksdb": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1713310517,
+        "narHash": "sha256-vRPyrXkXVVhP56n5FVYef8zbIsnnanQSpElmQLZ7mh8=",
+        "owner": "facebook",
+        "repo": "rocksdb",
+        "rev": "bcf88d48ce8aa8b536aee4dd305533b3b83cf435",
+        "type": "github"
+      },
+      "original": {
+        "owner": "facebook",
+        "ref": "v9.1.0",
+        "repo": "rocksdb",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "attic": "attic",
@@ -222,7 +239,8 @@
         "flake-compat": "flake-compat_2",
         "flake-utils": "flake-utils_2",
         "nix-filter": "nix-filter",
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs_2",
+        "rocksdb": "rocksdb"
       }
     },
     "rust-analyzer-src": {

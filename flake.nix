@@ -7,6 +7,7 @@
     flake-utils.url = "github:numtide/flake-utils";
     nix-filter.url = "github:numtide/nix-filter";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
+    rocksdb = { url = "github:facebook/rocksdb?ref=v9.1.0"; flake = false; };
   };
 
   outputs =
@@ -23,19 +24,10 @@
       pkgsHost = nixpkgs.legacyPackages.${system};
       allocator = null;
 
-      rocksdb' = pkgs:
-        let
-          version = "9.1.0";
-        in
-        (pkgs.rocksdb.overrideAttrs (old: {
-          inherit version;
-          src = pkgs.fetchFromGitHub {
-            owner = "facebook";
-            repo = "rocksdb";
-            rev = "bcf88d48ce8aa8b536aee4dd305533b3b83cf435";
-            hash = "sha256-vRPyrXkXVVhP56n5FVYef8zbIsnnanQSpElmQLZ7mh8";
-          };
-        }));
+      rocksdb' = pkgs: (pkgs.rocksdb.overrideAttrs (old: {
+        version = "9.1.0";
+        src = inputs.rocksdb;
+      }));
 
       # Nix-accessible `Cargo.toml`
       cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
