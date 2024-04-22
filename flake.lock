@@ -23,6 +23,22 @@
         "type": "github"
       }
     },
+    "complement": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1713458251,
+        "narHash": "sha256-hom/Lt0gZzLWqFhUJG0X2i88CAMIILInO5w0tPj6G3s=",
+        "owner": "matrix-org",
+        "repo": "complement",
+        "rev": "d73c81a091604b0fc5b6b0617dcac58c25763f57",
+        "type": "github"
+      },
+      "original": {
+        "owner": "matrix-org",
+        "repo": "complement",
+        "type": "github"
+      }
+    },
     "crane": {
       "inputs": {
         "nixpkgs": [
@@ -234,6 +250,7 @@
     "root": {
       "inputs": {
         "attic": "attic",
+        "complement": "complement",
         "crane": "crane_2",
         "fenix": "fenix",
         "flake-compat": "flake-compat_2",
