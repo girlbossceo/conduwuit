@@ -85,6 +85,9 @@ pub(crate) enum Appservice {
 		/// Appservice registration ID
 		appservice_id: Box<str>,
 	},
+
+	/// - Gets all appservice registrations with their ID and registration info
+	All,
 }
 
 #[cfg_attr(test, derive(Debug))]
