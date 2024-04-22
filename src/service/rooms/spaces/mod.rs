@@ -625,16 +625,13 @@ impl Service {
 		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, skip: usize, max_depth: usize,
 		suggested_only: bool,
 	) -> Result<client::space::get_hierarchy::v1::Response> {
+		let via = match room_id.server_name() {
+			Some(server_name) => vec![server_name.to_owned()],
+			None => vec![],
+		};
+
 		match self
-			.get_summary_and_children_client(
-				&room_id.to_owned(),
-				suggested_only,
-				sender_user,
-				&match room_id.server_name() {
-					Some(server_name) => vec![server_name.into()],
-					None => vec![],
-				},
-			)
+			.get_summary_and_children_client(&room_id.to_owned(), suggested_only, sender_user, &via)
 			.await?
 		{
 			Some(SummaryAccessibility::Accessible(summary)) => {
