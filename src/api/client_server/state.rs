@@ -8,6 +8,7 @@ use ruma::{
 	events::{
 		room::{
 			canonical_alias::RoomCanonicalAliasEventContent,
+			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
 		},
 		AnyStateEventContent, StateEventType,
@@ -245,6 +246,23 @@ async fn send_state_event_for_key_helper(
 							return Err(Error::BadRequest(
 								ErrorKind::forbidden(),
 								"Admin room is not allowed to be public.",
+							));
+						}
+					}
+				}
+			}
+		},
+		// admin room is a sensitive room, it should not ever be made world readable
+		StateEventType::RoomHistoryVisibility => {
+			if let Some(admin_room_id) = service::admin::Service::get_admin_room()? {
+				if admin_room_id == room_id {
+					if let Ok(visibility_content) =
+						serde_json::from_str::<RoomHistoryVisibilityEventContent>(json.json().get())
+					{
+						if visibility_content.history_visibility == HistoryVisibility::WorldReadable {
+							return Err(Error::BadRequest(
+								ErrorKind::forbidden(),
+								"Admin room is not allowed to be made world readable (public room history).",
 							));
 						}
 					}
