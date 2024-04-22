@@ -61,13 +61,17 @@ jobs:
             - name: Populate `/nix/store`
               run: nix develop --command true
 
+            - name: Package `/nix/store` for Artifact
+              run: |
+                  tar -czf nix-store.tar.gz /nix/store
+
             # Store the build environment in an artifact
             - name: Cache build environment
               uses: actions/upload-artifact@v4
               with:
                   name: build-environment
                   path: |
-                      /nix/store
+                      nix-store.tar.gz
                       ~/.cargo
                       $HOME/.direnvrc
                       /etc/nix/nix.conf
@@ -92,6 +96,10 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: build-environment
+
+            - name: Extract Nix Store Archive
+              run: |
+                  tar -xzf nix-store.tar.gz -C /
 
             - name: Sync repository
               uses: actions/checkout@v4
