@@ -10,8 +10,9 @@ use ruma::{
 	},
 	OwnedRoomAliasId, OwnedServerName,
 };
+use tracing::debug;
 
-use crate::{services, Error, Result, Ruma};
+use crate::{debug_info, debug_warn, services, Error, Result, Ruma};
 
 /// # `PUT /_matrix/client/v3/directory/room/{roomAlias}`
 ///
@@ -118,12 +119,20 @@ pub async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result
 ///
 /// Resolve an alias locally or over federation.
 pub async fn get_alias_route(body: Ruma<get_alias::v3::Request>) -> Result<get_alias::v3::Response> {
-	get_alias_helper(body.body.room_alias).await
+	get_alias_helper(body.body.room_alias, None).await
 }
 
-pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get_alias::v3::Response> {
-	if room_alias.server_name() != services().globals.server_name() {
-		let response = services()
+pub(crate) async fn get_alias_helper(
+	room_alias: OwnedRoomAliasId, servers: Option<Vec<OwnedServerName>>,
+) -> Result<get_alias::v3::Response> {
+	debug!("get_alias_helper servers: {servers:?}");
+	if room_alias.server_name() != services().globals.server_name()
+		&& (!servers
+			.as_ref()
+			.is_some_and(|servers| servers.contains(&services().globals.server_name().to_owned()))
+			|| servers.as_ref().is_none())
+	{
+		let mut response = services()
 			.sending
 			.send_federation_request(
 				room_alias.server_name(),
@@ -131,47 +140,89 @@ pub(crate) async fn get_alias_helper(room_alias: OwnedRoomAliasId) -> Result<get
 					room_alias: room_alias.clone(),
 				},
 			)
-			.await?;
+			.await;
 
-		let room_id = response.room_id;
+		debug_info!("room alias server_name get_alias_helper response: {response:?}");
 
-		let mut servers = response.servers;
-
-		// since the room alias server_name responded, insert it into the list
-		servers.push(room_alias.server_name().into());
-
-		// find active servers in room state cache to suggest
-		servers.extend(
-			services()
-				.rooms
-				.state_cache
-				.room_servers(&room_id)
-				.filter_map(Result::ok),
-		);
-
-		servers.sort_unstable();
-		servers.dedup();
-
-		// shuffle list of servers randomly after sort and dedupe
-		servers.shuffle(&mut rand::thread_rng());
-
-		// prefer the very first server to be ourselves if available, else prefer the
-		// room alias server first
-		if let Some(server_index) = servers
-			.iter()
-			.position(|server| server == services().globals.server_name())
-		{
-			servers.remove(server_index);
-			servers.insert(0, services().globals.server_name().to_owned());
-		} else if let Some(alias_server_index) = servers
-			.iter()
-			.position(|server| server == room_alias.server_name())
-		{
-			servers.remove(alias_server_index);
-			servers.insert(0, room_alias.server_name().into());
+		if let Err(ref e) = response {
+			debug_info!(
+				"Server {} of the original room alias failed to assist in resolving room alias: {e}",
+				room_alias.server_name()
+			);
 		}
 
-		return Ok(get_alias::v3::Response::new(room_id, servers));
+		if response.as_ref().is_ok_and(|resp| resp.servers.is_empty()) || response.as_ref().is_err() {
+			if let Some(servers) = servers {
+				for server in servers {
+					response = services()
+						.sending
+						.send_federation_request(
+							&server,
+							federation::query::get_room_information::v1::Request {
+								room_alias: room_alias.clone(),
+							},
+						)
+						.await;
+					debug_info!("Got response from server {server} for room aliases: {response:?}");
+
+					if let Ok(ref response) = response {
+						if !response.servers.is_empty() {
+							break;
+						}
+						debug_warn!(
+							"Server {server} responded with room aliases, but was empty? Response: {response:?}"
+						);
+					}
+				}
+			}
+		}
+
+		if let Ok(response) = response {
+			let room_id = response.room_id;
+
+			let mut servers = response.servers;
+
+			// since the room alias server_name responded, insert it into the list
+			servers.push(room_alias.server_name().into());
+
+			// find active servers in room state cache to suggest
+			servers.extend(
+				services()
+					.rooms
+					.state_cache
+					.room_servers(&room_id)
+					.filter_map(Result::ok),
+			);
+
+			servers.sort_unstable();
+			servers.dedup();
+
+			// shuffle list of servers randomly after sort and dedupe
+			servers.shuffle(&mut rand::thread_rng());
+
+			// prefer the very first server to be ourselves if available, else prefer the
+			// room alias server first
+			if let Some(server_index) = servers
+				.iter()
+				.position(|server| server == services().globals.server_name())
+			{
+				servers.remove(server_index);
+				servers.insert(0, services().globals.server_name().to_owned());
+			} else if let Some(alias_server_index) = servers
+				.iter()
+				.position(|server| server == room_alias.server_name())
+			{
+				servers.remove(alias_server_index);
+				servers.insert(0, room_alias.server_name().into());
+			}
+
+			return Ok(get_alias::v3::Response::new(room_id, servers));
+		}
+
+		return Err(Error::BadRequest(
+			ErrorKind::Unknown,
+			"No servers could assist in resolving the room alias",
+		));
 	}
 
 	let mut room_id = None;

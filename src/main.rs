@@ -3,7 +3,7 @@ use std::fs::Permissions; // not unix specific, just only for UNIX sockets stuff
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt as _; /* not unix specific, just only for UNIX sockets stuff and *nix
                                              * container checks */
-use std::{io, net::SocketAddr, sync::atomic, time::Duration};
+use std::{any::Any, io, net::SocketAddr, sync::atomic, time::Duration};
 
 use axum::{
 	extract::{DefaultBodyLimit, MatchedPath},
@@ -30,6 +30,7 @@ use tokio::{
 };
 use tower::ServiceBuilder;
 use tower_http::{
+	catch_panic::CatchPanicLayer,
 	cors::{self, CorsLayer},
 	trace::{DefaultOnFailure, TraceLayer},
 	ServiceBuilderExt as _,
@@ -76,7 +77,7 @@ async fn async_main(server: &Server) -> Result<(), Error> {
 	if let Err(error) = run(server).await {
 		error!("Critical error running server: {error}");
 		return Err(Error::Error(format!("{error}")));
-	};
+	}
 
 	if let Err(error) = stop(server).await {
 		error!("Critical error stopping server: {error}");
@@ -288,7 +289,8 @@ async fn build(server: &Server) -> io::Result<axum::routing::IntoMakeService<Rou
 				.max_request_size
 				.try_into()
 				.expect("failed to convert max request size"),
-		));
+		))
+		.layer(CatchPanicLayer::custom(catch_panic_layer));
 
 	#[cfg(any(feature = "zstd_compression", feature = "gzip_compression", feature = "brotli_compression"))]
 	{
@@ -438,6 +440,8 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 		tracing_reload_handle = init_tracing_sub(&config);
 	};
 
+	config.check()?;
+
 	info!(
 		server_name = ?config.server_name,
 		database_path = ?config.database_path,
@@ -585,4 +589,28 @@ fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
 	}
 
 	Ok(())
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn catch_panic_layer(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_util::Full<bytes::Bytes>> {
+	let details = if let Some(s) = err.downcast_ref::<String>() {
+		s.clone()
+	} else if let Some(s) = err.downcast_ref::<&str>() {
+		s.to_string()
+	} else {
+		"Unknown internal server error occurred.".to_owned()
+	};
+
+	let body = serde_json::json!({
+		"errcode": "M_UNKNOWN",
+		"error": "M_UNKNOWN: Internal server error occurred",
+		"details": details,
+	})
+	.to_string();
+
+	http::Response::builder()
+		.status(StatusCode::INTERNAL_SERVER_ERROR)
+		.header(header::CONTENT_TYPE, "application/json")
+		.body(http_body_util::Full::from(body))
+		.expect("Failed to create response for our panic catcher?")
 }

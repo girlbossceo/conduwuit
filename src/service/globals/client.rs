@@ -34,6 +34,7 @@ impl Client {
 				.unwrap()
 				.dns_resolver(resolver.hooked.clone())
 				.connect_timeout(Duration::from_secs(config.well_known_conn_timeout))
+				.read_timeout(Duration::from_secs(config.well_known_timeout))
 				.timeout(Duration::from_secs(config.well_known_timeout))
 				.pool_max_idle_per_host(0)
 				.redirect(redirect::Policy::limited(4))
@@ -43,6 +44,7 @@ impl Client {
 			federation: Self::base(config)
 				.unwrap()
 				.dns_resolver(resolver.hooked.clone())
+				.read_timeout(Duration::from_secs(config.federation_timeout))
 				.timeout(Duration::from_secs(config.federation_timeout))
 				.pool_max_idle_per_host(config.federation_idle_per_host.into())
 				.pool_idle_timeout(Duration::from_secs(config.federation_idle_timeout))
@@ -53,6 +55,7 @@ impl Client {
 			sender: Self::base(config)
 				.unwrap()
 				.dns_resolver(resolver.hooked.clone())
+				.read_timeout(Duration::from_secs(config.sender_timeout))
 				.timeout(Duration::from_secs(config.sender_timeout))
 				.pool_max_idle_per_host(1)
 				.pool_idle_timeout(Duration::from_secs(config.sender_idle_timeout))
@@ -64,6 +67,7 @@ impl Client {
 				.unwrap()
 				.dns_resolver(resolver.clone())
 				.connect_timeout(Duration::from_secs(5))
+				.read_timeout(Duration::from_secs(config.appservice_timeout))
 				.timeout(Duration::from_secs(config.appservice_timeout))
 				.pool_max_idle_per_host(1)
 				.pool_idle_timeout(Duration::from_secs(config.appservice_idle_timeout))
@@ -90,12 +94,14 @@ impl Client {
 
 		let mut builder = reqwest::Client::builder()
 			.hickory_dns(true)
-			.timeout(Duration::from_secs(config.request_timeout))
 			.connect_timeout(Duration::from_secs(config.request_conn_timeout))
-			.pool_max_idle_per_host(config.request_idle_per_host.into())
+			.read_timeout(Duration::from_secs(config.request_timeout))
+			.timeout(Duration::from_secs(config.request_total_timeout))
 			.pool_idle_timeout(Duration::from_secs(config.request_idle_timeout))
+			.pool_max_idle_per_host(config.request_idle_per_host.into())
 			.user_agent("Conduwuit".to_owned() + "/" + &version)
-			.redirect(redirect::Policy::limited(6));
+			.redirect(redirect::Policy::limited(6))
+			.connection_verbose(true);
 
 		#[cfg(feature = "gzip_compression")]
 		{

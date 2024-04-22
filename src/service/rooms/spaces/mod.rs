@@ -32,7 +32,7 @@ use ruma::{
 use tokio::sync::Mutex;
 use tracing::{debug, error, warn};
 
-use crate::{services, Error, Result};
+use crate::{debug_info, services, Error, Result};
 
 pub struct CachedSpaceHierarchySummary {
 	summary: SpaceHierarchyParentSummary,
@@ -425,8 +425,36 @@ impl Service {
 	}
 
 	async fn get_summary_and_children_federation(
-		&self, current_room: &OwnedRoomId, suggested_only: bool, user_id: &UserId, via: &Vec<OwnedServerName>,
+		&self, current_room: &OwnedRoomId, suggested_only: bool, user_id: &UserId, via: &[OwnedServerName],
 	) -> Result<Option<SummaryAccessibility>> {
+		// try to find more servers to fetch hierachy from if the only
+		// choice is the room ID's server name (usually dead)
+		//
+		// all spaces are normal rooms, so they should always have at least
+		// 1 admin in it which has a far higher chance of their server still
+		// being alive
+		let power_levels: ruma::events::room::power_levels::RoomPowerLevelsEventContent = services()
+			.rooms
+			.state_accessor
+			.room_state_get(current_room, &StateEventType::RoomPowerLevels, "")?
+			.map(|ev| {
+				serde_json::from_str(ev.content.get())
+					.map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+			})
+			.transpose()?
+			.unwrap_or_default();
+
+		// add server names of the list of admins in the room for backfill server
+		via.to_owned().extend(
+			power_levels
+				.users
+				.iter()
+				.filter(|(_, level)| **level > power_levels.users_default)
+				.map(|(user_id, _)| user_id.server_name())
+				.filter(|server| server != &services().globals.server_name())
+				.map(ToOwned::to_owned),
+		);
+
 		for server in via {
 			debug!("Asking {server} for /hierarchy");
 			if let Ok(response) = services()
@@ -440,7 +468,7 @@ impl Service {
 				)
 				.await
 			{
-				debug!("Got response from {server} for /hierarchy\n{response:?}");
+				debug_info!("Got response from {server} for /hierarchy\n{response:?}");
 				let summary = response.room.clone();
 
 				self.roomid_spacehierarchy_cache.lock().await.insert(
@@ -511,7 +539,7 @@ impl Service {
 	}
 
 	async fn get_summary_and_children_client(
-		&self, current_room: &OwnedRoomId, suggested_only: bool, user_id: &UserId, via: &Vec<OwnedServerName>,
+		&self, current_room: &OwnedRoomId, suggested_only: bool, user_id: &UserId, via: &[OwnedServerName],
 	) -> Result<Option<SummaryAccessibility>> {
 		if let Ok(Some(response)) = self
 			.get_summary_and_children_local(current_room, Identifier::UserId(user_id))
@@ -631,7 +659,7 @@ impl Service {
 				suggested_only,
 				sender_user,
 				&match room_id.server_name() {
-					Some(server_name) => vec![server_name.into()],
+					Some(server_name) => vec![server_name.to_owned()],
 					None => vec![],
 				},
 			)

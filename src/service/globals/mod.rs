@@ -14,6 +14,7 @@ use argon2::Argon2;
 use base64::{engine::general_purpose, Engine as _};
 pub use data::Data;
 use hickory_resolver::TokioAsyncResolver;
+use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
 	api::{
@@ -25,7 +26,7 @@ use ruma::{
 	RoomVersionId, ServerName, UserId,
 };
 use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock, Semaphore};
-use tracing::{error, info};
+use tracing::{error, info, trace};
 use tracing_subscriber::{EnvFilter, Registry};
 use url::Url;
 
@@ -46,6 +47,7 @@ pub struct Service<'a> {
 
 	pub tracing_reload_handle: tracing_subscriber::reload::Handle<EnvFilter, Registry>,
 	pub config: Config,
+	pub cidr_range_denylist: Vec<IPAddress>,
 	keypair: Arc<ruma::signatures::Ed25519KeyPair>,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
 	pub resolver: Arc<resolver::Resolver>,
@@ -138,10 +140,18 @@ impl Service<'_> {
 			argon2::Params::new(19456, 2, 1, None).expect("valid parameters"),
 		);
 
+		let mut cidr_range_denylist = Vec::new();
+		for cidr in config.ip_range_denylist.clone() {
+			let cidr = IPAddress::parse(cidr).expect("valid cidr range");
+			trace!("Denied CIDR range: {:?}", cidr);
+			cidr_range_denylist.push(cidr);
+		}
+
 		let mut s = Self {
 			tracing_reload_handle,
 			db,
 			config: config.clone(),
+			cidr_range_denylist,
 			keypair: Arc::new(keypair),
 			resolver: resolver.clone(),
 			client: client::Client::new(config, &resolver),
@@ -423,6 +433,16 @@ impl Service<'_> {
 	pub fn well_known_server(&self) -> &Option<OwnedServerName> { &self.config.well_known.server }
 
 	pub fn unix_socket_path(&self) -> &Option<PathBuf> { &self.config.unix_socket_path }
+
+	pub fn valid_cidr_range(&self, ip: &IPAddress) -> bool {
+		for cidr in &self.cidr_range_denylist {
+			if cidr.includes(ip) {
+				return false;
+			}
+		}
+
+		true
+	}
 
 	pub fn shutdown(&self) {
 		self.shutdown.store(true, atomic::Ordering::Relaxed);

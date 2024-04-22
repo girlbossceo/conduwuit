@@ -20,7 +20,7 @@ use ruma::{
 	serde::Raw,
 	uint, RoomId, UInt, UserId,
 };
-use tracing::{debug, info, warn};
+use tracing::{info, trace, warn};
 
 use crate::{services, Error, PduEvent, Result};
 
@@ -66,19 +66,10 @@ impl Service {
 		let url = reqwest_request.url().clone();
 
 		if let Some(url_host) = url.host_str() {
-			debug!("Checking request URL for IP");
+			trace!("Checking request URL for IP");
 			if let Ok(ip) = IPAddress::parse(url_host) {
-				let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
-				let mut cidr_ranges: Vec<IPAddress> = Vec::new();
-
-				for cidr in cidr_ranges_s {
-					cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
-				}
-
-				for cidr in cidr_ranges {
-					if cidr.includes(&ip) {
-						return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
-					}
+				if !services().globals.valid_cidr_range(&ip) {
+					return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
 				}
 			}
 		}
@@ -94,20 +85,11 @@ impl Service {
 			Ok(mut response) => {
 				// reqwest::Response -> http::Response conversion
 
-				debug!("Checking response destination's IP");
+				trace!("Checking response destination's IP");
 				if let Some(remote_addr) = response.remote_addr() {
 					if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
-						let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
-						let mut cidr_ranges: Vec<IPAddress> = Vec::new();
-
-						for cidr in cidr_ranges_s {
-							cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
-						}
-
-						for cidr in cidr_ranges {
-							if cidr.includes(&ip) {
-								return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
-							}
+						if !services().globals.valid_cidr_range(&ip) {
+							return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
 						}
 					}
 				}

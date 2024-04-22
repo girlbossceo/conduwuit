@@ -26,11 +26,12 @@ use serde_json::value::to_raw_value;
 use tokio::sync::Mutex;
 use tracing::{error, warn};
 
+use self::fsck::FsckCommand;
 use super::pdu::PduBuilder;
 use crate::{
 	service::admin::{
 		appservice::AppserviceCommand, debug::DebugCommand, federation::FederationCommand, media::MediaCommand,
-		query::query::QueryCommand, room::RoomCommand, server::ServerCommand, user::UserCommand,
+		query::QueryCommand, room::RoomCommand, server::ServerCommand, user::UserCommand,
 	},
 	services, Error, Result,
 };
@@ -38,12 +39,10 @@ use crate::{
 pub(crate) mod appservice;
 pub(crate) mod debug;
 pub(crate) mod federation;
+pub(crate) mod fsck;
 pub(crate) mod media;
 pub(crate) mod query;
 pub(crate) mod room;
-pub(crate) mod room_alias;
-pub(crate) mod room_directory;
-pub(crate) mod room_moderation;
 pub(crate) mod server;
 pub(crate) mod user;
 
@@ -84,6 +83,10 @@ enum AdminCommand {
 	#[command(subcommand)]
 	/// - Query all the database getters and iterators
 	Query(QueryCommand),
+
+	#[command(subcommand)]
+	/// - Query all the database getters and iterators
+	Fsck(FsckCommand),
 }
 
 #[derive(Debug)]
@@ -284,7 +287,8 @@ impl Service {
 			AdminCommand::Federation(command) => federation::process(command, body).await?,
 			AdminCommand::Server(command) => server::process(command, body).await?,
 			AdminCommand::Debug(command) => debug::process(command, body).await?,
-			AdminCommand::Query(command) => query::query::process(command, body).await?,
+			AdminCommand::Query(command) => query::process(command, body).await?,
+			AdminCommand::Fsck(command) => fsck::process(command, body).await?,
 		};
 
 		Ok(reply_message_content)

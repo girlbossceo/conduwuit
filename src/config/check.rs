@@ -5,7 +5,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{utils::error::Error, Config};
 
-pub fn check(config: &Config) -> Result<(), Error> {
+pub(super) fn check(config: &Config) -> Result<(), Error> {
 	config.warn_deprecated();
 	config.warn_unknown_key();
 

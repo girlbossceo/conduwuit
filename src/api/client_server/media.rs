@@ -692,20 +692,8 @@ async fn download_html(client: &reqwest::Client, url: &str) -> Result<UrlPreview
 
 async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
 	if let Ok(ip) = IPAddress::parse(url) {
-		let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
-		let mut cidr_ranges: Vec<IPAddress> = Vec::new();
-
-		for cidr in cidr_ranges_s {
-			cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
-		}
-
-		for cidr in cidr_ranges {
-			if cidr.includes(&ip) {
-				return Err(Error::BadRequest(
-					ErrorKind::forbidden(),
-					"Requesting from this address is forbidden",
-				));
-			}
+		if !services().globals.valid_cidr_range(&ip) {
+			return Err(Error::BadServerResponse("Requesting from this address is forbidden"));
 		}
 	}
 
@@ -714,20 +702,8 @@ async fn request_url_preview(url: &str) -> Result<UrlPreviewData> {
 
 	if let Some(remote_addr) = response.remote_addr() {
 		if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
-			let cidr_ranges_s = services().globals.ip_range_denylist().to_vec();
-			let mut cidr_ranges: Vec<IPAddress> = Vec::new();
-
-			for cidr in cidr_ranges_s {
-				cidr_ranges.push(IPAddress::parse(cidr).expect("we checked this at startup"));
-			}
-
-			for cidr in cidr_ranges {
-				if cidr.includes(&ip) {
-					return Err(Error::BadRequest(
-						ErrorKind::forbidden(),
-						"Requesting from this address is forbidden",
-					));
-				}
+			if !services().globals.valid_cidr_range(&ip) {
+				return Err(Error::BadServerResponse("Requesting from this address is forbidden"));
 			}
 		}
 	}

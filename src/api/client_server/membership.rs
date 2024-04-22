@@ -115,8 +115,9 @@ pub async fn join_room_by_id_route(body: Ruma<join_room_by_id::v3::Request>) -> 
 ///
 /// - If the server knowns about this room: creates the join event and does auth
 ///   rules locally
-/// - If the server does not know about the room: asks other servers over
-///   federation
+/// - If the server does not know about the room: use the server name query
+///   param if specified. if not specified, asks other servers over federation
+///   via room alias server name and room ID server name
 pub async fn join_room_by_id_or_alias_route(
 	body: Ruma<join_room_by_id_or_alias::v3::Request>,
 ) -> Result<join_room_by_id_or_alias::v3::Response> {
@@ -152,7 +153,6 @@ pub async fn join_room_by_id_or_alias_route(
 			}
 
 			let mut servers = body.server_name.clone();
-
 			servers.extend(
 				services()
 					.rooms
@@ -181,7 +181,24 @@ pub async fn join_room_by_id_or_alias_route(
 			(servers, room_id)
 		},
 		Err(room_alias) => {
-			let response = get_alias_helper(room_alias.clone()).await?;
+			if services()
+				.globals
+				.config
+				.forbidden_remote_server_names
+				.contains(&room_alias.server_name().to_owned())
+				&& !services().users.is_admin(sender_user)?
+			{
+				warn!(
+					"User {sender_user} tried joining room alias {room_alias} which has a server name that is \
+					 globally forbidden. Rejecting.",
+				);
+				return Err(Error::BadRequest(
+					ErrorKind::forbidden(),
+					"This remote server is banned on this homeserver.",
+				));
+			}
+
+			let response = get_alias_helper(room_alias.clone(), Some(body.server_name.clone())).await?;
 
 			if services().rooms.metadata.is_banned(&response.room_id)? && !services().users.is_admin(sender_user)? {
 				return Err(Error::BadRequest(
@@ -198,9 +215,9 @@ pub async fn join_room_by_id_or_alias_route(
 				&& !services().users.is_admin(sender_user)?
 			{
 				warn!(
-					"User {sender_user} tried joining room alias {} with room ID {} which has a server name that is \
-					 globally forbidden. Rejecting.",
-					&room_alias, &response.room_id
+					"User {sender_user} tried joining room alias {room_alias} with room ID {}, which the alias has a \
+					 server name that is globally forbidden. Rejecting.",
+					&response.room_id
 				);
 				return Err(Error::BadRequest(
 					ErrorKind::forbidden(),
@@ -217,9 +234,9 @@ pub async fn join_room_by_id_or_alias_route(
 					&& !services().users.is_admin(sender_user)?
 				{
 					warn!(
-						"User {sender_user} tried joining room alias {} with room ID {} which has a server name that \
-						 is globally forbidden. Rejecting.",
-						&room_alias, &response.room_id
+						"User {sender_user} tried joining room alias {room_alias} with room ID {}, which has a server \
+						 name that is globally forbidden. Rejecting.",
+						&response.room_id
 					);
 					return Err(Error::BadRequest(
 						ErrorKind::forbidden(),
@@ -228,7 +245,30 @@ pub async fn join_room_by_id_or_alias_route(
 				}
 			}
 
-			(response.servers, response.room_id)
+			let mut servers = body.server_name;
+			servers.extend(response.servers);
+			servers.extend(
+				services()
+					.rooms
+					.state_cache
+					.servers_invite_via(&response.room_id)?
+					.unwrap_or(
+						services()
+							.rooms
+							.state_cache
+							.invite_state(sender_user, &response.room_id)?
+							.unwrap_or_default()
+							.iter()
+							.filter_map(|event| serde_json::from_str(event.json().get()).ok())
+							.filter_map(|event: serde_json::Value| event.get("sender").cloned())
+							.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
+							.filter_map(|sender| UserId::parse(sender).ok())
+							.map(|user| user.server_name().to_owned())
+							.collect(),
+					),
+			);
+
+			(servers, response.room_id)
 		},
 	};
 
