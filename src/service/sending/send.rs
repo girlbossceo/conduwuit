@@ -421,15 +421,15 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 	use hickory_resolver::error::ResolveErrorKind;
 
 	match *e.kind() {
-		ResolveErrorKind::Io {
+		ResolveErrorKind::NoRecordsFound {
 			..
 		} => {
-			error!("{e}");
-			Err(Error::Error(e.to_string()))
-		},
-		_ => {
 			debug_error!("{e}");
 			Ok(())
+		},
+		_ => {
+			error!("{e}");
+			Err(Error::Error(e.to_string()))
 		},
 	}
 }
