@@ -7,6 +7,7 @@ use std::{
 use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use http::{header::AUTHORIZATION, HeaderValue};
 use ipaddress::IPAddress;
+use reqwest::{Client, Method, Request, Response, Url};
 use ruma::{
 	api::{
 		client::error::Error as RumaError, EndpointError, IncomingResponse, MatrixVersion, OutgoingRequest,
@@ -50,9 +51,7 @@ struct ActualDestination {
 }
 
 #[tracing::instrument(skip_all, name = "send")]
-pub(crate) async fn send_request<T>(
-	client: &reqwest::Client, destination: &ServerName, req: T,
-) -> Result<T::IncomingResponse>
+pub(crate) async fn send_request<T>(client: &Client, destination: &ServerName, req: T) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug,
 {
@@ -71,7 +70,7 @@ where
 		})?;
 
 	sign_request::<T>(destination, &mut http_request);
-	let request = reqwest::Request::try_from(http_request)?;
+	let request = Request::try_from(http_request)?;
 	let method = request.method().clone();
 	let url = request.url().clone();
 	validate_url(&url)?;
@@ -88,8 +87,7 @@ where
 }
 
 async fn handle_response<T>(
-	destination: &ServerName, actual: ActualDestination, method: &reqwest::Method, url: &reqwest::Url,
-	mut response: reqwest::Response,
+	destination: &ServerName, actual: ActualDestination, method: &Method, url: &Url, mut response: Response,
 ) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug,
@@ -141,18 +139,14 @@ where
 }
 
 fn handle_error<T>(
-	_destination: &ServerName, actual: &ActualDestination, method: &reqwest::Method, url: &reqwest::Url,
-	e: reqwest::Error,
+	_dest: &ServerName, actual: &ActualDestination, method: &Method, url: &Url, mut e: reqwest::Error,
 ) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug,
 {
-	// we do not need to log that servers in a room are dead, this is normal in
-	// public rooms and just spams the logs.
-	if e.is_timeout() {
-		debug_error!("timeout {}: {}", actual.host, e);
-	} else if e.is_connect() {
-		debug_error!("connect {}: {}", actual.host, e);
+	if e.is_timeout() || e.is_connect() {
+		e = e.without_url();
+		debug_warn!("{e:?}");
 	} else if e.is_redirect() {
 		debug_error!(
 			method = ?method,
@@ -163,7 +157,7 @@ where
 			e,
 		);
 	} else {
-		debug_error!("{}: {}", actual.host, e);
+		debug_error!("{e:?}");
 	}
 
 	Err(e.into())
@@ -424,7 +418,7 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 		ResolveErrorKind::NoRecordsFound {
 			..
 		} => {
-			debug_error!("{e}");
+			debug_warn!("{e}");
 			Ok(())
 		},
 		_ => {
@@ -497,7 +491,7 @@ where
 	}
 }
 
-fn validate_url(url: &reqwest::Url) -> Result<()> {
+fn validate_url(url: &Url) -> Result<()> {
 	if let Some(url_host) = url.host_str() {
 		if let Ok(ip) = IPAddress::parse(url_host) {
 			trace!("Checking request URL IP {ip:?}");
