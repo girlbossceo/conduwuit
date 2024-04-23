@@ -63,7 +63,7 @@ jobs:
 
             - name: Package build environment for Artifact
               run: |
-                  sudo tar -czf environment.tar.gz /nix/store ~/.cargo /etc/nix/nix.conf $HOME/.direnvrc
+                  sudo tar -czf environment.tar.gz /nix/store ~/.cargo /etc/nix/nix.conf
 
             - name: Store build environment
               uses: actions/upload-artifact@v4
