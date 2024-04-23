@@ -83,13 +83,13 @@ jobs:
             - name: Organise and prepare static outputs
               run: |
                   mkdir -p target/debian
-                  mv result/bin/conduit target/static-x86_64-unknown-linux-musl
+                  sudo mv result/bin/conduit target/static-x86_64-unknown-linux-musl
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/x86_64-unknown-linux-musl.deb
-                  mv result-1/bin/conduit target/static-x86_64-unknown-linux-musl-jemalloc
+                  sudo mv result-1/bin/conduit target/static-x86_64-unknown-linux-musl-jemalloc
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/x86_64-unknown-linux-musl-jemalloc.deb
-                  mv result-2/bin/conduit target/static-aarch64-unknown-linux-musl
+                  sudo mv result-2/bin/conduit target/static-aarch64-unknown-linux-musl
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/aarch64-unknown-linux-musl.deb
-                  mv result-3/bin/conduit target/static-aarch64-unknown-linux-musl-jemalloc
+                  sudo mv result-3/bin/conduit target/static-aarch64-unknown-linux-musl-jemalloc
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/aarch64-unknown-linux-musl-jemalloc.deb
                   mv target/debian/*.deb target/
                   rm -rf target/debian
