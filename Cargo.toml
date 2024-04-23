@@ -377,6 +377,9 @@ hot_reload = ["dep:hot-lib-reloader"]
 
 hardened_malloc = ["hardened_malloc-rs"]
 
+# developer feature useful only in debug builds.
+release_log_level = []
+
 # client/server interopability hacks
 #
 ## element has various non-spec compliant behaviour
