@@ -6,7 +6,6 @@ on:
         branches:
             - main
             - dev
-
     # Allows you to run this workflow manually from the Actions tab
     workflow_dispatch:
 
@@ -26,274 +25,147 @@ permissions:
     contents: read
 
 jobs:
-    tests:
-        name: CI and Tests
+    setup:
+        name: Prepare environment
         runs-on: ubuntu-latest
-
         steps:
             - name: Sync repository
               uses: actions/checkout@v4
 
-            - name: Install Nix (with flakes and nix-command enabled)
-              uses: cachix/install-nix-action@v26
-              with:
-                  nix_path: nixpkgs=channel:nixos-unstable
+            - name: Install Nix
+              uses: DeterminateSystems/nix-installer-action@main
 
-                  # Add `nix-community`, Crane, upstream Conduit, and conduwuit binary caches
-                  extra_nix_config: |
-                      experimental-features = nix-command flakes
-                      extra-substituters = https://nix-community.cachix.org
-                      extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
-                      extra-substituters = https://crane.cachix.org
-                      extra-trusted-public-keys = crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=
-                      extra-substituters = https://nix.computer.surgery/conduit
-                      extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo=
-                      extra-substituters = https://attic.kennel.juneis.dog/conduit
-                      extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
-                      extra-substituters = https://attic.kennel.juneis.dog/conduwuit
-                      extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
-
-            - name: Add alternative Nix binary caches if specified
-              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+            - name: Enable Cachix binary cache
               run: |
-                  echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
-                  echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
+                  nix-env -iA cachix -f https://cachix.org/api/v1/install
+                  cachix use crane
+                  cachix use nix-community
 
-            - name: Pop/push Magic Nix Cache
+            - name: Configure Magic Nix Cache
               uses: DeterminateSystems/magic-nix-cache-action@main
 
-            - name: Configure `nix-direnv`
+            - name: Apply Nix binary cache configuration
+              run: |
+                  sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+                  extra-substituters = https://nix.computer.surgery/conduit https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
+                  extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo= conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+                  EOF
+
+            - name: Use alternative Nix binary caches if specified
+              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+              run: |
+                  sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+                  extra-substituters = ${{ env.ATTIC_ENDPOINT }}
+                  extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}
+                  EOF
+
+            - name: Install and activate `direnv`
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
+                  nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
+                  direnv allow
 
-            - name: Install `direnv` and `nix-direnv`
-              run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
-
-            - name: Pop/push downloaded crate cache
-              uses: actions/cache@v4
-              with:
-                  key: downloaded-crates
-                  path: ~/.cargo
-
-            - name: Pop/push compiled crate cache
-              uses: actions/cache@v4
-              with:
-                  key: compiled-crates-${{runner.os}}
-                  path: target
-
-            # Do this to shorten the logs for the real CI step
-            - name: Populate `/nix/store`
-              run: nix develop --command true
-
-            - name: Allow direnv
-              run: direnv allow
-
-            - name: Cache x86_64 inputs for devShell
+            - name: Update `/nix/store`
               run: |
-                  ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
+                  nix develop --command true
 
-            - name: Perform continuous integration
-              run: direnv exec . engage
+            - name: Run CI tests
+              run: |
+                  direnv exec . engage
 
-    build-static:
-        name: Static Artifacts
+    build:
+        name: Build
         runs-on: ubuntu-latest
-        needs: tests
+        needs: setup
         strategy:
-            max-parallel: 8
             matrix:
-                target:
-                    [
-                        "x86_64-unknown-linux-musl",
-                        "x86_64-unknown-linux-musl-jemalloc",
-                        "aarch64-unknown-linux-musl",
-                        "aarch64-unknown-linux-musl-jemalloc",
-                    ]
-
+                include:
+                    - target: aarch64-unknown-linux-musl
+                    - target: aarch64-unknown-linux-musl-jemalloc
+                    - target: x86_64-unknown-linux-musl
+                    - target: x86_64-unknown-linux-musl-jemalloc
         steps:
             - name: Sync repository
               uses: actions/checkout@v4
 
-            - name: Install Nix (with flakes and nix-command enabled)
-              uses: cachix/install-nix-action@v26
-              with:
-                  nix_path: nixpkgs=channel:nixos-unstable
+            - name: Install Nix
+              uses: DeterminateSystems/nix-installer-action@main
 
-                  # Add `nix-community`, Crane, upstream Conduit, and conduwuit binary caches
-                  extra_nix_config: |
-                      experimental-features = nix-command flakes
-                      extra-substituters = https://nix-community.cachix.org
-                      extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
-                      extra-substituters = https://crane.cachix.org
-                      extra-trusted-public-keys = crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=
-                      extra-substituters = https://nix.computer.surgery/conduit
-                      extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo=
-                      extra-substituters = https://attic.kennel.juneis.dog/conduit
-                      extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
-                      extra-substituters = https://attic.kennel.juneis.dog/conduwuit
-                      extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
-
-            - name: Add alternative Nix binary caches if specified
-              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+            - name: Enable Cachix binary cache
               run: |
-                  echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
-                  echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
+                  nix-env -iA cachix -f https://cachix.org/api/v1/install
+                  cachix use crane
+                  cachix use nix-community
 
-            - name: Pop/push Magic Nix Cache
+            - name: Configure Magic Nix Cache
               uses: DeterminateSystems/magic-nix-cache-action@main
 
-            - name: Configure `nix-direnv`
+            - name: Apply Nix binary cache configuration
+              run: |
+                  sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+                  extra-substituters = https://nix.computer.surgery/conduit https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
+                  extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo= conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+                  EOF
+
+            - name: Use alternative Nix binary caches if specified
+              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+              run: |
+                  sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+                  extra-substituters = ${{ env.ATTIC_ENDPOINT }}
+                  extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}
+                  EOF
+
+            - name: Install and activate `direnv`
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
+                  nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
+                  direnv allow
 
-            - name: Install `direnv` and `nix-direnv`
-              run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
-
-            - name: Pop/push downloaded crate cache
-              uses: actions/cache@v4
-              with:
-                  key: downloaded-crates
-                  path: ~/.cargo
-
-            - name: Pop/push compiled crate cache
-              uses: actions/cache@v4
-              with:
-                  key: compiled-crates-${{runner.os}}
-                  path: target
-
-            # Do this to shorten the logs for the real CI step
-            - name: Populate `/nix/store`
-              run: nix develop --command true
-
-            - name: Allow direnv
-              run: direnv allow
-
-            - name: Cache x86_64 inputs for devShell
+            - name: Update `/nix/store`
               run: |
-                  ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
+                  nix develop --command true
 
-            - name: Build static artifacts
+            - name: Build static ${{ matrix.target }}
               run: |
-                  ./bin/nix-build-and-cache .#static-${{ matrix.target }}
+                  bin/nix-build-and-cache .#static-${{ matrix.target }}
                   mkdir -p target/release
-                  cp -v -f result/bin/conduit target/release
+                  cp -v -f result/bin/conduit target/release/
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/${{ matrix.target }}.deb
 
-            - name: Upload static artifacts
+            - name: Upload static-${{ matrix.target }}
               uses: actions/upload-artifact@v4
               with:
                   name: static-${{ matrix.target }}
                   path: result/bin/conduit
                   if-no-files-found: error
 
-            - name: Upload static deb artifacts
+            - name: Upload deb ${{ matrix.target }}
               uses: actions/upload-artifact@v4
               with:
                   name: ${{ matrix.target }}.deb
                   path: target/debian/${{ matrix.target }}.deb
                   if-no-files-found: error
 
-    build-oci:
-        name: OCI Artifacts and Publish
-        runs-on: ubuntu-latest
-        needs: tests
-        strategy:
-            max-parallel: 8
-            matrix:
-                oci-target:
-                    [
-                        "x86_64-unknown-linux-musl",
-                        "x86_64-unknown-linux-musl-jemalloc",
-                        "aarch64-unknown-linux-musl",
-                        "aarch64-unknown-linux-musl-jemalloc",
-                    ]
-
-        steps:
-            - name: Sync repository
-              uses: actions/checkout@v4
-
-            - name: Install Nix (with flakes and nix-command enabled)
-              uses: cachix/install-nix-action@v26
-              with:
-                  nix_path: nixpkgs=channel:nixos-unstable
-
-                  # Add `nix-community`, Crane, upstream Conduit, and conduwuit binary caches
-                  extra_nix_config: |
-                      experimental-features = nix-command flakes
-                      extra-substituters = https://nix-community.cachix.org
-                      extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
-                      extra-substituters = https://crane.cachix.org
-                      extra-trusted-public-keys = crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=
-                      extra-substituters = https://nix.computer.surgery/conduit
-                      extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo=
-                      extra-substituters = https://attic.kennel.juneis.dog/conduit
-                      extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
-                      extra-substituters = https://attic.kennel.juneis.dog/conduwuit
-                      extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
-
-            - name: Add alternative Nix binary caches if specified
-              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+            - name: Build OCI image ${{ matrix.target }}
               run: |
-                  echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
-                  echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
+                  bin/nix-build-and-cache .#oci-image-${{ matrix.target }}
+                  cp -v -f result oci-image-${{ matrix.target }}.tar.gz
 
-            - name: Pop/push Magic Nix Cache
-              uses: DeterminateSystems/magic-nix-cache-action@main
-
-            - name: Configure `nix-direnv`
-              run: |
-                  echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
-
-            - name: Install `direnv` and `nix-direnv`
-              run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
-
-            - name: Pop/push downloaded crate cache
-              uses: actions/cache@v4
-              with:
-                  key: downloaded-crates
-                  path: ~/.cargo
-
-            - name: Pop/push compiled crate cache
-              uses: actions/cache@v4
-              with:
-                  key: compiled-crates-${{runner.os}}
-                  path: target
-
-            # Do this to shorten the logs for the real CI step
-            - name: Populate `/nix/store`
-              run: nix develop --command true
-
-            - name: Allow direnv
-              run: direnv allow
-
-            - name: Cache x86_64 inputs for devShell
-              run: |
-                  ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
-
-            - name: Build OCI images
-              run: |
-                  ./bin/nix-build-and-cache .#oci-image-${{ matrix.oci-target }}
-                  cp -v -f result oci-image-${{ matrix.oci-target }}.tar.gz
-
-            - name: Upload OCI image artifacts
+            - name: Upload OCI image ${{ matrix.target }}
               uses: actions/upload-artifact@v4
               with:
-                  name: oci-image-${{ matrix.oci-target }}
-                  path: oci-image-${{ matrix.oci-target }}.tar.gz
+                  name: oci-image-${{ matrix.target }}.tar.gz
+                  path: oci-image-${{ matrix.target }}.tar.gz
                   if-no-files-found: error
-                  # don't compress again
                   compression-level: 0
 
-    create-and-push-manifest:
-        name: Create and Push Docker Manifest
+    docker:
+        name: Publish Docker manifests
         runs-on: ubuntu-latest
-        needs: build-oci
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+        needs: build
         steps:
-            - name: Download OCI Images Artifacts
+            - name: Download artifacts
               uses: actions/download-artifact@v4
-              with:
-                  merge-multiple: true
 
             - name: Load OCI Images and tag
               run: |
@@ -304,51 +176,67 @@ jobs:
 
             - name: Login to GitHub Container Registry
               uses: docker/login-action@v3
+              env:
+                  GITHUB_USERNAME: ${{ github.repository_owner }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              if: ${{ (env.GITHUB_USERNAME != '') && (env.GITHUB_TOKEN != '') }}
               with:
                   registry: ghcr.io
-                  username: ${{ github.actor }}
+                  username: ${{ github.repository_owner }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Create and push Manifest to GitHub
+            - name: Create and push combined manifest to GitHub
+              env:
+                  GITHUB_USERNAME: ${{ github.repository_owner }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              if: ${{ (env.GITHUB_USERNAME != '') && (env.GITHUB_TOKEN != '') }}
               run: |
                   REPO_GHCR="ghcr.io/${{ github.repository }}"
                   SHA_TAG="${{ github.ref_name }}-${{ github.sha }}"
                   BRANCH_TAG="${{ github.ref_name }}"
                   if [ "$BRANCH_TAG" == "main" ]; then
-                    BRANCH_TAG="latest"
+                  BRANCH_TAG="latest"
                   fi
 
                   docker manifest create $REPO_GHCR:$SHA_TAG \
-                    --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
-                    --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
+                  --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
+                  --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
                   docker manifest push $REPO_GHCR:$SHA_TAG
 
                   docker manifest create $REPO_GHCR:$BRANCH_TAG \
-                    --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
-                    --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
+                  --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
+                  --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
                   docker manifest push $REPO_GHCR:$BRANCH_TAG
 
             - name: Login to Docker Hub
               uses: docker/login-action@v3
+              env:
+                  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+                  DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+              if: ${{ (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               with:
-                  username: ${{ secrets.DOCKER_USERNAME }}
-                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+                  username: ${{ env.DOCKER_USERNAME }}
+                  password: ${{ env.DOCKERHUB_TOKEN }}
 
-            - name: Create and push manifest to Docker Hub
+            - name: Create and push combined manifest to Docker Hub
+              env:
+                  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+                  DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+              if: ${{ (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   REPO_DOCKER="docker.io/${{ github.repository }}"
                   SHA_TAG="${{ github.ref_name }}-${{ github.sha }}"
                   BRANCH_TAG="${{ github.ref_name }}"
                   if [ "$BRANCH_TAG" == "main" ]; then
-                    BRANCH_TAG="latest"
+                  BRANCH_TAG="latest"
                   fi
 
                   docker manifest create $REPO_DOCKER:$SHA_TAG \
-                    --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
-                    --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
+                  --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
+                  --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
                   docker manifest push $REPO_DOCKER:$SHA_TAG
 
                   docker manifest create $REPO_DOCKER:$BRANCH_TAG \
-                    --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
-                    --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
+                  --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
+                  --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
                   docker manifest push $REPO_DOCKER:$BRANCH_TAG
