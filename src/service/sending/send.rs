@@ -43,15 +43,15 @@ pub(crate) enum FedDest {
 	Named(String, String),
 }
 
-struct ActualDestination {
-	destination: FedDest,
+struct ActualDest {
+	dest: FedDest,
 	host: String,
 	string: String,
 	cached: bool,
 }
 
 #[tracing::instrument(skip_all, name = "send")]
-pub(crate) async fn send_request<T>(client: &Client, destination: &ServerName, req: T) -> Result<T::IncomingResponse>
+pub(crate) async fn send_request<T>(client: &Client, dest: &ServerName, req: T) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug,
 {
@@ -60,8 +60,8 @@ where
 	}
 
 	trace!("Preparing to send request");
-	validate_destination(destination)?;
-	let actual = get_actual_destination(destination).await?;
+	validate_dest(dest)?;
+	let actual = get_actual_dest(dest).await?;
 	let mut http_request = req
 		.try_into_http_request::<Vec<u8>>(&actual.string, SendAccessToken::IfRequired(""), &[MatrixVersion::V1_5])
 		.map_err(|e| {
@@ -69,7 +69,7 @@ where
 			Error::BadServerResponse("Invalid destination")
 		})?;
 
-	sign_request::<T>(destination, &mut http_request);
+	sign_request::<T>(dest, &mut http_request);
 	let request = Request::try_from(http_request)?;
 	let method = request.method().clone();
 	let url = request.url().clone();
@@ -81,13 +81,13 @@ where
 		"Sending request",
 	);
 	match client.execute(request).await {
-		Ok(response) => handle_response::<T>(destination, actual, &method, &url, response).await,
-		Err(e) => handle_error::<T>(destination, &actual, &method, &url, e),
+		Ok(response) => handle_response::<T>(dest, actual, &method, &url, response).await,
+		Err(e) => handle_error::<T>(dest, &actual, &method, &url, e),
 	}
 }
 
 async fn handle_response<T>(
-	destination: &ServerName, actual: ActualDestination, method: &Method, url: &Url, mut response: Response,
+	dest: &ServerName, actual: ActualDest, method: &Method, url: &Url, mut response: Response,
 ) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug,
@@ -116,10 +116,7 @@ where
 
 	debug!("Got {status:?} for {method} {url}");
 	if !status.is_success() {
-		return Err(Error::Federation(
-			destination.to_owned(),
-			RumaError::from_http_response(http_response),
-		));
+		return Err(Error::Federation(dest.to_owned(), RumaError::from_http_response(http_response)));
 	}
 
 	let response = T::IncomingResponse::try_from_http_response(http_response);
@@ -129,7 +126,7 @@ where
 			.actual_destinations()
 			.write()
 			.await
-			.insert(OwnedServerName::from(destination), (actual.destination, actual.host));
+			.insert(OwnedServerName::from(dest), (actual.dest, actual.host));
 	}
 
 	match response {
@@ -139,7 +136,7 @@ where
 }
 
 fn handle_error<T>(
-	_dest: &ServerName, actual: &ActualDestination, method: &Method, url: &Url, mut e: reqwest::Error,
+	_dest: &ServerName, actual: &ActualDest, method: &Method, url: &Url, mut e: reqwest::Error,
 ) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug,
@@ -164,7 +161,7 @@ where
 }
 
 #[tracing::instrument(skip_all, name = "resolve")]
-async fn get_actual_destination(server_name: &ServerName) -> Result<ActualDestination> {
+async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDest> {
 	let cached;
 	let cached_result = services()
 		.globals
@@ -174,17 +171,17 @@ async fn get_actual_destination(server_name: &ServerName) -> Result<ActualDestin
 		.get(server_name)
 		.cloned();
 
-	let (destination, host) = if let Some(result) = cached_result {
+	let (dest, host) = if let Some(result) = cached_result {
 		cached = true;
 		result
 	} else {
 		cached = false;
-		resolve_actual_destination(server_name).await?
+		resolve_actual_dest(server_name).await?
 	};
 
-	let string = destination.clone().into_https_string();
-	Ok(ActualDestination {
-		destination,
+	let string = dest.clone().into_https_string();
+	Ok(ActualDest {
+		dest,
 		host,
 		string,
 		cached,
@@ -195,26 +192,26 @@ async fn get_actual_destination(server_name: &ServerName) -> Result<ActualDestin
 /// Implemented according to the specification at <https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names>
 /// Numbers in comments below refer to bullet points in linked section of
 /// specification
-async fn resolve_actual_destination(destination: &'_ ServerName) -> Result<(FedDest, String)> {
-	trace!("Finding actual destination for {destination}");
-	let destination_str = destination.as_str().to_owned();
-	let mut hostname = destination_str.clone();
-	let actual_destination = match get_ip_with_port(&destination_str) {
+async fn resolve_actual_dest(dest: &'_ ServerName) -> Result<(FedDest, String)> {
+	trace!("Finding actual destination for {dest}");
+	let dest_str = dest.as_str().to_owned();
+	let mut hostname = dest_str.clone();
+	let actual_dest = match get_ip_with_port(&dest_str) {
 		Some(host_port) => {
 			debug!("1: IP literal with provided or default port");
 			host_port
 		},
 		None => {
-			if let Some(pos) = destination_str.find(':') {
+			if let Some(pos) = dest_str.find(':') {
 				debug!("2: Hostname with included port");
 
-				let (host, port) = destination_str.split_at(pos);
+				let (host, port) = dest_str.split_at(pos);
 				query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448)).await?;
 
 				FedDest::Named(host.to_owned(), port.to_owned())
 			} else {
-				trace!("Requesting well known for {destination}");
-				if let Some(delegated_hostname) = request_well_known(destination.as_str()).await? {
+				trace!("Requesting well known for {dest}");
+				if let Some(delegated_hostname) = request_well_known(dest.as_str()).await? {
 					debug!("3: A .well-known file is available");
 					hostname = add_port_to_hostname(&delegated_hostname).into_uri_string();
 					match get_ip_with_port(&delegated_hostname) {
@@ -255,7 +252,7 @@ async fn resolve_actual_destination(destination: &'_ ServerName) -> Result<(FedD
 					}
 				} else {
 					trace!("4: No .well-known or an error occured");
-					if let Some(hostname_override) = query_srv_record(&destination_str).await? {
+					if let Some(hostname_override) = query_srv_record(&dest_str).await? {
 						debug!("4: No .well-known; SRV record found");
 
 						let force_port = hostname_override.port();
@@ -269,8 +266,8 @@ async fn resolve_actual_destination(destination: &'_ ServerName) -> Result<(FedD
 						}
 					} else {
 						debug!("4: No .well-known; 5: No SRV record found");
-						query_and_cache_override(&destination_str, &destination_str, 8448).await?;
-						add_port_to_hostname(&destination_str)
+						query_and_cache_override(&dest_str, &dest_str, 8448).await?;
+						add_port_to_hostname(&dest_str)
 					}
 				}
 			}
@@ -290,28 +287,28 @@ async fn resolve_actual_destination(destination: &'_ ServerName) -> Result<(FedD
 		FedDest::Named(hostname, ":8448".to_owned())
 	};
 
-	debug!("Actual destination: {actual_destination:?} hostname: {hostname:?}");
-	Ok((actual_destination, hostname.into_uri_string()))
+	debug!("Actual destination: {actual_dest:?} hostname: {hostname:?}");
+	Ok((actual_dest, hostname.into_uri_string()))
 }
 
 #[tracing::instrument(skip_all, name = "well-known")]
-async fn request_well_known(destination: &str) -> Result<Option<String>> {
+async fn request_well_known(dest: &str) -> Result<Option<String>> {
 	if !services()
 		.globals
 		.resolver
 		.overrides
 		.read()
 		.unwrap()
-		.contains_key(destination)
+		.contains_key(dest)
 	{
-		query_and_cache_override(destination, destination, 8448).await?;
+		query_and_cache_override(dest, dest, 8448).await?;
 	}
 
 	let response = services()
 		.globals
 		.client
 		.well_known
-		.get(&format!("https://{destination}/.well-known/matrix/server"))
+		.get(&format!("https://{dest}/.well-known/matrix/server"))
 		.send()
 		.await;
 
@@ -347,7 +344,7 @@ async fn request_well_known(destination: &str) -> Result<Option<String>> {
 		return Ok(None);
 	}
 
-	debug_info!("{:?} found at {:?}", destination, m_server);
+	debug_info!("{:?} found at {:?}", dest, m_server);
 	Ok(Some(m_server.to_owned()))
 }
 
@@ -428,7 +425,7 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 	}
 }
 
-fn sign_request<T>(destination: &ServerName, http_request: &mut http::Request<Vec<u8>>)
+fn sign_request<T>(dest: &ServerName, http_request: &mut http::Request<Vec<u8>>)
 where
 	T: OutgoingRequest + Debug,
 {
@@ -451,7 +448,7 @@ where
 			.into(),
 	);
 	req_map.insert("origin".to_owned(), services().globals.server_name().as_str().into());
-	req_map.insert("destination".to_owned(), destination.as_str().into());
+	req_map.insert("destination".to_owned(), dest.as_str().into());
 
 	let mut req_json = serde_json::from_value(req_map.into()).expect("valid JSON is valid BTreeMap");
 	ruma::signatures::sign_json(
@@ -502,25 +499,25 @@ fn validate_url(url: &Url) -> Result<()> {
 	Ok(())
 }
 
-fn validate_destination(destination: &ServerName) -> Result<()> {
-	if destination == services().globals.server_name() {
+fn validate_dest(dest: &ServerName) -> Result<()> {
+	if dest == services().globals.server_name() {
 		return Err(Error::bad_config("Won't send federation request to ourselves"));
 	}
 
-	if destination.is_ip_literal() || IPAddress::is_valid(destination.host()) {
-		validate_destination_ip_literal(destination)?;
+	if dest.is_ip_literal() || IPAddress::is_valid(dest.host()) {
+		validate_dest_ip_literal(dest)?;
 	}
 
 	Ok(())
 }
 
-fn validate_destination_ip_literal(destination: &ServerName) -> Result<()> {
+fn validate_dest_ip_literal(dest: &ServerName) -> Result<()> {
 	trace!("Destination is an IP literal, checking against IP range denylist.",);
 	debug_assert!(
-		destination.is_ip_literal() || !IPAddress::is_valid(destination.host()),
+		dest.is_ip_literal() || !IPAddress::is_valid(dest.host()),
 		"Destination is not an IP literal."
 	);
-	let ip = IPAddress::parse(destination.host()).map_err(|e| {
+	let ip = IPAddress::parse(dest.host()).map_err(|e| {
 		debug_error!("Failed to parse IP literal from string: {}", e);
 		Error::BadServerResponse("Invalid IP address")
 	})?;
@@ -538,20 +535,20 @@ fn validate_ip(ip: &IPAddress) -> Result<()> {
 	Ok(())
 }
 
-fn get_ip_with_port(destination_str: &str) -> Option<FedDest> {
-	if let Ok(destination) = destination_str.parse::<SocketAddr>() {
-		Some(FedDest::Literal(destination))
-	} else if let Ok(ip_addr) = destination_str.parse::<IpAddr>() {
+fn get_ip_with_port(dest_str: &str) -> Option<FedDest> {
+	if let Ok(dest) = dest_str.parse::<SocketAddr>() {
+		Some(FedDest::Literal(dest))
+	} else if let Ok(ip_addr) = dest_str.parse::<IpAddr>() {
 		Some(FedDest::Literal(SocketAddr::new(ip_addr, 8448)))
 	} else {
 		None
 	}
 }
 
-fn add_port_to_hostname(destination_str: &str) -> FedDest {
-	let (host, port) = match destination_str.find(':') {
-		None => (destination_str, ":8448"),
-		Some(pos) => destination_str.split_at(pos),
+fn add_port_to_hostname(dest_str: &str) -> FedDest {
+	let (host, port) = match dest_str.find(':') {
+		None => (dest_str, ":8448"),
+		Some(pos) => dest_str.split_at(pos),
 	};
 
 	FedDest::Named(host.to_owned(), port.to_owned())
