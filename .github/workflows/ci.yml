@@ -38,12 +38,15 @@ jobs:
             - name: Configure Magic Nix Cache
               uses: DeterminateSystems/magic-nix-cache-action@main
 
-            - name: Apply custom Nix configuration
+            - name: Apply Nix binary cache configuration
               run: |
+                  nix-env -iA cachix -f https://cachix.org/api/v1/install
+                  cachix use crane
+                  cachix use nix-community
                   sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
                   experimental-features = nix-command flakes
-                  extra-substituters = https://nix-community.cachix.org https://crane.cachix.org https://nix.computer.surgery/conduit https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
-                  extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk= conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo= conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+                  extra-substituters = https://nix.computer.surgery/conduit https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
+                  extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo= conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
                   EOF
 
             - name: Use alternative Nix binary caches if specified
@@ -53,16 +56,15 @@ jobs:
                   extra-substituters = ${{ env.ATTIC_ENDPOINT }}
                   extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}
                   EOF
-
             - name: Install and activate `direnv`
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
                   nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
+                  direnv allow
 
             - name: Update `/nix/store`
               run: |
                   nix develop --command true
-                  direnv allow
 
             - name: Run CI tests
               run: |
