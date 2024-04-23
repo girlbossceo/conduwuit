@@ -737,7 +737,7 @@ impl Service {
 		)
 		.map_err(|e| {
 			error!("Auth check failed: {:?}", e);
-			Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed.")
+			Error::BadRequest(ErrorKind::forbidden(), "Auth check failed.")
 		})?;
 
 		if !auth_check {

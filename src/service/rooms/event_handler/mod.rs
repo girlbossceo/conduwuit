@@ -406,9 +406,9 @@ impl Service {
 				None::<PduEvent>, // TODO: third party invite
 				|k, s| auth_events.get(&(k.to_string().into(), s.to_owned())),
 			)
-			.map_err(|_e| Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed"))?
+			.map_err(|_e| Error::BadRequest(ErrorKind::forbidden(), "Auth check failed"))?
 			{
-				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed"));
+				return Err(Error::BadRequest(ErrorKind::forbidden(), "Auth check failed"));
 			}
 
 			trace!("Validation successful.");
@@ -491,11 +491,11 @@ impl Service {
 					.and_then(|event_id| services().rooms.timeline.get_pdu(event_id).ok().flatten())
 			},
 		)
-		.map_err(|_e| Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed."))?;
+		.map_err(|_e| Error::BadRequest(ErrorKind::forbidden(), "Auth check failed."))?;
 
 		if !check_result {
 			return Err(Error::BadRequest(
-				ErrorKind::InvalidParam,
+				ErrorKind::forbidden(),
 				"Event has failed auth check with state at the event.",
 			));
 		}
@@ -514,7 +514,7 @@ impl Service {
 		let soft_fail = !state_res::event_auth::auth_check(&room_version, &incoming_pdu, None::<PduEvent>, |k, s| {
 			auth_events.get(&(k.clone(), s.to_owned()))
 		})
-		.map_err(|_e| Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed."))?;
+		.map_err(|_e| Error::BadRequest(ErrorKind::forbidden(), "Auth check failed."))?;
 
 		// 13. Use state resolution to find new room state
 
