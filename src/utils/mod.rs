@@ -1,3 +1,4 @@
+pub(crate) mod clap;
 pub(crate) mod debug;
 pub(crate) mod error;
 

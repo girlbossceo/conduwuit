@@ -45,10 +45,12 @@ use tower_http::{
 };
 use tracing::{debug, error, info, warn, Span};
 use tracing_subscriber::{prelude::*, reload, EnvFilter, Registry};
-use utils::error::{Error, Result};
+use utils::{
+	clap,
+	error::{Error, Result},
+};
 
 mod api;
-mod clap;
 mod config;
 mod database;
 mod routes;
